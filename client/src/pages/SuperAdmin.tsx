@@ -137,24 +137,7 @@ export default function SuperAdmin() {
             <ConsentsTab />
           </TabsContent>
           <TabsContent value="monitoring">
-            <Tabs defaultValue="system-health" className="w-full">
-              <TabsList className="bg-muted/50 p-1 rounded-lg mb-4">
-                <TabsTrigger value="system-health" className="rounded-md data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2" data-testid="subtab-system-health">
-                  <Activity className="h-4 w-4" />
-                  System Health
-                </TabsTrigger>
-                <TabsTrigger value="analytics" className="rounded-md data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2" data-testid="subtab-analytics">
-                  <TrendingUp className="h-4 w-4" />
-                  Analytics
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="system-health">
-                <MonitoringTab />
-              </TabsContent>
-              <TabsContent value="analytics">
-                <AnalyticsTab />
-              </TabsContent>
-            </Tabs>
+            <MonitoringTab />
           </TabsContent>
           <TabsContent value="help-tickets">
             <HelpTicketsTab />
@@ -3828,7 +3811,7 @@ interface OrgUsage {
   planDistribution: Array<{ plan_name: string; plan_code: string; org_count: number }>;
 }
 
-type MonitoringSubTab = 'overview' | 'api-logs' | 'users' | 'features' | 'performance' | 'database' | 'organizations';
+type MonitoringSubTab = 'overview' | 'api-logs' | 'users' | 'features' | 'performance' | 'database' | 'organizations' | 'analytics';
 
 function MonitoringTab() {
   const { toast } = useToast();
@@ -4832,6 +4815,15 @@ function MonitoringTab() {
             <Building2 className="h-4 w-4 mr-1" />
             Organizations
           </Button>
+          <Button
+            variant={subTab === 'analytics' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSubTab('analytics')}
+            data-testid="btn-subtab-analytics"
+          >
+            <TrendingUp className="h-4 w-4 mr-1" />
+            Analytics
+          </Button>
         </div>
         <Button variant="outline" size="sm" onClick={handleRefresh} data-testid="btn-refresh-monitoring">
           <RefreshCw className="h-4 w-4 mr-1" />
@@ -4845,6 +4837,7 @@ function MonitoringTab() {
       {subTab === 'performance' && renderPerformance()}
       {subTab === 'database' && renderDatabase()}
       {subTab === 'organizations' && renderOrgUsage()}
+      {subTab === 'analytics' && <AnalyticsTab />}
     </div>
   );
 }
