@@ -1025,6 +1025,31 @@ function normalizeSearchStr(str: string | null | undefined): string {
   return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
+async function logUserActivity(
+  userId: string,
+  action: string,
+  entityType?: string,
+  entityId?: number,
+  metadata?: Record<string, any>,
+  req?: any
+) {
+  try {
+    const { userActivityLogs } = await import("@shared/schema");
+    const { db } = await import("./db");
+    await db.insert(userActivityLogs).values({
+      userId,
+      action,
+      entityType: entityType ?? null,
+      entityId: entityId ?? null,
+      metadata: metadata ?? null,
+      ipAddress: req?.ip ?? null,
+      userAgent: req?.headers?.['user-agent'] ?? null,
+    });
+  } catch (e) {
+    // Non-critical - don't let logging failures break the app
+  }
+}
+
 // Helper to check if user has elevated system role (super_admin or marketing)
 function hasAdminAccess(user: User | undefined | null): boolean {
   return user?.role === 'super_admin' || user?.role === 'marketing';
@@ -3907,6 +3932,10 @@ export async function registerRoutes(
       
       const portfolio = await storage.createPortfolio(portfolioData);
       
+      if (userId) {
+        logUserActivity(userId, 'create_portfolio', 'portfolio', portfolio.id, { name: portfolio.name, organizationId: portfolio.organizationId }, req);
+      }
+      
       // Record usage after successful creation
       if (userId) {
         const { recordResourceUsage, METER_CODES } = await import("./services/billing");
@@ -4682,6 +4711,10 @@ export async function registerRoutes(
       };
       const project = await storage.createProject(sanitizedInput);
       
+      if (userId) {
+        logUserActivity(userId, 'create_project', 'project', project.id, { name: project.name, organizationId: project.organizationId }, req);
+      }
+      
       // Record usage after successful creation
       if (userId) {
         const { recordResourceUsage, METER_CODES } = await import("./services/billing");
@@ -4919,6 +4952,12 @@ export async function registerRoutes(
           ? plannerTask.dueDateTime.split('T')[0] 
           : (plannerTask.startDateTime ? plannerTask.startDateTime.split('T')[0] : defaultEndDate);
 
+        const startMs = new Date(taskStartDate).getTime();
+        const endMs = new Date(taskEndDate).getTime();
+        const diffDays = Math.ceil((endMs - startMs) / (1000 * 60 * 60 * 24));
+        const durationDays = Number.isFinite(diffDays) ? Math.max(0, diffDays) : 1;
+        const taskIsMilestone = durationDays === 0;
+
         const task = await storage.createTask({
           projectId: project.id,
           taskIndex,
@@ -4927,11 +4966,12 @@ export async function registerRoutes(
           priority: mapPlannerPriorityToProjectPriority(plannerTask.priority || 5),
           startDate: taskStartDate,
           endDate: taskEndDate,
+          durationDays,
           progress: plannerTask.percentComplete || 0,
           status: mapPlannerPercentToStatus(plannerTask.percentComplete || 0),
           phase: bucketName,
           outlineLevel: 1,
-          isMilestone: false,
+          isMilestone: taskIsMilestone,
           isSummary: false,
           isCritical: false,
           externalId: plannerTask.id,
@@ -5300,12 +5340,12 @@ export async function registerRoutes(
       
       // Helper to calculate duration in days
       const calculateDuration = (start: string | null, end: string | null): number => {
-        if (!start || !end) return 1; // Default to 1 day for Gantt chart visibility
+        if (!start || !end) return 1;
         const startDate = new Date(start);
         const endDate = new Date(end);
         const diffTime = endDate.getTime() - startDate.getTime();
         const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return Math.max(1, days); // Minimum 1 day for Gantt chart bars
+        return Math.max(0, days);
       };
 
       for (const dvTask of dataverseTasks) {
@@ -5339,10 +5379,14 @@ export async function registerRoutes(
         // Use msdyn_outlinelevel if available, otherwise calculate from WBS
         const outlineLevel = dvTask.msdyn_outlinelevel || (wbsId ? wbsId.split('.').length : 1);
         
-        // Calculate duration
-        const durationDays = dvTask.msdyn_duration 
-          ? Math.round(dvTask.msdyn_duration / (60 * 24)) // Duration is in minutes
-          : calculateDuration(taskStartDate, taskEndDate);
+        // Calculate duration - msdyn_duration is in minutes
+        let durationDays: number;
+        if (dvTask.msdyn_duration !== null && dvTask.msdyn_duration !== undefined) {
+          durationDays = Math.round(dvTask.msdyn_duration / (60 * 24));
+        } else {
+          durationDays = calculateDuration(taskStartDate, taskEndDate);
+        }
+        const taskIsMilestone = durationDays === 0;
 
         const task = await storage.createTask({
           projectId: project.id,
@@ -5356,7 +5400,7 @@ export async function registerRoutes(
           progress,
           status,
           outlineLevel,
-          isMilestone: false,  // Don't auto-detect milestones - let users set this
+          isMilestone: taskIsMilestone,
           isSummary: false,
           isCritical: false,
           wbs: wbsId || null,
@@ -6001,12 +6045,12 @@ export async function registerRoutes(
         };
         
         const calculateDuration = (start: string | null, end: string | null): number => {
-          if (!start || !end) return 1; // Default to 1 day for Gantt chart visibility
+          if (!start || !end) return 1;
           const startDate = new Date(start);
           const endDate = new Date(end);
           const diffTime = endDate.getTime() - startDate.getTime();
           const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          return Math.max(1, days); // Minimum 1 day for Gantt chart bars
+          return Math.max(0, days);
         };
 
         // Create tasks from Dataverse
@@ -6041,9 +6085,13 @@ export async function registerRoutes(
           const wbsId = dvTask.msdyn_wbsid || '';
           // Initially set outlineLevel to 1, will recalculate from hierarchy later
           const outlineLevel = dvTask.msdyn_outlinelevel || (wbsId ? wbsId.split('.').length : 1);
-          const durationDays = dvTask.msdyn_duration 
-            ? Math.round(dvTask.msdyn_duration / (60 * 24))
-            : calculateDuration(taskStartDate, taskEndDate);
+          let durationDays: number;
+          if (dvTask.msdyn_duration !== null && dvTask.msdyn_duration !== undefined) {
+            durationDays = Math.round(dvTask.msdyn_duration / (60 * 24));
+          } else {
+            durationDays = calculateDuration(taskStartDate, taskEndDate);
+          }
+          const taskIsMilestone = durationDays === 0;
 
           const task = await storage.createTask({
             projectId: project.id,
@@ -6057,7 +6105,7 @@ export async function registerRoutes(
             progress,
             status,
             outlineLevel,
-            isMilestone: false,  // Don't auto-detect milestones - let users set this
+            isMilestone: taskIsMilestone,
             isSummary: false,
             isCritical: false,
             wbs: wbsId || null,
@@ -6983,6 +7031,12 @@ export async function registerRoutes(
           ? plannerTask.dueDateTime.split('T')[0] 
           : (plannerTask.startDateTime ? plannerTask.startDateTime.split('T')[0] : defaultEndDate);
 
+        const startMs = new Date(taskStartDate).getTime();
+        const endMs = new Date(taskEndDate).getTime();
+        const diffDays = Math.ceil((endMs - startMs) / (1000 * 60 * 60 * 24));
+        const durationDays = Number.isFinite(diffDays) ? Math.max(0, diffDays) : 1;
+        const taskIsMilestone = durationDays === 0;
+
         const task = await storage.createTask({
           projectId: project.id,
           taskIndex,
@@ -6991,11 +7045,12 @@ export async function registerRoutes(
           priority: mapPlannerPriorityToProjectPriority(plannerTask.priority || 5),
           startDate: taskStartDate,
           endDate: taskEndDate,
+          durationDays,
           progress: plannerTask.percentComplete || 0,
           status: mapPlannerPercentToStatus(plannerTask.percentComplete || 0),
           phase: bucketName,
           outlineLevel: 1,
-          isMilestone: false,
+          isMilestone: taskIsMilestone,
           isSummary: false,
           isCritical: false,
           externalId: plannerTask.id,
@@ -20089,107 +20144,188 @@ Return ONLY valid JSON.`;
     }
 
     try {
-      const now = new Date();
-      const today = now.toISOString().split('T')[0];
-      const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const days = Math.min(Math.max(Number(req.query.days) || 1, 1), 365);
+      const methodFilter = (req.query.method as string || '').toUpperCase();
+      const statusFilter = req.query.status as string || '';
+      const pathSearch = (req.query.path as string || '').trim();
+      const userIdFilter = req.query.userId as string || '';
+      const orgIdFilter = req.query.orgId as string || '';
 
-      // Get active users (users with activity in last 24 hours)
-      const activeUsersResult = await db.execute(sql`
-        SELECT COUNT(DISTINCT user_id) as count FROM api_request_logs 
-        WHERE created_at >= NOW() - INTERVAL '24 hours'
-      `);
-      const activeUsers24h = Number(activeUsersResult.rows[0]?.count || 0);
+      const intervalStr = `${days} days`;
 
-      // Get total requests today
-      const requestsTodayResult = await db.execute(sql`
-        SELECT COUNT(*) as count FROM api_request_logs 
-        WHERE DATE(created_at) = CURRENT_DATE
-      `);
-      const requestsToday = Number(requestsTodayResult.rows[0]?.count || 0);
+      const conditions: string[] = [`l.created_at >= NOW() - INTERVAL '${intervalStr}'`];
+      if (methodFilter && ['GET','POST','PUT','PATCH','DELETE'].includes(methodFilter)) {
+        conditions.push(`l.method = '${methodFilter}'`);
+      }
+      if (statusFilter === '2xx') conditions.push(`l.status_code >= 200 AND l.status_code < 300`);
+      else if (statusFilter === '3xx') conditions.push(`l.status_code >= 300 AND l.status_code < 400`);
+      else if (statusFilter === '4xx') conditions.push(`l.status_code >= 400 AND l.status_code < 500`);
+      else if (statusFilter === '5xx') conditions.push(`l.status_code >= 500`);
+      if (pathSearch) {
+        const escaped = pathSearch.replace(/'/g, "''");
+        conditions.push(`l.path ILIKE '%${escaped}%'`);
+      }
+      if (userIdFilter) {
+        const escaped = userIdFilter.replace(/'/g, "''");
+        conditions.push(`l.user_id = '${escaped}'`);
+      }
+      if (orgIdFilter && !isNaN(Number(orgIdFilter))) {
+        conditions.push(`l.organization_id = ${Number(orgIdFilter)}`);
+      }
 
-      // Get average response time
-      const avgResponseTimeResult = await db.execute(sql`
-        SELECT AVG(duration) as avg FROM api_request_logs 
-        WHERE created_at >= NOW() - INTERVAL '24 hours' AND duration IS NOT NULL
-      `);
+      const whereClause = conditions.join(' AND ');
+      const simpleWhere = `created_at >= NOW() - INTERVAL '${intervalStr}'`;
+
+      const activeUsersResult = await db.execute(sql.raw(
+        `SELECT COUNT(DISTINCT l.user_id) as count FROM api_request_logs l WHERE ${whereClause}`
+      ));
+      const activeUsers = Number(activeUsersResult.rows[0]?.count || 0);
+
+      const requestsResult = await db.execute(sql.raw(
+        `SELECT COUNT(*) as count FROM api_request_logs l WHERE ${whereClause}`
+      ));
+      const requestsCount = Number(requestsResult.rows[0]?.count || 0);
+
+      const avgResponseTimeResult = await db.execute(sql.raw(
+        `SELECT AVG(l.duration) as avg FROM api_request_logs l WHERE ${whereClause} AND l.duration IS NOT NULL`
+      ));
       const avgResponseTime = Number(avgResponseTimeResult.rows[0]?.avg || 0).toFixed(0);
 
-      // Get error rate
-      const errorRateResult = await db.execute(sql`
-        SELECT 
-          COUNT(*) FILTER (WHERE status_code >= 400) as errors,
+      const errorRateResult = await db.execute(sql.raw(
+        `SELECT 
+          COUNT(*) FILTER (WHERE l.status_code >= 400) as errors,
           COUNT(*) as total
-        FROM api_request_logs 
-        WHERE created_at >= NOW() - INTERVAL '24 hours'
-      `);
+        FROM api_request_logs l WHERE ${whereClause}`
+      ));
       const errors = Number(errorRateResult.rows[0]?.errors || 0);
       const total = Number(errorRateResult.rows[0]?.total || 1);
       const errorRate = ((errors / total) * 100).toFixed(2);
 
-      // Get total users
       const totalUsersResult = await db.execute(sql`SELECT COUNT(*) as count FROM users`);
       const totalUsers = Number(totalUsersResult.rows[0]?.count || 0);
 
-      // Get total organizations
       const totalOrgsResult = await db.execute(sql`
         SELECT COUNT(*) as count FROM organizations WHERE deactivated_at IS NULL
       `);
       const totalOrganizations = Number(totalOrgsResult.rows[0]?.count || 0);
 
-      // Get total projects
       const totalProjectsResult = await db.execute(sql`
         SELECT COUNT(*) as count FROM projects WHERE deleted_at IS NULL
       `);
       const totalProjects = Number(totalProjectsResult.rows[0]?.count || 0);
 
-      // Get requests per day for last 7 days
-      const requestsPerDayResult = await db.execute(sql`
-        SELECT DATE(created_at) as date, COUNT(*) as count 
-        FROM api_request_logs 
-        WHERE created_at >= NOW() - INTERVAL '7 days'
-        GROUP BY DATE(created_at) 
-        ORDER BY date DESC
-      `);
+      const requestsPerDayResult = await db.execute(sql.raw(
+        `SELECT DATE(l.created_at) as date, COUNT(*) as count 
+        FROM api_request_logs l
+        WHERE ${whereClause}
+        GROUP BY DATE(l.created_at) 
+        ORDER BY date DESC`
+      ));
 
-      // Get top endpoints
-      const topEndpointsResult = await db.execute(sql`
-        SELECT path, method, COUNT(*) as count, AVG(duration) as avg_duration
-        FROM api_request_logs 
-        WHERE created_at >= NOW() - INTERVAL '24 hours'
-        GROUP BY path, method 
+      const topEndpointsResult = await db.execute(sql.raw(
+        `SELECT l.path, l.method, COUNT(*) as count, AVG(l.duration) as avg_duration
+        FROM api_request_logs l
+        WHERE ${whereClause}
+        GROUP BY l.path, l.method 
         ORDER BY count DESC 
-        LIMIT 10
-      `);
+        LIMIT 15`
+      ));
 
-      // Get user registrations per day for last 30 days
-      const registrationsResult = await db.execute(sql`
-        SELECT DATE(created_at) as date, COUNT(*) as count 
+      const regDays = Math.max(days, 30);
+      const registrationsResult = await db.execute(sql.raw(
+        `SELECT DATE(created_at) as date, COUNT(*) as count 
         FROM users 
-        WHERE created_at >= NOW() - INTERVAL '30 days'
+        WHERE created_at >= NOW() - INTERVAL '${regDays} days'
         GROUP BY DATE(created_at) 
-        ORDER BY date DESC
-      `);
+        ORDER BY date DESC`
+      ));
 
-      // Get recent errors
-      const recentErrorsResult = await db.execute(sql`
-        SELECT path, status_code, error_message, COUNT(*) as count
-        FROM api_request_logs 
-        WHERE status_code >= 400 AND created_at >= NOW() - INTERVAL '24 hours'
-        GROUP BY path, status_code, error_message
+      const recentErrorsResult = await db.execute(sql.raw(
+        `SELECT l.path, l.status_code, l.error_message, COUNT(*) as count
+        FROM api_request_logs l
+        WHERE l.status_code >= 400 AND ${whereClause}
+        GROUP BY l.path, l.status_code, l.error_message
         ORDER BY count DESC
-        LIMIT 10
+        LIMIT 15`
+      ));
+
+      const methodBreakdownResult = await db.execute(sql.raw(
+        `SELECT l.method, COUNT(*) as count
+        FROM api_request_logs l
+        WHERE ${whereClause}
+        GROUP BY l.method
+        ORDER BY count DESC`
+      ));
+
+      const statusBreakdownResult = await db.execute(sql.raw(
+        `SELECT 
+          CASE 
+            WHEN l.status_code >= 200 AND l.status_code < 300 THEN '2xx'
+            WHEN l.status_code >= 300 AND l.status_code < 400 THEN '3xx'
+            WHEN l.status_code >= 400 AND l.status_code < 500 THEN '4xx'
+            WHEN l.status_code >= 500 THEN '5xx'
+            ELSE 'other'
+          END as status_group,
+          COUNT(*) as count
+        FROM api_request_logs l
+        WHERE ${whereClause}
+        GROUP BY status_group
+        ORDER BY count DESC`
+      ));
+
+      const topUsersResult = await db.execute(sql.raw(
+        `SELECT l.user_id, u.email, u.first_name, u.last_name, COUNT(*) as count
+        FROM api_request_logs l
+        LEFT JOIN users u ON l.user_id = u.id
+        WHERE ${whereClause} AND l.user_id IS NOT NULL
+        GROUP BY l.user_id, u.email, u.first_name, u.last_name
+        ORDER BY count DESC
+        LIMIT 10`
+      ));
+
+      const topOrgsResult = await db.execute(sql.raw(
+        `SELECT l.organization_id, o.name as org_name, COUNT(*) as count
+        FROM api_request_logs l
+        LEFT JOIN organizations o ON l.organization_id = o.id
+        WHERE ${whereClause} AND l.organization_id IS NOT NULL
+        GROUP BY l.organization_id, o.name
+        ORDER BY count DESC
+        LIMIT 10`
+      ));
+
+      const slowestEndpointsResult = await db.execute(sql.raw(
+        `SELECT l.path, l.method, AVG(l.duration) as avg_duration, COUNT(*) as count
+        FROM api_request_logs l
+        WHERE ${whereClause} AND l.duration IS NOT NULL
+        GROUP BY l.path, l.method
+        HAVING COUNT(*) >= 3
+        ORDER BY avg_duration DESC
+        LIMIT 10`
+      ));
+
+      const allUsersResult = await db.execute(sql.raw(
+        `SELECT DISTINCT l.user_id, u.email, u.first_name, u.last_name
+        FROM api_request_logs l
+        LEFT JOIN users u ON l.user_id = u.id
+        WHERE l.user_id IS NOT NULL AND l.created_at >= NOW() - INTERVAL '90 days'
+        ORDER BY u.email
+        LIMIT 100`
+      ));
+
+      const allOrgsResult = await db.execute(sql`
+        SELECT id, name FROM organizations WHERE deactivated_at IS NULL ORDER BY name LIMIT 100
       `);
 
       res.json({
         summary: {
-          activeUsers24h,
-          requestsToday,
+          activeUsers24h: activeUsers,
+          requestsToday: requestsCount,
           avgResponseTime: `${avgResponseTime}ms`,
           errorRate: `${errorRate}%`,
           totalUsers,
           totalOrganizations,
           totalProjects,
+          totalErrors: errors,
         },
         charts: {
           requestsPerDay: requestsPerDayResult.rows,
@@ -20197,6 +20333,15 @@ Return ONLY valid JSON.`;
         },
         topEndpoints: topEndpointsResult.rows,
         recentErrors: recentErrorsResult.rows,
+        methodBreakdown: methodBreakdownResult.rows,
+        statusBreakdown: statusBreakdownResult.rows,
+        topUsers: topUsersResult.rows,
+        topOrgs: topOrgsResult.rows,
+        slowestEndpoints: slowestEndpointsResult.rows,
+        filterOptions: {
+          users: allUsersResult.rows,
+          organizations: allOrgsResult.rows,
+        },
       });
     } catch (error) {
       console.error('Error fetching monitoring overview:', error);
@@ -20316,6 +20461,156 @@ Return ONLY valid JSON.`;
       console.error('Error fetching user activity:', error);
       const classified = classifyError(error);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch user activity' : classified.message });
+    }
+  });
+
+  // Get comprehensive activity ledger - all user actions as a general ledger
+  app.get('/api/admin/monitoring/activity-ledger', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!await requireSuperAdmin(userId ?? null)) {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+      const offset = (page - 1) * limit;
+      const search = (req.query.search as string) || '';
+      const actionFilter = (req.query.action as string) || '';
+      const entityFilter = (req.query.entity as string) || '';
+      const userFilter = (req.query.userId as string) || '';
+      const sortCol = (req.query.sortCol as string) || 'created_at';
+      const sortDir = (req.query.sortDir as string) === 'asc' ? 'ASC' : 'DESC';
+      const days = parseInt(req.query.days as string) || 30;
+
+      const whereClauses: string[] = [
+        `l.method IN ('POST', 'PUT', 'PATCH', 'DELETE')`,
+        `l.created_at >= NOW() - INTERVAL '${days} days'`,
+        `l.path NOT LIKE '/api/admin/monitoring%'`,
+        `l.path NOT LIKE '/api/auth/session%'`,
+        `l.user_id IS NOT NULL`,
+      ];
+
+      if (userFilter) {
+        whereClauses.push(`l.user_id = '${userFilter.replace(/'/g, "''")}'`);
+      }
+      if (search) {
+        const s = search.replace(/'/g, "''");
+        whereClauses.push(`(
+          l.path ILIKE '%${s}%' 
+          OR u.email ILIKE '%${s}%' 
+          OR u.first_name ILIKE '%${s}%' 
+          OR u.last_name ILIKE '%${s}%'
+          OR o.name ILIKE '%${s}%'
+        )`);
+      }
+      if (actionFilter) {
+        const methodMap: Record<string, string> = { 'create': 'POST', 'update': 'PUT', 'delete': 'DELETE', 'patch': 'PATCH' };
+        if (actionFilter === 'update') {
+          whereClauses.push(`l.method IN ('PUT', 'PATCH')`);
+        } else if (methodMap[actionFilter]) {
+          whereClauses.push(`l.method = '${methodMap[actionFilter]}'`);
+        }
+      }
+      if (entityFilter) {
+        whereClauses.push(`l.path ILIKE '%/api/${entityFilter.replace(/'/g, "''")}%'`);
+      }
+
+      const allowedSortCols: Record<string, string> = {
+        'created_at': 'l.created_at',
+        'user': 'u.email',
+        'method': 'l.method',
+        'path': 'l.path',
+        'status': 'l.status_code',
+        'duration': 'l.duration',
+      };
+      const sortColumn = allowedSortCols[sortCol] || 'l.created_at';
+
+      const whereStr = whereClauses.join(' AND ');
+
+      const countResult = await db.execute(sql.raw(
+        `SELECT COUNT(*) as total FROM api_request_logs l
+         LEFT JOIN users u ON l.user_id = u.id
+         LEFT JOIN organizations o ON l.organization_id = o.id
+         WHERE ${whereStr}`
+      ));
+      const total = Number(countResult.rows[0]?.total || 0);
+
+      const logsResult = await db.execute(sql.raw(
+        `SELECT 
+          l.id,
+          l.method,
+          l.path,
+          l.status_code,
+          l.duration,
+          l.user_id,
+          l.organization_id,
+          l.ip_address,
+          l.user_agent,
+          l.request_body,
+          l.error_message,
+          l.created_at,
+          u.email as user_email,
+          u.first_name as user_first_name,
+          u.last_name as user_last_name,
+          u.profile_image_url as user_avatar,
+          o.name as org_name,
+          o.slug as org_slug
+        FROM api_request_logs l
+        LEFT JOIN users u ON l.user_id = u.id
+        LEFT JOIN organizations o ON l.organization_id = o.id
+        WHERE ${whereStr}
+        ORDER BY ${sortColumn} ${sortDir}
+        LIMIT ${limit} OFFSET ${offset}`
+      ));
+
+      const distinctUsersResult = await db.execute(sql.raw(
+        `SELECT DISTINCT l.user_id, u.email, u.first_name, u.last_name
+         FROM api_request_logs l
+         LEFT JOIN users u ON l.user_id = u.id
+         WHERE l.method IN ('POST', 'PUT', 'PATCH', 'DELETE')
+           AND l.created_at >= NOW() - INTERVAL '${days} days'
+           AND l.user_id IS NOT NULL
+         ORDER BY u.email
+         LIMIT 50`
+      ));
+
+      const summaryResult = await db.execute(sql.raw(
+        `SELECT 
+          COUNT(*) FILTER (WHERE method = 'POST') as creates,
+          COUNT(*) FILTER (WHERE method IN ('PUT', 'PATCH')) as updates,
+          COUNT(*) FILTER (WHERE method = 'DELETE') as deletes,
+          COUNT(*) FILTER (WHERE status_code >= 400) as errors,
+          COUNT(DISTINCT user_id) as unique_users
+        FROM api_request_logs
+        WHERE method IN ('POST', 'PUT', 'PATCH', 'DELETE')
+          AND created_at >= NOW() - INTERVAL '${days} days'
+          AND user_id IS NOT NULL
+          AND path NOT LIKE '/api/admin/monitoring%'`
+      ));
+
+      const sensitiveFields = ['password', 'token', 'secret', 'apiKey', 'api_key', 'accessToken', 'refreshToken', 'currentPassword', 'newPassword', 'confirmPassword'];
+      const sanitizedActivities = logsResult.rows.map((row: any) => {
+        if (row.request_body && typeof row.request_body === 'object') {
+          const sanitized = { ...row.request_body };
+          for (const field of sensitiveFields) {
+            if (field in sanitized) sanitized[field] = '[REDACTED]';
+          }
+          return { ...row, request_body: sanitized };
+        }
+        return row;
+      });
+
+      res.json({
+        activities: sanitizedActivities,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+        users: distinctUsersResult.rows,
+        summary: summaryResult.rows[0] || { creates: 0, updates: 0, deletes: 0, errors: 0, unique_users: 0 },
+      });
+    } catch (error) {
+      console.error('Error fetching activity ledger:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch activity ledger' : classified.message });
     }
   });
 
@@ -20547,7 +20842,7 @@ Return ONLY valid JSON.`;
     }
   });
 
-  // Get organization usage statistics
+  // Get organization usage statistics (comprehensive dashboard)
   app.get('/api/admin/monitoring/organization-usage', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
@@ -20555,24 +20850,82 @@ Return ONLY valid JSON.`;
     }
 
     try {
-      // Organization usage statistics
-      const orgUsageResult = await db.execute(sql`
+      const orgDetailsResult = await db.execute(sql`
         SELECT 
           o.id,
           o.name,
           o.slug,
+          o.created_at,
+          p.code as plan_code,
+          p.name as plan_name,
+          s.status as sub_status,
+          s.bonus_seats,
+          s.current_period_start,
+          s.current_period_end,
           (SELECT COUNT(*) FROM organization_members om WHERE om.organization_id = o.id) as member_count,
-          (SELECT COUNT(*) FROM projects p WHERE p.organization_id = o.id AND p.deleted_at IS NULL) as project_count,
-          (SELECT COUNT(*) FROM tasks t INNER JOIN projects p ON t.project_id = p.id WHERE p.organization_id = o.id) as task_count,
+          (SELECT COUNT(*) FROM projects pr WHERE pr.organization_id = o.id AND pr.deleted_at IS NULL) as project_count,
+          (SELECT COUNT(*) FROM tasks t INNER JOIN projects pr ON t.project_id = pr.id WHERE pr.organization_id = o.id) as task_count,
+          (SELECT COUNT(*) FROM portfolios pf WHERE pf.organization_id = o.id AND pf.deleted_at IS NULL) as portfolio_count,
+          (SELECT COUNT(*) FROM risks r INNER JOIN projects pr ON r.project_id = pr.id WHERE pr.organization_id = o.id) as risk_count,
+          (SELECT COUNT(*) FROM milestones m INNER JOIN projects pr ON m.project_id = pr.id WHERE pr.organization_id = o.id) as milestone_count,
+          (SELECT COUNT(*) FROM issues i INNER JOIN projects pr ON i.project_id = pr.id WHERE pr.organization_id = o.id) as issue_count,
           (SELECT COUNT(*) FROM api_request_logs l WHERE l.organization_id = o.id AND l.created_at >= NOW() - INTERVAL '7 days') as api_requests_7d
         FROM organizations o
+        LEFT JOIN subscriptions s ON s.org_id = o.id
+        LEFT JOIN plans p ON p.id = s.plan_id
         WHERE o.deactivated_at IS NULL
-        ORDER BY api_requests_7d DESC
-        LIMIT 20
+        ORDER BY o.name
+      `);
+
+      const creditUsageResult = await db.execute(sql`
+        SELECT 
+          s.org_id,
+          m.code as meter_code,
+          m.name as meter_name,
+          ur.included_units,
+          ur.used_units,
+          ur.remaining_units,
+          ur.overage_units,
+          bc.period_start,
+          bc.period_end,
+          bc.status as cycle_status
+        FROM usage_rollups ur
+        JOIN billing_cycles bc ON bc.id = ur.billing_cycle_id
+        JOIN subscriptions s ON s.id = bc.subscription_id
+        JOIN meters m ON m.id = ur.meter_id
+        WHERE bc.status = 'OPEN'
+        ORDER BY s.org_id, m.code
+      `);
+
+      const totalsResult = await db.execute(sql`
+        SELECT
+          COUNT(DISTINCT o.id) as total_orgs,
+          (SELECT COUNT(*) FROM organization_members) as total_users,
+          (SELECT COUNT(*) FROM projects WHERE deleted_at IS NULL) as total_projects,
+          (SELECT COUNT(*) FROM tasks t INNER JOIN projects p ON t.project_id = p.id) as total_tasks,
+          (SELECT COUNT(*) FROM portfolios WHERE deleted_at IS NULL) as total_portfolios
+        FROM organizations o
+        WHERE o.deactivated_at IS NULL
+      `);
+
+      const planDistResult = await db.execute(sql`
+        SELECT 
+          COALESCE(p.name, 'No Plan') as plan_name,
+          COALESCE(p.code, 'none') as plan_code,
+          COUNT(o.id) as org_count
+        FROM organizations o
+        LEFT JOIN subscriptions s ON s.org_id = o.id
+        LEFT JOIN plans p ON p.id = s.plan_id
+        WHERE o.deactivated_at IS NULL
+        GROUP BY p.name, p.code
+        ORDER BY org_count DESC
       `);
 
       res.json({
-        organizations: orgUsageResult.rows,
+        organizations: orgDetailsResult.rows,
+        creditUsage: creditUsageResult.rows,
+        totals: totalsResult.rows[0],
+        planDistribution: planDistResult.rows,
       });
     } catch (error) {
       console.error('Error fetching organization usage:', error);
