@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { HoneypotField } from "@/components/HoneypotField";
+import { PublicFeatureComparison } from "@/components/PublicFeatureComparison";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import demoVideo from "@assets/30_sec_video_1771015821657.mp4";
 import clientLogo1 from "@assets/client-logo-1.png";
@@ -149,7 +150,7 @@ export default function LandingPageNew() {
         <div className="hidden sm:flex items-center gap-3 flex-wrap">
           <Button
             variant="ghost"
-            onClick={() => setLocation("/signin")}
+            onClick={() => setLocation("/auth")}
             data-testid="button-login"
           >
             Log in
@@ -176,7 +177,7 @@ export default function LandingPageNew() {
           <Button
             variant="ghost"
             className="w-full justify-start"
-            onClick={() => { setLocation("/signin"); setMobileMenuOpen(false); }}
+            onClick={() => { setLocation("/auth"); setMobileMenuOpen(false); }}
             data-testid="button-login-mobile"
           >
             Log in
@@ -264,6 +265,10 @@ export default function LandingPageNew() {
               )}
             </div>
           </div>
+        </section>
+
+        <section className="py-16 px-6 md:px-12 lg:px-20 max-w-[1400px] mx-auto" data-testid="section-feature-comparison">
+          <PublicFeatureComparison />
         </section>
 
         <section id="signup-section" className="py-16 max-w-[1400px] mx-auto">
