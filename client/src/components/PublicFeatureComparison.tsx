@@ -6,7 +6,7 @@ import { SiOracle, SiAsana, SiJira } from "react-icons/si";
 import fridayLogo from "../assets/logo-icon.png";
 import plannerLogo from "@/assets/planner-logo.png";
 import smartsheetLogo from "@assets/image_1771603681527.png";
-import mondayLogo from "@assets/image_1771615426614.png";
+import mondayLogo from "@assets/image_1771691018717.png";
 
 type Status = "yes" | "partial" | "no";
 
@@ -42,7 +42,7 @@ function ToolLogoPublic({ tool, variant = "default" }: { tool: string; variant?:
       <img src={smartsheetLogo} alt="Smartsheet" className={`${dim} rounded-lg object-contain`} />
     ),
     "Monday.com": (
-      <img src={mondayLogo} alt="Monday.com" className={`${dim} rounded-lg object-contain`} />
+      <img src={mondayLogo} alt="Monday.com" className={`${dim} rounded-lg object-contain ${blend}`} />
     ),
     "Asana": (
       <div className={`${dim} rounded-lg bg-gradient-to-br from-orange-400 to-rose-500 flex items-center justify-center text-white`}>
