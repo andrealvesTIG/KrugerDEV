@@ -47,6 +47,14 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { HoneypotField } from "@/components/HoneypotField";
@@ -1232,6 +1240,33 @@ function getPlanFeatures(plan: PlanData, creditCosts: CreditCostData[]): string[
 }
 
 function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
+  const [contactOpen, setContactOpen] = useState(false);
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactName, setContactName] = useState('');
+  const [contactMessage, setContactMessage] = useState('');
+  const [contactSending, setContactSending] = useState(false);
+  const [contactSent, setContactSent] = useState(false);
+  const { toast } = useToast();
+
+  const handleContactSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contactEmail) return;
+    setContactSending(true);
+    try {
+      await apiRequest('POST', '/api/contact-sales', {
+        email: contactEmail,
+        name: contactName,
+        message: contactMessage,
+      });
+      setContactSent(true);
+      toast({ title: 'Request sent', description: 'Our sales team will be in touch shortly.' });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to send request. Please try again.', variant: 'destructive' });
+    } finally {
+      setContactSending(false);
+    }
+  };
+
   const { data: plansResponse, isLoading } = useQuery<PlansResponse>({
     queryKey: ['/api/billing/plans'],
   });
@@ -1319,7 +1354,7 @@ function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
                       variant="outline"
                       size="sm"
                       className="w-full border-slate-500 text-slate-200 hover:bg-slate-600"
-                      onClick={scrollToSignIn}
+                      onClick={isCustom ? () => { setContactSent(false); setContactEmail(''); setContactName(''); setContactMessage(''); setContactOpen(true); } : scrollToSignIn}
                       data-testid={`button-pricing-${plan.code.toLowerCase()}`}
                     >
                       {isFree ? 'Get it Free' : isCustom ? 'Contact Sales' : 'Start Free'}
@@ -1331,6 +1366,44 @@ function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
           </div>
         )}
       </div>
+
+      <Dialog open={contactOpen} onOpenChange={setContactOpen}>
+        <DialogContent className="bg-slate-800 border-slate-700 text-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">Contact Sales</DialogTitle>
+            <DialogDescription className="text-slate-300">
+              Tell us about your needs and we'll get back to you shortly.
+            </DialogDescription>
+          </DialogHeader>
+          {contactSent ? (
+            <div className="flex flex-col items-center gap-3 py-6">
+              <CheckCircle className="h-12 w-12 text-green-400" />
+              <p className="text-slate-200 text-center">Thanks! Our sales team will reach out to you soon.</p>
+              <Button variant="outline" size="sm" className="mt-2 border-slate-500 text-slate-200 hover:bg-slate-600" onClick={() => setContactOpen(false)} data-testid="button-contact-close">
+                Close
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleContactSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="contact-name" className="text-slate-200">Name</Label>
+                <Input id="contact-name" placeholder="Your name" value={contactName} onChange={(e) => setContactName(e.target.value)} className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400" data-testid="input-contact-name" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contact-email" className="text-slate-200">Email <span className="text-red-400">*</span></Label>
+                <Input id="contact-email" type="email" required placeholder="you@company.com" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400" data-testid="input-contact-email" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contact-message" className="text-slate-200">Message</Label>
+                <Textarea id="contact-message" placeholder="Tell us about your project management needs..." value={contactMessage} onChange={(e) => setContactMessage(e.target.value)} className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400 min-h-[80px]" data-testid="input-contact-message" />
+              </div>
+              <Button type="submit" disabled={contactSending || !contactEmail} className="w-full bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-400 hover:to-orange-300 font-semibold" data-testid="button-contact-submit">
+                {contactSending ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Sending...</> : 'Send Request'}
+              </Button>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

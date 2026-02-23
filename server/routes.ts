@@ -21928,5 +21928,29 @@ Return ONLY valid JSON.`;
     }
   });
 
+  app.post('/api/contact-sales', async (req, res) => {
+    try {
+      const schema = z.object({
+        email: z.string().email(),
+        name: z.string().optional(),
+        message: z.string().optional(),
+      });
+      const { email, name, message } = schema.parse(req.body);
+
+      await sendEmail({
+        to: 'info@fridayreport.ai',
+        subject: `Contact Sales Request from ${name || email}`,
+        text: `New contact sales inquiry:\n\nName: ${name || 'Not provided'}\nEmail: ${email}\nMessage: ${message || 'No message provided'}`,
+        html: `<h2>New Contact Sales Inquiry</h2><p><strong>Name:</strong> ${name || 'Not provided'}</p><p><strong>Email:</strong> ${email}</p><p><strong>Message:</strong> ${message || 'No message provided'}</p>`,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Contact sales error:", error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to send contact request" : classified.message });
+    }
+  });
+
   return httpServer;
 }
