@@ -60,6 +60,13 @@ Integration credentials (e.g., OAuth tokens) and connection statuses are stored 
 ### Resource Management Module
 Includes features for tracking resource skills with proficiency levels, resource availability (time-off, leave), and a resource utilization API. Frontend views include Capacity Planning, Workload Dashboard, Availability Calendar, and Demand vs. Supply Forecast.
 
+## Schema Files
+Schema definitions are split across multiple files:
+- `shared/schema.ts` — Core application tables (70 tables: projects, tasks, issues, milestones, portfolios, resources, notifications, etc.)
+- `shared/models/billing.ts` — Billing/subscription tables (plans, meters, subscriptions, seat_assignments, billing_cycles, billing_transactions, referrals, etc.)
+- `shared/models/auth.ts` — Authentication tables (users, sessions, magic_link_tokens, password_reset_tokens)
+- `shared/models/chat.ts` — Chat tables (conversations, messages)
+
 ## External Dependencies
 
 ### Database & ORM

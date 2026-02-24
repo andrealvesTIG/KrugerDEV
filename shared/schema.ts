@@ -1956,7 +1956,7 @@ export const userActivityLogs = pgTable("user_activity_logs", {
   userId: varchar("user_id").references(() => users.id).notNull(),
   action: text("action").notNull(),
   entityType: text("entity_type"),
-  entityId: integer("entity_id"),
+  entityId: text("entity_id"),
   metadata: jsonb("metadata"),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
