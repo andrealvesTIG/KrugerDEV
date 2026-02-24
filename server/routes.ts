@@ -20406,6 +20406,56 @@ Return ONLY valid JSON.`;
   });
 
   // Get user activity statistics
+  app.get('/api/admin/users/activity-counts', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!await requireSuperAdmin(userId ?? null)) {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+
+    try {
+      const result = await db.execute(sql`
+        SELECT 
+          user_id,
+          COUNT(*) as total_actions,
+          COUNT(DISTINCT DATE(created_at)) as active_days,
+          MAX(created_at) as last_active_at
+        FROM api_request_logs 
+        WHERE user_id IS NOT NULL AND created_at >= NOW() - INTERVAL '90 days'
+        GROUP BY user_id
+      `);
+
+      const usageResult = await db.execute(sql`
+        SELECT 
+          actor_user_id as user_id,
+          COUNT(*) as usage_count
+        FROM usage_events 
+        WHERE actor_user_id IS NOT NULL AND occurred_at >= NOW() - INTERVAL '90 days'
+        GROUP BY actor_user_id
+      `);
+
+      const activityMap: Record<string, { totalActions: number; activeDays: number; lastActiveAt: string | null; usageEvents: number }> = {};
+      for (const row of result.rows as any[]) {
+        activityMap[row.user_id] = {
+          totalActions: Number(row.total_actions),
+          activeDays: Number(row.active_days),
+          lastActiveAt: row.last_active_at,
+          usageEvents: 0,
+        };
+      }
+      for (const row of usageResult.rows as any[]) {
+        if (!activityMap[row.user_id]) {
+          activityMap[row.user_id] = { totalActions: 0, activeDays: 0, lastActiveAt: null, usageEvents: 0 };
+        }
+        activityMap[row.user_id].usageEvents = Number(row.usage_count);
+      }
+
+      res.json(activityMap);
+    } catch (error: any) {
+      console.error('Error fetching user activity counts:', error);
+      res.status(500).json({ message: 'Failed to fetch activity counts' });
+    }
+  });
+
   app.get('/api/admin/monitoring/user-activity', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
@@ -20839,6 +20889,45 @@ Return ONLY valid JSON.`;
       console.error('Error fetching database stats:', error);
       const classified = classifyError(error);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch database statistics' : classified.message });
+    }
+  });
+
+  app.get('/api/admin/organizations/credit-usage', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!await requireSuperAdmin(userId ?? null)) {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+
+    try {
+      const result = await db.execute(sql`
+        SELECT 
+          s.org_id,
+          m.code as meter_code,
+          ur.included_units,
+          ur.used_units,
+          ur.remaining_units,
+          ur.overage_units
+        FROM usage_rollups ur
+        JOIN billing_cycles bc ON bc.id = ur.billing_cycle_id
+        JOIN subscriptions s ON s.id = bc.subscription_id
+        JOIN meters m ON m.id = ur.meter_id
+        WHERE bc.status = 'OPEN' AND s.org_id IS NOT NULL AND m.code = 'credits'
+      `);
+
+      const creditMap: Record<number, { included: number; used: number; remaining: number; overage: number }> = {};
+      for (const row of result.rows as any[]) {
+        creditMap[row.org_id] = {
+          included: Number(row.included_units || 0),
+          used: Number(row.used_units || 0),
+          remaining: Number(row.remaining_units || 0),
+          overage: Number(row.overage_units || 0),
+        };
+      }
+
+      res.json(creditMap);
+    } catch (error: any) {
+      console.error('Error fetching org credit usage:', error);
+      res.status(500).json({ message: 'Failed to fetch credit usage' });
     }
   });
 

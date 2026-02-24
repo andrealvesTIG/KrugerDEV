@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck, Activity, BarChart3, AlertTriangle, Clock, Globe, Zap, HardDrive, TrendingUp, RefreshCw, HelpCircle, MessageSquare, CheckCircle, XCircle, Eye, Download, Mail, Copy, Send, MoreHorizontal, Wrench, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { FeatureComparisonTab } from "@/components/FeatureComparisonTab";
 import { format } from "date-fns";
@@ -173,9 +174,9 @@ interface OrgBillingInfo {
   billingHidden: boolean;
 }
 
-type OrgColumnKey = 'name' | 'slug' | 'description' | 'owner' | 'members' | 'plan' | 'created';
+type OrgColumnKey = 'name' | 'slug' | 'description' | 'owner' | 'members' | 'plan' | 'credits' | 'created';
 
-const defaultOrgColumns: OrgColumnKey[] = ['name', 'slug', 'description', 'plan', 'created'];
+const defaultOrgColumns: OrgColumnKey[] = ['name', 'slug', 'description', 'plan', 'credits', 'created'];
 
 function OrganizationsTab() {
   const { user } = useAuth();
@@ -239,6 +240,16 @@ function OrganizationsTab() {
 
   const { data: orgSubscriptions } = useQuery<OrgSubscription[]>({
     queryKey: ['/api/admin/organizations/subscriptions'],
+  });
+
+  interface OrgCreditUsage { included: number; used: number; remaining: number; overage: number; }
+  const { data: orgCreditUsage } = useQuery<Record<number, OrgCreditUsage>>({
+    queryKey: ['/api/admin/organizations/credit-usage'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/organizations/credit-usage', { credentials: 'include' });
+      if (!res.ok) return {};
+      return res.json();
+    },
   });
 
   const getOrgPlan = (orgId: number) => {
@@ -317,6 +328,7 @@ function OrganizationsTab() {
     owner: 'Owner',
     members: 'Members',
     plan: 'Plan',
+    credits: 'Credits',
     created: 'Created',
   };
 
@@ -557,6 +569,7 @@ function OrganizationsTab() {
               {visibleColumns.includes('owner') && <TableHead>Owner</TableHead>}
               {visibleColumns.includes('members') && <TableHead>Members</TableHead>}
               {visibleColumns.includes('plan') && <TableHead>Plan</TableHead>}
+              {visibleColumns.includes('credits') && <TableHead>Credits (Used / Included)</TableHead>}
               {visibleColumns.includes('created') && <TableHead>Created</TableHead>}
               <TableHead className="w-[120px]">Actions</TableHead>
             </TableRow>
@@ -597,6 +610,36 @@ function OrganizationsTab() {
                             </Badge>
                           )}
                         </div>
+                      );
+                    })()}
+                  </TableCell>
+                )}
+                {visibleColumns.includes('credits') && (
+                  <TableCell>
+                    {(() => {
+                      const credit = orgCreditUsage?.[org.id];
+                      if (!credit) return <span className="text-xs text-muted-foreground">-</span>;
+                      const pct = credit.included > 0 ? Math.round((credit.used / credit.included) * 100) : 0;
+                      const barColor = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-green-500';
+                      return (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-2 cursor-help min-w-[120px]">
+                                <div className="w-16 h-2 rounded-full bg-muted overflow-hidden">
+                                  <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                                </div>
+                                <span className="text-xs font-medium">{credit.used} / {credit.included}</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="left" className="text-xs">
+                              <p>Used: {credit.used}</p>
+                              <p>Included: {credit.included}</p>
+                              <p>Remaining: {credit.remaining}</p>
+                              {credit.overage > 0 && <p className="text-red-400">Overage: {credit.overage}</p>}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       );
                     })()}
                   </TableCell>
@@ -1169,7 +1212,7 @@ type UserSortField = 'name' | 'email' | 'role' | 'createdAt' | 'engagement';
 type SortDirection = 'asc' | 'desc';
 
 type UserColumnKey = 'name' | 'email' | 'role' | 'organizations' | 'verified' | 'engagement' | 'joined';
-const defaultUserColumns: UserColumnKey[] = ['name', 'email', 'role', 'organizations', 'engagement', 'joined'];
+const defaultUserColumns: UserColumnKey[] = ['name', 'email', 'role'];
 const userColumnLabels: Record<UserColumnKey, string> = {
   name: 'Name',
   email: 'Email',
@@ -1272,6 +1315,16 @@ function AllUsersTab() {
     queryKey: ['/api/admin/organizations/subscriptions'],
   });
 
+  interface UserActivity { totalActions: number; activeDays: number; lastActiveAt: string | null; usageEvents: number; }
+  const { data: userActivityCounts } = useQuery<Record<string, UserActivity>>({
+    queryKey: ['/api/admin/users/activity-counts'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/users/activity-counts', { credentials: 'include' });
+      if (!res.ok) return {};
+      return res.json();
+    },
+  });
+
   const getUserOrgs = (userId: string) => {
     const memberOrgIds = allOrgMembers?.filter(m => m.userId === userId).map(m => m.organizationId) ?? [];
     return allOrganizations?.filter(o => memberOrgIds.includes(o.id)) ?? [];
@@ -1279,16 +1332,57 @@ function AllUsersTab() {
 
   const getEngagementScore = (user: User) => {
     let score = 0;
-    if (user.emailVerified) score += 25;
-    if (user.onboardingCompleted) score += 25;
-    if (user.termsAcceptedAt) score += 15;
+    if (user.emailVerified) score += 10;
+    if (user.onboardingCompleted) score += 10;
+    if (user.termsAcceptedAt) score += 5;
     const orgCount = getUserOrgs(user.id).length;
-    if (orgCount >= 1) score += 20;
+    if (orgCount >= 1) score += 10;
     if (orgCount >= 2) score += 5;
-    const daysSinceSignup = user.createdAt ? Math.floor((Date.now() - new Date(user.createdAt).getTime()) / 86400000) : 0;
-    if (daysSinceSignup >= 7) score += 5;
-    if (daysSinceSignup >= 30) score += 5;
+
+    const activity = userActivityCounts?.[user.id];
+    if (activity) {
+      if (activity.activeDays >= 1) score += 10;
+      if (activity.activeDays >= 5) score += 10;
+      if (activity.activeDays >= 15) score += 10;
+      if (activity.totalActions >= 10) score += 5;
+      if (activity.totalActions >= 50) score += 5;
+      if (activity.totalActions >= 200) score += 10;
+      if (activity.usageEvents >= 1) score += 5;
+      if (activity.usageEvents >= 10) score += 5;
+    }
+
     return Math.min(score, 100);
+  };
+
+  const getEngagementBreakdown = (user: User) => {
+    const parts: string[] = [];
+    if (user.emailVerified) parts.push("Email verified (+10)");
+    if (user.onboardingCompleted) parts.push("Onboarding done (+10)");
+    if (user.termsAcceptedAt) parts.push("Terms accepted (+5)");
+    const orgCount = getUserOrgs(user.id).length;
+    if (orgCount >= 1) parts.push(`In ${orgCount} org${orgCount > 1 ? 's' : ''} (+${orgCount >= 2 ? 15 : 10})`);
+
+    const activity = userActivityCounts?.[user.id];
+    if (activity) {
+      if (activity.activeDays >= 1) {
+        let pts = 10;
+        if (activity.activeDays >= 15) pts = 30;
+        else if (activity.activeDays >= 5) pts = 20;
+        parts.push(`${activity.activeDays} active day${activity.activeDays !== 1 ? 's' : ''} (+${pts})`);
+      }
+      if (activity.totalActions >= 10) {
+        let pts = 5;
+        if (activity.totalActions >= 200) pts = 20;
+        else if (activity.totalActions >= 50) pts = 10;
+        parts.push(`${activity.totalActions} actions (+${pts})`);
+      }
+      if (activity.usageEvents >= 1) {
+        const pts = activity.usageEvents >= 10 ? 10 : 5;
+        parts.push(`${activity.usageEvents} credit events (+${pts})`);
+      }
+    }
+    if (parts.length === 0) parts.push("No activity tracked yet");
+    return parts;
   };
 
   const getEngagementLabel = (score: number): { label: string; color: string } => {
@@ -1825,12 +1919,30 @@ function AllUsersTab() {
                   onClick={() => handleSort('engagement')}
                   data-testid="header-sort-engagement"
                 >
-                  <div className="flex items-center gap-1">
-                    Engagement
-                    {sortField === 'engagement' && (
-                      sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                    )}
-                  </div>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-1">
+                          Engagement
+                          <HelpCircle className="h-3 w-3 text-muted-foreground" />
+                          {sortField === 'engagement' && (
+                            sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                          )}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-xs text-xs">
+                        <p className="font-semibold mb-1">Engagement Score (0-100)</p>
+                        <p className="mb-1">Measures how actively a user interacts with the platform based on:</p>
+                        <ul className="list-disc pl-3 space-y-0.5">
+                          <li>Account setup (email verified, onboarding, terms)</li>
+                          <li>Organization membership</li>
+                          <li>Active days in the last 90 days</li>
+                          <li>Total platform actions (API interactions)</li>
+                          <li>Credit/resource usage events</li>
+                        </ul>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </TableHead>
               )}
               {visibleUserColumns.includes('joined') && (
@@ -1928,15 +2040,32 @@ function AllUsersTab() {
                       const score = getEngagementScore(user);
                       const { label, color } = getEngagementLabel(score);
                       const onFree = isOnFreePlan(user.id);
+                      const breakdown = getEngagementBreakdown(user);
                       return (
                         <div className="flex items-center gap-2" data-testid={`engagement-${user.id}`}>
-                          <div className="w-16 h-2 rounded-full bg-muted overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${score >= 75 ? 'bg-green-500' : score >= 40 ? 'bg-amber-500' : 'bg-muted-foreground/40'}`}
-                              style={{ width: `${score}%` }}
-                            />
-                          </div>
-                          <span className={`text-xs font-medium ${color}`}>{score}</span>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex items-center gap-2 cursor-help">
+                                  <div className="w-16 h-2 rounded-full bg-muted overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full ${score >= 75 ? 'bg-green-500' : score >= 40 ? 'bg-amber-500' : 'bg-muted-foreground/40'}`}
+                                      style={{ width: `${score}%` }}
+                                    />
+                                  </div>
+                                  <span className={`text-xs font-medium ${color}`}>{score}</span>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="left" className="max-w-xs text-xs">
+                                <p className="font-semibold mb-1">{label} Engagement ({score}/100)</p>
+                                <ul className="space-y-0.5">
+                                  {breakdown.map((item, i) => (
+                                    <li key={i}>{item}</li>
+                                  ))}
+                                </ul>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                           {score >= 65 && onFree && (
                             <Badge
                               variant="outline"
