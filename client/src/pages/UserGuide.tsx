@@ -1041,13 +1041,14 @@ export default function UserGuide() {
   const [activeSection, setActiveSection] = useState("overview");
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
-  const scrollToSection = (sectionId: string) => {
+  const navigateToSection = (sectionId: string) => {
     setActiveSection(sectionId);
-    const element = document.getElementById(sectionId);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  const currentIndex = sections.findIndex(s => s.id === activeSection);
+  const prevSection = currentIndex > 0 ? sections[currentIndex - 1] : null;
+  const nextSection = currentIndex < sections.length - 1 ? sections[currentIndex + 1] : null;
 
   const handleDownloadPDF = async () => {
     setIsGeneratingPDF(true);
@@ -1107,7 +1108,7 @@ export default function UserGuide() {
                   {sections.map((section) => (
                     <button
                       key={section.id}
-                      onClick={() => scrollToSection(section.id)}
+                      onClick={() => navigateToSection(section.id)}
                       className={cn(
                         "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
                         activeSection === section.id
@@ -1125,8 +1126,9 @@ export default function UserGuide() {
             </CardContent>
           </Card>
 
-          <div className="flex-1 space-y-8 max-w-4xl">
-            <section id="overview" className="scroll-mt-8">
+          <div className="flex-1 max-w-4xl">
+            {activeSection === "overview" && (
+            <section id="overview">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -1186,8 +1188,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="dashboard" className="scroll-mt-8">
+            {activeSection === "dashboard" && (
+            <section id="dashboard">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -1290,8 +1294,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="portfolios" className="scroll-mt-8">
+            {activeSection === "portfolios" && (
+            <section id="portfolios">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -1342,8 +1348,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="projects" className="scroll-mt-8">
+            {activeSection === "projects" && (
+            <section id="projects">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -1430,8 +1438,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="intakes" className="scroll-mt-8">
+            {activeSection === "intakes" && (
+            <section id="intakes">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -1487,8 +1497,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="scoring" className="scroll-mt-8">
+            {activeSection === "scoring" && (
+            <section id="scoring">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -1544,8 +1556,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="benefits" className="scroll-mt-8">
+            {activeSection === "benefits" && (
+            <section id="benefits">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -1620,8 +1634,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="decisions" className="scroll-mt-8">
+            {activeSection === "decisions" && (
+            <section id="decisions">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -1688,8 +1704,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="lessons" className="scroll-mt-8">
+            {activeSection === "lessons" && (
+            <section id="lessons">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -1773,8 +1791,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="tasks" className="scroll-mt-8">
+            {activeSection === "tasks" && (
+            <section id="tasks">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -1836,8 +1856,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="issues" className="scroll-mt-8">
+            {activeSection === "issues" && (
+            <section id="issues">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -1890,8 +1912,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="timesheets" className="scroll-mt-8">
+            {activeSection === "timesheets" && (
+            <section id="timesheets">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -2052,8 +2076,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="resources" className="scroll-mt-8">
+            {activeSection === "resources" && (
+            <section id="resources">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -2214,8 +2240,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="calendar" className="scroll-mt-8">
+            {activeSection === "calendar" && (
+            <section id="calendar">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -2266,8 +2294,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="invoices" className="scroll-mt-8">
+            {activeSection === "invoices" && (
+            <section id="invoices">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -2317,8 +2347,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="simulation" className="scroll-mt-8">
+            {activeSection === "simulation" && (
+            <section id="simulation">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -2388,8 +2420,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="integrations" className="scroll-mt-8">
+            {activeSection === "integrations" && (
+            <section id="integrations">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -2486,8 +2520,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="custom-links" className="scroll-mt-8">
+            {activeSection === "custom-links" && (
+            <section id="custom-links">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -2546,8 +2582,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="custom-fields" className="scroll-mt-8">
+            {activeSection === "custom-fields" && (
+            <section id="custom-fields">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -2639,8 +2677,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="custom-tabs" className="scroll-mt-8">
+            {activeSection === "custom-tabs" && (
+            <section id="custom-tabs">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -2727,8 +2767,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="billing" className="scroll-mt-8">
+            {activeSection === "billing" && (
+            <section id="billing">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -2826,8 +2868,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="organizations" className="scroll-mt-8">
+            {activeSection === "organizations" && (
+            <section id="organizations">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -2872,8 +2916,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="users" className="scroll-mt-8">
+            {activeSection === "users" && (
+            <section id="users">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -2918,8 +2964,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="settings" className="scroll-mt-8">
+            {activeSection === "settings" && (
+            <section id="settings">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -2965,8 +3013,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="themes" className="scroll-mt-8">
+            {activeSection === "themes" && (
+            <section id="themes">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -3010,8 +3060,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="notifications" className="scroll-mt-8">
+            {activeSection === "notifications" && (
+            <section id="notifications">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -3069,8 +3121,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="reports" className="scroll-mt-8">
+            {activeSection === "reports" && (
+            <section id="reports">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -3127,8 +3181,10 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
 
-            <section id="super-admin" className="scroll-mt-8">
+            {activeSection === "super-admin" && (
+            <section id="super-admin">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -3199,6 +3255,30 @@ export default function UserGuide() {
                 </CardContent>
               </Card>
             </section>
+            )}
+
+            <div className="flex items-center justify-between mt-6">
+              {prevSection ? (
+                <Button
+                  variant="outline"
+                  onClick={() => navigateToSection(prevSection.id)}
+                  className="gap-2"
+                >
+                  <ChevronRight className="h-4 w-4 rotate-180" />
+                  {prevSection.name}
+                </Button>
+              ) : <div />}
+              {nextSection ? (
+                <Button
+                  variant="outline"
+                  onClick={() => navigateToSection(nextSection.id)}
+                  className="gap-2"
+                >
+                  {nextSection.name}
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              ) : <div />}
+            </div>
 
             <Card className="mt-8 bg-primary/5 border-primary/20">
               <CardContent className="py-6">
