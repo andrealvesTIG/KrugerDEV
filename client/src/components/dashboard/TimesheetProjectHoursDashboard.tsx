@@ -81,8 +81,13 @@ export function TimesheetProjectHoursDashboard() {
 
   const projects = projectsData || [];
 
+  const hiddenResourceIds = useMemo(() => {
+    return new Set((resources ?? []).filter(r => r.timesheetHidden).map(r => r.id));
+  }, [resources]);
+
   const filteredEntries = useMemo(() => {
     return (timesheetEntries ?? []).filter(e => {
+      if (hiddenResourceIds.has(e.resourceId)) return false;
       if (filters.resourceId && e.resourceId !== filters.resourceId) return false;
       if (filters.projectId && e.projectId !== filters.projectId) return false;
       if (filters.portfolioId) {
@@ -91,7 +96,7 @@ export function TimesheetProjectHoursDashboard() {
       }
       return true;
     });
-  }, [timesheetEntries, filters, projects]);
+  }, [timesheetEntries, filters, projects, hiddenResourceIds]);
 
   if (resourcesLoading || timesheetsLoading || projectsLoading || portfoliosLoading) {
     return (

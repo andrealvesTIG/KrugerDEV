@@ -1760,6 +1760,7 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
       isActive: resource?.isActive ?? true,
       isApprover: resource?.isApprover ?? false,
       isIntakeApprover: resource?.isIntakeApprover ?? false,
+      timesheetHidden: resource?.timesheetHidden ?? false,
       notes: resource?.notes || "",
     },
   });
@@ -1777,6 +1778,7 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
         isActive: resource?.isActive ?? true,
         isApprover: resource?.isApprover ?? false,
         isIntakeApprover: resource?.isIntakeApprover ?? false,
+        timesheetHidden: resource?.timesheetHidden ?? false,
         notes: resource?.notes || "",
       });
       setSelectedUserId(resource?.userId || null);
@@ -1802,6 +1804,7 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
         isActive: data.isActive ?? true,
         isApprover: data.isApprover ?? false,
         isIntakeApprover: data.isIntakeApprover ?? false,
+        timesheetHidden: data.timesheetHidden ?? false,
         notes: data.notes || null,
         userId: selectedUserId,
       };
@@ -1927,6 +1930,17 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
                 />
                 <Label htmlFor="isIntakeApprover" className="text-sm">
                   Intake Approver
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="timesheetHidden"
+                  checked={form.watch("timesheetHidden") ?? false}
+                  onCheckedChange={(checked) => form.setValue("timesheetHidden", checked)}
+                  data-testid="switch-resource-timesheet-hidden"
+                />
+                <Label htmlFor="timesheetHidden" className="text-sm">
+                  Hide from Timesheets
                 </Label>
               </div>
             </div>

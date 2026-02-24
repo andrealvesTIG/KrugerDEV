@@ -86,6 +86,7 @@ export function ResourceUtilizationDashboard() {
   const filteredResources = useMemo(() => {
     return (resources ?? []).filter(r => {
       if (!r.isActive) return false;
+      if (r.timesheetHidden) return false;
       if (filters.resourceId && r.id !== filters.resourceId) return false;
       if (filters.department && r.department !== filters.department) return false;
       if (filters.skill) {

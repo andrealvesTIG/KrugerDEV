@@ -508,6 +508,7 @@ export const resources = pgTable("resources", {
   isApprover: boolean("is_approver").default(false), // Can approve timesheets
   isIntakeApprover: boolean("is_intake_approver").default(false), // Can approve project intakes
   isBillable: boolean("is_billable").default(true), // Can be billed to clients
+  timesheetHidden: boolean("timesheet_hidden").default(false), // Hide from all timesheet dashboards
   photoUrl: text("photo_url"), // Profile photo URL
   notes: text("notes"),
   invitedProjectIds: integer("invited_project_ids").array(), // Projects this resource was invited to (for team_member visibility)

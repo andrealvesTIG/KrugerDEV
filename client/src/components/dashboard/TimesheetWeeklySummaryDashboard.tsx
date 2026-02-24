@@ -68,18 +68,21 @@ export function TimesheetWeeklySummaryDashboard() {
   const filteredResources = useMemo(() => {
     return (resources ?? []).filter(r => {
       if (!r.isActive) return false;
+      if (r.timesheetHidden) return false;
       if (filters.resourceId && r.id !== filters.resourceId) return false;
       return true;
     });
   }, [resources, filters]);
 
   const filteredEntries = useMemo(() => {
+    const hiddenIds = new Set((resources ?? []).filter(r => r.timesheetHidden).map(r => r.id));
     return (timesheetEntries ?? []).filter(e => {
+      if (hiddenIds.has(e.resourceId)) return false;
       if (filters.resourceId && e.resourceId !== filters.resourceId) return false;
       if (filters.projectId && e.projectId !== filters.projectId) return false;
       return true;
     });
-  }, [timesheetEntries, filters]);
+  }, [timesheetEntries, filters, resources]);
 
   if (resourcesLoading || timesheetsLoading || projectsLoading || portfoliosLoading) {
     return (

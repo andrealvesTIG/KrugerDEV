@@ -135,6 +135,7 @@ export default function ResourceDetails() {
         availability: resource.availability,
         isActive: resource.isActive,
         isBillable: resource.isBillable,
+        timesheetHidden: resource.timesheetHidden,
         notes: resource.notes,
       });
     }
@@ -513,6 +514,15 @@ export default function ResourceDetails() {
                         data-testid="switch-is-billable"
                       />
                       <Label>Billable</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch 
+                        checked={isEditing ? (editValues.timesheetHidden ?? false) : (resource.timesheetHidden ?? false)}
+                        onCheckedChange={isEditing ? (checked) => setEditValues(prev => ({ ...prev, timesheetHidden: checked })) : undefined}
+                        disabled={!isEditing}
+                        data-testid="switch-timesheet-hidden"
+                      />
+                      <Label>Hide from Timesheets</Label>
                     </div>
                   </div>
                   
