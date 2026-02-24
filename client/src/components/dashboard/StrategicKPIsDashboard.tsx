@@ -45,8 +45,8 @@ export function StrategicKPIsDashboard() {
 
   const kpis = useMemo(() => {
     const totalProjects = projects.length;
-    const activeProjects = projects.filter(p => p.status === 'Execution' || p.status === 'Planning').length;
-    const completedProjects = projects.filter(p => p.status === 'Closed').length;
+    const activeProjects = projects.filter(p => p.status === 'Execution' || p.status === 'Planning' || p.status === 'Initiation').length;
+    const completedProjects = projects.filter(p => p.status === 'Closing' || p.status === 'Closed').length;
     const onTrackProjects = projects.filter(p => p.health === 'Green').length;
     const atRiskProjects = projects.filter(p => p.health === 'Yellow').length;
     const criticalProjects = projects.filter(p => p.health === 'Red').length;

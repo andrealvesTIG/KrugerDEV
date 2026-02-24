@@ -132,6 +132,7 @@ export function ExecutiveDashboard() {
   const completedProjects = projects?.filter(p => p.status === "Closing").length || 0;
   const activeProjects = projects?.filter(p => p.status === "Execution").length || 0;
   const planningProjects = projects?.filter(p => p.status === "Planning").length || 0;
+  const initiationProjects = projects?.filter(p => p.status === "Initiation").length || 0;
   const totalBudget = projects?.reduce((sum, p) => sum + Number(p.budget || 0), 0) || 0;
   const avgCompletion = projects?.length ? Math.round(projects.reduce((s, p) => s + (p.completionPercentage || 0), 0) / projects.length) : 0;
   
@@ -142,7 +143,6 @@ export function ExecutiveDashboard() {
   const filteredRisks = hasActiveFilters ? allRisks.filter(r => filteredProjectIds.has(r.projectId)) : allRisks;
   const openRisks = filteredRisks.filter(r => r.status === "Open" || r.status === "Identified").length;
   const highRisks = filteredRisks.filter(r => r.probability === "High" || r.impact === "High").length;
-  // Filter out risks (itemType='risk') from issues count - only count actual issues
   const filteredIssues = hasActiveFilters ? allIssues.filter(i => filteredProjectIds.has(i.projectId)) : allIssues;
   const actualIssues = filteredIssues.filter(i => i.itemType !== 'risk');
   const openIssues = actualIssues.filter(i => i.status === "Open" || i.status === "In Progress").length;
@@ -162,6 +162,7 @@ export function ExecutiveDashboard() {
   ].filter(d => d.value > 0);
 
   const statusData = [
+    { name: "Initiation", count: initiationProjects, fill: COLORS.Cyan },
     { name: "Planning", count: planningProjects, fill: COLORS.Blue },
     { name: "Execution", count: activeProjects, fill: COLORS.Purple },
     { name: "Closing", count: completedProjects, fill: COLORS.Green },

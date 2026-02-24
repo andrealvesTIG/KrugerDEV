@@ -2922,14 +2922,26 @@ export class DatabaseStorage implements IStorage {
       .set({ projectId: newProject.id, status: "converted", taskCount: actualTaskCount })
       .where(eq(mppImports.id, importId));
 
-    // Calculate and update project completion percentage based on non-summary tasks
+    // Calculate and update project completion percentage and status based on non-summary tasks
     const leafTasks = importedTasks.filter(t => !t.isSummary);
     const avgProgress = leafTasks.length > 0
       ? Math.round(leafTasks.reduce((sum, t) => sum + (t.percentComplete || 0), 0) / leafTasks.length)
       : 0;
     
+    let derivedStatus = projectData.status || "Initiation";
+    if (avgProgress >= 100) {
+      derivedStatus = "Closing";
+    } else if (avgProgress > 0) {
+      derivedStatus = "Execution";
+    } else {
+      const hasAnyProgress = leafTasks.some(t => (t.percentComplete || 0) > 0);
+      if (hasAnyProgress) {
+        derivedStatus = "Execution";
+      }
+    }
+
     await db.update(projects)
-      .set({ completionPercentage: avgProgress })
+      .set({ completionPercentage: avgProgress, status: derivedStatus })
       .where(eq(projects.id, newProject.id));
 
     return { project: newProject, taskCount: importedTasks.length };
@@ -3140,6 +3152,18 @@ export class DatabaseStorage implements IStorage {
       : project.completionPercentage || 0;
     
     projectUpdates.completionPercentage = avgProgress;
+
+    // Derive project status from task progress
+    if (avgProgress >= 100) {
+      projectUpdates.status = "Closing";
+    } else if (avgProgress > 0) {
+      projectUpdates.status = "Execution";
+    } else {
+      const hasAnyProgress = leafTasks.some(t => (t.percentComplete || 0) > 0);
+      if (hasAnyProgress) {
+        projectUpdates.status = "Execution";
+      }
+    }
 
     if (Object.keys(projectUpdates).length > 0) {
       await db.update(projects)

@@ -173,7 +173,7 @@ async function getPortfolioHealthData(organizationId: number): Promise<Dashboard
     .from(projects)
     .where(eq(projects.organizationId, organizationId));
   
-  const activeProjects = projectData.filter(p => p.status !== 'Completed' && p.status !== 'Cancelled');
+  const activeProjects = projectData.filter(p => p.status !== 'Closing' && p.status !== 'Completed' && p.status !== 'Cancelled');
   const greenProjects = activeProjects.filter(p => p.health === 'Green').length;
   const yellowProjects = activeProjects.filter(p => p.health === 'Yellow').length;
   const redProjects = activeProjects.filter(p => p.health === 'Red').length;
@@ -197,9 +197,10 @@ async function getProjectStatusData(organizationId: number): Promise<DashboardDa
     .from(projects)
     .where(eq(projects.organizationId, organizationId));
   
-  const activeProjects = projectData.filter(p => p.status !== 'Completed' && p.status !== 'Cancelled');
-  const completedProjects = projectData.filter(p => p.status === 'Completed');
-  const inProgressProjects = projectData.filter(p => p.status === 'In Progress');
+  const activeProjects = projectData.filter(p => p.status !== 'Closing' && p.status !== 'Completed' && p.status !== 'Cancelled');
+  const completedProjects = projectData.filter(p => p.status === 'Closing' || p.status === 'Completed');
+  const inProgressProjects = projectData.filter(p => p.status === 'Execution' || p.status === 'In Progress');
+  const initiationProjects = projectData.filter(p => p.status === 'Initiation');
   
   return {
     id: "project-status",
@@ -207,6 +208,7 @@ async function getProjectStatusData(organizationId: number): Promise<DashboardDa
     summary: "Project Overview",
     metrics: [
       { label: "Total Projects", value: projectData.length },
+      { label: "Initiation", value: initiationProjects.length },
       { label: "In Progress", value: inProgressProjects.length },
       { label: "Completed", value: completedProjects.length },
       { label: "Active", value: activeProjects.length },
