@@ -2831,6 +2831,8 @@ export class DatabaseStorage implements IStorage {
       const isMilestone = importedTask.isMilestone || false;
       const taskType = isSummary ? "Summary" : isMilestone ? "Milestone" : "Work";
       const workHoursStr = importedTask.workHours ? importedTask.workHours.toString() : null;
+      const actualWorkHoursStr = importedTask.actualWorkHours ? importedTask.actualWorkHours.toString() : null;
+      const remainingWorkHoursStr = importedTask.remainingWorkHours ? importedTask.remainingWorkHours.toString() : null;
 
       const [newTask] = await db.insert(tasks).values({
         projectId: newProject.id,
@@ -2848,6 +2850,8 @@ export class DatabaseStorage implements IStorage {
         isMilestone,
         taskType,
         estimatedHours: workHoursStr,
+        actualHours: actualWorkHoursStr,
+        remainingHours: remainingWorkHoursStr,
         parentId: null, // Will update in second pass
       }).returning();
 
@@ -2998,6 +3002,8 @@ export class DatabaseStorage implements IStorage {
       const isMilestone = importedTask.isMilestone || false;
       const taskType = isSummary ? "Summary" : isMilestone ? "Milestone" : "Work";
       const workHoursStr = importedTask.workHours ? importedTask.workHours.toString() : null;
+      const actualWorkHoursStr = importedTask.actualWorkHours ? importedTask.actualWorkHours.toString() : null;
+      const remainingWorkHoursStr = importedTask.remainingWorkHours ? importedTask.remainingWorkHours.toString() : null;
 
       const taskData = {
         name: importedTask.taskName,
@@ -3014,6 +3020,8 @@ export class DatabaseStorage implements IStorage {
         isMilestone,
         taskType,
         estimatedHours: workHoursStr,
+        actualHours: actualWorkHoursStr,
+        remainingHours: remainingWorkHoursStr,
       };
 
       // Try to match by WBS first, then by name
