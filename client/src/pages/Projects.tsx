@@ -110,6 +110,10 @@ export default function Projects() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [, navigate] = useLocation();
 
+  const LIST_PAGE_SIZE = 25;
+  const [listDisplayCount, setListDisplayCount] = useState(LIST_PAGE_SIZE);
+  const listLoadMoreRef = useRef<HTMLDivElement>(null);
+
   const generateProjectRiskAssessment = useMutation({
     mutationFn: async (projectId: number) => {
       const res = await apiRequest("POST", `/api/projects/${projectId}/risk-assessment`);
@@ -393,6 +397,32 @@ export default function Projects() {
       return 0;
     });
   }, [projects, externalProjects, search, sourceFilter, sortBy, selectedPortfolio, filterView, user?.id]);
+
+  useEffect(() => {
+    setListDisplayCount(LIST_PAGE_SIZE);
+  }, [filteredProjects?.length, view]);
+
+  useEffect(() => {
+    if (view !== "list") return;
+    const el = listLoadMoreRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setListDisplayCount(prev => prev + LIST_PAGE_SIZE);
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [view]);
+
+  const displayedListProjects = useMemo(() => {
+    return (filteredProjects || []).slice(0, listDisplayCount);
+  }, [filteredProjects, listDisplayCount]);
+
+  const hasMoreListProjects = listDisplayCount < (filteredProjects?.length || 0);
 
   const handleStatusChange = (projectId: number, newStatus: string) => {
     updateProject.mutate(
@@ -904,7 +934,7 @@ export default function Projects() {
       {/* Projects View */}
       {!isFullscreen && view === "list" ? (
         <div className="space-y-6">
-          {filteredProjects?.map((project, index) => (
+          {displayedListProjects.map((project, index) => (
             <motion.div
               key={project.id}
               initial={{ opacity: 0, y: 20 }}
@@ -1146,6 +1176,20 @@ export default function Projects() {
               <p className="text-muted-foreground mt-1 mb-4">Try adjusting your filters or create a new project.</p>
             </div>
           )}
+          {(filteredProjects?.length || 0) > 0 && (
+            <div className="flex items-center justify-between px-2 py-2 text-sm text-muted-foreground">
+              <span>
+                Showing {Math.min(listDisplayCount, filteredProjects?.length || 0)} of {filteredProjects?.length || 0} projects
+              </span>
+              {hasMoreListProjects && (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Scroll for more
+                </span>
+              )}
+            </div>
+          )}
+          <div ref={listLoadMoreRef} className="h-1" />
         </div>
       ) : !isFullscreen && view === "grid" ? (
         <ProjectsGridView 
@@ -2530,6 +2574,29 @@ function ProjectsGridView({
   const [editValue, setEditValue] = useState<string>("");
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [internalFullscreen, setInternalFullscreen] = useState(false);
+
+  const PAGE_SIZE = 25;
+  const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setDisplayCount(PAGE_SIZE);
+  }, [projects]);
+
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setDisplayCount(prev => prev + PAGE_SIZE);
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   
   const { data: resources } = useQuery<Resource[]>({
     queryKey: ['/api/resources', organizationId],
@@ -2636,6 +2703,12 @@ function ProjectsGridView({
   const sortedProjects = useMemo(() => {
     return sortData(projects, sortState, getFieldValue);
   }, [projects, sortState, getFieldValue]);
+
+  const displayedProjects = useMemo(() => {
+    return sortedProjects.slice(0, displayCount);
+  }, [sortedProjects, displayCount]);
+
+  const hasMoreProjects = displayCount < sortedProjects.length;
   
   const handleApplyView = (view: { visibleColumns: string[]; columnOrder: string[] }) => {
     setVisibleColumns(view.visibleColumns);
@@ -3313,7 +3386,7 @@ function ProjectsGridView({
                   </TableCell>
                 </TableRow>
               ) : (
-                sortedProjects.map(project => (
+                displayedProjects.map(project => (
                   <TableRow 
                     key={project.id} 
                     data-testid={`grid-row-${project.id}`}
@@ -3378,6 +3451,20 @@ function ProjectsGridView({
           </Table>
         </DndContext>
       </div>
+      {sortedProjects.length > 0 && (
+        <div className="flex items-center justify-between px-2 py-2 text-sm text-muted-foreground">
+          <span>
+            Showing {Math.min(displayCount, sortedProjects.length)} of {sortedProjects.length} projects
+          </span>
+          {hasMoreProjects && (
+            <span className="flex items-center gap-2">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Scroll for more
+            </span>
+          )}
+        </div>
+      )}
+      <div ref={loadMoreRef} className="h-1" />
       
       {/* Bulk Delete Confirmation Dialog */}
       <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
