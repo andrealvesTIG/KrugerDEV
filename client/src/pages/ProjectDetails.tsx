@@ -5154,9 +5154,9 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             <img src={msprojectLogoPath} alt="Microsoft Project" className="h-6 w-6" />
             <div>
               <span className="font-medium text-emerald-800 dark:text-emerald-200">Microsoft Project Task Management Options:</span>
-              <div className="mt-1 space-y-0.5">
+              <div className="mt-1 space-y-0.5"> 
                 <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">1. Re-Import – Edit tasks in MS Project (view-only in FridayReport)</p>
-                <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">2. Detach & Edit – Disconnect from MS Project and continue managing tasks directly in FridayReport</p>
+                <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">2. Detach & Edit – Disconnect from MS Project and continue managing tasks directly in FridayReport</p> 
               </div>
             </div>
           </div>
@@ -8359,8 +8359,6 @@ function ProjectGanttView({
   
   const addColumn = (colId: GanttColumn) => {
     setVisibleColumns(prev => [...prev, colId]);
-    setIsAddColumnOpen(false);
-    setColumnSearchQuery('');
   };
   
   // Column drag-and-drop reordering
@@ -8651,7 +8649,7 @@ function ProjectGanttView({
     // Check for summary tasks (tasks that have children)
     const summaryTaskIds = new Set<number>();
     for (const task of tasks) {
-      const parentId = task.parentTaskId;
+      const parentId = task.parentId;
       if (parentId) summaryTaskIds.add(parentId);
     }
     
@@ -9471,7 +9469,7 @@ function ProjectGanttView({
                     {GANTT_COLUMNS.filter(col => col.category === cat.id).map(col => (
                       <DropdownMenuItem 
                         key={col.id}
-                        onClick={() => toggleColumn(col.id)}
+                        onSelect={(e) => { e.preventDefault(); toggleColumn(col.id); }}
                         className="gap-2"
                       >
                         <Checkbox 
@@ -9859,7 +9857,7 @@ function ProjectGanttView({
                 })}
                 {/* Add column button - fixed at right edge */}
                 <div className="flex-shrink-0 border-l p-1 bg-muted/50">
-                  <DropdownMenu open={isAddColumnOpen} onOpenChange={setIsAddColumnOpen}>
+                  <DropdownMenu open={isAddColumnOpen} onOpenChange={(open) => { setIsAddColumnOpen(open); if (!open) setColumnSearchQuery(''); }}>
                     <DropdownMenuTrigger asChild>
                       <Button 
                         variant="ghost" 
@@ -9889,7 +9887,7 @@ function ProjectGanttView({
                           filteredColumnsToAdd.map(col => (
                             <DropdownMenuItem 
                               key={col.id}
-                              onClick={() => addColumn(col.id)}
+                              onSelect={(e) => { e.preventDefault(); addColumn(col.id); }}
                               className="text-xs"
                               data-testid={`add-column-${col.id}`}
                             >
