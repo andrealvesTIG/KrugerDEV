@@ -5046,7 +5046,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                 <div className="min-w-0">
                   <span className="font-medium">Planner Premium Task Management Options:</span>
                   <div className="mt-1 space-y-0.5">
-                    <p className="text-sm text-red-600 dark:text-red-400 font-medium">1. Sync Now – Edit tasks in Planner; view-only in FridayReport</p>
+                    <p className="text-sm text-red-600 dark:text-red-400 font-medium">1. Sync Now – Edit tasks in Planner (view-only in FridayReport)</p>
                     <p className="text-sm text-red-600 dark:text-red-400 font-medium">2. Detach & Edit – Disconnect from Planner and continue managing tasks directly in FridayReport</p>
                   </div>
                 </div>
@@ -5200,7 +5200,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           </div>
         </div>
       )}
-
       {/* MS Project Re-Import Dialog */}
       <Dialog open={isReimportDialogOpen} onOpenChange={setIsReimportDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
@@ -5297,7 +5296,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Detach & Edit Confirmation Dialog */}
       <AlertDialog open={isMakeEditableDialogOpen} onOpenChange={setIsMakeEditableDialogOpen}>
         <AlertDialogContent>
@@ -5339,7 +5337,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
       {/* MS Project Read-Only Task Dialog */}
       <Dialog open={showMsProjectEditDialog} onOpenChange={setShowMsProjectEditDialog}>
         <DialogContent className="sm:max-w-[400px]">
@@ -5787,7 +5784,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           onOpenChange={setIsHistoryOpen} 
         />
       </div>
-
       {view === "table" ? (
         <ProjectGanttView 
           tasks={filteredTasks} 
@@ -14451,7 +14447,6 @@ function InvoicesTab({ projectId, organizationId, contractTotal }: { projectId: 
           </div>
         )}
       </CardContent>
-
       <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingInvoice(null); }}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -14567,7 +14562,6 @@ function InvoicesTab({ projectId, organizationId, contractTotal }: { projectId: 
           </form>
         </DialogContent>
       </Dialog>
-
       <Dialog open={!!notesInvoice} onOpenChange={(open) => { if (!open) { setNotesInvoice(null); setNewNote(''); } }}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -14622,7 +14616,6 @@ function InvoicesTab({ projectId, organizationId, contractTotal }: { projectId: 
           </div>
         </DialogContent>
       </Dialog>
-
       <AlertDialog open={!!invoiceToDelete} onOpenChange={(open) => { if (!open) setInvoiceToDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -14647,7 +14640,6 @@ function InvoicesTab({ projectId, organizationId, contractTotal }: { projectId: 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
       <Dialog open={isDynamicsImportOpen} onOpenChange={(open) => { setIsDynamicsImportOpen(open); if (!open) { setSelectedDynamicsInvoice(null); setDynamicsSearch(''); } }}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
