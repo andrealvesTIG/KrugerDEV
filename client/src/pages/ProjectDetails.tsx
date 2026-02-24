@@ -5161,6 +5161,15 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsReimportDialogOpen(true)}
+              data-testid="button-reimport-msproject"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Re-Import
+            </Button>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -5177,15 +5186,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                 <p>Detach this project from the imported file and make it fully editable. This removes the import link but keeps all tasks and data.</p>
               </TooltipContent>
             </Tooltip>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsReimportDialogOpen(true)}
-              data-testid="button-reimport-msproject"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Re-Import
-            </Button>
             {sourceFileUrl && (
               <a 
                 href={sourceFileUrl}
