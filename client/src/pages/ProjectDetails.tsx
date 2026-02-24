@@ -2426,12 +2426,12 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
                         </div>
                       ) : (
                         <div
-                          className={`flex items-center justify-between p-2 rounded min-h-[36px] border border-transparent ${field.isEditable ? 'cursor-pointer hover-elevate' : ''}`}
-                          onClick={() => field.isEditable && handleEdit(field)}
+                          className="flex items-center justify-between p-2 rounded min-h-[36px] border border-transparent cursor-pointer hover-elevate"
+                          onClick={() => handleEdit(field)}
                           data-testid={`button-edit-${field.fieldKey}`}
                         >
                           <span className="text-sm">{formatDisplayValue(value, field.fieldKey)}</span>
-                          {field.isEditable && <Pencil className="h-3 w-3 text-muted-foreground" />}
+                          <Pencil className="h-3 w-3 text-muted-foreground" />
                         </div>
                       )}
                     </div>
