@@ -279,25 +279,25 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
         );
       })}
       <td className="px-2 py-1 bg-emerald-500/5 text-center align-middle">
-        <div className="flex items-center justify-center gap-1">
+        <div className="relative flex items-center justify-center">
           <span className={`font-medium tabular-nums ${isRowOvertime ? "text-amber-600" : "text-foreground"}`}>{rowTotal}h</span>
-          {isRowOvertime ? (
+          {isRowOvertime && (
             <Tooltip>
-              <TooltipTrigger>
-                <AlertTriangle className="h-3 w-3 text-amber-500" />
+              <TooltipTrigger asChild>
+                <span className="absolute -right-4">
+                  <AlertTriangle className="h-3 w-3 text-amber-500" />
+                </span>
               </TooltipTrigger>
               <TooltipContent side="top">Over 40 hours this week</TooltipContent>
             </Tooltip>
-          ) : (
-            <span className="w-3 h-3" />
           )}
-          {rowTotal > 0 ? (
+          {rowTotal > 0 && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   type="button"
                   onClick={() => clearRow(task.id)}
-                  className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                  className="absolute -right-4 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
                   data-testid={`button-clear-row-${task.id}`}
                 >
                   <Trash2 className="h-3 w-3" />
@@ -305,8 +305,6 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
               </TooltipTrigger>
               <TooltipContent side="top">Clear row</TooltipContent>
             </Tooltip>
-          ) : (
-            <span className="w-4 h-4" />
           )}
         </div>
       </td>
