@@ -5155,8 +5155,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             <div>
               <span className="font-medium text-emerald-800 dark:text-emerald-200">Microsoft Project Task Management Options:</span>
               <div className="mt-1 space-y-0.5">
-                <p className="text-sm text-red-600 dark:text-red-400 font-medium">1. Re-Import – Edit tasks in MS Project; view-only in FridayReport</p>
-                <p className="text-sm text-red-600 dark:text-red-400 font-medium">2. Detach & Edit – Disconnect from MS Project and continue managing tasks directly in FridayReport</p>
+                <p className="text-sm text-emerald-700 dark:text-emerald-300">1. Re-Import – Edit tasks in MS Project; view-only in FridayReport</p>
+                <p className="text-sm text-emerald-700 dark:text-emerald-300">2. Detach & Edit – Disconnect from MS Project and continue managing tasks directly in FridayReport</p>
               </div>
             </div>
           </div>
