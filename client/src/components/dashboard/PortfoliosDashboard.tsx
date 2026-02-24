@@ -85,18 +85,8 @@ export function PortfoliosDashboard() {
 
   const handleExportCsv = () => {
     const headers = ["Portfolio", "Projects", "Active", "Completed", "Budget", "Avg Completion", "Health Score"];
-    const rows = (portfolios || []).map(p => {
-      const portfolioProjects = projects?.filter(pr => pr.portfolioId === p.id) || [];
-      const active = portfolioProjects.filter(pr => pr.status !== "Closing").length;
-      const completed = portfolioProjects.filter(pr => pr.status === "Closing").length;
-      const budget = portfolioProjects.reduce((sum, pr) => sum + Number(pr.budget || 0), 0);
-      const avgCompletion = portfolioProjects.length 
-        ? Math.round(portfolioProjects.reduce((sum, pr) => sum + (pr.completionPercentage || 0), 0) / portfolioProjects.length) 
-        : 0;
-      const healthScore = portfolioProjects.length 
-        ? Math.round((portfolioProjects.filter(pr => pr.health === "Green").length / portfolioProjects.length) * 100) 
-        : 0;
-      return [p.name, portfolioProjects.length, active, completed, budget, `${avgCompletion}%`, `${healthScore}%`];
+    const rows = portfolioData.map(p => {
+      return [p.name, p.projectCount, p.activeCount, p.projectCount - p.activeCount, p.budget, `${p.avgCompletion}%`, `${p.healthPercentage}%`];
     });
     const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -120,31 +110,59 @@ export function PortfoliosDashboard() {
   const atRiskProjects = projects?.filter(p => p.health === "Yellow").length || 0;
   const criticalProjects = projects?.filter(p => p.health === "Red").length || 0;
 
-  const portfolioData = portfolios?.map((portfolio, index) => {
-    const portfolioProjects = projects?.filter(p => p.portfolioId === portfolio.id) || [];
-    const budget = portfolioProjects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
-    const greenCount = portfolioProjects.filter(p => p.health === "Green").length;
-    const healthPercentage = portfolioProjects.length > 0 ? Math.round((greenCount / portfolioProjects.length) * 100) : 0;
-    const avgCompletion = portfolioProjects.length 
-      ? Math.round(portfolioProjects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / portfolioProjects.length) 
-      : 0;
-    
-    return {
-      id: portfolio.id,
-      name: portfolio.name,
-      shortName: portfolio.name.length > 12 ? portfolio.name.substring(0, 12) + "..." : portfolio.name,
-      projectCount: portfolioProjects.length,
-      activeCount: portfolioProjects.filter(p => p.status !== "Closing").length,
-      budget,
-      healthPercentage,
-      avgCompletion,
-      color: PORTFOLIO_COLORS[index % PORTFOLIO_COLORS.length],
-      projects: portfolioProjects,
-    };
-  }) || [];
+  const portfolioData = useMemo(() => {
+    const data = (portfolios || []).map((portfolio, index) => {
+      const portfolioProjects = projects?.filter(p => p.portfolioId === portfolio.id) || [];
+      const budget = portfolioProjects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
+      const greenCount = portfolioProjects.filter(p => p.health === "Green").length;
+      const healthPercentage = portfolioProjects.length > 0 ? Math.round((greenCount / portfolioProjects.length) * 100) : 0;
+      const avgCompletion = portfolioProjects.length 
+        ? Math.round(portfolioProjects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / portfolioProjects.length) 
+        : 0;
+      
+      return {
+        id: portfolio.id,
+        name: portfolio.name,
+        shortName: portfolio.name.length > 12 ? portfolio.name.substring(0, 12) + "..." : portfolio.name,
+        projectCount: portfolioProjects.length,
+        activeCount: portfolioProjects.filter(p => p.status !== "Closing").length,
+        budget,
+        healthPercentage,
+        avgCompletion,
+        color: PORTFOLIO_COLORS[index % PORTFOLIO_COLORS.length],
+        projects: portfolioProjects,
+        isUnassigned: false,
+      };
+    });
+
+    const unassignedProjects = (projects || []).filter(p => !p.portfolioId);
+    if (unassignedProjects.length > 0) {
+      const budget = unassignedProjects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
+      const greenCount = unassignedProjects.filter(p => p.health === "Green").length;
+      const healthPercentage = Math.round((greenCount / unassignedProjects.length) * 100);
+      const avgCompletion = Math.round(unassignedProjects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / unassignedProjects.length);
+      data.push({
+        id: -1,
+        name: "No Portfolio",
+        shortName: "No Portfolio",
+        projectCount: unassignedProjects.length,
+        activeCount: unassignedProjects.filter(p => p.status !== "Closing").length,
+        budget,
+        healthPercentage,
+        avgCompletion,
+        color: "#94a3b8",
+        projects: unassignedProjects,
+        isUnassigned: true,
+      });
+    }
+
+    return data;
+  }, [portfolios, projects]);
 
   const portfolioBudgets = portfolioData.filter(p => p.budget > 0);
   const portfolioProjectCounts = portfolioData.filter(p => p.projectCount > 0);
+  const realPortfolios = portfolioData.filter(p => !p.isUnassigned);
+  const unassignedEntry = portfolioData.find(p => p.isUnassigned);
 
   return (
     <div className="space-y-4">
@@ -302,7 +320,7 @@ export function PortfoliosDashboard() {
           <CardContent className="px-4 pb-3">
             <ScrollArea className="h-[180px]">
               <div className="space-y-3">
-                {portfolioData.slice(0, 5).map((portfolio) => (
+                {[...realPortfolios.slice(0, 5), ...(unassignedEntry ? [unassignedEntry] : [])].map((portfolio) => (
                   <div key={portfolio.id} className="space-y-1" data-testid={`health-item-${portfolio.id}`}>
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-medium truncate max-w-[140px]" title={portfolio.name}>{portfolio.shortName}</span>
@@ -331,7 +349,7 @@ export function PortfoliosDashboard() {
       </div>
 
       <div className="space-y-4">
-        {portfolioData.slice(0, 4).map((portfolio) => (
+        {[...realPortfolios.slice(0, 4), ...(unassignedEntry ? [unassignedEntry] : [])].map((portfolio) => (
           <Card key={portfolio.id} data-testid={`card-portfolio-${portfolio.id}`}>
             <CardHeader className="pb-2 pt-3 px-4 flex flex-row items-center justify-between">
               <div className="flex items-center gap-2">
@@ -339,15 +357,17 @@ export function PortfoliosDashboard() {
                 <CardTitle className="text-sm font-medium">{portfolio.name}</CardTitle>
                 <Badge variant="outline" className="text-[10px] h-5">{portfolio.projectCount} projects</Badge>
               </div>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-7 text-xs gap-1"
-                data-testid={`button-view-portfolio-${portfolio.id}`} 
-                onClick={() => setLocation(`/portfolios/${portfolio.id}`)}
-              >
-                View All <ArrowRight className="h-3 w-3" />
-              </Button>
+              {!portfolio.isUnassigned && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-xs gap-1"
+                  data-testid={`button-view-portfolio-${portfolio.id}`} 
+                  onClick={() => setLocation(`/portfolios/${portfolio.id}`)}
+                >
+                  View All <ArrowRight className="h-3 w-3" />
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="px-4 pb-3">
               {portfolio.projects.length === 0 ? (
