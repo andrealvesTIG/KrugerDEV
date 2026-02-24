@@ -9473,7 +9473,7 @@ function ProjectGanttView({
                     {GANTT_COLUMNS.filter(col => col.category === cat.id).map(col => (
                       <DropdownMenuItem 
                         key={col.id}
-                        onClick={() => toggleColumn(col.id)}
+                        onSelect={(e) => { e.preventDefault(); toggleColumn(col.id); }}
                         className="gap-2"
                       >
                         <Checkbox 
