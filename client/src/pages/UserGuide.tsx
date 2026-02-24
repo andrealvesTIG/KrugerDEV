@@ -54,7 +54,8 @@ import {
   Scale,
   Lightbulb,
   Sliders,
-  LayoutTemplate
+  LayoutTemplate,
+  Receipt
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -78,6 +79,8 @@ const sections = [
   { id: "timesheets", name: "Timesheets", icon: Clock },
   { id: "resources", name: "Resources", icon: UserCog },
   { id: "calendar", name: "Calendar", icon: Calendar },
+  { id: "invoices", name: "Invoices", icon: DollarSign },
+  { id: "simulation", name: "Simulation", icon: Activity },
   { id: "integrations", name: "Integrations", icon: Plug },
   { id: "custom-links", name: "Custom Links", icon: Link2 },
   { id: "custom-fields", name: "Custom Fields", icon: Sliders },
@@ -87,6 +90,9 @@ const sections = [
   { id: "users", name: "User Management", icon: Users },
   { id: "settings", name: "Settings", icon: Settings },
   { id: "themes", name: "Themes", icon: Moon },
+  { id: "notifications", name: "Notifications", icon: Flag },
+  { id: "reports", name: "Scheduled Reports", icon: FileText },
+  { id: "super-admin", name: "Super Admin", icon: Shield },
 ];
 
 const pdfStyles = StyleSheet.create({
@@ -1244,6 +1250,43 @@ export default function UserGuide() {
                       <span><strong>Interactive Charts:</strong> Visual representations of project status and health distribution</span>
                     </li>
                   </ul>
+
+                  <h4 className="font-semibold text-foreground mt-6">Dashboard Tabs:</h4>
+                  <p className="text-muted-foreground">
+                    The Dashboard is organized into specialized tabs, each providing a focused view of different aspects of your portfolio:
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Executive Summary</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">High-level KPIs, budget vs. actual spend, portfolio health, and project status distribution</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Portfolio Overview</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Portfolio-level metrics with drill-down into individual portfolio performance</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Risks & Issues</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Active risks and issues across all projects with severity and trend analysis</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Resource Management</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Resource allocation, utilization rates, and capacity planning overview</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Timesheet Dashboards</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Five dedicated views for time tracking analysis — resource hours, weekly summary, reports, project hours, and utilization</p>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </section>
@@ -1914,6 +1957,98 @@ export default function UserGuide() {
                       <p className="text-sm text-muted-foreground">Export time data to Excel for reporting</p>
                     </div>
                   </div>
+
+                  <h4 className="font-semibold text-foreground mt-6">Approval Workflow:</h4>
+                  <p className="text-muted-foreground">
+                    Time entries go through a structured approval process to ensure accuracy:
+                  </p>
+                  <ul className="space-y-2 text-muted-foreground mt-2">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Submit:</strong> Team members submit their completed timesheets for review</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Approve:</strong> Managers review and approve submitted time entries</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Reject:</strong> Entries can be rejected with comments for team members to revise</span>
+                    </li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-6">Time Periods:</h4>
+                  <p className="text-muted-foreground">
+                    Admins can manage open and closed time periods to control when entries can be logged:
+                  </p>
+                  <ul className="space-y-2 text-muted-foreground mt-2">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Open Periods:</strong> Time entries can be created and edited for open periods</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Closed Periods:</strong> Lock past periods to prevent changes to historical time data</span>
+                    </li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-6">Time Categories & Time Off:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Categories:</strong> Classify time entries (e.g., Development, Meeting, Support) for better reporting</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Non-Project Time:</strong> Log time off, vacation, sick leave, and other non-project activities</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Auto-Save:</strong> Time entries save automatically as you type, so you never lose work</span>
+                    </li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-6">Dashboard Reports:</h4>
+                  <p className="text-muted-foreground">
+                    The Timesheets module includes five dashboard views for analyzing time data:
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Resource Hours</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Total hours per resource across all projects</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Weekly Summary</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Week-by-week breakdown of time logged by the team</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Timesheet Report</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Detailed line-item report of all time entries</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Project Hours</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Total hours grouped by project for budget tracking</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Resource Utilization</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Compare logged hours against available capacity</p>
+                    </div>
+                  </div>
+                  <div className="p-3 mt-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      <strong>Tip:</strong> Resources marked as "Hidden from Timesheets" are automatically excluded from all five dashboard views to keep reports focused on active team members.
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             </section>
@@ -2016,6 +2151,66 @@ export default function UserGuide() {
                       </div>
                     </div>
                   </div>
+
+                  <h4 className="font-semibold text-foreground mt-6">Resource Settings:</h4>
+                  <p className="text-muted-foreground">
+                    Each resource has configurable settings in the Settings tab of the resource dialog:
+                  </p>
+                  <ul className="space-y-2 text-muted-foreground mt-2">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Hourly Rate:</strong> Set the resource's hourly billing rate for cost calculations</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Billable:</strong> Mark whether the resource's time is billable by default</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Hide from Timesheets:</strong> Exclude the resource from all timesheet dashboard views — useful for contractors, shared resources, or inactive team members you want to keep on record</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Link to User Account:</strong> Connect the resource to a platform user for login access and permissions</span>
+                    </li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-6">Utilization Dashboards:</h4>
+                  <p className="text-muted-foreground">
+                    Resource details pages include specialized dashboards for capacity planning and workload analysis:
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Capacity Planning</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">View resource allocation against available capacity over time</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Workload Dashboard</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Monitor current workload distribution and identify over-allocated resources</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Availability Calendar</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">See resource availability, time off, and leave schedules at a glance</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Demand vs. Supply</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Forecast resource demand against available supply for planning ahead</p>
+                    </div>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-6">Merge Duplicates:</h4>
+                  <p className="text-muted-foreground">
+                    If duplicate resources exist (e.g., from imports), you can merge them to consolidate all assignments, 
+                    time entries, and history under a single record. Select the duplicate resources and choose which one to keep as the primary.
+                  </p>
                 </CardContent>
               </Card>
             </section>
@@ -2072,6 +2267,128 @@ export default function UserGuide() {
               </Card>
             </section>
 
+            <section id="invoices" className="scroll-mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+                      <DollarSign className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Invoices</CardTitle>
+                      <CardDescription>Track and manage invoices from external systems</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    The Invoices module lets you track and manage invoices imported from external systems like Microsoft Dynamics 365. 
+                    View invoice details, filter by status, and keep financial records aligned with your project portfolios.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Invoice Statuses:</h4>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <Badge variant="outline">Draft</Badge>
+                    <Badge variant="outline">Pending</Badge>
+                    <Badge variant="outline">Paid</Badge>
+                    <Badge variant="outline">Overdue</Badge>
+                    <Badge variant="outline">Cancelled</Badge>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Key Features:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Import Invoices:</strong> Automatically import invoices from Microsoft Dynamics 365 or add them manually</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Invoice Details:</strong> View invoice number, amount, issue date, due date, and current status</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Filter by Status:</strong> Quickly find invoices by filtering on Draft, Pending, Paid, Overdue, or Cancelled</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Dynamics 365 Integration:</strong> Connect to Microsoft Dynamics 365 for automatic invoice synchronization</span>
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section id="simulation" className="scroll-mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/30">
+                      <Activity className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Simulation</CardTitle>
+                      <CardDescription>Monte Carlo-style project simulations and forecasting</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Run Monte Carlo-style project simulations to forecast outcomes across your portfolio. 
+                    Simulate different scenarios to understand potential risks, budget variances, and schedule impacts before they happen.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Scenario Types:</h4>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <Badge variant="outline">Baseline</Badge>
+                    <Badge variant="outline">Optimistic</Badge>
+                    <Badge variant="outline">Pessimistic</Badge>
+                    <Badge variant="outline">Risk-Heavy</Badge>
+                    <Badge variant="outline">Resource Constrained</Badge>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Simulation Features:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Real-Time Controls:</strong> Play, pause, and step through simulations with interactive controls</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Event Notifications:</strong> Receive alerts for significant simulation events as they occur</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Budget Variance:</strong> Track projected budget overruns and underruns across scenarios</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Schedule Variance:</strong> Forecast schedule delays and acceleration for each project</span>
+                    </li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">Simulation Outputs:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Portfolio Health Indicators:</strong> Aggregated health metrics across all simulated projects</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Project Risk Analysis:</strong> Identify high-risk projects based on simulation results</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Budget Forecasting:</strong> Probability-weighted budget projections for informed decision-making</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Resource Utilization:</strong> Predicted resource demand and capacity gaps under different scenarios</span>
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </section>
+
             <section id="integrations" className="scroll-mt-8">
               <Card>
                 <CardHeader>
@@ -2119,11 +2436,53 @@ export default function UserGuide() {
                     </div>
                   </div>
 
-                  <h4 className="font-semibold text-foreground mt-4">Power BI Integration:</h4>
-                  <p className="text-muted-foreground">
-                    Connect Power BI to access project analytics through REST API endpoints. 
-                    Available endpoints include projects, portfolios, risks, issues, milestones, and summary data.
-                  </p>
+                  <h4 className="font-semibold text-foreground mt-4">Available Integrations:</h4>
+                  <div className="space-y-3 mt-2">
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <Plug className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-foreground">Microsoft Planner</h5>
+                        <p className="text-sm text-muted-foreground">Import plans and tasks from Microsoft Planner via Microsoft Graph API. Tasks imported from Planner are read-only in FridayReport.AI to prevent sync conflicts.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <DollarSign className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-foreground">Microsoft Dynamics 365</h5>
+                        <p className="text-sm text-muted-foreground">Import invoices from Dynamics 365 Sales Hub using OAuth 2.0 authentication. Connect your organization to automatically sync invoice data.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <BarChart3 className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-foreground">Analytics API (Power BI)</h5>
+                        <p className="text-sm text-muted-foreground">REST API endpoints secured with API keys for connecting Power BI or other analytics tools. Access projects, portfolios, risks, issues, milestones, and summary data programmatically.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <FileSpreadsheet className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-foreground">Microsoft Project Import</h5>
+                        <p className="text-sm text-muted-foreground">Import project plans from Microsoft Project (.mpp), XML, and CSV files using the MPXJ library for seamless data migration.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-6">Setting Up Integrations:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Navigate:</strong> Go to the Integrations page from the sidebar</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Connect:</strong> Click on an integration to configure credentials and permissions</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Manage:</strong> View connection status, test connections, and manage OAuth tokens per organization</span>
+                    </li>
+                  </ul>
                 </CardContent>
               </Card>
             </section>
@@ -2648,6 +3007,195 @@ export default function UserGuide() {
                     Your theme preference is saved automatically and will persist across sessions. 
                     Simply click the sun or moon icon in the header to toggle between themes instantly.
                   </p>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section id="notifications" className="scroll-mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/30">
+                      <Flag className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Notifications</CardTitle>
+                      <CardDescription>Stay informed with real-time project activity alerts</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Stay informed with real-time notifications about project activity. The notification bell in the header 
+                    displays your unread count and provides quick access to recent alerts across all your projects.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Notification Types:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Mentions:</strong> Get notified when someone mentions you in a comment or discussion</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Task Assignments:</strong> Receive alerts when tasks are assigned to you</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Task Overdue:</strong> Get warnings when tasks pass their due date</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Health Alerts:</strong> Be alerted when project health status changes</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Status Changes:</strong> Track when projects or tasks change status</span>
+                    </li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">Severity Levels:</h4>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">Info</Badge>
+                    <Badge className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">Warning</Badge>
+                    <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">Critical</Badge>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Notification Bell:</h4>
+                  <p className="text-muted-foreground">
+                    The notification bell icon in the header shows your unread notification count. Click it to view 
+                    recent notifications, mark them as read, and navigate directly to the related project or task.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section id="reports" className="scroll-mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/30">
+                      <FileText className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Scheduled Reports</CardTitle>
+                      <CardDescription>Automate delivery of dashboard reports via email</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Automate the delivery of dashboard reports via email to keep stakeholders informed without manual effort. 
+                    Configure report subscriptions with your preferred dashboards, frequency, and recipient list.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Report Configuration:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Choose Dashboards:</strong> Select which dashboards to include in the scheduled report</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Set Frequency:</strong> Schedule reports to be sent daily, weekly, or monthly</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Specify Recipients:</strong> Add email addresses for report delivery</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Timezone Support:</strong> Configure the delivery timezone to match your team's location</span>
+                    </li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">Managing Subscriptions:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Enable/Disable:</strong> Toggle report subscriptions on or off without deleting them</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Last Sent Date:</strong> View when each report was last delivered</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Edit Schedule:</strong> Update frequency, recipients, or included dashboards at any time</span>
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section id="super-admin" className="scroll-mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-rose-100 dark:bg-rose-900/30">
+                      <Shield className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Super Admin Console</CardTitle>
+                      <CardDescription>System-wide administration and monitoring</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    The Super Admin Console provides system-wide oversight and management capabilities. 
+                    Only users with the Super Admin role can access this area.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">All Users:</h4>
+                  <p className="text-muted-foreground">
+                    View and manage all registered users across all organizations. The table shows key user details 
+                    with the ability to search and filter. Sensitive details are shown only on demand to reduce clutter.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Organization Management:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>All Organizations:</strong> View every organization, their plans, member counts, and creation dates</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Plan Management:</strong> Adjust organization subscription plans and grant bonus seats</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Credit Consumption:</strong> Monitor credit usage per organization to track platform adoption and identify billing needs</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Deactivation:</strong> Deactivate organizations using soft-delete to preserve data while restricting access</span>
+                    </li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">Engagement Scores:</h4>
+                  <p className="text-muted-foreground">
+                    Engagement scores reflect actual platform usage rather than just login frequency. 
+                    Scores are calculated based on meaningful actions like creating projects, logging time, 
+                    managing tasks, and using integrations — giving Super Admins a clear picture of how 
+                    actively each user or organization is using the platform.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Additional Tools:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Help Tickets</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">View and manage user-submitted help tickets and feedback with screenshots</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">User Consents</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Track Terms of Service and Privacy Policy acceptance records with version history</p>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </section>
