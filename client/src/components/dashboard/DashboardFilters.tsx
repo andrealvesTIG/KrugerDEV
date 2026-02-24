@@ -72,7 +72,7 @@ export function DashboardFilters({
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (filters.dateRange.from || filters.dateRange.to) count++;
-    if (filters.portfolioId) count++;
+    if (filters.portfolioId !== null) count++;
     if (filters.projectId) count++;
     if (filters.resourceId) count++;
     if (filters.priority) count++;
@@ -81,7 +81,8 @@ export function DashboardFilters({
   }, [filters]);
 
   const filteredProjects = useMemo(() => {
-    if (!filters.portfolioId) return projects;
+    if (filters.portfolioId === null) return projects;
+    if (filters.portfolioId === -1) return projects.filter(p => !p.portfolioId);
     return projects.filter(p => p.portfolioId === filters.portfolioId);
   }, [projects, filters.portfolioId]);
 
@@ -172,7 +173,7 @@ export function DashboardFilters({
 
       {showPortfolio && portfolios.length > 0 && (
         <Select
-          value={filters.portfolioId?.toString() || "all"}
+          value={filters.portfolioId === null ? "all" : filters.portfolioId.toString()}
           onValueChange={(value) => updateFilter("portfolioId", value === "all" ? null : parseInt(value))}
         >
           <SelectTrigger className="h-8 w-[140px] text-xs" data-testid="filter-portfolio">
@@ -181,6 +182,7 @@ export function DashboardFilters({
           </SelectTrigger>
           <SelectContent className="max-w-[300px]">
             <SelectItem value="all">All Portfolios</SelectItem>
+            <SelectItem value="-1">No Portfolio</SelectItem>
             {portfolios.map((p) => (
               <SelectItem key={p.id} value={p.id.toString()}>
                 <span className="truncate block max-w-[250px]">{p.name}</span>

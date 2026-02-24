@@ -48,7 +48,8 @@ export function ResourceDashboard() {
 
   const filteredProjects = useMemo(() => {
     return (projectsData ?? []).filter(p => {
-      if (filters.portfolioId && p.portfolioId !== filters.portfolioId) return false;
+      if (filters.portfolioId === -1 && p.portfolioId) return false;
+      if (filters.portfolioId !== null && filters.portfolioId !== -1 && p.portfolioId !== filters.portfolioId) return false;
       if (filters.projectId && p.id !== filters.projectId) return false;
       return true;
     });
@@ -161,8 +162,8 @@ export function ResourceDashboard() {
 
       <DashboardFilters
         portfolios={portfolios || []}
-        projects={filters.portfolioId 
-          ? (projectsData || []).filter(p => p.portfolioId === filters.portfolioId) 
+        projects={filters.portfolioId !== null
+          ? (projectsData || []).filter(p => filters.portfolioId === -1 ? !p.portfolioId : p.portfolioId === filters.portfolioId) 
           : (projectsData || [])}
         resources={resources || []}
         filters={filters}

@@ -40,7 +40,7 @@ export function PortfoliosDashboard() {
   const portfolios = useMemo(() => {
     return (portfoliosData ?? [])
       .filter(p => {
-        if (filters.portfolioId && p.id !== filters.portfolioId) return false;
+        if (filters.portfolioId !== null && filters.portfolioId !== -1 && p.id !== filters.portfolioId) return false;
         return true;
       })
       .sort((a, b) => {
@@ -52,7 +52,8 @@ export function PortfoliosDashboard() {
 
   const projects = useMemo(() => {
     return (projectsData ?? []).filter(p => {
-      if (filters.portfolioId && p.portfolioId !== filters.portfolioId) return false;
+      if (filters.portfolioId === -1 && p.portfolioId) return false;
+      if (filters.portfolioId !== null && filters.portfolioId !== -1 && p.portfolioId !== filters.portfolioId) return false;
       if (filters.projectId && p.id !== filters.projectId) return false;
       if (filters.health && p.health !== filters.health) return false;
       if (filters.dateRange.from || filters.dateRange.to) {
@@ -72,43 +73,6 @@ export function PortfoliosDashboard() {
       return true;
     });
   }, [projectsData, filters]);
-
-  if (portfoliosLoading || projectsLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  const formatBudget = (amount: number) => formatCurrency(amount, { compact: true });
-
-  const handleExportCsv = () => {
-    const headers = ["Portfolio", "Projects", "Active", "Completed", "Budget", "Avg Completion", "Health Score"];
-    const rows = portfolioData.map(p => {
-      return [p.name, p.projectCount, p.activeCount, p.projectCount - p.activeCount, p.budget, `${p.avgCompletion}%`, `${p.healthPercentage}%`];
-    });
-    const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "portfolios_dashboard.csv";
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const totalPortfolios = portfolios?.length || 0;
-  const totalProjects = projects?.length || 0;
-  const activeProjects = projects?.filter(p => p.status !== "Closing")?.length || 0;
-  const completedProjects = projects?.filter(p => p.status === "Closing")?.length || 0;
-  const totalBudget = projects?.reduce((sum, p) => sum + Number(p.budget || 0), 0) || 0;
-  const avgCompletionRate = projects?.length 
-    ? Math.round(projects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / projects.length)
-    : 0;
-  const healthyProjects = projects?.filter(p => p.health === "Green").length || 0;
-  const atRiskProjects = projects?.filter(p => p.health === "Yellow").length || 0;
-  const criticalProjects = projects?.filter(p => p.health === "Red").length || 0;
 
   const portfolioData = useMemo(() => {
     const data = (portfolios || []).map((portfolio, index) => {
@@ -164,6 +128,43 @@ export function PortfoliosDashboard() {
   const realPortfolios = portfolioData.filter(p => !p.isUnassigned);
   const unassignedEntry = portfolioData.find(p => p.isUnassigned);
 
+  if (portfoliosLoading || projectsLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const formatBudget = (amount: number) => formatCurrency(amount, { compact: true });
+
+  const handleExportCsv = () => {
+    const headers = ["Portfolio", "Projects", "Active", "Completed", "Budget", "Avg Completion", "Health Score"];
+    const rows = portfolioData.map(p => {
+      return [p.name, p.projectCount, p.activeCount, p.projectCount - p.activeCount, p.budget, `${p.avgCompletion}%`, `${p.healthPercentage}%`];
+    });
+    const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "portfolios_dashboard.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const totalPortfolios = portfolios?.length || 0;
+  const totalProjects = projects?.length || 0;
+  const activeProjects = projects?.filter(p => p.status !== "Closing")?.length || 0;
+  const completedProjects = projects?.filter(p => p.status === "Closing")?.length || 0;
+  const totalBudget = projects?.reduce((sum, p) => sum + Number(p.budget || 0), 0) || 0;
+  const avgCompletionRate = projects?.length 
+    ? Math.round(projects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / projects.length)
+    : 0;
+  const healthyProjects = projects?.filter(p => p.health === "Green").length || 0;
+  const atRiskProjects = projects?.filter(p => p.health === "Yellow").length || 0;
+  const criticalProjects = projects?.filter(p => p.health === "Red").length || 0;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
@@ -176,8 +177,8 @@ export function PortfoliosDashboard() {
 
       <DashboardFilters
         portfolios={portfoliosData || []}
-        projects={filters.portfolioId 
-          ? (projectsData || []).filter(p => p.portfolioId === filters.portfolioId) 
+        projects={filters.portfolioId !== null
+          ? (projectsData || []).filter(p => filters.portfolioId === -1 ? !p.portfolioId : p.portfolioId === filters.portfolioId) 
           : (projectsData || [])}
         filters={filters}
         onFiltersChange={setFilters}

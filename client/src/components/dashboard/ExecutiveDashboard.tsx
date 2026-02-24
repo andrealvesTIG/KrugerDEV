@@ -62,7 +62,8 @@ export function ExecutiveDashboard() {
 
   const projects = useMemo(() => {
     return (projectsData ?? []).filter(p => {
-      if (filters.portfolioId && p.portfolioId !== filters.portfolioId) return false;
+      if (filters.portfolioId === -1 && p.portfolioId) return false;
+      if (filters.portfolioId !== null && filters.portfolioId !== -1 && p.portfolioId !== filters.portfolioId) return false;
       if (filters.projectId && p.id !== filters.projectId) return false;
       if (filters.health && p.health !== filters.health) return false;
       if (filters.dateRange.from || filters.dateRange.to) {
@@ -138,7 +139,7 @@ export function ExecutiveDashboard() {
   
   const filteredProjectIds = new Set(projects.map(p => p.id));
   const filteredPortfolioIds = new Set(projects.map(p => p.portfolioId).filter(Boolean));
-  const hasActiveFilters = filters.portfolioId || filters.projectId || filters.health || filters.dateRange.from || filters.dateRange.to;
+  const hasActiveFilters = filters.portfolioId !== null || filters.projectId || filters.health || filters.dateRange.from || filters.dateRange.to;
 
   const filteredRisks = hasActiveFilters ? allRisks.filter(r => filteredProjectIds.has(r.projectId)) : allRisks;
   const openRisks = filteredRisks.filter(r => r.status === "Open" || r.status === "Identified").length;
@@ -195,8 +196,8 @@ export function ExecutiveDashboard() {
 
       <DashboardFilters
         portfolios={portfolios || []}
-        projects={filters.portfolioId 
-          ? (projectsData || []).filter(p => p.portfolioId === filters.portfolioId) 
+        projects={filters.portfolioId !== null
+          ? (projectsData || []).filter(p => filters.portfolioId === -1 ? !p.portfolioId : p.portfolioId === filters.portfolioId) 
           : (projectsData || [])}
         filters={filters}
         onFiltersChange={setFilters}

@@ -90,9 +90,13 @@ export function TimesheetProjectHoursDashboard() {
       if (hiddenResourceIds.has(e.resourceId)) return false;
       if (filters.resourceId && e.resourceId !== filters.resourceId) return false;
       if (filters.projectId && e.projectId !== filters.projectId) return false;
-      if (filters.portfolioId) {
+      if (filters.portfolioId !== null) {
         const project = projects.find(p => p.id === e.projectId);
-        if (!project || project.portfolioId !== filters.portfolioId) return false;
+        if (filters.portfolioId === -1) {
+          if (!project || project.portfolioId) return false;
+        } else {
+          if (!project || project.portfolioId !== filters.portfolioId) return false;
+        }
       }
       return true;
     });
@@ -224,8 +228,8 @@ export function TimesheetProjectHoursDashboard() {
 
       <DashboardFilters
         portfolios={portfolios || []}
-        projects={filters.portfolioId 
-          ? (projectsData || []).filter(p => p.portfolioId === filters.portfolioId) 
+        projects={filters.portfolioId !== null
+          ? (projectsData || []).filter(p => filters.portfolioId === -1 ? !p.portfolioId : p.portfolioId === filters.portfolioId) 
           : (projectsData || [])}
         resources={resources || []}
         filters={filters}

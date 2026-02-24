@@ -257,8 +257,8 @@ export function TimesheetReportDashboard() {
 
       <DashboardFilters
         portfolios={portfolios || []}
-        projects={filters.portfolioId 
-          ? (projectsData || []).filter(p => p.portfolioId === filters.portfolioId) 
+        projects={filters.portfolioId !== null
+          ? (projectsData || []).filter(p => filters.portfolioId === -1 ? !p.portfolioId : p.portfolioId === filters.portfolioId) 
           : (projectsData || [])}
         resources={resources || []}
         filters={filters}

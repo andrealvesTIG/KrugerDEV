@@ -61,7 +61,8 @@ export function RisksIssuesDashboard() {
 
   const projects = useMemo(() => {
     return (projectsData ?? []).filter(p => {
-      if (filters.portfolioId && p.portfolioId !== filters.portfolioId) return false;
+      if (filters.portfolioId === -1 && p.portfolioId) return false;
+      if (filters.portfolioId !== null && filters.portfolioId !== -1 && p.portfolioId !== filters.portfolioId) return false;
       if (filters.projectId && p.id !== filters.projectId) return false;
       if (filters.health && p.health !== filters.health) return false;
       return true;
@@ -73,7 +74,7 @@ export function RisksIssuesDashboard() {
   const allRisks = useMemo(() => {
     return allRisksData.filter(r => {
       if (filters.projectId && r.projectId !== filters.projectId) return false;
-      if (filters.portfolioId && !filteredProjectIds.has(r.projectId)) return false;
+      if (filters.portfolioId !== null && !filteredProjectIds.has(r.projectId)) return false;
       if (filters.priority && r.impact !== filters.priority) return false;
       return true;
     });
@@ -84,7 +85,7 @@ export function RisksIssuesDashboard() {
       // Only include actual issues (not risks) - itemType is null or 'issue' for regular issues
       if (i.itemType === 'risk') return false;
       if (filters.projectId && i.projectId !== filters.projectId) return false;
-      if (filters.portfolioId && !filteredProjectIds.has(i.projectId)) return false;
+      if (filters.portfolioId !== null && !filteredProjectIds.has(i.projectId)) return false;
       if (filters.priority && i.priority !== filters.priority) return false;
       return true;
     });
@@ -187,8 +188,8 @@ export function RisksIssuesDashboard() {
 
       <DashboardFilters
         portfolios={portfolios || []}
-        projects={filters.portfolioId 
-          ? (projectsData || []).filter(p => p.portfolioId === filters.portfolioId) 
+        projects={filters.portfolioId !== null
+          ? (projectsData || []).filter(p => filters.portfolioId === -1 ? !p.portfolioId : p.portfolioId === filters.portfolioId) 
           : (projectsData || [])}
         filters={filters}
         onFiltersChange={setFilters}
