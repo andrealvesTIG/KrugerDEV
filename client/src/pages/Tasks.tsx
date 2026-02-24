@@ -25,7 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal, Search, User as UserIcon, TrendingUp, TrendingDown, Timer, RefreshCw, Lock as LockIcon } from "lucide-react";
+import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal, Search, User as UserIcon, TrendingUp, TrendingDown, Timer, RefreshCw, Lock as LockIcon, Crown, Cloud, FileSpreadsheet } from "lucide-react";
 import { PageTransition, FadeIn } from "@/components/ui/page-transition";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
@@ -1219,18 +1219,21 @@ function GroupedTasksView({
                   {group.source === "planner" && (
                     <>
                       <img src={plannerLogoPath} alt="Planner" className="h-3 w-3" />
+                      <Cloud className="h-2.5 w-2.5 text-indigo-500" />
                       Planner
                     </>
                   )}
                   {group.source === "planner_premium" && (
                     <>
                       <img src={plannerLogoPath} alt="Planner Premium" className="h-3 w-3" />
+                      <Crown className="h-2.5 w-2.5 text-purple-500" />
                       Premium
                     </>
                   )}
                   {group.source === "imported" && (
                     <>
                       <img src={msprojectLogoPath} alt="MS Project" className="h-3 w-3" />
+                      <FileSpreadsheet className="h-2.5 w-2.5 text-emerald-500" />
                       MS Project
                     </>
                   )}

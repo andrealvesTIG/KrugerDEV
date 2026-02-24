@@ -698,6 +698,7 @@ export default function Projects() {
                                 data-testid={`planner-badge-fullscreen-${project.id}`}
                               >
                                 <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
+                                <Cloud className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
                                 <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">Planner</span>
                                 <ExternalLink className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
                               </button>
@@ -951,6 +952,7 @@ export default function Projects() {
                           data-testid={`planner-badge-${project.id}`}
                         >
                           <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
+                          <Cloud className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
                           <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">Planner</span>
                           <ExternalLink className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
                         </button>
@@ -1600,8 +1602,9 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
             )}
             data-testid="button-source-planner"
           >
-            <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center relative">
               <img src={plannerLogoPath} alt="Planner" className="h-5 w-5" />
+              <Cloud className="h-3 w-3 text-indigo-600 absolute -top-1 -right-1" />
             </div>
             <span className="text-xs font-medium text-center">Planner</span>
           </button>
@@ -1635,8 +1638,9 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
             )}
             data-testid="button-source-msproject"
           >
-            <div className="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center relative">
               <img src={msprojectLogoPath} alt="MS Project" className="h-5 w-5" />
+              <FileSpreadsheet className="h-3 w-3 text-emerald-600 absolute -top-1 -right-1" />
             </div>
             <span className="text-xs font-medium text-center">MS Project</span>
           </button>
@@ -2798,10 +2802,11 @@ function ProjectsGridView({
                   e.stopPropagation();
                   window.open(`https://planner.cloud.microsoft/webui/plan/${project.plannerPlanId}/view/board`, '_blank');
                 }}
-                className="flex-shrink-0"
+                className="flex-shrink-0 flex items-center gap-0.5"
                 title="Open in Planner"
               >
                 <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
+                <Cloud className="h-3 w-3 text-indigo-500" />
               </button>
             )}
             {(project.source === "planner-premium" || project.source === "planner_premium") && project.plannerPlanId && (
@@ -2823,6 +2828,36 @@ function ProjectsGridView({
                 <img src={plannerLogoPath} alt="Planner Premium" className="h-4 w-4" />
                 <Crown className="h-3 w-3 text-purple-500" />
               </button>
+            )}
+            {project.source === "imported" && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  {project.sourceFileUrl ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const link = document.createElement('a');
+                        link.href = project.sourceFileUrl!;
+                        link.download = project.sourceFileName || 'project.mpp';
+                        link.click();
+                      }}
+                      className="flex-shrink-0 flex items-center gap-0.5"
+                      title={`Download ${project.sourceFileName || "source file"}`}
+                    >
+                      <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                      <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
+                    </button>
+                  ) : (
+                    <span className="flex-shrink-0 flex items-center gap-0.5">
+                      <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                      <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
+                    </span>
+                  )}
+                </TooltipTrigger>
+                <TooltipContent>{project.sourceFileUrl ? `Download ${project.sourceFileName || "source file"}` : "Imported from MS Project"}</TooltipContent>
+              </Tooltip>
             )}
             <Button 
               size="icon" 
@@ -2939,9 +2974,27 @@ function ProjectsGridView({
         );
       case "source":
         if ((project as any).isExternal) return <ExternalBadge organizationName={(project as any).sourceOrganizationName} />;
-        if (project.source === "planner") return <Badge variant="outline" className="text-xs">Planner</Badge>;
-        if (project.source === "planner-premium" || project.source === "planner_premium") return <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">Planner Premium</Badge>;
-        if (project.source === "imported") return <Badge variant="outline" className="text-xs">MS Project</Badge>;
+        if (project.source === "planner") return (
+          <Badge variant="outline" className="text-xs bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+            <img src={plannerLogoPath} alt="Planner" className="h-3 w-3 mr-1" />
+            <Cloud className="h-2.5 w-2.5 mr-1 text-indigo-500" />
+            Planner
+          </Badge>
+        );
+        if (project.source === "planner-premium" || project.source === "planner_premium") return (
+          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+            <img src={plannerLogoPath} alt="Planner Premium" className="h-3 w-3 mr-1" />
+            <Crown className="h-2.5 w-2.5 mr-1 text-purple-500" />
+            Premium
+          </Badge>
+        );
+        if (project.source === "imported") return (
+          <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+            <img src={msprojectLogoPath} alt="MS Project" className="h-3 w-3 mr-1" />
+            <FileSpreadsheet className="h-2.5 w-2.5 mr-1 text-emerald-500" />
+            MS Project
+          </Badge>
+        );
         return <Badge variant="outline" className="text-xs">Manual</Badge>;
       case "owner":
         const managerResource = project.managerResourceId ? resourceMap.get(project.managerResourceId) : null;
@@ -3516,10 +3569,11 @@ function DraggableProjectCard({ project }: { project: Project }) {
                     e.stopPropagation();
                     window.open(`https://planner.cloud.microsoft/webui/plan/${project.plannerPlanId}/view/board`, '_blank');
                   }}
-                  className="flex-shrink-0"
+                  className="flex-shrink-0 flex items-center gap-0.5"
                   title="Open in Planner"
                 >
                   <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
+                  <Cloud className="h-3 w-3 text-indigo-500" />
                 </button>
               )}
               {(project.source === "planner-premium" || project.source === "planner_premium") && project.plannerPlanId && (
@@ -3542,22 +3596,35 @@ function DraggableProjectCard({ project }: { project: Project }) {
                   <Crown className="h-3 w-3 text-purple-500" />
                 </button>
               )}
-              {project.source === "imported" && project.sourceFileUrl && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const link = document.createElement('a');
-                    link.href = project.sourceFileUrl!;
-                    link.download = project.sourceFileName || 'project.mpp';
-                    link.click();
-                  }}
-                  className="flex-shrink-0"
-                  title={`Download ${project.sourceFileName || "source file"}`}
-                >
-                  <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
-                </button>
+              {project.source === "imported" && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    {project.sourceFileUrl ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const link = document.createElement('a');
+                          link.href = project.sourceFileUrl!;
+                          link.download = project.sourceFileName || 'project.mpp';
+                          link.click();
+                        }}
+                        className="flex-shrink-0 flex items-center gap-0.5"
+                        title={`Download ${project.sourceFileName || "source file"}`}
+                      >
+                        <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                        <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
+                      </button>
+                    ) : (
+                      <span className="flex-shrink-0 flex items-center gap-0.5">
+                        <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                        <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
+                      </span>
+                    )}
+                  </TooltipTrigger>
+                  <TooltipContent>{project.sourceFileUrl ? `Download ${project.sourceFileName || "source file"}` : "Imported from MS Project"}</TooltipContent>
+                </Tooltip>
               )}
             </div>
             
@@ -4025,10 +4092,11 @@ function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; 
                                   e.stopPropagation();
                                   window.open(`https://planner.cloud.microsoft/webui/plan/${project.plannerPlanId}/view/board`, '_blank');
                                 }}
-                                className="flex-shrink-0"
+                                className="flex-shrink-0 flex items-center gap-0.5"
                                 title="Open in Planner"
                               >
                                 <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
+                                <Cloud className="h-3 w-3 text-indigo-500" />
                               </button>
                             )}
                             {(project.source === "planner-premium" || project.source === "planner_premium") && project.plannerPlanId && (
@@ -4051,22 +4119,35 @@ function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; 
                                 <Crown className="h-3 w-3 text-purple-500" />
                               </button>
                             )}
-                            {project.source === "imported" && project.sourceFileUrl && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  const link = document.createElement('a');
-                                  link.href = project.sourceFileUrl!;
-                                  link.download = project.sourceFileName || 'project.mpp';
-                                  link.click();
-                                }}
-                                className="flex-shrink-0"
-                                title={`Download ${project.sourceFileName || "source file"}`}
-                              >
-                                <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
-                              </button>
+                            {project.source === "imported" && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  {project.sourceFileUrl ? (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        const link = document.createElement('a');
+                                        link.href = project.sourceFileUrl!;
+                                        link.download = project.sourceFileName || 'project.mpp';
+                                        link.click();
+                                      }}
+                                      className="flex-shrink-0 flex items-center gap-0.5"
+                                      title={`Download ${project.sourceFileName || "source file"}`}
+                                    >
+                                      <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                                      <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
+                                    </button>
+                                  ) : (
+                                    <span className="flex-shrink-0 flex items-center gap-0.5">
+                                      <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                                      <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
+                                    </span>
+                                  )}
+                                </TooltipTrigger>
+                                <TooltipContent>{project.sourceFileUrl ? `Download ${project.sourceFileName || "source file"}` : "Imported from MS Project"}</TooltipContent>
+                              </Tooltip>
                             )}
                           </div>
                           <div className="flex items-center gap-2 mt-1">
