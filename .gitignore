@@ -6,6 +6,10 @@ vite.config.ts.*
 *.tar.gz
 
 # Replit system/cache files
+.cache/
+.local/
+.config/
+.upm/
 latest
 latest.json
 toolchain.json
