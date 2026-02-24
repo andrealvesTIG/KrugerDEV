@@ -400,7 +400,7 @@ export default function Projects() {
 
   useEffect(() => {
     setListDisplayCount(LIST_PAGE_SIZE);
-  }, [filteredProjects?.length, view]);
+  }, [filteredProjects, view]);
 
   useEffect(() => {
     if (view !== "list") return;
@@ -684,12 +684,12 @@ export default function Projects() {
           <div className="flex-1 overflow-auto p-4">
             {view === "list" ? (
               <div className="space-y-6">
-                {filteredProjects?.map((project, index) => (
+                {displayedListProjects.map((project, index) => (
                   <motion.div
                     key={project.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: index * 0.05 }}
+                    transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.5) }}
                   >
                     <Link href={`/projects/${project.id}`}>
                       <div className="group relative flex flex-col gap-5 rounded-2xl border border-border bg-card p-7 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 sm:flex-row sm:items-center cursor-pointer press-scale">
@@ -904,6 +904,20 @@ export default function Projects() {
                     </Link>
                   </motion.div>
                 ))}
+                {(filteredProjects?.length || 0) > 0 && (
+                  <div className="flex items-center justify-between px-2 py-2 text-sm text-muted-foreground">
+                    <span>
+                      Showing {Math.min(listDisplayCount, filteredProjects?.length || 0)} of {filteredProjects?.length || 0} projects
+                    </span>
+                    {hasMoreListProjects && (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Scroll for more
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div ref={listLoadMoreRef} className="h-1" />
               </div>
             ) : view === "grid" ? (
               <ProjectsGridView 
