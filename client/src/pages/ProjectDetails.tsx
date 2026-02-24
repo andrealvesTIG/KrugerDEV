@@ -5046,8 +5046,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                 <div className="min-w-0">
                   <span className="font-medium">Planner Premium Task Management Options:</span>
                   <div className="mt-1 space-y-0.5">
-                    <p className="text-sm text-red-600 dark:text-red-400 font-medium">1. Sync Now – Edit tasks in Planner (view-only in FridayReport)</p>
-                    <p className="text-sm text-red-600 dark:text-red-400 font-medium">2. Detach & Edit – Disconnect from Planner and continue managing tasks directly in FridayReport</p>
+                    <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">1. Sync Now – Edit tasks in Planner (view-only in FridayReport)</p>
+                    <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">2. Detach & Edit – Disconnect from Planner and continue managing tasks directly in FridayReport</p>
                   </div>
                 </div>
               </div>
