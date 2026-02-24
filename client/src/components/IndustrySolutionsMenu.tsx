@@ -1,17 +1,66 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "wouter";
-import { ChevronDown, Heart, Landmark, Factory, Cpu, HardHat, Zap, Building } from "lucide-react";
+import { ChevronDown, Heart, Landmark, Factory, Cpu, HardHat, Zap, Building, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const industries = [
-  { label: "Healthcare", href: "/healthcare", icon: Heart, color: "text-teal-600 dark:text-teal-400" },
-  { label: "Financial Services", href: "/financial-services", icon: Landmark, color: "text-indigo-600 dark:text-indigo-400" },
-  { label: "Manufacturing", href: "/manufacturing", icon: Factory, color: "text-orange-600 dark:text-orange-400" },
-  { label: "Industrial Automation", href: "/industrial-automation", icon: Cpu, color: "text-cyan-600 dark:text-cyan-400" },
-  { label: "Construction & Engineering", href: "/construction", icon: HardHat, color: "text-amber-600 dark:text-amber-400" },
-  { label: "Energy & Utilities", href: "/energy", icon: Zap, color: "text-emerald-600 dark:text-emerald-400" },
-  { label: "Government & Public Sector", href: "/government", icon: Building, color: "text-slate-600 dark:text-slate-400" },
+  {
+    label: "Healthcare",
+    description: "HIPAA-ready project oversight for hospitals, health systems, and clinical PMOs.",
+    href: "/healthcare",
+    icon: Heart,
+    color: "text-teal-600 dark:text-teal-400",
+    bgColor: "bg-teal-50 dark:bg-teal-950/40",
+  },
+  {
+    label: "Financial Services",
+    description: "Compliance-first portfolio management for banks, insurance, and investment firms.",
+    href: "/financial-services",
+    icon: Landmark,
+    color: "text-indigo-600 dark:text-indigo-400",
+    bgColor: "bg-indigo-50 dark:bg-indigo-950/40",
+  },
+  {
+    label: "Manufacturing",
+    description: "End-to-end program tracking for NPI, plant expansions, and supply chain projects.",
+    href: "/manufacturing",
+    icon: Factory,
+    color: "text-orange-600 dark:text-orange-400",
+    bgColor: "bg-orange-50 dark:bg-orange-950/40",
+  },
+  {
+    label: "Industrial Automation",
+    description: "Coordinate SCADA upgrades, PLC migrations, and control system modernization.",
+    href: "/industrial-automation",
+    icon: Cpu,
+    color: "text-cyan-600 dark:text-cyan-400",
+    bgColor: "bg-cyan-50 dark:bg-cyan-950/40",
+  },
+  {
+    label: "Construction & Engineering",
+    description: "Multi-site capital program management with contractor and permit tracking.",
+    href: "/construction",
+    icon: HardHat,
+    color: "text-amber-600 dark:text-amber-400",
+    bgColor: "bg-amber-50 dark:bg-amber-950/40",
+  },
+  {
+    label: "Energy & Utilities",
+    description: "Grid modernization, renewables, and NERC CIP compliance program oversight.",
+    href: "/energy",
+    icon: Zap,
+    color: "text-emerald-600 dark:text-emerald-400",
+    bgColor: "bg-emerald-50 dark:bg-emerald-950/40",
+  },
+  {
+    label: "Government & Public Sector",
+    description: "IT modernization, grant compliance, and inter-agency program coordination.",
+    href: "/government",
+    icon: Building,
+    color: "text-slate-600 dark:text-slate-400",
+    bgColor: "bg-slate-100 dark:bg-slate-800/40",
+  },
 ];
 
 export function IndustrySolutionsMenu({ currentPath, variant = "default" }: { currentPath?: string; variant?: "default" | "dark" }) {
@@ -42,34 +91,57 @@ export function IndustrySolutionsMenu({ currentPath, variant = "default" }: { cu
         <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", open && "rotate-180")} />
       </Button>
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-72 bg-background border border-border rounded-xl shadow-xl z-50 py-2 animate-in fade-in-0 zoom-in-95 duration-150">
-          <div className="px-4 py-2 border-b border-border">
+        <div className="absolute right-0 top-full mt-2 w-[420px] bg-background border border-border rounded-xl shadow-2xl z-50 animate-in fade-in-0 zoom-in-95 duration-150 overflow-hidden">
+          <div className="px-5 py-3 border-b border-border bg-muted/30">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Industry Solutions</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Purpose-built project portfolio management</p>
           </div>
-          {industries.map((item) => {
-            const isActive = currentPath === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 px-4 py-2.5 hover:bg-muted/60 transition-colors cursor-pointer",
-                  isActive && "bg-muted/80"
-                )}
-              >
-                <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center bg-muted/50", isActive && "bg-primary/10")}>
-                  <item.icon className={cn("h-4 w-4", item.color)} />
-                </div>
-                <span className={cn("text-sm font-medium", isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground")}>
-                  {item.label}
-                </span>
-                {isActive && (
-                  <span className="ml-auto text-xs text-primary font-medium">Current</span>
-                )}
-              </Link>
-            );
-          })}
+          <div className="py-1.5 max-h-[calc(100vh-200px)] overflow-y-auto">
+            {industries.map((item) => {
+              const isActive = currentPath === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    "flex items-start gap-3.5 px-5 py-3 hover:bg-muted/50 transition-colors cursor-pointer group",
+                    isActive && "bg-muted/60"
+                  )}
+                >
+                  <div className={cn(
+                    "w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors",
+                    item.bgColor,
+                    isActive && "ring-2 ring-primary/20"
+                  )}>
+                    <item.icon className={cn("h-[18px] w-[18px]", item.color)} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={cn(
+                        "text-sm font-semibold leading-tight",
+                        isActive ? "text-foreground" : "text-foreground/80 group-hover:text-foreground"
+                      )}>
+                        {item.label}
+                      </span>
+                      {isActive && (
+                        <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Current</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed line-clamp-2">
+                      {item.description}
+                    </p>
+                  </div>
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all mt-1 flex-shrink-0" />
+                </Link>
+              );
+            })}
+          </div>
+          <div className="px-5 py-3 border-t border-border bg-muted/20">
+            <p className="text-xs text-muted-foreground">
+              Every industry solution includes AI-powered risk detection, real-time dashboards, and executive reporting.
+            </p>
+          </div>
         </div>
       )}
     </div>
@@ -85,10 +157,13 @@ export function IndustrySolutionsMobileLinks({ onNavigate }: { onNavigate?: () =
           key={item.href}
           href={item.href}
           onClick={onNavigate}
-          className="flex items-center gap-3 px-3 py-2 hover:bg-muted/60 rounded-md transition-colors cursor-pointer"
+          className="flex items-start gap-3 px-3 py-2 hover:bg-muted/60 rounded-md transition-colors cursor-pointer"
         >
-          <item.icon className={cn("h-4 w-4", item.color)} />
-          <span className="text-sm font-medium text-muted-foreground">{item.label}</span>
+          <item.icon className={cn("h-4 w-4 mt-0.5 flex-shrink-0", item.color)} />
+          <div className="min-w-0">
+            <span className="text-sm font-medium text-muted-foreground block">{item.label}</span>
+            <span className="text-xs text-muted-foreground/70 line-clamp-1">{item.description}</span>
+          </div>
         </Link>
       ))}
     </div>
