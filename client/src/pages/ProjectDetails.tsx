@@ -4836,7 +4836,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   
   // Get sidebar state to calculate fullscreen positioning
   // Sidebar is w-72 (288px) when expanded, w-20 (80px) when collapsed
-  const { isCollapsed } = useSidebarState();
+  const { isCollapsed, setIsCollapsed: setSidebarCollapsed } = useSidebarState();
+  const sidebarWasCollapsed = useRef(false);
   const sidebarWidth = isCollapsed ? 80 : 288;
   
   const filteredTasks = useMemo(() => {
@@ -5803,7 +5804,16 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setIsFullscreen(!isFullscreen)}
+            onClick={() => {
+              if (isFullscreen) {
+                setSidebarCollapsed(sidebarWasCollapsed.current);
+                setIsFullscreen(false);
+              } else {
+                sidebarWasCollapsed.current = isCollapsed;
+                setSidebarCollapsed(true);
+                setIsFullscreen(true);
+              }
+            }}
             data-testid="button-tasks-fullscreen"
             title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
           >

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
+import { useSidebarState } from "@/components/layout/Sidebar";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useProjects } from "@/hooks/use-projects";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -670,6 +671,8 @@ export default function Simulation() {
   const [scenario, setScenario] = useState("baseline");
   const [activeNotifications, setActiveNotifications] = useState<SimulationEventDisplay[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const { isCollapsed: sidebarCollapsed, setIsCollapsed: setSidebarCollapsed } = useSidebarState();
+  const sidebarWasCollapsed = useRef(false);
   
   const [simState, setSimState] = useState<SimulationState>({
     isRunning: false,
@@ -1033,7 +1036,10 @@ export default function Simulation() {
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={() => setIsFullscreen(false)}
+              onClick={() => {
+                setSidebarCollapsed(sidebarWasCollapsed.current);
+                setIsFullscreen(false);
+              }}
               data-testid="button-exit-fullscreen"
             >
               <X className="h-5 w-5" />
@@ -1079,7 +1085,16 @@ export default function Simulation() {
           <Button
             variant="outline"
             size="icon"
-            onClick={() => setIsFullscreen(!isFullscreen)}
+            onClick={() => {
+              if (isFullscreen) {
+                setSidebarCollapsed(sidebarWasCollapsed.current);
+                setIsFullscreen(false);
+              } else {
+                sidebarWasCollapsed.current = sidebarCollapsed;
+                setSidebarCollapsed(true);
+                setIsFullscreen(true);
+              }
+            }}
             data-testid="button-fullscreen-toggle"
           >
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}

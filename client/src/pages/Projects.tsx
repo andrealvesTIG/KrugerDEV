@@ -4,6 +4,7 @@ import { useExternalProjects } from "@/hooks/use-external-shares";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
 import { useAllTasks } from "@/hooks/use-tasks";
+import { useSidebarState } from "@/components/layout/Sidebar";
 import { ExternalBadge } from "@/components/ExternalBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -107,6 +108,8 @@ export default function Projects() {
   const [riskAssessProjectId, setRiskAssessProjectId] = useState<number | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const { isCollapsed: sidebarCollapsed, setIsCollapsed: setSidebarCollapsed } = useSidebarState();
+  const sidebarWasCollapsed = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [, navigate] = useLocation();
 
@@ -657,7 +660,11 @@ export default function Projects() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setIsFullscreen(true)}
+          onClick={() => {
+            sidebarWasCollapsed.current = sidebarCollapsed;
+            setSidebarCollapsed(true);
+            setIsFullscreen(true);
+          }}
           data-testid="button-fullscreen"
         >
           <Maximize2 className="h-4 w-4" />
@@ -674,7 +681,10 @@ export default function Projects() {
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => setIsFullscreen(false)}
+              onClick={() => {
+                setSidebarCollapsed(sidebarWasCollapsed.current);
+                setIsFullscreen(false);
+              }}
               data-testid="button-exit-fullscreen"
             >
               <Minimize2 className="h-4 w-4 mr-2" />
@@ -929,7 +939,10 @@ export default function Projects() {
                 isAdmin={isOrgAdmin}
                 organizationId={currentOrganization?.id || null}
                 isFullscreen={true}
-                onExitFullscreen={() => setIsFullscreen(false)}
+                onExitFullscreen={() => {
+                  setSidebarCollapsed(sidebarWasCollapsed.current);
+                  setIsFullscreen(false);
+                }}
                 filterView={filterView}
                 onFilterViewChange={setFilterView}
               />
@@ -3275,7 +3288,7 @@ function ProjectsGridView({
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => setIsFullscreen(false)}
+              onClick={onExitFullscreen}
               data-testid="button-exit-fullscreen"
             >
               <Minimize2 className="h-4 w-4 mr-2" />
@@ -3286,7 +3299,7 @@ function ProjectsGridView({
       )}
       
       {/* Bulk Actions Toolbar - Only show in non-fullscreen mode */}
-      {!isFullscreen && selectedProjects.size > 0 && (
+      {!externalFullscreen && selectedProjects.size > 0 && (
         <div className="flex items-center gap-4 p-3 bg-muted rounded-lg">
           <span className="text-sm font-medium">{selectedProjects.size} project(s) selected</span>
           <Button variant="ghost" size="sm" onClick={() => setSelectedProjects(new Set())}>

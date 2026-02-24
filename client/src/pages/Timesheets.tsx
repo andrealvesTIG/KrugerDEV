@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
+import { useSidebarState } from "@/components/layout/Sidebar";
 import { 
   useTimesheetEntries, 
   useAssignedTasks, 
@@ -2362,15 +2363,20 @@ export default function Timesheets() {
   const [activeTab, setActiveTab] = useState("entry");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const { isCollapsed: sidebarCollapsed, setIsCollapsed: setSidebarCollapsed } = useSidebarState();
+  const sidebarWasCollapsed = useRef(false);
 
   useEffect(() => {
     if (!isFullscreen) return;
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsFullscreen(false);
+      if (e.key === "Escape") {
+        setSidebarCollapsed(sidebarWasCollapsed.current);
+        setIsFullscreen(false);
+      }
     };
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [isFullscreen]);
+  }, [isFullscreen, setSidebarCollapsed]);
 
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
@@ -3112,7 +3118,10 @@ export default function Timesheets() {
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => setIsFullscreen(false)}
+              onClick={() => {
+                setSidebarCollapsed(sidebarWasCollapsed.current);
+                setIsFullscreen(false);
+              }}
               data-testid="button-exit-fullscreen"
             >
               <Minimize2 className="h-4 w-4 mr-2" />
@@ -3430,7 +3439,11 @@ export default function Timesheets() {
                           Export to Excel
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => setIsFullscreen(true)}
+                          onClick={() => {
+                            sidebarWasCollapsed.current = sidebarCollapsed;
+                            setSidebarCollapsed(true);
+                            setIsFullscreen(true);
+                          }}
                           data-testid="menu-fullscreen"
                         >
                           <Maximize2 className="h-4 w-4 mr-2" />
