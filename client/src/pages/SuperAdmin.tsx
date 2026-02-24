@@ -2046,15 +2046,12 @@ function AllUsersTab() {
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <div className="flex items-center gap-2 cursor-help">
-                                  <div className="w-16 h-2 rounded-full bg-muted overflow-hidden">
-                                    <div
-                                      className={`h-full rounded-full ${score >= 75 ? 'bg-green-500' : score >= 40 ? 'bg-amber-500' : 'bg-muted-foreground/40'}`}
-                                      style={{ width: `${score}%` }}
-                                    />
-                                  </div>
-                                  <span className={`text-xs font-medium ${color}`}>{score}</span>
-                                </div>
+                                <Badge
+                                  variant="secondary"
+                                  className={`text-xs font-semibold cursor-help ${score >= 75 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : score >= 40 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}
+                                >
+                                  {score} - {label}
+                                </Badge>
                               </TooltipTrigger>
                               <TooltipContent side="left" className="max-w-xs text-xs">
                                 <p className="font-semibold mb-1">{label} Engagement ({score}/100)</p>
