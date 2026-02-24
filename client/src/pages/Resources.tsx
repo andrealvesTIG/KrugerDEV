@@ -1836,116 +1836,132 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[540px] max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit Resource" : "Add New Resource"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <Label htmlFor="displayName">Name *</Label>
-              <Input id="displayName" {...form.register("displayName")} placeholder="John Smith" data-testid="input-resource-name" />
-              {form.formState.errors.displayName && (
-                <p className="text-sm text-red-500 mt-1">{form.formState.errors.displayName.message}</p>
-              )}
-            </div>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
+          <div className="overflow-y-auto flex-1 pr-1 space-y-5">
             <div>
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" {...form.register("email")} placeholder="john@example.com" data-testid="input-resource-email" />
-            </div>
-            <div>
-              <Label htmlFor="title">Title</Label>
-              <Input id="title" {...form.register("title")} placeholder="Software Engineer" data-testid="input-resource-title" />
-            </div>
-            <div>
-              <Label htmlFor="department">Department</Label>
-              <Input id="department" {...form.register("department")} placeholder="Engineering" data-testid="input-resource-department" />
-            </div>
-            <div>
-              <Label htmlFor="hourlyRate">Hourly Rate ($)</Label>
-              <Input id="hourlyRate" {...form.register("hourlyRate")} placeholder="100" data-testid="input-resource-rate" />
-            </div>
-            <div className="col-span-2">
-              <Label htmlFor="skills">Skills</Label>
-              <Input id="skills" {...form.register("skills")} placeholder="React, TypeScript, Node.js" data-testid="input-resource-skills" />
-            </div>
-            <div className="col-span-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea id="notes" {...form.register("notes")} placeholder="Additional notes..." data-testid="input-resource-notes" />
-            </div>
-            <div className="col-span-2">
-              <Label htmlFor="userId" className="flex items-center gap-2">
-                <UserCircle className="h-4 w-4" />
-                Link to User Account
-              </Label>
-              <Select
-                value={selectedUserId || "none"}
-                onValueChange={(value) => setSelectedUserId(value === "none" ? null : value)}
-              >
-                <SelectTrigger data-testid="select-resource-user">
-                  <SelectValue placeholder="Select a user account..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No linked user</SelectItem>
-                  {members.map((member) => (
-                    <SelectItem key={member.userId} value={member.userId}>
-                      {member.user?.firstName && member.user?.lastName
-                        ? `${member.user.firstName} ${member.user.lastName}`
-                        : member.user?.email || member.userId}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Link this resource to a user account to enable timesheet logging
-              </p>
-            </div>
-            <div className="col-span-2 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="isActive"
-                  checked={form.watch("isActive") ?? true}
-                  onCheckedChange={(checked) => form.setValue("isActive", checked)}
-                  data-testid="switch-resource-active"
-                />
-                <Label htmlFor="isActive">Active</Label>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Basic Information</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <Label htmlFor="displayName">Name *</Label>
+                  <Input id="displayName" {...form.register("displayName")} placeholder="John Smith" data-testid="input-resource-name" />
+                  {form.formState.errors.displayName && (
+                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.displayName.message}</p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" type="email" {...form.register("email")} placeholder="john@example.com" data-testid="input-resource-email" />
+                </div>
+                <div>
+                  <Label htmlFor="title">Title</Label>
+                  <Input id="title" {...form.register("title")} placeholder="Software Engineer" data-testid="input-resource-title" />
+                </div>
+                <div>
+                  <Label htmlFor="department">Department</Label>
+                  <Input id="department" {...form.register("department")} placeholder="Engineering" data-testid="input-resource-department" />
+                </div>
+                <div>
+                  <Label htmlFor="hourlyRate">Hourly Rate ($)</Label>
+                  <Input id="hourlyRate" {...form.register("hourlyRate")} placeholder="100" data-testid="input-resource-rate" />
+                </div>
+                <div className="col-span-2">
+                  <Label htmlFor="skills">Skills</Label>
+                  <Input id="skills" {...form.register("skills")} placeholder="React, TypeScript, Node.js" data-testid="input-resource-skills" />
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="isApprover"
-                  checked={form.watch("isApprover") ?? false}
-                  onCheckedChange={(checked) => form.setValue("isApprover", checked)}
-                  data-testid="switch-resource-approver"
-                />
-                <Label htmlFor="isApprover" className="text-sm">
-                  Timesheet Approver
-                </Label>
+            </div>
+
+            <div className="border-t pt-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">User & Notes</p>
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="userId" className="flex items-center gap-2">
+                    <UserCircle className="h-4 w-4" />
+                    Link to User Account
+                  </Label>
+                  <Select
+                    value={selectedUserId || "none"}
+                    onValueChange={(value) => setSelectedUserId(value === "none" ? null : value)}
+                  >
+                    <SelectTrigger data-testid="select-resource-user">
+                      <SelectValue placeholder="Select a user account..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No linked user</SelectItem>
+                      {members.map((member) => (
+                        <SelectItem key={member.userId} value={member.userId}>
+                          {member.user?.firstName && member.user?.lastName
+                            ? `${member.user.firstName} ${member.user.lastName}`
+                            : member.user?.email || member.userId}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Link this resource to a user account to enable timesheet logging
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="notes">Notes</Label>
+                  <Textarea id="notes" {...form.register("notes")} placeholder="Additional notes..." rows={2} data-testid="input-resource-notes" />
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="isIntakeApprover"
-                  checked={form.watch("isIntakeApprover") ?? false}
-                  onCheckedChange={(checked) => form.setValue("isIntakeApprover", checked)}
-                  data-testid="switch-resource-intake-approver"
-                />
-                <Label htmlFor="isIntakeApprover" className="text-sm">
-                  Intake Approver
-                </Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="timesheetHidden"
-                  checked={form.watch("timesheetHidden") ?? false}
-                  onCheckedChange={(checked) => form.setValue("timesheetHidden", checked)}
-                  data-testid="switch-resource-timesheet-hidden"
-                />
-                <Label htmlFor="timesheetHidden" className="text-sm">
-                  Hide from Timesheets
-                </Label>
+            </div>
+
+            <div className="border-t pt-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Settings</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="isActive"
+                    checked={form.watch("isActive") ?? true}
+                    onCheckedChange={(checked) => form.setValue("isActive", checked)}
+                    data-testid="switch-resource-active"
+                  />
+                  <Label htmlFor="isActive">Active</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="isApprover"
+                    checked={form.watch("isApprover") ?? false}
+                    onCheckedChange={(checked) => form.setValue("isApprover", checked)}
+                    data-testid="switch-resource-approver"
+                  />
+                  <Label htmlFor="isApprover" className="text-sm">
+                    Timesheet Approver
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="isIntakeApprover"
+                    checked={form.watch("isIntakeApprover") ?? false}
+                    onCheckedChange={(checked) => form.setValue("isIntakeApprover", checked)}
+                    data-testid="switch-resource-intake-approver"
+                  />
+                  <Label htmlFor="isIntakeApprover" className="text-sm">
+                    Intake Approver
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="timesheetHidden"
+                    checked={form.watch("timesheetHidden") ?? false}
+                    onCheckedChange={(checked) => form.setValue("timesheetHidden", checked)}
+                    data-testid="switch-resource-timesheet-hidden"
+                  />
+                  <Label htmlFor="timesheetHidden" className="text-sm">
+                    Hide from Timesheets
+                  </Label>
+                </div>
               </div>
             </div>
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="mt-4 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-resource">
               Cancel
             </Button>
