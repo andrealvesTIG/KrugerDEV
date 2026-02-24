@@ -84,6 +84,22 @@ public class MppParser {
                     json.append("\"workHours\":null,");
                 }
 
+                Duration actualWork = task.getActualWork();
+                if (actualWork != null) {
+                    double actualHours = actualWork.convertUnits(TimeUnit.HOURS, projectFile.getProjectProperties()).getDuration();
+                    json.append("\"actualWorkHours\":").append(Math.round(actualHours * 100.0) / 100.0).append(",");
+                } else {
+                    json.append("\"actualWorkHours\":null,");
+                }
+
+                Duration remainingWork = task.getRemainingWork();
+                if (remainingWork != null) {
+                    double remainingHours = remainingWork.convertUnits(TimeUnit.HOURS, projectFile.getProjectProperties()).getDuration();
+                    json.append("\"remainingWorkHours\":").append(Math.round(remainingHours * 100.0) / 100.0).append(",");
+                } else {
+                    json.append("\"remainingWorkHours\":null,");
+                }
+
                 List<Relation> predecessors = task.getPredecessors();
                 if (predecessors != null && !predecessors.isEmpty()) {
                     json.append("\"predecessors\":[");

@@ -50,6 +50,218 @@ async function migrate() {
       generated_at TIMESTAMP DEFAULT NOW(),
       created_at TIMESTAMP DEFAULT NOW()
     )`,
+
+    // === MISSING INDEXES ON FOREIGN KEY COLUMNS ===
+
+    // Tasks indexes
+    `CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks (project_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_tasks_owner_id ON tasks (owner_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_tasks_parent_id ON tasks (parent_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks (status)`,
+
+    // Issues indexes (covers both issues and risks)
+    `CREATE INDEX IF NOT EXISTS idx_issues_project_id ON issues (project_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_issues_item_type ON issues (item_type)`,
+    `CREATE INDEX IF NOT EXISTS idx_issues_assignee_id ON issues (assignee_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_issues_owner_id ON issues (owner_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_issues_status ON issues (status)`,
+
+    // Milestones indexes
+    `CREATE INDEX IF NOT EXISTS idx_milestones_project_id ON milestones (project_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_milestones_owner_id ON milestones (owner_id)`,
+
+    // Resources indexes
+    `CREATE INDEX IF NOT EXISTS idx_resources_organization_id ON resources (organization_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_resources_user_id ON resources (user_id)`,
+
+    // Task resource assignments indexes
+    `CREATE INDEX IF NOT EXISTS idx_task_resource_assignments_task_id ON task_resource_assignments (task_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_task_resource_assignments_resource_id ON task_resource_assignments (resource_id)`,
+
+    // Issue resource assignments indexes
+    `CREATE INDEX IF NOT EXISTS idx_issue_resource_assignments_issue_id ON issue_resource_assignments (issue_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_issue_resource_assignments_resource_id ON issue_resource_assignments (resource_id)`,
+
+    // Notifications indexes
+    `CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications (user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_notifications_organization_id ON notifications (organization_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications (is_read)`,
+    `CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications (created_at)`,
+
+    // Project comments indexes
+    `CREATE INDEX IF NOT EXISTS idx_project_comments_project_id ON project_comments (project_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_project_comments_author_id ON project_comments (author_id)`,
+
+    // Timesheet entries indexes
+    `CREATE INDEX IF NOT EXISTS idx_timesheet_entries_organization_id ON timesheet_entries (organization_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_timesheet_entries_user_id ON timesheet_entries (user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_timesheet_entries_task_id ON timesheet_entries (task_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_timesheet_entries_project_id ON timesheet_entries (project_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_timesheet_entries_entry_date ON timesheet_entries (entry_date)`,
+    `CREATE INDEX IF NOT EXISTS idx_timesheet_entries_status ON timesheet_entries (status)`,
+
+    // Project documents indexes
+    `CREATE INDEX IF NOT EXISTS idx_project_documents_project_id ON project_documents (project_id)`,
+
+    // Change requests indexes
+    `CREATE INDEX IF NOT EXISTS idx_change_requests_project_id ON change_requests (project_id)`,
+
+    // Cost items indexes
+    `CREATE INDEX IF NOT EXISTS idx_cost_items_project_id ON cost_items (project_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_cost_items_parent_id ON cost_items (parent_id)`,
+
+    // Project financials indexes
+    `CREATE INDEX IF NOT EXISTS idx_project_financials_project_id ON project_financials (project_id)`,
+
+    // Billable status comments indexes
+    `CREATE INDEX IF NOT EXISTS idx_billable_status_comments_project_id ON billable_status_comments (project_id)`,
+
+    // Health status history indexes
+    `CREATE INDEX IF NOT EXISTS idx_health_status_history_project_id ON health_status_history (project_id)`,
+
+    // Project invoices indexes
+    `CREATE INDEX IF NOT EXISTS idx_project_invoices_project_id ON project_invoices (project_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_project_invoices_organization_id ON project_invoices (organization_id)`,
+
+    // Invoice notes indexes
+    `CREATE INDEX IF NOT EXISTS idx_invoice_notes_invoice_id ON invoice_notes (invoice_id)`,
+
+    // Task change logs indexes
+    `CREATE INDEX IF NOT EXISTS idx_task_change_logs_task_id ON task_change_logs (task_id)`,
+
+    // Project change logs indexes
+    `CREATE INDEX IF NOT EXISTS idx_project_change_logs_project_id ON project_change_logs (project_id)`,
+
+    // Issue change logs indexes
+    `CREATE INDEX IF NOT EXISTS idx_issue_change_logs_issue_id ON issue_change_logs (issue_id)`,
+
+    // Task dependencies indexes
+    `CREATE INDEX IF NOT EXISTS idx_task_dependencies_task_id ON task_dependencies (task_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_task_dependencies_depends_on ON task_dependencies (depends_on_task_id)`,
+
+    // Projects indexes
+    `CREATE INDEX IF NOT EXISTS idx_projects_organization_id ON projects (organization_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_projects_portfolio_id ON projects (portfolio_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_projects_manager_id ON projects (manager_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_projects_status ON projects (status)`,
+
+    // Portfolios indexes
+    `CREATE INDEX IF NOT EXISTS idx_portfolios_organization_id ON portfolios (organization_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_portfolios_manager_id ON portfolios (manager_id)`,
+
+    // Organization members indexes
+    `CREATE INDEX IF NOT EXISTS idx_org_members_organization_id ON organization_members (organization_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_org_members_user_id ON organization_members (user_id)`,
+
+    // Project intakes indexes
+    `CREATE INDEX IF NOT EXISTS idx_project_intakes_organization_id ON project_intakes (organization_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_project_intakes_submitter_id ON project_intakes (submitter_id)`,
+
+    // Status report history indexes
+    `CREATE INDEX IF NOT EXISTS idx_status_report_history_project_id ON status_report_history (project_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_status_report_history_organization_id ON status_report_history (organization_id)`,
+
+    // Custom dashboards indexes
+    `CREATE INDEX IF NOT EXISTS idx_custom_dashboards_organization_id ON custom_dashboards (organization_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_custom_dashboards_user_id ON custom_dashboards (user_id)`,
+
+    // Project views indexes
+    `CREATE INDEX IF NOT EXISTS idx_project_views_organization_id ON project_views (organization_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_project_views_user_id ON project_views (user_id)`,
+
+    // Custom field definitions indexes
+    `CREATE INDEX IF NOT EXISTS idx_custom_field_defs_organization_id ON custom_field_definitions (organization_id)`,
+
+    // Project custom field values indexes
+    `CREATE INDEX IF NOT EXISTS idx_project_custom_field_values_project_id ON project_custom_field_values (project_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_project_custom_field_values_field_def_id ON project_custom_field_values (field_definition_id)`,
+
+    // Lessons learned indexes
+    `CREATE INDEX IF NOT EXISTS idx_lessons_learned_project_id ON lessons_learned (project_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_lessons_learned_organization_id ON lessons_learned (organization_id)`,
+
+    // Project scoring indexes
+    `CREATE INDEX IF NOT EXISTS idx_project_scores_project_id ON project_scores (project_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_project_scores_criteria_id ON project_scores (criteria_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_project_scoring_criteria_org_id ON project_scoring_criteria (organization_id)`,
+
+    // Project benefits indexes
+    `CREATE INDEX IF NOT EXISTS idx_project_benefits_project_id ON project_benefits (project_id)`,
+
+    // Project decisions indexes
+    `CREATE INDEX IF NOT EXISTS idx_project_decisions_project_id ON project_decisions (project_id)`,
+
+    // Simulation indexes
+    `CREATE INDEX IF NOT EXISTS idx_simulation_runs_organization_id ON simulation_runs (organization_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_simulation_events_run_id ON simulation_events (simulation_run_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_simulation_snapshots_run_id ON simulation_snapshots (simulation_run_id)`,
+
+    // Report subscriptions indexes
+    `CREATE INDEX IF NOT EXISTS idx_report_subscriptions_user_id ON report_subscriptions (user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_report_subscriptions_organization_id ON report_subscriptions (organization_id)`,
+
+    // Resource availability indexes
+    `CREATE INDEX IF NOT EXISTS idx_resource_availability_resource_id ON resource_availability (resource_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_resource_availability_org_id ON resource_availability (organization_id)`,
+
+    // Resource skills indexes
+    `CREATE INDEX IF NOT EXISTS idx_resource_skills_resource_id ON resource_skills (resource_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_resource_skills_org_id ON resource_skills (organization_id)`,
+
+    // Organization integrations indexes
+    `CREATE INDEX IF NOT EXISTS idx_org_integrations_org_id ON organization_integrations (organization_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_org_integrations_type ON organization_integrations (integration_type)`,
+
+    // External shares indexes
+    `CREATE INDEX IF NOT EXISTS idx_external_shares_source_org ON external_shares (source_organization_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_external_shares_shared_user ON external_shares (shared_with_user_id)`,
+
+    // Help tickets indexes
+    `CREATE INDEX IF NOT EXISTS idx_help_tickets_user_id ON help_tickets (user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_help_tickets_organization_id ON help_tickets (organization_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_help_tickets_status ON help_tickets (status)`,
+
+    // API request logs indexes
+    `CREATE INDEX IF NOT EXISTS idx_api_request_logs_created_at ON api_request_logs (created_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_api_request_logs_user_id ON api_request_logs (user_id)`,
+
+    // User activity logs indexes
+    `CREATE INDEX IF NOT EXISTS idx_user_activity_logs_user_id ON user_activity_logs (user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_logs (created_at)`,
+
+    // Non-project time entries indexes
+    `CREATE INDEX IF NOT EXISTS idx_non_project_time_org_id ON non_project_time_entries (organization_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_non_project_time_user_id ON non_project_time_entries (user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_non_project_time_resource_id ON non_project_time_entries (resource_id)`,
+
+    // Timesheet periods indexes
+    `CREATE INDEX IF NOT EXISTS idx_timesheet_periods_org_id ON timesheet_periods (organization_id)`,
+
+    // MPP imports indexes
+    `CREATE INDEX IF NOT EXISTS idx_mpp_imports_organization_id ON mpp_imports (organization_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_mpp_import_tasks_import_id ON mpp_import_tasks (import_id)`,
+
+    // User consents indexes
+    `CREATE INDEX IF NOT EXISTS idx_user_consents_user_id ON user_consents (user_id)`,
+
+    // Organization invites indexes
+    `CREATE INDEX IF NOT EXISTS idx_org_invites_organization_id ON organization_invites (organization_id)`,
+
+    // Organization access requests indexes
+    `CREATE INDEX IF NOT EXISTS idx_org_access_requests_organization_id ON organization_access_requests (organization_id)`,
+
+    // Portfolio risk assessments indexes
+    `CREATE INDEX IF NOT EXISTS idx_portfolio_risk_assessments_portfolio_id ON portfolio_risk_assessments (portfolio_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_portfolio_risk_assessments_org_id ON portfolio_risk_assessments (organization_id)`,
+
+    // Project risk assessments indexes
+    `CREATE INDEX IF NOT EXISTS idx_project_risk_assessments_project_id ON project_risk_assessments (project_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_project_risk_assessments_org_id ON project_risk_assessments (organization_id)`,
+
+    // === ENCRYPTED TOKEN COLUMNS FOR INTEGRATION SECURITY ===
+    `ALTER TABLE organization_integrations ADD COLUMN IF NOT EXISTS access_token_encrypted TEXT`,
+    `ALTER TABLE organization_integrations ADD COLUMN IF NOT EXISTS refresh_token_encrypted TEXT`,
+    `ALTER TABLE organization_integrations ADD COLUMN IF NOT EXISTS tokens_encrypted BOOLEAN DEFAULT false`,
   ];
 
   for (const sql of migrations) {

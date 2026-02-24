@@ -1013,21 +1013,24 @@ export const mppImportTasks = pgTable("mpp_import_tasks", {
   isMilestone: boolean("is_milestone").default(false),
   notes: text("notes"),
   workHours: numeric("work_hours"), // Work/effort in hours from MPP
+  actualWorkHours: numeric("actual_work_hours"), // Actual work hours from MPP
+  remainingWorkHours: numeric("remaining_work_hours"), // Remaining work hours from MPP
   predecessors: text("predecessors"), // JSON array of predecessor relationships [{predecessorTaskId, type, lagDays}]
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Organization-specific integration settings
+// Tokens are encrypted at rest via server/lib/tokenEncryption.ts
 export const organizationIntegrations = pgTable("organization_integrations", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
-  integrationType: text("integration_type").notNull(), // "planner", "planner_premium", "project_online", etc.
+  integrationType: text("integration_type").notNull(),
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
   tokenExpiry: timestamp("token_expiry"),
-  connectionStatus: text("connection_status").default("disconnected"), // "connected", "disconnected", "expired"
-  additionalData: text("additional_data"), // JSON string for integration-specific config
-  connectedBy: text("connected_by"), // User ID who connected
+  connectionStatus: text("connection_status").default("disconnected"),
+  additionalData: text("additional_data"),
+  connectedBy: text("connected_by"),
   connectedAt: timestamp("connected_at"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1879,26 +1882,26 @@ export const lessonsLearned = pgTable("lessons_learned", {
   organizationId: integer("organization_id").references(() => organizations.id),
   title: text("title").notNull(),
   description: text("description"),
-  category: text("category").default("General"), // Technical, Process, Communication, Risk, Resource, etc.
-  type: text("type").default("Improvement"), // Legacy column - Improvement, Success, Warning
-  lessonType: text("lesson_type").default("Positive"), // Positive (what went well), Negative (what to avoid)
-  impact: text("impact"), // Low, Medium, High
-  phase: text("phase"), // Initiation, Planning, Execution, Monitoring, Closing
-  rootCause: text("root_cause"), // Root cause analysis
-  recommendation: text("recommendation"), // Actionable recommendations
-  outcome: text("outcome"), // Legacy - outcome description
-  actionsTaken: text("actions_taken"), // Actions already taken
-  applicability: text("applicability"), // Where this lesson can be applied
-  tags: text("tags"), // For filtering and searching (stored as comma-separated or JSON string)
-  attachments: text("attachments"), // Legacy - attachment references
-  isShared: boolean("is_shared").default(false), // Whether lesson is shared across projects
-  status: text("status").default("Draft"), // Draft, Under Review, Approved, Archived
-  identifiedDate: date("identified_date"), // Legacy column name
-  dateIdentified: date("date_identified"), // New column name
+  category: text("category").default("General"),
+  type: text("type").default("Improvement"),
+  lessonType: text("lesson_type").default("Positive"),
+  impact: text("impact"),
+  phase: text("phase"),
+  rootCause: text("root_cause"),
+  recommendation: text("recommendation"),
+  outcome: text("outcome"),
+  actionsTaken: text("actions_taken"),
+  applicability: text("applicability"),
+  tags: text("tags"),
+  attachments: text("attachments"),
+  isShared: boolean("is_shared").default(false),
+  status: text("status").default("Draft"),
+  identifiedDate: date("identified_date"),
+  dateIdentified: date("date_identified"),
   identifiedBy: varchar("identified_by").references(() => users.id),
-  reviewedBy: varchar("reviewed_by").references(() => users.id), // Legacy reviewer
-  reviewedAt: timestamp("reviewed_at"), // Legacy review timestamp
-  approvedBy: integer("approved_by"), // Numeric reference (legacy type mismatch)
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  approvedBy: integer("approved_by"),
   approvedAt: timestamp("approved_at"),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: varchar("created_by").references(() => users.id),

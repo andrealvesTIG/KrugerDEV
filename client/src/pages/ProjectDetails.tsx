@@ -1119,7 +1119,39 @@ function ProjectTimeline({
   // Parse project dates
   const projectStart = startDate ? parseISO(startDate) : null;
   const projectEnd = endDate ? parseISO(endDate) : null;
-  
+
+  const scheduleBounds = useMemo(() => {
+    if (!tasks || tasks.length === 0) return null;
+    let minDate: Date | null = null;
+    let maxDate: Date | null = null;
+    for (const t of tasks) {
+      if (t.startDate) {
+        const d = parseISO(t.startDate);
+        if (!minDate || d < minDate) minDate = d;
+      }
+      if (t.endDate) {
+        const d = parseISO(t.endDate);
+        if (!maxDate || d > maxDate) maxDate = d;
+      }
+    }
+    if (!minDate || !maxDate) return null;
+    return { start: minDate, end: maxDate };
+  }, [tasks]);
+
+  const effectiveStart = useMemo(() => {
+    if (projectStart && scheduleBounds) {
+      return projectStart < scheduleBounds.start ? projectStart : scheduleBounds.start;
+    }
+    return projectStart || scheduleBounds?.start || null;
+  }, [projectStart, scheduleBounds]);
+
+  const effectiveEnd = useMemo(() => {
+    if (projectEnd && scheduleBounds) {
+      return projectEnd > scheduleBounds.end ? projectEnd : scheduleBounds.end;
+    }
+    return projectEnd || scheduleBounds?.end || null;
+  }, [projectEnd, scheduleBounds]);
+
   // Get tasks marked as milestones OR with 0 duration (start == end date)
   const allEvents = useMemo(() => {
     const events: TimelineEvent[] = [];
@@ -1164,14 +1196,14 @@ function ProjectTimeline({
   
   // Calculate auto-detected row count based on milestone density
   const autoDetectedRows = useMemo(() => {
-    if (!projectStart || !projectEnd || visibleEvents.length === 0) return 1;
+    if (!effectiveStart || !effectiveEnd || visibleEvents.length === 0) return 1;
     
-    const totalDays = differenceInDays(projectEnd, projectStart);
+    const totalDays = differenceInDays(effectiveEnd, effectiveStart);
     if (totalDays <= 0) return 1;
     
     // Calculate positions for all visible events
     const positions = visibleEvents
-      .map(event => (differenceInDays(event.date, projectStart) / totalDays) * 100)
+      .map(event => (differenceInDays(event.date, effectiveStart) / totalDays) * 100)
       .filter(p => p >= 0 && p <= 100)
       .sort((a, b) => a - b);
     
@@ -1202,7 +1234,7 @@ function ProjectTimeline({
     
     // Cap at 5 rows maximum
     return Math.min(5, requiredRows);
-  }, [visibleEvents, projectStart, projectEnd]);
+  }, [visibleEvents, effectiveStart, effectiveEnd]);
   
   // Check if user has manually overridden the row count
   const [userOverride, setUserOverride] = useState<boolean>(() => {
@@ -1261,23 +1293,23 @@ function ProjectTimeline({
     return { completedPercent, pendingPercent };
   }, [tasks]);
 
-  // Calculate timeline range
+  // Calculate timeline range using wider of project dates vs schedule bounds
   const timelineRange = useMemo(() => {
-    if (!projectStart || !projectEnd) return null;
+    if (!effectiveStart || !effectiveEnd) return null;
     
     const today = startOfDay(new Date());
-    const totalDays = differenceInDays(projectEnd, projectStart);
+    const totalDays = differenceInDays(effectiveEnd, effectiveStart);
     
     if (totalDays <= 0) return null;
     
     return {
-      start: projectStart,
-      end: projectEnd,
+      start: effectiveStart,
+      end: effectiveEnd,
       totalDays,
       today,
-      todayPosition: Math.max(0, Math.min(100, (differenceInDays(today, projectStart) / totalDays) * 100)),
+      todayPosition: Math.max(0, Math.min(100, (differenceInDays(today, effectiveStart) / totalDays) * 100)),
     };
-  }, [projectStart, projectEnd]);
+  }, [effectiveStart, effectiveEnd]);
   
   // Generate year markers for the timeline
   const yearMarkers = useMemo(() => {
@@ -1491,7 +1523,7 @@ function ProjectTimeline({
     return eventsWithPos;
   }, [visibleEvents, timelineRange, numRows]);
   
-  if (!projectStart || !projectEnd || !timelineRange) {
+  if (!timelineRange) {
     return (
       <Card className="py-2">
         <CardHeader className="py-1 px-4">
@@ -1501,7 +1533,7 @@ function ProjectTimeline({
           </CardTitle>
         </CardHeader>
         <CardContent className="py-1 px-4">
-          <p className="text-xs text-muted-foreground">Set project start and end dates to view the timeline.</p>
+          <p className="text-xs text-muted-foreground">Set project start and end dates or add tasks with dates to view the timeline.</p>
         </CardContent>
       </Card>
     );
@@ -1576,10 +1608,10 @@ function ProjectTimeline({
                   <rect x="5" y="8.5" width="3" height="2" fill="white"/>
                   <rect x="11" y="8" width="3" height="2" fill="white"/>
                 </svg>
-                {format(projectStart, 'MMM d, yyyy')}
+                {format(timelineRange.start, 'MMM d, yyyy')}
               </span>
               <span className="flex items-center gap-1.5">
-                {format(projectEnd, 'MMM d, yyyy')}
+                {format(timelineRange.end, 'MMM d, yyyy')}
                 {/* F1 Finish flag - black/white checkered on pole */}
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none">
                   {/* Flag pole */}
@@ -2426,12 +2458,12 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
                         </div>
                       ) : (
                         <div
-                          className={`flex items-center justify-between p-2 rounded min-h-[36px] border border-transparent ${field.isEditable ? 'cursor-pointer hover-elevate' : ''}`}
-                          onClick={() => field.isEditable && handleEdit(field)}
+                          className="flex items-center justify-between p-2 rounded min-h-[36px] border border-transparent cursor-pointer hover-elevate"
+                          onClick={() => handleEdit(field)}
                           data-testid={`button-edit-${field.fieldKey}`}
                         >
                           <span className="text-sm">{formatDisplayValue(value, field.fieldKey)}</span>
-                          {field.isEditable && <Pencil className="h-3 w-3 text-muted-foreground" />}
+                          <Pencil className="h-3 w-3 text-muted-foreground" />
                         </div>
                       )}
                     </div>
@@ -5046,8 +5078,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                 <div className="min-w-0">
                   <span className="font-medium">Planner Premium Task Management Options:</span>
                   <div className="mt-1 space-y-0.5">
-                    <p className="text-sm text-red-600 dark:text-red-400 font-medium">1. Sync Now – Edit tasks in Planner; view-only in FridayReport</p>
-                    <p className="text-sm text-red-600 dark:text-red-400 font-medium">2. Detach & Edit – Disconnect from Planner and continue managing tasks directly in FridayReport</p>
+                    <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">1. Sync Now – Edit tasks in Planner (view-only in FridayReport)</p>
+                    <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">2. Detach & Edit – Disconnect from Planner and continue managing tasks directly in FridayReport</p>
                   </div>
                 </div>
               </div>
@@ -5074,6 +5106,16 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                   <ExternalLink className="h-3 w-3" />
                   {isPremiumPlan ? "Open in Project" : "Open in Planner"}
                 </a>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => handlePlannerSync(false)} 
+                  disabled={isSyncing}
+                  data-testid="button-sync-planner"
+                >
+                  <RefreshCw className={cn("h-4 w-4 mr-1", isSyncing && "animate-spin")} />
+                  {isSyncing ? "Syncing..." : "Sync Now"}
+                </Button>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -5090,16 +5132,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                     <p>Detach this project from {isPremiumPlan ? "Project for the Web" : "Planner"} and make it fully editable. This removes the sync link but keeps all tasks and data.</p>
                   </TooltipContent>
                 </Tooltip>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => handlePlannerSync(false)} 
-                  disabled={isSyncing}
-                  data-testid="button-sync-planner"
-                >
-                  <RefreshCw className={cn("h-4 w-4 mr-1", isSyncing && "animate-spin")} />
-                  {isSyncing ? "Syncing..." : "Sync Now"}
-                </Button>
               </div>
             </div>
             {lastSyncedAt && (
@@ -5154,13 +5186,22 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             <img src={msprojectLogoPath} alt="Microsoft Project" className="h-6 w-6" />
             <div>
               <span className="font-medium text-emerald-800 dark:text-emerald-200">Microsoft Project Task Management Options:</span>
-              <div className="mt-1 space-y-0.5">
-                <p className="text-sm text-red-600 dark:text-red-400 font-medium">1. Re-Import – Edit tasks in MS Project; view-only in FridayReport</p>
-                <p className="text-sm text-red-600 dark:text-red-400 font-medium">2. Detach & Edit – Disconnect from MS Project and continue managing tasks directly in FridayReport</p>
+              <div className="mt-1 space-y-0.5"> 
+                <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">1. Re-Import – Edit tasks in MS Project (view-only in FridayReport)</p>
+                <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">2. Detach & Edit – Disconnect from MS Project and continue managing tasks directly in FridayReport</p> 
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsReimportDialogOpen(true)}
+              data-testid="button-reimport-msproject"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Re-Import
+            </Button>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -5177,15 +5218,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                 <p>Detach this project from the imported file and make it fully editable. This removes the import link but keeps all tasks and data.</p>
               </TooltipContent>
             </Tooltip>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsReimportDialogOpen(true)}
-              data-testid="button-reimport-msproject"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Re-Import
-            </Button>
             {sourceFileUrl && (
               <a 
                 href={sourceFileUrl}
@@ -5200,7 +5232,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           </div>
         </div>
       )}
-
       {/* MS Project Re-Import Dialog */}
       <Dialog open={isReimportDialogOpen} onOpenChange={setIsReimportDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
@@ -5297,7 +5328,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Detach & Edit Confirmation Dialog */}
       <AlertDialog open={isMakeEditableDialogOpen} onOpenChange={setIsMakeEditableDialogOpen}>
         <AlertDialogContent>
@@ -5339,7 +5369,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
       {/* MS Project Read-Only Task Dialog */}
       <Dialog open={showMsProjectEditDialog} onOpenChange={setShowMsProjectEditDialog}>
         <DialogContent className="sm:max-w-[400px]">
@@ -5787,7 +5816,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           onOpenChange={setIsHistoryOpen} 
         />
       </div>
-
       {view === "table" ? (
         <ProjectGanttView 
           tasks={filteredTasks} 
@@ -8363,8 +8391,6 @@ function ProjectGanttView({
   
   const addColumn = (colId: GanttColumn) => {
     setVisibleColumns(prev => [...prev, colId]);
-    setIsAddColumnOpen(false);
-    setColumnSearchQuery('');
   };
   
   // Column drag-and-drop reordering
@@ -8655,7 +8681,7 @@ function ProjectGanttView({
     // Check for summary tasks (tasks that have children)
     const summaryTaskIds = new Set<number>();
     for (const task of tasks) {
-      const parentId = task.parentTaskId;
+      const parentId = task.parentId;
       if (parentId) summaryTaskIds.add(parentId);
     }
     
@@ -9283,35 +9309,33 @@ function ProjectGanttView({
     let minDate: Date;
     let maxDate: Date;
     
-    // Prefer project start/end dates if available
-    if (projectStartDate && projectEndDate) {
-      const projStart = parseISO(projectStartDate);
-      const projEnd = parseISO(projectEndDate);
-      
-      const totalDays = differenceInDays(projEnd, projStart);
-      let autoZoom: ZoomLevel = 'month';
-      if (totalDays <= 14) autoZoom = 'day';
-      else if (totalDays <= 60) autoZoom = 'week';
-      else if (totalDays <= 180) autoZoom = 'month';
-      else if (totalDays <= 365) autoZoom = 'quarter';
-      else if (totalDays <= 730) autoZoom = 'year';
-      else autoZoom = '5year';
-      
-      minDate = startOfMonth(projStart);
-      maxDate = endOfMonth(projEnd);
-      
-      return { minDate, maxDate, dateRange: eachDayOfInterval({ start: minDate, end: maxDate }), autoZoomLevel: autoZoom };
-    }
-    
-    // Fall back to task dates
+    const projStart = projectStartDate ? parseISO(projectStartDate) : null;
+    const projEnd = projectEndDate ? parseISO(projectEndDate) : null;
+
     const tasksWithDates = tasks.filter(t => t.startDate && t.endDate);
-    
+    let scheduleMin: Date | null = null;
+    let scheduleMax: Date | null = null;
     if (tasksWithDates.length > 0) {
       const dates = tasksWithDates.flatMap(t => [parseISO(t.startDate), parseISO(t.endDate)]);
-      const earliestDate = new Date(Math.min(...dates.map(d => d.getTime())));
-      const latestDate = new Date(Math.max(...dates.map(d => d.getTime())));
-      
-      const totalDays = differenceInDays(latestDate, earliestDate);
+      scheduleMin = new Date(Math.min(...dates.map(d => d.getTime())));
+      scheduleMax = new Date(Math.max(...dates.map(d => d.getTime())));
+    }
+
+    let effStart: Date | null = null;
+    let effEnd: Date | null = null;
+    if (projStart && scheduleMin) {
+      effStart = projStart < scheduleMin ? projStart : scheduleMin;
+    } else {
+      effStart = projStart || scheduleMin;
+    }
+    if (projEnd && scheduleMax) {
+      effEnd = projEnd > scheduleMax ? projEnd : scheduleMax;
+    } else {
+      effEnd = projEnd || scheduleMax;
+    }
+
+    if (effStart && effEnd) {
+      const totalDays = differenceInDays(effEnd, effStart);
       let autoZoom: ZoomLevel = 'month';
       if (totalDays <= 14) autoZoom = 'day';
       else if (totalDays <= 60) autoZoom = 'week';
@@ -9320,8 +9344,8 @@ function ProjectGanttView({
       else if (totalDays <= 730) autoZoom = 'year';
       else autoZoom = '5year';
       
-      minDate = startOfMonth(earliestDate);
-      maxDate = endOfMonth(latestDate);
+      minDate = startOfMonth(effStart);
+      maxDate = endOfMonth(effEnd);
       
       return { minDate, maxDate, dateRange: eachDayOfInterval({ start: minDate, end: maxDate }), autoZoomLevel: autoZoom };
     } else {
@@ -9475,7 +9499,7 @@ function ProjectGanttView({
                     {GANTT_COLUMNS.filter(col => col.category === cat.id).map(col => (
                       <DropdownMenuItem 
                         key={col.id}
-                        onClick={() => toggleColumn(col.id)}
+                        onSelect={(e) => { e.preventDefault(); toggleColumn(col.id); }}
                         className="gap-2"
                       >
                         <Checkbox 
@@ -9863,7 +9887,7 @@ function ProjectGanttView({
                 })}
                 {/* Add column button - fixed at right edge */}
                 <div className="flex-shrink-0 border-l p-1 bg-muted/50">
-                  <DropdownMenu open={isAddColumnOpen} onOpenChange={setIsAddColumnOpen}>
+                  <DropdownMenu open={isAddColumnOpen} onOpenChange={(open) => { setIsAddColumnOpen(open); if (!open) setColumnSearchQuery(''); }}>
                     <DropdownMenuTrigger asChild>
                       <Button 
                         variant="ghost" 
@@ -9893,7 +9917,7 @@ function ProjectGanttView({
                           filteredColumnsToAdd.map(col => (
                             <DropdownMenuItem 
                               key={col.id}
-                              onClick={() => addColumn(col.id)}
+                              onSelect={(e) => { e.preventDefault(); addColumn(col.id); }}
                               className="text-xs"
                               data-testid={`add-column-${col.id}`}
                             >
@@ -14451,7 +14475,6 @@ function InvoicesTab({ projectId, organizationId, contractTotal }: { projectId: 
           </div>
         )}
       </CardContent>
-
       <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingInvoice(null); }}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -14567,7 +14590,6 @@ function InvoicesTab({ projectId, organizationId, contractTotal }: { projectId: 
           </form>
         </DialogContent>
       </Dialog>
-
       <Dialog open={!!notesInvoice} onOpenChange={(open) => { if (!open) { setNotesInvoice(null); setNewNote(''); } }}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -14622,7 +14644,6 @@ function InvoicesTab({ projectId, organizationId, contractTotal }: { projectId: 
           </div>
         </DialogContent>
       </Dialog>
-
       <AlertDialog open={!!invoiceToDelete} onOpenChange={(open) => { if (!open) setInvoiceToDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -14647,7 +14668,6 @@ function InvoicesTab({ projectId, organizationId, contractTotal }: { projectId: 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
       <Dialog open={isDynamicsImportOpen} onOpenChange={(open) => { setIsDynamicsImportOpen(open); if (!open) { setSelectedDynamicsInvoice(null); setDynamicsSearch(''); } }}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>

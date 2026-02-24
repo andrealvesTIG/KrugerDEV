@@ -50,7 +50,12 @@ Supports various notification types (e.g., mentions, task overdue, health alerts
 A help button in the header allows users to submit tickets with text descriptions and screenshots. Submissions are stored, emailed to support, and manageable by Super Admins through a dedicated console.
 
 ### Organization-Scoped Integration Settings
-Integration credentials (e.g., OAuth tokens) and connection statuses are stored per organization in `organization_integrations` for multi-tenant integration management. Helper functions manage this data, and API endpoints are scoped by `organizationId`.
+Integration credentials (e.g., OAuth tokens) and connection statuses are stored per organization in `organization_integrations` for multi-tenant integration management. OAuth tokens are encrypted at rest using AES-256-GCM via `server/lib/tokenEncryption.ts`. Helper functions (`getOrgIntegration`/`upsertOrgIntegration` in `server/services/microsoftPlanner.ts`) handle transparent encryption/decryption. API endpoints are scoped by `organizationId`.
+
+### Database Optimization
+- 100+ indexes added on foreign key columns across all major tables for query performance
+- Billing tables (`subscriptions`, `seat_assignments`) have DB-level FK constraints to `organizations` table (circular import prevents Drizzle `.references()`)
+- Legacy risk tables (`risks`, `risk_change_logs`, `risk_resource_assignments`) contain real data but are deprecated; risks now managed via `issues` table with `itemType="risk"`
 
 ### Resource Management Module
 Includes features for tracking resource skills with proficiency levels, resource availability (time-off, leave), and a resource utilization API. Frontend views include Capacity Planning, Workload Dashboard, Availability Calendar, and Demand vs. Supply Forecast.

@@ -156,6 +156,8 @@ interface ParsedMppTask {
   isMilestone?: boolean;
   notes?: string;
   workHours?: number;
+  actualWorkHours?: number;
+  remainingWorkHours?: number;
   predecessors?: Array<{ predecessorTaskId: number; type: string; lagDays: number }>;
 }
 
@@ -251,6 +253,30 @@ async function parseXmlMspdi(xmlContent: string): Promise<ParsedMppTask[]> {
         }
       }
 
+      // Parse ActualWork field (e.g., "PT16H0M0S" for 16 actual hours)
+      let actualWorkHours: number | undefined;
+      const actualWorkStr = task.ActualWork || '';
+      if (actualWorkStr.startsWith('PT')) {
+        const actHoursMatch = actualWorkStr.match(/(\d+)H/);
+        const actMinsMatch = actualWorkStr.match(/(\d+)M/);
+        if (actHoursMatch || actMinsMatch) {
+          actualWorkHours = (actHoursMatch ? parseInt(actHoursMatch[1]) : 0) +
+                            (actMinsMatch ? parseInt(actMinsMatch[1]) / 60 : 0);
+        }
+      }
+
+      // Parse RemainingWork field (e.g., "PT24H0M0S" for 24 remaining hours)
+      let remainingWorkHours: number | undefined;
+      const remainingWorkStr = task.RemainingWork || '';
+      if (remainingWorkStr.startsWith('PT')) {
+        const remHoursMatch = remainingWorkStr.match(/(\d+)H/);
+        const remMinsMatch = remainingWorkStr.match(/(\d+)M/);
+        if (remHoursMatch || remMinsMatch) {
+          remainingWorkHours = (remHoursMatch ? parseInt(remHoursMatch[1]) : 0) +
+                               (remMinsMatch ? parseInt(remMinsMatch[1]) / 60 : 0);
+        }
+      }
+
       // Parse PredecessorLink elements
       const predecessors: Array<{ predecessorTaskId: number; type: string; lagDays: number }> = [];
       if (task.PredecessorLink) {
@@ -286,6 +312,8 @@ async function parseXmlMspdi(xmlContent: string): Promise<ParsedMppTask[]> {
         isMilestone: task.Milestone === '1' || task.Milestone === 'true' || task.Milestone === true,
         notes: task.Notes,
         workHours,
+        actualWorkHours,
+        remainingWorkHours,
         predecessors,
       });
     }
@@ -12290,6 +12318,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           isMilestone: task.isMilestone || false,
           notes: task.notes,
           workHours: task.workHours?.toString() || null,
+          actualWorkHours: task.actualWorkHours?.toString() || null,
+          remainingWorkHours: task.remainingWorkHours?.toString() || null,
           predecessors: task.predecessors && task.predecessors.length > 0 ? JSON.stringify(task.predecessors) : null,
         }));
         await storage.createMppImportTasks(taskRecords);
