@@ -1907,18 +1907,18 @@ function AllUsersTab() {
                   onClick={() => handleSort('engagement')}
                   data-testid="header-sort-engagement"
                 >
-                  <TooltipProvider>
+                  <TooltipProvider delayDuration={100}>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className="flex items-center gap-1">
+                        <span className="inline-flex items-center gap-1">
                           Engagement
                           <HelpCircle className="h-3 w-3 text-muted-foreground" />
                           {sortField === 'engagement' && (
                             sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
                           )}
-                        </div>
+                        </span>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom" className="max-w-xs text-xs">
+                      <TooltipContent side="bottom" className="max-w-xs text-xs p-3">
                         <p className="font-semibold mb-1">Engagement Score (0-100)</p>
                         <p className="mb-1">Measures how actively a user interacts with the platform based on:</p>
                         <ul className="list-disc pl-3 space-y-0.5">
@@ -2031,17 +2031,19 @@ function AllUsersTab() {
                       const breakdown = getEngagementBreakdown(user);
                       return (
                         <div className="flex items-center gap-2" data-testid={`engagement-${user.id}`}>
-                          <TooltipProvider>
+                          <TooltipProvider delayDuration={100}>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Badge
-                                  variant="secondary"
-                                  className={`text-xs font-semibold cursor-help ${score >= 75 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : score >= 40 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}
-                                >
-                                  {score} - {label}
-                                </Badge>
+                                <span className="inline-flex cursor-help">
+                                  <Badge
+                                    variant="secondary"
+                                    className={`text-xs font-semibold ${score >= 75 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : score >= 40 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}
+                                  >
+                                    {score} - {label}
+                                  </Badge>
+                                </span>
                               </TooltipTrigger>
-                              <TooltipContent side="left" className="max-w-xs text-xs">
+                              <TooltipContent side="bottom" className="max-w-xs text-xs p-3">
                                 <p className="font-semibold mb-1">{label} Engagement ({score}/100)</p>
                                 <ul className="space-y-0.5">
                                   {breakdown.map((item, i) => (
