@@ -653,289 +653,337 @@ export default function Tasks() {
                 <span className="hidden sm:inline">Add Task</span>
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col">
               <DialogHeader>
                 <DialogTitle>{editingTask ? "Edit Task" : "Add New Task"}</DialogTitle>
                 <DialogDescription>
                   {editingTask ? "Modify the task details below." : "Fill in the details to create a new task."}
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 pt-2 text-sm">
-                <div className="space-y-1">
-                  <Label className="text-xs">Project</Label>
-                  <Controller control={form.control} name="projectId" render={({field, fieldState}) => (
-                    <div className="space-y-1">
-                      <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value ? String(field.value) : ""}>
-                        <SelectTrigger data-testid="select-task-project" className={cn("h-8 text-sm", fieldState.error && "border-destructive")}>
-                          <SelectValue placeholder="Select project" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {projects?.map(p => (
-                            <SelectItem key={p.id} value={String(p.id)}>
-                              <div className="truncate max-w-[400px]" title={p.name}>{p.name}</div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
-                    </div>
-                  )} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Task Name</Label>
-                  <Input {...form.register("name")} data-testid="input-task-name" className={cn("h-8 text-sm", form.formState.errors.name && "border-destructive")} />
-                  {form.formState.errors.name && <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>}
-                </div>
-                <div className="grid grid-cols-3 gap-3">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col min-h-0">
+                <div className="space-y-2 pb-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">Start Date</Label>
-                    <Controller 
-                      control={form.control} 
-                      name="startDate" 
-                      render={({field}) => (
-                        <Input 
-                          type="date" 
-                          className="h-8 text-sm"
-                          value={field.value || ""}
-                          onChange={(e) => {
-                            const newStartDate = e.target.value;
-                            field.onChange(newStartDate);
-                            recalculateEndDate(newStartDate, durationDays);
-                          }}
-                          onBlur={field.onBlur}
-                          data-testid="input-task-start" 
-                        />
-                      )}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Duration (days)</Label>
-                    <Input 
-                      type="number" 
-                      min="0" 
-                      max="365" 
-                      className="h-8 text-sm"
-                      value={durationInput}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setDurationInput(value);
-                        const newDuration = value === "" ? null : parseInt(value, 10);
-                        if (newDuration !== null && !isNaN(newDuration) && newDuration >= 0) {
-                          const currentStartDate = form.getValues("startDate");
-                          recalculateEndDate(currentStartDate, newDuration);
-                        }
-                      }}
-                      onBlur={handleDurationBlur}
-                      data-testid="input-task-duration" 
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">End Date</Label>
-                    <Controller 
-                      control={form.control} 
-                      name="endDate" 
-                      render={({field}) => {
-                        const currentStartDate = form.getValues("startDate");
-                        return (
-                          <Input 
-                            type="date" 
-                            className="h-8 text-sm"
-                            value={field.value || ""}
-                            min={currentStartDate || undefined}
-                            onChange={(e) => {
-                              const newEndDate = e.target.value;
-                              field.onChange(newEndDate);
-                              if (currentStartDate && newEndDate && newEndDate.length === 10) {
-                                try {
-                                  const start = parseISO(currentStartDate);
-                                  const end = parseISO(newEndDate);
-                                  if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
-                                    const newDuration = differenceInDays(end, start) + 1;
-                                    if (newDuration >= 0) {
-                                      setDurationInput(String(newDuration));
-                                      form.setValue("durationDays", newDuration, { shouldDirty: true, shouldValidate: true });
-                                    }
-                                  }
-                                } catch {
-                                  // Ignore parse errors during typing
-                                }
-                              }
-                            }}
-                            onBlur={field.onBlur}
-                            data-testid="input-task-end" 
-                          />
-                        );
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Status</Label>
-                    <Controller control={form.control} name="status" render={({field}) => (
-                      <Select onValueChange={field.onChange} value={field.value || "Not Started"}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Not Started">Not Started</SelectItem>
-                          <SelectItem value="In Progress">In Progress</SelectItem>
-                          <SelectItem value="Completed">Completed</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <Label className="text-xs">Project</Label>
+                    <Controller control={form.control} name="projectId" render={({field, fieldState}) => (
+                      <div className="space-y-1">
+                        <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value ? String(field.value) : ""}>
+                          <SelectTrigger data-testid="select-task-project" className={cn("h-8 text-sm", fieldState.error && "border-destructive")}>
+                            <SelectValue placeholder="Select project" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {projects?.map(p => (
+                              <SelectItem key={p.id} value={String(p.id)}>
+                                <div className="truncate max-w-[400px]" title={p.name}>{p.name}</div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+                      </div>
                     )} />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs flex items-center justify-between">
-                      Progress
-                      <span className="text-muted-foreground font-normal">{form.watch("progress") || 0}%</span>
-                    </Label>
-                    <Controller control={form.control} name="progress" render={({field}) => (
-                      <Slider
-                        value={[field.value || 0]}
-                        onValueChange={(v) => field.onChange(v[0])}
-                        min={0}
-                        max={100}
-                        step={5}
-                        className="py-1"
-                        data-testid="slider-task-progress"
-                      />
-                    )} />
+                    <Label className="text-xs">Task Name</Label>
+                    <Input {...form.register("name")} data-testid="input-task-name" className={cn("h-8 text-sm", form.formState.errors.name && "border-destructive")} />
+                    {form.formState.errors.name && <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>}
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Description</Label>
-                  <Textarea {...form.register("description")} className="text-sm min-h-[60px]" />
-                </div>
-                
-                {/* Baseline Section */}
-                <div className="border-2 border-orange-200 dark:border-orange-800 rounded-md p-3 bg-orange-50/50 dark:bg-orange-950/30 space-y-3">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div>
-                      <Label className="text-xs font-medium flex items-center gap-2">
-                        <CalendarIcon className="h-3.5 w-3.5 text-orange-600" />
-                        Baseline Dates
-                      </Label>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Track schedule variance against the original plan
-                      </p>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={setBaselineFromCurrentDates}
-                        data-testid="button-set-baseline"
-                      >
-                        Set Baseline
-                      </Button>
-                      {(form.watch("baselineStartDate") || form.watch("baselineEndDate")) && (
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          onClick={clearBaseline}
-                          data-testid="button-clear-baseline"
-                        >
-                          Clear
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {form.watch("baselineStartDate") || form.watch("baselineEndDate") ? (
-                    <>
+
+                <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
+                  <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="details" className="text-xs">Details</TabsTrigger>
+                    <TabsTrigger value="schedule" className="text-xs">Schedule</TabsTrigger>
+                    <TabsTrigger value="resources" className="text-xs">Resources</TabsTrigger>
+                    <TabsTrigger value="dependencies" className="text-xs" disabled={!editingTask}>Dependencies</TabsTrigger>
+                  </TabsList>
+
+                  <div className="flex-1 overflow-y-auto py-4 min-h-[280px]">
+                    <TabsContent value="details" className="mt-0 space-y-4">
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Baseline Start</Label>
+                          <Label className="text-xs">Status</Label>
+                          <Controller control={form.control} name="status" render={({field}) => (
+                            <Select onValueChange={(val) => {
+                              const prevStatus = field.value;
+                              field.onChange(val);
+                              if (val === "Not Started") {
+                                form.setValue("progress", 0);
+                              } else if (val === "Completed") {
+                                form.setValue("progress", 100);
+                              } else if (val === "In Progress" && prevStatus === "Completed") {
+                                form.setValue("progress", 50);
+                              }
+                            }} value={field.value || "Not Started"}>
+                              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Not Started">Not Started</SelectItem>
+                                <SelectItem value="In Progress">In Progress</SelectItem>
+                                <SelectItem value="Completed">Completed</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs flex items-center justify-between">
+                            Progress
+                            <span className="text-muted-foreground font-normal">{form.watch("progress") || 0}%</span>
+                          </Label>
+                          <Controller control={form.control} name="progress" render={({field}) => (
+                            <div className="h-9 flex items-center">
+                              <Slider
+                                value={[field.value || 0]}
+                                onValueChange={(v) => {
+                                  const newProgress = v[0];
+                                  field.onChange(newProgress);
+                                  const currentStatus = form.getValues("status");
+                                  if (newProgress === 100) {
+                                    form.setValue("status", "Completed");
+                                  } else if (newProgress === 0) {
+                                    form.setValue("status", "Not Started");
+                                  } else {
+                                    if (currentStatus === "Completed" || currentStatus === "Not Started") {
+                                      form.setValue("status", "In Progress");
+                                    }
+                                  }
+                                }}
+                                min={0}
+                                max={100}
+                                step={5}
+                                className="w-full"
+                                data-testid="slider-task-progress"
+                              />
+                            </div>
+                          )} />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Description</Label>
+                        <Textarea {...form.register("description")} className="text-sm min-h-[80px]" />
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Controller
+                          control={form.control}
+                          name="timesheetBlocked"
+                          render={({ field }) => (
+                            <Checkbox
+                              id="timesheetBlocked"
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                              data-testid="checkbox-timesheet-blocked"
+                            />
+                          )}
+                        />
+                        <Label htmlFor="timesheetBlocked" className="text-sm font-normal cursor-pointer">
+                          Block timesheet entries for this task
+                        </Label>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="schedule" className="mt-0 space-y-4">
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Start Date</Label>
                           <Controller 
                             control={form.control} 
-                            name="baselineStartDate" 
+                            name="startDate" 
                             render={({field}) => (
                               <Input 
                                 type="date" 
                                 className="h-8 text-sm"
                                 value={field.value || ""}
-                                onChange={(e) => field.onChange(e.target.value || null)}
-                                data-testid="input-baseline-start" 
+                                onChange={(e) => {
+                                  const newStartDate = e.target.value;
+                                  field.onChange(newStartDate);
+                                  recalculateEndDate(newStartDate, durationDays);
+                                }}
+                                onBlur={field.onBlur}
+                                data-testid="input-task-start" 
                               />
                             )}
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Baseline End</Label>
+                          <Label className="text-xs">Duration (days)</Label>
+                          <Input 
+                            type="number" 
+                            min="0" 
+                            max="365" 
+                            className="h-8 text-sm"
+                            value={durationInput}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setDurationInput(value);
+                              const newDuration = value === "" ? null : parseInt(value, 10);
+                              if (newDuration !== null && !isNaN(newDuration) && newDuration >= 0) {
+                                const currentStartDate = form.getValues("startDate");
+                                recalculateEndDate(currentStartDate, newDuration);
+                              }
+                            }}
+                            onBlur={handleDurationBlur}
+                            data-testid="input-task-duration" 
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">End Date</Label>
                           <Controller 
                             control={form.control} 
-                            name="baselineEndDate" 
-                            render={({field}) => (
-                              <Input 
-                                type="date" 
-                                className="h-8 text-sm"
-                                value={field.value || ""}
-                                onChange={(e) => field.onChange(e.target.value || null)}
-                                data-testid="input-baseline-end" 
-                              />
-                            )}
+                            name="endDate" 
+                            render={({field}) => {
+                              const currentStartDate = form.getValues("startDate");
+                              return (
+                                <Input 
+                                  type="date" 
+                                  className="h-8 text-sm"
+                                  value={field.value || ""}
+                                  min={currentStartDate || undefined}
+                                  onChange={(e) => {
+                                    const newEndDate = e.target.value;
+                                    field.onChange(newEndDate);
+                                    if (currentStartDate && newEndDate && newEndDate.length === 10) {
+                                      try {
+                                        const start = parseISO(currentStartDate);
+                                        const end = parseISO(newEndDate);
+                                        if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+                                          const newDuration = differenceInDays(end, start) + 1;
+                                          if (newDuration >= 0) {
+                                            setDurationInput(String(newDuration));
+                                            form.setValue("durationDays", newDuration, { shouldDirty: true, shouldValidate: true });
+                                          }
+                                        }
+                                      } catch {
+                                      }
+                                    }
+                                  }}
+                                  onBlur={field.onBlur}
+                                  data-testid="input-task-end" 
+                                />
+                              );
+                            }}
                           />
                         </div>
                       </div>
-                      {(() => {
-                        const variance = calculateVariance();
-                        if (variance === null) return null;
-                        return (
-                          <div className="flex items-center gap-2 text-xs">
-                            <span className="text-muted-foreground">Schedule Variance:</span>
-                            <Badge 
-                              variant={variance > 0 ? "destructive" : variance < 0 ? "default" : "secondary"}
-                              className="text-xs"
-                            >
-                              {variance > 0 ? `+${variance} days (late)` : variance < 0 ? `${variance} days (early)` : "On schedule"}
-                            </Badge>
+
+                      <div className="border-2 border-orange-200 dark:border-orange-800 rounded-md p-3 bg-orange-50/50 dark:bg-orange-950/30 space-y-3">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div>
+                            <Label className="text-xs font-medium flex items-center gap-2">
+                              <CalendarIcon className="h-3.5 w-3.5 text-orange-600" />
+                              Baseline Dates
+                            </Label>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Track schedule variance against the original plan
+                            </p>
                           </div>
-                        );
-                      })()}
-                    </>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      No baseline set. Click "Set Baseline" to save the current dates as baseline.
-                    </p>
-                  )}
-                </div>
-                
-                {/* Note: In global Tasks view, we show ResourceAssignment since we don't have full project context to check children */}
-                <ResourceAssignment
-                  organizationId={currentOrganization?.id || null}
-                  selectedResourceIds={selectedResourceIds}
-                  onSelectionChange={setSelectedResourceIds}
-                  allocations={resourceAllocations}
-                  onAllocationsChange={setResourceAllocations}
-                  showAllocations={true}
-                  label="Assigned Resources"
-                  projectId={editingTask?.projectId || form.watch("projectId")}
-                  projectName={projectMap.get(editingTask?.projectId || form.watch("projectId") || 0)?.name}
-                  taskId={editingTask?.id}
-                  taskName={editingTask?.name || form.watch("name")}
-                  onInviteAssigned={() => { inviteAssignedRef.current = true; }}
-                />
-                
-                <div className="flex items-center space-x-2 pt-2">
-                  <Controller
-                    control={form.control}
-                    name="timesheetBlocked"
-                    render={({ field }) => (
-                      <Checkbox
-                        id="timesheetBlocked"
-                        checked={field.value || false}
-                        onCheckedChange={field.onChange}
-                        data-testid="checkbox-timesheet-blocked"
+                          <div className="flex gap-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={setBaselineFromCurrentDates}
+                              data-testid="button-set-baseline"
+                            >
+                              Set Baseline
+                            </Button>
+                            {(form.watch("baselineStartDate") || form.watch("baselineEndDate")) && (
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                onClick={clearBaseline}
+                                data-testid="button-clear-baseline"
+                              >
+                                Clear
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {form.watch("baselineStartDate") || form.watch("baselineEndDate") ? (
+                          <>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground">Baseline Start</Label>
+                                <Controller 
+                                  control={form.control} 
+                                  name="baselineStartDate" 
+                                  render={({field}) => (
+                                    <Input 
+                                      type="date" 
+                                      className="h-8 text-sm"
+                                      value={field.value || ""}
+                                      onChange={(e) => field.onChange(e.target.value || null)}
+                                      data-testid="input-baseline-start" 
+                                    />
+                                  )}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground">Baseline End</Label>
+                                <Controller 
+                                  control={form.control} 
+                                  name="baselineEndDate" 
+                                  render={({field}) => (
+                                    <Input 
+                                      type="date" 
+                                      className="h-8 text-sm"
+                                      value={field.value || ""}
+                                      onChange={(e) => field.onChange(e.target.value || null)}
+                                      data-testid="input-baseline-end" 
+                                    />
+                                  )}
+                                />
+                              </div>
+                            </div>
+                            {(() => {
+                              const variance = calculateVariance();
+                              if (variance === null) return null;
+                              return (
+                                <div className="flex items-center gap-2 text-xs">
+                                  <span className="text-muted-foreground">Schedule Variance:</span>
+                                  <Badge 
+                                    variant={variance > 0 ? "destructive" : variance < 0 ? "default" : "secondary"}
+                                    className="text-xs"
+                                  >
+                                    {variance > 0 ? `+${variance} days (late)` : variance < 0 ? `${variance} days (early)` : "On schedule"}
+                                  </Badge>
+                                </div>
+                              );
+                            })()}
+                          </>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            No baseline set. Click "Set Baseline" to save the current dates as baseline.
+                          </p>
+                        )}
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="resources" className="mt-0">
+                      <ResourceAssignment
+                        organizationId={currentOrganization?.id || null}
+                        selectedResourceIds={selectedResourceIds}
+                        onSelectionChange={setSelectedResourceIds}
+                        allocations={resourceAllocations}
+                        onAllocationsChange={setResourceAllocations}
+                        showAllocations={true}
+                        label="Assigned Resources"
+                        projectId={editingTask?.projectId || form.watch("projectId")}
+                        projectName={projectMap.get(editingTask?.projectId || form.watch("projectId") || 0)?.name}
+                        taskId={editingTask?.id}
+                        taskName={editingTask?.name || form.watch("name")}
+                        onInviteAssigned={() => { inviteAssignedRef.current = true; }}
                       />
-                    )}
-                  />
-                  <Label htmlFor="timesheetBlocked" className="text-sm cursor-pointer">
-                    Block timesheet entries for this task
-                  </Label>
-                </div>
+                    </TabsContent>
+
+                    <TabsContent value="dependencies" className="mt-0">
+                      <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
+                        Dependencies can be managed from the project's task view.
+                      </div>
+                    </TabsContent>
+                  </div>
+                </Tabs>
                 
-                <DialogFooter className="flex items-center gap-2">
+                <DialogFooter className="flex items-center gap-2 pt-3">
                   {editingTask && (
                     <Button 
                       type="button" 
