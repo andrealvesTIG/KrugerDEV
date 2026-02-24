@@ -8363,8 +8363,6 @@ function ProjectGanttView({
   
   const addColumn = (colId: GanttColumn) => {
     setVisibleColumns(prev => [...prev, colId]);
-    setIsAddColumnOpen(false);
-    setColumnSearchQuery('');
   };
   
   // Column drag-and-drop reordering
@@ -9863,7 +9861,7 @@ function ProjectGanttView({
                 })}
                 {/* Add column button - fixed at right edge */}
                 <div className="flex-shrink-0 border-l p-1 bg-muted/50">
-                  <DropdownMenu open={isAddColumnOpen} onOpenChange={setIsAddColumnOpen}>
+                  <DropdownMenu open={isAddColumnOpen} onOpenChange={(open) => { setIsAddColumnOpen(open); if (!open) setColumnSearchQuery(''); }}>
                     <DropdownMenuTrigger asChild>
                       <Button 
                         variant="ghost" 
@@ -9893,7 +9891,7 @@ function ProjectGanttView({
                           filteredColumnsToAdd.map(col => (
                             <DropdownMenuItem 
                               key={col.id}
-                              onClick={() => addColumn(col.id)}
+                              onSelect={(e) => { e.preventDefault(); addColumn(col.id); }}
                               className="text-xs"
                               data-testid={`add-column-${col.id}`}
                             >
