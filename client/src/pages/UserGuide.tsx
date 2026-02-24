@@ -59,6 +59,7 @@ import {
   HelpCircle
 } from "lucide-react";
 import { HelpDialog } from "@/components/HelpDialog";
+import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1040,6 +1041,9 @@ function ScreenshotImage({ src, alt, caption }: {
 }
 
 export default function UserGuide() {
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'super_admin' || user?.role === 'marketing';
+  const visibleSections = isSuperAdmin ? sections : sections.filter(s => s.id !== 'super-admin');
   const [activeSection, setActiveSection] = useState("overview");
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false);
@@ -1049,9 +1053,9 @@ export default function UserGuide() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const currentIndex = sections.findIndex(s => s.id === activeSection);
-  const prevSection = currentIndex > 0 ? sections[currentIndex - 1] : null;
-  const nextSection = currentIndex < sections.length - 1 ? sections[currentIndex + 1] : null;
+  const currentIndex = visibleSections.findIndex(s => s.id === activeSection);
+  const prevSection = currentIndex > 0 ? visibleSections[currentIndex - 1] : null;
+  const nextSection = currentIndex < visibleSections.length - 1 ? visibleSections[currentIndex + 1] : null;
 
   const handleDownloadPDF = async () => {
     setIsGeneratingPDF(true);
@@ -1108,7 +1112,7 @@ export default function UserGuide() {
             <CardContent className="p-0">
               <ScrollArea className="h-[calc(100vh-300px)]">
                 <nav className="space-y-1 px-3 pb-4">
-                  {sections.map((section) => (
+                  {visibleSections.map((section) => (
                     <button
                       key={section.id}
                       onClick={() => navigateToSection(section.id)}
@@ -3186,7 +3190,7 @@ export default function UserGuide() {
             </section>
             )}
 
-            {activeSection === "super-admin" && (
+            {isSuperAdmin && activeSection === "super-admin" && (
             <section id="super-admin">
               <Card>
                 <CardHeader>
