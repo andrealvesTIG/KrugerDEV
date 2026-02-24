@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { IndustrySolutionsMenu } from "@/components/IndustrySolutionsMenu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -347,6 +348,7 @@ export default function SignInPage() {
                 <img src={logoWhite} alt="FridayReport.AI" className="h-6 sm:h-7 flex-shrink-0" />
               </div>
               <div className="hidden md:flex items-center gap-6">
+                <IndustrySolutionsMenu currentPath="/" variant="dark" />
                 <button onClick={() => scrollToSection('features-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-features">
                   Features
                 </button>

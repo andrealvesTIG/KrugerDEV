@@ -14,7 +14,7 @@ const industries = [
   { label: "Government & Public Sector", href: "/government", icon: Building, color: "text-slate-600 dark:text-slate-400" },
 ];
 
-export function IndustrySolutionsMenu({ currentPath }: { currentPath?: string }) {
+export function IndustrySolutionsMenu({ currentPath, variant = "default" }: { currentPath?: string; variant?: "default" | "dark" }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -32,7 +32,10 @@ export function IndustrySolutionsMenu({ currentPath }: { currentPath?: string })
     <div className="relative" ref={ref}>
       <Button
         variant="ghost"
-        className="text-sm font-medium gap-1"
+        className={cn(
+          "text-sm font-medium gap-1",
+          variant === "dark" && "text-slate-200 hover:text-orange-400 hover:bg-transparent"
+        )}
         onClick={() => setOpen(!open)}
       >
         Industry Solutions
