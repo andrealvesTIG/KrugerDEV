@@ -99,6 +99,9 @@ const userId = getUserIdFromRequest(req);
 if (!userId) return res.status(401).json({ message: 'Authentication required' });
 ```
 
+### Industry Landing Pages
+- **Healthcare Landing Page** (`/healthcare`): Public landing page targeting hospitals and health systems, located at `client/src/pages/HealthcareLandingPage.tsx`. Uses AI-generated healthcare imagery from `client/src/assets/healthcare/`. Includes full sign-up flow (email magic link + Microsoft/Google SSO), healthcare pain points, feature sections with Framer Motion animations, feature comparison, and use cases. SEO meta tags target "healthcare project management software".
+
 ### Swagger/OpenAPI
 - The complete OpenAPI 3.0 spec is maintained in `server/swagger.ts` covering all ~400 routes.
 - Swagger UI is served at `/api-docs`, raw JSON spec at `/api-docs.json`.

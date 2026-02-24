@@ -59,6 +59,7 @@ import SharedRiskAssessment from "@/pages/SharedRiskAssessment"
 import SharedProjectRiskAssessment from "@/pages/SharedProjectRiskAssessment"
 import Home from "@/pages/Home"
 import LandingPageNew from "@/pages/LandingPageNew"
+import HealthcareLandingPage from "@/pages/HealthcareLandingPage"
 
 function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: string }) {
   const { currentOrganization, isLoading } = useOrganization();
@@ -232,6 +233,7 @@ function App() {
               <Route path="/guide" component={PublicUserGuide} />
               <Route path="/friday" component={FridayPage} />
               <Route path="/signup" component={LandingPageNew} />
+              <Route path="/healthcare" component={HealthcareLandingPage} />
               <Route>
                 <Router />
               </Route>
