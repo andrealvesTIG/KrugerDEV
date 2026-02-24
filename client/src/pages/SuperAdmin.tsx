@@ -1762,18 +1762,6 @@ function AllUsersTab() {
             placeholder="To"
             data-testid="input-date-to"
           />
-          <Select value={engagementFilter} onValueChange={(v) => { setEngagementFilter(v); setActiveCard(null); setCurrentPage(1); }}>
-            <SelectTrigger className="w-[160px]" data-testid="select-engagement-filter">
-              <SelectValue placeholder="Engagement" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Engagement</SelectItem>
-              <SelectItem value="high">High Engagement</SelectItem>
-              <SelectItem value="medium">Medium Engagement</SelectItem>
-              <SelectItem value="low">Low Engagement</SelectItem>
-              <SelectItem value="conversion_ready">Conversion Ready</SelectItem>
-            </SelectContent>
-          </Select>
           {!isMarketing && (
             <Select value={technicianFilter} onValueChange={(v) => { setTechnicianFilter(v); setActiveCard(null); setCurrentPage(1); }}>
               <SelectTrigger className="w-[160px]" data-testid="select-technician-filter">
