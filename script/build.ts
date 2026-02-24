@@ -1,7 +1,6 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
-import { execSync } from "child_process";
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -28,19 +27,13 @@ const allowlist = [
   "stripe",
   "uuid",
   "ws",
+  "xlsx",
   "zod",
   "zod-validation-error",
 ];
 
 async function buildAll() {
   await rm("dist", { recursive: true, force: true });
-
-  console.log("syncing database schema...");
-  try {
-    execSync("npx tsx script/migrate.ts", { stdio: "inherit" });
-  } catch (err) {
-    console.warn("Warning: Database schema sync failed, continuing build...", err);
-  }
 
   console.log("building client...");
   await viteBuild();
