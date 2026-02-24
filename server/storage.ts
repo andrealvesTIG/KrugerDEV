@@ -2977,11 +2977,9 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (syncMode === 'replace') {
-      // Delete all existing tasks first
-      for (const task of existingTasks) {
-        await db.delete(tasks).where(eq(tasks.id, task.id));
-        tasksRemoved++;
-      }
+      // Delete all existing tasks and their related records first
+      tasksRemoved = existingTasks.length;
+      await this.deleteAllTasksForProject(projectId);
       existingByName.clear();
       existingByWbs.clear();
     }
