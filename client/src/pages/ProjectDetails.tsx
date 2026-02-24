@@ -5074,6 +5074,16 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                   <ExternalLink className="h-3 w-3" />
                   {isPremiumPlan ? "Open in Project" : "Open in Planner"}
                 </a>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => handlePlannerSync(false)} 
+                  disabled={isSyncing}
+                  data-testid="button-sync-planner"
+                >
+                  <RefreshCw className={cn("h-4 w-4 mr-1", isSyncing && "animate-spin")} />
+                  {isSyncing ? "Syncing..." : "Sync Now"}
+                </Button>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -5090,16 +5100,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                     <p>Detach this project from {isPremiumPlan ? "Project for the Web" : "Planner"} and make it fully editable. This removes the sync link but keeps all tasks and data.</p>
                   </TooltipContent>
                 </Tooltip>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => handlePlannerSync(false)} 
-                  disabled={isSyncing}
-                  data-testid="button-sync-planner"
-                >
-                  <RefreshCw className={cn("h-4 w-4 mr-1", isSyncing && "animate-spin")} />
-                  {isSyncing ? "Syncing..." : "Sync Now"}
-                </Button>
               </div>
             </div>
             {lastSyncedAt && (
