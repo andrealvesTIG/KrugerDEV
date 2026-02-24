@@ -55,8 +55,10 @@ import {
   Lightbulb,
   Sliders,
   LayoutTemplate,
-  Receipt
+  Receipt,
+  HelpCircle
 } from "lucide-react";
+import { HelpDialog } from "@/components/HelpDialog";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1040,6 +1042,7 @@ function ScreenshotImage({ src, alt, caption }: {
 export default function UserGuide() {
   const [activeSection, setActiveSection] = useState("overview");
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false);
 
   const navigateToSection = (sectionId: string) => {
     setActiveSection(sectionId);
@@ -3284,27 +3287,39 @@ export default function UserGuide() {
               <CardContent className="py-6">
                 <div className="flex items-center gap-4 flex-wrap">
                   <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 shrink-0">
-                    <FileText className="h-6 w-6 text-primary" />
+                    <HelpCircle className="h-6 w-6 text-primary" />
                   </div>
                   <div className="flex-1 min-w-[200px]">
                     <h3 className="font-semibold text-foreground">Need More Help?</h3>
                     <p className="text-sm text-muted-foreground">
-                      Contact your administrator or reach out to our support team for additional assistance.
+                      Submit a help ticket or download the full guide as a PDF.
                     </p>
                   </div>
-                  <Button
-                    onClick={handleDownloadPDF}
-                    disabled={isGeneratingPDF}
-                    variant="outline"
-                    className="gap-2"
-                    data-testid="button-download-pdf-footer"
-                  >
-                    <Download className="h-4 w-4" />
-                    {isGeneratingPDF ? "Generating..." : "Download PDF"}
-                  </Button>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      onClick={() => setIsHelpDialogOpen(true)}
+                      className="gap-2"
+                      data-testid="button-submit-help-ticket"
+                    >
+                      <HelpCircle className="h-4 w-4" />
+                      Submit a Ticket
+                    </Button>
+                    <Button
+                      onClick={handleDownloadPDF}
+                      disabled={isGeneratingPDF}
+                      variant="outline"
+                      className="gap-2"
+                      data-testid="button-download-pdf-footer"
+                    >
+                      <Download className="h-4 w-4" />
+                      {isGeneratingPDF ? "Generating..." : "Download PDF"}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
+
+            <HelpDialog open={isHelpDialogOpen} onOpenChange={setIsHelpDialogOpen} />
           </div>
         </div>
       </motion.div>
