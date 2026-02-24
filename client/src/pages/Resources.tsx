@@ -1836,14 +1836,18 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[540px] max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit Resource" : "Add New Resource"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
-          <div className="overflow-y-auto flex-1 pr-1 space-y-5">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Basic Information</p>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <Tabs defaultValue="details" className="w-full">
+            <TabsList className="w-full grid grid-cols-2 mb-4">
+              <TabsTrigger value="details">Details</TabsTrigger>
+              <TabsTrigger value="settings">Settings</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="details" className="space-y-3 mt-0">
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
                   <Label htmlFor="displayName">Name *</Label>
@@ -1872,96 +1876,84 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
                   <Label htmlFor="skills">Skills</Label>
                   <Input id="skills" {...form.register("skills")} placeholder="React, TypeScript, Node.js" data-testid="input-resource-skills" />
                 </div>
-              </div>
-            </div>
-
-            <div className="border-t pt-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">User & Notes</p>
-              <div className="space-y-3">
-                <div>
-                  <Label htmlFor="userId" className="flex items-center gap-2">
-                    <UserCircle className="h-4 w-4" />
-                    Link to User Account
-                  </Label>
-                  <Select
-                    value={selectedUserId || "none"}
-                    onValueChange={(value) => setSelectedUserId(value === "none" ? null : value)}
-                  >
-                    <SelectTrigger data-testid="select-resource-user">
-                      <SelectValue placeholder="Select a user account..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No linked user</SelectItem>
-                      {members.map((member) => (
-                        <SelectItem key={member.userId} value={member.userId}>
-                          {member.user?.firstName && member.user?.lastName
-                            ? `${member.user.firstName} ${member.user.lastName}`
-                            : member.user?.email || member.userId}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Link this resource to a user account to enable timesheet logging
-                  </p>
-                </div>
-                <div>
+                <div className="col-span-2">
                   <Label htmlFor="notes">Notes</Label>
                   <Textarea id="notes" {...form.register("notes")} placeholder="Additional notes..." rows={2} data-testid="input-resource-notes" />
                 </div>
               </div>
-            </div>
+            </TabsContent>
 
-            <div className="border-t pt-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Settings</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex items-center gap-2">
+            <TabsContent value="settings" className="space-y-5 mt-0">
+              <div>
+                <Label htmlFor="userId" className="flex items-center gap-2 mb-1.5">
+                  <UserCircle className="h-4 w-4" />
+                  Link to User Account
+                </Label>
+                <Select
+                  value={selectedUserId || "none"}
+                  onValueChange={(value) => setSelectedUserId(value === "none" ? null : value)}
+                >
+                  <SelectTrigger data-testid="select-resource-user">
+                    <SelectValue placeholder="Select a user account..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No linked user</SelectItem>
+                    {members.map((member) => (
+                      <SelectItem key={member.userId} value={member.userId}>
+                        {member.user?.firstName && member.user?.lastName
+                          ? `${member.user.firstName} ${member.user.lastName}`
+                          : member.user?.email || member.userId}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Link this resource to a user account to enable timesheet logging
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-md border px-3 py-2.5">
+                  <Label htmlFor="isActive" className="text-sm font-normal cursor-pointer">Active</Label>
                   <Switch
                     id="isActive"
                     checked={form.watch("isActive") ?? true}
                     onCheckedChange={(checked) => form.setValue("isActive", checked)}
                     data-testid="switch-resource-active"
                   />
-                  <Label htmlFor="isActive">Active</Label>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between rounded-md border px-3 py-2.5">
+                  <Label htmlFor="isApprover" className="text-sm font-normal cursor-pointer">Timesheet Approver</Label>
                   <Switch
                     id="isApprover"
                     checked={form.watch("isApprover") ?? false}
                     onCheckedChange={(checked) => form.setValue("isApprover", checked)}
                     data-testid="switch-resource-approver"
                   />
-                  <Label htmlFor="isApprover" className="text-sm">
-                    Timesheet Approver
-                  </Label>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between rounded-md border px-3 py-2.5">
+                  <Label htmlFor="isIntakeApprover" className="text-sm font-normal cursor-pointer">Intake Approver</Label>
                   <Switch
                     id="isIntakeApprover"
                     checked={form.watch("isIntakeApprover") ?? false}
                     onCheckedChange={(checked) => form.setValue("isIntakeApprover", checked)}
                     data-testid="switch-resource-intake-approver"
                   />
-                  <Label htmlFor="isIntakeApprover" className="text-sm">
-                    Intake Approver
-                  </Label>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between rounded-md border px-3 py-2.5">
+                  <Label htmlFor="timesheetHidden" className="text-sm font-normal cursor-pointer">Hide from Timesheets</Label>
                   <Switch
                     id="timesheetHidden"
                     checked={form.watch("timesheetHidden") ?? false}
                     onCheckedChange={(checked) => form.setValue("timesheetHidden", checked)}
                     data-testid="switch-resource-timesheet-hidden"
                   />
-                  <Label htmlFor="timesheetHidden" className="text-sm">
-                    Hide from Timesheets
-                  </Label>
                 </div>
               </div>
-            </div>
-          </div>
+            </TabsContent>
+          </Tabs>
 
-          <DialogFooter className="mt-4 pt-4 border-t">
+          <DialogFooter className="mt-5">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-resource">
               Cancel
             </Button>
