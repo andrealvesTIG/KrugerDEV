@@ -1,10 +1,27 @@
 import express, { type Request, Response, NextFunction } from "express";
+import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import { setupSwagger } from "./swagger";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import path from "path";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
+import cron from "node-cron";
+import { checkAndSendDueReports } from "./services/scheduledReports";
 
 const app = express();
+
+// Cookie parser middleware (for OAuth state fallback)
+app.use(cookieParser());
 const httpServer = createServer(app);
+
+// Serve static files from public directory (avatars, logos, etc.)
+app.use('/avatars', express.static(path.join(process.cwd(), 'public', 'avatars')));
+app.use('/logos', express.static(path.join(process.cwd(), 'public', 'logos')));
+// Serve videos from client/public/videos (large files not bundled by Vite)
+app.use('/videos', express.static(path.join(process.cwd(), 'client', 'public', 'videos')));
 
 declare module "http" {
   interface IncomingMessage {
@@ -22,6 +39,16 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+// Allow embedding in Microsoft Teams iframes
+app.use((req, res, next) => {
+  res.removeHeader('X-Frame-Options');
+  res.setHeader(
+    'Content-Security-Policy',
+    "frame-ancestors 'self' https://teams.microsoft.com https://*.teams.microsoft.com https://*.microsoft.com https://*.office.com https://*.office365.com https://*.sharepoint.com https://*.officeapps.live.com https://teams.live.com https://*.skype.com"
+  );
+  next();
+});
+
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",
@@ -33,9 +60,41 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
+// API Request logging middleware for monitoring
+async function logApiRequest(
+  method: string,
+  path: string,
+  statusCode: number,
+  duration: number,
+  userId: string | null,
+  organizationId: number | null,
+  userAgent: string | undefined,
+  ipAddress: string | undefined,
+  errorMessage: string | null
+) {
+  try {
+    if (path.startsWith('/api/admin/monitoring')) {
+      return;
+    }
+    
+    const safeUserAgent = userAgent ?? null;
+    const safeIpAddress = ipAddress ?? null;
+    const safeUserId = userId ?? null;
+    const safeOrgId = organizationId ?? null;
+    const safeError = errorMessage ?? null;
+    
+    await db.execute(sql`
+      INSERT INTO api_request_logs (method, path, status_code, duration, user_id, organization_id, user_agent, ip_address, error_message)
+      VALUES (${method}, ${path}, ${statusCode}, ${duration}, ${safeUserId}, ${safeOrgId}, ${safeUserAgent}, ${safeIpAddress}, ${safeError})
+    `);
+  } catch (err) {
+    console.error('Failed to log API request:', err);
+  }
+}
+
 app.use((req, res, next) => {
   const start = Date.now();
-  const path = req.path;
+  const reqPath = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
   const originalResJson = res.json;
@@ -46,13 +105,32 @@ app.use((req, res, next) => {
 
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+    if (reqPath.startsWith("/api")) {
+      let logLine = `${req.method} ${reqPath} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
 
       log(logLine);
+
+      // Log to database for monitoring (async, non-blocking)
+      const userId = (req as any).session?.userId || (req as any).user?.claims?.sub || (req as any).userId || (req as any).user?.id || null;
+      const organizationId = (req as any).organizationId || null;
+      const userAgent = req.get('user-agent');
+      const ipAddress = req.ip || req.socket?.remoteAddress;
+      const errorMessage = res.statusCode >= 400 ? capturedJsonResponse?.message || null : null;
+      
+      logApiRequest(
+        req.method,
+        reqPath,
+        res.statusCode,
+        duration,
+        userId,
+        organizationId,
+        userAgent,
+        ipAddress,
+        errorMessage
+      );
     }
   });
 
@@ -60,19 +138,41 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  registerObjectStorageRoutes(app);
+  setupSwagger(app);
   await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
-    console.error("Internal Server Error:", err);
+    res.status(status).json({ message });
+    throw err;
+  });
 
-    if (res.headersSent) {
-      return next(err);
+  // Server-side OG tag injection for /friday route (social media previews)
+  const { getGifUrlFromQuery, injectFridayOgTags } = await import("./friday-og");
+  app.get("/friday", async (req, res, next) => {
+    try {
+      const gifParam = req.query.gif as string | undefined;
+      const gifUrl = getGifUrlFromQuery(gifParam ?? null);
+
+      if (process.env.NODE_ENV === "production") {
+        const distPath = path.resolve(__dirname, "public");
+        const fs = await import("fs");
+        let html = await fs.promises.readFile(path.resolve(distPath, "index.html"), "utf-8");
+        html = injectFridayOgTags(html, gifUrl);
+        res.status(200).set({ "Content-Type": "text/html" }).end(html);
+      } else {
+        const fs = await import("fs");
+        const clientTemplate = path.resolve(process.cwd(), "client", "index.html");
+        let html = await fs.promises.readFile(clientTemplate, "utf-8");
+        html = injectFridayOgTags(html, gifUrl);
+        res.status(200).set({ "Content-Type": "text/html" }).end(html);
+      }
+    } catch (e) {
+      next(e);
     }
-
-    return res.status(status).json({ message });
   });
 
   // importantly only setup vite in development and after
@@ -98,6 +198,19 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+      
+      // Schedule report check every 15 minutes
+      cron.schedule('*/15 * * * *', async () => {
+        try {
+          const sentCount = await checkAndSendDueReports();
+          if (sentCount > 0) {
+            log(`Sent ${sentCount} scheduled reports`, "cron");
+          }
+        } catch (error) {
+          console.error("Error in scheduled reports cron job:", error);
+        }
+      });
+      log("Scheduled reports cron job started (every 15 minutes)", "cron");
     },
   );
 })();

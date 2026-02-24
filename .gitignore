@@ -4,17 +4,5 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
-
-# Replit system/cache files
-.cache/
 .local/
-.config/
-.upm/
-latest
-latest.json
-toolchain.json
-.agent_state_main.bin
-repl_state.bin
-log-query.db
-log-query.db-shm
-log-query.db-wal
+.cache/

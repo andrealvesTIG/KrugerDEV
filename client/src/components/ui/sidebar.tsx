@@ -53,6 +53,11 @@ function useSidebar() {
   return context
 }
 
+function useSidebarSafe() {
+  const context = React.useContext(SidebarContext)
+  return context ?? { state: "expanded" as const, open: true, isMobile: false }
+}
+
 function SidebarProvider({
   defaultOpen = true,
   open: openProp,
@@ -724,4 +729,5 @@ export {
   SidebarSeparator,
   SidebarTrigger,
   useSidebar,
+  useSidebarSafe,
 }
