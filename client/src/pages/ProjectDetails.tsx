@@ -1119,7 +1119,39 @@ function ProjectTimeline({
   // Parse project dates
   const projectStart = startDate ? parseISO(startDate) : null;
   const projectEnd = endDate ? parseISO(endDate) : null;
-  
+
+  const scheduleBounds = useMemo(() => {
+    if (!tasks || tasks.length === 0) return null;
+    let minDate: Date | null = null;
+    let maxDate: Date | null = null;
+    for (const t of tasks) {
+      if (t.startDate) {
+        const d = parseISO(t.startDate);
+        if (!minDate || d < minDate) minDate = d;
+      }
+      if (t.endDate) {
+        const d = parseISO(t.endDate);
+        if (!maxDate || d > maxDate) maxDate = d;
+      }
+    }
+    if (!minDate || !maxDate) return null;
+    return { start: minDate, end: maxDate };
+  }, [tasks]);
+
+  const effectiveStart = useMemo(() => {
+    if (projectStart && scheduleBounds) {
+      return projectStart < scheduleBounds.start ? projectStart : scheduleBounds.start;
+    }
+    return projectStart || scheduleBounds?.start || null;
+  }, [projectStart, scheduleBounds]);
+
+  const effectiveEnd = useMemo(() => {
+    if (projectEnd && scheduleBounds) {
+      return projectEnd > scheduleBounds.end ? projectEnd : scheduleBounds.end;
+    }
+    return projectEnd || scheduleBounds?.end || null;
+  }, [projectEnd, scheduleBounds]);
+
   // Get tasks marked as milestones OR with 0 duration (start == end date)
   const allEvents = useMemo(() => {
     const events: TimelineEvent[] = [];
@@ -1164,14 +1196,14 @@ function ProjectTimeline({
   
   // Calculate auto-detected row count based on milestone density
   const autoDetectedRows = useMemo(() => {
-    if (!projectStart || !projectEnd || visibleEvents.length === 0) return 1;
+    if (!effectiveStart || !effectiveEnd || visibleEvents.length === 0) return 1;
     
-    const totalDays = differenceInDays(projectEnd, projectStart);
+    const totalDays = differenceInDays(effectiveEnd, effectiveStart);
     if (totalDays <= 0) return 1;
     
     // Calculate positions for all visible events
     const positions = visibleEvents
-      .map(event => (differenceInDays(event.date, projectStart) / totalDays) * 100)
+      .map(event => (differenceInDays(event.date, effectiveStart) / totalDays) * 100)
       .filter(p => p >= 0 && p <= 100)
       .sort((a, b) => a - b);
     
@@ -1202,7 +1234,7 @@ function ProjectTimeline({
     
     // Cap at 5 rows maximum
     return Math.min(5, requiredRows);
-  }, [visibleEvents, projectStart, projectEnd]);
+  }, [visibleEvents, effectiveStart, effectiveEnd]);
   
   // Check if user has manually overridden the row count
   const [userOverride, setUserOverride] = useState<boolean>(() => {
@@ -1261,23 +1293,23 @@ function ProjectTimeline({
     return { completedPercent, pendingPercent };
   }, [tasks]);
 
-  // Calculate timeline range
+  // Calculate timeline range using wider of project dates vs schedule bounds
   const timelineRange = useMemo(() => {
-    if (!projectStart || !projectEnd) return null;
+    if (!effectiveStart || !effectiveEnd) return null;
     
     const today = startOfDay(new Date());
-    const totalDays = differenceInDays(projectEnd, projectStart);
+    const totalDays = differenceInDays(effectiveEnd, effectiveStart);
     
     if (totalDays <= 0) return null;
     
     return {
-      start: projectStart,
-      end: projectEnd,
+      start: effectiveStart,
+      end: effectiveEnd,
       totalDays,
       today,
-      todayPosition: Math.max(0, Math.min(100, (differenceInDays(today, projectStart) / totalDays) * 100)),
+      todayPosition: Math.max(0, Math.min(100, (differenceInDays(today, effectiveStart) / totalDays) * 100)),
     };
-  }, [projectStart, projectEnd]);
+  }, [effectiveStart, effectiveEnd]);
   
   // Generate year markers for the timeline
   const yearMarkers = useMemo(() => {
@@ -1491,7 +1523,7 @@ function ProjectTimeline({
     return eventsWithPos;
   }, [visibleEvents, timelineRange, numRows]);
   
-  if (!projectStart || !projectEnd || !timelineRange) {
+  if (!timelineRange) {
     return (
       <Card className="py-2">
         <CardHeader className="py-1 px-4">
@@ -1501,7 +1533,7 @@ function ProjectTimeline({
           </CardTitle>
         </CardHeader>
         <CardContent className="py-1 px-4">
-          <p className="text-xs text-muted-foreground">Set project start and end dates to view the timeline.</p>
+          <p className="text-xs text-muted-foreground">Set project start and end dates or add tasks with dates to view the timeline.</p>
         </CardContent>
       </Card>
     );
@@ -1576,10 +1608,10 @@ function ProjectTimeline({
                   <rect x="5" y="8.5" width="3" height="2" fill="white"/>
                   <rect x="11" y="8" width="3" height="2" fill="white"/>
                 </svg>
-                {format(projectStart, 'MMM d, yyyy')}
+                {format(timelineRange.start, 'MMM d, yyyy')}
               </span>
               <span className="flex items-center gap-1.5">
-                {format(projectEnd, 'MMM d, yyyy')}
+                {format(timelineRange.end, 'MMM d, yyyy')}
                 {/* F1 Finish flag - black/white checkered on pole */}
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none">
                   {/* Flag pole */}
@@ -9277,35 +9309,33 @@ function ProjectGanttView({
     let minDate: Date;
     let maxDate: Date;
     
-    // Prefer project start/end dates if available
-    if (projectStartDate && projectEndDate) {
-      const projStart = parseISO(projectStartDate);
-      const projEnd = parseISO(projectEndDate);
-      
-      const totalDays = differenceInDays(projEnd, projStart);
-      let autoZoom: ZoomLevel = 'month';
-      if (totalDays <= 14) autoZoom = 'day';
-      else if (totalDays <= 60) autoZoom = 'week';
-      else if (totalDays <= 180) autoZoom = 'month';
-      else if (totalDays <= 365) autoZoom = 'quarter';
-      else if (totalDays <= 730) autoZoom = 'year';
-      else autoZoom = '5year';
-      
-      minDate = startOfMonth(projStart);
-      maxDate = endOfMonth(projEnd);
-      
-      return { minDate, maxDate, dateRange: eachDayOfInterval({ start: minDate, end: maxDate }), autoZoomLevel: autoZoom };
-    }
-    
-    // Fall back to task dates
+    const projStart = projectStartDate ? parseISO(projectStartDate) : null;
+    const projEnd = projectEndDate ? parseISO(projectEndDate) : null;
+
     const tasksWithDates = tasks.filter(t => t.startDate && t.endDate);
-    
+    let scheduleMin: Date | null = null;
+    let scheduleMax: Date | null = null;
     if (tasksWithDates.length > 0) {
       const dates = tasksWithDates.flatMap(t => [parseISO(t.startDate), parseISO(t.endDate)]);
-      const earliestDate = new Date(Math.min(...dates.map(d => d.getTime())));
-      const latestDate = new Date(Math.max(...dates.map(d => d.getTime())));
-      
-      const totalDays = differenceInDays(latestDate, earliestDate);
+      scheduleMin = new Date(Math.min(...dates.map(d => d.getTime())));
+      scheduleMax = new Date(Math.max(...dates.map(d => d.getTime())));
+    }
+
+    let effStart: Date | null = null;
+    let effEnd: Date | null = null;
+    if (projStart && scheduleMin) {
+      effStart = projStart < scheduleMin ? projStart : scheduleMin;
+    } else {
+      effStart = projStart || scheduleMin;
+    }
+    if (projEnd && scheduleMax) {
+      effEnd = projEnd > scheduleMax ? projEnd : scheduleMax;
+    } else {
+      effEnd = projEnd || scheduleMax;
+    }
+
+    if (effStart && effEnd) {
+      const totalDays = differenceInDays(effEnd, effStart);
       let autoZoom: ZoomLevel = 'month';
       if (totalDays <= 14) autoZoom = 'day';
       else if (totalDays <= 60) autoZoom = 'week';
@@ -9314,8 +9344,8 @@ function ProjectGanttView({
       else if (totalDays <= 730) autoZoom = 'year';
       else autoZoom = '5year';
       
-      minDate = startOfMonth(earliestDate);
-      maxDate = endOfMonth(latestDate);
+      minDate = startOfMonth(effStart);
+      maxDate = endOfMonth(effEnd);
       
       return { minDate, maxDate, dateRange: eachDayOfInterval({ start: minDate, end: maxDate }), autoZoomLevel: autoZoom };
     } else {
