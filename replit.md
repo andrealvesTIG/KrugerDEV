@@ -100,7 +100,14 @@ if (!userId) return res.status(401).json({ message: 'Authentication required' })
 ```
 
 ### Industry Landing Pages
-- **Healthcare Landing Page** (`/healthcare`): Public landing page targeting hospitals and health systems, located at `client/src/pages/HealthcareLandingPage.tsx`. Uses AI-generated healthcare imagery from `client/src/assets/healthcare/`. Includes full sign-up flow (email magic link + Microsoft/Google SSO), healthcare pain points, feature sections with Framer Motion animations, feature comparison, and use cases. SEO meta tags target "healthcare project management software".
+Each vertical landing page follows the same structure: header, hero, trust bar, pain points, solution features, stats, use cases, feature comparison, sign-up form (email magic link + Microsoft/Google SSO), and footer. All use Framer Motion animations, are fully responsive, and have SEO meta tags.
+- **Healthcare** (`/healthcare`): `HealthcareLandingPage.tsx`, assets in `client/src/assets/healthcare/`. Teal/blue theme. Targets hospitals, health systems, clinical PMOs.
+- **Financial Services** (`/financial-services`): `FinancialServicesLandingPage.tsx`, assets in `client/src/assets/financial-services/`. Indigo/blue theme. Targets banks, insurance, investment firms.
+- **Manufacturing** (`/manufacturing`): `ManufacturingLandingPage.tsx`, assets in `client/src/assets/manufacturing/`. Orange/amber theme. Targets factories, production, supply chain.
+- **Industrial Automation** (`/industrial-automation`): `IndustrialAutomationLandingPage.tsx`, assets in `client/src/assets/industrial-automation/`. Cyan/slate theme. Targets SCADA, PLC, control systems.
+- **Construction & Engineering** (`/construction`): `ConstructionLandingPage.tsx`, assets in `client/src/assets/construction/`. Yellow/amber theme. Targets capital programs, contractors, infrastructure.
+- **Energy & Utilities** (`/energy`): `EnergyLandingPage.tsx`, assets in `client/src/assets/energy/`. Green/emerald theme. Targets utilities, renewables, grid modernization.
+- **Government & Public Sector** (`/government`): `GovernmentLandingPage.tsx`, assets in `client/src/assets/government/`. Navy/blue-gray theme. Targets agencies, IT modernization, public infrastructure.
 
 ### Swagger/OpenAPI
 - The complete OpenAPI 3.0 spec is maintained in `server/swagger.ts` covering all ~400 routes.

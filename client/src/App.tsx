@@ -60,6 +60,12 @@ import SharedProjectRiskAssessment from "@/pages/SharedProjectRiskAssessment"
 import Home from "@/pages/Home"
 import LandingPageNew from "@/pages/LandingPageNew"
 import HealthcareLandingPage from "@/pages/HealthcareLandingPage"
+import FinancialServicesLandingPage from "@/pages/FinancialServicesLandingPage"
+import ManufacturingLandingPage from "@/pages/ManufacturingLandingPage"
+import IndustrialAutomationLandingPage from "@/pages/IndustrialAutomationLandingPage"
+import ConstructionLandingPage from "@/pages/ConstructionLandingPage"
+import EnergyLandingPage from "@/pages/EnergyLandingPage"
+import GovernmentLandingPage from "@/pages/GovernmentLandingPage"
 
 function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: string }) {
   const { currentOrganization, isLoading } = useOrganization();
@@ -234,6 +240,12 @@ function App() {
               <Route path="/friday" component={FridayPage} />
               <Route path="/signup" component={LandingPageNew} />
               <Route path="/healthcare" component={HealthcareLandingPage} />
+              <Route path="/financial-services" component={FinancialServicesLandingPage} />
+              <Route path="/manufacturing" component={ManufacturingLandingPage} />
+              <Route path="/industrial-automation" component={IndustrialAutomationLandingPage} />
+              <Route path="/construction" component={ConstructionLandingPage} />
+              <Route path="/energy" component={EnergyLandingPage} />
+              <Route path="/government" component={GovernmentLandingPage} />
               <Route>
                 <Router />
               </Route>
