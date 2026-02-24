@@ -168,13 +168,13 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
       transition={{ duration: 0.2, delay: index * 0.02 }}
       className="border-t border-border/50 hover:bg-muted/20 transition-colors group"
     >
-      <td className={`p-3 ${indented ? 'pl-10' : ''} align-top`} style={{ width: taskColumnWidth, minWidth: taskColumnWidth, maxWidth: taskColumnWidth }}>
-        <div className="flex items-start gap-2 w-full overflow-hidden">
-          <ListTodo className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-          <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-            <span className="text-foreground text-sm leading-snug break-all">{task.name}</span>
+      <td className={`px-3 py-1.5 ${indented ? 'pl-10' : ''} align-middle`} style={{ width: taskColumnWidth, minWidth: taskColumnWidth, maxWidth: taskColumnWidth }}>
+        <div className="flex items-center gap-2 w-full overflow-hidden">
+          <ListTodo className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <div className="flex flex-col min-w-0 flex-1">
+            <span className="text-foreground text-sm leading-tight break-all line-clamp-1">{task.name}</span>
             {!indented && (
-              <span className="text-xs text-muted-foreground break-all">{project.name}</span>
+              <span className="text-xs text-muted-foreground break-all line-clamp-1">{project.name}</span>
             )}
           </div>
         </div>
@@ -193,7 +193,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
         const isCellOvertime = cellHours > 8;
         
         return (
-          <td key={dateKey} className={`p-2 ${
+          <td key={dateKey} className={`px-1.5 py-1 ${
             isPeriodClosed ? "bg-destructive/5" :
             isTodayDate ? "bg-blue-500/5" : 
             isWeekendDay ? "bg-muted/40" : ""
@@ -278,7 +278,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
           </td>
         );
       })}
-      <td className="p-3 bg-emerald-500/5">
+      <td className="px-2 py-1 bg-emerald-500/5 text-center align-middle">
         <div className="flex items-center justify-center gap-1">
           <span className={`font-medium tabular-nums ${isRowOvertime ? "text-amber-600" : "text-foreground"}`}>{rowTotal}h</span>
           {isRowOvertime ? (
@@ -792,7 +792,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
           <thead className="sticky top-0 z-20 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.1)]" style={{ backgroundColor: 'hsl(var(--card))' }}>
             <tr style={{ backgroundColor: 'hsl(var(--muted) / 0.3)' }}>
               <th 
-                className="text-left p-4 font-medium text-muted-foreground relative group" 
+                className="text-left px-3 py-2.5 font-medium text-muted-foreground relative group" 
                 style={{ width: taskColumnWidth, minWidth: taskColumnWidth }}
               >
                 <span>Tasks</span>
@@ -809,7 +809,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                 const isPeriodClosed = isDateInClosedPeriod(date);
                 const closedPeriodName = isPeriodClosed ? getClosedPeriodName(date) : null;
                 return (
-                  <th key={formatDateKey(date)} className={`p-3 text-center min-w-[90px] ${
+                  <th key={formatDateKey(date)} className={`px-2 py-2 text-center min-w-[90px] ${
                     isPeriodClosed ? "bg-destructive/5" :
                     isTodayDate ? "bg-blue-500/10" : isWeekendDay ? "bg-muted/40" : ""
                   }`}>
@@ -844,7 +844,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                   </th>
                 );
               })}
-              <th className="p-3 text-center min-w-[80px] bg-emerald-500/5">
+              <th className="px-2 py-2 text-center min-w-[80px] bg-emerald-500/5">
                 <div className="text-xs font-medium text-emerald-600 flex items-center justify-center gap-1">
                   Total
                   {getGrandTotal() > 0 && (
@@ -895,7 +895,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                       onClick={() => toggleProjectCollapse(group.project.id)}
                       data-testid={`row-project-header-${group.project.id}`}
                     >
-                      <td className="p-3" style={{ width: taskColumnWidth, minWidth: taskColumnWidth, maxWidth: taskColumnWidth }}>
+                      <td className="px-3 py-1.5" style={{ width: taskColumnWidth, minWidth: taskColumnWidth, maxWidth: taskColumnWidth }}>
                         <div className="flex items-center gap-2 min-w-0">
                           <motion.div
                             animate={{ rotate: isCollapsed ? -90 : 0 }}
@@ -905,20 +905,20 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                             <ChevronDown className="h-4 w-4 text-muted-foreground" />
                           </motion.div>
                           <FolderOpen className="h-4 w-4 text-primary shrink-0" />
-                          <span className="font-medium text-foreground line-clamp-2" title={group.project.name}>{group.project.name}</span>
+                          <span className="font-medium text-foreground line-clamp-1" title={group.project.name}>{group.project.name}</span>
                           <Badge variant="secondary" className="text-xs ml-1 shrink-0">
                             {group.tasks.length} task{group.tasks.length !== 1 ? 's' : ''}
                           </Badge>
                         </div>
                       </td>
                       {dates.map(date => (
-                        <td key={formatDateKey(date)} className={`p-3 text-center text-muted-foreground ${
+                        <td key={formatDateKey(date)} className={`px-1.5 py-1 text-center text-muted-foreground ${
                           isToday(date) ? "bg-blue-500/5" : isWeekend(date) ? "bg-muted/40" : ""
                         }`}>
                           -
                         </td>
                       ))}
-                      <td className="p-3 text-center font-medium text-emerald-600 bg-emerald-500/5">
+                      <td className="px-2 py-1 text-center font-medium text-emerald-600 bg-emerald-500/5 align-middle">
                         {projectTotal}h
                       </td>
                     </motion.tr>
