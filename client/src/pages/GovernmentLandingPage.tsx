@@ -12,6 +12,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { HoneypotField } from "@/components/HoneypotField";
 import { PublicFeatureComparison } from "@/components/PublicFeatureComparison";
+import { IndustrySolutionsMenu, IndustrySolutionsMobileLinks } from "@/components/IndustrySolutionsMenu";
 import { motion, useInView } from "framer-motion";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
@@ -243,10 +244,7 @@ export default function GovernmentLandingPage() {
             />
           </a>
           <div className="hidden sm:flex items-center gap-3">
-            <Badge variant="outline" className="text-xs font-medium border-slate-400 text-slate-700 dark:text-slate-300 dark:border-slate-600">
-              <Landmark className="h-3 w-3 mr-1" />
-              Government & Public Sector
-            </Badge>
+            <IndustrySolutionsMenu currentPath="/government" />
             <Button
               variant="ghost"
               onClick={() => setLocation("/auth")}
@@ -273,19 +271,22 @@ export default function GovernmentLandingPage() {
 
       {mobileMenuOpen && (
         <div className="sm:hidden border-b border-border bg-background px-6 py-4 flex flex-col gap-3 sticky top-[65px] z-40">
-          <Button
-            variant="ghost"
-            className="w-full justify-start"
-            onClick={() => { setLocation("/auth"); setMobileMenuOpen(false); }}
-          >
-            Log in
-          </Button>
-          <Button
-            className="w-full bg-[#F37021] hover:bg-[#e0621a] text-white"
-            onClick={() => { scrollToSignUp(); setMobileMenuOpen(false); }}
-          >
-            Get Started Free
-          </Button>
+          <IndustrySolutionsMobileLinks onNavigate={() => setMobileMenuOpen(false)} />
+          <div className="border-t border-border pt-3 flex flex-col gap-3">
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => { setLocation("/auth"); setMobileMenuOpen(false); }}
+            >
+              Log in
+            </Button>
+            <Button
+              className="w-full bg-[#F37021] hover:bg-[#e0621a] text-white"
+              onClick={() => { scrollToSignUp(); setMobileMenuOpen(false); }}
+            >
+              Get Started Free
+            </Button>
+          </div>
         </div>
       )}
 

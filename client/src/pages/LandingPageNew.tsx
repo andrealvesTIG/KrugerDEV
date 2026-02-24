@@ -11,6 +11,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { HoneypotField } from "@/components/HoneypotField";
 import { PublicFeatureComparison } from "@/components/PublicFeatureComparison";
+import { IndustrySolutionsMenu, IndustrySolutionsMobileLinks } from "@/components/IndustrySolutionsMenu";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import demoVideo from "@assets/30_sec_video_1771015821657.mp4";
 import clientLogo1 from "@assets/client-logo-1.png";
@@ -148,6 +149,7 @@ export default function LandingPageNew() {
           />
         </a>
         <div className="hidden sm:flex items-center gap-3 flex-wrap">
+          <IndustrySolutionsMenu currentPath="/signup" />
           <Button
             variant="ghost"
             onClick={() => setLocation("/auth")}
@@ -174,21 +176,24 @@ export default function LandingPageNew() {
       </header>
       {mobileMenuOpen && (
         <div className="sm:hidden border-b border-border bg-background px-6 py-4 flex flex-col gap-3" data-testid="mobile-menu">
-          <Button
-            variant="ghost"
-            className="w-full justify-start"
-            onClick={() => { setLocation("/auth"); setMobileMenuOpen(false); }}
-            data-testid="button-login-mobile"
-          >
-            Log in
-          </Button>
-          <Button
-            className="w-full"
-            onClick={() => { scrollToSignUp(); setMobileMenuOpen(false); }}
-            data-testid="button-signup-mobile"
-          >
-            Sign Up
-          </Button>
+          <IndustrySolutionsMobileLinks onNavigate={() => setMobileMenuOpen(false)} />
+          <div className="border-t border-border pt-3 flex flex-col gap-3">
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => { setLocation("/auth"); setMobileMenuOpen(false); }}
+              data-testid="button-login-mobile"
+            >
+              Log in
+            </Button>
+            <Button
+              className="w-full"
+              onClick={() => { scrollToSignUp(); setMobileMenuOpen(false); }}
+              data-testid="button-signup-mobile"
+            >
+              Sign Up
+            </Button>
+          </div>
         </div>
       )}
       <main className="px-6 md:px-12 lg:px-20">
