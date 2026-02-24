@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { db } from "../db";
 import { organizationIntegrations, users, organizationMembers } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
+import { encryptToken, decryptToken, isEncryptedFormat } from "../lib/tokenEncryption";
 
 // Auth helpers for Planner routes
 function getUserIdFromRequest(req: Request): string | undefined {
@@ -48,6 +49,26 @@ export async function getOrgIntegration(organizationId: number, integrationType:
         eq(organizationIntegrations.integrationType, integrationType)
       )
     );
+  
+  if (integration) {
+    if (integration.accessToken && isEncryptedFormat(integration.accessToken)) {
+      try {
+        integration.accessToken = decryptToken(integration.accessToken);
+      } catch (err) {
+        console.error(`Failed to decrypt access token for org ${organizationId}, type ${integrationType}:`, err);
+        integration.accessToken = null;
+      }
+    }
+    if (integration.refreshToken && isEncryptedFormat(integration.refreshToken)) {
+      try {
+        integration.refreshToken = decryptToken(integration.refreshToken);
+      } catch (err) {
+        console.error(`Failed to decrypt refresh token for org ${organizationId}, type ${integrationType}:`, err);
+        integration.refreshToken = null;
+      }
+    }
+  }
+  
   return integration;
 }
 
@@ -64,13 +85,21 @@ export async function upsertOrgIntegration(
     additionalData?: string;
   }
 ) {
+  const encryptedData = { ...data };
+  if (encryptedData.accessToken) {
+    encryptedData.accessToken = encryptToken(encryptedData.accessToken);
+  }
+  if (encryptedData.refreshToken) {
+    encryptedData.refreshToken = encryptToken(encryptedData.refreshToken);
+  }
+  
   const existing = await getOrgIntegration(organizationId, integrationType);
   
   if (existing) {
     await db
       .update(organizationIntegrations)
       .set({
-        ...data,
+        ...encryptedData,
         updatedAt: new Date(),
       })
       .where(eq(organizationIntegrations.id, existing.id));
@@ -78,8 +107,8 @@ export async function upsertOrgIntegration(
     await db.insert(organizationIntegrations).values({
       organizationId,
       integrationType,
-      accessToken: data.accessToken || null,
-      refreshToken: data.refreshToken || null,
+      accessToken: encryptedData.accessToken || null,
+      refreshToken: encryptedData.refreshToken || null,
       tokenExpiry: data.tokenExpiry || null,
       connectionStatus: data.connectionStatus || "disconnected",
       connectedBy: data.connectedBy || null,

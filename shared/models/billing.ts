@@ -122,7 +122,7 @@ export const subscriptions = pgTable("subscriptions", {
   status: text("status").notNull().default("ACTIVE"),
   subjectType: text("subject_type").notNull(),
   userId: varchar("user_id").references(() => users.id),
-  orgId: integer("org_id"),
+  orgId: integer("org_id"), // FK to organizations(id) enforced at database level
   hardCapEnabled: boolean("hard_cap_enabled").default(false),
   bonusSeats: integer("bonus_seats").default(0),
   currentPeriodStart: timestamp("current_period_start").notNull(),
@@ -138,7 +138,7 @@ export const subscriptions = pgTable("subscriptions", {
 
 export const seatAssignments = pgTable("seat_assignments", {
   id: serial("id").primaryKey(),
-  orgId: integer("org_id").notNull(),
+  orgId: integer("org_id").notNull(), // FK to organizations(id) enforced at database level
   userId: varchar("user_id").references(() => users.id).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
