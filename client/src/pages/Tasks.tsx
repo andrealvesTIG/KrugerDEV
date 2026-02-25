@@ -160,8 +160,8 @@ export default function Tasks() {
   }, [allTasks, externalTasks, filterProjectId, searchQuery, myAssignmentsOnly, myResourceId, myTaskIds]);
 
   const projectMap = useMemo(() => {
-    const map = new Map<number, { name: string; portfolioId: number | null }>();
-    projects?.forEach(p => map.set(p.id, { name: p.name, portfolioId: p.portfolioId }));
+    const map = new Map<number, { name: string; portfolioId: number | null; source?: string | null }>();
+    projects?.forEach(p => map.set(p.id, { name: p.name, portfolioId: p.portfolioId, source: p.source }));
     return map;
   }, [projects]);
 
