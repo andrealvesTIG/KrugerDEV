@@ -13,20 +13,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useProjects } from "@/hooks/use-projects";
-import { usePortfolios, useCreatePortfolio } from "@/hooks/use-portfolios";
+import { useCreatePortfolio } from "@/hooks/use-portfolios";
 import { CreateProjectDialog } from "@/components/CreateProjectDialog";
 import { CreateTaskDialog } from "@/components/CreateTaskDialog";
 import { CreateRiskDialog } from "@/components/CreateRiskDialog";
-import { useCreateIssue } from "@/hooks/use-issues";
+import { CreateIssueDialog } from "@/components/CreateIssueDialog";
 import { useCreateResource } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 type QuickAddType = "portfolio" | "project" | "task" | "risk" | "issue" | "resource" | null;
 
@@ -88,10 +85,10 @@ export function QuickAddMenu() {
         onOpenChange={(open) => !open && setActiveDialog(null)}
         organizationId={currentOrganization?.id ?? null}
       />
-      <QuickAddIssueDialog
+      <CreateIssueDialog
         open={activeDialog === "issue"}
         onOpenChange={(open) => !open && setActiveDialog(null)}
-        organizationId={currentOrganization?.id}
+        organizationId={currentOrganization?.id ?? null}
       />
       <QuickAddResourceDialog
         open={activeDialog === "resource"}
@@ -165,97 +162,6 @@ function QuickAddPortfolioDialog({ open, onOpenChange, organizationId }: { open:
             <Button type="submit" disabled={createPortfolio.isPending} data-testid="button-create-portfolio">
               {createPortfolio.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {createPortfolio.isPending ? "Creating..." : "Create Portfolio"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function QuickAddIssueDialog({ open, onOpenChange, organizationId }: { open: boolean; onOpenChange: (open: boolean) => void; organizationId?: number }) {
-  const { toast } = useToast();
-  const createIssue = useCreateIssue();
-  const { data: projects } = useProjects(organizationId ?? null);
-  const form = useForm({
-    defaultValues: { title: "", projectId: null as number | null, severity: "Medium" },
-  });
-
-  const onSubmit = async (data: { title: string; projectId: number | null; severity: string }) => {
-    if (!data.projectId) {
-      toast({ title: "Error", description: "Please select a project", variant: "destructive" });
-      return;
-    }
-    try {
-      await createIssue.mutateAsync({
-        projectId: data.projectId,
-        title: data.title,
-        status: "Open",
-        priority: "Medium",
-        severity: data.severity,
-        itemType: "issue",
-      });
-      toast({ title: "Success", description: "Issue created" });
-      form.reset();
-      onOpenChange(false);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[400px]">
-        <DialogHeader>
-          <DialogTitle>New Issue</DialogTitle>
-          <DialogDescription>Log a new issue for a project.</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-2">
-            <Label>Project</Label>
-            <Controller
-              control={form.control}
-              name="projectId"
-              render={({ field }) => (
-                <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value?.toString() || ""}>
-                  <SelectTrigger data-testid="select-quick-issue-project">
-                    <SelectValue placeholder="Select project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects?.map((p) => (
-                      <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Issue Title</Label>
-            <Input {...form.register("title", { required: true })} placeholder="Issue title" data-testid="input-quick-issue-title" />
-          </div>
-          <div className="space-y-2">
-            <Label>Severity</Label>
-            <Controller
-              control={form.control}
-              name="severity"
-              render={({ field }) => (
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Low">Low</SelectItem>
-                    <SelectItem value="Medium">Medium</SelectItem>
-                    <SelectItem value="High">High</SelectItem>
-                    <SelectItem value="Critical">Critical</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={createIssue.isPending} data-testid="button-quick-create-issue">
-              {createIssue.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create
             </Button>
           </DialogFooter>
         </form>
