@@ -18,6 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios, useCreatePortfolio } from "@/hooks/use-portfolios";
 import { useCreateProject } from "@/hooks/use-projects";
+import { CreateProjectDialog } from "@/components/CreateProjectDialog";
 import { useCreateTask } from "@/hooks/use-tasks";
 import { useCreateRisk } from "@/hooks/use-risks";
 import { useCreateIssue } from "@/hooks/use-issues";
@@ -73,7 +74,7 @@ export function QuickAddMenu() {
         onOpenChange={(open) => !open && setActiveDialog(null)}
         organizationId={currentOrganization?.id}
       />
-      <QuickAddProjectDialog
+      <CreateProjectDialog
         open={activeDialog === "project"}
         onOpenChange={(open) => !open && setActiveDialog(null)}
         organizationId={currentOrganization?.id}
@@ -165,83 +166,6 @@ function QuickAddPortfolioDialog({ open, onOpenChange, organizationId }: { open:
             <Button type="submit" disabled={createPortfolio.isPending} data-testid="button-create-portfolio">
               {createPortfolio.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {createPortfolio.isPending ? "Creating..." : "Create Portfolio"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function QuickAddProjectDialog({ open, onOpenChange, organizationId }: { open: boolean; onOpenChange: (open: boolean) => void; organizationId?: number }) {
-  const { toast } = useToast();
-  const createProject = useCreateProject();
-  const { data: portfolios } = usePortfolios(organizationId ?? null);
-  const form = useForm({
-    defaultValues: { name: "", description: "", portfolioId: null as number | null },
-  });
-
-  const onSubmit = async (data: { name: string; description: string; portfolioId: number | null }) => {
-    if (!organizationId) return;
-    try {
-      await createProject.mutateAsync({
-        organizationId,
-        name: data.name,
-        description: data.description || null,
-        portfolioId: data.portfolioId,
-        status: "Planning",
-        priority: "Medium",
-        health: "Green",
-        source: "manual",
-      });
-      toast({ title: "Success", description: "Project created" });
-      form.reset();
-      onOpenChange(false);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[400px]">
-        <DialogHeader>
-          <DialogTitle>New Project</DialogTitle>
-          <DialogDescription>Create a new project.</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-2">
-            <Label>Name</Label>
-            <Input {...form.register("name", { required: true })} placeholder="Project name" data-testid="input-quick-project-name" />
-          </div>
-          <div className="space-y-2">
-            <Label>Portfolio</Label>
-            <Controller
-              control={form.control}
-              name="portfolioId"
-              render={({ field }) => (
-                <Select onValueChange={(v) => field.onChange(v === "none" ? null : Number(v))} value={field.value?.toString() || "none"}>
-                  <SelectTrigger data-testid="select-quick-project-portfolio">
-                    <SelectValue placeholder="Select portfolio" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Portfolio</SelectItem>
-                    {portfolios?.map((p) => (
-                      <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Description</Label>
-            <Textarea {...form.register("description")} placeholder="Optional description" data-testid="input-quick-project-description" />
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={createProject.isPending} data-testid="button-quick-create-project">
-              {createProject.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create
             </Button>
           </DialogFooter>
         </form>
