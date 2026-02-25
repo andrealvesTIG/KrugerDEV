@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png";
@@ -6556,7 +6556,7 @@ function SortableTaskRow({
 }
 
 // Split-pane Gantt: Metadata row (left pane)
-const ProjectGanttTaskRowMeta = React.memo(function ProjectGanttTaskRowMeta({ 
+const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({ 
   task, 
   rowIndex,
   visibleColumns,
@@ -7421,7 +7421,7 @@ const ProjectGanttTaskRowMeta = React.memo(function ProjectGanttTaskRowMeta({
 });
 
 // Split-pane Gantt: Timeline row (right pane)
-const ProjectGanttTaskRowTimeline = React.memo(function ProjectGanttTaskRowTimeline({ 
+const ProjectGanttTaskRowTimeline = memo(function ProjectGanttTaskRowTimeline({ 
   task, 
   onTaskClick, 
   minDate, 
