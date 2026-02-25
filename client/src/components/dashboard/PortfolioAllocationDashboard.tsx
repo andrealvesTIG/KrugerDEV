@@ -69,7 +69,7 @@ export function PortfolioAllocationDashboard() {
     const unallocated = projects.filter(p => !p.portfolioId);
     if (unallocated.length > 0) {
       result.push({
-        name: 'Unallocated',
+        name: 'No Portfolio',
         budget: unallocated.reduce((sum, p) => sum + Number(p.budget || 0), 0),
         projects: unallocated.length,
         color: '#94a3b8',
@@ -131,32 +131,29 @@ export function PortfolioAllocationDashboard() {
   const formatCompact = (value: number) => formatCurrency(value, { compact: true });
 
   const CustomTreemapContent = (props: any) => {
-    const { x, y, width, height, name, color } = props;
-    if (width < 50 || height < 30) return null;
-    
+    const { x, y, width, height, name, color, size } = props;
+    if (width < 40 || height < 25) return null;
+
+    const showBudget = width > 90 && height > 55;
+    const cx = x + width / 2;
+    const cy = showBudget ? y + height / 2 - 8 : y + height / 2;
+    const truncated = width < 80 ? (name?.length > 10 ? name.substring(0, 10) + '…' : name) : name;
+
+    const textProps = {
+      x: cx,
+      textAnchor: "middle" as const,
+      fontWeight: "bold",
+    };
+
     return (
       <g>
-        <rect
-          x={x}
-          y={y}
-          width={width}
-          height={height}
-          style={{
-            fill: color,
-            stroke: '#fff',
-            strokeWidth: 2,
-          }}
-        />
-        {width > 60 && height > 40 && (
-          <text
-            x={x + width / 2}
-            y={y + height / 2}
-            textAnchor="middle"
-            fill="#fff"
-            fontSize={11}
-            fontWeight="bold"
-          >
-            {name}
+        <rect x={x} y={y} width={width} height={height} style={{ fill: color, stroke: '#fff', strokeWidth: 2 }} />
+        <text {...textProps} y={cy} stroke="rgba(0,0,0,0.5)" strokeWidth={3} strokeLinejoin="round" paintOrder="stroke" fill="#fff" fontSize={13}>
+          {truncated}
+        </text>
+        {showBudget && (
+          <text {...textProps} y={cy + 18} stroke="rgba(0,0,0,0.4)" strokeWidth={2} strokeLinejoin="round" paintOrder="stroke" fill="rgba(255,255,255,0.9)" fontSize={11}>
+            {formatCompact(size)}
           </text>
         )}
       </g>

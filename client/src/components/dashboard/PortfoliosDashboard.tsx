@@ -15,6 +15,7 @@ import { Loader2, FolderKanban, Target, TrendingUp, DollarSign, ArrowRight, Acti
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { isWithinInterval } from "date-fns";
 import { formatCurrency } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 const COLORS = {
   Green: "#10b981",
@@ -100,25 +101,23 @@ export function PortfoliosDashboard() {
     });
 
     const unassignedProjects = (projects || []).filter(p => !p.portfolioId);
-    if (unassignedProjects.length > 0) {
-      const budget = unassignedProjects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
-      const greenCount = unassignedProjects.filter(p => p.health === "Green").length;
-      const healthPercentage = Math.round((greenCount / unassignedProjects.length) * 100);
-      const avgCompletion = Math.round(unassignedProjects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / unassignedProjects.length);
-      data.push({
-        id: -1,
-        name: "No Portfolio",
-        shortName: "No Portfolio",
-        projectCount: unassignedProjects.length,
-        activeCount: unassignedProjects.filter(p => p.status !== "Closing").length,
-        budget,
-        healthPercentage,
-        avgCompletion,
-        color: "#94a3b8",
-        projects: unassignedProjects,
-        isUnassigned: true,
-      });
-    }
+    const budget = unassignedProjects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
+    const greenCount = unassignedProjects.filter(p => p.health === "Green").length;
+    const healthPercentage = unassignedProjects.length > 0 ? Math.round((greenCount / unassignedProjects.length) * 100) : 0;
+    const avgCompletion = unassignedProjects.length > 0 ? Math.round(unassignedProjects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / unassignedProjects.length) : 0;
+    data.push({
+      id: -1,
+      name: "No Portfolio",
+      shortName: "No Portfolio",
+      projectCount: unassignedProjects.length,
+      activeCount: unassignedProjects.filter(p => p.status !== "Closing").length,
+      budget,
+      healthPercentage,
+      avgCompletion,
+      color: "#94a3b8",
+      projects: unassignedProjects,
+      isUnassigned: true,
+    });
 
     return data;
   }, [portfolios, projects]);
@@ -321,22 +320,37 @@ export function PortfoliosDashboard() {
           <CardContent className="px-4 pb-3">
             <ScrollArea className="h-[180px]">
               <div className="space-y-3">
-                {[...realPortfolios.slice(0, 5), ...(unassignedEntry ? [unassignedEntry] : [])].map((portfolio) => (
+                {[...realPortfolios, ...(unassignedEntry ? [unassignedEntry] : [])].map((portfolio) => (
                   <div key={portfolio.id} className="space-y-1" data-testid={`health-item-${portfolio.id}`}>
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-medium truncate max-w-[140px]" title={portfolio.name}>{portfolio.shortName}</span>
                       <Badge 
                         variant="secondary" 
                         className="text-[10px] h-5"
-                        style={{ 
+                        style={portfolio.isUnassigned ? {
+                          backgroundColor: `${portfolio.color}20`,
+                          color: portfolio.color,
+                        } : { 
                           backgroundColor: `${portfolio.healthPercentage >= 70 ? COLORS.Green : portfolio.healthPercentage >= 40 ? COLORS.Yellow : COLORS.Red}15`,
                           color: portfolio.healthPercentage >= 70 ? COLORS.Green : portfolio.healthPercentage >= 40 ? COLORS.Yellow : COLORS.Red,
                         }}
                       >
-                        {portfolio.healthPercentage}%
+                        {portfolio.isUnassigned ? "N/A" : `${portfolio.healthPercentage}%`}
                       </Badge>
                     </div>
-                    <Progress value={portfolio.healthPercentage} className="h-1.5" />
+                    <Progress
+                      value={portfolio.isUnassigned ? 100 : portfolio.healthPercentage}
+                      className={cn(
+                        "h-1.5",
+                        portfolio.isUnassigned
+                          ? "[&>div]:bg-slate-400"
+                          : portfolio.healthPercentage >= 70
+                          ? "[&>div]:bg-emerald-500"
+                          : portfolio.healthPercentage >= 40
+                          ? "[&>div]:bg-amber-500"
+                          : "[&>div]:bg-red-500"
+                      )}
+                    />
                     <div className="flex justify-between text-[10px] text-muted-foreground">
                       <span>{portfolio.projectCount} projects</span>
                       <span>{portfolio.avgCompletion}% complete</span>
@@ -350,7 +364,7 @@ export function PortfoliosDashboard() {
       </div>
 
       <div className="space-y-4">
-        {[...realPortfolios.slice(0, 4), ...(unassignedEntry ? [unassignedEntry] : [])].map((portfolio) => (
+        {[...realPortfolios, ...(unassignedEntry ? [unassignedEntry] : [])].map((portfolio) => (
           <Card key={portfolio.id} data-testid={`card-portfolio-${portfolio.id}`}>
             <CardHeader className="pb-2 pt-3 px-4 flex flex-row items-center justify-between">
               <div className="flex items-center gap-2">
