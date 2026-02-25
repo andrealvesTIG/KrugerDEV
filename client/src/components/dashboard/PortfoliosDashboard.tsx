@@ -100,25 +100,23 @@ export function PortfoliosDashboard() {
     });
 
     const unassignedProjects = (projects || []).filter(p => !p.portfolioId);
-    if (unassignedProjects.length > 0) {
-      const budget = unassignedProjects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
-      const greenCount = unassignedProjects.filter(p => p.health === "Green").length;
-      const healthPercentage = Math.round((greenCount / unassignedProjects.length) * 100);
-      const avgCompletion = Math.round(unassignedProjects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / unassignedProjects.length);
-      data.push({
-        id: -1,
-        name: "No Portfolio",
-        shortName: "No Portfolio",
-        projectCount: unassignedProjects.length,
-        activeCount: unassignedProjects.filter(p => p.status !== "Closing").length,
-        budget,
-        healthPercentage,
-        avgCompletion,
-        color: "#94a3b8",
-        projects: unassignedProjects,
-        isUnassigned: true,
-      });
-    }
+    const budget = unassignedProjects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
+    const greenCount = unassignedProjects.filter(p => p.health === "Green").length;
+    const healthPercentage = unassignedProjects.length > 0 ? Math.round((greenCount / unassignedProjects.length) * 100) : 0;
+    const avgCompletion = unassignedProjects.length > 0 ? Math.round(unassignedProjects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / unassignedProjects.length) : 0;
+    data.push({
+      id: -1,
+      name: "No Portfolio",
+      shortName: "No Portfolio",
+      projectCount: unassignedProjects.length,
+      activeCount: unassignedProjects.filter(p => p.status !== "Closing").length,
+      budget,
+      healthPercentage,
+      avgCompletion,
+      color: "#94a3b8",
+      projects: unassignedProjects,
+      isUnassigned: true,
+    });
 
     return data;
   }, [portfolios, projects]);
