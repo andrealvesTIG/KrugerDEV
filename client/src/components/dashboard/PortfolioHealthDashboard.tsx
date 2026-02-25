@@ -80,7 +80,7 @@ export function PortfolioHealthDashboard() {
   const portfolioHealthData = useMemo(() => {
     if (!portfolios?.length) return [];
 
-    return portfolios.map(portfolio => {
+    const result = portfolios.map(portfolio => {
       const portfolioProjects = projects.filter(p => p.portfolioId === portfolio.id);
       const total = portfolioProjects.length;
       const green = portfolioProjects.filter(p => p.health === 'Green').length;
@@ -104,6 +104,26 @@ export function PortfolioHealthDashboard() {
           : 0,
       };
     }).filter(p => p.total > 0);
+
+    const unassigned = projects.filter(p => !p.portfolioId);
+    if (unassigned.length > 0) {
+      const green = unassigned.filter(p => p.health === 'Green').length;
+      const yellow = unassigned.filter(p => p.health === 'Yellow').length;
+      const red = unassigned.filter(p => p.health === 'Red').length;
+      const total = unassigned.length;
+      result.push({
+        name: 'No Portfolio',
+        fullName: 'No Portfolio',
+        green,
+        yellow,
+        red,
+        total,
+        healthScore: Math.round(((green * 100) + (yellow * 60) + (red * 20)) / total),
+        completion: Math.round(unassigned.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / total),
+      });
+    }
+
+    return result;
   }, [portfolios, projects]);
 
   const healthDistribution = [
