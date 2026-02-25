@@ -334,10 +334,10 @@ export default function SignInPage() {
       {/* Sticky Header Container - Banner + Navigation */}
       <div className="sticky top-0 left-0 right-0 z-50">
         {/* Pricing Banner */}
-        <div className="bg-gradient-to-r from-primary via-orange-500 to-primary py-2.5 text-center">
-          <p className="text-white text-sm font-medium">
+        <div className="bg-gradient-to-r from-primary via-orange-500 to-primary py-2 sm:py-2.5 text-center px-3">
+          <p className="text-white text-xs sm:text-sm font-medium">
             <span className="font-bold">Free Forever</span> — No credit card required.
-            <button onClick={scrollToSignIn} className="ml-2 underline hover:no-underline font-semibold" data-testid="link-pricing-banner">
+            <button onClick={scrollToSignIn} className="ml-1 sm:ml-2 underline hover:no-underline font-semibold" data-testid="link-pricing-banner">
               Get Started
             </button>
           </p>
@@ -387,21 +387,21 @@ export default function SignInPage() {
             </div>
           </div>
           {mobileMenuOpen && (
-            <div className="md:hidden bg-slate-800/95 backdrop-blur-md border-t border-slate-700 px-4 py-3 flex flex-col gap-3">
+            <div className="md:hidden bg-slate-800/95 backdrop-blur-md border-t border-slate-700 px-4 py-3 flex flex-col gap-1">
               <IndustrySolutionsMenu currentPath="/" variant="dark" />
-              <button onClick={() => { scrollToSection('features-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors">
+              <button onClick={() => { scrollToSection('features-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors py-2">
                 Features
               </button>
-              <button onClick={() => { scrollToSection('integrations-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors">
+              <button onClick={() => { scrollToSection('integrations-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors py-2">
                 Integrations
               </button>
-              <button onClick={() => { scrollToSection('pricing-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors">
+              <button onClick={() => { scrollToSection('pricing-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors py-2">
                 Pricing
               </button>
-              <button onClick={() => { scrollToSection('faq-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors">
+              <button onClick={() => { scrollToSection('faq-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors py-2">
                 FAQ
               </button>
-              <Link href="/guide" className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors">
+              <Link href="/guide" className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors py-2">
                 User Guide
               </Link>
             </div>
@@ -461,89 +461,89 @@ export default function SignInPage() {
         </div>
       </section>
 
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-700/30" data-testid="section-feature-comparison-signin">
+      <section className="py-10 sm:py-20 px-4 sm:px-6 lg:px-8 bg-slate-700/30" data-testid="section-feature-comparison-signin">
         <div className="max-w-7xl mx-auto">
           <PublicFeatureComparison variant="slate" />
         </div>
       </section>
 
       {/* Trust Indicators */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8 border-y border-slate-600 bg-slate-700/50">
+      <section className="py-8 sm:py-12 px-4 sm:px-6 lg:px-8 border-y border-slate-600 bg-slate-700/50">
         <div className="max-w-7xl mx-auto">
-          <p className="text-center text-sm text-slate-300 mb-8 uppercase tracking-wider font-medium">
+          <p className="text-center text-xs sm:text-sm text-slate-300 mb-6 sm:mb-8 uppercase tracking-wider font-medium">
             Trusted by professional PMO organizations worldwide
           </p>
-          <div className="flex flex-wrap justify-center items-center gap-8 sm:gap-12">
+          <div className="flex flex-wrap justify-center items-center gap-4 sm:gap-8 md:gap-12">
             {trustedBy.map((org, index) => (
-              <div key={index} className="flex items-center gap-2 text-slate-300">
-                <Building2 className="h-5 w-5" />
-                <span className="font-medium">{org}</span>
+              <div key={index} className="flex items-center gap-1.5 sm:gap-2 text-slate-300">
+                <Building2 className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="font-medium text-sm sm:text-base">{org}</span>
               </div>
             ))}
           </div>
         </div>
       </section>
       {/* Benefits Stats */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <section className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-8">
             {benefits.map((benefit, index) => (
-              <div key={index} className="text-center p-8 rounded-2xl bg-slate-700/50 border border-slate-600 hover:border-orange-400/50 transition-colors">
-                <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-300 mb-2">
+              <div key={index} className="text-center p-5 sm:p-8 rounded-2xl bg-slate-700/50 border border-slate-600 hover:border-orange-400/50 transition-colors">
+                <div className="text-3xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-300 mb-2">
                   {benefit.metric}
                 </div>
-                <div className="text-xl font-semibold text-white mb-2">{benefit.label}</div>
-                <div className="text-slate-300">{benefit.description}</div>
+                <div className="text-lg sm:text-xl font-semibold text-white mb-1 sm:mb-2">{benefit.label}</div>
+                <div className="text-slate-300 text-sm sm:text-base">{benefit.description}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
       {/* Features Grid */}
-      <section id="features-section" className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-700/30">
+      <section id="features-section" className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8 bg-slate-700/30">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+          <div className="text-center mb-8 sm:mb-16">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-3 sm:mb-4">
               Everything Your PMO Needs
             </h2>
-            <p className="text-lg text-slate-300 max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto">
               A complete suite of tools designed for enterprise project portfolio management
             </p>
           </div>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {features.map((feature, index) => (
               <div 
                 key={index} 
-                className="p-6 rounded-xl bg-slate-800/50 border border-slate-600 hover:border-orange-400/50 hover:bg-slate-800/80 transition-all group"
+                className="p-4 sm:p-6 rounded-xl bg-slate-800/50 border border-slate-600 hover:border-orange-400/50 hover:bg-slate-800/80 transition-all group"
               >
-                <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center mb-4 group-hover:bg-orange-500/20 transition-colors">
-                  <feature.icon className="h-6 w-6 text-orange-400" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-orange-500/10 flex items-center justify-center mb-3 sm:mb-4 group-hover:bg-orange-500/20 transition-colors">
+                  <feature.icon className="h-5 w-5 sm:h-6 sm:w-6 text-orange-400" />
                 </div>
-                <h3 className="text-xl font-semibold text-white mb-2">{feature.title}</h3>
-                <p className="text-slate-300 leading-relaxed">{feature.description}</p>
+                <h3 className="text-lg sm:text-xl font-semibold text-white mb-1.5 sm:mb-2">{feature.title}</h3>
+                <p className="text-slate-300 leading-relaxed text-sm sm:text-base">{feature.description}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
       {/* Integrations Section */}
-      <section id="integrations-section" className="py-20 px-4 sm:px-6 lg:px-8">
+      <section id="integrations-section" className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
+          <div className="text-center mb-8 sm:mb-16">
             <Badge variant="secondary" className="mb-4 bg-orange-500/10 text-orange-400 border-orange-500/20">
               <Plug className="h-3 w-3 mr-1" />
               Seamless Integrations
             </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-3 sm:mb-4">
               Connect Your Favorite Tools
             </h2>
-            <p className="text-lg text-slate-300 max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto">
               Integrate with the project management, ERP, and analytics tools your organization already uses
             </p>
           </div>
           
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 sm:gap-4">
             {landingIntegrations.map((integration) => (
               <a
                 key={integration.id}
@@ -580,15 +580,15 @@ export default function SignInPage() {
       </section>
 
       {/* Value Proposition */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <section className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className="grid lg:grid-cols-2 gap-8 sm:gap-12 items-center">
             <div>
               <Badge variant="secondary" className="mb-4 bg-orange-500/10 text-orange-400 border-orange-500/20">
                 <TrendingUp className="h-3 w-3 mr-1" />
                 Why Choose FridayReport.AI
               </Badge>
-              <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6">
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-4 sm:mb-6">
                 Built for Modern PMO Teams
               </h2>
               <div className="space-y-4">
@@ -647,14 +647,14 @@ export default function SignInPage() {
       {/* Pricing Section */}
       <PricingSection scrollToSignIn={scrollToSignIn} />
       {/* CTA / Sign In Section */}
-      <section id="signin-section" className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-slate-700/50 to-slate-800">
+      <section id="signin-section" className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-slate-700/50 to-slate-800">
         <div className="max-w-7xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className="grid lg:grid-cols-2 gap-8 sm:gap-12 items-center">
             <div>
-              <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-3 sm:mb-4">
                 Ready to Transform Your PMO?
               </h2>
-              <p className="text-lg text-slate-200 mb-6">
+              <p className="text-base sm:text-lg text-slate-200 mb-4 sm:mb-6">
                 Join thousands of project professionals who deliver better outcomes with FridayReport.AI. 
                 Get started in minutes with passwordless sign-in.
               </p>
@@ -837,16 +837,16 @@ export default function SignInPage() {
         </div>
       </section>
       {/* Security, Compliance & Trust Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-900/50">
+      <section className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8 bg-slate-900/50">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
+          <div className="text-center mb-8 sm:mb-12">
             <Badge variant="secondary" className="mb-4 bg-green-500/10 text-green-400 border-green-500/20">
               Enterprise-Grade Security
             </Badge>
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-3 sm:mb-4">
               Security, Compliance & Trust
             </h2>
-            <p className="text-lg text-slate-400 max-w-3xl mx-auto">
+            <p className="text-base sm:text-lg text-slate-400 max-w-3xl mx-auto">
               Your data security is our highest priority. FridayReport.AI is built on Microsoft Azure with enterprise-grade 
               security controls, comprehensive compliance certifications, and industry best practices to protect your projects 
               and sensitive information.
@@ -854,7 +854,7 @@ export default function SignInPage() {
           </div>
 
           {/* Security Badges Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-16">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-8 sm:mb-16">
             {[
               { name: "SOC 2 Type II", desc: "Audited security controls", icon: Shield },
               { name: "ISO 27001", desc: "Information security certified", icon: Shield },
@@ -873,9 +873,9 @@ export default function SignInPage() {
           </div>
 
           {/* Security Subsections Grid */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-8">
             {/* Azure Cloud Security */}
-            <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700">
+            <div className="p-4 sm:p-6 rounded-2xl bg-slate-800/30 border border-slate-700">
               <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center mb-4">
                 <svg className="h-6 w-6 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M5.483 21.3H24L14.025 4.013l-3.038 8.347 5.836 6.938L5.483 21.3zM13.23 2.7L6.105 8.677 0 19.253h5.505l7.725-16.553z"/>
@@ -899,7 +899,7 @@ export default function SignInPage() {
             </div>
 
             {/* Data Protection */}
-            <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700">
+            <div className="p-4 sm:p-6 rounded-2xl bg-slate-800/30 border border-slate-700">
               <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center mb-4">
                 <Shield className="h-6 w-6 text-purple-400" />
               </div>
@@ -921,7 +921,7 @@ export default function SignInPage() {
             </div>
 
             {/* Backup & Resilience */}
-            <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700">
+            <div className="p-4 sm:p-6 rounded-2xl bg-slate-800/30 border border-slate-700">
               <div className="w-12 h-12 rounded-xl bg-teal-500/10 flex items-center justify-center mb-4">
                 <TrendingUp className="h-6 w-6 text-teal-400" />
               </div>
@@ -943,7 +943,7 @@ export default function SignInPage() {
             </div>
 
             {/* Access Controls */}
-            <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700">
+            <div className="p-4 sm:p-6 rounded-2xl bg-slate-800/30 border border-slate-700">
               <div className="w-12 h-12 rounded-xl bg-orange-500/10 flex items-center justify-center mb-4">
                 <Users className="h-6 w-6 text-orange-400" />
               </div>
@@ -965,7 +965,7 @@ export default function SignInPage() {
             </div>
 
             {/* Compliance Certifications */}
-            <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700">
+            <div className="p-4 sm:p-6 rounded-2xl bg-slate-800/30 border border-slate-700">
               <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center mb-4">
                 <FileCheck className="h-6 w-6 text-indigo-400" />
               </div>
@@ -987,7 +987,7 @@ export default function SignInPage() {
             </div>
 
             {/* Security Practices */}
-            <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700">
+            <div className="p-4 sm:p-6 rounded-2xl bg-slate-800/30 border border-slate-700">
               <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center mb-4">
                 <Zap className="h-6 w-6 text-red-400" />
               </div>
@@ -1010,8 +1010,8 @@ export default function SignInPage() {
           </div>
 
           {/* Trust Statement */}
-          <div className="mt-12 text-center p-8 rounded-2xl bg-gradient-to-r from-green-500/5 via-blue-500/5 to-purple-500/5 border border-slate-700">
-            <p className="text-slate-300 text-lg max-w-3xl mx-auto">
+          <div className="mt-8 sm:mt-12 text-center p-5 sm:p-8 rounded-2xl bg-gradient-to-r from-green-500/5 via-blue-500/5 to-purple-500/5 border border-slate-700">
+            <p className="text-slate-300 text-sm sm:text-lg max-w-3xl mx-auto">
               <span className="text-white font-semibold">Your trust is our foundation.</span>{" "}
               We continuously invest in security, compliance, and privacy to ensure your project data 
               is protected with the same rigor used by Fortune 500 companies.
@@ -1020,21 +1020,21 @@ export default function SignInPage() {
         </div>
       </section>
       {/* Methodologies Section */}
-      <section id="methodologies-section" className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-800/50">
+      <section id="methodologies-section" className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8 bg-slate-800/50">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
+          <div className="text-center mb-8 sm:mb-12">
             <Badge variant="secondary" className="mb-4 bg-blue-500/10 text-blue-400 border-blue-500/20">
               Industry Standards
             </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-3 sm:mb-4">
               Based on Proven Methodologies
             </h2>
-            <p className="text-lg text-slate-300 max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto">
               Our platform incorporates best practices from globally recognized project management frameworks and methodologies
             </p>
           </div>
           
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-8">
             {/* PMI PMBOK */}
             <a 
               href="https://www.pmi.org/pmbok-guide-standards" 
@@ -1111,16 +1111,16 @@ export default function SignInPage() {
       </section>
 
       {/* FAQ Section */}
-      <section id="faq-section" className="py-20 px-4 bg-slate-700/30">
+      <section id="faq-section" className="py-12 sm:py-20 px-4 bg-slate-700/30">
         <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
+          <div className="text-center mb-8 sm:mb-12">
             <Badge variant="secondary" className="mb-4 bg-orange-500/10 text-orange-400 border-orange-500/20">
               Questions & Answers
             </Badge>
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-3 sm:mb-4">
               Frequently Asked Questions
             </h2>
-            <p className="text-lg text-slate-300 max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto">
               Everything you need to know about managing your project portfolio with FridayReport.AI
             </p>
           </div>
@@ -1313,16 +1313,16 @@ function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
   const mostPopularCode = 'TEAM';
 
   return (
-    <section id="pricing-section" className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-700/30">
+    <section id="pricing-section" className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8 bg-slate-700/30">
       <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-16">
+        <div className="text-center mb-8 sm:mb-16">
           <Badge variant="secondary" className="mb-4 bg-orange-500/10 text-orange-400 border-orange-500/20">
             Simple Pricing
           </Badge>
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-3 sm:mb-4">
             Free Forever, Scale When Ready
           </h2>
-          <p className="text-lg text-slate-300 max-w-2xl mx-auto">
+          <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto">
             Start for free with unlimited projects. Upgrade only when you need advanced features.
           </p>
         </div>
@@ -1332,7 +1332,7 @@ function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
             <Loader2 className="h-8 w-8 animate-spin text-orange-400" />
           </div>
         ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4 max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 max-w-7xl mx-auto">
             {sortedPlans?.map((plan) => {
               const isPopular = plan.code === mostPopularCode;
               const isCustom = plan.code === 'CUSTOM';
