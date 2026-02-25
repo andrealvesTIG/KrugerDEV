@@ -195,6 +195,7 @@ export interface IStorage {
   // Issue Change Logs
   getIssueChangeLogs(issueId: number): Promise<IssueChangeLog[]>;
   createIssueChangeLog(log: InsertIssueChangeLog): Promise<IssueChangeLog>;
+  getRecentOrgActivity(organizationId: number, limit: number): Promise<{ type: string; entityName: string; entityId: number; action: string; summary: string; changedBy: string; changedAt: Date | null }[]>;
 
   // Task Dependencies
   getTaskDependencies(taskId: number): Promise<TaskDependency[]>;
@@ -1341,6 +1342,86 @@ export class DatabaseStorage implements IStorage {
   async createIssueChangeLog(log: InsertIssueChangeLog): Promise<IssueChangeLog> {
     const [newLog] = await db.insert(issueChangeLogs).values(log).returning();
     return newLog;
+  }
+
+  async getRecentOrgActivity(organizationId: number, limit: number): Promise<{ type: string; entityName: string; entityId: number; action: string; summary: string; changedBy: string; changedAt: Date | null }[]> {
+    const orgProjects = await db.select({ id: projects.id, name: projects.name })
+      .from(projects)
+      .where(and(eq(projects.organizationId, organizationId), isNull(projects.deletedAt)));
+    if (orgProjects.length === 0) return [];
+    const projectIds = orgProjects.map(p => p.id);
+    const projectNameMap = new Map(orgProjects.map(p => [p.id, p.name]));
+
+    const [projLogs, recentTasks, issueLogs] = await Promise.all([
+      db.select().from(projectChangeLogs)
+        .where(inArray(projectChangeLogs.projectId, projectIds))
+        .orderBy(desc(projectChangeLogs.changedAt))
+        .limit(limit * 3),
+      db.select({ id: tasks.id, name: tasks.name, projectId: tasks.projectId })
+        .from(tasks)
+        .where(and(inArray(tasks.projectId, projectIds), isNull(tasks.deletedAt)))
+        .limit(limit * 5),
+      db.select({ log: issueChangeLogs, issueTitle: issues.title, issueProjectId: issues.projectId, itemType: issues.itemType })
+        .from(issueChangeLogs)
+        .innerJoin(issues, eq(issueChangeLogs.issueId, issues.id))
+        .where(inArray(issues.projectId, projectIds))
+        .orderBy(desc(issueChangeLogs.changedAt))
+        .limit(limit * 3),
+    ]);
+
+    const taskIds = recentTasks.map(t => t.id);
+    const taskNameMap = new Map(recentTasks.map(t => [t.id, { name: t.name, projectId: t.projectId }]));
+
+    const taskLogs = taskIds.length > 0
+      ? await db.select().from(taskChangeLogs)
+          .where(inArray(taskChangeLogs.taskId, taskIds))
+          .orderBy(desc(taskChangeLogs.changedAt))
+          .limit(limit * 3)
+      : [];
+
+    const allActivity: { type: string; entityName: string; entityId: number; action: string; summary: string; changedBy: string; changedAt: Date | null }[] = [];
+
+    for (const log of projLogs) {
+      allActivity.push({
+        type: 'project',
+        entityName: projectNameMap.get(log.projectId) || `Project #${log.projectId}`,
+        entityId: log.projectId,
+        action: log.changeType || 'updated',
+        summary: log.changeSummary || `Project ${log.changeType || 'updated'}`,
+        changedBy: log.changedByName || 'Unknown',
+        changedAt: log.changedAt,
+      });
+    }
+    for (const log of taskLogs) {
+      const task = taskNameMap.get(log.taskId);
+      allActivity.push({
+        type: 'task',
+        entityName: task?.name || `Task #${log.taskId}`,
+        entityId: task?.projectId || 0,
+        action: log.changeType || 'updated',
+        summary: log.changeSummary || `Task ${log.changeType || 'updated'}`,
+        changedBy: log.changedByName || 'Unknown',
+        changedAt: log.changedAt,
+      });
+    }
+    for (const { log, issueTitle, issueProjectId, itemType } of issueLogs) {
+      allActivity.push({
+        type: itemType === 'risk' ? 'risk' : 'issue',
+        entityName: issueTitle || `Issue #${log.issueId}`,
+        entityId: issueProjectId || 0,
+        action: log.changeType || 'updated',
+        summary: log.changeSummary || `${itemType === 'risk' ? 'Risk' : 'Issue'} ${log.changeType || 'updated'}`,
+        changedBy: log.changedByName || 'Unknown',
+        changedAt: log.changedAt,
+      });
+    }
+
+    allActivity.sort((a, b) => {
+      const dateA = a.changedAt ? new Date(a.changedAt).getTime() : 0;
+      const dateB = b.changedAt ? new Date(b.changedAt).getTime() : 0;
+      return dateB - dateA;
+    });
+    return allActivity.slice(0, limit);
   }
 
   // Task Dependencies

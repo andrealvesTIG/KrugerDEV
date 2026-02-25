@@ -21902,72 +21902,8 @@ Return ONLY valid JSON.`;
       const isMember = orgMembers.some(m => m.userId === (req.user as User).id);
       if (!isMember) return res.status(403).json({ message: "Not a member of this organization" });
 
-      const orgProjects = await storage.getProjects(organizationId);
-      const projectIds = orgProjects.map(p => p.id);
-      if (projectIds.length === 0) return res.json([]);
-
-      const allActivity: any[] = [];
-
-      for (const pid of projectIds.slice(0, 10)) {
-        const proj = orgProjects.find(p => p.id === pid);
-        const projName = proj?.name || `Project #${pid}`;
-
-        const pLogs = await storage.getProjectChangeLogs(pid);
-        for (const log of pLogs.slice(0, 3)) {
-          allActivity.push({
-            id: `project-${log.id}`,
-            type: 'project',
-            entityName: projName,
-            entityId: pid,
-            action: log.changeType || 'updated',
-            summary: log.changeSummary || `Project ${log.changeType || 'updated'}`,
-            changedBy: log.changedByName || 'Unknown',
-            changedAt: log.changedAt,
-          });
-        }
-
-        const projectTasks = await storage.getTasks(pid);
-        for (const task of projectTasks.slice(0, 5)) {
-          const tLogs = await storage.getTaskChangeLogs(task.id);
-          for (const log of tLogs.slice(0, 2)) {
-            allActivity.push({
-              id: `task-${log.id}`,
-              type: 'task',
-              entityName: task.name,
-              entityId: pid,
-              action: log.changeType || 'updated',
-              summary: log.changeSummary || `Task ${log.changeType || 'updated'}`,
-              changedBy: log.changedByName || 'Unknown',
-              changedAt: log.changedAt,
-            });
-          }
-        }
-
-        const projectIssues = await storage.getIssues(pid);
-        for (const issue of projectIssues.slice(0, 5)) {
-          const iLogs = await storage.getIssueChangeLogs(issue.id);
-          for (const log of iLogs.slice(0, 2)) {
-            allActivity.push({
-              id: `issue-${log.id}`,
-              type: issue.itemType === 'risk' ? 'risk' : 'issue',
-              entityName: issue.title,
-              entityId: pid,
-              action: log.changeType || 'updated',
-              summary: log.changeSummary || `${issue.itemType === 'risk' ? 'Risk' : 'Issue'} ${log.changeType || 'updated'}`,
-              changedBy: log.changedByName || 'Unknown',
-              changedAt: log.changedAt,
-            });
-          }
-        }
-      }
-
-      allActivity.sort((a, b) => {
-        const dateA = a.changedAt ? new Date(a.changedAt).getTime() : 0;
-        const dateB = b.changedAt ? new Date(b.changedAt).getTime() : 0;
-        return dateB - dateA;
-      });
-
-      res.json(allActivity.slice(0, 15));
+      const activity = await storage.getRecentOrgActivity(organizationId, 15);
+      res.json(activity.map((item, i) => ({ id: `${item.type}-activity-${i}`, ...item })));
     } catch (error) {
       console.error('Error fetching recent activity:', error);
       res.json([]);
