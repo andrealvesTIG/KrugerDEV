@@ -4898,6 +4898,19 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     form.setValue("baselineEndDate", null);
   };
 
+  const calculateVariance = () => {
+    const baselineEnd = form.watch("baselineEndDate");
+    const actualEnd = form.watch("endDate");
+    if (!baselineEnd || !actualEnd) return null;
+    try {
+      const baseline = parseISO(baselineEnd);
+      const actual = parseISO(actualEnd);
+      return differenceInDays(actual, baseline);
+    } catch {
+      return null;
+    }
+  };
+
   const startDate = form.watch("startDate");
   const endDate = form.watch("endDate");
   
@@ -5627,41 +5640,62 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                         </div>
                       </div>
                       
-                      {(form.watch("baselineStartDate") || form.watch("baselineEndDate")) && (
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Baseline Start</Label>
-                            <Controller 
-                              control={form.control} 
-                              name="baselineStartDate" 
-                              render={({field}) => (
-                                <Input 
-                                  type="date" 
-                                  className="h-8 text-sm"
-                                  value={field.value || ""}
-                                  onChange={(e) => field.onChange(e.target.value || null)}
-                                  data-testid="input-baseline-start" 
-                                />
-                              )}
-                            />
+                      {(form.watch("baselineStartDate") || form.watch("baselineEndDate")) ? (
+                        <>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">Baseline Start</Label>
+                              <Controller 
+                                control={form.control} 
+                                name="baselineStartDate" 
+                                render={({field}) => (
+                                  <Input 
+                                    type="date" 
+                                    className="h-8 text-sm"
+                                    value={field.value || ""}
+                                    onChange={(e) => field.onChange(e.target.value || null)}
+                                    data-testid="input-baseline-start" 
+                                  />
+                                )}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">Baseline End</Label>
+                              <Controller 
+                                control={form.control} 
+                                name="baselineEndDate" 
+                                render={({field}) => (
+                                  <Input 
+                                    type="date" 
+                                    className="h-8 text-sm"
+                                    value={field.value || ""}
+                                    onChange={(e) => field.onChange(e.target.value || null)}
+                                    data-testid="input-baseline-end" 
+                                  />
+                                )}
+                              />
+                            </div>
                           </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Baseline End</Label>
-                            <Controller 
-                              control={form.control} 
-                              name="baselineEndDate" 
-                              render={({field}) => (
-                                <Input 
-                                  type="date" 
-                                  className="h-8 text-sm"
-                                  value={field.value || ""}
-                                  onChange={(e) => field.onChange(e.target.value || null)}
-                                  data-testid="input-baseline-end" 
-                                />
-                              )}
-                            />
-                          </div>
-                        </div>
+                          {(() => {
+                            const variance = calculateVariance();
+                            if (variance === null) return null;
+                            return (
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="text-muted-foreground">Schedule Variance:</span>
+                                <Badge 
+                                  variant={variance > 0 ? "destructive" : variance < 0 ? "default" : "secondary"}
+                                  className="text-xs"
+                                >
+                                  {variance > 0 ? `+${variance} days (late)` : variance < 0 ? `${variance} days (early)` : "On schedule"}
+                                </Badge>
+                              </div>
+                            );
+                          })()}
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          No baseline set. Click "Set Baseline" to save the current dates as baseline.
+                        </p>
                       )}
                     </div>
                   </TabsContent>
@@ -5751,7 +5785,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                       onClick={() => setShowDeleteConfirm(true)}
                       data-testid="button-delete-task"
                     >
-                      Delete
+                      Delete Task
                     </Button>
                   )}
                   <Button 
