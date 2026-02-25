@@ -143,7 +143,7 @@ export function PortfolioTimelineDashboard() {
   const portfolioTimelines = useMemo(() => {
     if (!portfolios?.length) return [];
 
-    return portfolios.map((portfolio, i) => {
+    const result = portfolios.map((portfolio, i) => {
       const portfolioProjects = projects.filter(p => p.portfolioId === portfolio.id && p.startDate && p.endDate);
       
       if (portfolioProjects.length === 0) return null;
@@ -173,6 +173,30 @@ export function PortfolioTimelineDashboard() {
         color: COLORS[i % COLORS.length],
       };
     }).filter(Boolean) as any[];
+
+    const unassigned = projects.filter(p => !p.portfolioId && p.startDate && p.endDate);
+    if (unassigned.length > 0) {
+      const earliestStart = unassigned.reduce((min, p) => {
+        const start = new Date(p.startDate!);
+        return start < min ? start : min;
+      }, new Date(unassigned[0].startDate!));
+      const latestEnd = unassigned.reduce((max, p) => {
+        const end = new Date(p.endDate!);
+        return end > max ? end : max;
+      }, new Date(unassigned[0].endDate!));
+      result.push({
+        name: 'No Portfolio',
+        fullName: 'No Portfolio',
+        projects: unassigned.length,
+        start: format(earliestStart, 'MMM yyyy'),
+        end: format(latestEnd, 'MMM yyyy'),
+        duration: differenceInDays(latestEnd, earliestStart),
+        progress: Math.round(unassigned.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / unassigned.length),
+        color: '#94a3b8',
+      });
+    }
+
+    return result;
   }, [portfolios, projects]);
 
   const getHealthColor = (health: string) => {
