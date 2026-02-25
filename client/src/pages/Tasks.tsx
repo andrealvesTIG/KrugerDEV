@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import plannerLogoPath from "@/assets/planner-logo.png";
-import msprojectLogoPath from "@/assets/msproject-logo.png";
+import msprojectLogoPath from "@/assets/msproject-logo.png"; 
 import { usePaginatedTasks, useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskHistory } from "@/hooks/use-tasks";
-import { TaskDependenciesSection } from "@/components/TaskDependenciesSection";
+import { TaskDependenciesSection } from "@/components/TaskDependenciesSection"; 
 import { useExternalTasks } from "@/hooks/use-external-shares";
 import { ExternalBadge } from "@/components/ExternalBadge";
 import { useProjects } from "@/hooks/use-projects";
@@ -43,6 +43,7 @@ import { insertTaskSchema, type Task } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
+import { CreateTaskDialog } from "@/components/CreateTaskDialog";
 
 const statusColors = {
   "Not Started": "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
@@ -61,6 +62,7 @@ export default function Tasks() {
   const { data: projects } = useProjects(currentOrganization?.id);
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const [view, setView] = useState<"gantt" | "kanban">("gantt");
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -162,8 +164,8 @@ export default function Tasks() {
   }, [allTasks, externalTasks, filterProjectId, searchQuery, myAssignmentsOnly, myResourceId, myTaskIds]);
 
   const projectMap = useMemo(() => {
-    const map = new Map<number, { name: string; portfolioId: number | null }>();
-    projects?.forEach(p => map.set(p.id, { name: p.name, portfolioId: p.portfolioId }));
+    const map = new Map<number, { name: string; portfolioId: number | null; source?: string | null }>();
+    projects?.forEach(p => map.set(p.id, { name: p.name, portfolioId: p.portfolioId, source: p.source }));
     return map;
   }, [projects]);
 
@@ -653,13 +655,18 @@ export default function Tasks() {
             </DropdownMenuContent>
           </DropdownMenu>
           
+          <Button onClick={() => setIsCreateDialogOpen(true)} size="sm" data-testid="button-add-task">
+            <Plus className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline">Add Task</span>
+          </Button>
+
+          <CreateTaskDialog
+            open={isCreateDialogOpen}
+            onOpenChange={setIsCreateDialogOpen}
+            organizationId={currentOrganization?.id ?? null}
+          />
+
           <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingTask(null); }}>
-            <DialogTrigger asChild>
-              <Button onClick={openCreateDialog} size="sm" data-testid="button-add-task">
-                <Plus className="h-4 w-4 sm:mr-1" />
-                <span className="hidden sm:inline">Add Task</span>
-              </Button>
-            </DialogTrigger>
             <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col">
               <DialogHeader>
                 <DialogTitle>{editingTask ? "Edit Task" : "Add New Task"}</DialogTitle>
