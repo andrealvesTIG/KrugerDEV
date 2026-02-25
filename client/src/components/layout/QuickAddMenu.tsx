@@ -17,9 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios, useCreatePortfolio } from "@/hooks/use-portfolios";
-import { useCreateProject } from "@/hooks/use-projects";
 import { CreateProjectDialog } from "@/components/CreateProjectDialog";
-import { useCreateTask } from "@/hooks/use-tasks";
+import { CreateTaskDialog } from "@/components/CreateTaskDialog";
 import { useCreateRisk } from "@/hooks/use-risks";
 import { useCreateIssue } from "@/hooks/use-issues";
 import { useCreateResource } from "@/hooks/use-resources";
@@ -79,10 +78,10 @@ export function QuickAddMenu() {
         onOpenChange={(open) => !open && setActiveDialog(null)}
         organizationId={currentOrganization?.id}
       />
-      <QuickAddTaskDialog
+      <CreateTaskDialog
         open={activeDialog === "task"}
         onOpenChange={(open) => !open && setActiveDialog(null)}
-        organizationId={currentOrganization?.id}
+        organizationId={currentOrganization?.id ?? null}
       />
       <QuickAddRiskDialog
         open={activeDialog === "risk"}
@@ -166,82 +165,6 @@ function QuickAddPortfolioDialog({ open, onOpenChange, organizationId }: { open:
             <Button type="submit" disabled={createPortfolio.isPending} data-testid="button-create-portfolio">
               {createPortfolio.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {createPortfolio.isPending ? "Creating..." : "Create Portfolio"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function QuickAddTaskDialog({ open, onOpenChange, organizationId }: { open: boolean; onOpenChange: (open: boolean) => void; organizationId?: number }) {
-  const { toast } = useToast();
-  const createTask = useCreateTask();
-  const { data: projects } = useProjects(organizationId ?? null);
-  const form = useForm({
-    defaultValues: { name: "", projectId: null as number | null },
-  });
-
-  const onSubmit = async (data: { name: string; projectId: number | null }) => {
-    if (!data.projectId) {
-      toast({ title: "Error", description: "Please select a project", variant: "destructive" });
-      return;
-    }
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      await createTask.mutateAsync({
-        projectId: data.projectId,
-        name: data.name,
-        startDate: today,
-        endDate: nextWeek,
-        status: "Not Started",
-        priority: "Medium",
-        progress: 0,
-      });
-      toast({ title: "Success", description: "Task created" });
-      form.reset();
-      onOpenChange(false);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[400px]">
-        <DialogHeader>
-          <DialogTitle>New Task</DialogTitle>
-          <DialogDescription>Add a task to a project.</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-2">
-            <Label>Project</Label>
-            <Controller
-              control={form.control}
-              name="projectId"
-              render={({ field }) => (
-                <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value?.toString() || ""}>
-                  <SelectTrigger data-testid="select-quick-task-project">
-                    <SelectValue placeholder="Select project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects?.map((p) => (
-                      <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Task Name</Label>
-            <Input {...form.register("name", { required: true })} placeholder="Task name" data-testid="input-quick-task-name" />
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={createTask.isPending} data-testid="button-quick-create-task">
-              {createTask.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create
             </Button>
           </DialogFooter>
         </form>
