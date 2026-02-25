@@ -335,11 +335,11 @@ export function PortfoliosDashboard() {
                           color: portfolio.healthPercentage >= 70 ? COLORS.Green : portfolio.healthPercentage >= 40 ? COLORS.Yellow : COLORS.Red,
                         }}
                       >
-                        {portfolio.isUnassigned && portfolio.projectCount === 0 ? "N/A" : `${portfolio.healthPercentage}%`}
+                        {portfolio.isUnassigned ? "N/A" : `${portfolio.healthPercentage}%`}
                       </Badge>
                     </div>
                     <Progress
-                      value={portfolio.isUnassigned && portfolio.projectCount === 0 ? 100 : portfolio.healthPercentage}
+                      value={portfolio.isUnassigned ? 100 : portfolio.healthPercentage}
                       className={cn(
                         "h-1.5",
                         portfolio.isUnassigned
