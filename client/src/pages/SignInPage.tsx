@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { IndustrySolutionsMenu } from "@/components/IndustrySolutionsMenu";
+import { IndustrySolutionsMenu, IndustrySolutionsMobileLinks } from "@/components/IndustrySolutionsMenu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -388,7 +388,7 @@ export default function SignInPage() {
           </div>
           {mobileMenuOpen && (
             <div className="md:hidden bg-slate-800/95 backdrop-blur-md border-t border-slate-700 px-4 py-3 flex flex-col gap-1">
-              <IndustrySolutionsMenu currentPath="/" variant="dark" />
+              <IndustrySolutionsMobileLinks onNavigate={() => setMobileMenuOpen(false)} variant="dark" />
               <button onClick={() => { scrollToSection('features-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors py-2">
                 Features
               </button>

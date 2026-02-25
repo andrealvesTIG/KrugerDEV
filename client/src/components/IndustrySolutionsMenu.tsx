@@ -160,21 +160,34 @@ export function IndustrySolutionsMenu({ currentPath, variant = "default" }: { cu
   );
 }
 
-export function IndustrySolutionsMobileLinks({ onNavigate }: { onNavigate?: () => void }) {
+export function IndustrySolutionsMobileLinks({ onNavigate, variant = "default" }: { onNavigate?: () => void; variant?: "default" | "dark" }) {
+  const isDark = variant === "dark";
   return (
     <div className="space-y-1">
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1">Industry Solutions</p>
+      <p className={cn(
+        "text-xs font-semibold uppercase tracking-wider px-3 py-1",
+        isDark ? "text-slate-400" : "text-muted-foreground"
+      )}>Industry Solutions</p>
       {industries.map((item) => (
         <Link
           key={item.href}
           href={item.href}
           onClick={onNavigate}
-          className="flex items-start gap-3 px-3 py-2 hover:bg-muted/60 rounded-md transition-colors cursor-pointer"
+          className={cn(
+            "flex items-start gap-3 px-3 py-2 rounded-md transition-colors cursor-pointer",
+            isDark ? "hover:bg-slate-700/60" : "hover:bg-muted/60"
+          )}
         >
           <item.icon className={cn("h-4 w-4 mt-0.5 flex-shrink-0", item.color)} />
           <div className="min-w-0">
-            <span className="text-sm font-medium text-muted-foreground block">{item.label}</span>
-            <span className="text-xs text-muted-foreground/70 line-clamp-1">{item.description}</span>
+            <span className={cn(
+              "text-sm font-medium block",
+              isDark ? "text-slate-200" : "text-muted-foreground"
+            )}>{item.label}</span>
+            <span className={cn(
+              "text-xs line-clamp-1",
+              isDark ? "text-slate-400" : "text-muted-foreground/70"
+            )}>{item.description}</span>
           </div>
         </Link>
       ))}
