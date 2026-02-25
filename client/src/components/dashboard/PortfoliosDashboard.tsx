@@ -320,7 +320,7 @@ export function PortfoliosDashboard() {
           <CardContent className="px-4 pb-3">
             <ScrollArea className="h-[180px]">
               <div className="space-y-3">
-                {[...realPortfolios.slice(0, 5), ...(unassignedEntry ? [unassignedEntry] : [])].map((portfolio) => (
+                {[...realPortfolios, ...(unassignedEntry ? [unassignedEntry] : [])].map((portfolio) => (
                   <div key={portfolio.id} className="space-y-1" data-testid={`health-item-${portfolio.id}`}>
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-medium truncate max-w-[140px]" title={portfolio.name}>{portfolio.shortName}</span>
@@ -364,7 +364,7 @@ export function PortfoliosDashboard() {
       </div>
 
       <div className="space-y-4">
-        {[...realPortfolios.slice(0, 4), ...(unassignedEntry ? [unassignedEntry] : [])].map((portfolio) => (
+        {[...realPortfolios, ...(unassignedEntry ? [unassignedEntry] : [])].map((portfolio) => (
           <Card key={portfolio.id} data-testid={`card-portfolio-${portfolio.id}`}>
             <CardHeader className="pb-2 pt-3 px-4 flex flex-row items-center justify-between">
               <div className="flex items-center gap-2">
