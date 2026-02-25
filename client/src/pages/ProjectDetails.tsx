@@ -31,6 +31,7 @@ import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { StatusReportDialog } from "@/components/StatusReportDialog";
 import { ProjectStatusReport } from "@/components/ProjectStatusReport";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
+import { CreateRiskDialog } from "@/components/CreateRiskDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -3468,6 +3469,7 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const portfolioName = portfolioId ? portfolios?.find(p => p.id === portfolioId)?.name : undefined;
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCreateRiskDialogOpen, setIsCreateRiskDialogOpen] = useState(false);
   const [editingRisk, setEditingRisk] = useState<Risk | null>(null);
   const [deleteRiskData, setDeleteRiskData] = useState<Risk | null>(null);
   const [historyRiskId, setHistoryRiskId] = useState<number | null>(null);
@@ -3626,63 +3628,23 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
     setIsDialogOpen(true);
   };
 
-  const openCreateDialog = () => {
-    setEditingRisk(null);
-    setSelectedResourceIds([]);
-    setShowHistory(false);
-    setEscalateToPortfolio(false);
-    form.reset({
-      projectId,
-      title: "",
-      description: "",
-      probability: "Medium",
-      impact: "Medium",
-      status: "Open",
-      mitigationPlan: ""
-    });
-    setIsDialogOpen(true);
-  };
-
   const onSubmit = (data: any) => {
+    if (!editingRisk) return;
     const escalationData = escalateToPortfolio 
-      ? { escalatedToPortfolio: true, escalatedAt: editingRisk?.escalatedToPortfolio ? editingRisk.escalatedAt : new Date().toISOString() }
+      ? { escalatedToPortfolio: true, escalatedAt: editingRisk.escalatedToPortfolio ? editingRisk.escalatedAt : new Date().toISOString() }
       : { escalatedToPortfolio: false, escalatedAt: null };
     
-    if (editingRisk) {
-      updateRisk.mutate({ id: editingRisk.id, projectId, ...data, ...escalationData }, {
-        onSuccess: () => {
-          updateRiskResources.mutate({ riskId: editingRisk.id, resourceIds: selectedResourceIds });
-          toast({ title: "Success", description: "Risk updated" });
-          setIsDialogOpen(false);
-          setEditingRisk(null);
-        },
-        onError: (error: any) => {
-          toast({ title: "Error", description: error?.message || "Failed to update risk", variant: "destructive" });
-        }
-      });
-    } else {
-      createRisk.mutate(data, {
-        onSuccess: (newRisk: any) => {
-          if (selectedResourceIds.length > 0 && newRisk?.id) {
-            updateRiskResources.mutate({ riskId: newRisk.id, resourceIds: selectedResourceIds });
-          }
-          toast({ title: "Success", description: "Risk added" });
-          setIsDialogOpen(false);
-        },
-        onError: (error: any) => {
-          if (error?.limitExceeded) {
-            toast({ 
-              title: "Credit Limit Reached", 
-              description: error.message || "Please upgrade your plan to create more risks.",
-              variant: "destructive"
-            });
-            setIsDialogOpen(false);
-          } else {
-            toast({ title: "Error", description: error?.message || "Failed to create risk", variant: "destructive" });
-          }
-        }
-      });
-    }
+    updateRisk.mutate({ id: editingRisk.id, projectId, ...data, ...escalationData }, {
+      onSuccess: () => {
+        updateRiskResources.mutate({ riskId: editingRisk.id, resourceIds: selectedResourceIds });
+        toast({ title: "Success", description: "Risk updated" });
+        setIsDialogOpen(false);
+        setEditingRisk(null);
+      },
+      onError: (error: any) => {
+        toast({ title: "Error", description: error?.message || "Failed to update risk", variant: "destructive" });
+      }
+    });
   };
 
   if (isLoading) return <Loader2 className="animate-spin" />;
@@ -3749,12 +3711,21 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
               AI Risk Assessment
             </Button>
           )}
+          <Button size="sm" onClick={() => setIsCreateRiskDialogOpen(true)} disabled={readOnly}><Plus className="mr-2 h-4 w-4" /> Add Risk</Button>
+          <CreateRiskDialog
+            open={isCreateRiskDialogOpen}
+            onOpenChange={setIsCreateRiskDialogOpen}
+            organizationId={currentOrganization?.id ?? null}
+            projectId={projectId}
+            projectName={projectName}
+            portfolioId={portfolioId}
+            portfolioName={portfolioName}
+          />
           <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingRisk(null); }}>
-            <DialogTrigger asChild><Button size="sm" onClick={openCreateDialog} disabled={readOnly}><Plus className="mr-2 h-4 w-4" /> Add Risk</Button></DialogTrigger>
           <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col overflow-hidden">
             <DialogHeader>
-              <DialogTitle>{editingRisk ? "Edit Risk" : "Add New Risk"}</DialogTitle>
-              <DialogDescription>{editingRisk ? "Modify the risk details below." : "Identify and track potential project risks."}</DialogDescription>
+              <DialogTitle>Edit Risk</DialogTitle>
+              <DialogDescription>Modify the risk details below.</DialogDescription>
             </DialogHeader>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
               <div className="space-y-4 pt-4 flex-1 overflow-y-auto pr-1">
@@ -3977,9 +3948,9 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
                       Delete
                     </Button>
                   )}
-                  <Button type="submit" data-testid="button-save-risk" disabled={createRisk.isPending || updateRisk.isPending}>
-                    {(createRisk.isPending || updateRisk.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {editingRisk ? "Update Risk" : "Save Risk"}
+                  <Button type="submit" data-testid="button-save-risk" disabled={updateRisk.isPending}>
+                    {updateRisk.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Update Risk
                   </Button>
                 </div>
               </DialogFooter>
