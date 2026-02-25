@@ -6553,6 +6553,7 @@ function ProjectGanttTaskRowMeta({
   isReadOnly,
   onCreateTaskAt,
   onDeleteTask,
+  preloadedAssignments,
 }: { 
   task: Task;
   rowIndex: number;
