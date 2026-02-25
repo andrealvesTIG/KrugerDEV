@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png";
 import { useRoute, Link } from "wouter";
@@ -8985,6 +8986,20 @@ function ProjectGanttView({
     return { visibleTasks, taskHasChildren, wbsMap };
   }, [tasks, collapsedTasks]);
 
+  // Virtual scrolling: only render rows visible in the viewport when task count is large
+  const VIRTUAL_SCROLL_THRESHOLD = 150;
+  const useVirtualScroll = visibleTasks.length > VIRTUAL_SCROLL_THRESHOLD;
+  const rowVirtualizer = useVirtualizer({
+    count: visibleTasks.length,
+    getScrollElement: () => rightPaneRef.current,
+    estimateSize: (index) => {
+      const task = visibleTasks[index];
+      return showBaseline && task?.baselineStartDate && task?.baselineEndDate ? 36 : 28;
+    },
+    overscan: 15,
+    enabled: useVirtualScroll,
+  });
+
   // Calculate project summary task (aggregated from all tasks)
   const projectSummaryTask = useMemo((): Partial<Task> & { id: number; projectId: number; name: string } | null => {
     if (!tasks || tasks.length === 0) return null;
@@ -10056,13 +10071,59 @@ function ProjectGanttView({
                   </div>
                 )}
                 
-                {/* Task rows - metadata only with drag and drop */}
-                <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleTaskDragEnd}>
-                  {visibleTasks.length === 0 && tasks.length === 0 ? (
-                    <div className="py-6 text-center text-muted-foreground">
-                      No tasks yet. Add your first task below.
-                    </div>
-                  ) : (
+                {/* Task rows - metadata only */}
+                {visibleTasks.length === 0 && tasks.length === 0 ? (
+                  <div className="py-6 text-center text-muted-foreground">
+                    No tasks yet. Add your first task below.
+                  </div>
+                ) : useVirtualScroll ? (
+                  /* Virtual scrolling path: only render visible rows (no DnD for large task lists) */
+                  <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+                    {rowVirtualizer.getVirtualItems().map(vRow => {
+                      const task = visibleTasks[vRow.index];
+                      const index = vRow.index;
+                      return (
+                        <div key={task.id} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vRow.start}px)`, height: `${vRow.size}px` }}>
+                          <ProjectGanttTaskRowMeta
+                            task={task}
+                            rowIndex={index + 1}
+                            visibleColumns={visibleColumns}
+                            organizationId={organizationId}
+                            onIndent={handleIndent}
+                            onOutdent={handleOutdent}
+                            hasChildren={!!taskHasChildren[task.id]}
+                            isCollapsed={collapsedTasks.has(task.id)}
+                            onToggleCollapse={toggleCollapse}
+                            projectName={projectName}
+                            onSetBaseline={handleSetBaseline}
+                            onClearBaseline={handleClearBaseline}
+                            onEditDependencies={handleEditDependencies}
+                            onEdit={onTaskClick}
+                            columnWidths={columnWidths}
+                            showBaseline={showBaseline}
+                            baselineSelectionMode={baselineSelectionMode}
+                            isSelectedForBaseline={selectedTasksForBaseline.has(task.id)}
+                            onToggleBaselineSelection={toggleTaskForBaseline}
+                            showCriticalPath={showCriticalPath}
+                            isOnCriticalPath={criticalTaskIds.has(task.id)}
+                            onTrackChange={pushToUndoStack}
+                            prevTaskLevel={index > 0 ? (visibleTasks[index - 1].outlineLevel || 1) : undefined}
+                            isSelected={selectedTaskIds.has(task.id)}
+                            onToggleSelection={toggleTaskSelection}
+                            hasDependencies={tasksWithDependencies.has(task.id)}
+                            computedWbs={wbsMap.get(task.id)}
+                            isReadOnly={isReadOnly}
+                            onCreateTaskAt={handleCreateTaskAt}
+                            onDeleteTask={handleDeleteTask}
+                            preloadedAssignments={projectTaskAssignments?.filter(a => a.taskId === task.id)}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* Standard path: all rows rendered with drag-and-drop support */
+                  <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleTaskDragEnd}>
                     <SortableContext items={visibleTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
                       {visibleTasks.map((task, index) => (
                         <SortableTaskRow key={task.id} task={task}>
@@ -10105,8 +10166,8 @@ function ProjectGanttView({
                         </SortableTaskRow>
                       ))}
                     </SortableContext>
-                  )}
-                </DndContext>
+                  </DndContext>
+                )}
                 {/* Add task row - hidden for read-only projects, height must match timeline side */}
                 {!isReadOnly && (
                 <div className="flex border-t bg-muted/20 h-[28px]">
@@ -10190,7 +10251,30 @@ function ProjectGanttView({
                   {/* Timeline bars */}
                   {visibleTasks.length === 0 && tasks.length === 0 ? (
                     <div className="h-[28px]" />
+                  ) : useVirtualScroll ? (
+                    /* Virtual scrolling path: only render visible rows */
+                    <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+                      {rowVirtualizer.getVirtualItems().map(vRow => {
+                        const task = visibleTasks[vRow.index];
+                        return (
+                          <div key={task.id} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vRow.start}px)`, height: `${vRow.size}px` }}>
+                            <ProjectGanttTaskRowTimeline
+                              task={task}
+                              onTaskClick={onTaskClick}
+                              minDate={adjustedMinDate}
+                              maxDate={adjustedMaxDate}
+                              hasChildren={!!taskHasChildren[task.id]}
+                              showBaseline={showBaseline}
+                              showCriticalPath={showCriticalPath}
+                              isOnCriticalPath={criticalTaskIds.has(task.id)}
+                              hasDependencies={tasksWithDependencies.has(task.id)}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
                   ) : (
+                    /* Standard path: all rows rendered */
                     visibleTasks.map(task => (
                       <ProjectGanttTaskRowTimeline
                         key={task.id}

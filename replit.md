@@ -56,6 +56,15 @@ Integration credentials (e.g., OAuth tokens) and connection statuses are stored 
 - 100+ indexes added on foreign key columns across all major tables for query performance
 - Billing tables (`subscriptions`, `seat_assignments`) have DB-level FK constraints to `organizations` table (circular import prevents Drizzle `.references()`)
 - Legacy risk tables (`risks`, `risk_change_logs`, `risk_resource_assignments`) contain real data but are deprecated; risks now managed via `issues` table with `itemType="risk"`
+- `/api/home/recent-activity` uses `getRecentOrgActivity` storage method with `Promise.all` (4 total queries instead of sequential per-item queries)
+- `KanbanView`/`DraggableTaskCard` use `useOrgFullTaskAssignments` bulk hook with per-card filtered `preloadedAssignments`
+- `ProjectGanttView` bulk-fetches task assignments once via `useProjectTaskAssignments(projectId)` and passes filtered `preloadedAssignments` per row
+
+### Gantt Chart Virtual Scrolling
+Projects with more than 150 visible tasks use `@tanstack/react-virtual` for virtual scrolling in `ProjectGanttView`. Only rows visible in the viewport are rendered (plus a 15-row overscan buffer), which prevents the browser from freezing on large task lists. Virtual scroll mode disables drag-and-drop reordering (DnD via `@dnd-kit` only active for ≤150 tasks). Both left (metadata) and right (timeline) panes share the same `rowVirtualizer` keyed to the right pane's scroll element.
+
+### Project Navigation (Org Auto-Switch)
+`ProjectDetails.tsx` has a `useEffect` that detects when the loaded project belongs to a different organization than the currently selected one. If the user is a member of the project's org, it auto-switches to that org. If not, an access-denied message is shown. This replaces a previous infinite spinner bug (comment said "will redirect" but never did).
 
 ### Resource Management Module
 Includes features for tracking resource skills with proficiency levels, resource availability (time-off, leave), and a resource utilization API. Frontend views include Capacity Planning, Workload Dashboard, Availability Calendar, and Demand vs. Supply Forecast.
