@@ -336,7 +336,7 @@ export default function SignInPage() {
         {/* Pricing Banner */}
         <div className="bg-gradient-to-r from-primary via-orange-500 to-primary py-2.5 text-center">
           <p className="text-white text-sm font-medium">
-            <span className="font-bold">Free Forever</span> — Start managing projects at no cost. No credit card required.
+            <span className="font-bold">Free Forever</span> — No credit card required.
             <button onClick={scrollToSignIn} className="ml-2 underline hover:no-underline font-semibold" data-testid="link-pricing-banner">
               Get Started
             </button>
