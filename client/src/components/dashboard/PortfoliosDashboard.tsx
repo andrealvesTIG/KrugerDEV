@@ -15,6 +15,7 @@ import { Loader2, FolderKanban, Target, TrendingUp, DollarSign, ArrowRight, Acti
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { isWithinInterval } from "date-fns";
 import { formatCurrency } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 const COLORS = {
   Green: "#10b981",
@@ -334,7 +335,19 @@ export function PortfoliosDashboard() {
                         {portfolio.healthPercentage}%
                       </Badge>
                     </div>
-                    <Progress value={portfolio.healthPercentage} className="h-1.5" />
+                    <Progress
+                      value={portfolio.isUnassigned && portfolio.projectCount === 0 ? 100 : portfolio.healthPercentage}
+                      className={cn(
+                        "h-1.5",
+                        portfolio.isUnassigned && portfolio.projectCount === 0
+                          ? "[&>div]:bg-muted-foreground/30"
+                          : portfolio.healthPercentage >= 70
+                          ? "[&>div]:bg-emerald-500"
+                          : portfolio.healthPercentage >= 40
+                          ? "[&>div]:bg-amber-500"
+                          : "[&>div]:bg-red-500"
+                      )}
+                    />
                     <div className="flex justify-between text-[10px] text-muted-foreground">
                       <span>{portfolio.projectCount} projects</span>
                       <span>{portfolio.avgCompletion}% complete</span>
