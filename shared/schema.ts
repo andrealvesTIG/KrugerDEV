@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, date, numeric, varchar, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, date, numeric, varchar, jsonb, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -319,7 +319,9 @@ export const milestones = pgTable("milestones", {
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
   isDemo: boolean("is_demo").default(false), // True if created by demo data generator
-});
+}, (table) => [
+  index("milestones_project_id_idx").on(table.projectId),
+]);
 
 // Issues (consolidated - includes both issues and risks via itemType)
 export const issues = pgTable("issues", {
@@ -375,7 +377,11 @@ export const issues = pgTable("issues", {
   escalatedToPortfolio: boolean("escalated_to_portfolio").default(false), // Whether escalated to portfolio level
   escalatedAt: timestamp("escalated_at"), // When it was escalated
   escalatedBy: varchar("escalated_by").references(() => users.id), // Who escalated it
-});
+}, (table) => [
+  index("issues_project_id_idx").on(table.projectId),
+  index("issues_item_type_idx").on(table.itemType),
+  index("issues_project_item_type_idx").on(table.projectId, table.itemType),
+]);
 
 // Tasks (for Gantt Chart)
 export const tasks = pgTable("tasks", {
@@ -422,7 +428,11 @@ export const tasks = pgTable("tasks", {
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
   isDemo: boolean("is_demo").default(false),
-});
+}, (table) => [
+  index("tasks_project_id_idx").on(table.projectId),
+  index("tasks_parent_id_idx").on(table.parentId),
+  index("tasks_deleted_at_idx").on(table.deletedAt),
+]);
 
 // Task Change Logs (Audit Trail)
 export const taskChangeLogs = pgTable("task_change_logs", {
@@ -435,7 +445,9 @@ export const taskChangeLogs = pgTable("task_change_logs", {
   changeSummary: text("change_summary"), // Human-readable summary
   previousValues: text("previous_values"), // JSON string of changed fields before
   newValues: text("new_values"), // JSON string of changed fields after
-});
+}, (table) => [
+  index("task_change_logs_task_id_idx").on(table.taskId),
+]);
 
 // Project Change Logs (Audit Trail)
 export const projectChangeLogs = pgTable("project_change_logs", {
@@ -448,7 +460,9 @@ export const projectChangeLogs = pgTable("project_change_logs", {
   changeSummary: text("change_summary"),
   previousValues: text("previous_values"),
   newValues: text("new_values"),
-});
+}, (table) => [
+  index("project_change_logs_project_id_idx").on(table.projectId),
+]);
 
 // Note: Risk Change Logs are now consolidated into Issue Change Logs
 // The 'risk_change_logs' table is deprecated - use issue_change_logs instead
@@ -464,7 +478,9 @@ export const issueChangeLogs = pgTable("issue_change_logs", {
   changeSummary: text("change_summary"),
   previousValues: text("previous_values"),
   newValues: text("new_values"),
-});
+}, (table) => [
+  index("issue_change_logs_issue_id_idx").on(table.issueId),
+]);
 
 // Task Dependencies
 export const taskDependencies = pgTable("task_dependencies", {
@@ -474,7 +490,10 @@ export const taskDependencies = pgTable("task_dependencies", {
   dependencyType: text("dependency_type").default("finish-to-start"), // finish-to-start, start-to-start, finish-to-finish, start-to-finish
   lagDays: integer("lag_days").default(0), // Lag or lead time in days (negative for lead)
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("task_dependencies_task_id_idx").on(table.taskId),
+  index("task_dependencies_depends_on_idx").on(table.dependsOnTaskId),
+]);
 
 // Resources (Global list of team members/resources)
 export const resources = pgTable("resources", {
@@ -526,7 +545,10 @@ export const taskResourceAssignments = pgTable("task_resource_assignments", {
   allocationPercentage: integer("allocation_percentage").default(100), // 0-100%
   role: text("role"), // Role in this specific task (e.g., "Lead", "Support")
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("tra_task_id_idx").on(table.taskId),
+  index("tra_resource_id_idx").on(table.resourceId),
+]);
 
 // Issue Resource Assignments (Join table) - also handles risks since they're now in issues table
 export const issueResourceAssignments = pgTable("issue_resource_assignments", {
@@ -535,7 +557,10 @@ export const issueResourceAssignments = pgTable("issue_resource_assignments", {
   resourceId: integer("resource_id").references(() => resources.id).notNull(),
   role: text("role"), // Role (e.g., "Assignee", "Reviewer", "Owner", "Mitigator")
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("ira_issue_id_idx").on(table.issueId),
+  index("ira_resource_id_idx").on(table.resourceId),
+]);
 
 // Note: Risk Resource Assignments are now consolidated into Issue Resource Assignments
 // The 'risk_resource_assignments' table is deprecated - use issue_resource_assignments instead
@@ -558,7 +583,12 @@ export const timesheetEntries = pgTable("timesheet_entries", {
   rejectionReason: text("rejection_reason"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("te_task_id_idx").on(table.taskId),
+  index("te_resource_id_idx").on(table.resourceId),
+  index("te_project_id_idx").on(table.projectId),
+  index("te_organization_id_idx").on(table.organizationId),
+]);
 
 // Time Categories (for non-project time like vacation, PTO, etc.)
 export const timeCategories = pgTable("time_categories", {

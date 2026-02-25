@@ -6556,7 +6556,7 @@ function SortableTaskRow({
 }
 
 // Split-pane Gantt: Metadata row (left pane)
-function ProjectGanttTaskRowMeta({ 
+const ProjectGanttTaskRowMeta = React.memo(function ProjectGanttTaskRowMeta({ 
   task, 
   rowIndex,
   visibleColumns,
@@ -7418,10 +7418,10 @@ function ProjectGanttTaskRowMeta({
       })}
     </div>
   );
-}
+});
 
 // Split-pane Gantt: Timeline row (right pane)
-function ProjectGanttTaskRowTimeline({ 
+const ProjectGanttTaskRowTimeline = React.memo(function ProjectGanttTaskRowTimeline({ 
   task, 
   onTaskClick, 
   minDate, 
@@ -7625,7 +7625,7 @@ function ProjectGanttTaskRowTimeline({
       )}
     </div>
   );
-}
+});
 
 function SortableColumnItem({ 
   id, 
@@ -7722,6 +7722,14 @@ function ProjectGanttView({
   const { toast } = useToast();
   const today = new Date();
   const { data: projectTaskAssignments } = useProjectTaskAssignments(projectId);
+  const taskAssignmentsMap = useMemo(() => {
+    const map = new Map<number, (TaskResourceAssignment & { resource: Resource })[]>();
+    for (const a of projectTaskAssignments ?? []) {
+      if (!map.has(a.taskId)) map.set(a.taskId, []);
+      map.get(a.taskId)!.push(a);
+    }
+    return map;
+  }, [projectTaskAssignments]);
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('month');
   const [visibleColumns, setVisibleColumns] = useState<GanttColumn[]>(DEFAULT_GANTT_COLUMNS);
   const [newTaskName, setNewTaskName] = useState('');
@@ -7832,7 +7840,7 @@ function ProjectGanttView({
   const [bulkDeletePending, setBulkDeletePending] = useState(false);
   const [bulkTimesheetBlockPending, setBulkTimesheetBlockPending] = useState(false);
   
-  const toggleTaskSelection = (taskId: number) => {
+  const toggleTaskSelection = useCallback((taskId: number) => {
     setSelectedTaskIds(prev => {
       const next = new Set(prev);
       if (next.has(taskId)) {
@@ -7842,7 +7850,7 @@ function ProjectGanttView({
       }
       return next;
     });
-  };
+  }, []);
   
   const selectAllTasks = () => {
     setSelectedTaskIds(new Set(tasks.map(t => t.id)));
@@ -7962,10 +7970,10 @@ function ProjectGanttView({
   };
   
   // Push a task update to undo stack (for tracking all changes)
-  const pushToUndoStack = (taskId: number, projectId: number, field: string, oldValue: unknown, newValue: unknown) => {
+  const pushToUndoStack = useCallback((taskId: number, projectId: number, field: string, oldValue: unknown, newValue: unknown) => {
     setUndoStack(prev => [...prev, { type: 'update', taskId, projectId, field, oldValue, newValue }]);
     setRedoStack([]); // Clear redo stack on new action
-  };
+  }, []);
   
   // Undo last action (reorder or update)
   const handleUndo = () => {
@@ -8281,7 +8289,7 @@ function ProjectGanttView({
     setDragOverColumn(null);
   };
 
-  const handleIndent = (task: Task) => {
+  const handleIndent = useCallback((task: Task) => {
     const currentLevel = Math.max(1, Math.min(6, task.outlineLevel || 1));
     const newLevel = Math.min(6, currentLevel + 1);
     
@@ -8324,9 +8332,9 @@ function ProjectGanttView({
         toast({ title: "Error", description: "Failed to indent task", variant: "destructive" });
       }
     });
-  };
+  }, [tasks, pushToUndoStack, updateTask, toast]);
 
-  const handleOutdent = (task: Task) => {
+  const handleOutdent = useCallback((task: Task) => {
     const currentLevel = Math.max(1, Math.min(6, task.outlineLevel || 1));
     const newLevel = Math.max(1, currentLevel - 1);
     if (currentLevel <= 1 || newLevel < 1) {
@@ -8351,7 +8359,7 @@ function ProjectGanttView({
         toast({ title: "Error", description: "Failed to outdent task", variant: "destructive" });
       }
     });
-  };
+  }, [tasks, pushToUndoStack, updateTask, toast]);
 
   // Bulk indent for selected tasks
   const handleBulkIndent = async () => {
@@ -8702,7 +8710,7 @@ function ProjectGanttView({
     setCollapsedTasks(new Set<number>());
   }, [projectId, authUser?.id]);
 
-  const toggleCollapse = (taskId: number) => {
+  const toggleCollapse = useCallback((taskId: number) => {
     setCollapsedTasks(prev => {
       const next = new Set(prev);
       if (next.has(taskId)) {
@@ -8717,7 +8725,7 @@ function ProjectGanttView({
       }
       return next;
     });
-  };
+  }, [authUser?.id, projectId]);
 
   const collapseAllTasks = useCallback(() => {
     if (!tasks || tasks.length === 0) return;
@@ -8899,7 +8907,7 @@ function ProjectGanttView({
     }
   };
 
-  const handleCreateTaskAt = (referenceTask: Task, position: 'above' | 'below') => {
+  const handleCreateTaskAt = useCallback((referenceTask: Task, position: 'above' | 'below') => {
     const refIndex = tasks.findIndex(t => t.id === referenceTask.id);
     if (refIndex === -1) return;
 
@@ -8934,9 +8942,9 @@ function ProjectGanttView({
         }
       }
     });
-  };
+  }, [tasks, projectId, createTask, reorderTask, toast]);
 
-  const handleDeleteTask = (task: Task) => {
+  const handleDeleteTask = useCallback((task: Task) => {
     deleteTask.mutate({ id: task.id, projectId: task.projectId }, {
       onSuccess: () => {
         toast({ title: "Task deleted", description: `"${task.name}" has been deleted` });
@@ -8946,12 +8954,12 @@ function ProjectGanttView({
         toast({ title: "Error", description: err.message || "Failed to delete task", variant: "destructive" });
       }
     });
-  };
+  }, [deleteTask, toast]);
 
   // State for dependencies dialog
   const [dependenciesDialogTask, setDependenciesDialogTask] = useState<Task | null>(null);
 
-  const handleSetBaseline = (task: Task) => {
+  const handleSetBaseline = useCallback((task: Task) => {
     if (!task.startDate || !task.endDate) {
       toast({ title: "Cannot set baseline", description: "Task must have start and end dates", variant: "destructive" });
       return;
@@ -8966,9 +8974,9 @@ function ProjectGanttView({
         toast({ title: "Baseline set", description: "Current dates saved as baseline" });
       }
     });
-  };
+  }, [updateTask, toast]);
 
-  const handleClearBaseline = (task: Task) => {
+  const handleClearBaseline = useCallback((task: Task) => {
     updateTask.mutate({
       id: task.id,
       projectId: task.projectId,
@@ -8979,11 +8987,11 @@ function ProjectGanttView({
         toast({ title: "Baseline cleared", description: "Baseline dates removed" });
       }
     });
-  };
+  }, [updateTask, toast]);
 
-  const handleEditDependencies = (task: Task) => {
+  const handleEditDependencies = useCallback((task: Task) => {
     setDependenciesDialogTask(task);
-  };
+  }, []);
 
   const toggleColumn = (col: GanttColumn) => {
     if (col === 'task') return;
@@ -9045,7 +9053,7 @@ function ProjectGanttView({
     setIsBaselineDialogOpen(true);
   };
 
-  const toggleTaskForBaseline = (taskId: number, includeChildren: boolean = false) => {
+  const toggleTaskForBaseline = useCallback((taskId: number, includeChildren: boolean = false) => {
     setSelectedTasksForBaseline(prev => {
       const next = new Set(prev);
       if (next.has(taskId)) {
@@ -9089,7 +9097,7 @@ function ProjectGanttView({
       }
       return next;
     });
-  };
+  }, [tasks]);
 
   const handleBaselineSubmit = async (): Promise<boolean> => {
     setIsBaselinePending(true);
@@ -9925,7 +9933,7 @@ function ProjectGanttView({
                             isReadOnly={isReadOnly}
                             onCreateTaskAt={handleCreateTaskAt}
                             onDeleteTask={handleDeleteTask}
-                            preloadedAssignments={projectTaskAssignments?.filter(a => a.taskId === task.id)}
+                            preloadedAssignments={taskAssignmentsMap.get(task.id)}
                           />
                         </div>
                       );
@@ -9970,7 +9978,7 @@ function ProjectGanttView({
                               isReadOnly={isReadOnly}
                               onCreateTaskAt={handleCreateTaskAt}
                               onDeleteTask={handleDeleteTask}
-                              preloadedAssignments={projectTaskAssignments?.filter(a => a.taskId === task.id)}
+                              preloadedAssignments={taskAssignmentsMap.get(task.id)}
                             />
                           )}
                         </SortableTaskRow>

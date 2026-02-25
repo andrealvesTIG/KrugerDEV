@@ -125,6 +125,15 @@ Each vertical landing page follows the same structure: header, hero, trust bar, 
 - **Energy & Utilities** (`/energy`): `EnergyLandingPage.tsx`, assets in `client/src/assets/energy/`. Green/emerald theme. Targets utilities, renewables, grid modernization.
 - **Government & Public Sector** (`/government`): `GovernmentLandingPage.tsx`, assets in `client/src/assets/government/`. Navy/blue-gray theme. Targets agencies, IT modernization, public infrastructure.
 
+### Performance Optimizations
+- **Virtual Scrolling**: Gantt rows use virtual scroll when task count exceeds `VIRTUAL_SCROLL_THRESHOLD = 150`; DnD disabled in virtual-scroll mode.
+- **Org Auto-Switch**: Switching organizations selects the correct org automatically.
+- **Bulk Assignment Fetching**: `useProjectTaskAssignments(projectId)` fetches all task-resource assignments for a project in one query; called directly in `ProjectGanttView` (React Query deduplicates). Assignments precomputed into `taskAssignmentsMap` (Map<taskId, assignments[]>) to avoid per-row `.filter()` calls.
+- **DB Indexes**: Indexes added on all major foreign-key columns: milestones (project_id), issues (project_id, item_type), tasks (project_id, parent_id, deleted_at), taskChangeLogs, projectChangeLogs, issueChangeLogs, taskDependencies, taskResourceAssignments, issueResourceAssignments, timesheetEntries (task_id, resource_id, project_id, organization_id).
+- **N+1 Query Fix**: Project detail endpoint parallelizes `createdBy`/`updatedBy` user lookups using `Promise.all`.
+- **React.memo**: `ProjectGanttTaskRowMeta` and `ProjectGanttTaskRowTimeline` wrapped in `React.memo` to prevent unnecessary re-renders.
+- **useCallback**: Gantt row handlers (`toggleTaskSelection`, `pushToUndoStack`, `handleIndent`, `handleOutdent`, `toggleCollapse`, `handleCreateTaskAt`, `handleDeleteTask`, `handleSetBaseline`, `handleClearBaseline`, `handleEditDependencies`, `toggleTaskForBaseline`) wrapped in `useCallback` with stable deps to prevent prop churn on memoized rows.
+
 ### Swagger/OpenAPI
 - The complete OpenAPI 3.0 spec is maintained in `server/swagger.ts` covering all ~400 routes.
 - Swagger UI is served at `/api-docs`, raw JSON spec at `/api-docs.json`.

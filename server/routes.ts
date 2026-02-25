@@ -4680,23 +4680,14 @@ export async function registerRoutes(
     const project = await storage.getProject(Number(req.params.id));
     if (!project) return res.status(404).json({ message: "Project not found" });
     
-    // Fetch user names for createdBy and updatedBy
-    let createdByName = null;
-    let updatedByName = null;
-    
-    if ((project as any).createdBy) {
-      const [createdByUser] = await db.select().from(users).where(eq(users.id, (project as any).createdBy));
-      createdByName = createdByUser ? (createdByUser.firstName && createdByUser.lastName 
-        ? `${createdByUser.firstName} ${createdByUser.lastName}` 
-        : createdByUser.username || createdByUser.email) : null;
-    }
-    
-    if ((project as any).updatedBy) {
-      const [updatedByUser] = await db.select().from(users).where(eq(users.id, (project as any).updatedBy));
-      updatedByName = updatedByUser ? (updatedByUser.firstName && updatedByUser.lastName 
-        ? `${updatedByUser.firstName} ${updatedByUser.lastName}` 
-        : updatedByUser.username || updatedByUser.email) : null;
-    }
+    // Fetch user names for createdBy and updatedBy in parallel
+    const [createdByUser, updatedByUser] = await Promise.all([
+      (project as any).createdBy ? db.select().from(users).where(eq(users.id, (project as any).createdBy)).then(r => r[0] ?? null) : Promise.resolve(null),
+      (project as any).updatedBy ? db.select().from(users).where(eq(users.id, (project as any).updatedBy)).then(r => r[0] ?? null) : Promise.resolve(null),
+    ]);
+    const formatName = (u: typeof createdByUser) => u ? (u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.username || u.email) : null;
+    const createdByName = formatName(createdByUser);
+    const updatedByName = formatName(updatedByUser);
     
     res.json({
       ...project,
