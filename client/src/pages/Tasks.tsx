@@ -2,7 +2,8 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png";
-import { usePaginatedTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskHistory } from "@/hooks/use-tasks";
+import { usePaginatedTasks, useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskHistory } from "@/hooks/use-tasks";
+import { TaskDependenciesSection } from "@/components/TaskDependenciesSection";
 import { useExternalTasks } from "@/hooks/use-external-shares";
 import { ExternalBadge } from "@/components/ExternalBadge";
 import { useProjects } from "@/hooks/use-projects";
@@ -78,6 +79,7 @@ export default function Tasks() {
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const updateTaskResources = useUpdateTaskResourceAssignments();
+  const { data: editingTaskProjectTasks } = useTasks(editingTask?.projectId || 0);
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
   const { data: orgResources } = useResources(currentOrganization?.id ?? null);
   const { data: allTaskAssignments } = useAllTaskResourceAssignments(currentOrganization?.id ?? null);
@@ -989,9 +991,17 @@ export default function Tasks() {
                     </TabsContent>
 
                     <TabsContent value="dependencies" className="mt-0">
-                      <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
-                        Dependencies can be managed from the project's task view.
-                      </div>
+                      {editingTask ? (
+                        <TaskDependenciesSection
+                          taskId={editingTask.id}
+                          projectId={editingTask.projectId}
+                          allTasks={editingTaskProjectTasks || []}
+                        />
+                      ) : (
+                        <div className="text-sm text-muted-foreground text-center py-8">
+                          Save the task first to add dependencies
+                        </div>
+                      )}
                     </TabsContent>
                   </div>
                 </Tabs>
