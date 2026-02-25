@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios, useCreatePortfolio } from "@/hooks/use-portfolios";
 import { useCreateProject } from "@/hooks/use-projects";
@@ -105,20 +106,22 @@ function QuickAddPortfolioDialog({ open, onOpenChange, organizationId }: { open:
   const { toast } = useToast();
   const createPortfolio = useCreatePortfolio();
   const form = useForm({
-    defaultValues: { name: "", description: "" },
+    defaultValues: { name: "", description: "", strategy: "", isCustom: false },
   });
 
-  const onSubmit = async (data: { name: string; description: string }) => {
+  const onSubmit = async (data: { name: string; description: string; strategy: string; isCustom: boolean }) => {
     if (!organizationId) return;
     try {
       await createPortfolio.mutateAsync({
         organizationId,
         name: data.name,
         description: data.description || null,
+        strategy: data.strategy || null,
+        isCustom: data.isCustom,
         status: "Active",
         healthScore: "Green",
       });
-      toast({ title: "Success", description: "Portfolio created" });
+      toast({ title: "Success", description: "Portfolio created successfully" });
       form.reset();
       onOpenChange(false);
     } catch (err: any) {
@@ -128,25 +131,40 @@ function QuickAddPortfolioDialog({ open, onOpenChange, organizationId }: { open:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[400px]">
+      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>New Portfolio</DialogTitle>
-          <DialogDescription>Create a new portfolio to group related projects.</DialogDescription>
+          <DialogTitle>Create Portfolio</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
           <div className="space-y-2">
-            <Label>Name</Label>
-            <Input {...form.register("name", { required: "Portfolio name is required" })} placeholder="Portfolio name" data-testid="input-portfolio-name" />
+            <Label htmlFor="qa-portfolio-name">Name</Label>
+            <Input id="qa-portfolio-name" {...form.register("name", { required: "Portfolio name is required" })} placeholder="e.g. Q4 Strategic Initiatives" data-testid="input-portfolio-name" />
             {form.formState.errors.name && <p className="text-xs text-red-500">{form.formState.errors.name.message}</p>}
           </div>
           <div className="space-y-2">
-            <Label>Description</Label>
-            <Textarea {...form.register("description")} placeholder="Optional description" data-testid="input-portfolio-description" />
+            <Label htmlFor="qa-portfolio-description">Description</Label>
+            <Textarea id="qa-portfolio-description" {...form.register("description")} placeholder="Brief overview of this portfolio" data-testid="input-portfolio-description" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="qa-portfolio-strategy">Strategic Alignment</Label>
+            <Textarea id="qa-portfolio-strategy" {...form.register("strategy")} placeholder="How does this align with company goals?" data-testid="input-portfolio-strategy" />
+          </div>
+          <div className="flex items-center gap-3 rounded-lg border p-3">
+            <Checkbox
+              id="qa-portfolio-isCustom"
+              checked={form.watch("isCustom")}
+              onCheckedChange={(checked) => form.setValue("isCustom", !!checked)}
+              data-testid="checkbox-custom-portfolio"
+            />
+            <div className="space-y-0.5">
+              <Label htmlFor="qa-portfolio-isCustom" className="cursor-pointer font-medium">Custom Portfolio</Label>
+              <p className="text-xs text-muted-foreground">Add any project regardless of their existing portfolio assignment.</p>
+            </div>
           </div>
           <DialogFooter>
             <Button type="submit" disabled={createPortfolio.isPending} data-testid="button-create-portfolio">
               {createPortfolio.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create
+              {createPortfolio.isPending ? "Creating..." : "Create Portfolio"}
             </Button>
           </DialogFooter>
         </form>
