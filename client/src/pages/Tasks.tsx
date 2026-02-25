@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import plannerLogoPath from "@/assets/planner-logo.png";
-import msprojectLogoPath from "@/assets/msproject-logo.png";
-import { usePaginatedTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskHistory } from "@/hooks/use-tasks";
-import { CreateTaskDialog } from "@/components/CreateTaskDialog";
+import msprojectLogoPath from "@/assets/msproject-logo.png"; 
+import { usePaginatedTasks, useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskHistory } from "@/hooks/use-tasks";
+import { TaskDependenciesSection } from "@/components/TaskDependenciesSection"; 
 import { useExternalTasks } from "@/hooks/use-external-shares";
 import { ExternalBadge } from "@/components/ExternalBadge";
 import { useProjects } from "@/hooks/use-projects";
@@ -26,7 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal, Search, User as UserIcon, TrendingUp, TrendingDown, Timer, RefreshCw, Lock as LockIcon, Crown, Cloud, FileSpreadsheet } from "lucide-react";
+import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal, Search, User as UserIcon, TrendingUp, TrendingDown, Timer, RefreshCw, Lock as LockIcon, Crown, Cloud, FileSpreadsheet, Milestone as MilestoneIcon } from "lucide-react";
 import { PageTransition, FadeIn } from "@/components/ui/page-transition";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
@@ -42,6 +42,7 @@ import { insertTaskSchema, type Task } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
+import { CreateTaskDialog } from "@/components/CreateTaskDialog";
 
 const statusColors = {
   "Not Started": "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
@@ -71,6 +72,7 @@ export default function Tasks() {
   const [myAssignmentsOnly, setMyAssignmentsOnly] = useState(false);
   const [deleteTaskData, setDeleteTaskData] = useState<Task | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isMilestone, setIsMilestone] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [resourceAllocations, setResourceAllocations] = useState<ResourceAllocation[]>([]);
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
@@ -79,6 +81,7 @@ export default function Tasks() {
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const updateTaskResources = useUpdateTaskResourceAssignments();
+  const { data: editingTaskProjectTasks } = useTasks(editingTask?.projectId || 0);
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
   const { data: orgResources } = useResources(currentOrganization?.id ?? null);
   const { data: allTaskAssignments } = useAllTaskResourceAssignments(currentOrganization?.id ?? null);
@@ -319,6 +322,7 @@ export default function Tasks() {
       ? calculateDurationInWorkingDays(task.startDate, task.endDate) 
       : 1);
     setDurationInput(String(taskDuration));
+    setIsMilestone(task.isMilestone || false);
     form.reset({
       projectId: task.projectId,
       name: task.name,
@@ -339,6 +343,7 @@ export default function Tasks() {
   const openCreateDialog = () => {
     setEditingTask(null);
     setDurationInput("1");
+    setIsMilestone(false);
     setSelectedResourceIds([]);
     lastInitializedTaskId.current = null; // Reset to allow re-initialization
     const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -415,6 +420,7 @@ export default function Tasks() {
       assignee: data.assignee || null,
       baselineStartDate: data.baselineStartDate || null,
       baselineEndDate: data.baselineEndDate || null,
+      isMilestone: isMilestone,
     };
 
     if (editingTask) {
@@ -669,12 +675,12 @@ export default function Tasks() {
               </DialogHeader>
               <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col min-h-0">
                 <div className="space-y-2 pb-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Project</Label>
+                  <div className="space-y-2">
+                    <Label>Project</Label>
                     <Controller control={form.control} name="projectId" render={({field, fieldState}) => (
                       <div className="space-y-1">
                         <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value ? String(field.value) : ""}>
-                          <SelectTrigger data-testid="select-task-project" className={cn("h-8 text-sm", fieldState.error && "border-destructive")}>
+                          <SelectTrigger data-testid="select-task-project" className={cn(fieldState.error && "border-destructive")}>
                             <SelectValue placeholder="Select project" />
                           </SelectTrigger>
                           <SelectContent>
@@ -689,9 +695,9 @@ export default function Tasks() {
                       </div>
                     )} />
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Task Name</Label>
-                    <Input {...form.register("name")} data-testid="input-task-name" className={cn("h-8 text-sm", form.formState.errors.name && "border-destructive")} />
+                  <div className="space-y-2">
+                    <Label>Task Name</Label>
+                    <Input {...form.register("name")} data-testid="input-task-name" className={cn(form.formState.errors.name && "border-destructive")} />
                     {form.formState.errors.name && <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>}
                   </div>
                 </div>
@@ -706,9 +712,9 @@ export default function Tasks() {
 
                   <div className="flex-1 overflow-y-auto py-4 min-h-[280px]">
                     <TabsContent value="details" className="mt-0 space-y-4">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <Label className="text-xs">Status</Label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Status</Label>
                           <Controller control={form.control} name="status" render={({field}) => (
                             <Select onValueChange={(val) => {
                               const prevStatus = field.value;
@@ -721,7 +727,7 @@ export default function Tasks() {
                                 form.setValue("progress", 50);
                               }
                             }} value={field.value || "Not Started"}>
-                              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="Not Started">Not Started</SelectItem>
                                 <SelectItem value="In Progress">In Progress</SelectItem>
@@ -730,10 +736,10 @@ export default function Tasks() {
                             </Select>
                           )} />
                         </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs flex items-center justify-between">
+                        <div className="space-y-2">
+                          <Label className="flex items-center justify-between">
                             Progress
-                            <span className="text-muted-foreground font-normal">{form.watch("progress") || 0}%</span>
+                            <span className="text-muted-foreground text-xs font-normal">{form.watch("progress") || 0}%</span>
                           </Label>
                           <Controller control={form.control} name="progress" render={({field}) => (
                             <div className="h-9 flex items-center">
@@ -763,9 +769,21 @@ export default function Tasks() {
                           )} />
                         </div>
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Description</Label>
-                        <Textarea {...form.register("description")} className="text-sm min-h-[80px]" />
+                      <div className="space-y-2">
+                        <Label>Description</Label>
+                        <Textarea {...form.register("description")} className="min-h-[80px] focus-visible:ring-inset" />
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="isMilestone"
+                          checked={isMilestone}
+                          onCheckedChange={(checked) => setIsMilestone(checked === true)}
+                          data-testid="checkbox-task-milestone"
+                        />
+                        <Label htmlFor="isMilestone" className="text-sm font-normal cursor-pointer flex items-center gap-2">
+                          <MilestoneIcon className="h-4 w-4 text-primary" />
+                          Mark as Milestone
+                        </Label>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Controller
@@ -773,30 +791,29 @@ export default function Tasks() {
                           name="timesheetBlocked"
                           render={({ field }) => (
                             <Checkbox
-                              id="timesheetBlocked"
+                              id="task-timesheet-blocked"
                               checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                              data-testid="checkbox-timesheet-blocked"
+                              onCheckedChange={(checked) => field.onChange(checked === true)}
+                              data-testid="checkbox-task-timesheet-blocked"
                             />
                           )}
                         />
-                        <Label htmlFor="timesheetBlocked" className="text-sm font-normal cursor-pointer">
-                          Block timesheet entries for this task
+                        <Label htmlFor="task-timesheet-blocked" className="text-sm font-normal cursor-pointer">
+                          Block timesheet entries
                         </Label>
                       </div>
                     </TabsContent>
 
                     <TabsContent value="schedule" className="mt-0 space-y-4">
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="space-y-1">
-                          <Label className="text-xs">Start Date</Label>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label>Start Date</Label>
                           <Controller 
                             control={form.control} 
                             name="startDate" 
                             render={({field}) => (
                               <Input 
                                 type="date" 
-                                className="h-8 text-sm"
                                 value={field.value || ""}
                                 onChange={(e) => {
                                   const newStartDate = e.target.value;
@@ -809,13 +826,12 @@ export default function Tasks() {
                             )}
                           />
                         </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">Duration (days)</Label>
+                        <div className="space-y-2">
+                          <Label>Duration (days)</Label>
                           <Input 
                             type="number" 
                             min="0" 
                             max="365" 
-                            className="h-8 text-sm"
                             value={durationInput}
                             onChange={(e) => {
                               const value = e.target.value;
@@ -830,8 +846,8 @@ export default function Tasks() {
                             data-testid="input-task-duration" 
                           />
                         </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">End Date</Label>
+                        <div className="space-y-2">
+                          <Label>End Date</Label>
                           <Controller 
                             control={form.control} 
                             name="endDate" 
@@ -840,7 +856,6 @@ export default function Tasks() {
                               return (
                                 <Input 
                                   type="date" 
-                                  className="h-8 text-sm"
                                   value={field.value || ""}
                                   min={currentStartDate || undefined}
                                   onChange={(e) => {
@@ -873,15 +888,15 @@ export default function Tasks() {
                       <div className="border-2 border-orange-200 dark:border-orange-800 rounded-md p-3 bg-orange-50/50 dark:bg-orange-950/30 space-y-3">
                         <div className="flex items-center justify-between flex-wrap gap-2">
                           <div>
-                            <Label className="text-xs font-medium flex items-center gap-2">
-                              <CalendarIcon className="h-3.5 w-3.5 text-orange-600" />
+                            <Label className="text-sm font-medium flex items-center gap-2">
+                              <CalendarIcon className="h-4 w-4 text-orange-600" />
                               Baseline Dates
                             </Label>
                             <p className="text-xs text-muted-foreground mt-0.5">
                               Track schedule variance against the original plan
                             </p>
                           </div>
-                          <div className="flex gap-1">
+                          <div className="flex gap-2">
                             <Button
                               type="button"
                               variant="outline"
@@ -905,7 +920,7 @@ export default function Tasks() {
                           </div>
                         </div>
                         
-                        {form.watch("baselineStartDate") || form.watch("baselineEndDate") ? (
+                        {(form.watch("baselineStartDate") || form.watch("baselineEndDate")) ? (
                           <>
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-1">
@@ -983,59 +998,67 @@ export default function Tasks() {
                     </TabsContent>
 
                     <TabsContent value="dependencies" className="mt-0">
-                      <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
-                        Dependencies can be managed from the project's task view.
-                      </div>
+                      {editingTask ? (
+                        <TaskDependenciesSection
+                          taskId={editingTask.id}
+                          projectId={editingTask.projectId}
+                          allTasks={editingTaskProjectTasks || []}
+                        />
+                      ) : (
+                        <div className="text-sm text-muted-foreground text-center py-8">
+                          Save the task first to add dependencies
+                        </div>
+                      )}
                     </TabsContent>
                   </div>
                 </Tabs>
                 
-                <DialogFooter className="flex items-center gap-2 pt-3">
-                  {editingTask && (
+                <DialogFooter className="pt-4 border-t sm:justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    {editingTask && (
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setIsHistoryOpen(true)}
+                        data-testid="button-view-history"
+                      >
+                        <History className="mr-2 h-4 w-4" />
+                        History
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      type="submit" 
+                      data-testid="button-save-task" 
+                      disabled={createTask.isPending || updateTask.isPending || !form.formState.isValid}
+                    >
+                      {(createTask.isPending || updateTask.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {editingTask ? "Update Task" : "Save Task"}
+                    </Button>
+                    {editingTask && (
+                      <Button 
+                        type="button" 
+                        variant="destructive" 
+                        onClick={() => setShowDeleteConfirm(true)}
+                        data-testid="button-delete-task"
+                      >
+                        Delete Task
+                      </Button>
+                    )}
                     <Button 
                       type="button" 
                       variant="outline" 
-                      size="sm"
-                      onClick={() => setIsHistoryOpen(true)}
-                      data-testid="button-view-history"
+                      onClick={() => {
+                        setIsDialogOpen(false);
+                        setEditingTask(null);
+                      }}
+                      data-testid="button-cancel-task"
                     >
-                      <History className="mr-2 h-4 w-4" />
-                      History
+                      Cancel
                     </Button>
-                  )}
-                  <div className="flex-1" />
-                  <Button 
-                    type="submit" 
-                    size="sm"
-                    data-testid="button-save-task" 
-                    disabled={createTask.isPending || updateTask.isPending || !form.formState.isValid}
-                  >
-                    {(createTask.isPending || updateTask.isPending) && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
-                    {editingTask ? "Update Task" : "Save Task"}
-                  </Button>
-                  {editingTask && (
-                    <Button 
-                      type="button" 
-                      variant="destructive" 
-                      size="sm"
-                      onClick={() => setShowDeleteConfirm(true)}
-                      data-testid="button-delete-task"
-                    >
-                      Delete Task
-                    </Button>
-                  )}
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      setIsDialogOpen(false);
-                      setEditingTask(null);
-                    }}
-                    data-testid="button-cancel-task"
-                  >
-                    Cancel
-                  </Button>
+                  </div>
                 </DialogFooter>
               </form>
             </DialogContent>
