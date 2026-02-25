@@ -327,12 +327,15 @@ export function PortfoliosDashboard() {
                       <Badge 
                         variant="secondary" 
                         className="text-[10px] h-5"
-                        style={{ 
+                        style={portfolio.isUnassigned ? {
+                          backgroundColor: `${portfolio.color}20`,
+                          color: portfolio.color,
+                        } : { 
                           backgroundColor: `${portfolio.healthPercentage >= 70 ? COLORS.Green : portfolio.healthPercentage >= 40 ? COLORS.Yellow : COLORS.Red}15`,
                           color: portfolio.healthPercentage >= 70 ? COLORS.Green : portfolio.healthPercentage >= 40 ? COLORS.Yellow : COLORS.Red,
                         }}
                       >
-                        {portfolio.healthPercentage}%
+                        {portfolio.isUnassigned && portfolio.projectCount === 0 ? "N/A" : `${portfolio.healthPercentage}%`}
                       </Badge>
                     </div>
                     <Progress
