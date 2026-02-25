@@ -9,7 +9,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,7 +19,7 @@ import { CreateProjectDialog } from "@/components/CreateProjectDialog";
 import { CreateTaskDialog } from "@/components/CreateTaskDialog";
 import { CreateRiskDialog } from "@/components/CreateRiskDialog";
 import { CreateIssueDialog } from "@/components/CreateIssueDialog";
-import { useCreateResource } from "@/hooks/use-resources";
+import { ResourceDialog } from "@/components/ResourceDialog";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
@@ -90,10 +90,11 @@ export function QuickAddMenu() {
         onOpenChange={(open) => !open && setActiveDialog(null)}
         organizationId={currentOrganization?.id ?? null}
       />
-      <QuickAddResourceDialog
+      <ResourceDialog
         open={activeDialog === "resource"}
         onOpenChange={(open) => !open && setActiveDialog(null)}
         organizationId={currentOrganization?.id}
+        onSuccess={() => setActiveDialog(null)}
       />
     </>
   );
@@ -170,62 +171,3 @@ function QuickAddPortfolioDialog({ open, onOpenChange, organizationId }: { open:
   );
 }
 
-function QuickAddResourceDialog({ open, onOpenChange, organizationId }: { open: boolean; onOpenChange: (open: boolean) => void; organizationId?: number }) {
-  const { toast } = useToast();
-  const createResource = useCreateResource();
-  const form = useForm({
-    defaultValues: { displayName: "", email: "", title: "" },
-  });
-
-  const onSubmit = async (data: { displayName: string; email: string; title: string }) => {
-    if (!organizationId) return;
-    try {
-      await createResource.mutateAsync({
-        organizationId,
-        displayName: data.displayName,
-        email: data.email || null,
-        title: data.title || null,
-        isActive: true,
-        isBillable: true,
-        weeklyCapacity: "40",
-        availability: 100,
-      });
-      toast({ title: "Success", description: "Resource created" });
-      form.reset();
-      onOpenChange(false);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[400px]">
-        <DialogHeader>
-          <DialogTitle>New Resource</DialogTitle>
-          <DialogDescription>Add a team member or resource.</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-2">
-            <Label>Name</Label>
-            <Input {...form.register("displayName", { required: true })} placeholder="Full name" data-testid="input-quick-resource-name" />
-          </div>
-          <div className="space-y-2">
-            <Label>Email</Label>
-            <Input {...form.register("email")} type="email" placeholder="email@example.com" data-testid="input-quick-resource-email" />
-          </div>
-          <div className="space-y-2">
-            <Label>Title</Label>
-            <Input {...form.register("title")} placeholder="Job title" data-testid="input-quick-resource-title" />
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={createResource.isPending} data-testid="button-quick-create-resource">
-              {createResource.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
