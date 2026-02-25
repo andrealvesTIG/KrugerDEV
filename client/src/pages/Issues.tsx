@@ -1,6 +1,7 @@
   import { useState, useEffect } from "react";
   import { useAllIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory, useEscalateIssue } from "@/hooks/use-issues";
-  import { useCreateRisk, useConvertRiskToIssue, useAiMitigationSuggestion } from "@/hooks/use-risks";
+  import { useConvertRiskToIssue } from "@/hooks/use-risks";
+  import { CreateRiskDialog } from "@/components/CreateRiskDialog";
   import { useProjects } from "@/hooks/use-projects";
   import { usePortfolios } from "@/hooks/use-portfolios";
   import { useOrganization } from "@/hooks/use-organization";
@@ -25,7 +26,6 @@
   import { motion } from "framer-motion";
   import { Link } from "wouter";
   import { LimitExceededDialog } from "@/components/LimitExceededDialog";
-  import { z } from "zod";
 
   function IssueResourceDisplay({ issueId }: { issueId: number }) {
     const { data: assignments, isLoading } = useIssueResourceAssignments(issueId);
@@ -103,9 +103,7 @@
     const [priorityFilter, setPriorityFilter] = useState<string>("all");
     const [typeFilter, setTypeFilter] = useState<"all" | "issue" | "risk">("all");
     const createIssue = useCreateIssue();
-    const createRisk = useCreateRisk();
     const convertRiskToIssue = useConvertRiskToIssue();
-    const aiMitigationSuggestion = useAiMitigationSuggestion();
     const updateIssue = useUpdateIssue();
     const deleteIssue = useDeleteIssue();
     const escalateIssue = useEscalateIssue();
@@ -118,6 +116,7 @@
     const [limitError, setLimitError] = useState<{ message?: string; resourceType?: string } | null>(null);
     const [isRiskDialogOpen, setIsRiskDialogOpen] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
+
     const { data: issueHistory, isLoading: historyLoading } = useIssueHistory(editingIssue?.id || 0);
 
     const form = useForm({
@@ -141,29 +140,6 @@
         priority: "Medium",
         status: "Open",
         type: "Bug"
-      }
-    });
-
-    const riskFormSchema = z.object({
-      projectId: z.number().min(1, "Please select a project"),
-      title: z.string().min(1, "Title is required"),
-      description: z.string().optional(),
-      probability: z.enum(["Low", "Medium", "High"]),
-      impact: z.enum(["Low", "Medium", "High"]),
-      status: z.string(),
-      mitigationPlan: z.string().optional(),
-    });
-
-    const riskForm = useForm({
-      resolver: zodResolver(riskFormSchema),
-      defaultValues: {
-        projectId: undefined as unknown as number,
-        title: "",
-        description: "",
-        probability: "Medium" as "Low" | "Medium" | "High",
-        impact: "Medium" as "Low" | "Medium" | "High",
-        status: "Open",
-        mitigationPlan: "",
       }
     });
 
@@ -236,33 +212,6 @@
             setLimitError({ message: err.message, resourceType: err.resourceType });
             setLimitDialogOpen(true);
             setIsDialogOpen(false);
-          } else {
-            toast({ title: "Error", description: err.message, variant: "destructive" });
-          }
-        }
-      });
-    };
-
-    const onRiskSubmit = (data: any) => {
-      createRisk.mutate(data, {
-        onSuccess: () => {
-          toast({ title: "Success", description: "Risk created successfully" });
-          setIsRiskDialogOpen(false);
-          riskForm.reset({
-            projectId: undefined as unknown as number,
-            title: "",
-            description: "",
-            probability: "Medium",
-            impact: "Medium",
-            status: "Open",
-            mitigationPlan: "",
-          });
-        },
-        onError: (err: any) => {
-          if (err.limitExceeded) {
-            setLimitError({ message: err.message, resourceType: err.resourceType });
-            setLimitDialogOpen(true);
-            setIsRiskDialogOpen(false);
           } else {
             toast({ title: "Error", description: err.message, variant: "destructive" });
           }
@@ -416,168 +365,14 @@
             </DialogContent>
           </Dialog>
 
-            <Dialog open={isRiskDialogOpen} onOpenChange={setIsRiskDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" data-testid="button-create-risk">
-                  <AlertTriangle className="mr-2 h-4 w-4" /> New Risk
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                  <DialogTitle>Create New Risk</DialogTitle>
-                  <DialogDescription>Add a new risk to track potential issues</DialogDescription>
-                </DialogHeader>
-                <form onSubmit={riskForm.handleSubmit(onRiskSubmit)} className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label>Project <span className="text-destructive">*</span></Label>
-                    <Controller
-                      control={riskForm.control}
-                      name="projectId"
-                      render={({ field, fieldState }) => (
-                        <>
-                          <Select onValueChange={(val) => field.onChange(parseInt(val))} value={field.value?.toString()}>
-                            <SelectTrigger data-testid="select-risk-project" className={fieldState.error ? "border-destructive" : ""}>
-                              <SelectValue placeholder="Select a project" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {projects?.map(p => (
-                                <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {fieldState.error && (
-                            <p className="text-sm text-destructive">{fieldState.error.message}</p>
-                          )}
-                        </>
-                      )}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Title <span className="text-destructive">*</span></Label>
-                    <Input {...riskForm.register("title")} data-testid="input-risk-title" placeholder="Brief description of the risk" className={riskForm.formState.errors.title ? "border-destructive" : ""} />
-                    {riskForm.formState.errors.title && (
-                      <p className="text-sm text-destructive">{riskForm.formState.errors.title.message as string}</p>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Probability</Label>
-                      <Controller
-                        control={riskForm.control}
-                        name="probability"
-                        render={({ field }) => (
-                          <Select onValueChange={field.onChange} value={field.value || "Medium"}>
-                            <SelectTrigger data-testid="select-risk-probability">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Low">Low</SelectItem>
-                              <SelectItem value="Medium">Medium</SelectItem>
-                              <SelectItem value="High">High</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Impact</Label>
-                      <Controller
-                        control={riskForm.control}
-                        name="impact"
-                        render={({ field }) => (
-                          <Select onValueChange={field.onChange} value={field.value || "Medium"}>
-                            <SelectTrigger data-testid="select-risk-impact">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Low">Low</SelectItem>
-                              <SelectItem value="Medium">Medium</SelectItem>
-                              <SelectItem value="High">High</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Status</Label>
-                    <Controller
-                      control={riskForm.control}
-                      name="status"
-                      render={({ field }) => (
-                        <Select onValueChange={field.onChange} value={field.value || "Open"}>
-                          <SelectTrigger data-testid="select-risk-status">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Open">Open</SelectItem>
-                            <SelectItem value="Mitigated">Mitigated</SelectItem>
-                            <SelectItem value="Occurred">Occurred</SelectItem>
-                            <SelectItem value="Closed">Closed</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Description</Label>
-                    <Textarea {...riskForm.register("description")} data-testid="input-risk-description" placeholder="Detailed description of the risk" />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label>Mitigation Plan</Label>
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => {
-                          const title = riskForm.getValues("title");
-                          if (!title) {
-                            toast({ title: "Title Required", description: "Please enter a risk title first to get AI suggestions", variant: "destructive" });
-                            return;
-                          }
-                          const projectId = riskForm.getValues("projectId");
-                          const project = projects?.find(p => p.id === projectId);
-                          aiMitigationSuggestion.mutate({
-                            title,
-                            description: riskForm.getValues("description"),
-                            probability: riskForm.getValues("probability"),
-                            impact: riskForm.getValues("impact"),
-                            projectContext: project?.name
-                          }, {
-                            onSuccess: (data) => {
-                              riskForm.setValue("mitigationPlan", data.suggestion);
-                              toast({ title: "AI Suggestion Generated", description: "Mitigation plan has been populated" });
-                            },
-                            onError: (err: any) => {
-                              toast({ title: "Error", description: err.message || "Failed to generate suggestions", variant: "destructive" });
-                            }
-                          });
-                        }}
-                        disabled={aiMitigationSuggestion.isPending}
-                        data-testid="button-ai-suggest-mitigation"
-                      >
-                        {aiMitigationSuggestion.isPending ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <>
-                            <Sparkles className="h-4 w-4 mr-1" />
-                            AI Suggest
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                    <Textarea {...riskForm.register("mitigationPlan")} data-testid="input-risk-mitigation" placeholder="Steps to mitigate or handle the risk" />
-                  </div>
-                  <DialogFooter>
-                    <Button type="submit" disabled={createRisk.isPending} data-testid="button-submit-risk">
-                      {createRisk.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Create Risk
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
+            <Button variant="outline" data-testid="button-create-risk" onClick={() => setIsRiskDialogOpen(true)}>
+              <AlertTriangle className="mr-2 h-4 w-4" /> New Risk
+            </Button>
+            <CreateRiskDialog
+              open={isRiskDialogOpen}
+              onOpenChange={setIsRiskDialogOpen}
+              organizationId={currentOrganization?.id ?? null}
+            />
           </div>
         </div>
 

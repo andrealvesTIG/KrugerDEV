@@ -19,7 +19,7 @@ import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios, useCreatePortfolio } from "@/hooks/use-portfolios";
 import { CreateProjectDialog } from "@/components/CreateProjectDialog";
 import { CreateTaskDialog } from "@/components/CreateTaskDialog";
-import { useCreateRisk } from "@/hooks/use-risks";
+import { CreateRiskDialog } from "@/components/CreateRiskDialog";
 import { useCreateIssue } from "@/hooks/use-issues";
 import { useCreateResource } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
@@ -83,10 +83,10 @@ export function QuickAddMenu() {
         onOpenChange={(open) => !open && setActiveDialog(null)}
         organizationId={currentOrganization?.id ?? null}
       />
-      <QuickAddRiskDialog
+      <CreateRiskDialog
         open={activeDialog === "risk"}
         onOpenChange={(open) => !open && setActiveDialog(null)}
-        organizationId={currentOrganization?.id}
+        organizationId={currentOrganization?.id ?? null}
       />
       <QuickAddIssueDialog
         open={activeDialog === "issue"}
@@ -165,117 +165,6 @@ function QuickAddPortfolioDialog({ open, onOpenChange, organizationId }: { open:
             <Button type="submit" disabled={createPortfolio.isPending} data-testid="button-create-portfolio">
               {createPortfolio.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {createPortfolio.isPending ? "Creating..." : "Create Portfolio"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function QuickAddRiskDialog({ open, onOpenChange, organizationId }: { open: boolean; onOpenChange: (open: boolean) => void; organizationId?: number }) {
-  const { toast } = useToast();
-  const createRisk = useCreateRisk();
-  const { data: projects } = useProjects(organizationId ?? null);
-  const form = useForm({
-    defaultValues: { title: "", projectId: null as number | null, probability: "Medium", impact: "Medium" },
-  });
-
-  const onSubmit = async (data: { title: string; projectId: number | null; probability: string; impact: string }) => {
-    if (!data.projectId) {
-      toast({ title: "Error", description: "Please select a project", variant: "destructive" });
-      return;
-    }
-    try {
-      await createRisk.mutateAsync({
-        projectId: data.projectId,
-        title: data.title,
-        status: "Open",
-        priority: "Medium",
-        probability: data.probability,
-        impact: data.impact,
-        itemType: "risk",
-      });
-      toast({ title: "Success", description: "Risk created" });
-      form.reset();
-      onOpenChange(false);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[400px]">
-        <DialogHeader>
-          <DialogTitle>New Risk</DialogTitle>
-          <DialogDescription>Log a new risk for a project.</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-2">
-            <Label>Project</Label>
-            <Controller
-              control={form.control}
-              name="projectId"
-              render={({ field }) => (
-                <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value?.toString() || ""}>
-                  <SelectTrigger data-testid="select-quick-risk-project">
-                    <SelectValue placeholder="Select project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects?.map((p) => (
-                      <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Risk Title</Label>
-            <Input {...form.register("title", { required: true })} placeholder="Risk title" data-testid="input-quick-risk-title" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Probability</Label>
-              <Controller
-                control={form.control}
-                name="probability"
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Low">Low</SelectItem>
-                      <SelectItem value="Medium">Medium</SelectItem>
-                      <SelectItem value="High">High</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Impact</Label>
-              <Controller
-                control={form.control}
-                name="impact"
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Low">Low</SelectItem>
-                      <SelectItem value="Medium">Medium</SelectItem>
-                      <SelectItem value="High">High</SelectItem>
-                      <SelectItem value="Critical">Critical</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={createRisk.isPending} data-testid="button-quick-create-risk">
-              {createRisk.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create
             </Button>
           </DialogFooter>
         </form>
