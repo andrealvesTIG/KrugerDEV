@@ -3717,9 +3717,6 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
             onOpenChange={setIsCreateRiskDialogOpen}
             organizationId={currentOrganization?.id ?? null}
             projectId={projectId}
-            projectName={projectName}
-            portfolioId={portfolioId}
-            portfolioName={portfolioName}
           />
           <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingRisk(null); }}>
           <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col overflow-hidden">
