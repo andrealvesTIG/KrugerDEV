@@ -339,8 +339,8 @@ export function PortfoliosDashboard() {
                       value={portfolio.isUnassigned && portfolio.projectCount === 0 ? 100 : portfolio.healthPercentage}
                       className={cn(
                         "h-1.5",
-                        portfolio.isUnassigned && portfolio.projectCount === 0
-                          ? "[&>div]:bg-muted-foreground/30"
+                        portfolio.isUnassigned
+                          ? "[&>div]:bg-slate-400"
                           : portfolio.healthPercentage >= 70
                           ? "[&>div]:bg-emerald-500"
                           : portfolio.healthPercentage >= 40
