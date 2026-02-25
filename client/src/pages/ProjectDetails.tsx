@@ -4643,9 +4643,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading, refetch: refetchTasks } = useTasks(projectId);
   const { data: resources } = useResources(currentOrganization?.id ?? null);
-  const { data: projectTaskAssignments } = useProjectTaskAssignments(projectId);
-  
-    const createTask = useCreateTask();
+
+  const createTask = useCreateTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -7912,6 +7911,7 @@ function ProjectGanttView({
   const removeDependency = useRemoveTaskDependency();
   const { toast } = useToast();
   const today = new Date();
+  const { data: projectTaskAssignments } = useProjectTaskAssignments(projectId);
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('month');
   const [visibleColumns, setVisibleColumns] = useState<GanttColumn[]>(DEFAULT_GANTT_COLUMNS);
   const [newTaskName, setNewTaskName] = useState('');
