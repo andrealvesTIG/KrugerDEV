@@ -35,7 +35,9 @@ import {
   Square,
   BookOpen,
   Volume2,
-  VolumeX
+  VolumeX,
+  Menu,
+  X
 } from "lucide-react";
 import {
   SiJira, SiAsana, SiTrello, SiNotion, SiClickup,
@@ -188,6 +190,7 @@ export default function SignInPage() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isMuted, setIsMuted] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -373,9 +376,36 @@ export default function SignInPage() {
                   <span className="hidden sm:inline">Get Started Free</span>
                   <span className="sm:hidden">Start Free</span>
                 </Button>
+                <button
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  className="md:hidden text-slate-200 hover:text-white p-1"
+                  aria-label="Toggle menu"
+                >
+                  {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                </button>
               </div>
             </div>
           </div>
+          {mobileMenuOpen && (
+            <div className="md:hidden bg-slate-800/95 backdrop-blur-md border-t border-slate-700 px-4 py-3 flex flex-col gap-3">
+              <IndustrySolutionsMenu currentPath="/" variant="dark" />
+              <button onClick={() => { scrollToSection('features-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors">
+                Features
+              </button>
+              <button onClick={() => { scrollToSection('integrations-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors">
+                Integrations
+              </button>
+              <button onClick={() => { scrollToSection('pricing-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors">
+                Pricing
+              </button>
+              <button onClick={() => { scrollToSection('faq-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors">
+                FAQ
+              </button>
+              <Link href="/guide" className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors">
+                User Guide
+              </Link>
+            </div>
+          )}
         </nav>
       </div>
       {/* Hero Section with Video */}
