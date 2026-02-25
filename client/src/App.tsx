@@ -9,63 +9,71 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { OnboardingDialog } from "@/components/OnboardingDialog";
 import { TermsConsentModal } from "@/components/TermsConsentModal";
 import NotFound from "@/pages/not-found";
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, lazy, Suspense } from "react";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
-// Pages
-import Dashboard from "@/pages/Dashboard";
-import Portfolios from "@/pages/Portfolios";
-import PortfolioDetails from "@/pages/PortfolioDetails";
-import Projects from "@/pages/Projects";
-import ProjectDetails from "@/pages/ProjectDetails";
-import Calendar from "@/pages/Calendar";
-import Issues from "@/pages/Issues";
-import LessonsLearned from "@/pages/LessonsLearned";
-import Invoices from "@/pages/Invoices";
-import Tasks from "@/pages/Tasks";
-import Admin from "@/pages/Admin";
-import SuperAdmin from "@/pages/SuperAdmin";
-import OrgSettings from "@/pages/OrgSettings";
-import Profile from "@/pages/Profile";
-import UserGuide from "@/pages/UserGuide";
-import Resources from "@/pages/Resources";
-import ResourceDetails from "@/pages/ResourceDetails";
-import ProjectIntakes from "@/pages/ProjectIntakes";
-import IntakeDetails from "@/pages/IntakeDetails";
-import Integrations from "@/pages/Integrations";
-import Timesheets from "@/pages/Timesheets";
-import Billing from "@/pages/Billing";
-import AuthPage from "@/pages/AuthPage";
-import ResetPasswordPage from "@/pages/ResetPasswordPage";
-import VerifyMagicLinkPage from "@/pages/VerifyMagicLinkPage";
-import SignInPage from "@/pages/SignInPage";
-import SignInWaitingPage from "@/pages/SignInWaitingPage";
-import VerifySignInPage from "@/pages/VerifySignInPage";
-import VerifyEmailPage from "@/pages/VerifyEmailPage";
-import ResourceInvitePage from "@/pages/ResourceInvitePage";
-import OnboardingPage from "@/pages/OnboardingPage";
-import AccountSetupPage from "@/pages/AccountSetupPage";
-import Embed from "@/pages/Embed";
-import TermsOfService from "@/pages/TermsOfService";
-import PrivacyStatement from "@/pages/PrivacyStatement";
-import PublicUserGuide from "@/pages/PublicUserGuide";
-import FridayPage from "@/pages/FridayPage";
-import Simulation from "@/pages/Simulation";
-import ReportSubscriptions from "@/pages/ReportSubscriptions"
-import SharedRiskAssessment from "@/pages/SharedRiskAssessment"
-import SharedProjectRiskAssessment from "@/pages/SharedProjectRiskAssessment"
-import Home from "@/pages/Home"
-import LandingPageNew from "@/pages/LandingPageNew"
-import HealthcareLandingPage from "@/pages/HealthcareLandingPage"
-import FinancialServicesLandingPage from "@/pages/FinancialServicesLandingPage"
-import ManufacturingLandingPage from "@/pages/ManufacturingLandingPage"
-import IndustrialAutomationLandingPage from "@/pages/IndustrialAutomationLandingPage"
-import ConstructionLandingPage from "@/pages/ConstructionLandingPage"
-import EnergyLandingPage from "@/pages/EnergyLandingPage"
-import GovernmentLandingPage from "@/pages/GovernmentLandingPage"
+// Lazy-loaded pages
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Portfolios = lazy(() => import("@/pages/Portfolios"));
+const PortfolioDetails = lazy(() => import("@/pages/PortfolioDetails"));
+const Projects = lazy(() => import("@/pages/Projects"));
+const ProjectDetails = lazy(() => import("@/pages/ProjectDetails"));
+const Calendar = lazy(() => import("@/pages/Calendar"));
+const Issues = lazy(() => import("@/pages/Issues"));
+const LessonsLearned = lazy(() => import("@/pages/LessonsLearned"));
+const Invoices = lazy(() => import("@/pages/Invoices"));
+const Tasks = lazy(() => import("@/pages/Tasks"));
+const Admin = lazy(() => import("@/pages/Admin"));
+const SuperAdmin = lazy(() => import("@/pages/SuperAdmin"));
+const OrgSettings = lazy(() => import("@/pages/OrgSettings"));
+const Profile = lazy(() => import("@/pages/Profile"));
+const UserGuide = lazy(() => import("@/pages/UserGuide"));
+const Resources = lazy(() => import("@/pages/Resources"));
+const ResourceDetails = lazy(() => import("@/pages/ResourceDetails"));
+const ProjectIntakes = lazy(() => import("@/pages/ProjectIntakes"));
+const IntakeDetails = lazy(() => import("@/pages/IntakeDetails"));
+const Integrations = lazy(() => import("@/pages/Integrations"));
+const Timesheets = lazy(() => import("@/pages/Timesheets"));
+const Billing = lazy(() => import("@/pages/Billing"));
+const AuthPage = lazy(() => import("@/pages/AuthPage"));
+const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
+const VerifyMagicLinkPage = lazy(() => import("@/pages/VerifyMagicLinkPage"));
+const SignInPage = lazy(() => import("@/pages/SignInPage"));
+const SignInWaitingPage = lazy(() => import("@/pages/SignInWaitingPage"));
+const VerifySignInPage = lazy(() => import("@/pages/VerifySignInPage"));
+const VerifyEmailPage = lazy(() => import("@/pages/VerifyEmailPage"));
+const ResourceInvitePage = lazy(() => import("@/pages/ResourceInvitePage"));
+const OnboardingPage = lazy(() => import("@/pages/OnboardingPage"));
+const AccountSetupPage = lazy(() => import("@/pages/AccountSetupPage"));
+const Embed = lazy(() => import("@/pages/Embed"));
+const TermsOfService = lazy(() => import("@/pages/TermsOfService"));
+const PrivacyStatement = lazy(() => import("@/pages/PrivacyStatement"));
+const PublicUserGuide = lazy(() => import("@/pages/PublicUserGuide"));
+const FridayPage = lazy(() => import("@/pages/FridayPage"));
+const Simulation = lazy(() => import("@/pages/Simulation"));
+const ReportSubscriptions = lazy(() => import("@/pages/ReportSubscriptions"));
+const SharedRiskAssessment = lazy(() => import("@/pages/SharedRiskAssessment"));
+const SharedProjectRiskAssessment = lazy(() => import("@/pages/SharedProjectRiskAssessment"));
+const Home = lazy(() => import("@/pages/Home"));
+const LandingPageNew = lazy(() => import("@/pages/LandingPageNew"));
+const HealthcareLandingPage = lazy(() => import("@/pages/HealthcareLandingPage"));
+const FinancialServicesLandingPage = lazy(() => import("@/pages/FinancialServicesLandingPage"));
+const ManufacturingLandingPage = lazy(() => import("@/pages/ManufacturingLandingPage"));
+const IndustrialAutomationLandingPage = lazy(() => import("@/pages/IndustrialAutomationLandingPage"));
+const ConstructionLandingPage = lazy(() => import("@/pages/ConstructionLandingPage"));
+const EnergyLandingPage = lazy(() => import("@/pages/EnergyLandingPage"));
+const GovernmentLandingPage = lazy(() => import("@/pages/GovernmentLandingPage"));
+
+function PageLoader() {
+  return (
+    <div className="flex h-96 items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
+}
 
 function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: string }) {
   const { currentOrganization, isLoading } = useOrganization();
@@ -143,14 +151,20 @@ function HomePage() {
   }
   
   if (!user) {
-    return <SignInPage />;
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <SignInPage />
+      </Suspense>
+    );
   }
   
   return (
     <AppLayout>
       <TermsConsentModal />
       <OnboardingDialog />
-      <Home />
+      <Suspense fallback={<PageLoader />}>
+        <Home />
+      </Suspense>
     </AppLayout>
   );
 }
@@ -163,45 +177,47 @@ function Router() {
     <AppLayout>
       <TermsConsentModal />
       <OnboardingDialog />
-      <Switch>
-        <Route path="/dashboard"><DashboardRedirect /></Route>
-        <GuardedRoute path="/dashboards" component={Dashboard} moduleKey="dashboard" />
-        <GuardedRoute path="/portfolios" component={Portfolios} moduleKey="portfolios" />
-        <Route path="/portfolios/:id">
-          <ModuleGuard moduleKey="portfolios"><PortfolioDetails /></ModuleGuard>
-        </Route>
-        <GuardedRoute path="/projects" component={Projects} moduleKey="projects" />
-        <Route path="/projects/:id">
-          <ModuleGuard moduleKey="projects"><ProjectDetails /></ModuleGuard>
-        </Route>
-        <GuardedRoute path="/intakes" component={ProjectIntakes} moduleKey="intakes" />
-        <Route path="/intakes/:id">
-          <ModuleGuard moduleKey="intakes"><IntakeDetails /></ModuleGuard>
-        </Route>
-        <GuardedRoute path="/tasks" component={Tasks} moduleKey="tasks" />
-        <GuardedRoute path="/issues" component={Issues} moduleKey="issues" />
-        <GuardedRoute path="/simulation" component={Simulation} moduleKey="simulation" />
-        <GuardedRoute path="/lessons-learned" component={LessonsLearned} moduleKey="lessons-learned" />
-        <GuardedRoute path="/invoices" component={Invoices} moduleKey="invoices" />
-        <GuardedRoute path="/timesheets" component={Timesheets} moduleKey="timesheets" />
-        <GuardedRoute path="/resources" component={Resources} moduleKey="resources" />
-        <Route path="/resources/:id">
-          <ModuleGuard moduleKey="resources"><ResourceDetails /></ModuleGuard>
-        </Route>
-        <GuardedRoute path="/calendar" component={Calendar} moduleKey="calendar" />
-        <GuardedRoute path="/integrations" component={Integrations} moduleKey="integrations" />
-        <Route path="/billing" component={Billing} />
-        <Route path="/admin" component={Admin} />
-        <Route path="/super-admin" component={SuperAdmin} />
-        <Route path="/org-settings" component={OrgSettings} />
-        <Route path="/profile" component={Profile} />
-        <Route path="/user-guide" component={UserGuide} />
-        <Route path="/scheduled-reports" component={ReportSubscriptions} />
-        <Route path="/risk-assessment/share/:token" component={SharedRiskAssessment} />
-        <Route path="/project-risk-assessment/share/:token" component={SharedProjectRiskAssessment} />
-        <Route path="/embed" component={Embed} />
-        <Route component={NotFound} />
-      </Switch>
+      <Suspense fallback={<PageLoader />}>
+        <Switch>
+          <Route path="/dashboard"><DashboardRedirect /></Route>
+          <GuardedRoute path="/dashboards" component={Dashboard} moduleKey="dashboard" />
+          <GuardedRoute path="/portfolios" component={Portfolios} moduleKey="portfolios" />
+          <Route path="/portfolios/:id">
+            <ModuleGuard moduleKey="portfolios"><PortfolioDetails /></ModuleGuard>
+          </Route>
+          <GuardedRoute path="/projects" component={Projects} moduleKey="projects" />
+          <Route path="/projects/:id">
+            <ModuleGuard moduleKey="projects"><ProjectDetails /></ModuleGuard>
+          </Route>
+          <GuardedRoute path="/intakes" component={ProjectIntakes} moduleKey="intakes" />
+          <Route path="/intakes/:id">
+            <ModuleGuard moduleKey="intakes"><IntakeDetails /></ModuleGuard>
+          </Route>
+          <GuardedRoute path="/tasks" component={Tasks} moduleKey="tasks" />
+          <GuardedRoute path="/issues" component={Issues} moduleKey="issues" />
+          <GuardedRoute path="/simulation" component={Simulation} moduleKey="simulation" />
+          <GuardedRoute path="/lessons-learned" component={LessonsLearned} moduleKey="lessons-learned" />
+          <GuardedRoute path="/invoices" component={Invoices} moduleKey="invoices" />
+          <GuardedRoute path="/timesheets" component={Timesheets} moduleKey="timesheets" />
+          <GuardedRoute path="/resources" component={Resources} moduleKey="resources" />
+          <Route path="/resources/:id">
+            <ModuleGuard moduleKey="resources"><ResourceDetails /></ModuleGuard>
+          </Route>
+          <GuardedRoute path="/calendar" component={Calendar} moduleKey="calendar" />
+          <GuardedRoute path="/integrations" component={Integrations} moduleKey="integrations" />
+          <Route path="/billing" component={Billing} />
+          <Route path="/admin" component={Admin} />
+          <Route path="/super-admin" component={SuperAdmin} />
+          <Route path="/org-settings" component={OrgSettings} />
+          <Route path="/profile" component={Profile} />
+          <Route path="/user-guide" component={UserGuide} />
+          <Route path="/scheduled-reports" component={ReportSubscriptions} />
+          <Route path="/risk-assessment/share/:token" component={SharedRiskAssessment} />
+          <Route path="/project-risk-assessment/share/:token" component={SharedProjectRiskAssessment} />
+          <Route path="/embed" component={Embed} />
+          <Route component={NotFound} />
+        </Switch>
+      </Suspense>
     </AppLayout>
   );
 }
@@ -222,34 +238,80 @@ function App() {
         <TooltipProvider>
           <OrganizationProvider>
             <Toaster />
-            <Switch>
-              <Route path="/" component={HomePage} />
-              <Route path="/auth" component={AuthPage} />
-              <Route path="/auth/verify" component={VerifyMagicLinkPage} />
-              <Route path="/signin" component={SignInPage} />
-              <Route path="/signin/waiting" component={SignInWaitingPage} />
-              <Route path="/signin/verify" component={VerifySignInPage} />
-              <Route path="/reset-password" component={ResetPasswordPage} />
-              <Route path="/verify-email" component={VerifyEmailPage} />
-              <Route path="/resource-invite" component={ResourceInvitePage} />
-              <Route path="/account-setup" component={AccountSetupPage} />
-              <Route path="/onboarding" component={OnboardingPage} />
-              <Route path="/terms" component={TermsOfService} />
-              <Route path="/privacy" component={PrivacyStatement} />
-              <Route path="/guide" component={PublicUserGuide} />
-              <Route path="/friday" component={FridayPage} />
-              <Route path="/signup" component={LandingPageNew} />
-              <Route path="/healthcare" component={HealthcareLandingPage} />
-              <Route path="/financial-services" component={FinancialServicesLandingPage} />
-              <Route path="/manufacturing" component={ManufacturingLandingPage} />
-              <Route path="/industrial-automation" component={IndustrialAutomationLandingPage} />
-              <Route path="/construction" component={ConstructionLandingPage} />
-              <Route path="/energy" component={EnergyLandingPage} />
-              <Route path="/government" component={GovernmentLandingPage} />
-              <Route>
-                <Router />
-              </Route>
-            </Switch>
+            <Suspense fallback={<PageLoader />}>
+              <Switch>
+                <Route path="/" component={HomePage} />
+                <Route path="/auth">
+                  <Suspense fallback={<PageLoader />}><AuthPage /></Suspense>
+                </Route>
+                <Route path="/auth/verify">
+                  <Suspense fallback={<PageLoader />}><VerifyMagicLinkPage /></Suspense>
+                </Route>
+                <Route path="/signin">
+                  <Suspense fallback={<PageLoader />}><SignInPage /></Suspense>
+                </Route>
+                <Route path="/signin/waiting">
+                  <Suspense fallback={<PageLoader />}><SignInWaitingPage /></Suspense>
+                </Route>
+                <Route path="/signin/verify">
+                  <Suspense fallback={<PageLoader />}><VerifySignInPage /></Suspense>
+                </Route>
+                <Route path="/reset-password">
+                  <Suspense fallback={<PageLoader />}><ResetPasswordPage /></Suspense>
+                </Route>
+                <Route path="/verify-email">
+                  <Suspense fallback={<PageLoader />}><VerifyEmailPage /></Suspense>
+                </Route>
+                <Route path="/resource-invite">
+                  <Suspense fallback={<PageLoader />}><ResourceInvitePage /></Suspense>
+                </Route>
+                <Route path="/account-setup">
+                  <Suspense fallback={<PageLoader />}><AccountSetupPage /></Suspense>
+                </Route>
+                <Route path="/onboarding">
+                  <Suspense fallback={<PageLoader />}><OnboardingPage /></Suspense>
+                </Route>
+                <Route path="/terms">
+                  <Suspense fallback={<PageLoader />}><TermsOfService /></Suspense>
+                </Route>
+                <Route path="/privacy">
+                  <Suspense fallback={<PageLoader />}><PrivacyStatement /></Suspense>
+                </Route>
+                <Route path="/guide">
+                  <Suspense fallback={<PageLoader />}><PublicUserGuide /></Suspense>
+                </Route>
+                <Route path="/friday">
+                  <Suspense fallback={<PageLoader />}><FridayPage /></Suspense>
+                </Route>
+                <Route path="/signup">
+                  <Suspense fallback={<PageLoader />}><LandingPageNew /></Suspense>
+                </Route>
+                <Route path="/healthcare">
+                  <Suspense fallback={<PageLoader />}><HealthcareLandingPage /></Suspense>
+                </Route>
+                <Route path="/financial-services">
+                  <Suspense fallback={<PageLoader />}><FinancialServicesLandingPage /></Suspense>
+                </Route>
+                <Route path="/manufacturing">
+                  <Suspense fallback={<PageLoader />}><ManufacturingLandingPage /></Suspense>
+                </Route>
+                <Route path="/industrial-automation">
+                  <Suspense fallback={<PageLoader />}><IndustrialAutomationLandingPage /></Suspense>
+                </Route>
+                <Route path="/construction">
+                  <Suspense fallback={<PageLoader />}><ConstructionLandingPage /></Suspense>
+                </Route>
+                <Route path="/energy">
+                  <Suspense fallback={<PageLoader />}><EnergyLandingPage /></Suspense>
+                </Route>
+                <Route path="/government">
+                  <Suspense fallback={<PageLoader />}><GovernmentLandingPage /></Suspense>
+                </Route>
+                <Route>
+                  <Router />
+                </Route>
+              </Switch>
+            </Suspense>
           </OrganizationProvider>
         </TooltipProvider>
       </QueryClientProvider>
