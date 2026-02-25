@@ -91,12 +91,12 @@ export function IndustrySolutionsMenu({ currentPath, variant = "default" }: { cu
         <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", open && "rotate-180")} />
       </Button>
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[420px] bg-background border border-border rounded-xl shadow-2xl z-50 animate-in fade-in-0 zoom-in-95 duration-150 overflow-hidden">
+        <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[720px] bg-background border border-border rounded-xl shadow-2xl z-50 animate-in fade-in-0 zoom-in-95 duration-150 overflow-hidden">
           <div className="px-5 py-3 border-b border-border bg-muted/30">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Industry Solutions</p>
             <p className="text-xs text-muted-foreground mt-0.5">Purpose-built project portfolio management</p>
           </div>
-          <div className="py-1.5 max-h-[calc(100vh-200px)] overflow-y-auto">
+          <div className="p-3 grid grid-cols-3 gap-1.5">
             {industries.map((item) => {
               const isActive = currentPath === item.href;
               return (
@@ -105,7 +105,7 @@ export function IndustrySolutionsMenu({ currentPath, variant = "default" }: { cu
                   href={item.href}
                   onClick={() => setOpen(false)}
                   className={cn(
-                    "flex items-start gap-3.5 px-5 py-3 hover:bg-muted/50 transition-colors cursor-pointer group",
+                    "flex items-start gap-3 px-3.5 py-3 hover:bg-muted/50 rounded-lg transition-colors cursor-pointer group",
                     isActive && "bg-muted/60"
                   )}
                 >
@@ -117,7 +117,7 @@ export function IndustrySolutionsMenu({ currentPath, variant = "default" }: { cu
                     <item.icon className={cn("h-[18px] w-[18px]", item.color)} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <span className={cn(
                         "text-sm font-semibold leading-tight",
                         isActive ? "text-foreground" : "text-foreground/80 group-hover:text-foreground"
@@ -132,12 +132,11 @@ export function IndustrySolutionsMenu({ currentPath, variant = "default" }: { cu
                       {item.description}
                     </p>
                   </div>
-                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all mt-1 flex-shrink-0" />
                 </Link>
               );
             })}
           </div>
-          <div className="px-5 py-3 border-t border-border bg-muted/20">
+          <div className="px-5 py-2.5 border-t border-border bg-muted/20">
             <p className="text-xs text-muted-foreground">
               Every industry solution includes AI-powered risk detection, real-time dashboards, and executive reporting.
             </p>
