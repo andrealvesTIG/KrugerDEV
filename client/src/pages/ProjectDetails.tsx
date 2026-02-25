@@ -240,7 +240,7 @@ export default function ProjectDetails() {
 
   const allCollapsed = Object.values(sectionsCollapsed).every(v => v);
   const allExpanded = Object.values(sectionsCollapsed).every(v => !v);
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, setCurrentOrganization, organizations } = useOrganization();
   const { user } = useAuth();
   const { data: customTabs = [] } = useCustomProjectTabs(currentOrganization?.id);
   const [, setLocation] = useLocation();
@@ -454,11 +454,26 @@ export default function ProjectDetails() {
     return Math.round(totalProgress / projectTasks.length);
   }, [projectTasks, project?.completionPercentage]);
 
+  // Auto-switch organization if the project belongs to a different org the user has access to
+  useEffect(() => {
+    if (!project || !organizations.length) return;
+    if (currentOrganization && project.organizationId === currentOrganization.id) return;
+    const targetOrg = organizations.find(o => o.id === project.organizationId);
+    if (targetOrg) {
+      setCurrentOrganization(targetOrg);
+    }
+  }, [project, organizations, currentOrganization, setCurrentOrganization]);
+
   if (isLoading) return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
-  if (!project) return <div>Project not found</div>;
+  if (!project) return <div className="flex h-96 items-center justify-center text-muted-foreground">Project not found</div>;
   
-  // Don't render if project doesn't match current organization (will redirect)
+  // If project belongs to a different org: either switching (brief spinner) or no access
   if (currentOrganization && project.organizationId !== currentOrganization.id) {
+    const orgLoaded = organizations.length > 0;
+    const hasAccess = organizations.some(o => o.id === project.organizationId);
+    if (orgLoaded && !hasAccess) {
+      return <div className="flex h-96 items-center justify-center text-muted-foreground">You do not have access to this project.</div>;
+    }
     return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
