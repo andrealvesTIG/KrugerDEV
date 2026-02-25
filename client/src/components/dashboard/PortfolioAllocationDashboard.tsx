@@ -69,7 +69,7 @@ export function PortfolioAllocationDashboard() {
     const unallocated = projects.filter(p => !p.portfolioId);
     if (unallocated.length > 0) {
       result.push({
-        name: 'Unallocated',
+        name: 'No Portfolio',
         budget: unallocated.reduce((sum, p) => sum + Number(p.budget || 0), 0),
         projects: unallocated.length,
         color: '#94a3b8',
