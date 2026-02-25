@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Calendar as CalendarIcon } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon, Milestone as MilestoneIcon } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -63,6 +63,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
       assignee: "",
       baselineStartDate: null as string | null,
       baselineEndDate: null as string | null,
+      isMilestone: false,
       timesheetBlocked: false,
     },
   });
@@ -131,6 +132,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
         assignee: "",
         baselineStartDate: null,
         baselineEndDate: null,
+        isMilestone: false,
         timesheetBlocked: false,
       });
       setDurationInput("1");
@@ -159,6 +161,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
       assignee: data.assignee || null,
       baselineStartDate: data.baselineStartDate || null,
       baselineEndDate: data.baselineEndDate || null,
+      isMilestone: data.isMilestone || false,
       timesheetBlocked: data.timesheetBlocked || false,
     };
     createTask.mutate(taskData, {
@@ -333,6 +336,24 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
                   <div className="space-y-1">
                     <Label className="text-xs">Description</Label>
                     <Textarea {...form.register("description")} className="text-sm min-h-[80px]" />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Controller
+                      control={form.control}
+                      name="isMilestone"
+                      render={({ field }) => (
+                        <Checkbox
+                          id="create-task-isMilestone"
+                          checked={field.value || false}
+                          onCheckedChange={field.onChange}
+                          data-testid="checkbox-task-milestone"
+                        />
+                      )}
+                    />
+                    <Label htmlFor="create-task-isMilestone" className="text-sm font-normal cursor-pointer flex items-center gap-2">
+                      <MilestoneIcon className="h-4 w-4 text-primary" />
+                      Mark as Milestone
+                    </Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Controller
@@ -554,8 +575,8 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
                 </TabsContent>
 
                 <TabsContent value="dependencies" className="mt-0">
-                  <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
-                    Dependencies can be managed from the project's task view.
+                  <div className="text-sm text-muted-foreground text-center py-8">
+                    Save the task first to add dependencies
                   </div>
                 </TabsContent>
               </div>
