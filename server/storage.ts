@@ -404,6 +404,7 @@ export interface IStorage {
   deleteTimesheetEntry(id: number): Promise<void>;
   submitTimesheetWeek(userId: string, organizationId: number, startDate: string, endDate: string): Promise<void>;
   approveTimesheetEntry(id: number, approvedBy: string): Promise<TimesheetEntry>;
+  bulkApproveTimesheetEntries(ids: number[], approvedBy: string, organizationId: number): Promise<TimesheetEntry[]>;
   rejectTimesheetEntry(id: number, rejectionReason: string): Promise<TimesheetEntry>;
 
   // Time Categories (non-project time types)
@@ -3882,6 +3883,21 @@ export class DatabaseStorage implements IStorage {
       .where(eq(timesheetEntries.id, id))
       .returning();
     return updated;
+  }
+
+  async bulkApproveTimesheetEntries(ids: number[], approvedBy: string, organizationId: number): Promise<TimesheetEntry[]> {
+    if (ids.length === 0) return [];
+    const now = new Date();
+    return await db.update(timesheetEntries)
+      .set({ status: "Approved", approvedBy, approvedAt: now, updatedAt: now })
+      .where(
+        and(
+          inArray(timesheetEntries.id, ids),
+          eq(timesheetEntries.organizationId, organizationId),
+          eq(timesheetEntries.status, "Submitted")
+        )
+      )
+      .returning();
   }
 
   async rejectTimesheetEntry(id: number, rejectionReason: string): Promise<TimesheetEntry> {

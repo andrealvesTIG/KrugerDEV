@@ -18169,7 +18169,36 @@ Return ONLY valid JSON.`;
     }
   });
 
-  // Approve timesheet entry
+  // Bulk approve timesheet entries (single DB round-trip)
+  app.post('/api/timesheets/bulk-approve', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const { ids, organizationId } = req.body as { ids: number[]; organizationId: number };
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ message: 'ids must be a non-empty array' });
+      }
+      if (!organizationId) {
+        return res.status(400).json({ message: 'organizationId is required' });
+      }
+
+      // Check approver permission once for the whole batch
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      if (!userResource?.isApprover) {
+        return res.status(403).json({ message: 'You are not authorized to approve timesheets' });
+      }
+
+      const approved = await storage.bulkApproveTimesheetEntries(ids, userId, organizationId);
+      res.json({ approved: approved.length, entries: approved });
+    } catch (error) {
+      console.error('Error bulk approving timesheet entries:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to bulk approve timesheet entries' : classified.message });
+    }
+  });
+
   app.post('/api/timesheets/:id/approve', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {

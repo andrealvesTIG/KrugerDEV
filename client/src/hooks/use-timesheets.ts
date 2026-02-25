@@ -144,6 +144,20 @@ export function useApproveTimesheetEntry() {
   });
 }
 
+export function useBulkApproveTimesheetEntries() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, organizationId }: { ids: number[]; organizationId: number }) => {
+      const response = await apiRequest("POST", "/api/timesheets/bulk-approve", { ids, organizationId });
+      return response.json() as Promise<{ approved: number }>;
+    },
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ["/api/timesheets/approval"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/timesheets"] });
+    },
+  });
+}
+
 export function useRejectTimesheetEntry() {
   const queryClient = useQueryClient();
   return useMutation({

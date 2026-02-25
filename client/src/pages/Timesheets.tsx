@@ -10,6 +10,7 @@ import {
   useSubmitTimesheetWeek,
   useTimesheetEntriesForApproval,
   useApproveTimesheetEntry,
+  useBulkApproveTimesheetEntries,
   useRejectTimesheetEntry,
   useTimeCategories,
   useNonProjectTimeEntries,
@@ -1082,6 +1083,7 @@ function ApprovalTab() {
   const [statusFilter, setStatusFilter] = useState<"Submitted" | "Approved" | "Rejected">("Submitted");
   const { data: entries, isLoading } = useTimesheetEntriesForApproval(currentOrganization?.id || null, statusFilter);
   const approveEntry = useApproveTimesheetEntry();
+  const bulkApprove = useBulkApproveTimesheetEntries();
   const rejectEntry = useRejectTimesheetEntry();
   const [rejectDialog, setRejectDialog] = useState<{ id: number; open: boolean; isBulk?: boolean }>({ id: 0, open: false });
   const [rejectionReason, setRejectionReason] = useState("");
@@ -1101,21 +1103,16 @@ function ApprovalTab() {
   };
 
   const handleApproveAll = async (ids: number[]) => {
+    if (!currentOrganization || ids.length === 0) return;
     setIsProcessing(true);
     try {
-      let successCount = 0;
-      for (const id of ids) {
-        try {
-          await approveEntry.mutateAsync(id);
-          successCount++;
-        } catch (err) {
-          console.error(`Failed to approve entry ${id}`, err);
-        }
-      }
+      const result = await bulkApprove.mutateAsync({ ids, organizationId: currentOrganization.id });
       toast({ 
         title: "Approval Complete", 
-        description: `${successCount} of ${ids.length} entries approved` 
+        description: `${result.approved} of ${ids.length} entries approved` 
       });
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "Failed to approve entries", variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }
