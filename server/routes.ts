@@ -10763,6 +10763,42 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
   // ==================== TASK RESOURCE ASSIGNMENTS ====================
   
+  // Get all task resource assignments for an organization with full resource data (bulk endpoint - avoids N+1 queries)
+  app.get('/api/organizations/:id/full-task-assignments', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const assignments = await storage.getAllTaskResourceAssignments(orgId);
+      res.json(assignments);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching org task assignments" : classified.message });
+    }
+  });
+
+  // Get all task resource assignments for a project (bulk endpoint - avoids N+1 queries)
+  app.get('/api/projects/:id/task-resource-assignments', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const assignments = await storage.getProjectTaskResourceAssignments(projectId);
+      res.json(assignments);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching project task assignments" : classified.message });
+    }
+  });
+
+  // Get all issue resource assignments for an organization (bulk endpoint - avoids N+1 queries)
+  app.get('/api/organizations/:id/issue-assignments', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const assignments = await storage.getAllIssueResourceAssignments(orgId);
+      res.json(assignments);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching issue assignments" : classified.message });
+    }
+  });
+
   // Get assignments for a task
   app.get('/api/tasks/:taskId/resources', async (req, res) => {
     try {

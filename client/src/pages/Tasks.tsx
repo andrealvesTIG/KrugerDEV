@@ -9,7 +9,8 @@ import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
 import { useAuth } from "@/hooks/use-auth";
-import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
+import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useResources, useAllTaskResourceAssignments, useOrgFullTaskAssignments } from "@/hooks/use-resources";
+import type { TaskResourceAssignment, Resource } from "@shared/schema";
 import { ResourceAssignment, ResourceAllocation } from "@/components/ResourceAssignment";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -1255,6 +1256,7 @@ function GroupedTasksView({
                   onTaskClick={onTaskClick}
                   onStatusChange={onStatusChange}
                   onDeleteTask={onDeleteTask}
+                  organizationId={organizationId}
                 />
               )}
             </CardContent>
@@ -1313,6 +1315,7 @@ function GanttTaskRow({
   isCollapsed,
   onToggleCollapse,
   allowIndentation = true,
+  preloadedAssignments,
 }: { 
   task: Task; 
   projects: any[]; 
@@ -1327,10 +1330,12 @@ function GanttTaskRow({
   isCollapsed: boolean;
   onToggleCollapse: (taskId: number) => void;
   allowIndentation?: boolean;
+  preloadedAssignments?: (TaskResourceAssignment & { resource: Resource })[];
 }) {
-  const { data: taskAssignments } = useTaskResourceAssignments(task.id);
-  const updateTaskResources = useUpdateTaskResourceAssignments();
   const [isEditingResources, setIsEditingResources] = useState(false);
+  const { data: fetchedAssignments } = useTaskResourceAssignments(isEditingResources ? task.id : null);
+  const taskAssignments = fetchedAssignments ?? preloadedAssignments;
+  const updateTaskResources = useUpdateTaskResourceAssignments();
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [resourceAllocations, setResourceAllocations] = useState<ResourceAllocation[]>([]);
   const inviteAssignedRef = useRef(false);
@@ -1780,6 +1785,7 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
   const [visibleColumns, setVisibleColumns] = useState<TaskGanttColumn[]>(['actions', 'outlineLevel', 'task', 'startDate', 'endDate', 'progress', 'resources', 'estimatedHours', 'actualHours']);
   const updateTask = useUpdateTask();
   const { toast } = useToast();
+  const { data: orgTaskAssignments } = useOrgFullTaskAssignments(organizationId);
   
   const toggleColumn = (col: TaskGanttColumn) => {
     if (col === 'task' || col === 'actions') return;
@@ -2135,6 +2141,7 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
             isCollapsed={collapsedTasks.has(task.id)}
             onToggleCollapse={toggleCollapse}
             allowIndentation={!embedded}
+            preloadedAssignments={orgTaskAssignments?.filter(a => a.taskId === task.id)}
           />
         ))}
       </div>
@@ -2159,14 +2166,17 @@ function KanbanView({
   projects, 
   onTaskClick, 
   onStatusChange,
-  onDeleteTask 
+  onDeleteTask,
+  organizationId = null,
 }: { 
   tasks: Task[]; 
   projects: any[]; 
   onTaskClick: (task: Task) => void;
   onStatusChange: (taskId: number, newStatus: string) => void;
   onDeleteTask: (task: Task) => void;
+  organizationId?: number | null;
 }) {
+  const { data: orgTaskAssignments } = useOrgFullTaskAssignments(organizationId);
   const columns = [
     { id: "Not Started", label: "Not Started", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
     { id: "In Progress", label: "In Progress", color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" },
@@ -2283,6 +2293,7 @@ function KanbanColumn({
             getProjectName={getProjectName}
             onTaskClick={onTaskClick}
             onDeleteTask={onDeleteTask}
+            preloadedAssignments={orgTaskAssignments?.filter(a => a.taskId === task.id)}
           />
         ))}
         {tasks.length === 0 && (
@@ -2299,14 +2310,16 @@ function DraggableTaskCard({
   task, 
   getProjectName, 
   onTaskClick,
-  onDeleteTask 
+  onDeleteTask,
+  preloadedAssignments,
 }: { 
   task: Task; 
   getProjectName: (id: number) => string;
   onTaskClick: (task: Task) => void;
   onDeleteTask: (task: Task) => void;
+  preloadedAssignments?: (TaskResourceAssignment & { resource: Resource })[];
 }) {
-  const { data: taskAssignments } = useTaskResourceAssignments(task.id);
+  const taskAssignments = preloadedAssignments;
   const {
     attributes,
     listeners,

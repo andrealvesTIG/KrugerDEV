@@ -20,7 +20,8 @@ import { useScoringCriteria, useCreateScoringCriteria, useDeleteScoringCriteria,
 import { useLessonsLearned, useCreateLessonLearned, useUpdateLessonLearned, useDeleteLessonLearned } from "@/hooks/use-lessons-learned";
 import type { CustomFieldDefinition, ProjectCustomFieldValue, CustomProjectTab, CustomTabSection, CustomTabField } from "@shared/schema";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
-import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
+import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources, useAllTaskResourceAssignments, useProjectTaskAssignments } from "@/hooks/use-resources";
+import type { TaskResourceAssignment, Resource } from "@shared/schema";
 import { useOrganization } from "@/hooks/use-organization";
 import { useAuth } from "@/hooks/use-auth";
 import { ResourceAssignment, ResourceAllocation } from "@/components/ResourceAssignment";
@@ -4626,6 +4627,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading, refetch: refetchTasks } = useTasks(projectId);
   const { data: resources } = useResources(currentOrganization?.id ?? null);
+  const { data: projectTaskAssignments } = useProjectTaskAssignments(projectId);
   
     const createTask = useCreateTask();
   const updateTask = useUpdateTask();
@@ -6568,12 +6570,14 @@ function ProjectGanttTaskRowMeta({
   isReadOnly?: boolean;
   onCreateTaskAt?: (task: Task, position: 'above' | 'below') => void;
   onDeleteTask?: (task: Task) => void;
+  preloadedAssignments?: (TaskResourceAssignment & { resource: Resource })[];
 }) {
-  const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
+  const [isEditingResources, setIsEditingResources] = useState(false);
+  const { data: fetchedAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(isEditingResources ? task.id : null);
+  const taskAssignments = fetchedAssignments ?? preloadedAssignments;
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const updateTask = useUpdateTask();
   const { toast } = useToast();
-  const [isEditingResources, setIsEditingResources] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [allocations, setAllocations] = useState<ResourceAllocation[]>([]);
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -10080,6 +10084,7 @@ function ProjectGanttView({
                               isReadOnly={isReadOnly}
                               onCreateTaskAt={handleCreateTaskAt}
                               onDeleteTask={handleDeleteTask}
+                              preloadedAssignments={projectTaskAssignments?.filter(a => a.taskId === task.id)}
                             />
                           )}
                         </SortableTaskRow>

@@ -4,7 +4,8 @@
   import { useProjects } from "@/hooks/use-projects";
   import { usePortfolios } from "@/hooks/use-portfolios";
   import { useOrganization } from "@/hooks/use-organization";
-  import { useUpdateIssueResourceAssignments, useIssueResourceAssignments, useResources } from "@/hooks/use-resources";
+  import { useUpdateIssueResourceAssignments, useIssueResourceAssignments, useAllIssueResourceAssignments, useResources } from "@/hooks/use-resources";
+  import type { IssueResourceAssignment, Resource } from "@shared/schema";
   import { ResourceAssignment } from "@/components/ResourceAssignment";
   import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
   import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -27,10 +28,7 @@
   import { LimitExceededDialog } from "@/components/LimitExceededDialog";
   import { z } from "zod";
 
-  function IssueResourceDisplay({ issueId }: { issueId: number }) {
-    const { data: assignments, isLoading } = useIssueResourceAssignments(issueId);
-
-    if (isLoading) return <span className="text-muted-foreground">Loading...</span>;
+  function IssueResourceDisplay({ assignments }: { assignments: (IssueResourceAssignment & { resource: Resource })[] | undefined }) {
     if (!assignments || assignments.length === 0) return null;
 
     return (
@@ -110,6 +108,7 @@
     const deleteIssue = useDeleteIssue();
     const escalateIssue = useEscalateIssue();
     const updateIssueResources = useUpdateIssueResourceAssignments();
+    const { data: allIssueAssignments } = useAllIssueResourceAssignments(currentOrganization?.id ?? null);
     const { toast } = useToast();
     const [deleteIssueData, setDeleteIssueData] = useState<{ id: number; projectId: number } | null>(null);
     const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
@@ -696,7 +695,7 @@
                           <Link href={`/projects/${issue.projectId}`} onClick={(e) => e.stopPropagation()}>
                             <span className="hover:text-primary cursor-pointer truncate max-w-[150px] inline-block align-bottom" title={getProjectName(issue.projectId)}>{getProjectName(issue.projectId)}</span>
                           </Link>
-                          <IssueResourceDisplay issueId={issue.id} />
+                          <IssueResourceDisplay assignments={allIssueAssignments?.filter(a => a.issueId === issue.id)} />
                         </div>
                       </div>
                     </div>

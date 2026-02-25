@@ -106,6 +106,42 @@ export function useAllTaskResourceAssignments(organizationId: number | null) {
   });
 }
 
+export function useOrgFullTaskAssignments(organizationId: number | null) {
+  return useQuery<(import("@shared/schema").TaskResourceAssignment & { resource: import("@shared/schema").Resource })[]>({
+    queryKey: ["/api/organizations", organizationId, "full-task-assignments"],
+    enabled: !!organizationId,
+    queryFn: async () => {
+      const response = await fetch(`/api/organizations/${organizationId}/full-task-assignments`);
+      if (!response.ok) throw new Error("Failed to fetch org full task assignments");
+      return response.json();
+    },
+  });
+}
+
+export function useProjectTaskAssignments(projectId: number | null) {
+  return useQuery<(import("@shared/schema").TaskResourceAssignment & { resource: import("@shared/schema").Resource })[]>({
+    queryKey: ["/api/projects", projectId, "task-resource-assignments"],
+    enabled: !!projectId,
+    queryFn: async () => {
+      const response = await fetch(`/api/projects/${projectId}/task-resource-assignments`);
+      if (!response.ok) throw new Error("Failed to fetch project task assignments");
+      return response.json();
+    },
+  });
+}
+
+export function useAllIssueResourceAssignments(organizationId: number | null) {
+  return useQuery<(import("@shared/schema").IssueResourceAssignment & { resource: import("@shared/schema").Resource })[]>({
+    queryKey: ["/api/organizations", organizationId, "issue-assignments"],
+    enabled: !!organizationId,
+    queryFn: async () => {
+      const response = await fetch(`/api/organizations/${organizationId}/issue-assignments`);
+      if (!response.ok) throw new Error("Failed to fetch all issue assignments");
+      return response.json();
+    },
+  });
+}
+
 export function useUpdateTaskResourceAssignments() {
   const queryClient = useQueryClient();
   return useMutation({
