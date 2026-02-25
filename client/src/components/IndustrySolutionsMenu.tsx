@@ -66,6 +66,8 @@ const industries = [
 export function IndustrySolutionsMenu({ currentPath, variant = "default" }: { currentPath?: string; variant?: "default" | "dark" }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [dropdownTop, setDropdownTop] = useState(0);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -77,9 +79,17 @@ export function IndustrySolutionsMenu({ currentPath, variant = "default" }: { cu
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownTop(rect.bottom + 8);
+    }
+  }, [open]);
+
   return (
     <div className="relative" ref={ref}>
       <Button
+        ref={buttonRef}
         variant="ghost"
         className={cn(
           "text-sm font-medium gap-1",
@@ -91,7 +101,10 @@ export function IndustrySolutionsMenu({ currentPath, variant = "default" }: { cu
         <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", open && "rotate-180")} />
       </Button>
       {open && (
-        <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[720px] bg-background border border-border rounded-xl shadow-2xl z-50 animate-in fade-in-0 zoom-in-95 duration-150 overflow-hidden">
+        <div
+          style={{ top: dropdownTop }}
+          className="fixed left-1/2 -translate-x-1/2 w-[720px] bg-background border border-border rounded-xl shadow-2xl z-50 animate-in fade-in-0 zoom-in-95 duration-150 overflow-hidden"
+        >
           <div className="px-5 py-3 border-b border-border bg-muted/30">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Industry Solutions</p>
             <p className="text-xs text-muted-foreground mt-0.5">Purpose-built project portfolio management</p>
