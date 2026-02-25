@@ -8435,7 +8435,7 @@ function ProjectGanttView({
 
   // Bulk baseline for selected tasks
   const handleBulkSetProgress = async (progressValue: number) => {
-    if (selectedTaskIds.size < 2) return;
+    if (selectedTaskIds.size < 1) return;
     
     const selectedTasks = tasks.filter(t => selectedTaskIds.has(t.id));
     let successCount = 0;
@@ -9591,7 +9591,7 @@ function ProjectGanttView({
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={selectedTaskIds.size < 2 || updateTask.isPending || isReadOnly}
+                  disabled={selectedTaskIds.size < 1 || updateTask.isPending || isReadOnly}
                   data-testid="button-bulk-set-progress"
                 >
                   <Circle className="h-4 w-4 mr-2" />
