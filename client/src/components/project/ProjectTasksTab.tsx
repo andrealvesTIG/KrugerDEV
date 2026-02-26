@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/use-tasks";
@@ -10,6 +12,7 @@ import { useForm, Controller } from "react-hook-form";
 import { useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { cn, normalizeSearch } from "@/lib/utils";
+import { insertTaskSchema } from "@shared/schema";
 import type { Task, TaskResourceAssignment, Resource } from "@shared/schema";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { TaskDependenciesSection } from "@/components/TaskDependenciesSection";
