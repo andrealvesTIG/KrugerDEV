@@ -1,6 +1,4 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useForm, Controller } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -8,12 +6,12 @@ import { useOrganization } from "@/hooks/use-organization";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory, useConvertRiskToIssue, useAiMitigationSuggestion } from "@/hooks/use-risks";
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments } from "@/hooks/use-resources";
-import { insertRiskSchema } from "@shared/schema";
 import type { Risk } from "@shared/schema";
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 
 import { CreateRiskDialog } from "@/components/CreateRiskDialog";
+import { EditRiskDialog, type RiskFormData } from "@/components/EditRiskDialog";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -27,7 +25,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -51,7 +48,6 @@ import {
   Download,
   ExternalLink,
   Share2,
-  ArrowUpToLine,
 } from "lucide-react";
 
 function RiskHistoryDialog({ riskId, open, onOpenChange }: { riskId: number; open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -328,53 +324,13 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
     }
   }, [urlRiskId, risks]);
 
-  const form = useForm({
-    resolver: zodResolver(insertRiskSchema),
-    defaultValues: {
-      projectId,
-      title: "",
-      description: "",
-      probability: "Medium",
-      impact: "Medium",
-      status: "Open",
-      mitigationPlan: ""
-    }
-  });
-
   const openEditDialog = (risk: Risk) => {
     setEditingRisk(risk);
     setShowHistory(false);
     setEscalateToPortfolio(risk.escalatedToPortfolio || false);
-    form.reset({
-      projectId: risk.projectId,
-      title: risk.title,
-      description: risk.description || "",
-      probability: risk.probability || "Medium",
-      impact: risk.impact || "Medium",
-      status: risk.status || "Open",
-      mitigationPlan: risk.mitigationPlan || ""
-    });
     setIsDialogOpen(true);
   };
 
-  const onSubmit = (data: any) => {
-    if (!editingRisk) return;
-    const escalationData = escalateToPortfolio 
-      ? { escalatedToPortfolio: true, escalatedAt: editingRisk.escalatedToPortfolio ? editingRisk.escalatedAt : new Date().toISOString() }
-      : { escalatedToPortfolio: false, escalatedAt: null };
-    
-    updateRisk.mutate({ id: editingRisk.id, projectId, ...data, ...escalationData }, {
-      onSuccess: () => {
-        updateRiskResources.mutate({ riskId: editingRisk.id, resourceIds: selectedResourceIds });
-        toast({ title: "Success", description: "Risk updated" });
-        setIsDialogOpen(false);
-        setEditingRisk(null);
-      },
-      onError: (error: any) => {
-        toast({ title: "Error", description: error?.message || "Failed to update risk", variant: "destructive" });
-      }
-    });
-  };
 
   if (isLoading) return <Loader2 className="animate-spin" />;
 
@@ -447,240 +403,68 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
             organizationId={currentOrganization?.id ?? null}
             projectId={projectId}
           />
-          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingRisk(null); }}>
-          <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col overflow-hidden">
-            <DialogHeader>
-              <DialogTitle>Edit Risk</DialogTitle>
-              <DialogDescription>Modify the risk details below.</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
-              <div className="space-y-4 pt-4 flex-1 overflow-y-auto pr-1">
-              <div className="space-y-2 relative z-10">
-                <Label>Title <span className="text-destructive">*</span></Label>
-                <Input {...form.register("title")} data-testid="input-risk-title" />
-                {form.formState.errors.title && (
-                  <p className="text-xs text-destructive">{form.formState.errors.title.message as string || "Title is required"}</p>
-                )}
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Probability</Label>
-                  <Controller control={form.control} name="probability" render={({field}) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                       <SelectTrigger data-testid="select-risk-probability"><SelectValue /></SelectTrigger>
-                       <SelectContent>
-                         <SelectItem value="Low">Low</SelectItem>
-                         <SelectItem value="Medium">Medium</SelectItem>
-                         <SelectItem value="High">High</SelectItem>
-                       </SelectContent>
-                    </Select>
-                  )} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Impact</Label>
-                   <Controller control={form.control} name="impact" render={({field}) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                       <SelectTrigger data-testid="select-risk-impact"><SelectValue /></SelectTrigger>
-                       <SelectContent>
-                         <SelectItem value="Low">Low</SelectItem>
-                         <SelectItem value="Medium">Medium</SelectItem>
-                         <SelectItem value="High">High</SelectItem>
-                       </SelectContent>
-                    </Select>
-                  )} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Status</Label>
-                   <Controller control={form.control} name="status" render={({field}) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                       <SelectTrigger data-testid="select-risk-status"><SelectValue /></SelectTrigger>
-                       <SelectContent>
-                         <SelectItem value="Open">Open</SelectItem>
-                         <SelectItem value="Mitigated">Mitigated</SelectItem>
-                         <SelectItem value="Occurred">Occurred</SelectItem>
-                         <SelectItem value="Closed">Closed</SelectItem>
-                       </SelectContent>
-                    </Select>
-                  )} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Textarea {...form.register("description")} data-testid="input-risk-description" />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Mitigation Plan</Label>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      const title = form.getValues("title");
-                      if (!title) {
-                        toast({ title: "Title Required", description: "Please enter a risk title first to get AI suggestions", variant: "destructive" });
-                        return;
-                      }
-                      aiMitigationSuggestion.mutate({
-                        title,
-                        description: form.getValues("description"),
-                        probability: form.getValues("probability"),
-                        impact: form.getValues("impact"),
-                        projectContext: projectName
-                      }, {
-                        onSuccess: (data) => {
-                          form.setValue("mitigationPlan", data.suggestion);
-                          toast({ title: "AI Suggestion Generated", description: "Mitigation plan has been populated" });
-                        },
-                        onError: (err: any) => {
-                          toast({ title: "Error", description: err.message || "Failed to generate suggestions", variant: "destructive" });
-                        }
-                      });
-                    }}
-                    disabled={aiMitigationSuggestion.isPending}
-                    data-testid="button-ai-suggest-mitigation"
-                  >
-                    {aiMitigationSuggestion.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Sparkles className="h-4 w-4 mr-1" />
-                        AI Suggest
-                      </>
-                    )}
-                  </Button>
-                </div>
-                <Textarea {...form.register("mitigationPlan")} placeholder="How will this risk be mitigated?" data-testid="input-risk-mitigation" />
-              </div>
-              <ResourceAssignment
-                organizationId={currentOrganization?.id || null}
-                selectedResourceIds={selectedResourceIds}
-                onSelectionChange={setSelectedResourceIds}
-                label="Assigned Resources"
-                projectId={projectId}
-                projectName={projectName}
-              />
-              
-              {portfolioId && (
-                <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                  <div className="flex items-center gap-2">
-                    <ArrowUpToLine className="h-4 w-4 text-purple-600" />
-                    <div>
-                      <Label className="text-sm font-medium">Escalate to Portfolio</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Make this risk visible in <span className="font-medium text-foreground">{portfolioName || 'portfolio'}</span>
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={escalateToPortfolio}
-                    onCheckedChange={setEscalateToPortfolio}
-                    data-testid="switch-escalate-risk"
-                  />
-                </div>
-              )}
-              {editingRisk?.escalatedToPortfolio && editingRisk.escalatedAt && (
-                <p className="text-xs text-muted-foreground">
-                  Escalated on {format(new Date(editingRisk.escalatedAt), 'MMM d, yyyy')}
-                </p>
-              )}
-              
-              {editingRisk && (
-                <div className="border-t pt-4">
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    className="w-full justify-between px-0 hover:bg-transparent"
-                    onClick={() => setShowHistory(!showHistory)}
-                    data-testid="button-toggle-risk-history"
-                  >
-                    <span className="flex items-center gap-2 text-sm font-medium">
-                      <History className="h-4 w-4" />
-                      Change History
-                    </span>
-                    {showHistory ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </Button>
-                  {showHistory && (
-                    <div className="mt-3 max-h-48 overflow-y-auto space-y-2">
-                      {historyLoading ? (
-                        <div className="flex items-center justify-center py-4">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        </div>
-                      ) : riskHistory && riskHistory.length > 0 ? (
-                        riskHistory.map((log) => (
-                          <div key={log.id} className="text-xs border-l-2 border-muted pl-3 py-1">
-                            <div className="flex items-center gap-2 text-muted-foreground">
-                              <span className="font-medium text-foreground">{log.changedByName || 'System'}</span>
-                              <span>•</span>
-                              <span>{new Date(log.changedAt!).toLocaleDateString()} {new Date(log.changedAt!).toLocaleTimeString()}</span>
-                            </div>
-                            <div className="mt-1">{log.changeSummary}</div>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground py-2">No change history available</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              </div>
-              <DialogFooter className="flex justify-between gap-2 pt-4 border-t mt-4 shrink-0">
-                <div>
-                  {editingRisk && (
-                    <Button 
-                      type="button" 
-                      variant="secondary"
-                      onClick={() => {
-                        if (editingRisk) {
-                          convertRiskToIssue.mutate({ id: editingRisk.id, projectId }, {
-                            onSuccess: () => {
-                              toast({ title: "Success", description: "Risk converted to issue" });
-                              setIsDialogOpen(false);
-                              setEditingRisk(null);
-                            },
-                            onError: (err: any) => {
-                              toast({ title: "Error", description: err.message, variant: "destructive" });
-                            }
-                          });
-                        }
-                      }}
-                      disabled={convertRiskToIssue.isPending}
-                      data-testid="button-convert-risk-to-issue"
-                    >
-                      {convertRiskToIssue.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Convert to Issue
-                    </Button>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  {editingRisk && (
-                    <Button 
-                      type="button" 
-                      variant="destructive" 
-                      onClick={() => {
-                        deleteRisk.mutate({ id: editingRisk.id, projectId }, {
-                          onSuccess: () => {
-                            toast({ title: "Deleted", description: "Risk deleted" });
-                            setIsDialogOpen(false);
-                            setEditingRisk(null);
-                          }
-                        });
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  )}
-                  <Button type="submit" data-testid="button-save-risk" disabled={updateRisk.isPending}>
-                    {updateRisk.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Update Risk
-                  </Button>
-                </div>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+          <EditRiskDialog
+            open={isDialogOpen}
+            onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingRisk(null); }}
+            risk={editingRisk}
+            onSubmit={(data: RiskFormData) => {
+              if (!editingRisk) return;
+              const escalationData = escalateToPortfolio 
+                ? { escalatedToPortfolio: true, escalatedAt: editingRisk.escalatedToPortfolio ? editingRisk.escalatedAt : new Date().toISOString() }
+                : { escalatedToPortfolio: false, escalatedAt: null };
+              updateRisk.mutate({ id: editingRisk.id, projectId, ...data, ...escalationData }, {
+                onSuccess: () => {
+                  updateRiskResources.mutate({ riskId: editingRisk.id, resourceIds: selectedResourceIds });
+                  toast({ title: "Success", description: "Risk updated" });
+                  setIsDialogOpen(false);
+                  setEditingRisk(null);
+                },
+                onError: (error: any) => {
+                  toast({ title: "Error", description: error?.message || "Failed to update risk", variant: "destructive" });
+                }
+              });
+            }}
+            isSubmitting={updateRisk.isPending}
+            organizationId={currentOrganization?.id}
+            resourceIds={selectedResourceIds}
+            onResourcesChange={setSelectedResourceIds}
+            projectName={projectName}
+            portfolioId={portfolioId}
+            portfolioName={portfolioName}
+            escalateToPortfolio={escalateToPortfolio}
+            onEscalateChange={setEscalateToPortfolio}
+            onConvertToIssue={() => {
+              if (editingRisk) {
+                convertRiskToIssue.mutate({ id: editingRisk.id, projectId }, {
+                  onSuccess: () => {
+                    toast({ title: "Success", description: "Risk converted to issue" });
+                    setIsDialogOpen(false);
+                    setEditingRisk(null);
+                  },
+                  onError: (err: any) => {
+                    toast({ title: "Error", description: err.message, variant: "destructive" });
+                  }
+                });
+              }
+            }}
+            isConverting={convertRiskToIssue.isPending}
+            history={riskHistory || []}
+            historyLoading={historyLoading}
+            onAiSuggest={(data) => aiMitigationSuggestion.mutateAsync(data)}
+            isAiSuggesting={aiMitigationSuggestion.isPending}
+            onDelete={() => {
+              if (editingRisk) {
+                deleteRisk.mutate({ id: editingRisk.id, projectId }, {
+                  onSuccess: () => {
+                    toast({ title: "Deleted", description: "Risk deleted" });
+                    setIsDialogOpen(false);
+                    setEditingRisk(null);
+                  }
+                });
+              }
+            }}
+            isDeleting={deleteRisk.isPending}
+          />
         </div>
       </CardHeader>
       <CardContent>

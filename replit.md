@@ -125,6 +125,9 @@ Each vertical landing page follows the same structure: header, hero, trust bar, 
 - **Energy & Utilities** (`/energy`): `EnergyLandingPage.tsx`, assets in `client/src/assets/energy/`. Green/emerald theme. Targets utilities, renewables, grid modernization.
 - **Government & Public Sector** (`/government`): `GovernmentLandingPage.tsx`, assets in `client/src/assets/government/`. Navy/blue-gray theme. Targets agencies, IT modernization, public infrastructure.
 
+### Shared Risk Edit Dialog
+All risk editing across the application (Issues page, Project Risks tab, Portfolio Details) uses a single shared `EditRiskDialog` component (`client/src/components/EditRiskDialog.tsx`). It supports optional features via props: AI mitigation suggestions, resource assignments, change history, portfolio escalation, and convert-to-issue. Form validation uses Zod (title required). Parent components pass mutation callbacks rather than the dialog managing mutations internally.
+
 ### Performance Optimizations
 - **Virtual Scrolling**: Gantt rows use virtual scroll when task count exceeds `VIRTUAL_SCROLL_THRESHOLD = 150`; DnD disabled in virtual-scroll mode.
 - **Org Auto-Switch**: Switching organizations selects the correct org automatically.

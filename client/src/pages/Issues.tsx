@@ -1,8 +1,9 @@
   import { useState, useEffect } from "react";
   import { useAllIssues, useUpdateIssue, useDeleteIssue, useIssueHistory, useEscalateIssue } from "@/hooks/use-issues";
-  import { useConvertRiskToIssue } from "@/hooks/use-risks";
+  import { useConvertRiskToIssue, useAiMitigationSuggestion } from "@/hooks/use-risks";
   import { CreateRiskDialog } from "@/components/CreateRiskDialog";
   import { CreateIssueDialog } from "@/components/CreateIssueDialog";
+  import { EditRiskDialog, type RiskFormData } from "@/components/EditRiskDialog";
   import { useProjects } from "@/hooks/use-projects";
   import { usePortfolios } from "@/hooks/use-portfolios";
   import { useOrganization } from "@/hooks/use-organization";
@@ -104,6 +105,7 @@
     const deleteIssue = useDeleteIssue();
     const escalateIssue = useEscalateIssue();
     const updateIssueResources = useUpdateIssueResourceAssignments();
+    const aiMitigationSuggestion = useAiMitigationSuggestion();
     const { data: allIssueAssignments } = useAllIssueResourceAssignments(currentOrganization?.id ?? null);
     const { toast } = useToast();
     const [deleteIssueData, setDeleteIssueData] = useState<{ id: number; projectId: number } | null>(null);
@@ -438,15 +440,69 @@
           </CardContent>
         </Card>
 
-        {/* Edit Issue/Risk Dialog */}
+        {/* Edit Risk Dialog (when editing a risk item) */}
+        {editingIssue?.itemType === 'risk' && (() => {
+          const project = projects?.find(p => p.id === editingIssue.projectId);
+          const portfolio = project?.portfolioId ? portfolios?.find(pf => pf.id === project.portfolioId) : null;
+          return (
+            <EditRiskDialog
+              open={isEditDialogOpen}
+              onOpenChange={setIsEditDialogOpen}
+              risk={editingIssue}
+              onSubmit={(data: RiskFormData) => {
+                updateIssue.mutate({
+                  id: editingIssue.id,
+                  projectId: editingIssue.projectId,
+                  ...data,
+                }, {
+                  onSuccess: () => {
+                    updateIssueResources.mutate({ issueId: editingIssue.id, resourceIds: editResourceIds });
+                    toast({ title: "Success", description: "Risk updated successfully" });
+                    setIsEditDialogOpen(false);
+                    setEditingIssue(null);
+                    setEditResourceIds([]);
+                    setResourcesInitialized(false);
+                  },
+                  onError: (err: Error) => {
+                    toast({ title: "Error", description: err.message, variant: "destructive" });
+                  }
+                });
+              }}
+              isSubmitting={updateIssue.isPending}
+              projectLink={project ? { name: project.name, id: project.id } : null}
+              portfolioLink={portfolio ? { name: portfolio.name, id: portfolio.id } : null}
+              organizationId={currentOrganization?.id}
+              resourceIds={editResourceIds}
+              onResourcesChange={setEditResourceIds}
+              onConvertToIssue={() => {
+                convertRiskToIssue.mutate({ id: editingIssue.id, projectId: editingIssue.projectId }, {
+                  onSuccess: () => {
+                    toast({ title: "Success", description: "Risk converted to issue" });
+                    setIsEditDialogOpen(false);
+                  },
+                  onError: (err: any) => {
+                    toast({ title: "Error", description: err.message, variant: "destructive" });
+                  }
+                });
+              }}
+              isConverting={convertRiskToIssue.isPending}
+              history={issueHistory || []}
+              historyLoading={historyLoading}
+              onAiSuggest={(data) => aiMitigationSuggestion.mutateAsync(data)}
+              isAiSuggesting={aiMitigationSuggestion.isPending}
+            />
+          );
+        })()}
+
+        {/* Edit Issue Dialog (when editing an issue item) */}
+        {editingIssue?.itemType !== 'risk' && (
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col overflow-hidden">
             <DialogHeader>
-              <DialogTitle>Edit {editingIssue?.itemType === 'risk' ? 'Risk' : 'Issue'}</DialogTitle>
-              <DialogDescription>Update the {editingIssue?.itemType === 'risk' ? 'risk' : 'issue'} details below</DialogDescription>
+              <DialogTitle>Edit Issue</DialogTitle>
+              <DialogDescription>Modify the issue details below.</DialogDescription>
             </DialogHeader>
 
-            {/* Project and Portfolio Links */}
             {editingIssue && (() => {
               const project = projects?.find(p => p.id === editingIssue.projectId);
               const portfolio = project?.portfolioId ? portfolios?.find(pf => pf.id === project.portfolioId) : null;
@@ -469,7 +525,8 @@
               );
             })()}
 
-            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4 pt-4">
+            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="flex flex-col flex-1 overflow-hidden">
+              <div className="space-y-4 pt-4 flex-1 overflow-y-auto pr-1">
               <div className="space-y-2">
                 <Label>Title</Label>
                 <Input {...editForm.register("title")} data-testid="input-edit-issue-title" />
@@ -538,7 +595,7 @@
               </div>
               <div className="space-y-2">
                 <Label>Description</Label>
-                <Input {...editForm.register("description")} data-testid="input-edit-issue-description" />
+                <Textarea {...editForm.register("description")} data-testid="input-edit-issue-description" />
               </div>
               <ResourceAssignment
                 organizationId={currentOrganization?.id || null}
@@ -548,7 +605,6 @@
                 projectId={editingIssue?.projectId}
               />
 
-              {/* Change History Section */}
               <div className="border-t pt-4">
                 <Button 
                   type="button" 
@@ -586,45 +642,22 @@
                   </div>
                 )}
               </div>
+              </div>
 
-              <DialogFooter className="flex justify-between gap-2">
-                <div>
-                  {editingIssue?.itemType === 'risk' && (
-                    <Button 
-                      type="button" 
-                      variant="secondary"
-                      onClick={() => {
-                        if (editingIssue) {
-                          convertRiskToIssue.mutate({ id: editingIssue.id, projectId: editingIssue.projectId }, {
-                            onSuccess: () => {
-                              toast({ title: "Success", description: "Risk converted to issue" });
-                              setIsEditDialogOpen(false);
-                            },
-                            onError: (err: any) => {
-                              toast({ title: "Error", description: err.message, variant: "destructive" });
-                            }
-                          });
-                        }
-                      }}
-                      disabled={convertRiskToIssue.isPending}
-                      data-testid="button-convert-risk-to-issue"
-                    >
-                      {convertRiskToIssue.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Convert to Issue
-                    </Button>
-                  )}
-                </div>
+              <DialogFooter className="flex justify-between gap-2 pt-4 border-t mt-4 shrink-0">
+                <div />
                 <div className="flex gap-2">
                   <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
                   <Button type="submit" disabled={updateIssue.isPending} data-testid="button-update-issue">
                     {updateIssue.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Update {editingIssue?.itemType === 'risk' ? 'Risk' : 'Issue'}
+                    Update Issue
                   </Button>
                 </div>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
+        )}
 
         {/* Delete Confirmation Dialog */}
         <Dialog open={deleteIssueData !== null} onOpenChange={() => setDeleteIssueData(null)}>

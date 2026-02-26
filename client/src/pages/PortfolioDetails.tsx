@@ -12,7 +12,8 @@ import {
   type PortfolioIssue
 } from "@/hooks/use-portfolio-details";
 import { useProjects, useUpdateProject } from "@/hooks/use-projects";
-import { useUpdateRisk, useDeleteRisk } from "@/hooks/use-risks";
+import { useUpdateRisk, useDeleteRisk, useAiMitigationSuggestion, useRiskHistory } from "@/hooks/use-risks";
+import { EditRiskDialog, type RiskFormData } from "@/components/EditRiskDialog";
 import { useUpdateIssue, useDeleteIssue } from "@/hooks/use-issues";
 import { useForm, Controller } from "react-hook-form";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -1156,6 +1157,8 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
   const [deleteRisk, setDeleteRisk] = useState<PortfolioRisk | null>(null);
   const updateRisk = useUpdateRisk();
   const deleteRiskMutation = useDeleteRisk();
+  const aiMitigationSuggestion = useAiMitigationSuggestion();
+  const { data: riskHistory, isLoading: riskHistoryLoading } = useRiskHistory(editingRisk?.id || 0);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -1168,31 +1171,7 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
     return null;
   }, [latestAssessment]);
 
-  const editForm = useForm({
-    defaultValues: {
-      title: "",
-      description: "",
-      probability: "Medium",
-      impact: "Medium",
-      status: "Open",
-      mitigationPlan: "",
-    }
-  });
-
-  useEffect(() => {
-    if (editingRisk) {
-      editForm.reset({
-        title: editingRisk.title || "",
-        description: editingRisk.description || "",
-        probability: editingRisk.probability || "Medium",
-        impact: editingRisk.impact || "Medium",
-        status: editingRisk.status || "Open",
-        mitigationPlan: editingRisk.mitigationPlan || "",
-      });
-    }
-  }, [editingRisk]);
-
-  const onEditSubmit = async (data: any) => {
+  const onEditSubmit = async (data: RiskFormData) => {
     if (!editingRisk) return;
     try {
       await updateRisk.mutateAsync({ id: editingRisk.id, projectId: editingRisk.projectId, ...data });
@@ -1383,102 +1362,18 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
 
       <RiskScoreTrendChart portfolioId={portfolioId} getRiskScoreColor={getRiskScoreColor} />
 
-      <Dialog open={!!editingRisk} onOpenChange={(open) => !open && setEditingRisk(null)}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Edit Risk</DialogTitle>
-            <DialogDescription>Update risk details</DialogDescription>
-          </DialogHeader>
-          {editingRisk && (
-            <div className="text-sm text-muted-foreground border-b pb-3 mb-3">
-              <span>Project: </span>
-              <Link href={`/projects/${editingRisk.projectId}`} className="text-primary hover:underline font-medium">
-                {editingRisk.projectName}
-              </Link>
-            </div>
-          )}
-          <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
-            <div className="space-y-2 relative z-10">
-              <Label>Title</Label>
-              <Input {...editForm.register("title")} data-testid="input-edit-risk-title" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Probability</Label>
-                <Controller
-                  control={editForm.control}
-                  name="probability"
-                  render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger data-testid="select-edit-probability">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Low">Low</SelectItem>
-                        <SelectItem value="Medium">Medium</SelectItem>
-                        <SelectItem value="High">High</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Impact</Label>
-                <Controller
-                  control={editForm.control}
-                  name="impact"
-                  render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger data-testid="select-edit-impact">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Low">Low</SelectItem>
-                        <SelectItem value="Medium">Medium</SelectItem>
-                        <SelectItem value="High">High</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Controller
-                control={editForm.control}
-                name="status"
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger data-testid="select-edit-risk-status">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Open">Open</SelectItem>
-                      <SelectItem value="Mitigated">Mitigated</SelectItem>
-                      <SelectItem value="Closed">Closed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Description</Label>
-              <Textarea {...editForm.register("description")} data-testid="input-edit-risk-description" />
-            </div>
-            <div className="space-y-2">
-              <Label>Mitigation Plan</Label>
-              <Textarea {...editForm.register("mitigationPlan")} data-testid="input-edit-risk-mitigation" />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditingRisk(null)}>Cancel</Button>
-              <Button type="submit" disabled={updateRisk.isPending} data-testid="button-update-risk">
-                {updateRisk.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Update Risk
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <EditRiskDialog
+        open={!!editingRisk}
+        onOpenChange={(open) => !open && setEditingRisk(null)}
+        risk={editingRisk}
+        onSubmit={onEditSubmit}
+        isSubmitting={updateRisk.isPending}
+        projectLink={editingRisk ? { name: editingRisk.projectName, id: editingRisk.projectId } : null}
+        history={riskHistory || []}
+        historyLoading={riskHistoryLoading}
+        onAiSuggest={(data) => aiMitigationSuggestion.mutateAsync(data)}
+        isAiSuggesting={aiMitigationSuggestion.isPending}
+      />
 
       <AlertDialog open={!!deleteRisk} onOpenChange={(open) => !open && setDeleteRisk(null)}>
         <AlertDialogContent>
