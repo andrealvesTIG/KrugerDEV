@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, parseISO, differenceInDays } from "date-fns";
-import { calculateEndDateFromWorkingDays } from "@/lib/workingDays";
+import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays } from "@/lib/workingDays";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/use-tasks";
