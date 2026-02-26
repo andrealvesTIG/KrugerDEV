@@ -75,14 +75,32 @@ export function IndustrySolutionsMenu({ currentPath, variant = "default" }: { cu
         setOpen(false);
       }
     }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, []);
 
   useEffect(() => {
     if (open && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setDropdownTop(rect.bottom + 8);
+      const updatePosition = () => {
+        if (buttonRef.current) {
+          const rect = buttonRef.current.getBoundingClientRect();
+          setDropdownTop(rect.bottom + 8);
+        }
+      };
+      updatePosition();
+      window.addEventListener("scroll", updatePosition, true);
+      window.addEventListener("resize", updatePosition);
+      return () => {
+        window.removeEventListener("scroll", updatePosition, true);
+        window.removeEventListener("resize", updatePosition);
+      };
     }
   }, [open]);
 
@@ -103,7 +121,7 @@ export function IndustrySolutionsMenu({ currentPath, variant = "default" }: { cu
       {open && (
         <div
           style={{ top: dropdownTop }}
-          className="fixed left-1/2 -translate-x-1/2 w-[720px] bg-background border border-border rounded-xl shadow-2xl z-50 animate-in fade-in-0 zoom-in-95 duration-150 overflow-hidden"
+          className="fixed left-1/2 -translate-x-1/2 w-[min(720px,calc(100vw-2rem))] bg-background border border-border rounded-xl shadow-2xl z-50 animate-in fade-in-0 zoom-in-95 duration-150 overflow-hidden"
         >
           <div className="px-5 py-3 border-b border-border bg-muted/30">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Industry Solutions</p>
