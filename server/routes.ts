@@ -1334,6 +1334,32 @@ export async function registerRoutes(
     });
   }
 
+  // Bearer token middleware — resolves API tokens to userId for all routes.
+  // Only applies when no existing session auth is present (avoids overriding cookie sessions).
+  app.use(async (req: any, _res: any, next: any) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const existingUserId = req.user?.claims?.sub || req.session?.userId;
+      if (!existingUserId) {
+        try {
+          const token = authHeader.slice(7);
+          const tokenRecord = await storage.getApiTokenByToken(token);
+          if (tokenRecord) {
+            if (!tokenRecord.expiresAt || tokenRecord.expiresAt >= new Date()) {
+              if (!req.session) req.session = {};
+              req.session.userId = tokenRecord.userId;
+              req.bearerOrgId = tokenRecord.organizationId;
+              storage.updateApiTokenLastUsed(tokenRecord.id);
+            }
+          }
+        } catch (err) {
+          // Silently continue — session/other auth will apply
+        }
+      }
+    }
+    next();
+  });
+
   // Set up authentication first - Replit OAuth, Email/Password, Microsoft 365, and Google
   await setupReplitAuth(app);
   await setupEmailAuth(app);
@@ -15017,32 +15043,14 @@ Return ONLY valid JSON.`;
   // Helper: Get user ID from either session or API key (Basic auth)
   // Power BI uses Basic auth where username=email and password=apiKey
   async function getAnalyticsUserId(req: ExpressRequest): Promise<{ userId: string; organizationId?: number } | null> {
-    // First try session-based auth
-    const sessionUserId = getUserIdFromRequest(req);
-    if (sessionUserId) return { userId: sessionUserId };
-
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return null;
-
-    // Try Bearer token auth (scoped to organization)
-    if (authHeader.startsWith('Bearer ')) {
-      try {
-        const token = authHeader.slice(7);
-        const tokenRecord = await storage.getApiTokenByToken(token);
-        if (tokenRecord) {
-          if (tokenRecord.expiresAt && tokenRecord.expiresAt < new Date()) {
-            return null;
-          }
-          storage.updateApiTokenLastUsed(tokenRecord.id);
-          return { userId: tokenRecord.userId, organizationId: tokenRecord.organizationId };
-        }
-      } catch (err) {
-        console.error('Error parsing Bearer auth:', err);
-      }
+    const userId = getUserIdFromRequest(req);
+    if (userId) {
+      return { userId, organizationId: (req as any).bearerOrgId };
     }
 
-    // Try Basic auth (email:apiKey)
-    if (authHeader.startsWith('Basic ')) {
+    // Try Basic auth (email:apiKey) — not handled by middleware
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Basic ')) {
       try {
         const base64Credentials = authHeader.slice(6);
         const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');

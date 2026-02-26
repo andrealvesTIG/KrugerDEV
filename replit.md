@@ -96,7 +96,7 @@ Schema definitions are split across multiple files:
 - **Microsoft Project (MPXJ)**: For parsing `.mpp`, XML, and CSV project files.
 - **Microsoft Planner**: Integration via Microsoft Graph API for importing and syncing projects and tasks (read-only tasks in the application).
 - **Microsoft Dynamics 365 Sales Hub**: Organization-scoped integration for importing invoices using OAuth 2.0 via MSAL.
-- **Analytics API**: REST endpoints for external analytics tools like Power BI, secured with API keys (Basic auth) or Bearer tokens (org-scoped). Bearer tokens are managed via `api_tokens` table and CRUD endpoints at `/api/organizations/:orgId/api-tokens`.
+- **Analytics API**: REST endpoints for external analytics tools like Power BI, secured with API keys (Basic auth) or Bearer tokens (org-scoped). Bearer tokens are managed via `api_tokens` table and CRUD endpoints at `/api/organizations/:orgId/api-tokens`. Bearer tokens also authenticate all CRUD endpoints (projects, tasks, etc.) via middleware that sets the session userId.
 
 ## API Error Convention
 All API routes in `server/routes.ts` follow these HTTP status code conventions. **Always update `server/swagger.ts` when adding, modifying, or removing API routes.**

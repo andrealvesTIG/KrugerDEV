@@ -484,7 +484,7 @@ const spec = {
       },
     },
   },
-  security: [{ sessionAuth: [] }],
+  security: [{ sessionAuth: [] }, { bearerAuth: [] }],
   paths: {
     // ======================== USERS ========================
     '/users': {
