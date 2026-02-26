@@ -1144,14 +1144,18 @@ function ProjectTimeline({
     if (!tasks || tasks.length === 0) return null;
     let minDate: Date | null = null;
     let maxDate: Date | null = null;
+    const isReasonableDate = (d: Date) => {
+      const y = d.getFullYear();
+      return y >= 1970 && y <= 2100 && !isNaN(d.getTime());
+    };
     for (const t of tasks) {
       if (t.startDate) {
         const d = parseISO(t.startDate);
-        if (!minDate || d < minDate) minDate = d;
+        if (isReasonableDate(d) && (!minDate || d < minDate)) minDate = d;
       }
       if (t.endDate) {
         const d = parseISO(t.endDate);
-        if (!maxDate || d > maxDate) maxDate = d;
+        if (isReasonableDate(d) && (!maxDate || d > maxDate)) maxDate = d;
       }
     }
     if (!minDate || !maxDate) return null;
@@ -9144,11 +9148,22 @@ function ProjectGanttView({
     const projStart = projectStartDate ? parseISO(projectStartDate) : null;
     const projEnd = projectEndDate ? parseISO(projectEndDate) : null;
 
-    const tasksWithDates = tasks.filter(t => t.startDate && t.endDate);
+    const MIN_VALID_YEAR = 1970;
+    const MAX_VALID_YEAR = 2100;
+    const isValidDate = (d: Date) => {
+      const y = d.getFullYear();
+      return y >= MIN_VALID_YEAR && y <= MAX_VALID_YEAR && !isNaN(d.getTime());
+    };
+    const tasksWithDates = tasks.filter(t => {
+      if (!t.startDate || !t.endDate) return false;
+      const s = parseISO(t.startDate);
+      const e = parseISO(t.endDate);
+      return isValidDate(s) && isValidDate(e);
+    });
     let scheduleMin: Date | null = null;
     let scheduleMax: Date | null = null;
     if (tasksWithDates.length > 0) {
-      const dates = tasksWithDates.flatMap(t => [parseISO(t.startDate), parseISO(t.endDate)]);
+      const dates = tasksWithDates.flatMap(t => [parseISO(t.startDate), parseISO(t.endDate)]).filter(isValidDate);
       scheduleMin = new Date(Math.min(...dates.map(d => d.getTime())));
       scheduleMax = new Date(Math.max(...dates.map(d => d.getTime())));
     }
