@@ -4974,9 +4974,15 @@ function RiskAssessmentConfigSection({ organizationId }: { organizationId: numbe
 
 function DeveloperSection() {
   const { toast } = useToast();
+  const { currentOrganization } = useOrganization();
+  const orgId = currentOrganization?.id;
   const [showApiKey, setShowApiKey] = useState(false);
   const [showRevokeDialog, setShowRevokeDialog] = useState(false);
   const [newlyGeneratedKey, setNewlyGeneratedKey] = useState<string | null>(null);
+  const [newBearerToken, setNewBearerToken] = useState<string | null>(null);
+  const [tokenName, setTokenName] = useState('');
+  const [showGenerateTokenDialog, setShowGenerateTokenDialog] = useState(false);
+  const [showRevokeTokenDialog, setShowRevokeTokenDialog] = useState<number | null>(null);
 
   const { data: apiKeyData, isLoading: apiKeyLoading, refetch: refetchApiKey } = useQuery<{
     hasApiKey: boolean;
@@ -4985,11 +4991,71 @@ function DeveloperSection() {
     queryKey: ['/api/user/api-key'],
   });
 
+  const { data: bearerTokens, isLoading: tokensLoading, refetch: refetchTokens } = useQuery<{
+    id: number;
+    name: string | null;
+    token: string;
+    organizationId: number;
+    lastUsedAt: string | null;
+    expiresAt: string | null;
+    createdAt: string;
+  }[]>({
+    queryKey: [`/api/organizations/${orgId}/api-tokens`],
+    enabled: !!orgId,
+  });
+
+  const generateTokenMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', `/api/organizations/${orgId}/api-tokens`, {
+        name: tokenName || undefined,
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setNewBearerToken(data.token);
+      setShowGenerateTokenDialog(false);
+      setTokenName('');
+      refetchTokens();
+      toast({
+        title: "Bearer Token Created",
+        description: "Copy your token now. It won't be shown again.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to generate bearer token",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const revokeTokenMutation = useMutation({
+    mutationFn: async (tokenId: number) => {
+      await apiRequest('DELETE', `/api/organizations/${orgId}/api-tokens/${tokenId}`);
+    },
+    onSuccess: () => {
+      refetchTokens();
+      setShowRevokeTokenDialog(null);
+      toast({
+        title: "Token Revoked",
+        description: "The bearer token has been revoked.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to revoke token",
+        variant: "destructive",
+      });
+    },
+  });
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({
       title: "Copied",
-      description: "API key copied to clipboard",
+      description: "Copied to clipboard",
     });
   };
 
@@ -5174,6 +5240,163 @@ function DeveloperSection() {
           </div>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5" />
+            Bearer Tokens
+          </CardTitle>
+          <CardDescription>
+            Create Bearer tokens scoped to this organization for the Analytics API. Each token automatically restricts data to this organization.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {newBearerToken && (
+            <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg space-y-2">
+              <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                New Bearer Token Created - Copy it now!
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 p-2 bg-background rounded font-mono text-sm break-all">
+                  {newBearerToken}
+                </code>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => copyToClipboard(newBearerToken)}
+                >
+                  Copy
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This is the only time you will see the full token. Store it securely.
+              </p>
+              <Button variant="outline" size="sm" onClick={() => setNewBearerToken(null)}>
+                Done
+              </Button>
+            </div>
+          )}
+
+          {tokensLoading ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading tokens...
+            </div>
+          ) : bearerTokens && bearerTokens.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Token</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Last Used</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {bearerTokens.map((t) => (
+                  <TableRow key={t.id}>
+                    <TableCell className="font-medium">{t.name || 'Unnamed'}</TableCell>
+                    <TableCell>
+                      <code className="text-xs bg-muted px-1 py-0.5 rounded">{t.token}</code>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {t.createdAt ? format(new Date(t.createdAt), 'MMM d, yyyy') : '-'}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {t.lastUsedAt ? format(new Date(t.lastUsedAt), 'MMM d, yyyy HH:mm') : 'Never'}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowRevokeTokenDialog(t.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No bearer tokens yet. Create one to authenticate with the Analytics API using <code className="text-xs">Authorization: Bearer &lt;token&gt;</code>.
+            </p>
+          )}
+
+          <Button onClick={() => setShowGenerateTokenDialog(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Generate Bearer Token
+          </Button>
+
+          <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+            <h4 className="font-medium text-sm">How to use Bearer tokens</h4>
+            <p className="text-sm text-muted-foreground">
+              Include the token in your request header. The organization is automatically determined from the token — no need for an organizationId parameter.
+            </p>
+            <pre className="p-2 bg-background rounded text-xs overflow-x-auto">
+              Authorization: Bearer your_token_here
+            </pre>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={showGenerateTokenDialog} onOpenChange={setShowGenerateTokenDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Generate Bearer Token</DialogTitle>
+            <DialogDescription>
+              Create a new token for this organization. Give it a descriptive name so you can identify it later.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="token-name">Token Name (optional)</Label>
+              <Input
+                id="token-name"
+                placeholder="e.g., Power BI Production"
+                value={tokenName}
+                onChange={(e) => setTokenName(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowGenerateTokenDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => generateTokenMutation.mutate()}
+              disabled={generateTokenMutation.isPending}
+            >
+              {generateTokenMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Generate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={showRevokeTokenDialog !== null} onOpenChange={(open) => !open && setShowRevokeTokenDialog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke Bearer Token?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently revoke this token. Any integrations using it will stop working immediately.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => showRevokeTokenDialog !== null && revokeTokenMutation.mutate(showRevokeTokenDialog)}
+              className="bg-destructive text-destructive-foreground"
+            >
+              {revokeTokenMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Revoke Token
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Card>
         <CardHeader>

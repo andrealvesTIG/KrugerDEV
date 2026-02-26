@@ -2376,3 +2376,26 @@ export const insertOrganizationCustomFieldSchema = createInsertSchema(organizati
 });
 export type InsertOrganizationCustomField = z.infer<typeof insertOrganizationCustomFieldSchema>;
 export type OrganizationCustomField = typeof organizationCustomFields.$inferSelect;
+
+// API Tokens (Bearer auth for Analytics API, scoped to user + organization)
+export const apiTokens = pgTable("api_tokens", {
+  id: serial("id").primaryKey(),
+  token: varchar("token").unique().notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: varchar("name"),
+  lastUsedAt: timestamp("last_used_at"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("api_tokens_token_idx").on(table.token),
+  index("api_tokens_user_org_idx").on(table.userId, table.organizationId),
+]);
+
+export const insertApiTokenSchema = createInsertSchema(apiTokens).omit({
+  id: true,
+  createdAt: true,
+  lastUsedAt: true,
+});
+export type InsertApiToken = z.infer<typeof insertApiTokenSchema>;
+export type ApiToken = typeof apiTokens.$inferSelect;

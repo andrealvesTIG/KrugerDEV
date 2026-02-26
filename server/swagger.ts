@@ -77,7 +77,8 @@ const spec = {
     { name: 'Project Intakes', description: 'Intake workflow' },
     { name: 'Intake Workflow', description: 'Intake workflow configuration' },
     { name: 'MPP Imports', description: 'MS Project file imports' },
-    { name: 'Analytics', description: 'Power BI analytics endpoints (basicAuth)' },
+    { name: 'Analytics', description: 'Power BI analytics endpoints (basicAuth or bearerAuth)' },
+    { name: 'API Tokens', description: 'Bearer token management for Analytics API' },
     { name: 'AI', description: 'AI-powered features' },
     { name: 'Billing', description: 'Plans, subscriptions, billing management' },
     { name: 'Dashboards', description: 'Custom dashboards, export, sharing' },
@@ -107,6 +108,11 @@ const spec = {
         type: 'http',
         scheme: 'basic',
         description: 'Basic auth for Analytics API. Username = email, Password = API key',
+      },
+      bearerAuth: {
+        type: 'http',
+        scheme: 'bearer',
+        description: 'Bearer token auth for Analytics API. Token is scoped to a specific organization.',
       },
     },
     schemas: {
@@ -2120,51 +2126,106 @@ const spec = {
     // ======================== ANALYTICS ========================
     '/analytics/projects': {
       get: op('Analytics', 'Get projects data for Power BI', {
-        security: [{ basicAuth: [] }],
-        parameters: [qInt('orgId', true)],
+        security: [{ basicAuth: [] }, { bearerAuth: [] }],
+        parameters: [qInt('organizationId', false, 'Organization ID (optional with Bearer token)')],
         responses: { ...r200('Projects analytics data', arrOf('Project')), ...e401 },
       }),
     },
     '/analytics/portfolios': {
       get: op('Analytics', 'Get portfolios data for Power BI', {
-        security: [{ basicAuth: [] }],
-        parameters: [qInt('orgId', true)],
+        security: [{ basicAuth: [] }, { bearerAuth: [] }],
+        parameters: [qInt('organizationId', false, 'Organization ID (optional with Bearer token)')],
         responses: { ...r200('Portfolios analytics data', arrOf('Portfolio')), ...e401 },
       }),
     },
     '/analytics/risks': {
       get: op('Analytics', 'Get risks data for Power BI', {
-        security: [{ basicAuth: [] }],
-        parameters: [qInt('orgId', true)],
+        security: [{ basicAuth: [] }, { bearerAuth: [] }],
+        parameters: [qInt('organizationId', false, 'Organization ID (optional with Bearer token)')],
         responses: { ...r200('Risks analytics data', arrOf('Risk')), ...e401 },
       }),
     },
     '/analytics/issues': {
       get: op('Analytics', 'Get issues data for Power BI', {
-        security: [{ basicAuth: [] }],
-        parameters: [qInt('orgId', true)],
+        security: [{ basicAuth: [] }, { bearerAuth: [] }],
+        parameters: [qInt('organizationId', false, 'Organization ID (optional with Bearer token)')],
         responses: { ...r200('Issues analytics data', arrOf('Issue')), ...e401 },
       }),
     },
     '/analytics/milestones': {
       get: op('Analytics', 'Get milestones data for Power BI', {
-        security: [{ basicAuth: [] }],
-        parameters: [qInt('orgId', true)],
+        security: [{ basicAuth: [] }, { bearerAuth: [] }],
+        parameters: [qInt('organizationId', false, 'Organization ID (optional with Bearer token)')],
         responses: { ...r200('Milestones analytics data', arrOf('Milestone')), ...e401 },
       }),
     },
     '/analytics/intakes': {
       get: op('Analytics', 'Get intakes data for Power BI', {
-        security: [{ basicAuth: [] }],
-        parameters: [qInt('orgId', true)],
+        security: [{ basicAuth: [] }, { bearerAuth: [] }],
+        parameters: [qInt('organizationId', false, 'Organization ID (optional with Bearer token)')],
         responses: { ...r200('Intakes analytics data', arrOf('ProjectIntake')), ...e401 },
       }),
     },
     '/analytics/summary': {
       get: op('Analytics', 'Get summary analytics for Power BI', {
-        security: [{ basicAuth: [] }],
-        parameters: [qInt('orgId', true)],
+        security: [{ basicAuth: [] }, { bearerAuth: [] }],
+        parameters: [qInt('organizationId', false, 'Organization ID (optional with Bearer token)')],
         responses: { ...r200('Summary analytics'), ...e401 },
+      }),
+    },
+
+    // ======================== API TOKENS ========================
+    '/organizations/{orgId}/api-tokens': {
+      post: op('API Tokens', 'Generate a new Bearer token for the Analytics API', {
+        parameters: [pathId('orgId')],
+        requestBody: body({
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Optional label for the token (e.g., "Power BI Production")' },
+            expiresAt: { type: 'string', format: 'date-time', description: 'Optional expiration date' },
+          },
+        }, false),
+        responses: {
+          ...r201('Token created', {
+            type: 'object',
+            properties: {
+              id: { type: 'integer' },
+              token: { type: 'string', description: 'Full token value (shown only once)' },
+              name: { type: 'string' },
+              organizationId: { type: 'integer' },
+              expiresAt: { type: 'string', format: 'date-time' },
+              createdAt: { type: 'string', format: 'date-time' },
+            },
+          }),
+          ...createRes,
+        },
+      }),
+      get: op('API Tokens', 'List Bearer tokens for the current user in this organization', {
+        parameters: [pathId('orgId')],
+        responses: {
+          ...r200('List of tokens (masked)', {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'integer' },
+                name: { type: 'string' },
+                token: { type: 'string', description: 'Masked token value' },
+                organizationId: { type: 'integer' },
+                lastUsedAt: { type: 'string', format: 'date-time' },
+                expiresAt: { type: 'string', format: 'date-time' },
+                createdAt: { type: 'string', format: 'date-time' },
+              },
+            },
+          }),
+          ...stdRes,
+        },
+      }),
+    },
+    '/organizations/{orgId}/api-tokens/{tokenId}': {
+      delete: op('API Tokens', 'Revoke a Bearer token', {
+        parameters: [pathId('orgId'), pathId('tokenId')],
+        responses: { ...r200('Token revoked'), ...fullRes },
       }),
     },
 

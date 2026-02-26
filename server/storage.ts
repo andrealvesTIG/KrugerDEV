@@ -69,7 +69,8 @@ import {
   portfolioRiskAssessments, type PortfolioRiskAssessment, type InsertPortfolioRiskAssessment,
   projectRiskAssessments, type ProjectRiskAssessment, type InsertProjectRiskAssessment,
   customDashboards, apiRequestLogs, userActivityLogs, featureUsageLogs,
-  errorLogs, helpTickets, simulationRuns, reportSubscriptions
+  errorLogs, helpTickets, simulationRuns, reportSubscriptions,
+  apiTokens, type ApiToken, type InsertApiToken
 } from "@shared/schema";
 import { eq, and, desc, asc, or, ilike, sql, isNull, isNotNull, inArray, notInArray } from "drizzle-orm";
 import { 
@@ -489,6 +490,13 @@ export interface IStorage {
   getLatestProjectRiskAssessmentsForOrg(organizationId: number): Promise<ProjectRiskAssessment[]>;
   getProjectRiskAssessmentByShareToken(shareToken: string): Promise<ProjectRiskAssessment | undefined>;
   getProjectRiskAssessmentHistory(projectId: number): Promise<Pick<ProjectRiskAssessment, 'id' | 'riskScore' | 'generatedAt'>[]>;
+
+  // API Tokens
+  createApiToken(data: InsertApiToken): Promise<ApiToken>;
+  getApiTokenByToken(token: string): Promise<(ApiToken & { user: User }) | undefined>;
+  getApiTokensByUserAndOrg(userId: string, organizationId: number): Promise<ApiToken[]>;
+  deleteApiToken(id: number): Promise<void>;
+  updateApiTokenLastUsed(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -4552,6 +4560,54 @@ export class DatabaseStorage implements IStorage {
     }).from(projectRiskAssessments)
       .where(eq(projectRiskAssessments.projectId, projectId))
       .orderBy(projectRiskAssessments.generatedAt);
+  }
+
+  async createApiToken(data: InsertApiToken): Promise<ApiToken> {
+    const [token] = await db.insert(apiTokens).values(data).returning();
+    return token;
+  }
+
+  async getApiTokenByToken(token: string): Promise<(ApiToken & { user: User }) | undefined> {
+    const results = await db.select({
+      id: apiTokens.id,
+      token: apiTokens.token,
+      userId: apiTokens.userId,
+      organizationId: apiTokens.organizationId,
+      name: apiTokens.name,
+      lastUsedAt: apiTokens.lastUsedAt,
+      expiresAt: apiTokens.expiresAt,
+      createdAt: apiTokens.createdAt,
+      user: users,
+    }).from(apiTokens)
+      .innerJoin(users, eq(apiTokens.userId, users.id))
+      .where(eq(apiTokens.token, token));
+    if (results.length === 0) return undefined;
+    const row = results[0];
+    return {
+      id: row.id,
+      token: row.token,
+      userId: row.userId,
+      organizationId: row.organizationId,
+      name: row.name,
+      lastUsedAt: row.lastUsedAt,
+      expiresAt: row.expiresAt,
+      createdAt: row.createdAt,
+      user: row.user,
+    };
+  }
+
+  async getApiTokensByUserAndOrg(userId: string, organizationId: number): Promise<ApiToken[]> {
+    return await db.select().from(apiTokens)
+      .where(and(eq(apiTokens.userId, userId), eq(apiTokens.organizationId, organizationId)))
+      .orderBy(desc(apiTokens.createdAt));
+  }
+
+  async deleteApiToken(id: number): Promise<void> {
+    await db.delete(apiTokens).where(eq(apiTokens.id, id));
+  }
+
+  async updateApiTokenLastUsed(id: number): Promise<void> {
+    await db.update(apiTokens).set({ lastUsedAt: new Date() }).where(eq(apiTokens.id, id));
   }
 }
 

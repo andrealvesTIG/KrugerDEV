@@ -15016,24 +15016,42 @@ Return ONLY valid JSON.`;
 
   // Helper: Get user ID from either session or API key (Basic auth)
   // Power BI uses Basic auth where username=email and password=apiKey
-  async function getAnalyticsUserId(req: ExpressRequest): Promise<string | null> {
+  async function getAnalyticsUserId(req: ExpressRequest): Promise<{ userId: string; organizationId?: number } | null> {
     // First try session-based auth
     const sessionUserId = getUserIdFromRequest(req);
-    if (sessionUserId) return sessionUserId;
-    
-    // Then try API key via Basic auth header
+    if (sessionUserId) return { userId: sessionUserId };
+
     const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Basic ')) {
+    if (!authHeader) return null;
+
+    // Try Bearer token auth (scoped to organization)
+    if (authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.slice(7);
+        const tokenRecord = await storage.getApiTokenByToken(token);
+        if (tokenRecord) {
+          if (tokenRecord.expiresAt && tokenRecord.expiresAt < new Date()) {
+            return null;
+          }
+          storage.updateApiTokenLastUsed(tokenRecord.id);
+          return { userId: tokenRecord.userId, organizationId: tokenRecord.organizationId };
+        }
+      } catch (err) {
+        console.error('Error parsing Bearer auth:', err);
+      }
+    }
+
+    // Try Basic auth (email:apiKey)
+    if (authHeader.startsWith('Basic ')) {
       try {
         const base64Credentials = authHeader.slice(6);
         const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
         const [email, apiKey] = credentials.split(':');
         
         if (email && apiKey) {
-          // Look up user by API key
           const user = await storage.getUserByApiKey(apiKey);
           if (user && user.email === email) {
-            return user.id;
+            return { userId: user.id };
           }
         }
       } catch (err) {
@@ -15127,28 +15145,145 @@ Return ONLY valid JSON.`;
     }
   });
 
-  // Analytics: Projects flat data for Power BI
-  app.get('/api/analytics/projects', async (req, res) => {
+  async function resolveAnalyticsScope(req: ExpressRequest, res: any, emptyResult: any = []): Promise<{ userId: string; targetOrgIds: number[] } | null> {
+    const authResult = await getAnalyticsUserId(req);
+    if (!authResult) {
+      res.status(401).json({ message: "Authentication required. Use Basic auth, Bearer token, or session." });
+      return null;
+    }
+
+    const { userId, organizationId: bearerOrgId } = authResult;
+    const queryOrgId = req.query.organizationId ? Number(req.query.organizationId) : null;
+
+    if (bearerOrgId) {
+      if (queryOrgId && queryOrgId !== bearerOrgId) {
+        res.status(403).json({ message: "Bearer token is scoped to a specific organization. Cannot override with organizationId parameter." });
+        return null;
+      }
+      return { userId, targetOrgIds: [bearerOrgId] };
+    }
+
+    const accessibleOrgIds = await getUserOrgIds(userId);
+
+    if (accessibleOrgIds.length === 0) {
+      res.json(emptyResult);
+      return null;
+    }
+
+    if (queryOrgId && !accessibleOrgIds.includes(queryOrgId)) {
+      res.status(403).json({ message: "Access denied to this organization" });
+      return null;
+    }
+
+    const targetOrgIds = queryOrgId ? [queryOrgId] : accessibleOrgIds;
+    return { userId, targetOrgIds };
+  }
+
+  // API Token Management (Bearer tokens scoped to organizations)
+  app.post('/api/organizations/:orgId/api-tokens', async (req, res) => {
     try {
-      const userId = await getAnalyticsUserId(req);
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
-        return res.status(401).json({ message: "Authentication required. Use Basic auth with your email and API key." });
+        return res.status(401).json({ message: "Authentication required" });
       }
 
-      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
-      
-      // Get user's accessible organizations
+      const orgId = Number(req.params.orgId);
       const accessibleOrgIds = await getUserOrgIds(userId);
-      if (accessibleOrgIds.length === 0) {
-        return res.json([]);
-      }
-
-      // If specific org requested, validate access
-      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
+      if (!accessibleOrgIds.includes(orgId)) {
         return res.status(403).json({ message: "Access denied to this organization" });
       }
 
-      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
+      const crypto = await import('crypto');
+      const tokenValue = crypto.randomBytes(32).toString('hex');
+
+      const { name, expiresAt } = req.body || {};
+      const token = await storage.createApiToken({
+        token: tokenValue,
+        userId,
+        organizationId: orgId,
+        name: name || null,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+      });
+
+      res.json({
+        id: token.id,
+        token: tokenValue,
+        name: token.name,
+        organizationId: token.organizationId,
+        expiresAt: token.expiresAt,
+        createdAt: token.createdAt,
+      });
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.get('/api/organizations/:orgId/api-tokens', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const orgId = Number(req.params.orgId);
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(orgId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+
+      const tokens = await storage.getApiTokensByUserAndOrg(userId, orgId);
+      const masked = tokens.map(t => ({
+        id: t.id,
+        name: t.name,
+        token: t.token.slice(0, 8) + '••••••••',
+        organizationId: t.organizationId,
+        lastUsedAt: t.lastUsedAt,
+        expiresAt: t.expiresAt,
+        createdAt: t.createdAt,
+      }));
+
+      res.json(masked);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.delete('/api/organizations/:orgId/api-tokens/:tokenId', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const orgId = Number(req.params.orgId);
+      const tokenId = Number(req.params.tokenId);
+
+      const tokens = await storage.getApiTokensByUserAndOrg(userId, orgId);
+      const token = tokens.find(t => t.id === tokenId);
+      if (!token) {
+        return res.status(404).json({ message: "Token not found" });
+      }
+
+      if (token.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to delete this token" });
+      }
+
+      await storage.deleteApiToken(tokenId);
+      res.json({ message: "Token revoked" });
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  // Analytics: Projects flat data for Power BI
+  app.get('/api/analytics/projects', async (req, res) => {
+    try {
+      const scope = await resolveAnalyticsScope(req, res);
+      if (!scope) return;
+      const { targetOrgIds } = scope;
       
       // Fetch projects for all accessible organizations
       const allProjects: any[] = [];
@@ -15205,23 +15340,9 @@ Return ONLY valid JSON.`;
   // Analytics: Portfolios summary for Power BI
   app.get('/api/analytics/portfolios', async (req, res) => {
     try {
-      const userId = await getAnalyticsUserId(req);
-      if (!userId) {
-        return res.status(401).json({ message: "Authentication required. Use Basic auth with your email and API key." });
-      }
-
-      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
-      const accessibleOrgIds = await getUserOrgIds(userId);
-      
-      if (accessibleOrgIds.length === 0) {
-        return res.json([]);
-      }
-
-      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
-        return res.status(403).json({ message: "Access denied to this organization" });
-      }
-
-      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
+      const scope = await resolveAnalyticsScope(req, res);
+      if (!scope) return;
+      const { targetOrgIds } = scope;
       
       const allPortfolios: any[] = [];
       for (const orgId of targetOrgIds) {
@@ -15265,23 +15386,9 @@ Return ONLY valid JSON.`;
   // Analytics: Risks flat data for Power BI
   app.get('/api/analytics/risks', async (req, res) => {
     try {
-      const userId = await getAnalyticsUserId(req);
-      if (!userId) {
-        return res.status(401).json({ message: "Authentication required. Use Basic auth with your email and API key." });
-      }
-
-      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
-      const accessibleOrgIds = await getUserOrgIds(userId);
-      
-      if (accessibleOrgIds.length === 0) {
-        return res.json([]);
-      }
-
-      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
-        return res.status(403).json({ message: "Access denied to this organization" });
-      }
-
-      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
+      const scope = await resolveAnalyticsScope(req, res);
+      if (!scope) return;
+      const { targetOrgIds } = scope;
       
       const allRisks: any[] = [];
       for (const orgId of targetOrgIds) {
@@ -15322,23 +15429,9 @@ Return ONLY valid JSON.`;
   // Analytics: Issues flat data for Power BI
   app.get('/api/analytics/issues', async (req, res) => {
     try {
-      const userId = await getAnalyticsUserId(req);
-      if (!userId) {
-        return res.status(401).json({ message: "Authentication required. Use Basic auth with your email and API key." });
-      }
-
-      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
-      const accessibleOrgIds = await getUserOrgIds(userId);
-      
-      if (accessibleOrgIds.length === 0) {
-        return res.json([]);
-      }
-
-      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
-        return res.status(403).json({ message: "Access denied to this organization" });
-      }
-
-      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
+      const scope = await resolveAnalyticsScope(req, res);
+      if (!scope) return;
+      const { targetOrgIds } = scope;
       
       const allIssues: any[] = [];
       for (const orgId of targetOrgIds) {
@@ -15378,23 +15471,9 @@ Return ONLY valid JSON.`;
   // Analytics: Milestones flat data for Power BI
   app.get('/api/analytics/milestones', async (req, res) => {
     try {
-      const userId = await getAnalyticsUserId(req);
-      if (!userId) {
-        return res.status(401).json({ message: "Authentication required. Use Basic auth with your email and API key." });
-      }
-
-      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
-      const accessibleOrgIds = await getUserOrgIds(userId);
-      
-      if (accessibleOrgIds.length === 0) {
-        return res.json([]);
-      }
-
-      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
-        return res.status(403).json({ message: "Access denied to this organization" });
-      }
-
-      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
+      const scope = await resolveAnalyticsScope(req, res);
+      if (!scope) return;
+      const { targetOrgIds } = scope;
       
       const allMilestones: any[] = [];
       for (const orgId of targetOrgIds) {
@@ -15431,23 +15510,9 @@ Return ONLY valid JSON.`;
   // Analytics: Intakes flat data for Power BI
   app.get('/api/analytics/intakes', async (req, res) => {
     try {
-      const userId = await getAnalyticsUserId(req);
-      if (!userId) {
-        return res.status(401).json({ message: "Authentication required. Use Basic auth with your email and API key." });
-      }
-
-      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
-      const accessibleOrgIds = await getUserOrgIds(userId);
-      
-      if (accessibleOrgIds.length === 0) {
-        return res.json([]);
-      }
-
-      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
-        return res.status(403).json({ message: "Access denied to this organization" });
-      }
-
-      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
+      const scope = await resolveAnalyticsScope(req, res);
+      if (!scope) return;
+      const { targetOrgIds } = scope;
       
       const allIntakes: any[] = [];
       for (const orgId of targetOrgIds) {
@@ -15485,23 +15550,9 @@ Return ONLY valid JSON.`;
   // Analytics: Summary metrics for Power BI dashboards
   app.get('/api/analytics/summary', async (req, res) => {
     try {
-      const userId = await getAnalyticsUserId(req);
-      if (!userId) {
-        return res.status(401).json({ message: "Authentication required. Use Basic auth with your email and API key." });
-      }
-
-      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
-      const accessibleOrgIds = await getUserOrgIds(userId);
-      
-      if (accessibleOrgIds.length === 0) {
-        return res.json({ organizations: [] });
-      }
-
-      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
-        return res.status(403).json({ message: "Access denied to this organization" });
-      }
-
-      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
+      const scope = await resolveAnalyticsScope(req, res, { organizations: [] });
+      if (!scope) return;
+      const { targetOrgIds } = scope;
       
       const summaries: any[] = [];
       for (const orgId of targetOrgIds) {
