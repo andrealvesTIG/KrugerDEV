@@ -97,9 +97,19 @@ export const api = {
       path: '/api/projects',
       input: z.object({
         portfolioId: z.coerce.number().optional(),
+        page: z.coerce.number().optional(),
+        pageSize: z.coerce.number().optional(),
       }).optional(),
       responses: {
-        200: z.array(z.custom<typeof projects.$inferSelect>()),
+        200: z.union([
+          z.array(z.custom<typeof projects.$inferSelect>()),
+          z.object({
+            projects: z.array(z.custom<typeof projects.$inferSelect>()),
+            total: z.number(),
+            page: z.number(),
+            pageSize: z.number(),
+          }),
+        ]),
       },
     },
     get: {

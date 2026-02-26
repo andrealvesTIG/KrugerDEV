@@ -18,7 +18,7 @@ import { z } from "zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject, Project, Resource } from "@shared/schema";
 import { Link, useLocation } from "wouter";
-import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check, Crown, Database, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown, FileSpreadsheet, Cloud, Rocket, Lock as LockIcon, Shield } from "lucide-react";
+import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, ChevronLeft, ChevronRight, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check, Crown, Database, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown, FileSpreadsheet, Cloud, Rocket, Lock as LockIcon, Shield } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -47,6 +47,78 @@ import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { PageTransition, FadeIn } from "@/components/ui/page-transition";
 
 const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing", "Closed"];
+
+function ProjectsPagination({ currentPage, totalPages, totalItems, pageSize, onPageChange }: {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+}) {
+  const startItem = (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalItems);
+
+  const getPageNumbers = () => {
+    const pages: (number | 'ellipsis')[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('ellipsis');
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (currentPage < totalPages - 2) pages.push('ellipsis');
+      pages.push(totalPages);
+    }
+    return pages;
+  };
+
+  return (
+    <div className="flex items-center justify-between px-2 py-4 text-sm">
+      <span className="text-muted-foreground">
+        Showing {startItem}–{endItem} of {totalItems} projects
+      </span>
+      {totalPages > 1 && (
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage <= 1}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          {getPageNumbers().map((page, idx) =>
+            page === 'ellipsis' ? (
+              <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground">…</span>
+            ) : (
+              <Button
+                key={page}
+                variant={page === currentPage ? "default" : "outline"}
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => onPageChange(page)}
+              >
+                {page}
+              </Button>
+            )
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Projects() {
   const { currentOrganization, memberships } = useOrganization();
@@ -114,9 +186,8 @@ export default function Projects() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [, navigate] = useLocation();
 
-  const LIST_PAGE_SIZE = 25;
-  const [listDisplayCount, setListDisplayCount] = useState(LIST_PAGE_SIZE);
-  const listLoadMoreRef = useRef<HTMLDivElement>(null);
+  const LIST_PAGE_SIZE = 10;
+  const [listCurrentPage, setListCurrentPage] = useState(1);
 
   const generateProjectRiskAssessment = useMutation({
     mutationFn: async (projectId: number) => {
@@ -403,30 +474,17 @@ export default function Projects() {
   }, [projects, externalProjects, search, sourceFilter, sortBy, selectedPortfolio, filterView, user?.id]);
 
   useEffect(() => {
-    setListDisplayCount(LIST_PAGE_SIZE);
+    setListCurrentPage(1);
   }, [filteredProjects, view]);
 
-  useEffect(() => {
-    if (view !== "list") return;
-    const el = listLoadMoreRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          setListDisplayCount(prev => prev + LIST_PAGE_SIZE);
-        }
-      },
-      { rootMargin: '200px' }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [view]);
+  const totalListPages = useMemo(() => {
+    return Math.max(1, Math.ceil((filteredProjects?.length || 0) / LIST_PAGE_SIZE));
+  }, [filteredProjects, LIST_PAGE_SIZE]);
 
   const displayedListProjects = useMemo(() => {
-    return (filteredProjects || []).slice(0, listDisplayCount);
-  }, [filteredProjects, listDisplayCount]);
-
-  const hasMoreListProjects = listDisplayCount < (filteredProjects?.length || 0);
+    const start = (listCurrentPage - 1) * LIST_PAGE_SIZE;
+    return (filteredProjects || []).slice(start, start + LIST_PAGE_SIZE);
+  }, [filteredProjects, listCurrentPage, LIST_PAGE_SIZE]);
 
   const handleStatusChange = (projectId: number, newStatus: string) => {
     updateProject.mutate(
@@ -923,19 +981,14 @@ export default function Projects() {
                   </motion.div>
                 ))}
                 {(filteredProjects?.length || 0) > 0 && (
-                  <div className="flex items-center justify-between px-2 py-2 text-sm text-muted-foreground">
-                    <span>
-                      Showing {Math.min(listDisplayCount, filteredProjects?.length || 0)} of {filteredProjects?.length || 0} projects
-                    </span>
-                    {hasMoreListProjects && (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Scroll for more
-                      </span>
-                    )}
-                  </div>
+                  <ProjectsPagination
+                    currentPage={listCurrentPage}
+                    totalPages={totalListPages}
+                    totalItems={filteredProjects?.length || 0}
+                    pageSize={LIST_PAGE_SIZE}
+                    onPageChange={setListCurrentPage}
+                  />
                 )}
-                <div ref={listLoadMoreRef} className="h-1" />
               </div>
             ) : view === "grid" ? (
               <ProjectsGridView 
@@ -1212,19 +1265,14 @@ export default function Projects() {
             </div>
           )}
           {(filteredProjects?.length || 0) > 0 && (
-            <div className="flex items-center justify-between px-2 py-2 text-sm text-muted-foreground">
-              <span>
-                Showing {Math.min(listDisplayCount, filteredProjects?.length || 0)} of {filteredProjects?.length || 0} projects
-              </span>
-              {hasMoreListProjects && (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Scroll for more
-                </span>
-              )}
-            </div>
+            <ProjectsPagination
+              currentPage={listCurrentPage}
+              totalPages={totalListPages}
+              totalItems={filteredProjects?.length || 0}
+              pageSize={LIST_PAGE_SIZE}
+              onPageChange={setListCurrentPage}
+            />
           )}
-          <div ref={listLoadMoreRef} className="h-1" />
         </div>
       ) : !isFullscreen && view === "grid" ? (
         <ProjectsGridView 
@@ -1534,28 +1582,12 @@ function ProjectsGridView({
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [internalFullscreen, setInternalFullscreen] = useState(false);
 
-  const PAGE_SIZE = 25;
-  const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
-  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const GRID_PAGE_SIZE = 10;
+  const [gridCurrentPage, setGridCurrentPage] = useState(1);
 
   useEffect(() => {
-    setDisplayCount(PAGE_SIZE);
+    setGridCurrentPage(1);
   }, [projects]);
-
-  useEffect(() => {
-    const el = loadMoreRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          setDisplayCount(prev => prev + PAGE_SIZE);
-        }
-      },
-      { rootMargin: '200px' }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
   
   const { data: resources } = useQuery<Resource[]>({
     queryKey: ['/api/resources', organizationId],
@@ -1663,12 +1695,15 @@ function ProjectsGridView({
     return sortData(projects, sortState, getFieldValue);
   }, [projects, sortState, getFieldValue]);
 
-  const displayedProjects = useMemo(() => {
-    return sortedProjects.slice(0, displayCount);
-  }, [sortedProjects, displayCount]);
+  const gridTotalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(sortedProjects.length / GRID_PAGE_SIZE));
+  }, [sortedProjects, GRID_PAGE_SIZE]);
 
-  const hasMoreProjects = displayCount < sortedProjects.length;
-  
+  const displayedProjects = useMemo(() => {
+    const start = (gridCurrentPage - 1) * GRID_PAGE_SIZE;
+    return sortedProjects.slice(start, start + GRID_PAGE_SIZE);
+  }, [sortedProjects, gridCurrentPage, GRID_PAGE_SIZE]);
+
   const handleApplyView = (view: { visibleColumns: string[]; columnOrder: string[] }) => {
     setVisibleColumns(view.visibleColumns);
     setColumnOrder(view.columnOrder);
@@ -2411,19 +2446,14 @@ function ProjectsGridView({
         </DndContext>
       </div>
       {sortedProjects.length > 0 && (
-        <div className="flex items-center justify-between px-2 py-2 text-sm text-muted-foreground">
-          <span>
-            Showing {Math.min(displayCount, sortedProjects.length)} of {sortedProjects.length} projects
-          </span>
-          {hasMoreProjects && (
-            <span className="flex items-center gap-2">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Scroll for more
-            </span>
-          )}
-        </div>
+        <ProjectsPagination
+          currentPage={gridCurrentPage}
+          totalPages={gridTotalPages}
+          totalItems={sortedProjects.length}
+          pageSize={GRID_PAGE_SIZE}
+          onPageChange={setGridCurrentPage}
+        />
       )}
-      <div ref={loadMoreRef} className="h-1" />
       
       {/* Bulk Delete Confirmation Dialog */}
       <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>

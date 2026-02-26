@@ -4636,29 +4636,37 @@ export async function registerRoutes(
     
     // Deny access if user is not a member of any organization
     if (!await userHasAnyOrgAccess(userId)) {
+      const page = req.query.page ? Number(req.query.page) : undefined;
+      if (page !== undefined) {
+        return res.json({ projects: [], total: 0, page: page || 1, pageSize: Number(req.query.pageSize) || 10 });
+      }
       return res.json([]);
     }
     
     const requestedOrgId = req.query.organizationId ? Number(req.query.organizationId) : undefined;
     const portfolioId = req.query.portfolioId ? Number(req.query.portfolioId) : undefined;
+    const page = req.query.page ? Number(req.query.page) : undefined;
+    const pageSize = req.query.pageSize ? Number(req.query.pageSize) : 10;
     
     // Get user's accessible org IDs
     const accessibleOrgIds = await getUserOrgIds(userId);
     
     // If requesting a specific org, check access
     if (requestedOrgId && !accessibleOrgIds.includes(requestedOrgId)) {
-      return res.json([]); // Return empty if no access
+      if (page !== undefined) {
+        return res.json({ projects: [], total: 0, page: page || 1, pageSize });
+      }
+      return res.json([]);
     }
     
-    const projects = await storage.getProjects(requestedOrgId, portfolioId);
+    const allProjects = await storage.getProjects(requestedOrgId, portfolioId);
     
     // Filter projects to only those in accessible orgs
-    let filteredProjects = projects.filter(p => 
+    let filteredProjects = allProjects.filter(p => 
       p.organizationId === null || accessibleOrgIds.includes(p.organizationId)
     );
     
     // For team_member role, further filter to only assigned projects
-    // Apply filtering across all orgs where user has team_member role
     if (userId) {
       const userOrgs = await storage.getUserOrganizations(userId);
       for (const membership of userOrgs) {
@@ -4669,6 +4677,21 @@ export async function registerRoutes(
           );
         }
       }
+    }
+    
+    // If pagination requested, return paginated response
+    if (page !== undefined) {
+      const currentPage = Math.max(1, page);
+      const total = filteredProjects.length;
+      // Sort by most recent first before paginating
+      filteredProjects.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      });
+      const start = (currentPage - 1) * pageSize;
+      const paginatedProjects = filteredProjects.slice(start, start + pageSize);
+      return res.json({ projects: paginatedProjects, total, page: currentPage, pageSize });
     }
     
     res.json(filteredProjects);

@@ -1,6 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
-import type { ProjectChangeLog, InsertProject } from "@shared/schema";
+import type { ProjectChangeLog, InsertProject, Project } from "@shared/schema";
+
+export interface PaginatedProjects {
+  projects: Project[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
 
 export function useProjects(organizationId?: number | null, portfolioId?: number) {
   return useQuery({
@@ -13,7 +20,24 @@ export function useProjects(organizationId?: number | null, portfolioId?: number
       if (params.toString()) url += `?${params.toString()}`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch projects");
-      return api.projects.list.responses[200].parse(await res.json());
+      return res.json() as Promise<Project[]>;
+    },
+  });
+}
+
+export function useProjectsPaginated(organizationId?: number | null, portfolioId?: number, page: number = 1, pageSize: number = 10) {
+  return useQuery<PaginatedProjects>({
+    queryKey: [api.projects.list.path, 'paginated', organizationId, portfolioId, page, pageSize],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (organizationId) params.append('organizationId', String(organizationId));
+      if (portfolioId) params.append('portfolioId', String(portfolioId));
+      params.append('page', String(page));
+      params.append('pageSize', String(pageSize));
+      const url = `${api.projects.list.path}?${params.toString()}`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch projects");
+      return res.json();
     },
   });
 }
