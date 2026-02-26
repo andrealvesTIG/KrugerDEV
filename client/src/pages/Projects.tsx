@@ -120,6 +120,319 @@ function ProjectsPagination({ currentPage, totalPages, totalItems, pageSize, onP
   );
 }
 
+const STATUS_COLORS: Record<string, string> = {
+  Initiation: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  Planning: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+  Execution: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+  Monitoring: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
+  Closing: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  Billing: "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300",
+  Closed: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
+};
+
+const PRIORITY_COLORS: Record<string, string> = {
+  Critical: "bg-rose-500 text-white",
+  High: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
+  Medium: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+  Low: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+};
+
+const HEALTH_CONFIG: Record<string, { dot: string; bg: string; label: string }> = {
+  Green: { dot: "bg-emerald-500", bg: "bg-emerald-500", label: "On Track" },
+  Yellow: { dot: "bg-amber-500", bg: "bg-amber-500", label: "At Risk" },
+  Red: { dot: "bg-rose-500", bg: "bg-rose-500", label: "Off Track" },
+};
+
+interface ProjectsListViewProps {
+  projects: Project[];
+  filteredProjects: Project[];
+  projectProgress: Record<number, number>;
+  getRiskScoreForProject: (projectId: number) => { projectId: number; riskScore: number; summary: string; generatedAt: string } | undefined;
+  getRiskScoreColor: (score: number) => string;
+  handleStatusChange: (projectId: number, newStatus: string) => void;
+  setDeleteProjectId: (id: number | null) => void;
+  setRiskAssessProjectId: (id: number | null) => void;
+  currentPage: number;
+  totalPages: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  isLoading?: boolean;
+}
+
+function ProjectsListView({
+  projects,
+  filteredProjects,
+  projectProgress,
+  getRiskScoreForProject,
+  getRiskScoreColor,
+  handleStatusChange,
+  setDeleteProjectId,
+  setRiskAssessProjectId,
+  currentPage,
+  totalPages,
+  pageSize,
+  onPageChange,
+  isLoading,
+}: ProjectsListViewProps) {
+  return (
+    <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+      <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_110px_90px_80px_140px_100px_100px_40px] gap-0 px-4 py-2.5 bg-muted/50 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        <span className="pl-3">Project</span>
+        <span>Status</span>
+        <span>Priority</span>
+        <span>Health</span>
+        <span>Progress</span>
+        <span className="text-right">Budget</span>
+        <span className="text-right">Due Date</span>
+        <span></span>
+      </div>
+
+      <div className="divide-y divide-border">
+        {projects.map((project, index) => {
+          const progress = projectProgress[project.id] || 0;
+          const health = HEALTH_CONFIG[project.health || 'Green'] || HEALTH_CONFIG.Green;
+          const riskData = getRiskScoreForProject(project.id);
+          const showRisk = riskData && ((Date.now() - new Date(riskData.generatedAt).getTime()) / (1000 * 60 * 60 * 24)) <= 5;
+          
+          return (
+            <motion.div
+              key={project.id}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.3) }}
+            >
+              <Link href={`/projects/${project.id}`}>
+                <div className="group grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_110px_90px_80px_140px_100px_100px_40px] gap-3 sm:gap-0 items-center px-4 py-3 hover:bg-muted/40 transition-colors duration-150 cursor-pointer">
+                  <div className="flex items-center gap-3 min-w-0 pl-1">
+                    <div className={cn("w-1 h-8 rounded-full shrink-0", health.bg)} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors" title={project.name}>
+                          {project.name}
+                        </span>
+                        {project.timesheetBlocked && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <LockIcon className="h-3 w-3 text-amber-500 shrink-0" />
+                            </TooltipTrigger>
+                            <TooltipContent>Timesheet entries blocked</TooltipContent>
+                          </Tooltip>
+                        )}
+                        {project.source === "planner" && project.plannerPlanId && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  window.open(`https://planner.cloud.microsoft/webui/plan/${project.plannerPlanId}/view/board`, '_blank');
+                                }}
+                                className="shrink-0"
+                              >
+                                <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Synced from Microsoft Planner</TooltipContent>
+                          </Tooltip>
+                        )}
+                        {(project.source === "planner-premium" || project.source === "planner_premium") && project.plannerPlanId && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const tenantId = project.dataverseTenantId || '';
+                                  const planId = project.plannerPlanId;
+                                  const premiumUrl = tenantId 
+                                    ? `https://planner.cloud.microsoft/${tenantId}/en-US/Home/Planner/#/plantaskboard?planId=${planId}`
+                                    : `https://planner.cloud.microsoft/webui/plan/${planId}/view/board`;
+                                  window.open(premiumUrl, '_blank');
+                                }}
+                                className="shrink-0 flex items-center gap-0.5"
+                              >
+                                <img src={plannerLogoPath} alt="Planner Premium" className="h-4 w-4" />
+                                <Crown className="h-2.5 w-2.5 text-purple-500" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Synced from Planner Premium</TooltipContent>
+                          </Tooltip>
+                        )}
+                        {project.source === "imported" && project.sourceFileUrl && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const link = document.createElement('a');
+                                  link.href = project.sourceFileUrl!;
+                                  link.download = project.sourceFileName || 'project.mpp';
+                                  link.click();
+                                }}
+                                className="shrink-0"
+                              >
+                                <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Imported from MS Project</TooltipContent>
+                          </Tooltip>
+                        )}
+                        {(project as any).isExternal && (
+                          <ExternalBadge 
+                            organizationName={(project as any).sourceOrganizationName}
+                            accessRole={(project as any).accessRole}
+                          />
+                        )}
+                        {showRisk && riskData && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div>
+                                <Badge
+                                  variant="secondary"
+                                  className={`text-[10px] px-1.5 py-0 gap-0.5 shrink-0 ${getRiskScoreColor(riskData.riskScore)}`}
+                                >
+                                  <Shield className="h-2.5 w-2.5" />
+                                  {riskData.riskScore}
+                                </Badge>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">{riskData.summary}</TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center sm:justify-start" onClick={(e) => e.preventDefault()}>
+                    <Select 
+                      value={project.status} 
+                      onValueChange={(newStatus) => handleStatusChange(project.id, newStatus)}
+                    >
+                      <SelectTrigger 
+                        className={cn(
+                          "h-6 w-auto text-[11px] font-medium border-0 px-2 py-0 rounded-md shadow-none",
+                          STATUS_COLORS[project.status] || STATUS_COLORS.Initiation
+                        )}
+                        onClick={(e) => e.preventDefault()}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent onClick={(e) => e.stopPropagation()}>
+                        {PROJECT_STATUS_LIST.map(status => (
+                          <SelectItem key={status} value={status}>{status}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Badge className={cn(
+                      "text-[11px] font-medium px-2 py-0.5 rounded-md border-0",
+                      PRIORITY_COLORS[project.priority || 'Medium']
+                    )}>
+                      {project.priority}
+                    </Badge>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <div className={cn("w-2 h-2 rounded-full shrink-0", health.dot)} />
+                    <span className="text-xs text-muted-foreground hidden lg:inline">{health.label}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="h-1.5 w-20 rounded-full bg-muted overflow-hidden">
+                      <div 
+                        className={cn("h-full rounded-full transition-all duration-500", health.bg)}
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-medium text-muted-foreground w-8">{progress}%</span>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-sm font-medium text-foreground tabular-nums">
+                      {Number(project.budget) > 0 ? `$${Number(project.budget).toLocaleString()}` : '\u2014'}
+                    </span>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : '\u2014'}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-end" onClick={(e) => e.preventDefault()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          size="icon" 
+                          variant="ghost"
+                          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => e.preventDefault()}
+                        >
+                          <MoreVertical className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <Link href={`/projects/${project.id}`}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Details
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={(e) => { e.preventDefault(); setRiskAssessProjectId(project.id); }}
+                        >
+                          <Shield className="h-4 w-4 mr-2" />
+                          AI Risk Assessment
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          onClick={(e) => { e.preventDefault(); setDeleteProjectId(project.id); }} 
+                          className="text-red-600 focus:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              </Link>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {!isLoading && filteredProjects.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="rounded-full bg-muted p-4 mb-4">
+            <AlertCircle className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-medium text-foreground">No projects found</h3>
+          <p className="text-muted-foreground mt-1 mb-4">Try adjusting your filters or create a new project.</p>
+        </div>
+      )}
+
+      {filteredProjects.length > 0 && (
+        <div className="border-t border-border">
+          <ProjectsPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredProjects.length}
+            pageSize={pageSize}
+            onPageChange={onPageChange}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Projects() {
   const { currentOrganization, memberships } = useOrganization();
   const { user } = useAuth();
@@ -759,237 +1072,21 @@ export default function Projects() {
           </div>
           <div className="flex-1 overflow-auto p-4">
             {view === "list" ? (
-              <div className="space-y-6">
-                {displayedListProjects.map((project, index) => (
-                  <motion.div
-                    key={project.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.5) }}
-                  >
-                    <Link href={`/projects/${project.id}`}>
-                      <div className="group relative flex flex-col gap-5 rounded-2xl border border-border bg-card p-7 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 sm:flex-row sm:items-center cursor-pointer press-scale">
-                        <div className={cn(
-                          "absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl transition-all duration-300 group-hover:w-2",
-                          project.health === 'Green' && "bg-gradient-to-b from-emerald-400 to-emerald-600",
-                          project.health === 'Yellow' && "bg-gradient-to-b from-amber-400 to-amber-600",
-                          project.health === 'Red' && "bg-gradient-to-b from-rose-400 to-rose-600",
-                        )} />
-                        <div className="flex-1 pl-5">
-                          <div className="flex flex-wrap items-center gap-3">
-                            <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200">
-                              {project.name}
-                            </h3>
-                            {project.timesheetBlocked && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="flex items-center gap-1 px-2 py-1 bg-amber-100 dark:bg-amber-900/50 rounded-md" data-testid={`project-ts-blocked-fullscreen-${project.id}`}>
-                                    <LockIcon className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-                                    <span className="text-xs font-medium text-amber-700 dark:text-amber-300">TS Blocked</span>
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent>Timesheet entries blocked for this project</TooltipContent>
-                              </Tooltip>
-                            )}
-                            {project.source === "planner" && project.plannerPlanId && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  window.open(`https://planner.cloud.microsoft/webui/plan/${project.plannerPlanId}/view/board`, '_blank');
-                                }}
-                                className="flex items-center gap-1.5 px-2 py-1 bg-indigo-100 dark:bg-indigo-900/50 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-800/50 transition-colors"
-                                title="Synced from Microsoft Planner - Click to open in Planner"
-                                data-testid={`planner-badge-fullscreen-${project.id}`}
-                              >
-                                <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
-                                <Cloud className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
-                                <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">Planner</span>
-                                <ExternalLink className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
-                              </button>
-                            )}
-                            {(project.source === "planner-premium" || project.source === "planner_premium") && project.plannerPlanId && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  const tenantId = project.dataverseTenantId || '';
-                                  const planId = project.plannerPlanId;
-                                  const premiumUrl = tenantId 
-                                    ? `https://planner.cloud.microsoft/${tenantId}/en-US/Home/Planner/#/plantaskboard?planId=${planId}`
-                                    : `https://planner.cloud.microsoft/webui/plan/${planId}/view/board`;
-                                  window.open(premiumUrl, '_blank');
-                                }}
-                                className="flex items-center gap-1.5 px-2 py-1 bg-purple-100 dark:bg-purple-900/50 rounded-md hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors"
-                                title="Synced from Planner Premium - Click to open in Planner"
-                                data-testid={`planner-premium-badge-fullscreen-${project.id}`}
-                              >
-                                <img src={plannerLogoPath} alt="Planner Premium" className="h-4 w-4" />
-                                <Crown className="h-3 w-3 text-purple-600 dark:text-purple-400" />
-                                <span className="text-xs font-medium text-purple-700 dark:text-purple-300">Planner Premium</span>
-                                <ExternalLink className="h-3 w-3 text-purple-600 dark:text-purple-400" />
-                              </button>
-                            )}
-                            {project.source === "imported" && project.sourceFileUrl && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  const link = document.createElement('a');
-                                  link.href = project.sourceFileUrl!;
-                                  link.download = project.sourceFileName || 'project.mpp';
-                                  link.click();
-                                }}
-                                className="flex items-center gap-1.5 px-2 py-1 bg-emerald-100 dark:bg-emerald-900/50 rounded-md hover:bg-emerald-200 dark:hover:bg-emerald-800/50 transition-colors"
-                                title={`Imported from MS Project - Click to download ${project.sourceFileName || "source file"}`}
-                                data-testid={`msproject-badge-fullscreen-${project.id}`}
-                              >
-                                <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
-                                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">MS Project</span>
-                                <Download className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                              </button>
-                            )}
-                            {(project as any).isExternal && (
-                              <ExternalBadge 
-                                organizationName={(project as any).sourceOrganizationName}
-                                accessRole={(project as any).accessRole}
-                              />
-                            )}
-                            <Select 
-                              value={project.status} 
-                              onValueChange={(newStatus) => {
-                                handleStatusChange(project.id, newStatus);
-                              }}
-                            >
-                              <SelectTrigger 
-                                className="h-7 w-auto min-w-[120px] text-xs font-medium border-slate-300 dark:border-slate-600"
-                                onClick={(e) => e.preventDefault()}
-                                data-testid={`select-project-status-fullscreen-${project.id}`}
-                              >
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent onClick={(e) => e.stopPropagation()}>
-                                {PROJECT_STATUS_LIST.map(status => (
-                                  <SelectItem key={status} value={status}>{status}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {(() => {
-                              const riskData = getRiskScoreForProject(project.id);
-                              if (!riskData) return null;
-                              const ageInDays = (Date.now() - new Date(riskData.generatedAt).getTime()) / (1000 * 60 * 60 * 24);
-                              if (ageInDays > 5) return null;
-                              return (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <div>
-                                      <Badge
-                                        variant="secondary"
-                                        className={`text-[10px] px-1.5 py-0 gap-0.5 ${getRiskScoreColor(riskData.riskScore)}`}
-                                        data-testid={`badge-risk-score-project-fullscreen-${project.id}`}
-                                      >
-                                        <Shield className="h-2.5 w-2.5" />
-                                        {riskData.riskScore}
-                                      </Badge>
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent>{riskData.summary}</TooltipContent>
-                                </Tooltip>
-                              );
-                            })()}
-                          </div>
-                          <div className="mt-3 flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-muted-foreground" />
-                              <span>Due {project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : 'TBD'}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="h-2 w-24 rounded-full bg-muted overflow-hidden">
-                                <div 
-                                  className={cn(
-                                    "h-full rounded-full transition-all duration-500",
-                                    project.health === 'Green' && "bg-emerald-500",
-                                    project.health === 'Yellow' && "bg-amber-500",
-                                    project.health === 'Red' && "bg-rose-500",
-                                  )}
-                                  style={{ width: `${projectProgress[project.id] || 0}%` }}
-                                />
-                              </div>
-                              <span className="font-medium">{projectProgress[project.id] || 0}%</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-6 pl-5 sm:pl-0 mt-4 sm:mt-0">
-                          <div className="text-right hidden sm:block">
-                            <div className="flex items-center gap-1.5 justify-end text-muted-foreground mb-1">
-                              <TrendingUp className="h-3.5 w-3.5" />
-                              <span className="text-xs font-medium uppercase tracking-wide">Budget</span>
-                            </div>
-                            <p className="text-lg font-bold text-foreground">${Number(project.budget).toLocaleString()}</p>
-                          </div>
-                          <Badge className={cn(
-                            "ml-auto sm:ml-0 px-4 py-1.5 text-xs font-semibold rounded-full",
-                            project.priority === 'Critical' && "bg-rose-500 text-white hover:bg-rose-500",
-                            project.priority === 'High' && "bg-rose-100 text-rose-700 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400",
-                            project.priority === 'Medium' && "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400",
-                            project.priority === 'Low' && "bg-slate-100 text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400"
-                          )}>
-                            {project.priority}
-                          </Badge>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button 
-                                size="icon" 
-                                variant="ghost"
-                                onClick={(e) => e.preventDefault()}
-                                data-testid={`button-menu-project-fullscreen-${project.id}`}
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link href={`/projects/${project.id}`}>
-                                  <Eye className="h-4 w-4 mr-2" />
-                                  View Details
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                onClick={(e) => { e.preventDefault(); setRiskAssessProjectId(project.id); }}
-                                data-testid={`menu-risk-assessment-project-fullscreen-${project.id}`}
-                              >
-                                <Shield className="h-4 w-4 mr-2" />
-                                AI Risk Assessment
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                onClick={(e) => { e.preventDefault(); setDeleteProjectId(project.id); }} 
-                                className="text-red-600 focus:text-red-600"
-                                data-testid={`menu-delete-project-fullscreen-${project.id}`}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                    </Link>
-                  </motion.div>
-                ))}
-                {(filteredProjects?.length || 0) > 0 && (
-                  <ProjectsPagination
-                    currentPage={listCurrentPage}
-                    totalPages={totalListPages}
-                    totalItems={filteredProjects?.length || 0}
-                    pageSize={LIST_PAGE_SIZE}
-                    onPageChange={setListCurrentPage}
-                  />
-                )}
-              </div>
+              <ProjectsListView
+                projects={displayedListProjects}
+                filteredProjects={filteredProjects || []}
+                projectProgress={projectProgress}
+                getRiskScoreForProject={getRiskScoreForProject}
+                getRiskScoreColor={getRiskScoreColor}
+                handleStatusChange={handleStatusChange}
+                setDeleteProjectId={setDeleteProjectId}
+                setRiskAssessProjectId={setRiskAssessProjectId}
+                currentPage={listCurrentPage}
+                totalPages={totalListPages}
+                pageSize={LIST_PAGE_SIZE}
+                onPageChange={setListCurrentPage}
+                isLoading={isLoading}
+              />
             ) : view === "grid" ? (
               <ProjectsGridView 
                 projects={filteredProjects || []} 
@@ -1021,259 +1118,21 @@ export default function Projects() {
 
       {/* Projects View */}
       {!isFullscreen && view === "list" ? (
-        <div className="space-y-6">
-          {displayedListProjects.map((project, index) => (
-            <motion.div
-              key={project.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: index * 0.05 }}
-            >
-              <Link href={`/projects/${project.id}`}>
-                <div className="group relative flex flex-col gap-5 rounded-2xl border border-border bg-card p-7 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 sm:flex-row sm:items-center cursor-pointer press-scale">
-                  
-                  {/* Status Indicator Stripe */}
-                  <div className={cn(
-                    "absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl transition-all duration-300 group-hover:w-2",
-                    project.health === 'Green' && "bg-gradient-to-b from-emerald-400 to-emerald-600",
-                    project.health === 'Yellow' && "bg-gradient-to-b from-amber-400 to-amber-600",
-                    project.health === 'Red' && "bg-gradient-to-b from-rose-400 to-rose-600",
-                  )} />
-
-                  <div className="flex-1 min-w-0 pl-5">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200 truncate" title={project.name}>
-                        {project.name}
-                      </h3>
-                      {project.timesheetBlocked && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex items-center gap-1 px-2 py-1 bg-amber-100 dark:bg-amber-900/50 rounded-md" data-testid={`project-ts-blocked-${project.id}`}>
-                              <LockIcon className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-                              <span className="text-xs font-medium text-amber-700 dark:text-amber-300">TS Blocked</span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>Timesheet entries blocked for this project</TooltipContent>
-                        </Tooltip>
-                      )}
-                      {/* Planner Logo for synced projects */}
-                      {project.source === "planner" && project.plannerPlanId && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            window.open(`https://planner.cloud.microsoft/webui/plan/${project.plannerPlanId}/view/board`, '_blank');
-                          }}
-                          className="flex items-center gap-1.5 px-2 py-1 bg-indigo-100 dark:bg-indigo-900/50 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-800/50 transition-colors"
-                          title="Synced from Microsoft Planner - Click to open in Planner"
-                          data-testid={`planner-badge-${project.id}`}
-                        >
-                          <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
-                          <Cloud className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
-                          <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">Planner</span>
-                          <ExternalLink className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
-                        </button>
-                      )}
-                      {/* Planner Premium Logo for synced projects */}
-                      {(project.source === "planner-premium" || project.source === "planner_premium") && project.plannerPlanId && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            // Construct Planner Premium URL with tenant and plan ID
-                            const tenantId = project.dataverseTenantId || '';
-                            const planId = project.plannerPlanId;
-                            const premiumUrl = tenantId 
-                              ? `https://planner.cloud.microsoft/${tenantId}/en-US/Home/Planner/#/plantaskboard?planId=${planId}`
-                              : `https://planner.cloud.microsoft/webui/plan/${planId}/view/board`;
-                            window.open(premiumUrl, '_blank');
-                          }}
-                          className="flex items-center gap-1.5 px-2 py-1 bg-purple-100 dark:bg-purple-900/50 rounded-md hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors"
-                          title="Synced from Planner Premium - Click to open in Planner"
-                          data-testid={`planner-premium-badge-${project.id}`}
-                        >
-                          <img src={plannerLogoPath} alt="Planner Premium" className="h-4 w-4" />
-                          <Crown className="h-3 w-3 text-purple-600 dark:text-purple-400" />
-                          <span className="text-xs font-medium text-purple-700 dark:text-purple-300">Planner Premium</span>
-                          <ExternalLink className="h-3 w-3 text-purple-600 dark:text-purple-400" />
-                        </button>
-                      )}
-                      {/* MS Project Logo for imported projects */}
-                      {project.source === "imported" && project.sourceFileUrl && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const link = document.createElement('a');
-                            link.href = project.sourceFileUrl!;
-                            link.download = project.sourceFileName || 'project.mpp';
-                            link.click();
-                          }}
-                          className="flex items-center gap-1.5 px-2 py-1 bg-emerald-100 dark:bg-emerald-900/50 rounded-md hover:bg-emerald-200 dark:hover:bg-emerald-800/50 transition-colors"
-                          title={`Imported from MS Project - Click to download ${project.sourceFileName || "source file"}`}
-                          data-testid={`msproject-badge-${project.id}`}
-                        >
-                          <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
-                          <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">MS Project</span>
-                          <Download className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                        </button>
-                      )}
-                      {/* External Project Badge */}
-                      {(project as any).isExternal && (
-                        <ExternalBadge 
-                          organizationName={(project as any).sourceOrganizationName}
-                          accessRole={(project as any).accessRole}
-                        />
-                      )}
-                      {/* Inline Status Dropdown */}
-                      <Select 
-                        value={project.status} 
-                        onValueChange={(newStatus) => {
-                          handleStatusChange(project.id, newStatus);
-                        }}
-                      >
-                        <SelectTrigger 
-                          className="h-7 w-auto min-w-[120px] text-xs font-medium border-slate-300 dark:border-slate-600"
-                          onClick={(e) => e.preventDefault()}
-                          data-testid={`select-project-status-${project.id}`}
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent onClick={(e) => e.stopPropagation()}>
-                          {PROJECT_STATUS_LIST.map(status => (
-                            <SelectItem key={status} value={status}>{status}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {(() => {
-                        const riskData = getRiskScoreForProject(project.id);
-                        if (!riskData) return null;
-                        const ageInDays = (Date.now() - new Date(riskData.generatedAt).getTime()) / (1000 * 60 * 60 * 24);
-                        if (ageInDays > 5) return null;
-                        return (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div>
-                                <Badge
-                                  variant="secondary"
-                                  className={`text-[10px] px-1.5 py-0 gap-0.5 ${getRiskScoreColor(riskData.riskScore)}`}
-                                  data-testid={`badge-risk-score-project-${project.id}`}
-                                >
-                                  <Shield className="h-2.5 w-2.5" />
-                                  {riskData.riskScore}
-                                </Badge>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>{riskData.summary}</TooltipContent>
-                          </Tooltip>
-                        );
-                      })()}
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span>Due {project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : 'TBD'}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className="h-2 w-24 rounded-full bg-muted overflow-hidden">
-                            <div 
-                              className={cn(
-                                "h-full rounded-full transition-all duration-500",
-                                project.health === 'Green' && "bg-emerald-500",
-                                project.health === 'Yellow' && "bg-amber-500",
-                                project.health === 'Red' && "bg-rose-500",
-                              )}
-                              style={{ width: `${projectProgress[project.id] || 0}%` }}
-                            />
-                          </div>
-                          <span className="font-medium">{projectProgress[project.id] || 0}%</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-6 pl-5 sm:pl-0 mt-4 sm:mt-0">
-                    <div className="text-right hidden sm:block">
-                      <div className="flex items-center gap-1.5 justify-end text-muted-foreground mb-1">
-                        <TrendingUp className="h-3.5 w-3.5" />
-                        <span className="text-xs font-medium uppercase tracking-wide">Budget</span>
-                      </div>
-                      <p className="text-lg font-bold text-foreground">${Number(project.budget).toLocaleString()}</p>
-                    </div>
-                    <Badge className={cn(
-                      "ml-auto sm:ml-0 px-4 py-1.5 text-xs font-semibold rounded-full",
-                      project.priority === 'Critical' && "bg-rose-500 text-white hover:bg-rose-500",
-                      project.priority === 'High' && "bg-rose-100 text-rose-700 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400",
-                      project.priority === 'Medium' && "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400",
-                      project.priority === 'Low' && "bg-slate-100 text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400"
-                    )}>
-                      {project.priority}
-                    </Badge>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button 
-                          size="icon" 
-                          variant="ghost"
-                          onClick={(e) => e.preventDefault()}
-                          data-testid={`button-menu-project-${project.id}`}
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem asChild>
-                          <Link href={`/projects/${project.id}`}>
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Details
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={(e) => { e.preventDefault(); setRiskAssessProjectId(project.id); }}
-                          data-testid={`menu-risk-assessment-project-${project.id}`}
-                        >
-                          <Shield className="h-4 w-4 mr-2" />
-                          AI Risk Assessment
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          onClick={(e) => { e.preventDefault(); setDeleteProjectId(project.id); }} 
-                          className="text-red-600 focus:text-red-600"
-                          data-testid={`menu-delete-project-${project.id}`}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              </Link>
-            </motion.div>
-          ))}
-
-          {!isLoading && filteredProjects?.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-border rounded-xl">
-              <div className="rounded-full bg-muted p-4 mb-4">
-                <AlertCircle className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-medium text-foreground">No projects found</h3>
-              <p className="text-muted-foreground mt-1 mb-4">Try adjusting your filters or create a new project.</p>
-            </div>
-          )}
-          {(filteredProjects?.length || 0) > 0 && (
-            <ProjectsPagination
-              currentPage={listCurrentPage}
-              totalPages={totalListPages}
-              totalItems={filteredProjects?.length || 0}
-              pageSize={LIST_PAGE_SIZE}
-              onPageChange={setListCurrentPage}
-            />
-          )}
-        </div>
+        <ProjectsListView
+          projects={displayedListProjects}
+          filteredProjects={filteredProjects || []}
+          projectProgress={projectProgress}
+          getRiskScoreForProject={getRiskScoreForProject}
+          getRiskScoreColor={getRiskScoreColor}
+          handleStatusChange={handleStatusChange}
+          setDeleteProjectId={setDeleteProjectId}
+          setRiskAssessProjectId={setRiskAssessProjectId}
+          currentPage={listCurrentPage}
+          totalPages={totalListPages}
+          pageSize={LIST_PAGE_SIZE}
+          onPageChange={setListCurrentPage}
+          isLoading={isLoading}
+        />
       ) : !isFullscreen && view === "grid" ? (
         <ProjectsGridView 
           projects={filteredProjects || []} 
