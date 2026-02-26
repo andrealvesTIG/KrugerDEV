@@ -273,6 +273,23 @@ const spec = {
           createdAt: { type: 'string', format: 'date-time' },
         },
       },
+      TaskDependency: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer', description: 'Unique identifier for the dependency record' },
+          taskId: { type: 'integer', description: 'The dependent task (the task that depends on another)' },
+          dependsOnTaskId: { type: 'integer', description: 'The predecessor task (the task that must complete first)' },
+          dependencyType: {
+            type: 'string',
+            enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'],
+            default: 'finish-to-start',
+            description: 'The type of dependency relationship between the two tasks',
+          },
+          lagDays: { type: 'integer', default: 0, description: 'Lag (positive) or lead (negative) time in working days between the linked tasks' },
+          createdAt: { type: 'string', format: 'date-time', description: 'When the dependency was created' },
+        },
+        required: ['id', 'taskId', 'dependsOnTaskId'],
+      },
       User: {
         type: 'object',
         properties: {
@@ -1222,25 +1239,48 @@ const spec = {
     },
     '/tasks/{id}/dependencies': {
       get: op('Tasks', 'Get task dependencies', {
+        summary: 'Get all dependencies for a specific task',
+        description: 'Returns an array of TaskDependency records where the given task is the dependent task (taskId). Each record identifies a predecessor task that must complete before this task can start (or as defined by the dependency type).',
         parameters: [pathId()],
-        responses: { ...r200('Dependencies list'), ...idRes },
+        responses: {
+          ...r200('Array of dependency records for the task', arrOf('TaskDependency')),
+          ...idRes,
+        },
       }),
       post: op('Tasks', 'Add task dependency', {
+        summary: 'Add a dependency to a task',
+        description: 'Creates a finish-to-start dependency where the specified task depends on the given predecessor task. Both tasks must be leaf tasks (no children). Self-dependencies and circular dependencies are not allowed.',
         parameters: [pathId()],
-        requestBody: body({ type: 'object', properties: { dependsOnTaskId: { type: 'integer' } } }),
-        responses: { ...r201('Dependency added'), ...createRes },
+        requestBody: body({
+          type: 'object',
+          required: ['dependsOnTaskId'],
+          properties: {
+            dependsOnTaskId: { type: 'integer', description: 'The ID of the predecessor task that must complete first' },
+          },
+        }),
+        responses: {
+          ...r201('The created dependency record', ref('TaskDependency')),
+          ...createRes,
+        },
       }),
     },
     '/tasks/{id}/dependencies/{dependsOnTaskId}': {
       delete: op('Tasks', 'Remove task dependency', {
+        summary: 'Remove a dependency from a task',
+        description: 'Removes the dependency relationship between the task (id) and its predecessor (dependsOnTaskId).',
         parameters: [pathId(), pathId('dependsOnTaskId')],
-        responses: { ...r200('Dependency removed'), ...fullRes },
+        responses: { ...r200('Dependency removed successfully'), ...fullRes },
       }),
     },
     '/projects/{projectId}/dependencies': {
       get: op('Tasks', 'Get all dependencies for a project', {
+        summary: 'Get all task dependencies within a project',
+        description: 'Returns all TaskDependency records for tasks belonging to the specified project. Useful for building a full dependency graph or Gantt chart.',
         parameters: [pathId('projectId')],
-        responses: { ...r200('Project dependencies'), ...idRes },
+        responses: {
+          ...r200('Array of all dependency records in the project', arrOf('TaskDependency')),
+          ...idRes,
+        },
       }),
     },
     '/projects/{projectId}/recalculate-schedule': {
