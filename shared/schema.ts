@@ -1,7 +1,13 @@
-import { pgTable, text, serial, integer, boolean, timestamp, date, numeric, varchar, jsonb, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, date, varchar, jsonb, uniqueIndex, index, customType } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
+
+const numeric = customType<{ data: number; driverData: string }>({
+  dataType() { return 'numeric'; },
+  fromDriver(value: string) { return value === null || value === undefined ? null as any : Number(value); },
+  toDriver(value: number) { return value === null || value === undefined ? null as any : String(value); },
+});
 import { users } from "./models/auth";
 
 export * from "./models/auth";
