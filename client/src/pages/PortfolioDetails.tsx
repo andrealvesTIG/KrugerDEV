@@ -12,9 +12,10 @@ import {
   type PortfolioIssue
 } from "@/hooks/use-portfolio-details";
 import { useProjects, useUpdateProject } from "@/hooks/use-projects";
-import { useUpdateRisk, useDeleteRisk, useAiMitigationSuggestion, useRiskHistory } from "@/hooks/use-risks";
+import { useUpdateRisk, useDeleteRisk, useAiMitigationSuggestion, useRiskHistory, useConvertRiskToIssue } from "@/hooks/use-risks";
 import { EditRiskDialog, type RiskFormData } from "@/components/EditRiskDialog";
 import { useUpdateIssue, useDeleteIssue } from "@/hooks/use-issues";
+import { useRiskResourceAssignments, useUpdateRiskResourceAssignments } from "@/hooks/use-resources";
 import { useForm, Controller } from "react-hook-form";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1153,14 +1154,25 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
   const { data: latestAssessment } = useQuery<{ riskScore: number; generatedAt: string; summary: string } | null>({
     queryKey: ["/api/portfolios", portfolioId, "risk-assessment", "latest"],
   });
+  const { currentOrganization } = useOrganization();
   const [editingRisk, setEditingRisk] = useState<PortfolioRisk | null>(null);
   const [deleteRisk, setDeleteRisk] = useState<PortfolioRisk | null>(null);
+  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const updateRisk = useUpdateRisk();
   const deleteRiskMutation = useDeleteRisk();
+  const convertRiskToIssue = useConvertRiskToIssue();
+  const updateRiskResources = useUpdateRiskResourceAssignments();
   const aiMitigationSuggestion = useAiMitigationSuggestion();
   const { data: riskHistory, isLoading: riskHistoryLoading } = useRiskHistory(editingRisk?.id || 0);
+  const { data: riskAssignments } = useRiskResourceAssignments(editingRisk?.id || null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (riskAssignments && editingRisk) {
+      setSelectedResourceIds(riskAssignments.map(a => a.resourceId));
+    }
+  }, [riskAssignments, editingRisk]);
 
   const recentAssessment = useMemo(() => {
     if (!latestAssessment?.riskScore || !latestAssessment?.generatedAt) return null;
@@ -1175,6 +1187,7 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
     if (!editingRisk) return;
     try {
       await updateRisk.mutateAsync({ id: editingRisk.id, projectId: editingRisk.projectId, ...data });
+      updateRiskResources.mutate({ riskId: editingRisk.id, resourceIds: selectedResourceIds });
       toast({ title: "Success", description: "Risk updated successfully" });
       setEditingRisk(null);
       refetch();
@@ -1369,10 +1382,47 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
         onSubmit={onEditSubmit}
         isSubmitting={updateRisk.isPending}
         projectLink={editingRisk ? { name: editingRisk.projectName, id: editingRisk.projectId } : null}
+        portfolioLink={{ name: portfolioName, id: portfolioId }}
+        organizationId={currentOrganization?.id}
+        resourceIds={selectedResourceIds}
+        onResourcesChange={setSelectedResourceIds}
+        projectName={editingRisk?.projectName}
+        onConvertToIssue={() => {
+          if (editingRisk) {
+            convertRiskToIssue.mutate({ id: editingRisk.id, projectId: editingRisk.projectId }, {
+              onSuccess: () => {
+                toast({ title: "Success", description: "Risk converted to issue" });
+                setEditingRisk(null);
+                refetch();
+                queryClient.invalidateQueries({ queryKey: ['/api/portfolios', portfolioId] });
+              },
+              onError: (err: any) => {
+                toast({ title: "Error", description: err.message, variant: "destructive" });
+              }
+            });
+          }
+        }}
+        isConverting={convertRiskToIssue.isPending}
         history={riskHistory || []}
         historyLoading={riskHistoryLoading}
         onAiSuggest={(data) => aiMitigationSuggestion.mutateAsync(data)}
         isAiSuggesting={aiMitigationSuggestion.isPending}
+        onDelete={() => {
+          if (editingRisk) {
+            deleteRiskMutation.mutate({ id: editingRisk.id, projectId: editingRisk.projectId }, {
+              onSuccess: () => {
+                toast({ title: "Deleted", description: "Risk deleted" });
+                setEditingRisk(null);
+                refetch();
+                queryClient.invalidateQueries({ queryKey: ['/api/portfolios', portfolioId] });
+              },
+              onError: (err: any) => {
+                toast({ title: "Error", description: err.message, variant: "destructive" });
+              }
+            });
+          }
+        }}
+        isDeleting={deleteRiskMutation.isPending}
       />
 
       <AlertDialog open={!!deleteRisk} onOpenChange={(open) => !open && setDeleteRisk(null)}>

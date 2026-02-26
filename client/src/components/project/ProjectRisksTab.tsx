@@ -425,6 +425,8 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
               });
             }}
             isSubmitting={updateRisk.isPending}
+            projectLink={projectName ? { name: projectName, id: projectId } : null}
+            portfolioLink={(portfolioId && portfolioName) ? { name: portfolioName, id: portfolioId } : null}
             organizationId={currentOrganization?.id}
             resourceIds={selectedResourceIds}
             onResourcesChange={setSelectedResourceIds}

@@ -490,6 +490,20 @@
               historyLoading={historyLoading}
               onAiSuggest={(data) => aiMitigationSuggestion.mutateAsync(data)}
               isAiSuggesting={aiMitigationSuggestion.isPending}
+              projectName={project?.name}
+              onDelete={() => {
+                deleteIssue.mutate({ id: editingIssue.id, projectId: editingIssue.projectId }, {
+                  onSuccess: () => {
+                    toast({ title: "Deleted", description: "Risk deleted" });
+                    setIsEditDialogOpen(false);
+                    setEditingIssue(null);
+                  },
+                  onError: (err: any) => {
+                    toast({ title: "Error", description: err.message, variant: "destructive" });
+                  }
+                });
+              }}
+              isDeleting={deleteIssue.isPending}
             />
           );
         })()}
