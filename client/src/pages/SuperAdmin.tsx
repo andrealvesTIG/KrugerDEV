@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck, Activity, BarChart3, AlertTriangle, Clock, Globe, Zap, HardDrive, TrendingUp, RefreshCw, HelpCircle, MessageSquare, CheckCircle, XCircle, Eye, Download, Mail, Copy, Send, MoreHorizontal, Wrench, X } from "lucide-react";
+import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck, Activity, BarChart3, AlertTriangle, Clock, Globe, Zap, HardDrive, TrendingUp, RefreshCw, HelpCircle, MessageSquare, CheckCircle, XCircle, Eye, EyeOff, Download, Mail, Copy, Send, MoreHorizontal, Wrench, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -2563,6 +2563,8 @@ interface PlanMeterRule {
 
 function PlansTab() {
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
+  const isSuperAdmin = currentUser?.role === 'super_admin';
   const [editingPlan, setEditingPlan] = useState<PlanData | null>(null);
   const [editingRules, setEditingRules] = useState<PlanMeterRule[]>([]);
   const [loadingRules, setLoadingRules] = useState(false);
@@ -2573,9 +2575,35 @@ function PlansTab() {
   const [isInitializingSeats, setIsInitializingSeats] = useState(false);
 
   const { data: plansResponse, isLoading } = useQuery<{ plans: PlanData[]; creditCosts: any[] }>({
-    queryKey: ['/api/billing/plans']
+    queryKey: ['/api/billing/plans', isSuperAdmin ? 'includeInactive' : 'activeOnly'],
+    queryFn: async () => {
+      const url = isSuperAdmin ? '/api/billing/plans?includeInactive=true' : '/api/billing/plans';
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch plans');
+      return res.json();
+    }
   });
   const plans = plansResponse?.plans;
+
+  const togglePlanActive = useMutation({
+    mutationFn: async ({ id, isActive }: { id: number; isActive: boolean }) => {
+      const res = await fetch(`/api/admin/plans/${id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive })
+      });
+      if (!res.ok) throw new Error('Failed to update plan');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/billing/plans'] });
+      toast({ title: "Plan updated" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
 
   const syncPayPalPlans = async () => {
     setIsSyncingPayPal(true);
@@ -2872,6 +2900,21 @@ function PlansTab() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
+                      {isSuperAdmin && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => togglePlanActive.mutate({ id: plan.id, isActive: !plan.isActive })}
+                          disabled={togglePlanActive.isPending}
+                          title={plan.isActive ? "Deactivate plan" : "Activate plan"}
+                        >
+                          {plan.isActive ? (
+                            <EyeOff className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                          ) : (
+                            <Eye className="h-4 w-4 text-muted-foreground hover:text-green-600" />
+                          )}
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
