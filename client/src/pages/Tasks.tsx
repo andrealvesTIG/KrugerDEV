@@ -609,12 +609,49 @@ export default function Tasks() {
           
           <Popover open={projectFilterOpen} onOpenChange={(open) => { setProjectFilterOpen(open); if (!open) setProjectFilterSearch(""); }}>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 max-w-[200px]" data-testid="button-project-filter">
-                <Filter className="h-4 w-4 mr-2 shrink-0" />
-                <span className="truncate">
-                  {filterProjectId ? projects?.find(p => p.id === filterProjectId)?.name || "Project" : "All Projects"}
-                </span>
-              </Button>
+              <div className="inline-flex">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon" className="h-9 w-9" data-testid="button-task-options">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem
+                      className="max-w-[240px]"
+                      onSelect={() => { setTimeout(() => setProjectFilterOpen(true), 150); }}
+                    >
+                      <Filter className="h-4 w-4 mr-2 shrink-0" />
+                      <span className="truncate">
+                        Filter: {filterProjectId ? projects?.find(p => p.id === filterProjectId)?.name || "Project" : "All Projects"}
+                      </span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <Layers className="h-4 w-4 mr-2" />
+                        Group: {groupBy === "project" ? "By Project" : groupBy === "portfolio" ? "By Portfolio" : "By Resource"}
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        <DropdownMenuRadioGroup value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
+                          <DropdownMenuRadioItem value="project">
+                            <FolderKanban className="h-4 w-4 mr-2" />
+                            By Project
+                          </DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="portfolio">
+                            <Briefcase className="h-4 w-4 mr-2" />
+                            By Portfolio
+                          </DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="resource">
+                            <UserIcon className="h-4 w-4 mr-2" />
+                            By Resource
+                          </DropdownMenuRadioItem>
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-64 p-0">
               <div className="p-2 border-b">
@@ -666,38 +703,6 @@ export default function Tasks() {
               </div>
             </PopoverContent>
           </Popover>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-9 w-9" data-testid="button-task-options">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Layers className="h-4 w-4 mr-2" />
-                  Group: {groupBy === "project" ? "By Project" : groupBy === "portfolio" ? "By Portfolio" : "By Resource"}
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuRadioGroup value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
-                    <DropdownMenuRadioItem value="project">
-                      <FolderKanban className="h-4 w-4 mr-2" />
-                      By Project
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="portfolio">
-                      <Briefcase className="h-4 w-4 mr-2" />
-                      By Portfolio
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="resource">
-                      <UserIcon className="h-4 w-4 mr-2" />
-                      By Resource
-                    </DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            </DropdownMenuContent>
-          </DropdownMenu>
           
           <Button onClick={() => setIsCreateDialogOpen(true)} size="sm" data-testid="button-add-task">
             <Plus className="h-4 w-4 sm:mr-1" />
