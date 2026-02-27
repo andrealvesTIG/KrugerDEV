@@ -1332,7 +1332,7 @@ function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
             <Loader2 className="h-8 w-8 animate-spin text-orange-400" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 max-w-7xl mx-auto">
+          <div className="flex flex-wrap justify-center gap-4 max-w-7xl mx-auto">
             {sortedPlans?.map((plan) => {
               const isPopular = plan.code === mostPopularCode;
               const isCustom = plan.code === 'CUSTOM';
@@ -1350,8 +1350,8 @@ function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
                   key={plan.id}
                   className={
                     isPopular
-                      ? "p-5 rounded-2xl bg-gradient-to-b from-orange-500/15 to-slate-800/50 border-2 border-orange-500 relative"
-                      : "p-5 rounded-2xl bg-slate-800/50 border border-slate-600"
+                      ? "p-5 rounded-2xl bg-gradient-to-b from-orange-500/15 to-slate-800/50 border-2 border-orange-500 relative w-full sm:w-[calc(50%-0.5rem)] lg:w-[220px]"
+                      : "p-5 rounded-2xl bg-slate-800/50 border border-slate-600 w-full sm:w-[calc(50%-0.5rem)] lg:w-[220px]"
                   }
                 >
                   {isPopular && (
