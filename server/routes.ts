@@ -15760,7 +15760,20 @@ Return ONLY valid JSON.`;
       const { eq } = await import("drizzle-orm");
       const { getAllCreditCosts } = await import("./services/billing");
       
-      const allPlans = await db.select().from(plans).where(eq(plans.isActive, true));
+      let includeInactive = false;
+      if (req.query.includeInactive === 'true') {
+        const userId = getUserIdFromRequest(req);
+        if (userId) {
+          const user = await storage.getUser(userId);
+          if (user?.role === 'super_admin') {
+            includeInactive = true;
+          }
+        }
+      }
+      
+      const allPlans = includeInactive
+        ? await db.select().from(plans).orderBy(plans.displayOrder)
+        : await db.select().from(plans).where(eq(plans.isActive, true));
       const allRules = await db
         .select()
         .from(planMeterRules)
