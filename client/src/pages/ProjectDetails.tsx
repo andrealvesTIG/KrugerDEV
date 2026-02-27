@@ -1463,6 +1463,52 @@ function ProjectTimeline({
                     </TooltipContent>
                   </Tooltip>
               ))}
+
+              {pointsWithLayout.map((point) => (
+                <Tooltip key={`point-${point.id}`}>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 cursor-pointer z-20 flex items-center justify-center"
+                      style={{ left: `calc(${point.position}% - 7px)` }}
+                      onClick={() => onMilestoneClick?.(point.id)}
+                      data-testid={`timeline-milestone-${point.id}`}
+                    >
+                      <div
+                        className={cn(
+                          "w-[14px] h-[14px] rotate-45 border-2",
+                          point.completed
+                            ? "bg-emerald-500 border-emerald-700"
+                            : "bg-purple-500 border-purple-700"
+                        )}
+                      />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="space-y-2">
+                    <button
+                      className="font-medium text-primary hover:underline cursor-pointer text-left"
+                      onClick={() => onMilestoneClick?.(point.id)}
+                    >
+                      {point.title}
+                    </button>
+                    <p className="text-xs text-muted-foreground">
+                      {format(point.startDate, 'MMM d, yyyy')}
+                      {point.completed && ' — Completed'}
+                    </p>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="w-full h-6 text-xs text-muted-foreground hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        hideTaskFromTimeline(point.id);
+                      }}
+                    >
+                      <EyeOff className="h-3 w-3 mr-1" />
+                      Hide from timeline
+                    </Button>
+                  </TooltipContent>
+                </Tooltip>
+              ))}
               
               {timelineRange.todayPosition >= 0 && timelineRange.todayPosition <= 100 && (
                 <div 
@@ -1480,55 +1526,26 @@ function ProjectTimeline({
                 <span className="text-[9px] text-muted-foreground/70 whitespace-nowrap">{format(timelineRange.end, 'M/d')}</span>
               </div>
             </div>
-            
+
             {pointsWithLayout.length > 0 && (
-              <div className="relative mx-8 mt-1" style={{ minHeight: '36px' }}>
+              <div className="relative mx-8 mt-0.5" style={{ minHeight: '28px' }}>
                 {pointsWithLayout.map((point) => (
-                  <Tooltip key={`point-${point.id}`}>
-                    <TooltipTrigger asChild>
-                      <div
-                        className="absolute top-0 flex flex-col items-center cursor-pointer z-20"
-                        style={{ left: `${point.position}%`, transform: 'translateX(-50%)', maxWidth: '120px' }}
-                        onClick={() => onMilestoneClick?.(point.id)}
-                        data-testid={`timeline-milestone-${point.id}`}
-                      >
-                        <div className="w-px h-3 bg-muted-foreground/40" />
-                        <span className={cn(
-                          "text-[9px] leading-tight text-center mt-0.5 max-w-[100px]",
-                          point.completed ? "text-muted-foreground/60" : "text-muted-foreground"
-                        )}>
-                          {point.title}
-                        </span>
-                        <span className="text-[9px] text-muted-foreground/50">
-                          {format(point.startDate, 'M/d')}
-                        </span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent className="space-y-2">
-                      <button
-                        className="font-medium text-primary hover:underline cursor-pointer text-left"
-                        onClick={() => onMilestoneClick?.(point.id)}
-                      >
-                        {point.title}
-                      </button>
-                      <p className="text-xs text-muted-foreground">
-                        {format(point.startDate, 'MMM d, yyyy')}
-                        {point.completed && ' — Completed'}
-                      </p>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="w-full h-6 text-xs text-muted-foreground hover:text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          hideTaskFromTimeline(point.id);
-                        }}
-                      >
-                        <EyeOff className="h-3 w-3 mr-1" />
-                        Hide from timeline
-                      </Button>
-                    </TooltipContent>
-                  </Tooltip>
+                  <div
+                    key={`point-label-${point.id}`}
+                    className="absolute top-0 flex flex-col items-center"
+                    style={{ left: `${point.position}%`, transform: 'translateX(-50%)', maxWidth: '120px' }}
+                  >
+                    <div className="w-px h-2 bg-muted-foreground/30" />
+                    <span className={cn(
+                      "text-[9px] leading-tight text-center mt-0.5 max-w-[100px] truncate",
+                      point.completed ? "text-muted-foreground/60" : "text-muted-foreground"
+                    )}>
+                      {point.title}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground/50">
+                      {format(point.startDate, 'M/d')}
+                    </span>
+                  </div>
                 ))}
               </div>
             )}
@@ -1540,7 +1557,7 @@ function ProjectTimeline({
                   <span>Milestone (date range)</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-px h-3 bg-muted-foreground/40" />
+                  <div className="w-[10px] h-[10px] rotate-45 bg-purple-500 border-2 border-purple-700" />
                   <span>Milestone (key date)</span>
                 </div>
                 {timelineRange.todayPosition >= 0 && timelineRange.todayPosition <= 100 && (
