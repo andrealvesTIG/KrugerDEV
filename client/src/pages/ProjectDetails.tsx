@@ -1545,7 +1545,7 @@ function ProjectTimeline({
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="text-xs">
-                    Today ({format(timelineRange.today, 'MMM d, yyyy')}) is before the timeline start
+                    Today ({format(timelineRange.today, 'MMM d, yyyy')}) — project has not started yet
                   </TooltipContent>
                 </Tooltip>
               )}
@@ -1564,7 +1564,7 @@ function ProjectTimeline({
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="text-xs">
-                    Today ({format(timelineRange.today, 'MMM d, yyyy')}) is past the timeline end
+                    Today ({format(timelineRange.today, 'MMM d, yyyy')}) — project timeline has ended
                   </TooltipContent>
                 </Tooltip>
               )}
@@ -1631,13 +1631,13 @@ function ProjectTimeline({
                 {timelineRange.todayBefore && (
                   <div className="flex items-center gap-1.5">
                     <div className="w-3 h-2 bg-green-600 rounded-sm" />
-                    <span>Today (before timeline)</span>
+                    <span>Today (not started)</span>
                   </div>
                 )}
                 {timelineRange.todayAfter && (
                   <div className="flex items-center gap-1.5">
                     <div className="w-3 h-2 bg-amber-600 rounded-sm" />
-                    <span>Today (past timeline)</span>
+                    <span>Today (after timeline)</span>
                   </div>
                 )}
                 {hiddenEvents.length > 0 && (
