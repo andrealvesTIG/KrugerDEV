@@ -630,42 +630,40 @@ export default function Tasks() {
                   />
                 </div>
               </div>
-              <ScrollArea className="max-h-[300px]">
-                <div className="p-1">
-                  <button
-                    className={cn(
-                      "w-full flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm cursor-pointer hover:bg-accent",
-                      !filterProjectId && "bg-accent"
-                    )}
-                    onClick={() => { setFilterProjectId(null); setProjectFilterOpen(false); setProjectFilterSearch(""); }}
-                  >
-                    <div className={cn("h-4 w-4 rounded-full border flex items-center justify-center shrink-0", !filterProjectId && "bg-primary border-primary")}>
-                      {!filterProjectId && <Check className="h-3 w-3 text-primary-foreground" />}
-                    </div>
-                    All Projects
-                  </button>
-                  {projects
-                    ?.filter(p => !projectFilterSearch || normalizeSearch(p.name).includes(normalizeSearch(projectFilterSearch)))
-                    .map(p => (
-                      <button
-                        key={p.id}
-                        className={cn(
-                          "w-full flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm cursor-pointer hover:bg-accent text-left",
-                          filterProjectId === p.id && "bg-accent"
-                        )}
-                        onClick={() => { setFilterProjectId(p.id); setProjectFilterOpen(false); setProjectFilterSearch(""); }}
-                      >
-                        <div className={cn("h-4 w-4 rounded-full border flex items-center justify-center shrink-0", filterProjectId === p.id && "bg-primary border-primary")}>
-                          {filterProjectId === p.id && <Check className="h-3 w-3 text-primary-foreground" />}
-                        </div>
-                        <span className="truncate" title={p.name}>{p.name}</span>
-                      </button>
-                    ))}
-                  {projects?.filter(p => !projectFilterSearch || normalizeSearch(p.name).includes(normalizeSearch(projectFilterSearch))).length === 0 && (
-                    <div className="px-2 py-4 text-sm text-muted-foreground text-center">No projects found</div>
+              <div className="overflow-y-auto p-1" style={{ maxHeight: '300px' }}>
+                <button
+                  className={cn(
+                    "w-full flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm cursor-pointer hover:bg-accent",
+                    !filterProjectId && "bg-accent"
                   )}
-                </div>
-              </ScrollArea>
+                  onClick={() => { setFilterProjectId(null); setProjectFilterOpen(false); setProjectFilterSearch(""); }}
+                >
+                  <div className={cn("h-4 w-4 rounded-full border flex items-center justify-center shrink-0", !filterProjectId && "bg-primary border-primary")}>
+                    {!filterProjectId && <Check className="h-3 w-3 text-primary-foreground" />}
+                  </div>
+                  All Projects
+                </button>
+                {projects
+                  ?.filter(p => !projectFilterSearch || normalizeSearch(p.name).includes(normalizeSearch(projectFilterSearch)))
+                  .map(p => (
+                    <button
+                      key={p.id}
+                      className={cn(
+                        "w-full flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm cursor-pointer hover:bg-accent text-left",
+                        filterProjectId === p.id && "bg-accent"
+                      )}
+                      onClick={() => { setFilterProjectId(p.id); setProjectFilterOpen(false); setProjectFilterSearch(""); }}
+                    >
+                      <div className={cn("h-4 w-4 rounded-full border flex items-center justify-center shrink-0", filterProjectId === p.id && "bg-primary border-primary")}>
+                        {filterProjectId === p.id && <Check className="h-3 w-3 text-primary-foreground" />}
+                      </div>
+                      <span className="truncate" title={p.name}>{p.name}</span>
+                    </button>
+                  ))}
+                {projects?.filter(p => !projectFilterSearch || normalizeSearch(p.name).includes(normalizeSearch(projectFilterSearch))).length === 0 && (
+                  <div className="px-2 py-4 text-sm text-muted-foreground text-center">No projects found</div>
+                )}
+              </div>
             </PopoverContent>
           </Popover>
 
