@@ -9423,7 +9423,44 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
       }
       
-      const input = api.tasks.create.input.parse(req.body);
+      // Normalize snake_case field names to camelCase for API compatibility
+      const body = { ...req.body };
+      const snakeToCamelMap: Record<string, string> = {
+        project_id: 'projectId',
+        task_index: 'taskIndex',
+        task_number: 'taskNumber',
+        task_type: 'taskType',
+        start_date: 'startDate',
+        end_date: 'endDate',
+        baseline_start_date: 'baselineStartDate',
+        baseline_end_date: 'baselineEndDate',
+        actual_start_date: 'actualStartDate',
+        actual_end_date: 'actualEndDate',
+        duration_days: 'durationDays',
+        estimated_hours: 'estimatedHours',
+        actual_hours: 'actualHours',
+        remaining_hours: 'remainingHours',
+        constraint_type: 'constraintType',
+        constraint_date: 'constraintDate',
+        owner_id: 'ownerId',
+        outline_level: 'outlineLevel',
+        parent_id: 'parentId',
+        is_milestone: 'isMilestone',
+        is_summary: 'isSummary',
+        is_critical: 'isCritical',
+        actual_cost: 'actualCost',
+        timesheet_blocked: 'timesheetBlocked',
+        external_id: 'externalId',
+        completion_overridden: 'completionOverridden',
+      };
+      for (const [snake, camel] of Object.entries(snakeToCamelMap)) {
+        if (snake in body && !(camel in body)) {
+          body[camel] = body[snake];
+          delete body[snake];
+        }
+      }
+
+      const input = api.tasks.create.input.parse(body);
       
       // Check task limit before creation (using org subscription from project)
       if (userId) {
@@ -9503,7 +9540,44 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         return res.status(404).json({ message: "Task not found" });
       }
       
-      const input = api.tasks.update.input.parse(req.body);
+      // Normalize snake_case field names to camelCase for API compatibility
+      const body = { ...req.body };
+      const snakeToCamelMap: Record<string, string> = {
+        project_id: 'projectId',
+        task_index: 'taskIndex',
+        task_number: 'taskNumber',
+        task_type: 'taskType',
+        start_date: 'startDate',
+        end_date: 'endDate',
+        baseline_start_date: 'baselineStartDate',
+        baseline_end_date: 'baselineEndDate',
+        actual_start_date: 'actualStartDate',
+        actual_end_date: 'actualEndDate',
+        duration_days: 'durationDays',
+        estimated_hours: 'estimatedHours',
+        actual_hours: 'actualHours',
+        remaining_hours: 'remainingHours',
+        constraint_type: 'constraintType',
+        constraint_date: 'constraintDate',
+        owner_id: 'ownerId',
+        outline_level: 'outlineLevel',
+        parent_id: 'parentId',
+        is_milestone: 'isMilestone',
+        is_summary: 'isSummary',
+        is_critical: 'isCritical',
+        actual_cost: 'actualCost',
+        timesheet_blocked: 'timesheetBlocked',
+        external_id: 'externalId',
+        completion_overridden: 'completionOverridden',
+      };
+      for (const [snake, camel] of Object.entries(snakeToCamelMap)) {
+        if (snake in body && !(camel in body)) {
+          body[camel] = body[snake];
+          delete body[snake];
+        }
+      }
+
+      const input = api.tasks.update.input.parse(body);
       
       // Guardrails: sync status and progress
       const incomingStatus = input.status ?? previousTask.status;
