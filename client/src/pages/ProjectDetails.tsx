@@ -1207,12 +1207,17 @@ function ProjectTimeline({
     
     if (totalDays <= 0) return null;
     
+    const rawTodayPosition = (differenceInDays(today, effectiveStart) / totalDays) * 100;
+    
     return {
       start: effectiveStart,
       end: effectiveEnd,
       totalDays,
       today,
-      todayPosition: Math.max(0, Math.min(100, (differenceInDays(today, effectiveStart) / totalDays) * 100)),
+      todayPosition: rawTodayPosition,
+      todayInRange: rawTodayPosition >= 0 && rawTodayPosition <= 100,
+      todayBefore: rawTodayPosition < 0,
+      todayAfter: rawTodayPosition > 100,
     };
   }, [effectiveStart, effectiveEnd]);
   
@@ -1510,7 +1515,7 @@ function ProjectTimeline({
                 </Tooltip>
               ))}
               
-              {timelineRange.todayPosition >= 0 && timelineRange.todayPosition <= 100 && (
+              {timelineRange.todayInRange && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div 
@@ -1522,6 +1527,44 @@ function ProjectTimeline({
                   </TooltipTrigger>
                   <TooltipContent side="top" className="text-xs">
                     Today — {format(timelineRange.today, 'MMM d, yyyy')}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
+              {timelineRange.todayBefore && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 z-30 cursor-default"
+                      style={{ left: '-4px', transform: 'translate(-100%, -50%)' }}
+                    >
+                      <div className="flex items-center gap-1 bg-green-600 text-white text-[9px] font-medium px-1.5 py-0.5 rounded-sm whitespace-nowrap">
+                        <span>Today {format(timelineRange.today, 'M/d')}</span>
+                        <ArrowRight className="h-2.5 w-2.5" />
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs">
+                    Today ({format(timelineRange.today, 'MMM d, yyyy')}) is before the timeline start
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
+              {timelineRange.todayAfter && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 z-30 cursor-default"
+                      style={{ right: '-4px', transform: 'translate(100%, -50%)' }}
+                    >
+                      <div className="flex items-center gap-1 bg-amber-600 text-white text-[9px] font-medium px-1.5 py-0.5 rounded-sm whitespace-nowrap">
+                        <ArrowRight className="h-2.5 w-2.5 rotate-180" />
+                        <span>Today {format(timelineRange.today, 'M/d')}</span>
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs">
+                    Today ({format(timelineRange.today, 'MMM d, yyyy')}) is past the timeline end
                   </TooltipContent>
                 </Tooltip>
               )}
@@ -1579,10 +1622,22 @@ function ProjectTimeline({
                   <div className="w-[10px] h-[10px] rotate-45 bg-purple-500 border-2 border-purple-700" />
                   <span>Milestone (key date)</span>
                 </div>
-                {timelineRange.todayPosition >= 0 && timelineRange.todayPosition <= 100 && (
+                {timelineRange.todayInRange && (
                   <div className="flex items-center gap-1.5">
                     <div className="w-3 h-0.5 bg-green-600" />
                     <span>Today</span>
+                  </div>
+                )}
+                {timelineRange.todayBefore && (
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-2 bg-green-600 rounded-sm" />
+                    <span>Today (before timeline)</span>
+                  </div>
+                )}
+                {timelineRange.todayAfter && (
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-2 bg-amber-600 rounded-sm" />
+                    <span>Today (past timeline)</span>
                   </div>
                 )}
                 {hiddenEvents.length > 0 && (
