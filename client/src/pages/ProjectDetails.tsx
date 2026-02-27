@@ -1500,11 +1500,13 @@ function ProjectTimeline({
                 />
               )}
               
-              <div className="absolute -left-8 top-1/2 -translate-y-1/2 text-[10px] font-medium text-muted-foreground">
-                Start
+              <div className="absolute top-1/2 -translate-y-1/2 text-[10px] font-medium text-muted-foreground flex flex-col items-center leading-tight" style={{ right: '100%', marginRight: '6px' }}>
+                <span>Start</span>
+                <span className="text-[9px] text-muted-foreground/70 whitespace-nowrap">{format(timelineRange.start, 'M/d')}</span>
               </div>
-              <div className="absolute -right-8 top-1/2 -translate-y-1/2 text-[10px] font-medium text-muted-foreground text-right">
-                Finish
+              <div className="absolute top-1/2 -translate-y-1/2 text-[10px] font-medium text-muted-foreground flex flex-col items-center leading-tight" style={{ left: '100%', marginLeft: '6px' }}>
+                <span>Finish</span>
+                <span className="text-[9px] text-muted-foreground/70 whitespace-nowrap">{format(timelineRange.end, 'M/d')}</span>
               </div>
             </div>
             
