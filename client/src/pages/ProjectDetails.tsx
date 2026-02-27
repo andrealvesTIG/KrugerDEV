@@ -1056,21 +1056,13 @@ function ProjectHistoryDialog({ projectId, open, onOpenChange }: { projectId: nu
 
 interface TimelineEvent {
   id: number;
-  type: 'bar' | 'point';
+  type: 'point';
   title: string;
   startDate: Date;
   endDate: Date;
   completed: boolean;
 }
 
-const TIMELINE_BAR_COLORS = [
-  'bg-teal-600 dark:bg-teal-500',
-  'bg-blue-600 dark:bg-blue-500',
-  'bg-indigo-600 dark:bg-indigo-500',
-  'bg-cyan-600 dark:bg-cyan-500',
-  'bg-violet-600 dark:bg-violet-500',
-  'bg-emerald-600 dark:bg-emerald-500',
-];
 
 function ProjectTimeline({ 
   projectId, 
@@ -1173,11 +1165,9 @@ function ProjectTimeline({
       const effectiveStartDate = start || end!;
       const effectiveEndDate = end || start!;
       
-      const isRange = start && end && t.startDate !== t.endDate;
-      
       events.push({
         id: t.id,
-        type: isRange ? 'bar' : 'point',
+        type: 'point' as const,
         title: t.name,
         startDate: effectiveStartDate,
         endDate: effectiveEndDate,
@@ -1196,8 +1186,7 @@ function ProjectTimeline({
     return allEvents.filter(e => hiddenTaskIds.has(e.id));
   }, [allEvents, hiddenTaskIds]);
 
-  const barEvents = useMemo(() => visibleEvents.filter(e => e.type === 'bar'), [visibleEvents]);
-  const pointEvents = useMemo(() => visibleEvents.filter(e => e.type === 'point'), [visibleEvents]);
+  const pointEvents = visibleEvents;
 
   const timelineRange = useMemo(() => {
     if (!effectiveStart || !effectiveEnd) return null;
@@ -1323,23 +1312,6 @@ function ProjectTimeline({
     return { scale, marks };
   }, [timelineRange]);
 
-  const barsWithLayout = useMemo(() => {
-    if (!timelineRange || barEvents.length === 0) return [];
-    
-    return barEvents.map((event, idx) => {
-      const startPos = Math.max(0, Math.min(100, (differenceInDays(event.startDate, timelineRange.start) / timelineRange.totalDays) * 100));
-      const endPos = Math.max(0, Math.min(100, (differenceInDays(event.endDate, timelineRange.start) / timelineRange.totalDays) * 100));
-      const width = Math.max(1, endPos - startPos);
-      
-      return {
-        ...event,
-        left: startPos,
-        width,
-        colorClass: TIMELINE_BAR_COLORS[idx % TIMELINE_BAR_COLORS.length],
-      };
-    });
-  }, [barEvents, timelineRange]);
-
   const pointsWithLayout = useMemo(() => {
     if (!timelineRange || pointEvents.length === 0) return { points: [] as any[], topRowCount: 0, bottomRowCount: 0 };
     
@@ -1349,7 +1321,7 @@ function ProjectTimeline({
     const CONTAINER_WIDTH_PX = 700;
 
     const points = pointEvents.map(event => {
-      const position = Math.max(0, Math.min(100, (differenceInDays(event.startDate, timelineRange.start) / timelineRange.totalDays) * 100));
+      const position = Math.max(0, Math.min(100, (differenceInDays(event.endDate, timelineRange.start) / timelineRange.totalDays) * 100));
       const titleWidth = Math.min(event.title.length * CHAR_WIDTH_PX, MAX_LABEL_PX);
       const dateWidth = 24;
       const labelWidthPx = Math.max(titleWidth, dateWidth) + PADDING_PX;
@@ -1509,7 +1481,7 @@ function ProjectTimeline({
                       }}
                     >
                       <span className="text-[9px] text-muted-foreground/50">
-                        {format(point.startDate, 'M/d')}
+                        {format(point.endDate, 'M/d')}
                       </span>
                       <span className={cn(
                         "text-[9px] leading-tight text-center mb-0.5 max-w-[100px] truncate",
@@ -1527,58 +1499,6 @@ function ProjectTimeline({
             <div className="relative mx-8" style={{ height: `${trackHeight}px` }}>
               <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-2 bg-muted rounded-full" />
               
-              {barsWithLayout.map((bar) => (
-                  <Tooltip key={`bar-${bar.id}`}>
-                    <TooltipTrigger asChild>
-                      <div
-                        className={cn(
-                          "absolute h-6 rounded cursor-pointer flex items-center px-2 overflow-hidden z-20 transition-opacity hover:opacity-90 top-1/2 -translate-y-1/2",
-                          bar.colorClass,
-                          bar.completed && "opacity-70"
-                        )}
-                        style={{
-                          left: `${bar.left}%`,
-                          width: `${bar.width}%`,
-                          minWidth: '4px',
-                        }}
-                        onClick={() => onMilestoneClick?.(bar.id)}
-                        data-testid={`timeline-bar-${bar.id}`}
-                      >
-                        <span className="text-[10px] text-white font-medium truncate leading-tight whitespace-nowrap">
-                          {bar.title}
-                          <span className="ml-1 opacity-80">
-                            {format(bar.startDate, 'M/d')} - {format(bar.endDate, 'M/d')}
-                          </span>
-                        </span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent className="space-y-2">
-                      <button
-                        className="font-medium text-primary hover:underline cursor-pointer text-left"
-                        onClick={() => onMilestoneClick?.(bar.id)}
-                      >
-                        {bar.title}
-                      </button>
-                      <p className="text-xs text-muted-foreground">
-                        {format(bar.startDate, 'MMM d, yyyy')} — {format(bar.endDate, 'MMM d, yyyy')}
-                        {bar.completed && ' (Completed)'}
-                      </p>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="w-full h-6 text-xs text-muted-foreground hover:text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          hideTaskFromTimeline(bar.id);
-                        }}
-                      >
-                        <EyeOff className="h-3 w-3 mr-1" />
-                        Hide from timeline
-                      </Button>
-                    </TooltipContent>
-                  </Tooltip>
-              ))}
-
               {pointsWithLayout.points.map((point) => (
                 <Tooltip key={`point-${point.id}`}>
                   <TooltipTrigger asChild>
@@ -1606,8 +1526,10 @@ function ProjectTimeline({
                       {point.title}
                     </button>
                     <p className="text-xs text-muted-foreground">
-                      {format(point.startDate, 'MMM d, yyyy')}
-                      {point.completed && ' — Completed'}
+                      {point.startDate.getTime() !== point.endDate.getTime()
+                        ? `${format(point.startDate, 'MMM d, yyyy')} — ${format(point.endDate, 'MMM d, yyyy')}`
+                        : format(point.endDate, 'MMM d, yyyy')}
+                      {point.completed && ' (Completed)'}
                     </p>
                     <Button 
                       variant="ghost" 
@@ -1715,7 +1637,7 @@ function ProjectTimeline({
                         {point.title}
                       </span>
                       <span className="text-[9px] text-muted-foreground/50">
-                        {format(point.startDate, 'M/d')}
+                        {format(point.endDate, 'M/d')}
                       </span>
                     </div>
                   ))}
@@ -1734,12 +1656,8 @@ function ProjectTimeline({
                   <span>Finish</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-4 h-2 bg-teal-600 rounded" />
-                  <span>Milestone (date range)</span>
-                </div>
-                <div className="flex items-center gap-1.5">
                   <div className="w-[10px] h-[10px] rotate-45 bg-purple-500 border-2 border-purple-700" />
-                  <span>Milestone (key date)</span>
+                  <span>Milestone</span>
                 </div>
                 {timelineRange.todayInRange && (
                   <div className="flex items-center gap-1.5">
