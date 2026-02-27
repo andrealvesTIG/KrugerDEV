@@ -34,7 +34,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, Clock, ChevronDown, ChevronUp, ChevronRight, Milestone as MilestoneIcon, ClipboardList, ExternalLink, Download, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, Clock, ChevronDown, ChevronUp, ChevronRight, Milestone as MilestoneIcon, ClipboardList, ExternalLink, Download, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Flag, FlagTriangleRight } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -1065,9 +1065,9 @@ interface TimelineEvent {
 
 const TIMELINE_BAR_COLORS = [
   'bg-teal-600 dark:bg-teal-500',
-  'bg-cyan-600 dark:bg-cyan-500',
   'bg-blue-600 dark:bg-blue-500',
   'bg-indigo-600 dark:bg-indigo-500',
+  'bg-cyan-600 dark:bg-cyan-500',
   'bg-violet-600 dark:bg-violet-500',
   'bg-emerald-600 dark:bg-emerald-500',
 ];
@@ -1172,11 +1172,12 @@ function ProjectTimeline({
       const end = t.endDate ? parseISO(t.endDate) : null;
       const effectiveStartDate = start || end!;
       const effectiveEndDate = end || start!;
-      const hasDuration = start && end && t.startDate !== t.endDate;
+      
+      const isRange = start && end && t.startDate !== t.endDate;
       
       events.push({
         id: t.id,
-        type: hasDuration ? 'bar' : 'point',
+        type: isRange ? 'bar' : 'point',
         title: t.name,
         startDate: effectiveStartDate,
         endDate: effectiveEndDate,
@@ -1323,53 +1324,32 @@ function ProjectTimeline({
   }, [timelineRange]);
 
   const barsWithLayout = useMemo(() => {
-    if (!timelineRange || barEvents.length === 0) return { bars: [] as any[], rowCount: 0 };
-
-    const bars = barEvents.map((event, index) => {
+    if (!timelineRange || barEvents.length === 0) return [];
+    
+    return barEvents.map((event, idx) => {
       const startPos = Math.max(0, Math.min(100, (differenceInDays(event.startDate, timelineRange.start) / timelineRange.totalDays) * 100));
       const endPos = Math.max(0, Math.min(100, (differenceInDays(event.endDate, timelineRange.start) / timelineRange.totalDays) * 100));
-      const widthPct = Math.max(endPos - startPos, 0.5);
+      const width = Math.max(1, endPos - startPos);
+      
       return {
         ...event,
-        startPos,
-        endPos,
-        widthPct,
-        colorClass: TIMELINE_BAR_COLORS[index % TIMELINE_BAR_COLORS.length],
-        row: 0,
+        left: startPos,
+        width,
+        colorClass: TIMELINE_BAR_COLORS[idx % TIMELINE_BAR_COLORS.length],
       };
     });
-
-    type RowSlot = { endPos: number };
-    const rows: RowSlot[][] = [];
-    for (const bar of bars) {
-      let placed = false;
-      for (let r = 0; r < rows.length; r++) {
-        if (rows[r].every(slot => bar.startPos >= slot.endPos - 0.5)) {
-          bar.row = r;
-          rows[r].push({ endPos: bar.endPos });
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) {
-        bar.row = rows.length;
-        rows.push([{ endPos: bar.endPos }]);
-      }
-    }
-
-    return { bars, rowCount: Math.max(rows.length, 1) };
   }, [barEvents, timelineRange]);
 
   const pointsWithLayout = useMemo(() => {
-    if (!timelineRange || pointEvents.length === 0) return { points: [] as any[], rowCount: 0 };
-
+    if (!timelineRange || pointEvents.length === 0) return { points: [] as any[], topRowCount: 0, bottomRowCount: 0 };
+    
     const CHAR_WIDTH_PX = 5;
     const MAX_LABEL_PX = 100;
     const PADDING_PX = 12;
     const CONTAINER_WIDTH_PX = 700;
 
     const points = pointEvents.map(event => {
-      const position = Math.max(0, Math.min(100, (differenceInDays(event.endDate, timelineRange.start) / timelineRange.totalDays) * 100));
+      const position = Math.max(0, Math.min(100, (differenceInDays(event.startDate, timelineRange.start) / timelineRange.totalDays) * 100));
       const titleWidth = Math.min(event.title.length * CHAR_WIDTH_PX, MAX_LABEL_PX);
       const dateWidth = 24;
       const labelWidthPx = Math.max(titleWidth, dateWidth) + PADDING_PX;
@@ -1377,6 +1357,7 @@ function ProjectTimeline({
       return {
         ...event,
         position,
+        side: 'bottom' as 'top' | 'bottom',
         labelRow: 0,
         leftEdge: position - halfWidthPct,
         rightEdge: position + halfWidthPct,
@@ -1384,25 +1365,66 @@ function ProjectTimeline({
     });
 
     type RowSlot = { rightEdge: number };
-    const rows: RowSlot[][] = [];
+    const topRows: RowSlot[][] = [];
+    const bottomRows: RowSlot[][] = [];
+
+    const fitsInRow = (row: RowSlot[], pt: typeof points[0]) => {
+      return row.every(slot => pt.leftEdge >= slot.rightEdge);
+    };
 
     for (const point of points) {
       let placed = false;
-      for (let r = 0; r < rows.length; r++) {
-        if (rows[r].every(slot => point.leftEdge >= slot.rightEdge)) {
-          point.labelRow = r;
-          rows[r].push({ rightEdge: point.rightEdge });
-          placed = true;
-          break;
+
+      if (bottomRows.length === 0 || fitsInRow(bottomRows[0], point)) {
+        point.side = 'bottom';
+        point.labelRow = 0;
+        if (!bottomRows[0]) bottomRows[0] = [];
+        bottomRows[0].push({ rightEdge: point.rightEdge });
+        placed = true;
+      } else if (topRows.length === 0 || fitsInRow(topRows[0] || [], point)) {
+        point.side = 'top';
+        point.labelRow = 0;
+        if (!topRows[0]) topRows[0] = [];
+        topRows[0].push({ rightEdge: point.rightEdge });
+        placed = true;
+      }
+
+      if (!placed) {
+        for (let r = 1; r < bottomRows.length; r++) {
+          if (fitsInRow(bottomRows[r], point)) {
+            point.side = 'bottom';
+            point.labelRow = r;
+            bottomRows[r].push({ rightEdge: point.rightEdge });
+            placed = true;
+            break;
+          }
         }
       }
       if (!placed) {
-        point.labelRow = rows.length;
-        rows.push([{ rightEdge: point.rightEdge }]);
+        for (let r = 1; r < topRows.length; r++) {
+          if (fitsInRow(topRows[r], point)) {
+            point.side = 'top';
+            point.labelRow = r;
+            topRows[r].push({ rightEdge: point.rightEdge });
+            placed = true;
+            break;
+          }
+        }
+      }
+      if (!placed) {
+        if (bottomRows.length <= topRows.length) {
+          point.side = 'bottom';
+          point.labelRow = bottomRows.length;
+          bottomRows.push([{ rightEdge: point.rightEdge }]);
+        } else {
+          point.side = 'top';
+          point.labelRow = topRows.length;
+          topRows.push([{ rightEdge: point.rightEdge }]);
+        }
       }
     }
 
-    return { points, rowCount: rows.length };
+    return { points, topRowCount: topRows.length, bottomRowCount: bottomRows.length };
   }, [pointEvents, timelineRange]);
 
   if (!timelineRange) {
@@ -1421,9 +1443,7 @@ function ProjectTimeline({
     );
   }
   
-  const BAR_HEIGHT = 22;
-  const BAR_GAP = 4;
-  const trackHeight = Math.max(36, barsWithLayout.rowCount * (BAR_HEIGHT + BAR_GAP) + 12);
+  const trackHeight = 36;
   
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -1471,43 +1491,123 @@ function ProjectTimeline({
                 </div>
               ))}
             </div>
+            
+            {pointsWithLayout.points.filter(p => p.side === 'top').length > 0 && (() => {
+              const topPoints = pointsWithLayout.points.filter(p => p.side === 'top');
+              const ROW_HEIGHT = 32;
+              return (
+                <div className="relative mx-8 mb-0.5" style={{ height: `${pointsWithLayout.topRowCount * ROW_HEIGHT}px` }}>
+                  {topPoints.map((point) => (
+                    <div
+                      key={`point-label-top-${point.id}`}
+                      className="absolute flex flex-col items-center"
+                      style={{
+                        left: `${point.position}%`,
+                        transform: 'translateX(-50%)',
+                        bottom: `${point.labelRow * ROW_HEIGHT}px`,
+                        maxWidth: '120px',
+                      }}
+                    >
+                      <span className="text-[9px] text-muted-foreground/50">
+                        {format(point.startDate, 'M/d')}
+                      </span>
+                      <span className={cn(
+                        "text-[9px] leading-tight text-center mb-0.5 max-w-[100px] truncate",
+                        point.completed ? "text-muted-foreground/60" : "text-muted-foreground"
+                      )}>
+                        {point.title}
+                      </span>
+                      <div className="w-px bg-muted-foreground/30" style={{ height: `${4 + point.labelRow * 2}px` }} />
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
 
             <div className="relative mx-8" style={{ height: `${trackHeight}px` }}>
-              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 bg-muted rounded-full" />
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-2 bg-muted rounded-full" />
               
-              {barsWithLayout.bars.map((bar) => (
-                <Tooltip key={`bar-${bar.id}`}>
+              {barsWithLayout.map((bar) => (
+                  <Tooltip key={`bar-${bar.id}`}>
+                    <TooltipTrigger asChild>
+                      <div
+                        className={cn(
+                          "absolute h-6 rounded cursor-pointer flex items-center px-2 overflow-hidden z-20 transition-opacity hover:opacity-90 top-1/2 -translate-y-1/2",
+                          bar.colorClass,
+                          bar.completed && "opacity-70"
+                        )}
+                        style={{
+                          left: `${bar.left}%`,
+                          width: `${bar.width}%`,
+                          minWidth: '4px',
+                        }}
+                        onClick={() => onMilestoneClick?.(bar.id)}
+                        data-testid={`timeline-bar-${bar.id}`}
+                      >
+                        <span className="text-[10px] text-white font-medium truncate leading-tight whitespace-nowrap">
+                          {bar.title}
+                          <span className="ml-1 opacity-80">
+                            {format(bar.startDate, 'M/d')} - {format(bar.endDate, 'M/d')}
+                          </span>
+                        </span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="space-y-2">
+                      <button
+                        className="font-medium text-primary hover:underline cursor-pointer text-left"
+                        onClick={() => onMilestoneClick?.(bar.id)}
+                      >
+                        {bar.title}
+                      </button>
+                      <p className="text-xs text-muted-foreground">
+                        {format(bar.startDate, 'MMM d, yyyy')} — {format(bar.endDate, 'MMM d, yyyy')}
+                        {bar.completed && ' (Completed)'}
+                      </p>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="w-full h-6 text-xs text-muted-foreground hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          hideTaskFromTimeline(bar.id);
+                        }}
+                      >
+                        <EyeOff className="h-3 w-3 mr-1" />
+                        Hide from timeline
+                      </Button>
+                    </TooltipContent>
+                  </Tooltip>
+              ))}
+
+              {pointsWithLayout.points.map((point) => (
+                <Tooltip key={`point-${point.id}`}>
                   <TooltipTrigger asChild>
                     <div
-                      className={cn(
-                        "absolute rounded-sm cursor-pointer z-20 flex items-center px-1.5 overflow-hidden transition-opacity hover:opacity-90",
-                        bar.colorClass,
-                        bar.completed && "opacity-70"
-                      )}
-                      style={{
-                        left: `${bar.startPos}%`,
-                        width: `${bar.widthPct}%`,
-                        height: `${BAR_HEIGHT}px`,
-                        top: `${6 + bar.row * (BAR_HEIGHT + BAR_GAP)}px`,
-                      }}
-                      onClick={() => onMilestoneClick?.(bar.id)}
-                      data-testid={`timeline-bar-${bar.id}`}
+                      className="absolute top-1/2 -translate-y-1/2 cursor-pointer z-20 flex items-center justify-center"
+                      style={{ left: `calc(${point.position}% - 7px)` }}
+                      onClick={() => onMilestoneClick?.(point.id)}
+                      data-testid={`timeline-milestone-${point.id}`}
                     >
-                      <span className="text-[10px] font-medium text-white truncate leading-tight">
-                        {bar.title}
-                      </span>
+                      <div
+                        className={cn(
+                          "w-[14px] h-[14px] rotate-45 border-2",
+                          point.completed
+                            ? "bg-emerald-500 border-emerald-700"
+                            : "bg-purple-500 border-purple-700"
+                        )}
+                      />
                     </div>
                   </TooltipTrigger>
                   <TooltipContent className="space-y-2">
                     <button
                       className="font-medium text-primary hover:underline cursor-pointer text-left"
-                      onClick={() => onMilestoneClick?.(bar.id)}
+                      onClick={() => onMilestoneClick?.(point.id)}
                     >
-                      {bar.title}
+                      {point.title}
                     </button>
                     <p className="text-xs text-muted-foreground">
-                      {format(bar.startDate, 'MMM d, yyyy')} — {format(bar.endDate, 'MMM d, yyyy')}
-                      {bar.completed && ' (Completed)'}
+                      {format(point.startDate, 'MMM d, yyyy')}
+                      {point.completed && ' — Completed'}
                     </p>
                     <Button 
                       variant="ghost" 
@@ -1515,7 +1615,7 @@ function ProjectTimeline({
                       className="w-full h-6 text-xs text-muted-foreground hover:text-destructive"
                       onClick={(e) => {
                         e.stopPropagation();
-                        hideTaskFromTimeline(bar.id);
+                        hideTaskFromTimeline(point.id);
                       }}
                     >
                       <EyeOff className="h-3 w-3 mr-1" />
@@ -1529,7 +1629,7 @@ function ProjectTimeline({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div 
-                      className="absolute top-0 bottom-0 w-1.5 z-30 cursor-default group"
+                      className="absolute top-0 bottom-0 w-1.5 z-10 cursor-default group"
                       style={{ left: `calc(${timelineRange.todayPosition}% - 2px)` }}
                     >
                       <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-green-600" />
@@ -1580,70 +1680,44 @@ function ProjectTimeline({
               )}
               
               <div className="absolute top-1/2 -translate-y-1/2 text-[10px] font-medium text-muted-foreground flex flex-col items-center leading-tight" style={{ right: '100%', marginRight: '6px' }}>
+                <Flag className="h-3.5 w-3.5 text-emerald-600 mb-0.5" />
                 <span>Start</span>
                 <span className="text-[9px] text-muted-foreground/70 whitespace-nowrap">{format(timelineRange.start, 'M/d')}</span>
               </div>
               <div className="absolute top-1/2 -translate-y-1/2 text-[10px] font-medium text-muted-foreground flex flex-col items-center leading-tight" style={{ left: '100%', marginLeft: '6px' }}>
+                <FlagTriangleRight className="h-3.5 w-3.5 text-red-500 mb-0.5" />
                 <span>Finish</span>
                 <span className="text-[9px] text-muted-foreground/70 whitespace-nowrap">{format(timelineRange.end, 'M/d')}</span>
               </div>
             </div>
 
-            {pointsWithLayout.points.length > 0 && (() => {
+            {pointsWithLayout.points.filter(p => p.side === 'bottom').length > 0 && (() => {
+              const bottomPoints = pointsWithLayout.points.filter(p => p.side === 'bottom');
               const ROW_HEIGHT = 32;
               return (
-                <div className="relative mx-8 mt-0.5" style={{ height: `${pointsWithLayout.rowCount * ROW_HEIGHT}px` }}>
-                  {pointsWithLayout.points.map((point) => (
-                    <Tooltip key={`point-${point.id}`}>
-                      <TooltipTrigger asChild>
-                        <div
-                          className="absolute flex flex-col items-center cursor-pointer"
-                          style={{
-                            left: `${point.position}%`,
-                            transform: 'translateX(-50%)',
-                            top: `${point.labelRow * ROW_HEIGHT}px`,
-                            maxWidth: '120px',
-                          }}
-                          onClick={() => onMilestoneClick?.(point.id)}
-                          data-testid={`timeline-milestone-${point.id}`}
-                        >
-                          <div className="w-px bg-muted-foreground/30" style={{ height: `${4 + point.labelRow * 2}px` }} />
-                          <span className={cn(
-                            "text-[9px] leading-tight text-center mt-0.5 max-w-[100px] truncate",
-                            point.completed ? "text-muted-foreground/60" : "text-muted-foreground"
-                          )}>
-                            {point.title}
-                          </span>
-                          <span className="text-[9px] text-muted-foreground/50 whitespace-nowrap">
-                            {format(point.endDate, 'M/d')}
-                          </span>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent className="space-y-2">
-                        <button
-                          className="font-medium text-primary hover:underline cursor-pointer text-left"
-                          onClick={() => onMilestoneClick?.(point.id)}
-                        >
-                          {point.title}
-                        </button>
-                        <p className="text-xs text-muted-foreground">
-                          {format(point.endDate, 'MMM d, yyyy')}
-                          {point.completed && ' (Completed)'}
-                        </p>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="w-full h-6 text-xs text-muted-foreground hover:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            hideTaskFromTimeline(point.id);
-                          }}
-                        >
-                          <EyeOff className="h-3 w-3 mr-1" />
-                          Hide from timeline
-                        </Button>
-                      </TooltipContent>
-                    </Tooltip>
+                <div className="relative mx-8 mt-0.5" style={{ height: `${pointsWithLayout.bottomRowCount * ROW_HEIGHT}px` }}>
+                  {bottomPoints.map((point) => (
+                    <div
+                      key={`point-label-${point.id}`}
+                      className="absolute flex flex-col items-center"
+                      style={{
+                        left: `${point.position}%`,
+                        transform: 'translateX(-50%)',
+                        top: `${point.labelRow * ROW_HEIGHT}px`,
+                        maxWidth: '120px',
+                      }}
+                    >
+                      <div className="w-px bg-muted-foreground/30" style={{ height: `${4 + point.labelRow * 2}px` }} />
+                      <span className={cn(
+                        "text-[9px] leading-tight text-center mt-0.5 max-w-[100px] truncate",
+                        point.completed ? "text-muted-foreground/60" : "text-muted-foreground"
+                      )}>
+                        {point.title}
+                      </span>
+                      <span className="text-[9px] text-muted-foreground/50">
+                        {format(point.startDate, 'M/d')}
+                      </span>
+                    </div>
                   ))}
                 </div>
               );
@@ -1651,18 +1725,22 @@ function ProjectTimeline({
             
             <div className="flex items-center justify-between mt-4 text-xs text-muted-foreground">
               <div className="flex items-center gap-4">
-                {barEvents.length > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-4 h-2.5 bg-teal-600 rounded-sm" />
-                    <span>Date range</span>
-                  </div>
-                )}
-                {pointEvents.length > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-px h-3 bg-muted-foreground/50" />
-                    <span>Key date</span>
-                  </div>
-                )}
+                <div className="flex items-center gap-1.5">
+                  <Flag className="h-3 w-3 text-emerald-600" />
+                  <span>Start</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <FlagTriangleRight className="h-3 w-3 text-red-500" />
+                  <span>Finish</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-4 h-2 bg-teal-600 rounded" />
+                  <span>Milestone (date range)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-[10px] h-[10px] rotate-45 bg-purple-500 border-2 border-purple-700" />
+                  <span>Milestone (key date)</span>
+                </div>
                 {timelineRange.todayInRange && (
                   <div className="flex items-center gap-1.5">
                     <div className="w-3 h-0.5 bg-green-600" />
@@ -1678,7 +1756,7 @@ function ProjectTimeline({
                 {timelineRange.todayAfter && (
                   <div className="flex items-center gap-1.5">
                     <div className="w-3 h-2 bg-amber-600 rounded-sm" />
-                    <span>Today (past end)</span>
+                    <span>Today (after timeline)</span>
                   </div>
                 )}
                 {hiddenEvents.length > 0 && (
