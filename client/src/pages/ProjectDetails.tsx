@@ -1555,6 +1555,14 @@ function ProjectTimeline({
             <div className="flex items-center justify-between mt-4 text-xs text-muted-foreground">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1.5">
+                  <Flag className="h-3 w-3 text-emerald-600" />
+                  <span>Start</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <FlagTriangleRight className="h-3 w-3 text-red-500" />
+                  <span>Finish</span>
+                </div>
+                <div className="flex items-center gap-1.5">
                   <div className="w-4 h-2 bg-teal-600 rounded" />
                   <span>Milestone (date range)</span>
                 </div>
