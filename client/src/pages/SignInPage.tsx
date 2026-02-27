@@ -1413,6 +1413,17 @@ function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
             })}
           </div>
         )}
+        <div className="flex justify-center mt-8">
+          <Button
+            size="lg"
+            variant="outline"
+            className="border-slate-500 text-slate-200 hover:bg-slate-600 px-8"
+            onClick={() => { setContactSent(false); setContactEmail(''); setContactName(''); setContactMessage(''); setContactOpen(true); }}
+            data-testid="button-contact-sales-bottom"
+          >
+            Need a custom plan? Contact Sales
+          </Button>
+        </div>
       </div>
 
       <Dialog open={contactOpen} onOpenChange={setContactOpen}>
