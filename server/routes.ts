@@ -9484,13 +9484,56 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         input.endDate = endDate.toISOString().split('T')[0];
       }
       
-      // Auto-assign taskIndex if not provided
-      if (input.taskIndex === undefined || input.taskIndex === null) {
-        const existingTasks = await storage.getTasksByProject(input.projectId);
-        // Use max of: highest existing taskIndex OR count of tasks (for legacy tasks with null taskIndex)
-        const maxExistingIndex = existingTasks.reduce((max, t) => Math.max(max, t.taskIndex || 0), 0);
-        const taskCount = existingTasks.length;
-        input.taskIndex = Math.max(maxExistingIndex, taskCount) + 1;
+      const existingTasks = await storage.getTasksByProject(input.projectId);
+
+      // When parentId is provided, auto-set outlineLevel and position the subtask correctly
+      if (input.parentId) {
+        const parentTask = existingTasks.find(t => t.id === input.parentId);
+        if (!parentTask) {
+          return res.status(400).json({ message: `Parent task with id ${input.parentId} not found in this project` });
+        }
+        const parentLevel = parentTask.outlineLevel || 1;
+        if (!input.outlineLevel) {
+          input.outlineLevel = parentLevel + 1;
+        }
+
+        // Position subtask right after the parent's last existing child
+        if (input.taskIndex === undefined || input.taskIndex === null) {
+          const sortedTasks = [...existingTasks].sort((a, b) => (a.taskIndex || 0) - (b.taskIndex || 0));
+          const parentIdx = sortedTasks.findIndex(t => t.id === input.parentId);
+          let insertAfterIdx = parentIdx;
+          for (let i = parentIdx + 1; i < sortedTasks.length; i++) {
+            const level = sortedTasks[i].outlineLevel || 1;
+            if (level > parentLevel) {
+              insertAfterIdx = i;
+            } else {
+              break;
+            }
+          }
+          const insertAfterTaskIndex = sortedTasks[insertAfterIdx]?.taskIndex || 0;
+          const nextTaskIndex = sortedTasks[insertAfterIdx + 1]?.taskIndex;
+
+          if (nextTaskIndex !== undefined && nextTaskIndex !== null) {
+            for (const t of sortedTasks) {
+              if ((t.taskIndex || 0) > insertAfterTaskIndex) {
+                await storage.updateTask(t.id, { taskIndex: (t.taskIndex || 0) + 1 });
+              }
+            }
+          }
+          input.taskIndex = insertAfterTaskIndex + 1;
+        }
+
+        // Mark the parent task as a summary task
+        if (!parentTask.isSummary) {
+          await storage.updateTask(parentTask.id, { isSummary: true });
+        }
+      } else {
+        // Auto-assign taskIndex if not provided (top-level task)
+        if (input.taskIndex === undefined || input.taskIndex === null) {
+          const maxExistingIndex = existingTasks.reduce((max, t) => Math.max(max, t.taskIndex || 0), 0);
+          const taskCount = existingTasks.length;
+          input.taskIndex = Math.max(maxExistingIndex, taskCount) + 1;
+        }
       }
       
       const task = await storage.createTask(input);
@@ -9523,7 +9566,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         await rollUpParentTasks(task.projectId);
       }
       
-      res.status(201).json(task);
+      // Re-fetch the task to return the fully updated version (with WBS, outlineLevel, etc.)
+      const updatedTask = await storage.getTask(task.id);
+      res.status(201).json(updatedTask || task);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
       throw err;
