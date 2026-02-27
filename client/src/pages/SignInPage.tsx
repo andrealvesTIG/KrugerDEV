@@ -1350,10 +1350,10 @@ function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
                   key={plan.id}
                   className={
                     isPopular
-                      ? "p-5 rounded-2xl bg-gradient-to-b from-orange-500/15 to-slate-800/50 border-2 border-orange-500 relative w-full sm:w-[calc(50%-0.5rem)] lg:w-[220px]"
+                      ? "p-5 rounded-2xl bg-gradient-to-b from-orange-500/15 to-slate-800/50 border-2 border-orange-500 relative w-full sm:w-[calc(50%-0.5rem)] lg:w-[220px] flex flex-col"
                       : isFree
-                      ? "p-5 rounded-2xl bg-gradient-to-b from-green-500/15 to-slate-800/50 border-2 border-green-500 relative w-full sm:w-[calc(50%-0.5rem)] lg:w-[220px]"
-                      : "p-5 rounded-2xl bg-slate-800/50 border border-slate-600 w-full sm:w-[calc(50%-0.5rem)] lg:w-[220px]"
+                      ? "p-5 rounded-2xl bg-gradient-to-b from-green-500/15 to-slate-800/50 border-2 border-green-500 relative w-full sm:w-[calc(50%-0.5rem)] lg:w-[220px] flex flex-col"
+                      : "p-5 rounded-2xl bg-slate-800/50 border border-slate-600 w-full sm:w-[calc(50%-0.5rem)] lg:w-[220px] flex flex-col"
                   }
                 >
                   {isPopular && (
@@ -1371,7 +1371,7 @@ function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
                     <div className="text-3xl font-bold text-white mb-1">{priceDisplay}</div>
                     <p className="text-slate-300 text-xs">{subtitle}</p>
                   </div>
-                  <ul className="space-y-2 mb-5">
+                  <ul className="space-y-2 mb-5 flex-grow">
                     {features.map((feature, i) => (
                       <li key={i} className="flex items-center gap-2 text-slate-200 text-xs">
                         <CheckCircle className={`h-3.5 w-3.5 flex-shrink-0 ${isPopular ? 'text-orange-400' : isFree ? 'text-green-400' : 'text-green-400'}`} />
