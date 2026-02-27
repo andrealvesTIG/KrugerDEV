@@ -1511,10 +1511,19 @@ function ProjectTimeline({
               ))}
               
               {timelineRange.todayPosition >= 0 && timelineRange.todayPosition <= 100 && (
-                <div 
-                  className="absolute top-0 bottom-0 w-0.5 bg-green-600 z-10"
-                  style={{ left: `${timelineRange.todayPosition}%` }}
-                />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div 
+                      className="absolute top-0 bottom-0 w-1.5 z-10 cursor-default group"
+                      style={{ left: `calc(${timelineRange.todayPosition}% - 2px)` }}
+                    >
+                      <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-green-600" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs">
+                    Today — {format(timelineRange.today, 'MMM d, yyyy')}
+                  </TooltipContent>
+                </Tooltip>
               )}
               
               <div className="absolute top-1/2 -translate-y-1/2 text-[10px] font-medium text-muted-foreground flex flex-col items-center leading-tight" style={{ right: '100%', marginRight: '6px' }}>
