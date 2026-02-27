@@ -1321,7 +1321,7 @@ function ProjectTimeline({
   const barsWithLayout = useMemo(() => {
     if (!timelineRange || barEvents.length === 0) return [];
     
-    const bars = barEvents.map((event, idx) => {
+    return barEvents.map((event, idx) => {
       const startPos = Math.max(0, Math.min(100, (differenceInDays(event.startDate, timelineRange.start) / timelineRange.totalDays) * 100));
       const endPos = Math.max(0, Math.min(100, (differenceInDays(event.endDate, timelineRange.start) / timelineRange.totalDays) * 100));
       const width = Math.max(1, endPos - startPos);
@@ -1330,29 +1330,9 @@ function ProjectTimeline({
         ...event,
         left: startPos,
         width,
-        row: 0,
         colorClass: TIMELINE_BAR_COLORS[idx % TIMELINE_BAR_COLORS.length],
       };
     });
-    
-    const rowEnds: number[] = [-Infinity];
-    for (const bar of bars) {
-      let placed = false;
-      for (let r = 0; r < rowEnds.length; r++) {
-        if (bar.left >= rowEnds[r] + 0.5) {
-          bar.row = r;
-          rowEnds[r] = bar.left + bar.width;
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) {
-        bar.row = rowEnds.length;
-        rowEnds.push(bar.left + bar.width);
-      }
-    }
-    
-    return bars;
   }, [barEvents, timelineRange]);
 
   const pointsWithLayout = useMemo(() => {
@@ -1364,11 +1344,6 @@ function ProjectTimeline({
     });
   }, [pointEvents, timelineRange]);
 
-  const barRowCount = useMemo(() => {
-    if (barsWithLayout.length === 0) return 0;
-    return Math.max(...barsWithLayout.map(b => b.row)) + 1;
-  }, [barsWithLayout]);
-  
   if (!timelineRange) {
     return (
       <Card className="py-2">
@@ -1385,7 +1360,7 @@ function ProjectTimeline({
     );
   }
   
-  const trackHeight = Math.max(1, barRowCount) * 28 + 8;
+  const trackHeight = 36;
   
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -1437,21 +1412,18 @@ function ProjectTimeline({
             <div className="relative mx-8" style={{ height: `${trackHeight}px` }}>
               <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-2 bg-muted rounded-full" />
               
-              {barsWithLayout.map((bar) => {
-                const barTop = bar.row * 28 + 4;
-                return (
+              {barsWithLayout.map((bar) => (
                   <Tooltip key={`bar-${bar.id}`}>
                     <TooltipTrigger asChild>
                       <div
                         className={cn(
-                          "absolute h-6 rounded cursor-pointer flex items-center px-2 overflow-hidden z-20 transition-opacity hover:opacity-90",
+                          "absolute h-6 rounded cursor-pointer flex items-center px-2 overflow-hidden z-20 transition-opacity hover:opacity-90 top-1/2 -translate-y-1/2",
                           bar.colorClass,
                           bar.completed && "opacity-70"
                         )}
                         style={{
                           left: `${bar.left}%`,
                           width: `${bar.width}%`,
-                          top: `${barTop}px`,
                           minWidth: '4px',
                         }}
                         onClick={() => onMilestoneClick?.(bar.id)}
@@ -1490,8 +1462,7 @@ function ProjectTimeline({
                       </Button>
                     </TooltipContent>
                   </Tooltip>
-                );
-              })}
+              ))}
               
               {timelineRange.todayPosition >= 0 && timelineRange.todayPosition <= 100 && (
                 <div 
