@@ -1070,6 +1070,9 @@ export const organizationIntegrations = pgTable("organization_integrations", {
   connectedBy: text("connected_by"),
   connectedAt: timestamp("connected_at"),
   updatedAt: timestamp("updated_at").defaultNow(),
+  accessTokenEncrypted: text("access_token_encrypted"),
+  refreshTokenEncrypted: text("refresh_token_encrypted"),
+  tokensEncrypted: text("tokens_encrypted"),
 });
 
 // === RELATIONS ===

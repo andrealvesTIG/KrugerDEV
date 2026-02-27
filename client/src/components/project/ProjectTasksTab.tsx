@@ -3,6 +3,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays } from "@/lib/workingDays";
+import { computeWbsValues } from "@/lib/taskWbs";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/use-tasks";
@@ -33,48 +34,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Loader2, AlertCircle, Calendar as CalendarIcon, Plus, Pencil, GanttChartSquare, Table, Milestone as MilestoneIcon, History, Maximize2, Minimize2, Columns3, RefreshCw, Download, Upload, ExternalLink, Search, Link2, User as UserIcon } from "lucide-react";
-
-function computeWbsValues(tasks: Task[]): Map<number, string> {
-  const wbsMap = new Map<number, string>();
-  if (!tasks || tasks.length === 0) return wbsMap;
-  
-  // Track counters for each level
-  const levelCounters: number[] = [0, 0, 0, 0, 0, 0]; // 6 levels max
-  let lastLevel = 0;
-  
-  for (const task of tasks) {
-    const level = (task.outlineLevel || 1) - 1; // Convert to 0-indexed
-    
-    // If we're going to a higher level (lower number), reset all lower level counters
-    if (level <= lastLevel) {
-      for (let i = level + 1; i < levelCounters.length; i++) {
-        levelCounters[i] = 0;
-      }
-    }
-    
-    // Increment counter for current level
-    levelCounters[level]++;
-    
-    // Ensure all parent levels have at least 1 if this is a child task
-    // This prevents WBS like "0.1" when a child appears without a parent
-    for (let i = 0; i < level; i++) {
-      if (levelCounters[i] === 0) {
-        levelCounters[i] = 1;
-      }
-    }
-    
-    // Build WBS string from level counters
-    const wbsParts: number[] = [];
-    for (let i = 0; i <= level; i++) {
-      wbsParts.push(levelCounters[i]);
-    }
-    
-    wbsMap.set(task.id, wbsParts.join('.'));
-    lastLevel = level;
-  }
-  
-  return wbsMap;
-}
 
 function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId, sourceFileName, sourceFileUrl, dataverseOrgId, dataverseTenantId, urlTaskId, readOnly = false, projectUpdatedAt }: { 
   projectId: number; 
@@ -1418,4 +1377,3 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
 }
 
 export default TasksTab;
-export { computeWbsValues };

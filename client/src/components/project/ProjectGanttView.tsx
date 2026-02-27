@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { queryClient } from "@/lib/queryClient";
 import type { Task, TaskResourceAssignment, Resource } from "@shared/schema";
-import { computeWbsValues } from "@/components/project/ProjectTasksTab";
+import { computeWbsValues } from "@/lib/taskWbs";
 import { ResourceAssignment, ResourceAllocation } from "@/components/ResourceAssignment";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { GanttDependencyLinks } from "@/components/GanttDependencyLinks";
