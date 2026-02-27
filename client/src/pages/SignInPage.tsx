@@ -1351,12 +1351,19 @@ function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
                   className={
                     isPopular
                       ? "p-5 rounded-2xl bg-gradient-to-b from-orange-500/15 to-slate-800/50 border-2 border-orange-500 relative w-full sm:w-[calc(50%-0.5rem)] lg:w-[220px]"
+                      : isFree
+                      ? "p-5 rounded-2xl bg-gradient-to-b from-green-500/15 to-slate-800/50 border-2 border-green-500 relative w-full sm:w-[calc(50%-0.5rem)] lg:w-[220px]"
                       : "p-5 rounded-2xl bg-slate-800/50 border border-slate-600 w-full sm:w-[calc(50%-0.5rem)] lg:w-[220px]"
                   }
                 >
                   {isPopular && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                       <Badge className="bg-orange-500 text-white text-xs">Most Popular</Badge>
+                    </div>
+                  )}
+                  {isFree && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <Badge className="bg-green-500 text-white text-xs">Free Forever</Badge>
                     </div>
                   )}
                   <div className="text-center mb-5">
@@ -1367,7 +1374,7 @@ function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
                   <ul className="space-y-2 mb-5">
                     {features.map((feature, i) => (
                       <li key={i} className="flex items-center gap-2 text-slate-200 text-xs">
-                        <CheckCircle className={`h-3.5 w-3.5 flex-shrink-0 ${isPopular ? 'text-orange-400' : 'text-green-400'}`} />
+                        <CheckCircle className={`h-3.5 w-3.5 flex-shrink-0 ${isPopular ? 'text-orange-400' : isFree ? 'text-green-400' : 'text-green-400'}`} />
                         {feature}
                       </li>
                     ))}
@@ -1381,6 +1388,15 @@ function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
                     >
                       Start Free
                     </Button>
+                  ) : isFree ? (
+                    <Button
+                      size="sm"
+                      className="w-full bg-gradient-to-r from-green-500 to-green-400 hover:from-green-400 hover:to-green-300 text-white font-semibold"
+                      onClick={scrollToSignIn}
+                      data-testid={`button-pricing-${plan.code.toLowerCase()}`}
+                    >
+                      Get Started Free
+                    </Button>
                   ) : (
                     <Button
                       variant="outline"
@@ -1389,7 +1405,7 @@ function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
                       onClick={isCustom ? () => { setContactSent(false); setContactEmail(''); setContactName(''); setContactMessage(''); setContactOpen(true); } : scrollToSignIn}
                       data-testid={`button-pricing-${plan.code.toLowerCase()}`}
                     >
-                      {isFree ? 'Get it Free' : isCustom ? 'Contact Sales' : 'Start Free'}
+                      {isCustom ? 'Contact Sales' : 'Start Free'}
                     </Button>
                   )}
                 </div>
