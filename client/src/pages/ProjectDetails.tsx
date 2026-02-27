@@ -34,7 +34,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, Clock, ChevronDown, ChevronUp, ChevronRight, Milestone as MilestoneIcon, ClipboardList, ExternalLink, Download, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, Clock, ChevronDown, ChevronUp, ChevronRight, Milestone as MilestoneIcon, ClipboardList, ExternalLink, Download, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Flag, FlagTriangleRight } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -1518,10 +1518,12 @@ function ProjectTimeline({
               )}
               
               <div className="absolute top-1/2 -translate-y-1/2 text-[10px] font-medium text-muted-foreground flex flex-col items-center leading-tight" style={{ right: '100%', marginRight: '6px' }}>
+                <Flag className="h-3.5 w-3.5 text-emerald-600 mb-0.5" />
                 <span>Start</span>
                 <span className="text-[9px] text-muted-foreground/70 whitespace-nowrap">{format(timelineRange.start, 'M/d')}</span>
               </div>
               <div className="absolute top-1/2 -translate-y-1/2 text-[10px] font-medium text-muted-foreground flex flex-col items-center leading-tight" style={{ left: '100%', marginLeft: '6px' }}>
+                <FlagTriangleRight className="h-3.5 w-3.5 text-red-500 mb-0.5" />
                 <span>Finish</span>
                 <span className="text-[9px] text-muted-foreground/70 whitespace-nowrap">{format(timelineRange.end, 'M/d')}</span>
               </div>
