@@ -26,7 +26,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal, Search, User as UserIcon, TrendingUp, TrendingDown, Timer, RefreshCw, Lock as LockIcon, Crown, Cloud, FileSpreadsheet, Milestone as MilestoneIcon } from "lucide-react";
 import { PageTransition, FadeIn } from "@/components/ui/page-transition";
@@ -69,7 +68,6 @@ export default function Tasks() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [durationInput, setDurationInput] = useState<string>("1");
   const [filterProjectId, setFilterProjectId] = useState<number | null>(null);
-  const [projectFilterOpen, setProjectFilterOpen] = useState(false);
   const [projectFilterSearch, setProjectFilterSearch] = useState("");
   const [groupBy, setGroupBy] = useState<GroupBy>("project");
   const [searchQuery, setSearchQuery] = useState("");
@@ -607,102 +605,75 @@ export default function Tasks() {
             )}
           </Button>
           
-          <Popover open={projectFilterOpen} onOpenChange={(open) => { setProjectFilterOpen(open); if (!open) setProjectFilterSearch(""); }}>
-            <PopoverTrigger asChild>
-              <div className="inline-flex">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" className="h-9 w-9" data-testid="button-task-options">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem
-                      className="max-w-[240px]"
-                      onSelect={() => { setTimeout(() => setProjectFilterOpen(true), 150); }}
-                    >
-                      <Filter className="h-4 w-4 mr-2 shrink-0" />
-                      <span className="truncate">
-                        Filter: {filterProjectId ? projects?.find(p => p.id === filterProjectId)?.name || "Project" : "All Projects"}
-                      </span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        <Layers className="h-4 w-4 mr-2" />
-                        Group: {groupBy === "project" ? "By Project" : groupBy === "portfolio" ? "By Portfolio" : "By Resource"}
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent>
-                        <DropdownMenuRadioGroup value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
-                          <DropdownMenuRadioItem value="project">
-                            <FolderKanban className="h-4 w-4 mr-2" />
-                            By Project
-                          </DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="portfolio">
-                            <Briefcase className="h-4 w-4 mr-2" />
-                            By Portfolio
-                          </DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="resource">
-                            <UserIcon className="h-4 w-4 mr-2" />
-                            By Resource
-                          </DropdownMenuRadioItem>
-                        </DropdownMenuRadioGroup>
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-64 p-0">
-              <div className="p-2 border-b">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Search projects..."
-                    value={projectFilterSearch}
-                    onChange={(e) => setProjectFilterSearch(e.target.value)}
-                    className="h-8 pl-8 text-sm"
-                    aria-label="Search projects"
-                    autoFocus
-                  />
-                </div>
-              </div>
-              <div className="overflow-y-auto p-1" style={{ maxHeight: '300px' }}>
-                <button
-                  className={cn(
-                    "w-full flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm cursor-pointer hover:bg-accent",
-                    !filterProjectId && "bg-accent"
-                  )}
-                  onClick={() => { setFilterProjectId(null); setProjectFilterOpen(false); setProjectFilterSearch(""); }}
-                >
-                  <div className={cn("h-4 w-4 rounded-full border flex items-center justify-center shrink-0", !filterProjectId && "bg-primary border-primary")}>
-                    {!filterProjectId && <Check className="h-3 w-3 text-primary-foreground" />}
+          <DropdownMenu onOpenChange={(open) => { if (!open) setProjectFilterSearch(""); }}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="h-9 w-9" data-testid="button-task-options">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="max-w-[240px]">
+                  <Filter className="h-4 w-4 mr-2 shrink-0" />
+                  <span className="truncate">
+                    Filter: {filterProjectId ? projects?.find(p => p.id === filterProjectId)?.name || "Project" : "All Projects"}
+                  </span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="p-0 w-64">
+                  <div className="p-2 border-b" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        placeholder="Search projects..."
+                        value={projectFilterSearch}
+                        onChange={(e) => setProjectFilterSearch(e.target.value)}
+                        className="h-8 pl-8 text-sm"
+                        aria-label="Search projects"
+                      />
+                    </div>
                   </div>
-                  All Projects
-                </button>
-                {projects
-                  ?.filter(p => !projectFilterSearch || normalizeSearch(p.name).includes(normalizeSearch(projectFilterSearch)))
-                  .map(p => (
-                    <button
-                      key={p.id}
-                      className={cn(
-                        "w-full flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm cursor-pointer hover:bg-accent text-left",
-                        filterProjectId === p.id && "bg-accent"
-                      )}
-                      onClick={() => { setFilterProjectId(p.id); setProjectFilterOpen(false); setProjectFilterSearch(""); }}
-                    >
-                      <div className={cn("h-4 w-4 rounded-full border flex items-center justify-center shrink-0", filterProjectId === p.id && "bg-primary border-primary")}>
-                        {filterProjectId === p.id && <Check className="h-3 w-3 text-primary-foreground" />}
-                      </div>
-                      <span className="truncate" title={p.name}>{p.name}</span>
-                    </button>
-                  ))}
-                {projects?.filter(p => !projectFilterSearch || normalizeSearch(p.name).includes(normalizeSearch(projectFilterSearch))).length === 0 && (
-                  <div className="px-2 py-4 text-sm text-muted-foreground text-center">No projects found</div>
-                )}
-              </div>
-            </PopoverContent>
-          </Popover>
+                  <div className="overflow-y-auto p-1" style={{ maxHeight: '300px' }}>
+                    <DropdownMenuRadioGroup value={filterProjectId ? String(filterProjectId) : "all"} onValueChange={(v) => setFilterProjectId(v === "all" ? null : Number(v))}>
+                      <DropdownMenuRadioItem value="all">All Projects</DropdownMenuRadioItem>
+                      {projects
+                        ?.filter(p => !projectFilterSearch || normalizeSearch(p.name).includes(normalizeSearch(projectFilterSearch)))
+                        .map(p => (
+                          <DropdownMenuRadioItem key={p.id} value={String(p.id)}>
+                            <div className="truncate max-w-[200px]" title={p.name}>{p.name}</div>
+                          </DropdownMenuRadioItem>
+                        ))}
+                    </DropdownMenuRadioGroup>
+                    {projects?.filter(p => !projectFilterSearch || normalizeSearch(p.name).includes(normalizeSearch(projectFilterSearch))).length === 0 && (
+                      <div className="px-2 py-4 text-sm text-muted-foreground text-center">No projects found</div>
+                    )}
+                  </div>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Layers className="h-4 w-4 mr-2" />
+                  Group: {groupBy === "project" ? "By Project" : groupBy === "portfolio" ? "By Portfolio" : "By Resource"}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuRadioGroup value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
+                    <DropdownMenuRadioItem value="project">
+                      <FolderKanban className="h-4 w-4 mr-2" />
+                      By Project
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="portfolio">
+                      <Briefcase className="h-4 w-4 mr-2" />
+                      By Portfolio
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="resource">
+                      <UserIcon className="h-4 w-4 mr-2" />
+                      By Resource
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            </DropdownMenuContent>
+          </DropdownMenu>
           
           <Button onClick={() => setIsCreateDialogOpen(true)} size="sm" data-testid="button-add-task">
             <Plus className="h-4 w-4 sm:mr-1" />
