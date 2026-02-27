@@ -1341,32 +1341,68 @@ function ProjectTimeline({
   }, [barEvents, timelineRange]);
 
   const pointsWithLayout = useMemo(() => {
-    if (!timelineRange || pointEvents.length === 0) return [];
+    if (!timelineRange || pointEvents.length === 0) return { points: [] as any[], topRowCount: 0, bottomRowCount: 0 };
     
     const points = pointEvents.map(event => {
       const position = Math.max(0, Math.min(100, (differenceInDays(event.startDate, timelineRange.start) / timelineRange.totalDays) * 100));
-      return { ...event, position, labelRow: 0 };
+      return { ...event, position, side: 'bottom' as 'top' | 'bottom', labelRow: 0 };
     });
 
     const MIN_LABEL_GAP = 8;
-    const rowEnds: number[] = [];
-    for (const point of points) {
-      let placed = false;
-      for (let r = 0; r < rowEnds.length; r++) {
-        if (point.position >= rowEnds[r] + MIN_LABEL_GAP) {
-          point.labelRow = r;
-          rowEnds[r] = point.position;
-          placed = true;
-          break;
+    const topRowEnds: number[] = [];
+    const bottomRowEnds: number[] = [];
+    
+    for (let i = 0; i < points.length; i++) {
+      const point = points[i];
+      
+      const fitsBottom0 = bottomRowEnds.length === 0 || point.position >= (bottomRowEnds[0] ?? -Infinity) + MIN_LABEL_GAP;
+      const fitsTop0 = topRowEnds.length === 0 || point.position >= (topRowEnds[0] ?? -Infinity) + MIN_LABEL_GAP;
+      
+      if (fitsBottom0) {
+        point.side = 'bottom';
+        point.labelRow = 0;
+        bottomRowEnds[0] = point.position;
+      } else if (fitsTop0) {
+        point.side = 'top';
+        point.labelRow = 0;
+        topRowEnds[0] = point.position;
+      } else {
+        let placed = false;
+        for (let r = 1; r < bottomRowEnds.length; r++) {
+          if (point.position >= (bottomRowEnds[r] ?? -Infinity) + MIN_LABEL_GAP) {
+            point.side = 'bottom';
+            point.labelRow = r;
+            bottomRowEnds[r] = point.position;
+            placed = true;
+            break;
+          }
         }
-      }
-      if (!placed) {
-        point.labelRow = rowEnds.length;
-        rowEnds.push(point.position);
+        if (!placed) {
+          for (let r = 1; r < topRowEnds.length; r++) {
+            if (point.position >= (topRowEnds[r] ?? -Infinity) + MIN_LABEL_GAP) {
+              point.side = 'top';
+              point.labelRow = r;
+              topRowEnds[r] = point.position;
+              placed = true;
+              break;
+            }
+          }
+        }
+        if (!placed) {
+          if (bottomRowEnds.length <= topRowEnds.length) {
+            point.side = 'bottom';
+            point.labelRow = bottomRowEnds.length;
+            bottomRowEnds.push(point.position);
+          } else {
+            point.side = 'top';
+            point.labelRow = topRowEnds.length;
+            topRowEnds.push(point.position);
+          }
+        }
       }
     }
 
-    return points;
+    return { points, topRowCount: topRowEnds.length, bottomRowCount: bottomRowEnds.length };
   }, [pointEvents, timelineRange]);
 
   if (!timelineRange) {
@@ -1434,6 +1470,38 @@ function ProjectTimeline({
               ))}
             </div>
             
+            {pointsWithLayout.points.filter(p => p.side === 'top').length > 0 && (() => {
+              const topPoints = pointsWithLayout.points.filter(p => p.side === 'top');
+              const ROW_HEIGHT = 32;
+              return (
+                <div className="relative mx-8 mb-0.5" style={{ height: `${pointsWithLayout.topRowCount * ROW_HEIGHT}px` }}>
+                  {topPoints.map((point) => (
+                    <div
+                      key={`point-label-top-${point.id}`}
+                      className="absolute flex flex-col items-center"
+                      style={{
+                        left: `${point.position}%`,
+                        transform: 'translateX(-50%)',
+                        bottom: `${point.labelRow * ROW_HEIGHT}px`,
+                        maxWidth: '120px',
+                      }}
+                    >
+                      <span className="text-[9px] text-muted-foreground/50">
+                        {format(point.startDate, 'M/d')}
+                      </span>
+                      <span className={cn(
+                        "text-[9px] leading-tight text-center mb-0.5 max-w-[100px] truncate",
+                        point.completed ? "text-muted-foreground/60" : "text-muted-foreground"
+                      )}>
+                        {point.title}
+                      </span>
+                      <div className="w-px bg-muted-foreground/30" style={{ height: `${4 + point.labelRow * 2}px` }} />
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
             <div className="relative mx-8" style={{ height: `${trackHeight}px` }}>
               <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-2 bg-muted rounded-full" />
               
@@ -1489,7 +1557,7 @@ function ProjectTimeline({
                   </Tooltip>
               ))}
 
-              {pointsWithLayout.map((point) => (
+              {pointsWithLayout.points.map((point) => (
                 <Tooltip key={`point-${point.id}`}>
                   <TooltipTrigger asChild>
                     <div
@@ -1601,12 +1669,12 @@ function ProjectTimeline({
               </div>
             </div>
 
-            {pointsWithLayout.length > 0 && (() => {
-              const maxRow = Math.max(...pointsWithLayout.map(p => p.labelRow));
+            {pointsWithLayout.points.filter(p => p.side === 'bottom').length > 0 && (() => {
+              const bottomPoints = pointsWithLayout.points.filter(p => p.side === 'bottom');
               const ROW_HEIGHT = 32;
               return (
-                <div className="relative mx-8 mt-0.5" style={{ height: `${(maxRow + 1) * ROW_HEIGHT}px` }}>
-                  {pointsWithLayout.map((point) => (
+                <div className="relative mx-8 mt-0.5" style={{ height: `${pointsWithLayout.bottomRowCount * ROW_HEIGHT}px` }}>
+                  {bottomPoints.map((point) => (
                     <div
                       key={`point-label-${point.id}`}
                       className="absolute flex flex-col items-center"
