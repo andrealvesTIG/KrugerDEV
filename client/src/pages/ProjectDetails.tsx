@@ -1151,17 +1151,13 @@ function ProjectTimeline({
     return projectEnd || scheduleBounds?.end || null;
   }, [projectEnd, scheduleBounds]);
 
-  // Get tasks marked as milestones OR with 0 duration (start == end date)
+  // Get tasks explicitly marked as milestones only
   const allEvents = useMemo(() => {
     const events: TimelineEvent[] = [];
     
-    // Add tasks that are milestones OR have 0 duration (start date == end date)
     tasks?.filter(t => {
       if (!t.startDate && !t.endDate) return false;
-      // Include if marked as milestone
       if (t.isMilestone) return true;
-      // Include if 0 duration (start == end)
-      if (t.startDate && t.endDate && t.startDate === t.endDate) return true;
       return false;
     }).forEach((t) => {
       const dateStr = t.endDate || t.startDate;
