@@ -1343,66 +1343,88 @@ function ProjectTimeline({
   const pointsWithLayout = useMemo(() => {
     if (!timelineRange || pointEvents.length === 0) return { points: [] as any[], topRowCount: 0, bottomRowCount: 0 };
     
+    const CHAR_WIDTH_PX = 5;
+    const MAX_LABEL_PX = 100;
+    const PADDING_PX = 12;
+    const CONTAINER_WIDTH_PX = 700;
+
     const points = pointEvents.map(event => {
       const position = Math.max(0, Math.min(100, (differenceInDays(event.startDate, timelineRange.start) / timelineRange.totalDays) * 100));
-      return { ...event, position, side: 'bottom' as 'top' | 'bottom', labelRow: 0 };
+      const titleWidth = Math.min(event.title.length * CHAR_WIDTH_PX, MAX_LABEL_PX);
+      const dateWidth = 24;
+      const labelWidthPx = Math.max(titleWidth, dateWidth) + PADDING_PX;
+      const halfWidthPct = (labelWidthPx / 2 / CONTAINER_WIDTH_PX) * 100;
+      return {
+        ...event,
+        position,
+        side: 'bottom' as 'top' | 'bottom',
+        labelRow: 0,
+        leftEdge: position - halfWidthPct,
+        rightEdge: position + halfWidthPct,
+      };
     });
 
-    const MIN_LABEL_GAP = 8;
-    const topRowEnds: number[] = [];
-    const bottomRowEnds: number[] = [];
-    
-    for (let i = 0; i < points.length; i++) {
-      const point = points[i];
-      
-      const fitsBottom0 = bottomRowEnds.length === 0 || point.position >= (bottomRowEnds[0] ?? -Infinity) + MIN_LABEL_GAP;
-      const fitsTop0 = topRowEnds.length === 0 || point.position >= (topRowEnds[0] ?? -Infinity) + MIN_LABEL_GAP;
-      
-      if (fitsBottom0) {
+    type RowSlot = { rightEdge: number };
+    const topRows: RowSlot[][] = [];
+    const bottomRows: RowSlot[][] = [];
+
+    const fitsInRow = (row: RowSlot[], pt: typeof points[0]) => {
+      return row.every(slot => pt.leftEdge >= slot.rightEdge);
+    };
+
+    for (const point of points) {
+      let placed = false;
+
+      if (bottomRows.length === 0 || fitsInRow(bottomRows[0], point)) {
         point.side = 'bottom';
         point.labelRow = 0;
-        bottomRowEnds[0] = point.position;
-      } else if (fitsTop0) {
+        if (!bottomRows[0]) bottomRows[0] = [];
+        bottomRows[0].push({ rightEdge: point.rightEdge });
+        placed = true;
+      } else if (topRows.length === 0 || fitsInRow(topRows[0] || [], point)) {
         point.side = 'top';
         point.labelRow = 0;
-        topRowEnds[0] = point.position;
-      } else {
-        let placed = false;
-        for (let r = 1; r < bottomRowEnds.length; r++) {
-          if (point.position >= (bottomRowEnds[r] ?? -Infinity) + MIN_LABEL_GAP) {
+        if (!topRows[0]) topRows[0] = [];
+        topRows[0].push({ rightEdge: point.rightEdge });
+        placed = true;
+      }
+
+      if (!placed) {
+        for (let r = 1; r < bottomRows.length; r++) {
+          if (fitsInRow(bottomRows[r], point)) {
             point.side = 'bottom';
             point.labelRow = r;
-            bottomRowEnds[r] = point.position;
+            bottomRows[r].push({ rightEdge: point.rightEdge });
             placed = true;
             break;
           }
         }
-        if (!placed) {
-          for (let r = 1; r < topRowEnds.length; r++) {
-            if (point.position >= (topRowEnds[r] ?? -Infinity) + MIN_LABEL_GAP) {
-              point.side = 'top';
-              point.labelRow = r;
-              topRowEnds[r] = point.position;
-              placed = true;
-              break;
-            }
+      }
+      if (!placed) {
+        for (let r = 1; r < topRows.length; r++) {
+          if (fitsInRow(topRows[r], point)) {
+            point.side = 'top';
+            point.labelRow = r;
+            topRows[r].push({ rightEdge: point.rightEdge });
+            placed = true;
+            break;
           }
         }
-        if (!placed) {
-          if (bottomRowEnds.length <= topRowEnds.length) {
-            point.side = 'bottom';
-            point.labelRow = bottomRowEnds.length;
-            bottomRowEnds.push(point.position);
-          } else {
-            point.side = 'top';
-            point.labelRow = topRowEnds.length;
-            topRowEnds.push(point.position);
-          }
+      }
+      if (!placed) {
+        if (bottomRows.length <= topRows.length) {
+          point.side = 'bottom';
+          point.labelRow = bottomRows.length;
+          bottomRows.push([{ rightEdge: point.rightEdge }]);
+        } else {
+          point.side = 'top';
+          point.labelRow = topRows.length;
+          topRows.push([{ rightEdge: point.rightEdge }]);
         }
       }
     }
 
-    return { points, topRowCount: topRowEnds.length, bottomRowCount: bottomRowEnds.length };
+    return { points, topRowCount: topRows.length, bottomRowCount: bottomRows.length };
   }, [pointEvents, timelineRange]);
 
   if (!timelineRange) {
