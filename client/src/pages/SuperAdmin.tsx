@@ -2574,14 +2574,9 @@ function PlansTab() {
   const [isSyncingPayPal, setIsSyncingPayPal] = useState(false);
   const [isInitializingSeats, setIsInitializingSeats] = useState(false);
 
+  const plansUrl = isSuperAdmin ? '/api/billing/plans?includeInactive=true' : '/api/billing/plans';
   const { data: plansResponse, isLoading } = useQuery<{ plans: PlanData[]; creditCosts: any[] }>({
-    queryKey: ['/api/billing/plans', isSuperAdmin ? 'includeInactive' : 'activeOnly'],
-    queryFn: async () => {
-      const url = isSuperAdmin ? '/api/billing/plans?includeInactive=true' : '/api/billing/plans';
-      const res = await fetch(url, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch plans');
-      return res.json();
-    }
+    queryKey: [plansUrl],
   });
   const plans = plansResponse?.plans;
 
@@ -2597,7 +2592,7 @@ function PlansTab() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/billing/plans'] });
+      queryClient.invalidateQueries({ queryKey: [plansUrl] });
       toast({ title: "Plan updated" });
     },
     onError: (error: any) => {
