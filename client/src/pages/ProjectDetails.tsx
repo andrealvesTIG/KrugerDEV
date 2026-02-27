@@ -1343,10 +1343,30 @@ function ProjectTimeline({
   const pointsWithLayout = useMemo(() => {
     if (!timelineRange || pointEvents.length === 0) return [];
     
-    return pointEvents.map(event => {
+    const points = pointEvents.map(event => {
       const position = Math.max(0, Math.min(100, (differenceInDays(event.startDate, timelineRange.start) / timelineRange.totalDays) * 100));
-      return { ...event, position };
+      return { ...event, position, labelRow: 0 };
     });
+
+    const MIN_LABEL_GAP = 8;
+    const rowEnds: number[] = [];
+    for (const point of points) {
+      let placed = false;
+      for (let r = 0; r < rowEnds.length; r++) {
+        if (point.position >= rowEnds[r] + MIN_LABEL_GAP) {
+          point.labelRow = r;
+          rowEnds[r] = point.position;
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        point.labelRow = rowEnds.length;
+        rowEnds.push(point.position);
+      }
+    }
+
+    return points;
   }, [pointEvents, timelineRange]);
 
   if (!timelineRange) {
@@ -1581,28 +1601,37 @@ function ProjectTimeline({
               </div>
             </div>
 
-            {pointsWithLayout.length > 0 && (
-              <div className="relative mx-8 mt-0.5" style={{ minHeight: '28px' }}>
-                {pointsWithLayout.map((point) => (
-                  <div
-                    key={`point-label-${point.id}`}
-                    className="absolute top-0 flex flex-col items-center"
-                    style={{ left: `${point.position}%`, transform: 'translateX(-50%)', maxWidth: '120px' }}
-                  >
-                    <div className="w-px h-2 bg-muted-foreground/30" />
-                    <span className={cn(
-                      "text-[9px] leading-tight text-center mt-0.5 max-w-[100px] truncate",
-                      point.completed ? "text-muted-foreground/60" : "text-muted-foreground"
-                    )}>
-                      {point.title}
-                    </span>
-                    <span className="text-[9px] text-muted-foreground/50">
-                      {format(point.startDate, 'M/d')}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+            {pointsWithLayout.length > 0 && (() => {
+              const maxRow = Math.max(...pointsWithLayout.map(p => p.labelRow));
+              const ROW_HEIGHT = 32;
+              return (
+                <div className="relative mx-8 mt-0.5" style={{ height: `${(maxRow + 1) * ROW_HEIGHT}px` }}>
+                  {pointsWithLayout.map((point) => (
+                    <div
+                      key={`point-label-${point.id}`}
+                      className="absolute flex flex-col items-center"
+                      style={{
+                        left: `${point.position}%`,
+                        transform: 'translateX(-50%)',
+                        top: `${point.labelRow * ROW_HEIGHT}px`,
+                        maxWidth: '120px',
+                      }}
+                    >
+                      <div className="w-px bg-muted-foreground/30" style={{ height: `${4 + point.labelRow * 2}px` }} />
+                      <span className={cn(
+                        "text-[9px] leading-tight text-center mt-0.5 max-w-[100px] truncate",
+                        point.completed ? "text-muted-foreground/60" : "text-muted-foreground"
+                      )}>
+                        {point.title}
+                      </span>
+                      <span className="text-[9px] text-muted-foreground/50">
+                        {format(point.startDate, 'M/d')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
             
             <div className="flex items-center justify-between mt-4 text-xs text-muted-foreground">
               <div className="flex items-center gap-4">
