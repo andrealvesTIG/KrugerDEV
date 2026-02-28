@@ -302,6 +302,30 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
     queryKey: ["/api/portfolios", portfolioId, "risk-assessment", "latest"],
   });
 
+  const { data: issuesData } = usePortfolioIssues(portfolioId);
+  const { data: milestonesData } = usePortfolioMilestones(portfolioId);
+
+  const openIssues = useMemo(() => {
+    if (!issuesData) return [];
+    return issuesData
+      .filter((i: any) => i.status === "Open" || i.status === "In Progress" || i.status === "Escalated" || i.status === "Pending")
+      .sort((a: any, b: any) => {
+        const pOrder: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+        return (pOrder[a.priority] ?? 4) - (pOrder[b.priority] ?? 4);
+      })
+      .slice(0, 5);
+  }, [issuesData]);
+
+  const upcomingMilestones = useMemo(() => {
+    if (!milestonesData) return [];
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return milestonesData
+      .filter((m: any) => !m.completed && m.dueDate)
+      .sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+      .slice(0, 5);
+  }, [milestonesData]);
+
   const recentAssessment = useMemo(() => {
     if (!latestAssessment?.riskScore || !latestAssessment?.generatedAt) return null;
     const generatedAt = new Date(latestAssessment.generatedAt);
@@ -401,15 +425,20 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => onNavigate("issues")} data-testid="card-metric-issues">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bug className="h-5 w-5" />
-              Issues Overview
-            </CardTitle>
+        <Card data-testid="card-metric-issues">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Bug className="h-5 w-5" />
+                Issues Overview
+              </CardTitle>
+              <Button variant="ghost" size="sm" className="text-xs" onClick={() => onNavigate("issues")}>
+                View All <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-3">
               <div>
                 <p className="text-3xl font-bold">{metrics.openIssues}</p>
                 <p className="text-sm text-muted-foreground">Open Issues</p>
@@ -419,18 +448,76 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
                 <p className="text-sm text-muted-foreground">Total Issues</p>
               </div>
             </div>
+            {openIssues.length > 0 && (
+              <div className="border-t pt-3 space-y-2">
+                {openIssues.map((issue: any) => {
+                  const priorityColors: Record<string, string> = {
+                    Critical: "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300",
+                    High: "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300",
+                    Medium: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300",
+                    Low: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+                  };
+                  const statusColors: Record<string, string> = {
+                    Open: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+                    "In Progress": "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+                    Escalated: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+                    Pending: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+                  };
+                  return (
+                    <div key={issue.id} className="flex items-start gap-2 p-2 rounded-md hover:bg-muted/50 transition-colors">
+                      <AlertCircle className="h-3.5 w-3.5 mt-0.5 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-sm font-medium truncate">{issue.title}</span>
+                          <Badge className={cn("text-[10px] px-1.5 py-0 h-4", priorityColors[issue.priority] || "bg-muted")}>
+                            {issue.priority}
+                          </Badge>
+                          <Badge className={cn("text-[10px] px-1.5 py-0 h-4", statusColors[issue.status] || "bg-muted")}>
+                            {issue.status}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[11px] text-muted-foreground truncate">{issue.projectName}</span>
+                          {issue.assignee && (
+                            <span className="text-[11px] text-muted-foreground">· {issue.assignee}</span>
+                          )}
+                          {issue.targetResolutionDate && (
+                            <span className={cn("text-[11px]", new Date(issue.targetResolutionDate) < new Date() ? "text-rose-500 font-medium" : "text-muted-foreground")}>
+                              · Due {format(new Date(issue.targetResolutionDate), "MMM d")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {metrics.openIssues > 5 && (
+                  <button
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors w-full text-center pt-1"
+                    onClick={() => onNavigate("issues")}
+                  >
+                    +{metrics.openIssues - 5} more open issues
+                  </button>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
         <Card data-testid="card-metric-milestones">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Milestones
-            </CardTitle>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Milestones
+              </CardTitle>
+              <Badge variant="secondary" className="text-xs">
+                {metrics.upcomingMilestones} upcoming
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-3">
               <div>
                 <p className="text-3xl font-bold">{metrics.upcomingMilestones}</p>
                 <p className="text-sm text-muted-foreground">Upcoming</p>
@@ -440,6 +527,55 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
                 <p className="text-sm text-muted-foreground">Total</p>
               </div>
             </div>
+            {upcomingMilestones.length > 0 && (
+              <div className="border-t pt-3 space-y-2">
+                {upcomingMilestones.map((ms: any) => {
+                  const now = new Date();
+                  now.setHours(0, 0, 0, 0);
+                  const due = new Date(ms.dueDate);
+                  const diffDays = Math.round((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                  const isOverdue = diffDays < 0;
+                  const isUrgent = diffDays >= 0 && diffDays <= 7;
+
+                  const statusColors: Record<string, string> = {
+                    "In Progress": "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+                    "To Do": "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+                    Backlog: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+                    Delayed: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+                  };
+
+                  return (
+                    <div key={ms.id} className="flex items-start gap-2 p-2 rounded-md hover:bg-muted/50 transition-colors">
+                      <Target className={cn("h-3.5 w-3.5 mt-0.5 flex-shrink-0", isOverdue ? "text-rose-500" : isUrgent ? "text-amber-500" : "text-muted-foreground")} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-sm font-medium truncate">{ms.title}</span>
+                          {ms.status && ms.status !== "Backlog" && (
+                            <Badge className={cn("text-[10px] px-1.5 py-0 h-4", statusColors[ms.status] || "bg-muted")}>
+                              {ms.status}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[11px] text-muted-foreground truncate">{ms.projectName}</span>
+                          <span className={cn("text-[11px] font-medium", isOverdue ? "text-rose-500" : isUrgent ? "text-amber-500" : "text-muted-foreground")}>
+                            · {isOverdue ? `${Math.abs(diffDays)}d overdue` : diffDays === 0 ? "Due today" : `Due in ${diffDays}d`}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground">
+                            · {format(due, "MMM d, yyyy")}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {metrics.upcomingMilestones > 5 && (
+                  <p className="text-xs text-muted-foreground text-center pt-1">
+                    +{metrics.upcomingMilestones - 5} more upcoming milestones
+                  </p>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
