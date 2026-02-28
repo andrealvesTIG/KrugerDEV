@@ -98,7 +98,9 @@ export function IssuesTab({ projectId, projectName, portfolioId, urlIssueId, rea
       priority: "Medium",
       status: "Open",
       type: "Bug",
-      assignee: ""
+      assignee: "",
+      dueDate: "",
+      impactCost: "",
     }
   });
 
@@ -112,7 +114,9 @@ export function IssuesTab({ projectId, projectName, portfolioId, urlIssueId, rea
       priority: issue.priority || "Medium",
       status: issue.status || "Open",
       type: issue.type || "Bug",
-      assignee: issue.assignee || ""
+      assignee: issue.assignee || "",
+      dueDate: issue.dueDate ? issue.dueDate.split("T")[0] : "",
+      impactCost: issue.impactCost ? String(issue.impactCost) : "",
     });
     setIsDialogOpen(true);
   };
@@ -142,12 +146,17 @@ export function IssuesTab({ projectId, projectName, portfolioId, urlIssueId, rea
       priority: "Medium",
       status: "Open",
       type: "Bug",
-      assignee: ""
+      assignee: "",
+      dueDate: "",
+      impactCost: "",
     });
     setIsDialogOpen(true);
   };
 
-  const onSubmit = (data: any) => {
+  const onSubmit = (rawData: any) => {
+    const data = { ...rawData };
+    if (!data.dueDate) delete data.dueDate;
+    if (!data.impactCost) delete data.impactCost;
     const escalationData = escalateToPortfolio 
       ? { escalatedToPortfolio: true, escalatedAt: editingIssue?.escalatedToPortfolio ? editingIssue.escalatedAt : new Date().toISOString() }
       : { escalatedToPortfolio: false, escalatedAt: null };
@@ -241,6 +250,16 @@ export function IssuesTab({ projectId, projectName, portfolioId, urlIssueId, rea
                      </SelectContent>
                   </Select>
                 )} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Due Date</Label>
+                  <Input type="date" {...form.register("dueDate")} data-testid="input-issue-due-date" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Cost Exposure ($)</Label>
+                  <Input type="number" min="0" step="0.01" {...form.register("impactCost")} data-testid="input-issue-cost-exposure" placeholder="$ amount" />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Description</Label>

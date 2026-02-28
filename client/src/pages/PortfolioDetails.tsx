@@ -1801,6 +1801,8 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
       type: "Bug",
       priority: "Medium",
       status: "Open",
+      dueDate: "",
+      impactCost: "",
     }
   });
 
@@ -1812,14 +1814,19 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
         type: editingIssue.type || "Bug",
         priority: editingIssue.priority || "Medium",
         status: editingIssue.status || "Open",
+        dueDate: editingIssue.dueDate ? editingIssue.dueDate.split("T")[0] : "",
+        impactCost: editingIssue.impactCost ? String(editingIssue.impactCost) : "",
       });
     }
   }, [editingIssue]);
 
   const onEditSubmit = async (data: any) => {
     if (!editingIssue) return;
+    const submitData = { ...data };
+    if (!submitData.dueDate) delete submitData.dueDate;
+    if (!submitData.impactCost) delete submitData.impactCost;
     try {
-      await updateIssue.mutateAsync({ id: editingIssue.id, projectId: editingIssue.projectId, ...data });
+      await updateIssue.mutateAsync({ id: editingIssue.id, projectId: editingIssue.projectId, ...submitData });
       toast({ title: "Success", description: "Issue updated successfully" });
       setEditingIssue(null);
       refetch();
@@ -2012,25 +2019,35 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
                 />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Controller
+                  control={editForm.control}
+                  name="status"
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger data-testid="select-edit-issue-status">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Open">Open</SelectItem>
+                        <SelectItem value="In Progress">In Progress</SelectItem>
+                        <SelectItem value="Resolved">Resolved</SelectItem>
+                        <SelectItem value="Closed">Closed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Due Date</Label>
+                <Input type="date" {...editForm.register("dueDate")} data-testid="input-edit-issue-due-date" />
+              </div>
+            </div>
             <div className="space-y-2">
-              <Label>Status</Label>
-              <Controller
-                control={editForm.control}
-                name="status"
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger data-testid="select-edit-issue-status">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Open">Open</SelectItem>
-                      <SelectItem value="In Progress">In Progress</SelectItem>
-                      <SelectItem value="Resolved">Resolved</SelectItem>
-                      <SelectItem value="Closed">Closed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
+              <Label>Cost Exposure ($)</Label>
+              <Input type="number" min="0" step="0.01" {...editForm.register("impactCost")} data-testid="input-edit-issue-cost-exposure" placeholder="$ amount" />
             </div>
             <div className="space-y-2">
               <Label>Description</Label>

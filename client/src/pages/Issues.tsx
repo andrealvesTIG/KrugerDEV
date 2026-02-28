@@ -121,7 +121,9 @@
         description: "",
         priority: "Medium",
         status: "Open",
-        type: "Bug"
+        type: "Bug",
+        dueDate: "",
+        impactCost: "",
       }
     });
 
@@ -143,7 +145,9 @@
         description: issue.description || "",
         priority: issue.priority || "Medium",
         status: issue.status || "Open",
-        type: issue.type || "Bug"
+        type: issue.type || "Bug",
+        dueDate: issue.dueDate ? issue.dueDate.split("T")[0] : "",
+        impactCost: issue.impactCost ? String(issue.impactCost) : "",
       });
       setEditResourceIds([]);
       setShowHistory(false);
@@ -152,10 +156,13 @@
 
     const onEditSubmit = (data: any) => {
       if (!editingIssue) return;
+      const submitData = { ...data };
+      if (!submitData.dueDate) delete submitData.dueDate;
+      if (!submitData.impactCost) delete submitData.impactCost;
       updateIssue.mutate({ 
         id: editingIssue.id, 
         projectId: editingIssue.projectId,
-        ...data 
+        ...submitData 
       }, {
         onSuccess: () => {
           updateIssueResources.mutate({ issueId: editingIssue.id, resourceIds: editResourceIds });
@@ -593,24 +600,45 @@
                   />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Controller
+                    control={editForm.control}
+                    name="status"
+                    render={({ field }) => (
+                      <Select onValueChange={field.onChange} value={field.value || "Open"}>
+                        <SelectTrigger data-testid="select-edit-status">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Open">Open</SelectItem>
+                          <SelectItem value="In Progress">In Progress</SelectItem>
+                          <SelectItem value="Resolved">Resolved</SelectItem>
+                          <SelectItem value="Closed">Closed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Due Date</Label>
+                  <Input
+                    type="date"
+                    {...editForm.register("dueDate")}
+                    data-testid="input-edit-issue-due-date"
+                  />
+                </div>
+              </div>
               <div className="space-y-2">
-                <Label>Status</Label>
-                <Controller
-                  control={editForm.control}
-                  name="status"
-                  render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value || "Open"}>
-                      <SelectTrigger data-testid="select-edit-status">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Open">Open</SelectItem>
-                        <SelectItem value="In Progress">In Progress</SelectItem>
-                        <SelectItem value="Resolved">Resolved</SelectItem>
-                        <SelectItem value="Closed">Closed</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
+                <Label>Cost Exposure ($)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  {...editForm.register("impactCost")}
+                  data-testid="input-edit-issue-cost-exposure"
+                  placeholder="$ amount"
                 />
               </div>
               <div className="space-y-2">

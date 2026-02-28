@@ -28,6 +28,8 @@ const defaultValues = {
   priority: "Medium" as string,
   status: "Open" as string,
   type: "Bug" as string,
+  dueDate: "" as string,
+  impactCost: "" as string,
 };
 
 export function CreateIssueDialog({ open, onOpenChange, organizationId }: CreateIssueDialogProps) {
@@ -57,7 +59,10 @@ export function CreateIssueDialog({ open, onOpenChange, organizationId }: Create
   };
 
   const onSubmit = (data: any) => {
-    createIssue.mutate(data, {
+    const submitData = { ...data };
+    if (!submitData.dueDate) delete submitData.dueDate;
+    if (!submitData.impactCost) delete submitData.impactCost;
+    createIssue.mutate(submitData, {
       onSuccess: (newIssue: any) => {
         if (selectedResourceIds.length > 0 && newIssue?.id) {
           updateIssueResources.mutate({ issueId: newIssue.id, resourceIds: selectedResourceIds });
@@ -179,6 +184,28 @@ export function CreateIssueDialog({ open, onOpenChange, organizationId }: Create
                       </SelectContent>
                     </Select>
                   )}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Due Date</Label>
+                <Input
+                  type="date"
+                  {...form.register("dueDate")}
+                  data-testid="input-issue-due-date"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Cost Exposure ($)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  {...form.register("impactCost")}
+                  data-testid="input-issue-cost-exposure"
+                  placeholder="$ amount"
                 />
               </div>
             </div>

@@ -274,6 +274,7 @@ export default function PmoRadar() {
       priority: "Medium",
       status: "Open",
       dueDate: "",
+      impactCost: "",
     },
   });
 
@@ -286,6 +287,7 @@ export default function PmoRadar() {
         priority: editingIssue.priority || "Medium",
         status: editingIssue.status || "Open",
         dueDate: editingIssue.dueDate ? editingIssue.dueDate.split("T")[0] : "",
+        impactCost: editingIssue.impactCost ? String(editingIssue.impactCost) : "",
       });
     }
   }, [editingIssue]);
@@ -493,6 +495,7 @@ export default function PmoRadar() {
     if (!editingIssue) return;
     const submitData = { ...data };
     if (!submitData.dueDate) delete submitData.dueDate;
+    if (!submitData.impactCost) delete submitData.impactCost;
     updateIssue.mutate({ id: editingIssue.id, projectId: editingIssue.projectId, ...submitData }, {
       onSuccess: () => {
         updateIssueResources.mutate({ issueId: editingIssue.id, resourceIds: issueResourceIds });
@@ -816,6 +819,11 @@ export default function PmoRadar() {
                   <Label>Due Date</Label>
                   <Input type="date" {...issueForm.register("dueDate")} />
                 </div>
+              </div>
+
+              <div className="space-y-1.5 pb-2">
+                <Label>Cost Exposure ($)</Label>
+                <Input type="number" min="0" step="0.01" {...issueForm.register("impactCost")} placeholder="$ amount" />
               </div>
 
               <div className="space-y-2">
