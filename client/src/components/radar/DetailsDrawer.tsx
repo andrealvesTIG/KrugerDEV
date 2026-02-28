@@ -26,7 +26,7 @@ function getRiskBg(score: number) {
 }
 
 export default function DetailsDrawer({ signal, onClose, isDark }: DetailsDrawerProps) {
-  const panelBg = isDark ? "bg-slate-900/95 border-l border-green-500/10 shadow-black/50" : "bg-white/98 border-l border-green-600/10 shadow-slate-300/50";
+  const panelBg = isDark ? "bg-slate-900 border-l border-green-500/10 shadow-black/50" : "bg-white border-l border-green-600/10 shadow-slate-300/50";
   const heading = isDark ? "text-green-400" : "text-green-700";
   const closeBtn = isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-600";
   const metaLabel = isDark ? "text-slate-500" : "text-slate-400";
