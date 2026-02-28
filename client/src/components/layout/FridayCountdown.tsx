@@ -212,7 +212,7 @@ export function FridayCountdown() {
           title="Time until Friday"
           data-testid="friday-countdown"
         >
-          <img src={running_man} alt="Running" className="h-10 w-10 object-contain dark:invert dark:brightness-90 mix-blend-multiply dark:mix-blend-screen" />
+          <img src={running_man} alt="Running" className="h-10 w-10 object-contain mix-blend-multiply dark:mix-blend-screen dark:invert dark:contrast-150" />
           <Clock className="h-3.5 w-3.5" />
           <span>{pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}</span>
           <span className="text-muted-foreground">to Friday</span>
@@ -231,7 +231,7 @@ export function FridayCountdown() {
             <img 
               src={running_man} 
               alt="Relaxing" 
-              className="relative h-24 w-24 object-contain dark:invert dark:brightness-90 mix-blend-multiply dark:mix-blend-screen"
+              className="relative h-24 w-24 object-contain mix-blend-multiply dark:mix-blend-screen dark:invert dark:contrast-150"
             />
           </div>
           
