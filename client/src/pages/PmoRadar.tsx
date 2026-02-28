@@ -126,6 +126,8 @@ function transformRiskToSignal(
 
   const rawCost = parseFloat(risk.impactCost) || 0;
 
+  const costExp = risk.costExposure != null ? parseFloat(risk.costExposure) : null;
+
   return {
     id: String(risk.id),
     title: risk.title || "Untitled Risk",
@@ -138,6 +140,9 @@ function transformRiskToSignal(
     impactCostRaw: rawCost,
     confidence: computeConfidence(risk),
     type: CATEGORY_TYPE_MAP[risk.category] || "technical",
+    costExposure: costExp != null && !isNaN(costExp) ? costExp : null,
+    dueDate: risk.dueDate || null,
+    status: risk.status || "Open",
     portfolioId: projectPortfolioMap?.get(risk.projectId),
   };
 }
@@ -218,10 +223,14 @@ export default function PmoRadar() {
 
   const projectedSignals = useMemo(() => {
     if (projectionOffsetDays === 0) return allSignals;
-    return allSignals.map((s) => ({
-      ...s,
-      timeOffsetDays: s.timeOffsetDays - projectionOffsetDays,
-    }));
+    return allSignals.map((s) => {
+      const projected = s.timeOffsetDays - projectionOffsetDays;
+      const isResolved = s.status === "Closed" || s.status === "Mitigated";
+      return {
+        ...s,
+        timeOffsetDays: isResolved ? projected : Math.max(projected, -85),
+      };
+    });
   }, [allSignals, projectionOffsetDays]);
 
   const filteredSignals = useMemo(() => {

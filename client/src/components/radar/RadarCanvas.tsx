@@ -22,6 +22,9 @@ export type RiskSignal = {
   impactCostRaw: number;
   confidence: number;
   type: "schedule" | "budget" | "dependency" | "resource" | "technical" | "scope";
+  costExposure: number | null;
+  dueDate: string | null;
+  status: string;
 };
 
 interface RadarCanvasProps {
@@ -48,6 +51,12 @@ function getRiskColorRgb(score: number): [number, number, number] {
 
 function clamp(val: number, min: number, max: number) {
   return Math.max(min, Math.min(max, val));
+}
+
+function formatCompactCurrency(val: number): string {
+  if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
+  if (val >= 1_000) return `$${Math.round(val / 1_000)}K`;
+  return `$${val}`;
 }
 
 type Star = { x: number; y: number; size: number; brightness: number; twinkleSpeed: number; twinkleOffset: number };
@@ -398,9 +407,10 @@ export default function RadarCanvas({
         const dy = pos.y - cy;
         if (Math.abs(dx) > clipRadius || Math.abs(dy) > clipRadius) return;
 
+        const isOverdue = signal.timeOffsetDays < 0;
         const dotRadius = clamp(signal.impactScore * 0.06 + 3, 3, 12);
-        const [r, g, b] = getRiskColorRgb(signal.riskScore);
-        const alpha = clamp(signal.confidence, 0.3, 1);
+        const [r, g, b] = isOverdue ? [239, 68, 68] as [number, number, number] : getRiskColorRgb(signal.riskScore);
+        const alpha = isOverdue ? 1 : clamp(signal.confidence, 0.3, 1);
 
         const pulseStart = pulseRef.current.get(signal.id);
         let scale = 1;
@@ -413,7 +423,10 @@ export default function RadarCanvas({
           }
         }
 
-        if (signal.riskScore > 75) {
+        if (isOverdue) {
+          ctx.shadowColor = `rgba(239,68,68,0.8)`;
+          ctx.shadowBlur = 20;
+        } else if (signal.riskScore > 75) {
           ctx.shadowColor = `rgba(${r},${g},${b},0.6)`;
           ctx.shadowBlur = 16;
         }
@@ -423,9 +436,17 @@ export default function RadarCanvas({
         ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
         ctx.fill();
         ctx.strokeStyle = `rgba(${r},${g},${b},${alpha * 0.8})`;
-        ctx.lineWidth = 1;
+        ctx.lineWidth = isOverdue ? 2 : 1;
         ctx.stroke();
         ctx.shadowBlur = 0;
+
+        if (isOverdue && signal.costExposure != null && signal.costExposure > 0) {
+          const label = formatCompactCurrency(signal.costExposure);
+          ctx.font = "bold 9px sans-serif";
+          ctx.fillStyle = "#ef4444";
+          ctx.textAlign = "left";
+          ctx.fillText(label, pos.x + dotRadius * scale + 4, pos.y + 3);
+        }
       });
 
       ctx.restore();
@@ -600,7 +621,12 @@ export default function RadarCanvas({
             maxWidth: 220,
           }}
         >
-          <div className={`font-semibold mb-1 ${tooltipTitle}`}>{tooltip.signal.title}</div>
+          <div className={`font-semibold mb-1 ${tooltipTitle}`}>
+            {tooltip.signal.title}
+            {tooltip.signal.timeOffsetDays < 0 && tooltip.signal.dueDate && (
+              <span className="ml-2 text-[10px] font-bold text-red-500 bg-red-500/15 px-1.5 py-0.5 rounded">OVERDUE</span>
+            )}
+          </div>
           <div className={tooltipText}>Project: {tooltip.signal.project}</div>
           <div className={tooltipText}>
             Risk Score:{" "}
@@ -608,6 +634,14 @@ export default function RadarCanvas({
               {tooltip.signal.riskScore}
             </span>
           </div>
+          {tooltip.signal.costExposure != null && tooltip.signal.costExposure > 0 && (
+            <div className={tooltipText}>
+              Cost Exposure:{" "}
+              <span className="font-medium" style={{ color: tooltip.signal.timeOffsetDays < 0 ? "#ef4444" : undefined }}>
+                ${tooltip.signal.costExposure.toLocaleString()}
+              </span>
+            </div>
+          )}
           {horizontalMetric !== "riskScore" && (
             <div className={tooltipText}>
               {(HORIZONTAL_METRICS.find((m) => m.value === horizontalMetric) || HORIZONTAL_METRICS[0]).label}:{" "}
