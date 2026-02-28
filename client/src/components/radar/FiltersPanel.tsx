@@ -17,12 +17,14 @@ export type RadarFilters = {
   futureOnly: boolean;
   highRiskOnly: boolean;
   signalType: string;
+  projectId: string;
   portfolioId: string;
 };
 
 interface FiltersPanelProps {
   filters: RadarFilters;
   onChange: (filters: RadarFilters) => void;
+  projects: { id: number; name: string }[];
   portfolios: { id: number; name: string }[];
   isDark: boolean;
   timeProjectionMonths: number;
@@ -48,7 +50,7 @@ const PLAYBACK_SPEEDS = [
   { value: 4, label: "4x" },
 ];
 
-export default function FiltersPanel({ filters, onChange, portfolios, isDark, timeProjectionMonths, onTimeProjectionChange, horizontalMetric, onHorizontalMetricChange }: FiltersPanelProps) {
+export default function FiltersPanel({ filters, onChange, projects, portfolios, isDark, timeProjectionMonths, onTimeProjectionChange, horizontalMetric, onHorizontalMetricChange }: FiltersPanelProps) {
   const update = (partial: Partial<RadarFilters>) => {
     onChange({ ...filters, ...partial });
   };
@@ -268,6 +270,32 @@ export default function FiltersPanel({ filters, onChange, portfolios, isDark, ti
             {SIGNAL_TYPES.map((t) => (
               <SelectItem key={t.value} value={t.value} className={`text-xs ${selectItem}`}>
                 {t.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label className={`text-xs ${labelCls}`}>Project</Label>
+        <Select
+          value={filters.projectId}
+          onValueChange={(val) => update({ projectId: val })}
+        >
+          <SelectTrigger className={`text-xs ${selectTrigger}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className={selectContent}>
+            <SelectItem value="all" className={`text-xs ${selectItem}`}>
+              All Projects
+            </SelectItem>
+            {projects.map((p) => (
+              <SelectItem
+                key={p.id}
+                value={String(p.id)}
+                className={`text-xs ${selectItem}`}
+              >
+                {p.name}
               </SelectItem>
             ))}
           </SelectContent>

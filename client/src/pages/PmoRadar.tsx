@@ -166,6 +166,7 @@ export default function PmoRadar() {
     futureOnly: false,
     highRiskOnly: false,
     signalType: "all",
+    projectId: "all",
     portfolioId: "all",
   });
 
@@ -307,6 +308,7 @@ export default function PmoRadar() {
       if (filters.futureOnly && s.timeOffsetDays < 0) return false;
       if (filters.highRiskOnly && s.riskScore <= 70) return false;
       if (filters.signalType !== "all" && s.type !== filters.signalType) return false;
+      if (filters.projectId !== "all" && String(s.projectId) !== filters.projectId) return false;
       if (filters.portfolioId !== "all") {
         if (!s.portfolioId || String(s.portfolioId) !== filters.portfolioId) return false;
       }
@@ -487,6 +489,7 @@ export default function PmoRadar() {
         <FiltersPanel
           filters={filters}
           onChange={setFilters}
+          projects={projectsData.map((p: any) => ({ id: p.id, name: p.name })).sort((a: {name: string}, b: {name: string}) => a.name.localeCompare(b.name))}
           portfolios={portfolios.map((p: any) => ({ id: p.id, name: p.name }))}
           isDark={isDark}
           timeProjectionMonths={timeProjectionMonths}
