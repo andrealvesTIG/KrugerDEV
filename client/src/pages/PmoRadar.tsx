@@ -72,29 +72,35 @@ function computeTimeOffsetDays(risk: any): number {
     return Math.round(base + jitter * 0.8);
   }
 
-  const probWeight = risk.probability === "Very High" ? 0.9
-    : risk.probability === "High" ? 0.7
-    : risk.probability === "Medium" ? 0.5
-    : risk.probability === "Low" ? 0.3
-    : risk.probability === "Very Low" ? 0.15
-    : 0.4;
+  const createdAtRaw = risk.createdAt ? new Date(risk.createdAt) : null;
+  const createdAt = createdAtRaw && !isNaN(createdAtRaw.getTime()) ? createdAtRaw : null;
+  const ageInDays = createdAt
+    ? Math.max(0, Math.round((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24)))
+    : 0;
 
   if (risk.status === "Closed" || risk.status === "Mitigated") {
-    const base = -15 - h2 * 65;
-    return Math.round(base + jitter * 0.5);
+    const ageFactor = Math.min(ageInDays / 180, 1);
+    const base = -10 - ageFactor * 70;
+    return Math.max(-85, Math.round(base + jitter * 0.5));
   }
 
-  const quadrant = h2 < 0.35 ? "far-future" : h2 < 0.65 ? "near-future" : h2 < 0.85 ? "near-past" : "far-past";
-
-  if (quadrant === "far-future") {
-    return Math.round(40 + probWeight * 30 + jitter);
-  } else if (quadrant === "near-future") {
-    return Math.round(8 + probWeight * 25 + jitter * 0.8);
-  } else if (quadrant === "near-past") {
-    return Math.round(-8 - (1 - probWeight) * 20 + jitter * 0.6);
-  } else {
-    return Math.round(-30 - (1 - probWeight) * 40 + jitter * 0.5);
+  if (createdAt) {
+    let offset: number;
+    if (ageInDays <= 7) {
+      offset = 30 + h2 * 40 + jitter * 0.6;
+    } else if (ageInDays <= 30) {
+      offset = 15 + h2 * 30 + jitter * 0.7;
+    } else if (ageInDays <= 90) {
+      const drift = h2 < 0.5 ? (5 + h2 * 20) : (-5 - (h2 - 0.5) * 20);
+      offset = drift + jitter * 0.8;
+    } else {
+      const ageFactor = Math.min((ageInDays - 90) / 180, 1);
+      offset = -8 - ageFactor * 50 - h2 * 15 + jitter * 0.4;
+    }
+    return Math.max(-85, Math.min(85, Math.round(offset)));
   }
+
+  return Math.max(-85, Math.min(85, Math.round((h2 - 0.5) * 60 + jitter)));
 }
 
 function computeConfidence(risk: any): number {
