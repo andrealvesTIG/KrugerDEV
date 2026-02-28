@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 
 export type HorizontalMetric = "riskScore" | "impactScore" | "probability" | "impactCost";
@@ -50,6 +50,90 @@ function clamp(val: number, min: number, max: number) {
   return Math.max(min, Math.min(max, val));
 }
 
+type Star = { x: number; y: number; size: number; brightness: number; twinkleSpeed: number; twinkleOffset: number };
+type Cloud = { x: number; y: number; rx: number; ry: number; opacity: number; speed: number; blobs: { dx: number; dy: number; rx: number; ry: number }[] };
+
+function seededRandom(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+function generateStars(count: number, w: number, h: number): Star[] {
+  const rng = seededRandom(42);
+  const stars: Star[] = [];
+  for (let i = 0; i < count; i++) {
+    stars.push({
+      x: rng() * w,
+      y: rng() * h,
+      size: rng() * 1.8 + 0.4,
+      brightness: rng() * 0.6 + 0.4,
+      twinkleSpeed: rng() * 2 + 1,
+      twinkleOffset: rng() * Math.PI * 2,
+    });
+  }
+  return stars;
+}
+
+function generateClouds(count: number, w: number, h: number): Cloud[] {
+  const rng = seededRandom(77);
+  const clouds: Cloud[] = [];
+  for (let i = 0; i < count; i++) {
+    const blobCount = Math.floor(rng() * 4) + 3;
+    const blobs: Cloud["blobs"] = [];
+    for (let b = 0; b < blobCount; b++) {
+      blobs.push({
+        dx: (rng() - 0.5) * 40,
+        dy: (rng() - 0.5) * 14,
+        rx: rng() * 25 + 18,
+        ry: rng() * 12 + 8,
+      });
+    }
+    clouds.push({
+      x: rng() * w,
+      y: rng() * h * 1.2,
+      rx: rng() * 30 + 30,
+      ry: rng() * 12 + 8,
+      opacity: rng() * 0.12 + 0.04,
+      speed: rng() * 6 + 3,
+      blobs,
+    });
+  }
+  return clouds;
+}
+
+function drawStars(ctx: CanvasRenderingContext2D, stars: Star[], w: number, h: number, time: number, driftOffset: number) {
+  for (const star of stars) {
+    const y = ((star.y + driftOffset * star.size * 0.3) % (h * 1.1)) - h * 0.05;
+    const twinkle = 0.5 + 0.5 * Math.sin(time * star.twinkleSpeed + star.twinkleOffset);
+    const alpha = star.brightness * (0.4 + twinkle * 0.6);
+    ctx.beginPath();
+    ctx.arc(star.x, y, star.size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(200,220,255,${alpha})`;
+    ctx.fill();
+    if (star.size > 1.2) {
+      ctx.beginPath();
+      ctx.arc(star.x, y, star.size * 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(180,210,255,${alpha * 0.12})`;
+      ctx.fill();
+    }
+  }
+}
+
+function drawClouds(ctx: CanvasRenderingContext2D, clouds: Cloud[], w: number, h: number, driftOffset: number) {
+  for (const cloud of clouds) {
+    const y = ((cloud.y + driftOffset * cloud.speed * 0.06) % (h * 1.4)) - h * 0.2;
+    for (const blob of cloud.blobs) {
+      ctx.beginPath();
+      ctx.ellipse(cloud.x + blob.dx, y + blob.dy, blob.rx, blob.ry, 0, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,255,255,${cloud.opacity})`;
+      ctx.fill();
+    }
+  }
+}
+
 function mapSignalToCanvas(
   signal: RiskSignal,
   cx: number,
@@ -93,12 +177,15 @@ export default function RadarCanvas({
 
   const prevScoresRef = useRef<Map<string, number>>(new Map());
   const pulseRef = useRef<Map<string, number>>(new Map());
+  const bgTimeRef = useRef(0);
+
+  const stars = useMemo(() => generateStars(120, dims.width, dims.height), [dims.width, dims.height]);
+  const clouds = useMemo(() => generateClouds(14, dims.width, dims.height), [dims.width, dims.height]);
 
   const accentR = isDark ? 34 : 22;
   const accentG = isDark ? 197 : 163;
   const accentB = isDark ? 94 : 74;
   const accent = `${accentR},${accentG},${accentB}`;
-  const bgColor = isDark ? "#0f172a" : "#f1f5f9";
   const labelColor = isDark ? `rgba(${accent},0.7)` : `rgba(${accent},0.9)`;
   const tickColor = isDark ? `rgba(${accent},0.4)` : `rgba(${accent},0.55)`;
   const gridAlpha = isDark ? 0.15 : 0.25;
@@ -184,8 +271,30 @@ export default function RadarCanvas({
       const rotationPeriod = 5000;
       angleRef.current += (dt / rotationPeriod) * Math.PI * 2;
 
-      ctx.fillStyle = bgColor;
+      bgTimeRef.current += dt * 0.001;
+      const driftOffset = bgTimeRef.current * 12;
+
+      if (isDark) {
+        const grad = ctx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, "#070d1f");
+        grad.addColorStop(0.5, "#0f172a");
+        grad.addColorStop(1, "#0a1020");
+        ctx.fillStyle = grad;
+      } else {
+        const grad = ctx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, "#dbeafe");
+        grad.addColorStop(0.35, "#e0f2fe");
+        grad.addColorStop(0.65, "#f0f9ff");
+        grad.addColorStop(1, "#f1f5f9");
+        ctx.fillStyle = grad;
+      }
       ctx.fillRect(0, 0, w, h);
+
+      if (isDark) {
+        drawStars(ctx, stars, w, h, bgTimeRef.current, driftOffset);
+      } else {
+        drawClouds(ctx, clouds, w, h, driftOffset);
+      }
 
       ctx.save();
       ctx.beginPath();
@@ -362,7 +471,7 @@ export default function RadarCanvas({
 
       animRef.current = requestAnimationFrame(draw);
     },
-    [signals, dims, isDark, bgColor, accent, labelColor, tickColor, gridAlpha, axisAlpha, sweepTrailAlpha, sweepLineAlpha, borderAlpha, centerLabel, zoom, horizontalMetric]
+    [signals, dims, isDark, accent, labelColor, tickColor, gridAlpha, axisAlpha, sweepTrailAlpha, sweepLineAlpha, borderAlpha, centerLabel, zoom, horizontalMetric, stars, clouds]
   );
 
   useEffect(() => {
