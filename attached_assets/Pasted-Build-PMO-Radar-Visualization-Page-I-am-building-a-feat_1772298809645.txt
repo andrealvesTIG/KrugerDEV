@@ -1,0 +1,228 @@
+Build PMO Radar Visualization Page
+
+I am building a feature called PMO Radar inside a SaaS web application.
+
+Create a standalone full-page React + TypeScript component that visualizes a radar-style risk scanning system with the following requirements.
+
+🧭 Concept
+
+The page should display a large animated radar visualization in the center of the screen.
+
+The radar represents:
+
+Vertical axis (Y) = Time
+
+Center = Now
+
+Up = Future
+
+Down = Past
+
+Horizontal axis (X) = Risk Level
+
+Left = Low Risk (0)
+
+Right = High Risk (100)
+
+The radar continuously “scans” in a circular sweep animation.
+
+🎯 Functional Requirements
+1️⃣ Layout
+
+Create a full-page layout with:
+
+Header title: PMO Radar
+
+Left side panel: Filters
+
+Center: Radar visualization
+
+Right side: Slide-out detail drawer (hidden until a dot is clicked)
+
+Use a clean modern dashboard style (dark theme preferred).
+
+2️⃣ Radar Visualization
+
+Use:
+
+Canvas API OR SVG (prefer Canvas for performance)
+
+No external heavy visualization libraries unless necessary
+
+The radar should include:
+
+Crosshair axes:
+
+Vertical line (time)
+
+Horizontal line (risk)
+
+Light circular grid rings
+
+Clear labels:
+
+Top: “Future”
+
+Bottom: “Past”
+
+Left: “Low Risk”
+
+Right: “High Risk”
+
+Center label: “Now”
+
+3️⃣ Radar Sweep Animation
+
+A rotating sweep line (like real radar)
+
+4–6 second full rotation
+
+Soft green glow effect
+
+Continuous animation via requestAnimationFrame
+
+4️⃣ Risk Signals (Dots)
+
+Create a mock dataset like this:
+
+type RiskSignal = {
+  id: string
+  title: string
+  project: string
+  riskScore: number        // 0–100
+  timeOffsetDays: number   // negative = past, positive = future
+  impactScore: number      // affects dot size
+  confidence: number       // 0–1 affects opacity
+  type: "schedule" | "budget" | "dependency"
+}
+
+Generate at least 20 random signals for demo purposes.
+
+5️⃣ Plotting Logic
+
+Map data to radar coordinates:
+
+X position:
+riskScore (0–100) mapped from left to right width
+
+Y position:
+timeOffsetDays mapped from:
+-90 days → bottom edge
+0 → center
++90 days → top edge
+
+Clamp values outside range.
+
+Dot size = impactScore
+Dot opacity = confidence
+
+6️⃣ Interaction
+
+When user:
+
+Hovers over a dot:
+Show tooltip with:
+
+Title
+
+Project
+
+Risk Score
+
+Time Offset
+
+Clicks a dot:
+Open right-side drawer showing:
+
+Full details
+
+Risk score
+
+Time offset
+
+Impact score
+
+Mock evidence list
+
+7️⃣ Filters Panel
+
+Left panel should allow:
+
+Risk threshold slider (min risk score)
+
+Toggle:
+
+Show only future risks
+
+Show only high risks (>70)
+
+Dropdown filter by signal type
+
+Filters should update radar in real time.
+
+8️⃣ Animation Behavior
+
+Radar sweep runs continuously.
+
+When a new signal appears or increases riskScore:
+Make it pulse briefly.
+
+Smooth transitions when filters change.
+
+9️⃣ Architecture
+
+Use:
+
+React functional components
+
+Hooks
+
+Proper separation:
+
+RadarCanvas component
+
+FiltersPanel component
+
+DetailsDrawer component
+
+Keep code modular and clean.
+
+Include comments explaining math for coordinate mapping.
+
+🔟 Bonus (If possible)
+
+Add subtle glow effect for high-risk signals (>75)
+
+Add color coding:
+
+Low: green
+
+Medium: yellow
+
+High: red
+
+Add a “Simulate Update” button that randomly changes some risk scores to demonstrate live updates
+
+🎨 Style
+
+Dark background (#0f172a or similar)
+
+Neon radar green accent
+
+Clean modern SaaS dashboard look
+
+Smooth animations
+
+No clutter
+
+📦 Deliverables
+
+Provide:
+
+Full React component code
+
+All required helper components
+
+Any minimal CSS or Tailwind
+
+Clear instructions to run locally in Replit
