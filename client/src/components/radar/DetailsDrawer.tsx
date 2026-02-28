@@ -1,4 +1,5 @@
-import { X, ExternalLink, Pencil } from "lucide-react";
+import { useState } from "react";
+import { X, ExternalLink, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 import type { RiskSignal } from "./RadarCanvas";
 
@@ -34,6 +35,7 @@ function formatCurrency(value: number): string {
 }
 
 export default function DetailsDrawer({ signal, onClose, isDark, onEdit }: DetailsDrawerProps) {
+  const [collapsed, setCollapsed] = useState(false);
   const panelBg = isDark ? "bg-slate-900 border-l border-green-500/10 shadow-black/50" : "bg-white border-l border-green-600/10 shadow-slate-300/50";
   const heading = isDark ? "text-green-400" : "text-green-700";
   const closeBtn = isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-600";
@@ -45,25 +47,57 @@ export default function DetailsDrawer({ signal, onClose, isDark, onEdit }: Detai
   const barBg = isDark ? "bg-slate-700" : "bg-slate-200";
   const linkColor = isDark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-500";
   const isOverdue = signal && signal.timeOffsetDays < 0 && signal.dueDate;
+  const toggleBtnCls = isDark
+    ? "bg-slate-800 border-slate-700 text-slate-400 hover:text-green-400 hover:bg-slate-700"
+    : "bg-white border-slate-300 text-slate-400 hover:text-green-600 hover:bg-slate-50";
 
   return (
     <div
-      className={`absolute top-0 right-0 h-full w-80 shadow-2xl z-50 transition-transform duration-300 ease-in-out ${panelBg} ${
+      className={`absolute top-0 right-0 h-full shadow-2xl z-50 transition-all duration-300 ease-in-out ${panelBg} ${
         signal ? "translate-x-0" : "translate-x-full"
       }`}
+      style={{ width: collapsed ? "2.5rem" : "20rem" }}
     >
-      {signal && (
+      {signal && collapsed && (
+        <div className="flex flex-col items-center pt-3 gap-2 h-full">
+          <button
+            onClick={() => setCollapsed(false)}
+            className={`p-1 rounded border transition-colors ${toggleBtnCls}`}
+            title="Expand panel"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onClose}
+            className={`p-1 transition-colors ${closeBtn}`}
+            title="Close"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+      {signal && !collapsed && (
         <div className="flex flex-col h-full p-4 overflow-y-auto">
           <div className="flex items-start justify-between mb-4">
             <h3 className={`text-sm font-semibold uppercase tracking-wider ${heading}`}>
               Signal Details
             </h3>
-            <button
-              onClick={onClose}
-              className={`transition-colors p-1 ${closeBtn}`}
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCollapsed(true)}
+                className={`transition-colors p-1 ${closeBtn}`}
+                title="Collapse panel"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button
+                onClick={onClose}
+                className={`transition-colors p-1 ${closeBtn}`}
+                title="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           <div className="space-y-4">
