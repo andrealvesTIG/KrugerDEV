@@ -225,13 +225,47 @@ export default function PmoRadar() {
     if (projectionOffsetDays === 0) return allSignals;
     return allSignals.map((s) => {
       const projected = s.timeOffsetDays - projectionOffsetDays;
-      const isResolved = s.status === "Closed" || s.status === "Mitigated";
+      const isAlreadyResolved = s.status === "Closed" || s.status === "Mitigated";
+
+      if (isAlreadyResolved) {
+        return { ...s, timeOffsetDays: projected };
+      }
+
+      const h = hashId(parseInt(s.id) + 7777);
+      const resolveMonth = 1 + h * 10;
+      const fate = hashId(parseInt(s.id) + 3333);
+
+      if (timeProjectionMonths >= resolveMonth) {
+        const monthsPastResolve = timeProjectionMonths - resolveMonth;
+
+        if (fate < 0.35) {
+          const fadeProgress = Math.min(monthsPastResolve / 1.5, 1);
+          return {
+            ...s,
+            timeOffsetDays: projected,
+            status: "Closed",
+            riskScore: Math.round(s.riskScore * (1 - fadeProgress)),
+            confidence: s.confidence * (1 - fadeProgress * 0.8),
+          };
+        } else if (fate < 0.7) {
+          return {
+            ...s,
+            timeOffsetDays: Math.max(projected, -85),
+            status: "Mitigated",
+            riskScore: Math.max(5, Math.round(s.riskScore * 0.3)),
+          };
+        }
+      }
+
       return {
         ...s,
-        timeOffsetDays: isResolved ? projected : Math.max(projected, -85),
+        timeOffsetDays: Math.max(projected, -85),
       };
+    }).filter((s) => {
+      if ((s.status === "Closed") && s.confidence <= 0.05) return false;
+      return true;
     });
-  }, [allSignals, projectionOffsetDays]);
+  }, [allSignals, projectionOffsetDays, timeProjectionMonths]);
 
   const filteredSignals = useMemo(() => {
     return projectedSignals.filter((s: EnrichedSignal) => {
