@@ -36,7 +36,8 @@ import {
 } from "lucide-react";
 import { format, addDays, differenceInDays, parseISO, startOfMonth, eachDayOfInterval } from "date-fns";
 import { cn, normalizeSearch } from "@/lib/utils";
-import type { Project } from "@shared/schema";
+import type { Project, Task } from "@shared/schema";
+import ProjectGanttView from "@/components/project/ProjectGanttView";
 import {
   PieChart, Pie, Cell, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
@@ -228,6 +229,9 @@ export default function PortfolioDetails() {
           <TabsTrigger value="summary" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
             Summary
           </TabsTrigger>
+          <TabsTrigger value="tasks" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
+            Tasks
+          </TabsTrigger>
           <TabsTrigger value="projects" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
             Projects
           </TabsTrigger>
@@ -245,6 +249,9 @@ export default function PortfolioDetails() {
         <div className="mt-6">
           <TabsContent value="summary">
             <SummaryTab metrics={metrics} portfolio={portfolio} portfolioId={id} onNavigate={setActiveTab} getRiskScoreColor={getRiskScoreColor} getRiskScoreBg={getRiskScoreBg} getRiskScoreLabel={getRiskScoreLabel} />
+          </TabsContent>
+          <TabsContent value="tasks">
+            <PortfolioTasksTab portfolioId={id} organizationId={currentOrganization?.id || 0} />
           </TabsContent>
           <TabsContent value="projects">
             <ProjectsTab portfolioId={id} organizationId={currentOrganization?.id || 0} isCustom={!!portfolio.isCustom} />
@@ -2080,6 +2087,234 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+function PortfolioTasksTab({ portfolioId, organizationId }: { portfolioId: number; organizationId: number }) {
+  const { data: projects, isLoading: projectsLoading } = usePortfolioProjects(portfolioId);
+  const [view, setView] = useState<"table" | "gantt">("gantt");
+  const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set());
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+  const projectIds = useMemo(() => (projects || []).map(p => p.id), [projects]);
+
+  const taskQueries = useQuery<Record<number, Task[]>>({
+    queryKey: ['/api/portfolios', portfolioId, 'all-tasks', projectIds],
+    queryFn: async () => {
+      const results: Record<number, Task[]> = {};
+      await Promise.all(
+        projectIds.map(async (pid) => {
+          const res = await fetch(`/api/projects/${pid}/tasks`);
+          if (res.ok) {
+            results[pid] = await res.json();
+          } else {
+            results[pid] = [];
+          }
+        })
+      );
+      return results;
+    },
+    enabled: projectIds.length > 0,
+  });
+
+  const tasksByProject = taskQueries.data || {};
+
+  const totalTasks = useMemo(() => {
+    return Object.values(tasksByProject).reduce((sum, tasks) => sum + tasks.length, 0);
+  }, [tasksByProject]);
+
+  const completedTasks = useMemo(() => {
+    return Object.values(tasksByProject).reduce((sum, tasks) =>
+      sum + tasks.filter(t => t.status === "Completed").length, 0
+    );
+  }, [tasksByProject]);
+
+  useEffect(() => {
+    if (projects && expandedProjects.size === 0) {
+      setExpandedProjects(new Set(projects.map(p => p.id)));
+    }
+  }, [projects]);
+
+  const toggleProject = (pid: number) => {
+    setExpandedProjects(prev => {
+      const next = new Set(prev);
+      if (next.has(pid)) next.delete(pid);
+      else next.add(pid);
+      return next;
+    });
+  };
+
+  if (projectsLoading || taskQueries.isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!projects || projects.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center text-muted-foreground">
+          <FolderOpen className="h-12 w-12 mx-auto mb-3 opacity-40" />
+          <p>No projects in this portfolio yet.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h3 className="text-lg font-semibold">Portfolio Tasks</h3>
+          <Badge variant="secondary" className="text-xs">
+            {completedTasks}/{totalTasks} completed
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={view === "table" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setView("table")}
+          >
+            <List className="h-4 w-4 mr-1" />
+            Table
+          </Button>
+          <Button
+            variant={view === "gantt" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setView("gantt")}
+          >
+            <GanttChart className="h-4 w-4 mr-1" />
+            Gantt
+          </Button>
+        </div>
+      </div>
+
+      {projects.map((project) => {
+        const tasks = tasksByProject[project.id] || [];
+        const isExpanded = expandedProjects.has(project.id);
+        const completed = tasks.filter(t => t.status === "Completed").length;
+        const healthColor = project.health === "Green" ? "bg-emerald-500" : project.health === "Yellow" ? "bg-amber-500" : project.health === "Red" ? "bg-rose-500" : "bg-slate-400";
+
+        return (
+          <Card key={project.id} className="overflow-hidden">
+            <div
+              className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors border-b"
+              onClick={() => toggleProject(project.id)}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-2.5 h-2.5 rounded-full ${healthColor}`} />
+                <Link
+                  href={`/projects/${project.id}`}
+                  className="font-semibold text-sm hover:underline"
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                >
+                  {project.name}
+                </Link>
+                <Badge variant="outline" className="text-[10px]">
+                  {tasks.length} task{tasks.length !== 1 ? "s" : ""}
+                </Badge>
+                {tasks.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {completed}/{tasks.length} completed
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {isExpanded ? (
+                  <ChevronLeft className="h-4 w-4 text-muted-foreground rotate-90" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground rotate-90" />
+                )}
+              </div>
+            </div>
+
+            {isExpanded && tasks.length > 0 && (
+              <div className="border-t">
+                <ProjectGanttView
+                  tasks={tasks}
+                  onTaskClick={(task) => setSelectedTask(task)}
+                  projectId={project.id}
+                  organizationId={organizationId}
+                  onCreateTask={() => {}}
+                  projectName={project.name}
+                  projectStartDate={project.startDate}
+                  projectEndDate={project.endDate}
+                  hideTimeline={view === "table"}
+                  isReadOnly={true}
+                />
+              </div>
+            )}
+            {isExpanded && tasks.length === 0 && (
+              <CardContent className="py-6 text-center text-muted-foreground text-sm">
+                No tasks in this project.
+              </CardContent>
+            )}
+          </Card>
+        );
+      })}
+
+      {selectedTask && (
+        <Dialog open={!!selectedTask} onOpenChange={(open) => { if (!open) setSelectedTask(null); }}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{selectedTask.name}</DialogTitle>
+              <DialogDescription>
+                Task details (read-only from portfolio view)
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <span className="text-muted-foreground text-xs">Status</span>
+                  <div className="font-medium">{selectedTask.status}</div>
+                </div>
+                <div>
+                  <span className="text-muted-foreground text-xs">Priority</span>
+                  <div className="font-medium">{selectedTask.priority || "—"}</div>
+                </div>
+                <div>
+                  <span className="text-muted-foreground text-xs">Start Date</span>
+                  <div className="font-medium">{selectedTask.startDate || "—"}</div>
+                </div>
+                <div>
+                  <span className="text-muted-foreground text-xs">End Date</span>
+                  <div className="font-medium">{selectedTask.endDate || "—"}</div>
+                </div>
+                <div>
+                  <span className="text-muted-foreground text-xs">Progress</span>
+                  <div className="flex items-center gap-2">
+                    <Progress value={selectedTask.progress || 0} className="flex-1 h-2" />
+                    <span className="font-medium text-xs">{selectedTask.progress || 0}%</span>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-muted-foreground text-xs">Assignee</span>
+                  <div className="font-medium">{selectedTask.assignee || "Unassigned"}</div>
+                </div>
+              </div>
+              {selectedTask.description && (
+                <div>
+                  <span className="text-muted-foreground text-xs">Description</span>
+                  <p className="mt-1">{selectedTask.description}</p>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Link href={`/projects/${selectedTask.projectId}`}>
+                <Button variant="outline" size="sm">
+                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                  Open in Project
+                </Button>
+              </Link>
+              <Button variant="default" size="sm" onClick={() => setSelectedTask(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
