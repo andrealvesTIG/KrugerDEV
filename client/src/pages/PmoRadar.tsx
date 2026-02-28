@@ -124,9 +124,8 @@ function transformRiskToSignal(
   const impScore = IMPACT_MAP[risk.impact] || 50;
   const riskScore = risk.riskScore || Math.round((probScore * impScore) / 100);
 
-  const rawCost = parseFloat(risk.impactCost) || 0;
-
   const costExp = risk.costExposure != null ? parseFloat(risk.costExposure) : null;
+  const costExpVal = costExp != null && !isNaN(costExp) ? costExp : 0;
 
   return {
     id: String(risk.id),
@@ -136,11 +135,11 @@ function transformRiskToSignal(
     timeOffsetDays: computeTimeOffsetDays(risk),
     impactScore: impScore,
     probability: probScore,
-    impactCost: rawCost,
-    impactCostRaw: rawCost,
+    costExposureNorm: costExpVal,
+    costExposureRaw: costExpVal,
     confidence: computeConfidence(risk),
     type: CATEGORY_TYPE_MAP[risk.category] || "technical",
-    costExposure: costExp != null && !isNaN(costExp) ? costExp : null,
+    costExposure: costExpVal > 0 ? costExpVal : null,
     dueDate: risk.dueDate || null,
     status: risk.status || "Open",
     portfolioId: projectPortfolioMap?.get(risk.projectId),
@@ -196,7 +195,7 @@ export default function PmoRadar() {
     return m;
   }, [projectsData]);
 
-  const allSignals = useMemo(() => {
+  const { allSignals, maxCostExposure } = useMemo(() => {
     const raw = risksData.map((risk: any) => {
       const signal = transformRiskToSignal(risk, projectsMap, projectPortfolioMap);
       const override = simOverrides.get(signal.id);
@@ -206,11 +205,12 @@ export default function PmoRadar() {
       return signal;
     });
 
-    const maxCost = Math.max(1, ...raw.map((s) => s.impactCost));
-    return raw.map((s) => ({
+    const maxCost = Math.max(1, ...raw.map((s) => s.costExposureRaw));
+    const normalized = raw.map((s) => ({
       ...s,
-      impactCost: maxCost > 0 ? Math.round((s.impactCost / maxCost) * 100) : 0,
+      costExposureNorm: maxCost > 0 ? Math.round((s.costExposureRaw / maxCost) * 100) : 0,
     }));
+    return { allSignals: normalized, maxCostExposure: maxCost };
   }, [risksData, projectsMap, projectPortfolioMap, simOverrides]);
 
   const projectionOffsetDays = Math.round(timeProjectionMonths * 30.44);
@@ -366,7 +366,7 @@ export default function PmoRadar() {
         />
 
         <div className="flex-1 relative p-2 min-w-0">
-          <RadarCanvas signals={filteredSignals} onSignalClick={setSelectedSignal} isDark={isDark} centerLabel={centerLabel} horizontalMetric={horizontalMetric} />
+          <RadarCanvas signals={filteredSignals} onSignalClick={setSelectedSignal} isDark={isDark} centerLabel={centerLabel} horizontalMetric={horizontalMetric} maxCostExposure={maxCostExposure} />
         </div>
 
         <DetailsDrawer signal={selectedSignal} onClose={() => setSelectedSignal(null)} isDark={isDark} />

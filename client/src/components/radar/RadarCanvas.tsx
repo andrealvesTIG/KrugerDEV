@@ -1,13 +1,13 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 
-export type HorizontalMetric = "riskScore" | "impactScore" | "probability" | "impactCost";
+export type HorizontalMetric = "riskScore" | "impactScore" | "probability" | "costExposureNorm";
 
 export const HORIZONTAL_METRICS: { value: HorizontalMetric; label: string; axisLabel: string; max: number }[] = [
   { value: "riskScore", label: "Risk Score", axisLabel: "RISK SCORE (0\u2013100)", max: 100 },
   { value: "impactScore", label: "Impact", axisLabel: "IMPACT (0\u2013100)", max: 100 },
   { value: "probability", label: "Probability", axisLabel: "PROBABILITY (0\u2013100)", max: 100 },
-  { value: "impactCost", label: "Impact Cost", axisLabel: "IMPACT COST (relative)", max: 100 },
+  { value: "costExposureNorm", label: "Cost Exposure", axisLabel: "COST EXPOSURE ($)", max: 100 },
 ];
 
 export type RiskSignal = {
@@ -18,8 +18,8 @@ export type RiskSignal = {
   timeOffsetDays: number;
   impactScore: number;
   probability: number;
-  impactCost: number;
-  impactCostRaw: number;
+  costExposureNorm: number;
+  costExposureRaw: number;
   confidence: number;
   type: "schedule" | "budget" | "dependency" | "resource" | "technical" | "scope";
   costExposure: number | null;
@@ -33,6 +33,7 @@ interface RadarCanvasProps {
   isDark: boolean;
   centerLabel?: string;
   horizontalMetric?: HorizontalMetric;
+  maxCostExposure?: number;
   width?: number;
   height?: number;
 }
@@ -170,6 +171,7 @@ export default function RadarCanvas({
   isDark,
   centerLabel,
   horizontalMetric = "riskScore",
+  maxCostExposure = 0,
 }: RadarCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -336,6 +338,7 @@ export default function RadarCanvas({
       ctx.fillStyle = tickColor;
 
       const xTicks = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+      const isCostMetric = horizontalMetric === "costExposureNorm";
       for (const val of xTicks) {
         const xPos = cx - radius + (val / 100) * 2 * radius;
         if (xPos < cx - clipRadius - 1 || xPos > cx + clipRadius + 1) continue;
@@ -349,7 +352,12 @@ export default function RadarCanvas({
 
         if (val % 20 === 0 || val === 50) {
           ctx.textAlign = "center";
-          ctx.fillText(String(val), xPos, cy + 14);
+          if (isCostMetric && maxCostExposure > 0) {
+            const dollarVal = (val / 100) * maxCostExposure;
+            ctx.fillText(formatCompactCurrency(dollarVal), xPos, cy + 14);
+          } else {
+            ctx.fillText(String(val), xPos, cy + 14);
+          }
         }
       }
 
@@ -455,7 +463,7 @@ export default function RadarCanvas({
         riskScore: ["LOW RISK", "HIGH RISK"],
         impactScore: ["LOW IMPACT", "HIGH IMPACT"],
         probability: ["LOW PROB", "HIGH PROB"],
-        impactCost: ["LOW COST", "HIGH COST"],
+        costExposureNorm: ["LOW COST", "HIGH COST"],
       };
       const [leftLabel, rightLabel] = metricLabels[horizontalMetric] || metricLabels.riskScore;
       ctx.fillStyle = labelColor;
@@ -646,9 +654,9 @@ export default function RadarCanvas({
             <div className={tooltipText}>
               {(HORIZONTAL_METRICS.find((m) => m.value === horizontalMetric) || HORIZONTAL_METRICS[0]).label}:{" "}
               <span className="font-medium">
-                {horizontalMetric === "impactCost"
-                  ? (tooltip.signal.impactCostRaw > 0
-                    ? `$${tooltip.signal.impactCostRaw.toLocaleString()}`
+                {horizontalMetric === "costExposureNorm"
+                  ? (tooltip.signal.costExposureRaw > 0
+                    ? `$${tooltip.signal.costExposureRaw.toLocaleString()}`
                     : "N/A")
                   : getMetricValue(tooltip.signal, horizontalMetric)}
               </span>
