@@ -10,7 +10,7 @@ import { useUpdateIssue, useDeleteIssue, useIssueHistory } from "@/hooks/use-iss
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments } from "@/hooks/use-resources";
 import { useTheme } from "@/components/theme-provider";
 import { useToast } from "@/hooks/use-toast";
-import { Zap, Radio, Loader2, History, ChevronUp, ChevronDown } from "lucide-react";
+import { Radio, Loader2, History, ChevronUp, ChevronDown } from "lucide-react";
 import { Link } from "wouter";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -457,21 +457,6 @@ export default function PmoRadar() {
     return { total, high, medium, low, future, costExposureFuture, costExposurePast, costExposureTotal };
   }, [filteredSignals]);
 
-  const handleSimulateUpdate = useCallback(() => {
-    const newOverrides = new Map(simOverrides);
-    const count = Math.min(5, allSignals.length);
-    const indices = new Set<number>();
-    while (indices.size < count && indices.size < allSignals.length) {
-      indices.add(Math.floor(Math.random() * allSignals.length));
-    }
-    indices.forEach((i) => {
-      const signal = allSignals[i];
-      const delta = Math.round((Math.random() - 0.3) * 30);
-      const newScore = Math.max(0, Math.min(100, signal.riskScore + delta));
-      newOverrides.set(signal.id, newScore);
-    });
-    setSimOverrides(newOverrides);
-  }, [allSignals, simOverrides]);
 
   const handleEditSignal = useCallback((signal: RiskSignal) => {
     if (signal.itemType === "issue") {
@@ -543,9 +528,7 @@ export default function PmoRadar() {
   const accentGreen = isDark ? "text-green-400" : "text-green-600";
   const accentRed = isDark ? "text-red-400" : "text-red-600";
   const accentYellow = isDark ? "text-yellow-400" : "text-yellow-600";
-  const simBtnCls = isDark
-    ? "bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20"
-    : "bg-green-500/10 border-green-500/30 text-green-700 hover:bg-green-500/20";
+
 
   const clockStr = currentTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const dateStr = currentTime.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
@@ -634,18 +617,6 @@ export default function PmoRadar() {
               )}
             </>
           )}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={handleSimulateUpdate}
-                className={`flex items-center gap-1 px-2 py-1 rounded border text-[11px] font-medium transition-colors ml-1 ${simBtnCls}`}
-              >
-                <Zap className="w-3 h-3" />
-                Simulate
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom"><p>Randomly adjust a risk score to test radar response</p></TooltipContent>
-          </Tooltip>
         </div>
       </div>
 
