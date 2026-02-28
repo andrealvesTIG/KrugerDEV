@@ -22,6 +22,7 @@ const riskFormSchema = z.object({
   impact: z.enum(["Low", "Medium", "High"]),
   status: z.string(),
   dueDate: z.string().optional(),
+  costExposure: z.string().optional(),
   mitigationPlan: z.string().optional(),
 });
 
@@ -48,6 +49,7 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
     impact: "Medium" as "Low" | "Medium" | "High",
     status: "Open",
     dueDate: "",
+    costExposure: "",
     mitigationPlan: "",
   };
 
@@ -73,7 +75,7 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
   };
 
   const onSubmit = (data: any) => {
-    const payload = { ...data, dueDate: data.dueDate || null };
+    const payload = { ...data, dueDate: data.dueDate || null, costExposure: data.costExposure || null };
     createRisk.mutate(payload, {
       onSuccess: () => {
         toast({ title: "Success", description: "Risk created successfully" });
@@ -224,6 +226,18 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
                 type="date"
                 {...form.register("dueDate")}
                 data-testid="input-risk-due-date"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Cost Exposure ($)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                {...form.register("costExposure")}
+                data-testid="input-risk-cost-exposure"
+                placeholder="Expected monetary value at risk"
               />
             </div>
 

@@ -21,6 +21,7 @@ const riskFormSchema = z.object({
   impact: z.string(),
   status: z.string(),
   dueDate: z.string().optional(),
+  costExposure: z.string().optional(),
   mitigationPlan: z.string(),
 });
 
@@ -46,6 +47,7 @@ export interface EditRiskDialogProps {
     impact?: string | null;
     status?: string | null;
     dueDate?: string | null;
+    costExposure?: string | null;
     mitigationPlan?: string | null;
     escalatedToPortfolio?: boolean | null;
     escalatedAt?: Date | string | null;
@@ -109,6 +111,7 @@ export function EditRiskDialog({
       impact: "Medium",
       status: "Open",
       dueDate: "",
+      costExposure: "",
       mitigationPlan: "",
     },
   });
@@ -122,6 +125,7 @@ export function EditRiskDialog({
         impact: risk.impact || "Medium",
         status: risk.status || "Open",
         dueDate: risk.dueDate ? risk.dueDate.substring(0, 10) : "",
+        costExposure: risk.costExposure || "",
         mitigationPlan: risk.mitigationPlan || "",
       });
       setShowHistory(false);
@@ -129,7 +133,7 @@ export function EditRiskDialog({
   }, [risk]);
 
   const handleSubmit = (data: RiskFormData) => {
-    onSubmit({ ...data, dueDate: data.dueDate || null } as any);
+    onSubmit({ ...data, dueDate: data.dueDate || null, costExposure: data.costExposure || null } as any);
   };
 
   const handleAiSuggest = async () => {
@@ -243,6 +247,18 @@ export function EditRiskDialog({
                 type="date"
                 {...form.register("dueDate")}
                 data-testid="input-risk-due-date"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Cost Exposure ($)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                {...form.register("costExposure")}
+                data-testid="input-risk-cost-exposure"
+                placeholder="Expected monetary value at risk"
               />
             </div>
 
