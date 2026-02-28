@@ -697,6 +697,49 @@ export default function RadarCanvas({
               </span>
             </div>
           )}
+          {tooltip.signal.dueDate && (() => {
+            const now = new Date();
+            now.setHours(0, 0, 0, 0);
+            const due = new Date(tooltip.signal.dueDate!);
+            const diffMs = due.getTime() - now.getTime();
+            const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+            const absDays = Math.abs(diffDays);
+            let label: string;
+            if (diffDays === 0) label = "Due today";
+            else if (diffDays === 1) label = "Due tomorrow";
+            else if (diffDays > 0 && diffDays < 30) label = `Due in ${diffDays} days`;
+            else if (diffDays >= 30 && diffDays < 365) {
+              const months = Math.floor(diffDays / 30);
+              const remainDays = diffDays % 30;
+              label = remainDays > 0 ? `Due in ${months}mo ${remainDays}d` : `Due in ${months}mo`;
+            } else if (diffDays >= 365) {
+              const years = Math.floor(diffDays / 365);
+              const months = Math.floor((diffDays % 365) / 30);
+              label = months > 0 ? `Due in ${years}y ${months}mo` : `Due in ${years}y`;
+            } else if (diffDays === -1) label = "1 day overdue";
+            else if (absDays < 30) label = `${absDays} days overdue`;
+            else if (absDays < 365) {
+              const months = Math.floor(absDays / 30);
+              const remainDays = absDays % 30;
+              label = remainDays > 0 ? `${months}mo ${remainDays}d overdue` : `${months}mo overdue`;
+            } else {
+              const years = Math.floor(absDays / 365);
+              const months = Math.floor((absDays % 365) / 30);
+              label = months > 0 ? `${years}y ${months}mo overdue` : `${years}y overdue`;
+            }
+            const isOverdue = diffDays < 0;
+            return (
+              <div className={tooltipText}>
+                Due Date:{" "}
+                <span className={`font-medium ${isOverdue ? "text-red-500" : ""}`}>
+                  {due.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </span>
+                <span className={`ml-1 text-[10px] ${isOverdue ? "text-red-400" : isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  ({label})
+                </span>
+              </div>
+            );
+          })()}
           <div className={tooltipText}>
             Time:{" "}
             {tooltip.signal.timeOffsetDays > 0
