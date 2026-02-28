@@ -315,7 +315,7 @@ export default function PmoRadar() {
                 Projecting: {projectedDateStr}
               </span>
               <span className={`text-[10px] ${isDark ? "text-amber-500/70" : "text-amber-500"}`}>
-                (+{timeProjectionMonths}mo)
+                (+{timeProjectionMonths.toFixed(1)}mo)
               </span>
             </div>
           )}
