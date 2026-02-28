@@ -8,7 +8,7 @@ import { useUpdateRisk, useRiskHistory, useAiMitigationSuggestion, useDeleteRisk
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments } from "@/hooks/use-resources";
 import { useTheme } from "@/components/theme-provider";
 import { useToast } from "@/hooks/use-toast";
-import { Zap, Radio, AlertTriangle, Shield, Activity, Clock } from "lucide-react";
+import { Zap, Radio, AlertTriangle, Shield, Activity, Clock, DollarSign } from "lucide-react";
 import RadarCanvas, { type RiskSignal, type HorizontalMetric } from "@/components/radar/RadarCanvas";
 import FiltersPanel, { type RadarFilters } from "@/components/radar/FiltersPanel";
 import DetailsDrawer from "@/components/radar/DetailsDrawer";
@@ -320,7 +320,17 @@ export default function PmoRadar() {
     const medium = filteredSignals.filter((s) => s.riskScore > 30 && s.riskScore <= 70).length;
     const low = filteredSignals.filter((s) => s.riskScore <= 30).length;
     const future = filteredSignals.filter((s) => s.timeOffsetDays > 0).length;
-    return { total, high, medium, low, future };
+    let costExposureFuture = 0;
+    let costExposurePast = 0;
+    filteredSignals.forEach((s) => {
+      const ce = s.costExposure ?? 0;
+      if (ce > 0) {
+        if (s.timeOffsetDays >= 0) costExposureFuture += ce;
+        else costExposurePast += ce;
+      }
+    });
+    const costExposureTotal = costExposureFuture + costExposurePast;
+    return { total, high, medium, low, future, costExposureFuture, costExposurePast, costExposureTotal };
   }, [filteredSignals]);
 
   const handleSimulateUpdate = useCallback(() => {
@@ -362,6 +372,14 @@ export default function PmoRadar() {
       }
     });
   }, [editingRisk, updateRisk, updateRiskResources, selectedResourceIds, toast, currentOrganization]);
+
+  function formatCompactCurrency(val: number): string {
+    if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
+    if (val >= 1_000) return `$${(val / 1_000).toFixed(0)}K`;
+    return `$${val.toLocaleString()}`;
+  }
+
+  const showCostTiles = horizontalMetric === "costExposureNorm";
 
   const pageBg = isDark ? "bg-[#0f172a]" : "bg-slate-100";
   const headerBg = isDark ? "bg-slate-900/60 border-green-500/10" : "bg-white/80 border-green-600/10";
@@ -434,6 +452,26 @@ export default function PmoRadar() {
               <span className={statLabel}>Low:</span>
               <span className={`font-semibold ${accentGreen}`}>{stats.low}</span>
             </div>
+            {showCostTiles && (
+              <>
+                <div className="w-px h-5 bg-slate-300 dark:bg-slate-700" />
+                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${statBg}`}>
+                  <DollarSign className={`w-3.5 h-3.5 ${accentGreen}`} />
+                  <span className={statLabel}>Future:</span>
+                  <span className={`font-semibold ${accentGreen}`}>{formatCompactCurrency(stats.costExposureFuture)}</span>
+                </div>
+                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${isDark ? "bg-red-500/10 border-red-500/30" : "bg-red-50 border-red-200"}`}>
+                  <DollarSign className={`w-3.5 h-3.5 ${accentRed}`} />
+                  <span className={statLabel}>Overdue:</span>
+                  <span className={`font-semibold ${accentRed}`}>{formatCompactCurrency(stats.costExposurePast)}</span>
+                </div>
+                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${isDark ? "bg-slate-700/80 border-slate-600" : "bg-slate-50 border-slate-300"}`}>
+                  <DollarSign className={`w-3.5 h-3.5 ${isDark ? "text-slate-300" : "text-slate-700"}`} />
+                  <span className={statLabel}>Total:</span>
+                  <span className={`font-bold ${isDark ? "text-slate-200" : "text-slate-800"}`}>{formatCompactCurrency(stats.costExposureTotal)}</span>
+                </div>
+              </>
+            )}
           </div>
           <button
             onClick={handleSimulateUpdate}
