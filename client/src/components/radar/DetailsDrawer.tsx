@@ -277,7 +277,7 @@ export default function DetailsDrawer({ signal, onClose, isDark, onEdit }: Detai
                 }`}
               >
                 <Pencil className="w-3.5 h-3.5" />
-                Edit Risk
+                {signal.itemType === "issue" ? "Edit Issue" : "Edit Risk"}
               </button>
             )}
           </div>

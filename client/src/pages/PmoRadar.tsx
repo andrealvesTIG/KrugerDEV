@@ -1,15 +1,25 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useForm, Controller } from "react-hook-form";
 import { queryClient } from "@/lib/queryClient";
 import { useOrganization } from "@/hooks/use-organization";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useProjects } from "@/hooks/use-projects";
 import { useUpdateRisk, useRiskHistory, useAiMitigationSuggestion, useDeleteRisk, useConvertRiskToIssue } from "@/hooks/use-risks";
-import { useRiskResourceAssignments, useUpdateRiskResourceAssignments } from "@/hooks/use-resources";
+import { useUpdateIssue, useDeleteIssue, useIssueHistory } from "@/hooks/use-issues";
+import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments } from "@/hooks/use-resources";
 import { useTheme } from "@/components/theme-provider";
 import { useToast } from "@/hooks/use-toast";
-import { Zap, Radio } from "lucide-react";
+import { Zap, Radio, Loader2, History, ChevronUp, ChevronDown } from "lucide-react";
+import { Link } from "wouter";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ResourceAssignment } from "@/components/ResourceAssignment";
 import RadarCanvas, { type RiskSignal, type HorizontalMetric } from "@/components/radar/RadarCanvas";
 import FiltersPanel, { type RadarFilters } from "@/components/radar/FiltersPanel";
 import DetailsDrawer from "@/components/radar/DetailsDrawer";
@@ -237,6 +247,10 @@ export default function PmoRadar() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingRisk, setEditingRisk] = useState<any>(null);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [issueDialogOpen, setIssueDialogOpen] = useState(false);
+  const [editingIssue, setEditingIssue] = useState<any>(null);
+  const [issueResourceIds, setIssueResourceIds] = useState<number[]>([]);
+  const [showIssueHistory, setShowIssueHistory] = useState(false);
 
   const { toast } = useToast();
   const updateRisk = useUpdateRisk();
@@ -244,14 +258,49 @@ export default function PmoRadar() {
   const convertRiskToIssue = useConvertRiskToIssue();
   const aiMitigationSuggestion = useAiMitigationSuggestion();
   const updateRiskResources = useUpdateRiskResourceAssignments();
+  const updateIssue = useUpdateIssue();
+  const deleteIssue = useDeleteIssue();
+  const updateIssueResources = useUpdateIssueResourceAssignments();
   const { data: riskHistory, isLoading: historyLoading } = useRiskHistory(editingRisk?.id || 0);
   const { data: riskAssignments } = useRiskResourceAssignments(editingRisk?.id ?? null);
+  const { data: issueHistory, isLoading: issueHistoryLoading } = useIssueHistory(editingIssue?.id || 0);
+  const { data: issueAssignments } = useIssueResourceAssignments(editingIssue?.id ?? null);
+
+  const issueForm = useForm({
+    defaultValues: {
+      title: "",
+      description: "",
+      type: "Bug",
+      priority: "Medium",
+      status: "Open",
+      dueDate: "",
+    },
+  });
+
+  useEffect(() => {
+    if (editingIssue) {
+      issueForm.reset({
+        title: editingIssue.title || "",
+        description: editingIssue.description || "",
+        type: editingIssue.type || "Bug",
+        priority: editingIssue.priority || "Medium",
+        status: editingIssue.status || "Open",
+        dueDate: editingIssue.dueDate ? editingIssue.dueDate.split("T")[0] : "",
+      });
+    }
+  }, [editingIssue]);
 
   useEffect(() => {
     if (riskAssignments) {
       setSelectedResourceIds(riskAssignments.map((a: any) => a.resourceId));
     }
   }, [riskAssignments]);
+
+  useEffect(() => {
+    if (issueAssignments) {
+      setIssueResourceIds(issueAssignments.map((a: any) => a.resourceId));
+    }
+  }, [issueAssignments]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -427,8 +476,9 @@ export default function PmoRadar() {
       const rawId = signal.id.replace("issue-", "");
       const issue = issuesData.find((r: any) => String(r.id) === rawId);
       if (issue) {
-        setEditingRisk(issue);
-        setEditDialogOpen(true);
+        setEditingIssue(issue);
+        setShowIssueHistory(false);
+        setIssueDialogOpen(true);
       }
     } else {
       const risk = risksData.find((r: any) => String(r.id) === signal.id);
@@ -438,6 +488,24 @@ export default function PmoRadar() {
       }
     }
   }, [risksData, issuesData]);
+
+  const handleIssueSubmit = useCallback((data: any) => {
+    if (!editingIssue) return;
+    const submitData = { ...data };
+    if (!submitData.dueDate) delete submitData.dueDate;
+    updateIssue.mutate({ id: editingIssue.id, projectId: editingIssue.projectId, ...submitData }, {
+      onSuccess: () => {
+        updateIssueResources.mutate({ issueId: editingIssue.id, resourceIds: issueResourceIds });
+        toast({ title: "Success", description: "Issue updated" });
+        setIssueDialogOpen(false);
+        setEditingIssue(null);
+        queryClient.invalidateQueries({ queryKey: [`/api/issues?itemType=issue&organizationId=${currentOrganization?.id}`] });
+      },
+      onError: (error: any) => {
+        toast({ title: "Error", description: error?.message || "Failed to update issue", variant: "destructive" });
+      }
+    });
+  }, [editingIssue, updateIssue, updateIssueResources, issueResourceIds, toast, currentOrganization]);
 
   const handleRiskSubmit = useCallback((data: RiskFormData) => {
     if (!editingRisk) return;
@@ -649,6 +717,191 @@ export default function PmoRadar() {
         }}
         isDeleting={deleteRisk.isPending}
       />
+
+      <Dialog open={issueDialogOpen} onOpenChange={(open) => { setIssueDialogOpen(open); if (!open) setEditingIssue(null); }}>
+        <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Edit Issue</DialogTitle>
+            <DialogDescription>Modify the issue details below.</DialogDescription>
+          </DialogHeader>
+
+          {editingIssue && (() => {
+            const project = projectsData.find((p: any) => p.id === editingIssue.projectId);
+            const portfolio = project?.portfolioId ? portfolios.find((pf: any) => pf.id === project.portfolioId) : null;
+            return (
+              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground border-b pb-3">
+                <span>Project:</span>
+                <Link href={`/projects/${editingIssue.projectId}`} className="text-primary hover:underline font-medium truncate max-w-[200px]" title={project?.name || ""}>
+                  {project?.name || `Project #${editingIssue.projectId}`}
+                </Link>
+                {portfolio && (
+                  <>
+                    <span className="text-muted-foreground/50">|</span>
+                    <span>Portfolio:</span>
+                    <Link href={`/portfolios/${portfolio.id}`} className="text-primary hover:underline font-medium truncate max-w-[200px]" title={portfolio.name}>
+                      {portfolio.name}
+                    </Link>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+
+          <form onSubmit={issueForm.handleSubmit(handleIssueSubmit)} className="flex flex-col flex-1 overflow-hidden">
+            <div className="flex flex-col gap-4 pt-4 flex-1 overflow-y-auto pr-1 [&_input]:focus-visible:ring-offset-0 [&_button[role=combobox]]:focus-visible:ring-offset-0">
+              <div className="space-y-1.5 pb-2">
+                <Label>Title <span className="text-destructive">*</span></Label>
+                <Input {...issueForm.register("title")} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pb-2">
+                <div className="space-y-1.5">
+                  <Label>Type</Label>
+                  <Controller
+                    control={issueForm.control}
+                    name="type"
+                    render={({ field }) => (
+                      <Select onValueChange={field.onChange} value={field.value || "Bug"}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Bug">Bug</SelectItem>
+                          <SelectItem value="Enhancement">Enhancement</SelectItem>
+                          <SelectItem value="Task">Task</SelectItem>
+                          <SelectItem value="Question">Question</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Priority</Label>
+                  <Controller
+                    control={issueForm.control}
+                    name="priority"
+                    render={({ field }) => (
+                      <Select onValueChange={field.onChange} value={field.value || "Medium"}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Low">Low</SelectItem>
+                          <SelectItem value="Medium">Medium</SelectItem>
+                          <SelectItem value="High">High</SelectItem>
+                          <SelectItem value="Critical">Critical</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pb-2">
+                <div className="space-y-1.5">
+                  <Label>Status</Label>
+                  <Controller
+                    control={issueForm.control}
+                    name="status"
+                    render={({ field }) => (
+                      <Select onValueChange={field.onChange} value={field.value || "Open"}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Open">Open</SelectItem>
+                          <SelectItem value="In Progress">In Progress</SelectItem>
+                          <SelectItem value="Resolved">Resolved</SelectItem>
+                          <SelectItem value="Closed">Closed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Due Date</Label>
+                  <Input type="date" {...issueForm.register("dueDate")} />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea {...issueForm.register("description")} />
+              </div>
+
+              <ResourceAssignment
+                organizationId={currentOrganization?.id || null}
+                selectedResourceIds={issueResourceIds}
+                onSelectionChange={setIssueResourceIds}
+                label="Assigned Resources"
+                projectId={editingIssue?.projectId}
+              />
+
+              <div className="border-t pt-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full justify-between px-0 hover:bg-transparent"
+                  onClick={() => setShowIssueHistory(!showIssueHistory)}
+                >
+                  <span className="flex items-center gap-2 text-sm font-medium">
+                    <History className="h-4 w-4" />
+                    Change History
+                  </span>
+                  {showIssueHistory ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+                {showIssueHistory && (
+                  <div className="mt-3 max-h-48 overflow-y-auto space-y-2">
+                    {issueHistoryLoading ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      </div>
+                    ) : issueHistory && issueHistory.length > 0 ? (
+                      issueHistory.map((log: any) => (
+                        <div key={log.id} className="text-xs border-l-2 border-muted pl-3 py-1">
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <span className="font-medium text-foreground">{log.changedByName || 'System'}</span>
+                            <span>•</span>
+                            <span>{new Date(log.changedAt!).toLocaleDateString()} {new Date(log.changedAt!).toLocaleTimeString()}</span>
+                          </div>
+                          <div className="mt-1">{log.changeSummary}</div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground py-2">No change history available</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <DialogFooter className="flex justify-between gap-2 pt-4 border-t mt-4 shrink-0">
+              <div>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => {
+                    if (editingIssue) {
+                      deleteIssue.mutate({ id: editingIssue.id, projectId: editingIssue.projectId }, {
+                        onSuccess: () => {
+                          toast({ title: "Deleted", description: "Issue deleted" });
+                          setIssueDialogOpen(false);
+                          setEditingIssue(null);
+                          queryClient.invalidateQueries({ queryKey: [`/api/issues?itemType=issue&organizationId=${currentOrganization?.id}`] });
+                        }
+                      });
+                    }
+                  }}
+                  disabled={deleteIssue.isPending}
+                >
+                  {deleteIssue.isPending ? "Deleting..." : "Delete"}
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => setIssueDialogOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={updateIssue.isPending}>
+                  {updateIssue.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Update Issue
+                </Button>
+              </div>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
