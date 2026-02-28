@@ -8,7 +8,7 @@ import { useUpdateRisk, useRiskHistory, useAiMitigationSuggestion, useDeleteRisk
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments } from "@/hooks/use-resources";
 import { useTheme } from "@/components/theme-provider";
 import { useToast } from "@/hooks/use-toast";
-import { Zap, Radio, AlertTriangle, Shield, Activity, Clock, DollarSign } from "lucide-react";
+import { Zap, Radio } from "lucide-react";
 import RadarCanvas, { type RiskSignal, type HorizontalMetric } from "@/components/radar/RadarCanvas";
 import FiltersPanel, { type RadarFilters } from "@/components/radar/FiltersPanel";
 import DetailsDrawer from "@/components/radar/DetailsDrawer";
@@ -408,79 +408,46 @@ export default function PmoRadar() {
 
   return (
     <div className={`flex flex-col h-full w-full ${pageBg}`}>
-      <div className={`flex items-center justify-between px-4 py-3 border-b shrink-0 ${headerBg}`}>
+      <div className={`flex items-center justify-between px-4 py-2 border-b shrink-0 ${headerBg}`}>
         <div className="flex items-center gap-3">
           <Radio className={`w-5 h-5 animate-pulse ${titleColor}`} />
           <h1 className={`text-lg font-semibold tracking-wider uppercase ${titleColor}`}>
             PMO Radar
           </h1>
-          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ml-2 ${statBg}`}>
-            <Clock className={`w-3.5 h-3.5 ${accentGreen}`} />
-            <div className="flex flex-col leading-none">
-              <span className={`text-xs font-mono font-semibold ${accentGreen}`}>{clockStr}</span>
-              <span className={`text-[10px] ${statLabel}`}>{dateStr}</span>
-            </div>
-          </div>
           {timeProjectionMonths > 0 && (
-            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${isDark ? "bg-amber-500/10 border-amber-500/30" : "bg-amber-50 border-amber-300"}`}>
-              <span className={`text-xs font-semibold ${isDark ? "text-amber-400" : "text-amber-600"}`}>
-                Projecting: {projectedDateStr}
+            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded border text-[11px] ${isDark ? "bg-amber-500/10 border-amber-500/30" : "bg-amber-50 border-amber-300"}`}>
+              <span className={`font-semibold ${isDark ? "text-amber-400" : "text-amber-600"}`}>
+                {projectedDateStr}
               </span>
-              <span className={`text-[10px] ${isDark ? "text-amber-500/70" : "text-amber-500"}`}>
-                (+{timeProjectionMonths.toFixed(1)}mo)
+              <span className={isDark ? "text-amber-500/70" : "text-amber-500"}>
+                +{timeProjectionMonths.toFixed(1)}mo
               </span>
             </div>
           )}
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-4 text-xs">
-            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${statBg}`}>
-              <Activity className={`w-3.5 h-3.5 ${accentGreen}`} />
-              <span className={statLabel}>Signals:</span>
-              <span className={`font-semibold ${accentGreen}`}>{stats.total}</span>
-            </div>
-            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${statBg}`}>
-              <AlertTriangle className={`w-3.5 h-3.5 ${accentRed}`} />
-              <span className={statLabel}>High:</span>
-              <span className={`font-semibold ${accentRed}`}>{stats.high}</span>
-            </div>
-            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${statBg}`}>
-              <Shield className={`w-3.5 h-3.5 ${accentYellow}`} />
-              <span className={statLabel}>Med:</span>
-              <span className={`font-semibold ${accentYellow}`}>{stats.medium}</span>
-            </div>
-            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${statBg}`}>
-              <Shield className={`w-3.5 h-3.5 ${accentGreen}`} />
-              <span className={statLabel}>Low:</span>
-              <span className={`font-semibold ${accentGreen}`}>{stats.low}</span>
-            </div>
-            {showCostTiles && (
-              <>
-                <div className="w-px h-5 bg-slate-300 dark:bg-slate-700" />
-                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${statBg}`}>
-                  <DollarSign className={`w-3.5 h-3.5 ${accentGreen}`} />
-                  <span className={statLabel}>Future:</span>
-                  <span className={`font-semibold ${accentGreen}`}>{formatCompactCurrency(stats.costExposureFuture)}</span>
-                </div>
-                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${isDark ? "bg-red-500/10 border-red-500/30" : "bg-red-50 border-red-200"}`}>
-                  <DollarSign className={`w-3.5 h-3.5 ${accentRed}`} />
-                  <span className={statLabel}>Overdue:</span>
-                  <span className={`font-semibold ${accentRed}`}>{formatCompactCurrency(stats.costExposurePast)}</span>
-                </div>
-                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${isDark ? "bg-slate-700/80 border-slate-600" : "bg-slate-50 border-slate-300"}`}>
-                  <DollarSign className={`w-3.5 h-3.5 ${isDark ? "text-slate-300" : "text-slate-700"}`} />
-                  <span className={statLabel}>Total:</span>
-                  <span className={`font-bold ${isDark ? "text-slate-200" : "text-slate-800"}`}>{formatCompactCurrency(stats.costExposureTotal)}</span>
-                </div>
-              </>
-            )}
-          </div>
+        <div className="flex items-center gap-2 text-[11px]">
+          <span className={statLabel}>{stats.total} signals</span>
+          <span className="text-red-500 font-semibold">{stats.high}</span>
+          <span className={`text-[9px] ${statLabel}`}>/</span>
+          <span className="text-yellow-500 font-semibold">{stats.medium}</span>
+          <span className={`text-[9px] ${statLabel}`}>/</span>
+          <span className="text-green-500 font-semibold">{stats.low}</span>
+          {showCostTiles && (
+            <>
+              <div className={`w-px h-4 ${isDark ? "bg-slate-700" : "bg-slate-300"}`} />
+              <span className={statLabel}>Exp:</span>
+              <span className={`font-semibold ${accentGreen}`}>{formatCompactCurrency(stats.costExposureFuture)}</span>
+              {stats.costExposurePast > 0 && (
+                <span className="font-semibold text-red-500">{formatCompactCurrency(stats.costExposurePast)} overdue</span>
+              )}
+            </>
+          )}
           <button
             onClick={handleSimulateUpdate}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium transition-colors ${simBtnCls}`}
+            className={`flex items-center gap-1 px-2 py-1 rounded border text-[11px] font-medium transition-colors ml-1 ${simBtnCls}`}
           >
-            <Zap className="w-3.5 h-3.5" />
-            Simulate Update
+            <Zap className="w-3 h-3" />
+            Simulate
           </button>
         </div>
       </div>
