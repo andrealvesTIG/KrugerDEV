@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
-import running_man from "@assets/running_man_transparent.gif";
+import running_man from "@assets/runcycle18_1772300373437.gif";
 
 const partyGifs = [
   "https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif",
