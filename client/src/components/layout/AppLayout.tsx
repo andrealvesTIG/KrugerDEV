@@ -106,7 +106,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   const fullLogo = isDark ? logoWhite : logoBlack;
   
-  const isFullBleedPage = location.startsWith('/embed');
+  const isFullBleedPage = location.startsWith('/embed') || location.startsWith('/pmo-radar');
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">

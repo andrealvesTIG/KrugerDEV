@@ -39,33 +39,60 @@ const CATEGORY_TYPE_MAP: Record<string, RiskSignal["type"]> = {
   "Scope Risk": "scope",
 };
 
+function hashId(id: number): number {
+  let h = id * 2654435761;
+  h = ((h >>> 16) ^ h) * 0x45d9f3b;
+  h = ((h >>> 16) ^ h) * 0x45d9f3b;
+  h = (h >>> 16) ^ h;
+  return (h & 0x7fffffff) / 0x7fffffff;
+}
+
 function computeTimeOffsetDays(risk: any): number {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
+  const jitter = (hashId(risk.id) - 0.5) * 10;
 
   if (risk.dueDate) {
     const due = new Date(risk.dueDate);
-    return Math.round((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.round((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) + Math.round(jitter * 0.3);
   }
 
-  if (risk.identifiedDate) {
-    const identified = new Date(risk.identifiedDate);
-    const daysSinceIdentified = Math.round(
-      (now.getTime() - identified.getTime()) / (1000 * 60 * 60 * 24)
-    );
+  if (risk.proximity) {
+    const proximityMap: Record<string, number> = {
+      "Imminent": 7,
+      "Near-term": 25,
+      "Mid-term": 50,
+      "Long-term": 80,
+    };
+    return (proximityMap[risk.proximity] || 30) + Math.round(jitter);
+  }
 
-    if (risk.proximity === "Imminent") return 5;
-    if (risk.proximity === "Near-term") return 20;
-    if (risk.proximity === "Mid-term") return 45;
-    if (risk.proximity === "Long-term") return 75;
+  if (risk.status === "Closed" || risk.status === "Mitigated") {
+    const created = new Date(risk.createdAt || now);
+    const daysSince = Math.round((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+    return -Math.min(daysSince, 85) + Math.round(jitter * 0.5);
+  }
 
-    if (risk.status === "Closed" || risk.status === "Mitigated") {
-      return -daysSinceIdentified;
+  if (risk.createdAt) {
+    const created = new Date(risk.createdAt);
+    const daysSinceCreated = Math.round((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+
+    const probWeight = risk.probability === "Very High" ? 0.9
+      : risk.probability === "High" ? 0.7
+      : risk.probability === "Medium" ? 0.5
+      : risk.probability === "Low" ? 0.3
+      : 0.4;
+
+    if (daysSinceCreated < 14) {
+      return Math.round(30 + probWeight * 40 + jitter);
+    } else if (daysSinceCreated < 60) {
+      return Math.round(10 + probWeight * 25 + jitter);
+    } else {
+      return Math.round(-10 - (daysSinceCreated / 365) * 40 + jitter);
     }
-    return 15;
   }
 
-  return 0;
+  return Math.round(jitter * 3);
 }
 
 function computeConfidence(risk: any): number {
@@ -191,7 +218,7 @@ export default function PmoRadar() {
   }, [allSignals, simOverrides]);
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col" style={{ backgroundColor: "#0f172a" }}>
+    <div className="flex flex-col h-full w-full" style={{ backgroundColor: "#0f172a" }}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-green-500/10 bg-slate-900/60 shrink-0">
         <div className="flex items-center gap-3">
           <Radio className="w-5 h-5 text-green-400 animate-pulse" />
