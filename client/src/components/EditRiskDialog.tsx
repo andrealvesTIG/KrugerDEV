@@ -160,7 +160,7 @@ export function EditRiskDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col overflow-hidden">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Edit Risk</DialogTitle>
           <DialogDescription>Modify the risk details below.</DialogDescription>
@@ -241,25 +241,26 @@ export function EditRiskDialog({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Due Date</Label>
-              <Input
-                type="date"
-                {...form.register("dueDate")}
-                data-testid="input-risk-due-date"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Cost Exposure ($)</Label>
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                {...form.register("costExposure")}
-                data-testid="input-risk-cost-exposure"
-                placeholder="Expected monetary value at risk"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Due Date</Label>
+                <Input
+                  type="date"
+                  {...form.register("dueDate")}
+                  data-testid="input-risk-due-date"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Cost Exposure ($)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  {...form.register("costExposure")}
+                  data-testid="input-risk-cost-exposure"
+                  placeholder="$ amount"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
