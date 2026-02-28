@@ -356,7 +356,7 @@ export default function PmoRadar() {
           onHorizontalMetricChange={setHorizontalMetric}
         />
 
-        <div className="flex-1 relative p-4 min-w-0">
+        <div className="flex-1 relative p-2 min-w-0">
           <RadarCanvas signals={filteredSignals} onSignalClick={setSelectedSignal} isDark={isDark} centerLabel={centerLabel} horizontalMetric={horizontalMetric} />
         </div>
 

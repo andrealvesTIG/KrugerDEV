@@ -172,7 +172,7 @@ export default function RadarCanvas({
     x: number;
     y: number;
   } | null>(null);
-  const [dims, setDims] = useState({ width: 600, height: 600 });
+  const [dims, setDims] = useState({ width: 800, height: 600 });
   const [zoom, setZoom] = useState(1);
 
   const prevScoresRef = useRef<Map<string, number>>(new Map());
@@ -194,7 +194,7 @@ export default function RadarCanvas({
   const sweepLineAlpha = isDark ? 0.7 : 0.6;
   const borderAlpha = isDark ? 0.4 : 0.5;
 
-  const baseRadius = (w: number, h: number) => Math.min(w / 2, h / 2) * 0.78;
+  const baseRadius = (w: number, h: number) => Math.min(w / 2, h / 2) * 0.85;
   const getRadius = (w: number, h: number) => baseRadius(w, h) * zoom;
 
   useEffect(() => {
@@ -204,8 +204,7 @@ export default function RadarCanvas({
       const entry = entries[0];
       if (entry) {
         const { width, height } = entry.contentRect;
-        const size = Math.min(width, height);
-        setDims({ width: size, height: size });
+        setDims({ width: Math.floor(width), height: Math.floor(height) });
       }
     });
     obs.observe(container);
