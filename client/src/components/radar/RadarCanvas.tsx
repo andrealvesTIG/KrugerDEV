@@ -14,6 +14,9 @@ export type RiskSignal = {
   id: string;
   title: string;
   project: string;
+  projectId: number;
+  portfolioId?: number;
+  portfolioName?: string;
   riskScore: number;
   timeOffsetDays: number;
   impactScore: number;

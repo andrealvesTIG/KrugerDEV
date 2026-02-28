@@ -1,13 +1,18 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { useOrganization } from "@/hooks/use-organization";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useProjects } from "@/hooks/use-projects";
+import { useUpdateRisk, useRiskHistory, useAiMitigationSuggestion, useDeleteRisk, useConvertRiskToIssue } from "@/hooks/use-risks";
+import { useRiskResourceAssignments, useUpdateRiskResourceAssignments } from "@/hooks/use-resources";
 import { useTheme } from "@/components/theme-provider";
+import { useToast } from "@/hooks/use-toast";
 import { Zap, Radio, AlertTriangle, Shield, Activity, Clock } from "lucide-react";
 import RadarCanvas, { type RiskSignal, type HorizontalMetric } from "@/components/radar/RadarCanvas";
 import FiltersPanel, { type RadarFilters } from "@/components/radar/FiltersPanel";
 import DetailsDrawer from "@/components/radar/DetailsDrawer";
+import { EditRiskDialog, type RiskFormData } from "@/components/EditRiskDialog";
 
 const PROBABILITY_MAP: Record<string, number> = {
   "Very Low": 10,
@@ -118,7 +123,8 @@ type EnrichedSignal = RiskSignal & { portfolioId?: number };
 function transformRiskToSignal(
   risk: any,
   projectsMap: Map<number, string>,
-  projectPortfolioMap: Map<number, number>
+  projectPortfolioMap: Map<number, number>,
+  portfolioNamesMap: Map<number, string>
 ): EnrichedSignal {
   const probScore = PROBABILITY_MAP[risk.probability] || 50;
   const impScore = IMPACT_MAP[risk.impact] || 50;
@@ -131,6 +137,7 @@ function transformRiskToSignal(
     id: String(risk.id),
     title: risk.title || "Untitled Risk",
     project: projectsMap.get(risk.projectId) || "Unknown Project",
+    projectId: risk.projectId,
     riskScore: Math.min(riskScore, 100),
     timeOffsetDays: computeTimeOffsetDays(risk),
     impactScore: impScore,
@@ -143,6 +150,9 @@ function transformRiskToSignal(
     dueDate: risk.dueDate || null,
     status: risk.status || "Open",
     portfolioId: projectPortfolioMap?.get(risk.projectId),
+    portfolioName: projectPortfolioMap?.get(risk.projectId) && portfolioNamesMap
+      ? portfolioNamesMap.get(projectPortfolioMap.get(risk.projectId)!)
+      : undefined,
   };
 }
 
@@ -164,6 +174,24 @@ export default function PmoRadar() {
   const [timeProjectionMonths, setTimeProjectionMonths] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [horizontalMetric, setHorizontalMetric] = useState<HorizontalMetric>("riskScore");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingRisk, setEditingRisk] = useState<any>(null);
+  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+
+  const { toast } = useToast();
+  const updateRisk = useUpdateRisk();
+  const deleteRisk = useDeleteRisk();
+  const convertRiskToIssue = useConvertRiskToIssue();
+  const aiMitigationSuggestion = useAiMitigationSuggestion();
+  const updateRiskResources = useUpdateRiskResourceAssignments();
+  const { data: riskHistory, isLoading: historyLoading } = useRiskHistory(editingRisk?.id || 0);
+  const { data: riskAssignments } = useRiskResourceAssignments(editingRisk?.id ?? null);
+
+  useEffect(() => {
+    if (riskAssignments) {
+      setSelectedResourceIds(riskAssignments.map((a: any) => a.resourceId));
+    }
+  }, [riskAssignments]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -195,9 +223,15 @@ export default function PmoRadar() {
     return m;
   }, [projectsData]);
 
+  const portfolioNamesMap = useMemo(() => {
+    const m = new Map<number, string>();
+    portfolios.forEach((p: any) => m.set(p.id, p.name));
+    return m;
+  }, [portfolios]);
+
   const { allSignals, maxCostExposure } = useMemo(() => {
     const raw = risksData.map((risk: any) => {
-      const signal = transformRiskToSignal(risk, projectsMap, projectPortfolioMap);
+      const signal = transformRiskToSignal(risk, projectsMap, projectPortfolioMap, portfolioNamesMap);
       const override = simOverrides.get(signal.id);
       if (override !== undefined) {
         return { ...signal, riskScore: override };
@@ -211,7 +245,7 @@ export default function PmoRadar() {
       costExposureNorm: maxCost > 0 ? Math.round((s.costExposureRaw / maxCost) * 100) : 0,
     }));
     return { allSignals: normalized, maxCostExposure: maxCost };
-  }, [risksData, projectsMap, projectPortfolioMap, simOverrides]);
+  }, [risksData, projectsMap, projectPortfolioMap, portfolioNamesMap, simOverrides]);
 
   const projectionOffsetDays = Math.round(timeProjectionMonths * 30.44);
 
@@ -304,6 +338,30 @@ export default function PmoRadar() {
     });
     setSimOverrides(newOverrides);
   }, [allSignals, simOverrides]);
+
+  const handleEditSignal = useCallback((signal: RiskSignal) => {
+    const risk = risksData.find((r: any) => String(r.id) === signal.id);
+    if (risk) {
+      setEditingRisk(risk);
+      setEditDialogOpen(true);
+    }
+  }, [risksData]);
+
+  const handleRiskSubmit = useCallback((data: RiskFormData) => {
+    if (!editingRisk) return;
+    updateRisk.mutate({ id: editingRisk.id, projectId: editingRisk.projectId, ...data }, {
+      onSuccess: () => {
+        updateRiskResources.mutate({ riskId: editingRisk.id, resourceIds: selectedResourceIds });
+        toast({ title: "Success", description: "Risk updated" });
+        setEditDialogOpen(false);
+        setEditingRisk(null);
+        queryClient.invalidateQueries({ queryKey: [`/api/issues?itemType=risk&organizationId=${currentOrganization?.id}`] });
+      },
+      onError: (error: any) => {
+        toast({ title: "Error", description: error?.message || "Failed to update risk", variant: "destructive" });
+      }
+    });
+  }, [editingRisk, updateRisk, updateRiskResources, selectedResourceIds, toast, currentOrganization]);
 
   const pageBg = isDark ? "bg-[#0f172a]" : "bg-slate-100";
   const headerBg = isDark ? "bg-slate-900/60 border-green-500/10" : "bg-white/80 border-green-600/10";
@@ -403,8 +461,60 @@ export default function PmoRadar() {
           <RadarCanvas signals={filteredSignals} onSignalClick={setSelectedSignal} isDark={isDark} centerLabel={centerLabel} horizontalMetric={horizontalMetric} maxCostExposure={maxCostExposure} />
         </div>
 
-        <DetailsDrawer signal={selectedSignal} onClose={() => setSelectedSignal(null)} isDark={isDark} />
+        <DetailsDrawer signal={selectedSignal} onClose={() => setSelectedSignal(null)} isDark={isDark} onEdit={handleEditSignal} />
       </div>
+
+      <EditRiskDialog
+        open={editDialogOpen}
+        onOpenChange={(open) => { setEditDialogOpen(open); if (!open) setEditingRisk(null); }}
+        risk={editingRisk}
+        onSubmit={handleRiskSubmit}
+        isSubmitting={updateRisk.isPending}
+        projectLink={editingRisk ? { name: projectsMap.get(editingRisk.projectId) || "Unknown", id: editingRisk.projectId } : null}
+        portfolioLink={editingRisk?.projectId && projectPortfolioMap.get(editingRisk.projectId) ? {
+          name: portfolioNamesMap.get(projectPortfolioMap.get(editingRisk.projectId)!) || "Portfolio",
+          id: projectPortfolioMap.get(editingRisk.projectId)!,
+        } : null}
+        organizationId={currentOrganization?.id}
+        resourceIds={selectedResourceIds}
+        onResourcesChange={setSelectedResourceIds}
+        projectName={editingRisk ? projectsMap.get(editingRisk.projectId) : undefined}
+        portfolioId={editingRisk?.projectId ? projectPortfolioMap.get(editingRisk.projectId) : undefined}
+        portfolioName={editingRisk?.projectId && projectPortfolioMap.get(editingRisk.projectId) ? portfolioNamesMap.get(projectPortfolioMap.get(editingRisk.projectId)!) : undefined}
+        onConvertToIssue={() => {
+          if (editingRisk) {
+            convertRiskToIssue.mutate({ id: editingRisk.id, projectId: editingRisk.projectId }, {
+              onSuccess: () => {
+                toast({ title: "Success", description: "Risk converted to issue" });
+                setEditDialogOpen(false);
+                setEditingRisk(null);
+                queryClient.invalidateQueries({ queryKey: [`/api/issues?itemType=risk&organizationId=${currentOrganization?.id}`] });
+              },
+              onError: (err: any) => {
+                toast({ title: "Error", description: err.message, variant: "destructive" });
+              }
+            });
+          }
+        }}
+        isConverting={convertRiskToIssue.isPending}
+        history={riskHistory || []}
+        historyLoading={historyLoading}
+        onAiSuggest={(data) => aiMitigationSuggestion.mutateAsync(data)}
+        isAiSuggesting={aiMitigationSuggestion.isPending}
+        onDelete={() => {
+          if (editingRisk) {
+            deleteRisk.mutate({ id: editingRisk.id, projectId: editingRisk.projectId }, {
+              onSuccess: () => {
+                toast({ title: "Deleted", description: "Risk deleted" });
+                setEditDialogOpen(false);
+                setEditingRisk(null);
+                queryClient.invalidateQueries({ queryKey: [`/api/issues?itemType=risk&organizationId=${currentOrganization?.id}`] });
+              }
+            });
+          }
+        }}
+        isDeleting={deleteRisk.isPending}
+      />
     </div>
   );
 }
