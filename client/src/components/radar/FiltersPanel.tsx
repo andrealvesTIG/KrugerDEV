@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FastForward, RotateCcw, Play, Pause, SkipBack } from "lucide-react";
+import { FastForward, RotateCcw, Play, Pause, SkipBack, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { type HorizontalMetric, HORIZONTAL_METRICS } from "./RadarCanvas";
 
 export type RadarFilters = {
@@ -56,6 +56,7 @@ export default function FiltersPanel({ filters, onChange, projects, portfolios, 
     onChange({ ...filters, ...partial });
   };
 
+  const [collapsed, setCollapsed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const animRef = useRef<number>(0);
@@ -128,12 +129,42 @@ export default function FiltersPanel({ filters, onChange, projects, portfolios, 
   const projectionAccent = isDark ? "text-amber-400" : "text-amber-600";
   const projectionBg = isDark ? "bg-amber-500/5 border border-amber-500/20 rounded-lg p-3" : "bg-amber-50 border border-amber-300/30 rounded-lg p-3";
 
+  const collapsedBtnCls = isDark
+    ? "text-slate-400 hover:text-green-400 hover:bg-slate-800"
+    : "text-slate-400 hover:text-green-600 hover:bg-slate-100";
+
+  if (collapsed) {
+    return (
+      <div className={`shrink-0 flex flex-col items-center py-4 px-1.5 gap-3 ${panelBg}`}>
+        <button
+          onClick={() => setCollapsed(false)}
+          className={`p-1.5 rounded transition-colors ${collapsedBtnCls}`}
+          title="Expand Filters"
+        >
+          <PanelLeftOpen className="w-4 h-4" />
+        </button>
+        <span className={`text-[10px] font-semibold uppercase tracking-wider writing-mode-vertical ${heading}`}
+          style={{ writingMode: "vertical-lr", textOrientation: "mixed" }}
+        >
+          Filters
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className={`w-64 shrink-0 p-4 flex flex-col gap-6 overflow-y-auto ${panelBg}`}>
-      <div>
-        <h3 className={`text-sm font-semibold uppercase tracking-wider mb-4 ${heading}`}>
+      <div className="flex items-center justify-between">
+        <h3 className={`text-sm font-semibold uppercase tracking-wider ${heading}`}>
           Filters
         </h3>
+        <button
+          onClick={() => setCollapsed(true)}
+          className={`p-1 rounded transition-colors ${collapsedBtnCls}`}
+          title="Collapse Filters"
+        >
+          <PanelLeftClose className="w-4 h-4" />
+        </button>
       </div>
 
       <div className={projectionActive ? projectionBg : "space-y-2"}>
