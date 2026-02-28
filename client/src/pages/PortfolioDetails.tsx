@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
@@ -2228,33 +2228,95 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
 }
 
 function PortfolioTasksTab({ portfolioId, organizationId }: { portfolioId: number; organizationId: number }) {
+  const BATCH_SIZE = 5;
   const { data: projects, isLoading: projectsLoading } = usePortfolioProjects(portfolioId);
   const [view, setView] = useState<"table" | "gantt">("gantt");
   const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const [loadedProjectIds, setLoadedProjectIds] = useState<Set<number>>(new Set());
 
   const projectIds = useMemo(() => (projects || []).map(p => p.id), [projects]);
 
-  const taskQueries = useQuery<Record<number, Task[]>>({
-    queryKey: ['/api/portfolios', portfolioId, 'all-tasks', projectIds],
-    queryFn: async () => {
-      const results: Record<number, Task[]> = {};
-      await Promise.all(
-        projectIds.map(async (pid) => {
-          const res = await fetch(`/api/projects/${pid}/tasks`);
-          if (res.ok) {
-            results[pid] = await res.json();
-          } else {
-            results[pid] = [];
-          }
-        })
-      );
-      return results;
-    },
-    enabled: projectIds.length > 0,
-  });
+  const prevPortfolioIdRef = useRef(portfolioId);
+  useEffect(() => {
+    if (prevPortfolioIdRef.current !== portfolioId) {
+      prevPortfolioIdRef.current = portfolioId;
+      setVisibleCount(BATCH_SIZE);
+      setLoadedProjectIds(new Set());
+      setTasksByProject({});
+      setInitialLoading(true);
+      setExpandedProjects(new Set());
+    }
+  }, [portfolioId]);
 
-  const tasksByProject = taskQueries.data || {};
+  const visibleProjectIds = useMemo(() => projectIds.slice(0, visibleCount), [projectIds, visibleCount]);
+
+  const idsToFetch = useMemo(() => {
+    const newIds = visibleProjectIds.filter(id => !loadedProjectIds.has(id));
+    return newIds.length > 0 ? newIds : [];
+  }, [visibleProjectIds, loadedProjectIds]);
+
+  const [tasksByProject, setTasksByProject] = useState<Record<number, Task[]>>({});
+  const [isFetchingBatch, setIsFetchingBatch] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  useEffect(() => {
+    if (idsToFetch.length === 0) {
+      if (initialLoading && projectIds.length > 0 && Object.keys(tasksByProject).length > 0) {
+        setInitialLoading(false);
+      } else if (projectIds.length === 0) {
+        setInitialLoading(false);
+      }
+      return;
+    }
+    let cancelled = false;
+    setIsFetchingBatch(true);
+
+    Promise.all(
+      idsToFetch.map(async (pid) => {
+        const res = await fetch(`/api/projects/${pid}/tasks`);
+        const tasks = res.ok ? await res.json() : [];
+        return { pid, tasks } as { pid: number; tasks: Task[] };
+      })
+    ).then((results) => {
+      if (cancelled) return;
+      setTasksByProject(prev => {
+        const next = { ...prev };
+        results.forEach(({ pid, tasks }) => { next[pid] = tasks; });
+        return next;
+      });
+      setLoadedProjectIds(prev => {
+        const next = new Set(prev);
+        results.forEach(({ pid }) => next.add(pid));
+        return next;
+      });
+      setIsFetchingBatch(false);
+      setInitialLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [idsToFetch]);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !projects) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && visibleCount < projectIds.length && !isFetchingBatch) {
+          setVisibleCount(prev => Math.min(prev + BATCH_SIZE, projectIds.length));
+        }
+      },
+      { rootMargin: "200px" }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [projects, visibleCount, projectIds.length, isFetchingBatch]);
+
+  const visibleProjects = useMemo(() => (projects || []).slice(0, visibleCount), [projects, visibleCount]);
 
   const totalTasks = useMemo(() => {
     return Object.values(tasksByProject).reduce((sum, tasks) => sum + tasks.length, 0);
@@ -2281,7 +2343,7 @@ function PortfolioTasksTab({ portfolioId, organizationId }: { portfolioId: numbe
     });
   };
 
-  if (projectsLoading || taskQueries.isLoading) {
+  if (projectsLoading || initialLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -2300,6 +2362,8 @@ function PortfolioTasksTab({ portfolioId, organizationId }: { portfolioId: numbe
     );
   }
 
+  const hasMore = visibleCount < projectIds.length;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -2308,6 +2372,11 @@ function PortfolioTasksTab({ portfolioId, organizationId }: { portfolioId: numbe
           <Badge variant="secondary" className="text-xs">
             {completedTasks}/{totalTasks} completed
           </Badge>
+          {hasMore && (
+            <span className="text-xs text-muted-foreground">
+              Showing {visibleProjects.length} of {projects.length} projects
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -2329,8 +2398,9 @@ function PortfolioTasksTab({ portfolioId, organizationId }: { portfolioId: numbe
         </div>
       </div>
 
-      {projects.map((project) => {
+      {visibleProjects.map((project) => {
         const tasks = tasksByProject[project.id] || [];
+        const isLoaded = loadedProjectIds.has(project.id);
         const isExpanded = expandedProjects.has(project.id);
         const completed = tasks.filter(t => t.status === "Completed").length;
         const healthColor = project.health === "Green" ? "bg-emerald-500" : project.health === "Yellow" ? "bg-amber-500" : project.health === "Red" ? "bg-rose-500" : "bg-slate-400";
@@ -2350,13 +2420,19 @@ function PortfolioTasksTab({ portfolioId, organizationId }: { portfolioId: numbe
                 >
                   {project.name}
                 </Link>
-                <Badge variant="outline" className="text-[10px]">
-                  {tasks.length} task{tasks.length !== 1 ? "s" : ""}
-                </Badge>
-                {tasks.length > 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    {completed}/{tasks.length} completed
-                  </span>
+                {isLoaded ? (
+                  <>
+                    <Badge variant="outline" className="text-[10px]">
+                      {tasks.length} task{tasks.length !== 1 ? "s" : ""}
+                    </Badge>
+                    {tasks.length > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {completed}/{tasks.length} completed
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                 )}
               </div>
               <div className="flex items-center gap-2">
@@ -2368,7 +2444,7 @@ function PortfolioTasksTab({ portfolioId, organizationId }: { portfolioId: numbe
               </div>
             </div>
 
-            {isExpanded && tasks.length > 0 && (
+            {isExpanded && isLoaded && tasks.length > 0 && (
               <div className="border-t">
                 <ProjectGanttView
                   tasks={tasks}
@@ -2384,14 +2460,27 @@ function PortfolioTasksTab({ portfolioId, organizationId }: { portfolioId: numbe
                 />
               </div>
             )}
-            {isExpanded && tasks.length === 0 && (
+            {isExpanded && isLoaded && tasks.length === 0 && (
               <CardContent className="py-6 text-center text-muted-foreground text-sm">
                 No tasks in this project.
+              </CardContent>
+            )}
+            {isExpanded && !isLoaded && (
+              <CardContent className="py-6 flex justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </CardContent>
             )}
           </Card>
         );
       })}
+
+      {hasMore && <div ref={sentinelRef} className="h-1" />}
+      {isFetchingBatch && hasMore && (
+        <div className="flex items-center justify-center py-4 gap-2">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Loading more projects...</span>
+        </div>
+      )}
 
       {selectedTask && (
         <Dialog open={!!selectedTask} onOpenChange={(open) => { if (!open) setSelectedTask(null); }}>
