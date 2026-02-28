@@ -104,11 +104,20 @@ export default function DetailsDrawer({ signal, onClose, isDark, onEdit }: Detai
             <div>
               <div className={`text-[10px] uppercase tracking-wider mb-1 ${metaLabel}`}>Title</div>
               <div className={`text-sm font-medium ${titleText}`}>{signal.title}</div>
-              {isOverdue && (
-                <span className="inline-block mt-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-red-500/20 text-red-500 rounded">
-                  Overdue
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${
+                  signal.itemType === "issue"
+                    ? "bg-blue-500/20 text-blue-500"
+                    : "bg-orange-500/20 text-orange-500"
+                }`}>
+                  {signal.itemType === "issue" ? "Issue" : "Risk"}
                 </span>
-              )}
+                {isOverdue && (
+                  <span className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-red-500/20 text-red-500 rounded">
+                    Overdue
+                  </span>
+                )}
+              </div>
             </div>
 
             <div>

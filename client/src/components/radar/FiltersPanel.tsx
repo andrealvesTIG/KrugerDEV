@@ -19,6 +19,7 @@ export type RadarFilters = {
   signalType: string;
   projectId: string;
   portfolioId: string;
+  itemType: string;
 };
 
 interface FiltersPanelProps {
@@ -261,6 +262,20 @@ export default function FiltersPanel({ filters, onChange, projects, portfolios, 
       </div>
 
       <div className="space-y-2">
+        <Label className={`text-xs ${labelCls}`}>Item Type</Label>
+        <Select value={filters.itemType} onValueChange={(val) => update({ itemType: val })}>
+          <SelectTrigger className={`text-xs ${selectTrigger}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className={selectContent}>
+            <SelectItem value="all" className={`text-xs ${selectItem}`}>All Items</SelectItem>
+            <SelectItem value="risk" className={`text-xs ${selectItem}`}>Risks Only</SelectItem>
+            <SelectItem value="issue" className={`text-xs ${selectItem}`}>Issues Only</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
         <Label className={`text-xs ${labelCls}`}>Signal Type</Label>
         <Select value={filters.signalType} onValueChange={(val) => update({ signalType: val })}>
           <SelectTrigger className={`text-xs ${selectTrigger}`}>
@@ -333,21 +348,31 @@ export default function FiltersPanel({ filters, onChange, projects, portfolios, 
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
-            <span className={`text-xs ${legendLabel}`}>Low Risk (&lt;30)</span>
+            <span className={`text-xs ${legendLabel}`}>Low Score (&lt;30)</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
-            <span className={`text-xs ${legendLabel}`}>Medium Risk (30-70)</span>
+            <span className={`text-xs ${legendLabel}`}>Medium Score (30-70)</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
-            <span className={`text-xs ${legendLabel}`}>High Risk (&gt;70)</span>
+            <span className={`text-xs ${legendLabel}`}>High Score (&gt;70)</span>
+          </div>
+        </div>
+        <div className="mt-2 space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full border-2 border-current opacity-60" />
+            <span className={`text-xs ${legendLabel}`}>Risk (circle)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 border-2 border-current opacity-60" />
+            <span className={`text-xs ${legendLabel}`}>Issue (square)</span>
           </div>
         </div>
         <div className="mt-2 space-y-1">
           <div className="flex items-center gap-2">
             <span className={`w-4 h-1 rounded ${isDark ? "bg-slate-500" : "bg-slate-400"}`} />
-            <span className={`text-[10px] ${subText}`}>Dot size = Impact</span>
+            <span className={`text-[10px] ${subText}`}>Size = Impact</span>
           </div>
           <div className="flex items-center gap-2">
             <span className={`w-4 h-1 rounded ${isDark ? "bg-slate-500/50" : "bg-slate-400/50"}`} />

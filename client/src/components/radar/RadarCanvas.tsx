@@ -28,6 +28,7 @@ export type RiskSignal = {
   costExposure: number | null;
   dueDate: string | null;
   status: string;
+  itemType: "risk" | "issue";
 };
 
 interface RadarCanvasProps {
@@ -474,13 +475,21 @@ export default function RadarCanvas({
           ctx.shadowBlur = 16;
         }
 
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y, dotRadius * scale, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
-        ctx.fill();
         ctx.strokeStyle = `rgba(${r},${g},${b},${alpha * 0.8})`;
         ctx.lineWidth = isOverdue ? 2 : 1;
-        ctx.stroke();
+        if (signal.itemType === "issue") {
+          const half = dotRadius * scale;
+          ctx.beginPath();
+          ctx.rect(pos.x - half, pos.y - half, half * 2, half * 2);
+          ctx.fill();
+          ctx.stroke();
+        } else {
+          ctx.beginPath();
+          ctx.arc(pos.x, pos.y, dotRadius * scale, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
         ctx.shadowBlur = 0;
 
         if (isOverdue && signal.costExposure != null && signal.costExposure > 0) {
@@ -669,13 +678,20 @@ export default function RadarCanvas({
         >
           <div className={`font-semibold mb-1 ${tooltipTitle}`}>
             {tooltip.signal.title}
+            <span className={`ml-2 text-[10px] font-medium px-1.5 py-0.5 rounded ${
+              tooltip.signal.itemType === "issue"
+                ? "text-blue-500 bg-blue-500/15"
+                : "text-orange-500 bg-orange-500/15"
+            }`}>
+              {tooltip.signal.itemType === "issue" ? "ISSUE" : "RISK"}
+            </span>
             {tooltip.signal.timeOffsetDays < 0 && tooltip.signal.dueDate && (
-              <span className="ml-2 text-[10px] font-bold text-red-500 bg-red-500/15 px-1.5 py-0.5 rounded">OVERDUE</span>
+              <span className="ml-1 text-[10px] font-bold text-red-500 bg-red-500/15 px-1.5 py-0.5 rounded">OVERDUE</span>
             )}
           </div>
           <div className={tooltipText}>Project: {tooltip.signal.project}</div>
           <div className={tooltipText}>
-            Risk Score:{" "}
+            Score:{" "}
             <span style={{ color: getRiskColor(tooltip.signal.riskScore) }}>
               {tooltip.signal.riskScore}
             </span>

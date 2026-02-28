@@ -119,6 +119,62 @@ function computeConfidence(risk: any): number {
   return Math.min(score, 1);
 }
 
+const SEVERITY_MAP: Record<string, number> = {
+  "Blocker": 95,
+  "Critical": 85,
+  "Major": 65,
+  "Moderate": 45,
+  "Minor": 25,
+};
+
+const PRIORITY_SCORE_MAP: Record<string, number> = {
+  "Critical": 90,
+  "High": 75,
+  "Medium": 50,
+  "Low": 25,
+};
+
+function transformIssueToSignal(
+  issue: any,
+  projectsMap: Map<number, string>,
+  projectPortfolioMap: Map<number, number>,
+  portfolioNamesMap: Map<number, string>
+): EnrichedSignal {
+  const sevScore = SEVERITY_MAP[issue.severity] || 50;
+  const priScore = PRIORITY_SCORE_MAP[issue.priority] || 50;
+  const impactScore = Math.max(sevScore, priScore);
+  const riskScore = Math.round((priScore * sevScore) / 100) || priScore;
+
+  const costExp = issue.impactCost != null ? parseFloat(issue.impactCost) : null;
+  const costExpVal = costExp != null && !isNaN(costExp) ? costExp : 0;
+
+  return {
+    id: `issue-${issue.id}`,
+    title: issue.title || "Untitled Issue",
+    project: projectsMap.get(issue.projectId) || "Unknown Project",
+    projectId: issue.projectId,
+    riskScore: Math.min(riskScore, 100),
+    timeOffsetDays: computeTimeOffsetDays({
+      ...issue,
+      dueDate: issue.targetResolutionDate || issue.dueDate,
+    }),
+    impactScore,
+    probability: priScore,
+    costExposureNorm: costExpVal,
+    costExposureRaw: costExpVal,
+    confidence: computeConfidence(issue),
+    type: CATEGORY_TYPE_MAP[issue.category] || "technical",
+    costExposure: costExpVal > 0 ? costExpVal : null,
+    dueDate: issue.targetResolutionDate || issue.dueDate || null,
+    status: issue.status || "Open",
+    itemType: "issue",
+    portfolioId: projectPortfolioMap?.get(issue.projectId),
+    portfolioName: projectPortfolioMap?.get(issue.projectId) && portfolioNamesMap
+      ? portfolioNamesMap.get(projectPortfolioMap.get(issue.projectId)!)
+      : undefined,
+  };
+}
+
 type EnrichedSignal = RiskSignal & { portfolioId?: number };
 
 function transformRiskToSignal(
@@ -150,6 +206,7 @@ function transformRiskToSignal(
     costExposure: costExpVal > 0 ? costExpVal : null,
     dueDate: risk.dueDate || null,
     status: risk.status || "Open",
+    itemType: "risk",
     portfolioId: projectPortfolioMap?.get(risk.projectId),
     portfolioName: projectPortfolioMap?.get(risk.projectId) && portfolioNamesMap
       ? portfolioNamesMap.get(projectPortfolioMap.get(risk.projectId)!)
@@ -169,6 +226,7 @@ export default function PmoRadar() {
     signalType: "all",
     projectId: "all",
     portfolioId: "all",
+    itemType: "all",
   });
 
   const [selectedSignal, setSelectedSignal] = useState<RiskSignal | null>(null);
@@ -211,6 +269,11 @@ export default function PmoRadar() {
     enabled: !!currentOrganization?.id,
   });
 
+  const { data: issuesData = [] } = useQuery<any[]>({
+    queryKey: [`/api/issues?itemType=issue&organizationId=${currentOrganization?.id}`],
+    enabled: !!currentOrganization?.id,
+  });
+
   const projectsMap = useMemo(() => {
     const m = new Map<number, string>();
     projectsData.forEach((p: any) => m.set(p.id, p.name));
@@ -232,7 +295,7 @@ export default function PmoRadar() {
   }, [portfolios]);
 
   const { allSignals, maxCostExposure } = useMemo(() => {
-    const raw = risksData.map((risk: any) => {
+    const riskSignals = risksData.map((risk: any) => {
       const signal = transformRiskToSignal(risk, projectsMap, projectPortfolioMap, portfolioNamesMap);
       const override = simOverrides.get(signal.id);
       if (override !== undefined) {
@@ -241,13 +304,19 @@ export default function PmoRadar() {
       return signal;
     });
 
+    const issueSignals = issuesData.map((issue: any) =>
+      transformIssueToSignal(issue, projectsMap, projectPortfolioMap, portfolioNamesMap)
+    );
+
+    const raw = [...riskSignals, ...issueSignals];
+
     const maxCost = Math.max(1, ...raw.map((s) => s.costExposureRaw));
     const normalized = raw.map((s) => ({
       ...s,
       costExposureNorm: maxCost > 0 ? Math.round((s.costExposureRaw / maxCost) * 100) : 0,
     }));
     return { allSignals: normalized, maxCostExposure: maxCost };
-  }, [risksData, projectsMap, projectPortfolioMap, portfolioNamesMap, simOverrides]);
+  }, [risksData, issuesData, projectsMap, projectPortfolioMap, portfolioNamesMap, simOverrides]);
 
   const projectionOffsetDays = Math.round(timeProjectionMonths * 30.44);
 
@@ -305,6 +374,7 @@ export default function PmoRadar() {
 
   const filteredSignals = useMemo(() => {
     return projectedSignals.filter((s: EnrichedSignal) => {
+      if (filters.itemType !== "all" && s.itemType !== filters.itemType) return false;
       if (s.riskScore < filters.minRiskScore) return false;
       if (filters.futureOnly && s.timeOffsetDays < 0) return false;
       if (filters.highRiskOnly && s.riskScore <= 70) return false;
@@ -353,25 +423,35 @@ export default function PmoRadar() {
   }, [allSignals, simOverrides]);
 
   const handleEditSignal = useCallback((signal: RiskSignal) => {
-    const risk = risksData.find((r: any) => String(r.id) === signal.id);
-    if (risk) {
-      setEditingRisk(risk);
-      setEditDialogOpen(true);
+    if (signal.itemType === "issue") {
+      const rawId = signal.id.replace("issue-", "");
+      const issue = issuesData.find((r: any) => String(r.id) === rawId);
+      if (issue) {
+        setEditingRisk(issue);
+        setEditDialogOpen(true);
+      }
+    } else {
+      const risk = risksData.find((r: any) => String(r.id) === signal.id);
+      if (risk) {
+        setEditingRisk(risk);
+        setEditDialogOpen(true);
+      }
     }
-  }, [risksData]);
+  }, [risksData, issuesData]);
 
   const handleRiskSubmit = useCallback((data: RiskFormData) => {
     if (!editingRisk) return;
     updateRisk.mutate({ id: editingRisk.id, projectId: editingRisk.projectId, ...data }, {
       onSuccess: () => {
         updateRiskResources.mutate({ riskId: editingRisk.id, resourceIds: selectedResourceIds });
-        toast({ title: "Success", description: "Risk updated" });
+        toast({ title: "Success", description: "Item updated" });
         setEditDialogOpen(false);
         setEditingRisk(null);
         queryClient.invalidateQueries({ queryKey: [`/api/issues?itemType=risk&organizationId=${currentOrganization?.id}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/issues?itemType=issue&organizationId=${currentOrganization?.id}`] });
       },
       onError: (error: any) => {
-        toast({ title: "Error", description: error?.message || "Failed to update risk", variant: "destructive" });
+        toast({ title: "Error", description: error?.message || "Failed to update", variant: "destructive" });
       }
     });
   }, [editingRisk, updateRisk, updateRiskResources, selectedResourceIds, toast, currentOrganization]);
