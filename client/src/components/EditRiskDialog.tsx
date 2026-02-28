@@ -189,8 +189,8 @@ export function EditRiskDialog({
         )}
 
         <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col flex-1 overflow-hidden">
-          <div className="space-y-6 pt-4 flex-1 overflow-y-auto pr-1">
-            <div className="space-y-2">
+          <div className="flex flex-col gap-5 pt-4 flex-1 overflow-y-auto pr-1">
+            <div className="space-y-1.5 pb-1">
               <Label>Title <span className="text-destructive">*</span></Label>
               <Input {...form.register("title")} data-testid="input-risk-title" />
               {form.formState.errors.title && (
@@ -198,8 +198,8 @@ export function EditRiskDialog({
               )}
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
+            <div className="grid grid-cols-3 gap-3 pb-1">
+              <div className="space-y-1.5">
                 <Label>Probability</Label>
                 <Controller control={form.control} name="probability" render={({ field }) => (
                   <Select onValueChange={field.onChange} value={field.value}>
@@ -212,7 +212,7 @@ export function EditRiskDialog({
                   </Select>
                 )} />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label>Impact</Label>
                 <Controller control={form.control} name="impact" render={({ field }) => (
                   <Select onValueChange={field.onChange} value={field.value}>
@@ -225,7 +225,7 @@ export function EditRiskDialog({
                   </Select>
                 )} />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label>Status</Label>
                 <Controller control={form.control} name="status" render={({ field }) => (
                   <Select onValueChange={field.onChange} value={field.value}>
@@ -241,8 +241,8 @@ export function EditRiskDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-3 pb-1">
+              <div className="space-y-1.5">
                 <Label>Due Date</Label>
                 <Input
                   type="date"
@@ -250,7 +250,7 @@ export function EditRiskDialog({
                   data-testid="input-risk-due-date"
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label>Cost Exposure ($)</Label>
                 <Input
                   type="number"
