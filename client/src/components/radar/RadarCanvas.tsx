@@ -32,7 +32,7 @@ export type RiskSignal = {
 
 interface RadarCanvasProps {
   signals: RiskSignal[];
-  onSignalClick: (signal: RiskSignal) => void;
+  onSignalClick: (signal: RiskSignal | null) => void;
   isDark: boolean;
   centerLabel?: string;
   horizontalMetric?: HorizontalMetric;
@@ -599,6 +599,7 @@ export default function RadarCanvas({
       const cy = dims.height / 2;
       const radius = getRadius(dims.width, dims.height);
 
+      let hit = false;
       for (const signal of signals) {
         const pos = mapSignalToCanvas(signal, cx, cy, radius, horizontalMetric);
         if (!isInClip(pos.x, pos.y)) continue;
@@ -606,9 +607,11 @@ export default function RadarCanvas({
         const dist = Math.sqrt((mx - pos.x) ** 2 + (my - pos.y) ** 2);
         if (dist <= dotRadius + 4) {
           onSignalClick(signal);
+          hit = true;
           break;
         }
       }
+      if (!hit) onSignalClick(null);
     },
     [signals, dims, onSignalClick, zoom, isInClip, horizontalMetric]
   );

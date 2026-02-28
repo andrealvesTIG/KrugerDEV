@@ -512,7 +512,7 @@ export default function PmoRadar() {
         />
 
         <div className="flex-1 relative p-2 min-w-0">
-          <RadarCanvas signals={filteredSignals} onSignalClick={setSelectedSignal} isDark={isDark} centerLabel={centerLabel} horizontalMetric={horizontalMetric} maxCostExposure={maxCostExposure} />
+          <RadarCanvas signals={filteredSignals} onSignalClick={(s) => setSelectedSignal(s)} isDark={isDark} centerLabel={centerLabel} horizontalMetric={horizontalMetric} maxCostExposure={maxCostExposure} />
         </div>
 
         <DetailsDrawer signal={selectedSignal} onClose={() => setSelectedSignal(null)} isDark={isDark} onEdit={handleEditSignal} />
