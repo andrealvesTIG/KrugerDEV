@@ -707,15 +707,11 @@ export default function RadarCanvas({
               </span>
             </div>
           )}
-          {horizontalMetric !== "riskScore" && (
+          {horizontalMetric !== "riskScore" && horizontalMetric !== "costExposureNorm" && (
             <div className={tooltipText}>
               {(HORIZONTAL_METRICS.find((m) => m.value === horizontalMetric) || HORIZONTAL_METRICS[0]).label}:{" "}
               <span className="font-medium">
-                {horizontalMetric === "costExposureNorm"
-                  ? (tooltip.signal.costExposureRaw > 0
-                    ? `$${tooltip.signal.costExposureRaw.toLocaleString()}`
-                    : "N/A")
-                  : getMetricValue(tooltip.signal, horizontalMetric)}
+                {getMetricValue(tooltip.signal, horizontalMetric)}
               </span>
             </div>
           )}
