@@ -14,6 +14,7 @@ export type RiskSignal = {
 interface RadarCanvasProps {
   signals: RiskSignal[];
   onSignalClick: (signal: RiskSignal) => void;
+  isDark: boolean;
   width?: number;
   height?: number;
 }
@@ -52,6 +53,7 @@ function mapSignalToCanvas(
 export default function RadarCanvas({
   signals,
   onSignalClick,
+  isDark,
 }: RadarCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -67,6 +69,18 @@ export default function RadarCanvas({
 
   const prevScoresRef = useRef<Map<string, number>>(new Map());
   const pulseRef = useRef<Map<string, number>>(new Map());
+
+  const accentR = isDark ? 34 : 22;
+  const accentG = isDark ? 197 : 163;
+  const accentB = isDark ? 94 : 74;
+  const accent = `${accentR},${accentG},${accentB}`;
+  const bgColor = isDark ? "#0f172a" : "#f1f5f9";
+  const labelColor = isDark ? `rgba(${accent},0.7)` : `rgba(${accent},0.9)`;
+  const gridAlpha = isDark ? 0.15 : 0.25;
+  const axisAlpha = isDark ? 0.3 : 0.4;
+  const sweepTrailAlpha = isDark ? 0.2 : 0.12;
+  const sweepLineAlpha = isDark ? 0.7 : 0.6;
+  const borderAlpha = isDark ? 0.4 : 0.5;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -133,7 +147,7 @@ export default function RadarCanvas({
       const rotationPeriod = 5000;
       angleRef.current += (dt / rotationPeriod) * Math.PI * 2;
 
-      ctx.fillStyle = "#0f172a";
+      ctx.fillStyle = bgColor;
       ctx.fillRect(0, 0, w, h);
 
       ctx.save();
@@ -145,7 +159,7 @@ export default function RadarCanvas({
         const r = (radius / 4) * i;
         ctx.beginPath();
         ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(34,197,94,0.15)";
+        ctx.strokeStyle = `rgba(${accent},${gridAlpha})`;
         ctx.lineWidth = 1;
         ctx.stroke();
       }
@@ -153,14 +167,14 @@ export default function RadarCanvas({
       ctx.beginPath();
       ctx.moveTo(cx - radius, cy);
       ctx.lineTo(cx + radius, cy);
-      ctx.strokeStyle = "rgba(34,197,94,0.3)";
+      ctx.strokeStyle = `rgba(${accent},${axisAlpha})`;
       ctx.lineWidth = 1;
       ctx.stroke();
 
       ctx.beginPath();
       ctx.moveTo(cx, cy - radius);
       ctx.lineTo(cx, cy + radius);
-      ctx.strokeStyle = "rgba(34,197,94,0.3)";
+      ctx.strokeStyle = `rgba(${accent},${axisAlpha})`;
       ctx.lineWidth = 1;
       ctx.stroke();
 
@@ -171,9 +185,9 @@ export default function RadarCanvas({
         cx,
         cy
       );
-      gradient.addColorStop(0, "rgba(34,197,94,0)");
-      gradient.addColorStop(0.8, "rgba(34,197,94,0.08)");
-      gradient.addColorStop(1, "rgba(34,197,94,0.2)");
+      gradient.addColorStop(0, `rgba(${accent},0)`);
+      gradient.addColorStop(0.8, `rgba(${accent},${sweepTrailAlpha * 0.4})`);
+      gradient.addColorStop(1, `rgba(${accent},${sweepTrailAlpha})`);
       ctx.fillStyle = gradient;
       ctx.beginPath();
       ctx.moveTo(cx, cy);
@@ -186,9 +200,9 @@ export default function RadarCanvas({
       const sx = cx + Math.cos(sweepAngle) * radius;
       const sy = cy + Math.sin(sweepAngle) * radius;
       ctx.lineTo(sx, sy);
-      ctx.strokeStyle = "rgba(34,197,94,0.7)";
+      ctx.strokeStyle = `rgba(${accent},${sweepLineAlpha})`;
       ctx.lineWidth = 2;
-      ctx.shadowColor = "#22c55e";
+      ctx.shadowColor = `rgb(${accent})`;
       ctx.shadowBlur = 12;
       ctx.stroke();
       ctx.shadowBlur = 0;
@@ -233,11 +247,11 @@ export default function RadarCanvas({
 
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(34,197,94,0.4)";
+      ctx.strokeStyle = `rgba(${accent},${borderAlpha})`;
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      ctx.fillStyle = "rgba(34,197,94,0.7)";
+      ctx.fillStyle = labelColor;
       ctx.font = "12px sans-serif";
       ctx.textAlign = "center";
       ctx.fillText("FUTURE", cx, cy - radius - 8);
@@ -248,13 +262,13 @@ export default function RadarCanvas({
       ctx.fillText("HIGH RISK", cx + radius - 4, cy - 8);
 
       ctx.textAlign = "center";
-      ctx.fillStyle = "rgba(34,197,94,0.5)";
+      ctx.fillStyle = isDark ? `rgba(${accent},0.5)` : `rgba(${accent},0.6)`;
       ctx.font = "10px sans-serif";
       ctx.fillText("NOW", cx + 14, cy + 14);
 
       animRef.current = requestAnimationFrame(draw);
     },
-    [signals, dims]
+    [signals, dims, isDark, bgColor, accent, labelColor, gridAlpha, axisAlpha, sweepTrailAlpha, sweepLineAlpha, borderAlpha]
   );
 
   useEffect(() => {
@@ -321,6 +335,10 @@ export default function RadarCanvas({
     [signals, dims, onSignalClick]
   );
 
+  const tooltipBg = isDark ? "bg-slate-900/95 border-green-500/30 shadow-green-500/10" : "bg-white/95 border-green-600/30 shadow-green-600/10";
+  const tooltipTitle = isDark ? "text-green-400" : "text-green-700";
+  const tooltipText = isDark ? "text-slate-300" : "text-slate-600";
+
   return (
     <div ref={containerRef} className="relative w-full h-full flex items-center justify-center">
       <canvas
@@ -331,28 +349,28 @@ export default function RadarCanvas({
       />
       {tooltip && (
         <div
-          className="absolute pointer-events-none z-50 bg-slate-900/95 border border-green-500/30 rounded-lg px-3 py-2 text-xs shadow-lg shadow-green-500/10"
+          className={`absolute pointer-events-none z-50 border rounded-lg px-3 py-2 text-xs shadow-lg ${tooltipBg}`}
           style={{
             left: tooltip.x + 16,
             top: tooltip.y - 10,
             maxWidth: 220,
           }}
         >
-          <div className="font-semibold text-green-400 mb-1">{tooltip.signal.title}</div>
-          <div className="text-slate-300">Project: {tooltip.signal.project}</div>
-          <div className="text-slate-300">
+          <div className={`font-semibold mb-1 ${tooltipTitle}`}>{tooltip.signal.title}</div>
+          <div className={tooltipText}>Project: {tooltip.signal.project}</div>
+          <div className={tooltipText}>
             Risk Score:{" "}
             <span style={{ color: getRiskColor(tooltip.signal.riskScore) }}>
               {tooltip.signal.riskScore}
             </span>
           </div>
-          <div className="text-slate-300">
+          <div className={tooltipText}>
             Time:{" "}
             {tooltip.signal.timeOffsetDays > 0
               ? `+${tooltip.signal.timeOffsetDays}d (future)`
               : `${tooltip.signal.timeOffsetDays}d (past)`}
           </div>
-          <div className="text-slate-300">Type: {tooltip.signal.type}</div>
+          <div className={tooltipText}>Type: {tooltip.signal.type}</div>
         </div>
       )}
     </div>
