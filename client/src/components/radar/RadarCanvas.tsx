@@ -380,6 +380,24 @@ export default function RadarCanvas({
       }
 
       const sweepAngle = angleRef.current;
+
+      const afterglowSpan = Math.PI * 0.8;
+      const afterglowGrad = ctx.createConicGradient(
+        sweepAngle - afterglowSpan,
+        cx,
+        cy
+      );
+      afterglowGrad.addColorStop(0, `rgba(${accent},0)`);
+      afterglowGrad.addColorStop(0.5, `rgba(${accent},${sweepTrailAlpha * 0.08})`);
+      afterglowGrad.addColorStop(0.85, `rgba(${accent},${sweepTrailAlpha * 0.15})`);
+      afterglowGrad.addColorStop(1, `rgba(${accent},${sweepTrailAlpha * 0.25})`);
+      ctx.fillStyle = afterglowGrad;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, radius, sweepAngle - afterglowSpan, sweepAngle);
+      ctx.closePath();
+      ctx.fill();
+
       const trailSpan = Math.PI / 3;
       const gradient = ctx.createConicGradient(
         sweepAngle - trailSpan,
@@ -415,6 +433,14 @@ export default function RadarCanvas({
         const dy = pos.y - cy;
         if (Math.abs(dx) > clipRadius || Math.abs(dy) > clipRadius) return;
 
+        const dotAngle = Math.atan2(dy, dx);
+        let angleDiff = sweepAngle - dotAngle;
+        angleDiff = ((angleDiff % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+        const sweepHit = angleDiff < 0.15;
+        if (sweepHit && !pulseRef.current.has(signal.id)) {
+          pulseRef.current.set(signal.id, now);
+        }
+
         const isOverdue = signal.timeOffsetDays < 0;
         const dotRadius = clamp(signal.impactScore * 0.06 + 3, 3, 12);
         const [r, g, b] = isOverdue ? [239, 68, 68] as [number, number, number] : getRiskColorRgb(signal.riskScore);
@@ -422,10 +448,13 @@ export default function RadarCanvas({
 
         const pulseStart = pulseRef.current.get(signal.id);
         let scale = 1;
+        let extraGlow = 0;
         if (pulseStart) {
           const elapsed = now - pulseStart;
-          if (elapsed < 1500) {
-            scale = 1 + 0.5 * Math.sin((elapsed / 1500) * Math.PI * 3) * (1 - elapsed / 1500);
+          if (elapsed < 800) {
+            const t = elapsed / 800;
+            scale = 1 + 0.4 * Math.sin(t * Math.PI);
+            extraGlow = (1 - t) * 20;
           } else {
             pulseRef.current.delete(signal.id);
           }
@@ -433,7 +462,10 @@ export default function RadarCanvas({
 
         if (isOverdue) {
           ctx.shadowColor = `rgba(239,68,68,0.8)`;
-          ctx.shadowBlur = 20;
+          ctx.shadowBlur = 20 + extraGlow;
+        } else if (extraGlow > 0) {
+          ctx.shadowColor = `rgba(${r},${g},${b},0.9)`;
+          ctx.shadowBlur = extraGlow;
         } else if (signal.riskScore > 75) {
           ctx.shadowColor = `rgba(${r},${g},${b},0.6)`;
           ctx.shadowBlur = 16;
