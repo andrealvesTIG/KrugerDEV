@@ -339,6 +339,12 @@
                           <Link href={`/projects/${issue.projectId}`} onClick={(e) => e.stopPropagation()}>
                             <span className="hover:text-primary cursor-pointer truncate max-w-[150px] inline-block align-bottom" title={getProjectName(issue.projectId)}>{getProjectName(issue.projectId)}</span>
                           </Link>
+                          {issue.itemType === 'risk' && issue.dueDate && (
+                            <span><span className="font-medium">Due:</span> {new Date(issue.dueDate).toLocaleDateString()}</span>
+                          )}
+                          {issue.itemType === 'risk' && issue.costExposure && (
+                            <span><span className="font-medium">Exposure:</span> ${Number(issue.costExposure).toLocaleString()}</span>
+                          )}
                           <IssueResourceDisplay assignments={allIssueAssignments?.filter(a => a.issueId === issue.id)} />
                         </div>
                       </div>

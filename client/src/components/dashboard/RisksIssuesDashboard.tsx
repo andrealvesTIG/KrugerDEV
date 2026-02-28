@@ -100,9 +100,9 @@ export function RisksIssuesDashboard() {
   }
 
   const handleExportCsv = () => {
-    const headers = ["Type", "Title", "Status", "Priority/Impact", "Project"];
-    const riskRows = allRisks.map(r => ["Risk", r.title, r.status, r.impact, getProjectName(r.projectId)]);
-    const issueRows = filteredIssues.map(i => ["Issue", i.title, i.status, i.priority, getProjectName(i.projectId)]);
+    const headers = ["Type", "Title", "Status", "Priority/Impact", "Project", "Due Date", "Cost Exposure"];
+    const riskRows = allRisks.map(r => ["Risk", r.title, r.status, r.impact, getProjectName(r.projectId), r.dueDate || "", r.costExposure || ""]);
+    const issueRows = filteredIssues.map(i => ["Issue", i.title, i.status, i.priority, getProjectName(i.projectId), "", ""]);
     const csv = [headers.join(","), ...riskRows.map(r => r.join(",")), ...issueRows.map(r => r.join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -162,10 +162,10 @@ export function RisksIssuesDashboard() {
   const topBlockers = [
     ...allRisks
       .filter(r => (r.status === "Open" || r.status === "Identified") && (r.probability === "High" || r.impact === "High"))
-      .map(r => ({ id: r.id, title: r.title, type: "Risk" as const, severity: r.impact || "Medium", projectId: r.projectId })),
+      .map(r => ({ id: r.id, title: r.title, type: "Risk" as const, severity: r.impact || "Medium", projectId: r.projectId, costExposure: r.costExposure })),
     ...filteredIssues
       .filter(i => (i.status === "Open" || i.status === "In Progress") && (i.priority === "Critical" || i.priority === "High"))
-      .map(i => ({ id: i.id, title: i.title, type: "Issue" as const, severity: i.priority || "Medium", projectId: i.projectId })),
+      .map(i => ({ id: i.id, title: i.title, type: "Issue" as const, severity: i.priority || "Medium", projectId: i.projectId, costExposure: null as string | null })),
   ].slice(0, 12);
 
   const projectRiskCounts = (projects || []).map(p => ({
@@ -359,7 +359,10 @@ export function RisksIssuesDashboard() {
                       {item.type === "Risk" ? <ShieldAlert className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" /> : <Bug className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />}
                       <div className="flex-1 min-w-0">
                         <div className="font-medium truncate">{item.title}</div>
-                        <div className="text-muted-foreground truncate">{getProjectName(item.projectId)}</div>
+                        <div className="text-muted-foreground truncate">
+                          {getProjectName(item.projectId)}
+                          {item.costExposure && <span className="ml-2 text-destructive font-medium">${Number(item.costExposure).toLocaleString()}</span>}
+                        </div>
                       </div>
                       <Badge variant="secondary" className="text-[10px] h-5 flex-shrink-0" style={{ backgroundColor: `${PRIORITY_COLORS[item.severity] || COLORS.Yellow}20`, color: PRIORITY_COLORS[item.severity] || COLORS.Yellow }}>
                         {item.severity}

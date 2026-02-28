@@ -1303,6 +1303,8 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
                   <th className="p-3 text-left text-sm font-medium text-muted-foreground">Probability</th>
                   <th className="p-3 text-left text-sm font-medium text-muted-foreground">Impact</th>
                   <th className="p-3 text-left text-sm font-medium text-muted-foreground">Status</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Due Date</th>
+                  <th className="p-3 text-right text-sm font-medium text-muted-foreground">Cost Exposure</th>
                   <th className="p-3 w-12"></th>
                 </tr>
               </thead>
@@ -1340,6 +1342,12 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
                       <Badge variant="outline" className={cn("text-xs", risk.status === "Open" ? "border-amber-500 text-amber-700" : "border-emerald-500 text-emerald-700")}>
                         {risk.status}
                       </Badge>
+                    </td>
+                    <td className="p-3 text-sm text-muted-foreground">
+                      {risk.dueDate ? new Date(risk.dueDate).toLocaleDateString() : "—"}
+                    </td>
+                    <td className="p-3 text-sm text-right tabular-nums">
+                      {risk.costExposure ? `$${Number(risk.costExposure).toLocaleString()}` : "—"}
                     </td>
                     <td className="p-3" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>

@@ -497,6 +497,18 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
                    )}>{risk.status}</Badge>
                 </div>
                 <p className="text-sm text-muted-foreground line-clamp-2" title={risk.description || ""}>{risk.description}</p>
+                <div className="flex flex-wrap items-center gap-3 mt-1">
+                  {risk.dueDate && (
+                    <span className="text-xs text-muted-foreground">
+                      <span className="font-medium">Due:</span> {new Date(risk.dueDate).toLocaleDateString()}
+                    </span>
+                  )}
+                  {risk.costExposure && (
+                    <span className="text-xs text-muted-foreground">
+                      <span className="font-medium">Exposure:</span> ${Number(risk.costExposure).toLocaleString()}
+                    </span>
+                  )}
+                </div>
                 {risk.mitigationPlan && (
                   <p className="text-xs text-muted-foreground mt-2 line-clamp-2" title={risk.mitigationPlan || ""}>
                     <span className="font-medium shrink-0">Mitigation:</span> {risk.mitigationPlan}
