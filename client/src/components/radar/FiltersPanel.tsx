@@ -392,12 +392,14 @@ export default function FiltersPanel({ filters, onChange, projects, portfolios, 
         </div>
         <div className="mt-2 space-y-1">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full border-2 border-current opacity-60" />
-            <span className={`text-xs ${legendLabel}`}>Risk (circle)</span>
+            <svg width="10" height="10" viewBox="0 0 10 10" className="opacity-60 shrink-0">
+              <polygon points="5,1 9,8 1,8" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
+            <span className={`text-xs ${legendLabel}`}>Risk (triangle)</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 border-2 border-current opacity-60" />
-            <span className={`text-xs ${legendLabel}`}>Issue (square)</span>
+            <span className="w-2.5 h-2.5 rounded-full border-2 border-current opacity-60" />
+            <span className={`text-xs ${legendLabel}`}>Issue (circle)</span>
           </div>
         </div>
         <div className="mt-2 space-y-1">

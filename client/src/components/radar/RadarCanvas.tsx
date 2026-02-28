@@ -446,7 +446,7 @@ export default function RadarCanvas({
         }
 
         const isOverdue = signal.timeOffsetDays < 0;
-        const dotRadius = clamp(signal.impactScore * 0.06 + 3, 3, 12);
+        const dotRadius = clamp(signal.impactScore * 0.05 + 2.5, 2.5, 9);
         const [r, g, b] = isOverdue ? [239, 68, 68] as [number, number, number] : getRiskColorRgb(signal.riskScore);
         const alpha = isOverdue ? 1 : clamp(signal.confidence, 0.3, 1);
 
@@ -479,14 +479,17 @@ export default function RadarCanvas({
         ctx.strokeStyle = `rgba(${r},${g},${b},${alpha * 0.8})`;
         ctx.lineWidth = isOverdue ? 2 : 1;
         if (signal.itemType === "issue") {
-          const half = dotRadius * scale;
           ctx.beginPath();
-          ctx.rect(pos.x - half, pos.y - half, half * 2, half * 2);
+          ctx.arc(pos.x, pos.y, dotRadius * scale, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
         } else {
+          const s = dotRadius * scale;
           ctx.beginPath();
-          ctx.arc(pos.x, pos.y, dotRadius * scale, 0, Math.PI * 2);
+          ctx.moveTo(pos.x, pos.y - s);
+          ctx.lineTo(pos.x + s, pos.y + s * 0.75);
+          ctx.lineTo(pos.x - s, pos.y + s * 0.75);
+          ctx.closePath();
           ctx.fill();
           ctx.stroke();
         }
@@ -577,7 +580,7 @@ export default function RadarCanvas({
       for (const signal of signals) {
         const pos = mapSignalToCanvas(signal, cx, cy, radius, horizontalMetric);
         if (!isInClip(pos.x, pos.y)) continue;
-        const dotRadius = clamp(signal.impactScore * 0.06 + 3, 3, 12);
+        const dotRadius = clamp(signal.impactScore * 0.05 + 2.5, 2.5, 9);
         const dist = Math.sqrt((mx - pos.x) ** 2 + (my - pos.y) ** 2);
         if (dist <= dotRadius + 4) {
           found = signal;
@@ -612,7 +615,7 @@ export default function RadarCanvas({
       for (const signal of signals) {
         const pos = mapSignalToCanvas(signal, cx, cy, radius, horizontalMetric);
         if (!isInClip(pos.x, pos.y)) continue;
-        const dotRadius = clamp(signal.impactScore * 0.06 + 3, 3, 12);
+        const dotRadius = clamp(signal.impactScore * 0.05 + 2.5, 2.5, 9);
         const dist = Math.sqrt((mx - pos.x) ** 2 + (my - pos.y) ** 2);
         if (dist <= dotRadius + 4) {
           onSignalClick(signal);
