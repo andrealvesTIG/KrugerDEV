@@ -20,6 +20,7 @@ const riskFormSchema = z.object({
   probability: z.string(),
   impact: z.string(),
   status: z.string(),
+  dueDate: z.string().optional(),
   mitigationPlan: z.string(),
 });
 
@@ -44,6 +45,7 @@ export interface EditRiskDialogProps {
     probability?: string | null;
     impact?: string | null;
     status?: string | null;
+    dueDate?: string | null;
     mitigationPlan?: string | null;
     escalatedToPortfolio?: boolean | null;
     escalatedAt?: Date | string | null;
@@ -106,6 +108,7 @@ export function EditRiskDialog({
       probability: "Medium",
       impact: "Medium",
       status: "Open",
+      dueDate: "",
       mitigationPlan: "",
     },
   });
@@ -118,6 +121,7 @@ export function EditRiskDialog({
         probability: risk.probability || "Medium",
         impact: risk.impact || "Medium",
         status: risk.status || "Open",
+        dueDate: risk.dueDate ? risk.dueDate.substring(0, 10) : "",
         mitigationPlan: risk.mitigationPlan || "",
       });
       setShowHistory(false);
@@ -125,7 +129,7 @@ export function EditRiskDialog({
   }, [risk]);
 
   const handleSubmit = (data: RiskFormData) => {
-    onSubmit(data);
+    onSubmit({ ...data, dueDate: data.dueDate || null } as any);
   };
 
   const handleAiSuggest = async () => {
@@ -231,6 +235,15 @@ export function EditRiskDialog({
                   </Select>
                 )} />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Due Date</Label>
+              <Input
+                type="date"
+                {...form.register("dueDate")}
+                data-testid="input-risk-due-date"
+              />
             </div>
 
             <div className="space-y-2">

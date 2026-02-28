@@ -378,6 +378,7 @@ export const issues = pgTable("issues", {
   identifiedDate: date("identified_date"), // When risk was identified
   targetResolutionDateRisk: date("target_resolution_date_risk"),
   actualResolutionDateRisk: date("actual_resolution_date_risk"),
+  dueDate: date("due_date"), // Risk due date for time-based placement on radar
   proximity: text("proximity"), // Imminent, Near-term, Mid-term, Long-term
   // Portfolio escalation fields
   escalatedToPortfolio: boolean("escalated_to_portfolio").default(false), // Whether escalated to portfolio level

@@ -21,6 +21,7 @@ const riskFormSchema = z.object({
   probability: z.enum(["Low", "Medium", "High"]),
   impact: z.enum(["Low", "Medium", "High"]),
   status: z.string(),
+  dueDate: z.string().optional(),
   mitigationPlan: z.string().optional(),
 });
 
@@ -46,6 +47,7 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
     probability: "Medium" as "Low" | "Medium" | "High",
     impact: "Medium" as "Low" | "Medium" | "High",
     status: "Open",
+    dueDate: "",
     mitigationPlan: "",
   };
 
@@ -71,7 +73,8 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
   };
 
   const onSubmit = (data: any) => {
-    createRisk.mutate(data, {
+    const payload = { ...data, dueDate: data.dueDate || null };
+    createRisk.mutate(payload, {
       onSuccess: () => {
         toast({ title: "Success", description: "Risk created successfully" });
         handleOpenChange(false);
@@ -212,6 +215,15 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
                     </SelectContent>
                   </Select>
                 )}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Due Date</Label>
+              <Input
+                type="date"
+                {...form.register("dueDate")}
+                data-testid="input-risk-due-date"
               />
             </div>
 

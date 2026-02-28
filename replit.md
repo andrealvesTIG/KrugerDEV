@@ -137,7 +137,7 @@ A risk radar visualization page (`/pmo-radar`) that displays an animated radar-s
 - **Sidebar**: Located in Finance group alongside Simulation, uses `Radar` icon from lucide-react, module key `pmo-radar`
 
 ### Shared Risk Edit Dialog
-All risk editing across the application (Issues page, Project Risks tab, Portfolio Details) uses a single shared `EditRiskDialog` component (`client/src/components/EditRiskDialog.tsx`). It supports optional features via props: AI mitigation suggestions, resource assignments, change history, portfolio escalation, and convert-to-issue. Form validation uses Zod (title required). Parent components pass mutation callbacks rather than the dialog managing mutations internally.
+All risk editing across the application (Issues page, Project Risks tab, Portfolio Details) uses a single shared `EditRiskDialog` component (`client/src/components/EditRiskDialog.tsx`). It supports optional features via props: AI mitigation suggestions, resource assignments, change history, portfolio escalation, and convert-to-issue. Form validation uses Zod (title required). Parent components pass mutation callbacks rather than the dialog managing mutations internally. Both CreateRiskDialog and EditRiskDialog include a `dueDate` date input field (maps to `issues.due_date` column). Empty values are sent as `null` for proper clearing.
 
 ### Performance Optimizations
 - **Virtual Scrolling**: Gantt rows use virtual scroll when task count exceeds `VIRTUAL_SCROLL_THRESHOLD = 150`; DnD disabled in virtual-scroll mode.
