@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
 import running_man from "@assets/runcycle18_1772300373437.gif";
+import ThemedGif from "@/components/ui/themed-gif";
 
 const partyGifs = [
   "https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif",
@@ -212,7 +213,7 @@ export function FridayCountdown() {
           title="Time until Friday"
           data-testid="friday-countdown"
         >
-          <img src={running_man} alt="Running" className="h-10 w-10 object-contain mix-blend-multiply dark:mix-blend-screen dark:invert dark:brightness-200 dark:contrast-200" />
+          <ThemedGif src={running_man} alt="Running" className="h-10 w-10 object-contain" />
           <Clock className="h-3.5 w-3.5" />
           <span>{pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}</span>
           <span className="text-muted-foreground">to Friday</span>
@@ -228,11 +229,7 @@ export function FridayCountdown() {
         <div className="flex flex-col items-center justify-center py-8 space-y-6 text-center">
           <div className="relative">
             <div className="absolute -inset-4 bg-sky-400/20 rounded-full blur-xl animate-pulse" />
-            <img 
-              src={running_man} 
-              alt="Relaxing" 
-              className="relative h-24 w-24 object-contain mix-blend-multiply dark:mix-blend-screen dark:invert dark:brightness-200 dark:contrast-200"
-            />
+            <ThemedGif src={running_man} alt="Relaxing" className="relative h-24 w-24 object-contain" />
           </div>
           
           <div className="space-y-2">
