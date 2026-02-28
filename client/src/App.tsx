@@ -54,6 +54,7 @@ const PrivacyStatement = lazy(() => import("@/pages/PrivacyStatement"));
 const PublicUserGuide = lazy(() => import("@/pages/PublicUserGuide"));
 const FridayPage = lazy(() => import("@/pages/FridayPage"));
 const Simulation = lazy(() => import("@/pages/Simulation"));
+const PmoRadar = lazy(() => import("@/pages/PmoRadar"));
 const ReportSubscriptions = lazy(() => import("@/pages/ReportSubscriptions"));
 const SharedRiskAssessment = lazy(() => import("@/pages/SharedRiskAssessment"));
 const SharedProjectRiskAssessment = lazy(() => import("@/pages/SharedProjectRiskAssessment"));
@@ -196,6 +197,7 @@ function Router() {
           <GuardedRoute path="/tasks" component={Tasks} moduleKey="tasks" />
           <GuardedRoute path="/issues" component={Issues} moduleKey="issues" />
           <GuardedRoute path="/simulation" component={Simulation} moduleKey="simulation" />
+          <GuardedRoute path="/pmo-radar" component={PmoRadar} moduleKey="pmo-radar" />
           <GuardedRoute path="/lessons-learned" component={LessonsLearned} moduleKey="lessons-learned" />
           <GuardedRoute path="/invoices" component={Invoices} moduleKey="invoices" />
           <GuardedRoute path="/timesheets" component={Timesheets} moduleKey="timesheets" />

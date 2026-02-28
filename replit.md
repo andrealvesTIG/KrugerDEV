@@ -125,6 +125,14 @@ Each vertical landing page follows the same structure: header, hero, trust bar, 
 - **Energy & Utilities** (`/energy`): `EnergyLandingPage.tsx`, assets in `client/src/assets/energy/`. Green/emerald theme. Targets utilities, renewables, grid modernization.
 - **Government & Public Sector** (`/government`): `GovernmentLandingPage.tsx`, assets in `client/src/assets/government/`. Navy/blue-gray theme. Targets agencies, IT modernization, public infrastructure.
 
+### PMO Radar
+A risk radar visualization page (`/pmo-radar`) that displays an animated radar-style scanning system. Uses HTML Canvas with `requestAnimationFrame` for continuous sweep animation.
+- **Components**: `client/src/components/radar/RadarCanvas.tsx` (canvas rendering), `FiltersPanel.tsx` (left-side filters), `DetailsDrawer.tsx` (right-side detail drawer)
+- **Page**: `client/src/pages/PmoRadar.tsx` — fetches risks from `/api/issues?itemType=risk`, projects, and portfolios; transforms into radar signals
+- **Axes**: Vertical = Time (future up, past down, ±90 days), Horizontal = Risk level (0–100, left to right)
+- **Features**: Color-coded dots (green/yellow/red by risk level), dot size by impact, opacity by confidence, glow effect for high-risk signals, pulse animation on score changes, hover tooltips, click-to-detail drawer, portfolio/type/threshold filters, "Simulate Update" demo button
+- **Sidebar**: Located in Finance group alongside Simulation, uses `Radar` icon from lucide-react, module key `pmo-radar`
+
 ### Shared Risk Edit Dialog
 All risk editing across the application (Issues page, Project Risks tab, Portfolio Details) uses a single shared `EditRiskDialog` component (`client/src/components/EditRiskDialog.tsx`). It supports optional features via props: AI mitigation suggestions, resource assignments, change history, portfolio escalation, and convert-to-issue. Form validation uses Zod (title required). Parent components pass mutation callbacks rather than the dialog managing mutations internally.
 

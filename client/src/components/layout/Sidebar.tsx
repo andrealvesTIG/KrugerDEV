@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
@@ -89,6 +89,7 @@ const moduleDefinitions: Record<string, { name: string; href: string; icon: Reac
   tasks: { name: "Tasks", href: "/tasks", icon: CheckSquare },
   issues: { name: "Issues & Risks", href: "/issues", icon: CircleDot },
   simulation: { name: "Simulation", href: "/simulation", icon: PlayCircle },
+  "pmo-radar": { name: "PMO Radar", href: "/pmo-radar", icon: Radar },
   "lessons-learned": { name: "Lessons Learned", href: "/lessons-learned", icon: Lightbulb },
   invoices: { name: "Invoices", href: "/invoices", icon: Receipt },
   timesheets: { name: "Timesheets", href: "/timesheets", icon: Clock },
@@ -106,6 +107,7 @@ const navigation = [
   { name: "Tasks", href: "/tasks", icon: CheckSquare, key: "tasks" },
   { name: "Issues & Risks", href: "/issues", icon: CircleDot, key: "issues" },
   { name: "Simulation", href: "/simulation", icon: PlayCircle, key: "simulation" },
+  { name: "PMO Radar", href: "/pmo-radar", icon: Radar, key: "pmo-radar" },
   { name: "Lessons Learned", href: "/lessons-learned", icon: Lightbulb, key: "lessons-learned" },
   { name: "Invoices", href: "/invoices", icon: Receipt, key: "invoices" },
   { name: "Timesheets", href: "/timesheets", icon: Clock, key: "timesheets" },
@@ -136,6 +138,7 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
     ]},
     { id: "finance", name: "Finance", hidden: false, collapsedByDefault: true, items: [
       { type: "module" as const, key: "simulation", hidden: false },
+      { type: "module" as const, key: "pmo-radar", hidden: false },
       { type: "module" as const, key: "invoices", hidden: false },
     ]},
     { id: "help", name: "Help", isDefault: true, hidden: false, collapsedByDefault: true, items: [
@@ -177,6 +180,7 @@ function migrateOldFlatStructure(structure: SidebarStructure): SidebarStructure 
     ]},
     { id: "finance", name: "Finance", hidden: false, collapsedByDefault: true, items: [
       { type: "module" as const, key: "simulation", hidden: getItemHidden("simulation") },
+      { type: "module" as const, key: "pmo-radar", hidden: getItemHidden("pmo-radar") },
       { type: "module" as const, key: "invoices", hidden: getItemHidden("invoices") },
     ]},
     ...otherGroups,
@@ -236,6 +240,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
 
   ensureModule("home", "home");
   ensureModule("simulation", "finance");
+  ensureModule("pmo-radar", "finance", "simulation");
   ensureModule("timesheets", "portfolio", "tasks");
   ensureModule("lessons-learned", "help");
   ensureModule("invoices", "finance", "simulation");
