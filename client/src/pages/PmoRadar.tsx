@@ -9,6 +9,7 @@ import { useRiskResourceAssignments, useUpdateRiskResourceAssignments } from "@/
 import { useTheme } from "@/components/theme-provider";
 import { useToast } from "@/hooks/use-toast";
 import { Zap, Radio } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import RadarCanvas, { type RiskSignal, type HorizontalMetric } from "@/components/radar/RadarCanvas";
 import FiltersPanel, { type RadarFilters } from "@/components/radar/FiltersPanel";
 import DetailsDrawer from "@/components/radar/DetailsDrawer";
@@ -411,9 +412,14 @@ export default function PmoRadar() {
       <div className={`flex items-center justify-between px-4 py-2 border-b shrink-0 ${headerBg}`}>
         <div className="flex items-center gap-3">
           <Radio className={`w-5 h-5 animate-pulse ${titleColor}`} />
-          <h1 className={`text-lg font-semibold tracking-wider uppercase ${titleColor}`}>
-            PMO Radar
-          </h1>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <h1 className={`text-lg font-semibold tracking-wider uppercase cursor-default ${titleColor}`}>
+                PMO Radar
+              </h1>
+            </TooltipTrigger>
+            <TooltipContent side="bottom"><p>Risk scanning radar — dots represent risks positioned by time and severity</p></TooltipContent>
+          </Tooltip>
           {timeProjectionMonths > 0 && (
             <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded border text-[11px] ${isDark ? "bg-amber-500/10 border-amber-500/30" : "bg-amber-50 border-amber-300"}`}>
               <span className={`font-semibold ${isDark ? "text-amber-400" : "text-amber-600"}`}>
@@ -426,29 +432,69 @@ export default function PmoRadar() {
           )}
         </div>
         <div className="flex items-center gap-2 text-[11px]">
-          <span className={statLabel}>{stats.total} signals</span>
-          <span className="text-red-500 font-semibold">{stats.high}</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className={`${statLabel} cursor-default`}>{stats.total} signals</span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom"><p>Total active risk signals on the radar</p></TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-red-500 font-semibold cursor-default">{stats.high}</span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom"><p>High severity risks (score &gt; 70)</p></TooltipContent>
+          </Tooltip>
           <span className={`text-[9px] ${statLabel}`}>/</span>
-          <span className="text-yellow-500 font-semibold">{stats.medium}</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-yellow-500 font-semibold cursor-default">{stats.medium}</span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom"><p>Medium severity risks (score 31-70)</p></TooltipContent>
+          </Tooltip>
           <span className={`text-[9px] ${statLabel}`}>/</span>
-          <span className="text-green-500 font-semibold">{stats.low}</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-green-500 font-semibold cursor-default">{stats.low}</span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom"><p>Low severity risks (score &le; 30)</p></TooltipContent>
+          </Tooltip>
           {showCostTiles && (
             <>
               <div className={`w-px h-4 ${isDark ? "bg-slate-700" : "bg-slate-300"}`} />
-              <span className={statLabel}>Exp:</span>
-              <span className={`font-semibold ${accentGreen}`}>{formatCompactCurrency(stats.costExposureFuture)}</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={`${statLabel} cursor-default`}>Exp:</span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom"><p>Total cost exposure across all visible risks</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={`font-semibold ${accentGreen} cursor-default`}>{formatCompactCurrency(stats.costExposureFuture)}</span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom"><p>Cost exposure from future risks (not yet due)</p></TooltipContent>
+              </Tooltip>
               {stats.costExposurePast > 0 && (
-                <span className="font-semibold text-red-500">{formatCompactCurrency(stats.costExposurePast)} overdue</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="font-semibold text-red-500 cursor-default">{formatCompactCurrency(stats.costExposurePast)} overdue</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom"><p>Cost exposure from overdue risks (past due date)</p></TooltipContent>
+                </Tooltip>
               )}
             </>
           )}
-          <button
-            onClick={handleSimulateUpdate}
-            className={`flex items-center gap-1 px-2 py-1 rounded border text-[11px] font-medium transition-colors ml-1 ${simBtnCls}`}
-          >
-            <Zap className="w-3 h-3" />
-            Simulate
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={handleSimulateUpdate}
+                className={`flex items-center gap-1 px-2 py-1 rounded border text-[11px] font-medium transition-colors ml-1 ${simBtnCls}`}
+              >
+                <Zap className="w-3 h-3" />
+                Simulate
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom"><p>Randomly adjust a risk score to test radar response</p></TooltipContent>
+          </Tooltip>
         </div>
       </div>
 
