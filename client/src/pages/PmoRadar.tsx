@@ -5,7 +5,7 @@ import { usePortfolios } from "@/hooks/use-portfolios";
 import { useProjects } from "@/hooks/use-projects";
 import { useTheme } from "@/components/theme-provider";
 import { Zap, Radio, AlertTriangle, Shield, Activity, Clock } from "lucide-react";
-import RadarCanvas, { type RiskSignal } from "@/components/radar/RadarCanvas";
+import RadarCanvas, { type RiskSignal, type HorizontalMetric } from "@/components/radar/RadarCanvas";
 import FiltersPanel, { type RadarFilters } from "@/components/radar/FiltersPanel";
 import DetailsDrawer from "@/components/radar/DetailsDrawer";
 
@@ -124,6 +124,8 @@ function transformRiskToSignal(
   const impScore = IMPACT_MAP[risk.impact] || 50;
   const riskScore = risk.riskScore || Math.round((probScore * impScore) / 100);
 
+  const rawCost = parseFloat(risk.impactCost) || 0;
+
   return {
     id: String(risk.id),
     title: risk.title || "Untitled Risk",
@@ -131,6 +133,9 @@ function transformRiskToSignal(
     riskScore: Math.min(riskScore, 100),
     timeOffsetDays: computeTimeOffsetDays(risk),
     impactScore: impScore,
+    probability: probScore,
+    impactCost: rawCost,
+    impactCostRaw: rawCost,
     confidence: computeConfidence(risk),
     type: CATEGORY_TYPE_MAP[risk.category] || "technical",
     portfolioId: projectPortfolioMap?.get(risk.projectId),
@@ -154,6 +159,7 @@ export default function PmoRadar() {
   const [simOverrides, setSimOverrides] = useState<Map<string, number>>(new Map());
   const [timeProjectionMonths, setTimeProjectionMonths] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [horizontalMetric, setHorizontalMetric] = useState<HorizontalMetric>("riskScore");
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -186,7 +192,7 @@ export default function PmoRadar() {
   }, [projectsData]);
 
   const allSignals = useMemo(() => {
-    return risksData.map((risk: any) => {
+    const raw = risksData.map((risk: any) => {
       const signal = transformRiskToSignal(risk, projectsMap, projectPortfolioMap);
       const override = simOverrides.get(signal.id);
       if (override !== undefined) {
@@ -194,6 +200,12 @@ export default function PmoRadar() {
       }
       return signal;
     });
+
+    const maxCost = Math.max(1, ...raw.map((s) => s.impactCost));
+    return raw.map((s) => ({
+      ...s,
+      impactCost: maxCost > 0 ? Math.round((s.impactCost / maxCost) * 100) : 0,
+    }));
   }, [risksData, projectsMap, projectPortfolioMap, simOverrides]);
 
   const projectionOffsetDays = Math.round(timeProjectionMonths * 30.44);
@@ -340,10 +352,12 @@ export default function PmoRadar() {
           isDark={isDark}
           timeProjectionMonths={timeProjectionMonths}
           onTimeProjectionChange={setTimeProjectionMonths}
+          horizontalMetric={horizontalMetric}
+          onHorizontalMetricChange={setHorizontalMetric}
         />
 
         <div className="flex-1 relative p-4 min-w-0">
-          <RadarCanvas signals={filteredSignals} onSignalClick={setSelectedSignal} isDark={isDark} centerLabel={centerLabel} />
+          <RadarCanvas signals={filteredSignals} onSignalClick={setSelectedSignal} isDark={isDark} centerLabel={centerLabel} horizontalMetric={horizontalMetric} />
         </div>
 
         <DetailsDrawer signal={selectedSignal} onClose={() => setSelectedSignal(null)} isDark={isDark} />

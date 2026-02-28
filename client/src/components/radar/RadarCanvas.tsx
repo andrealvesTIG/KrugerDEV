@@ -1,6 +1,15 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 
+export type HorizontalMetric = "riskScore" | "impactScore" | "probability" | "impactCost";
+
+export const HORIZONTAL_METRICS: { value: HorizontalMetric; label: string; axisLabel: string; max: number }[] = [
+  { value: "riskScore", label: "Risk Score", axisLabel: "RISK SCORE (0\u2013100)", max: 100 },
+  { value: "impactScore", label: "Impact", axisLabel: "IMPACT (0\u2013100)", max: 100 },
+  { value: "probability", label: "Probability", axisLabel: "PROBABILITY (0\u2013100)", max: 100 },
+  { value: "impactCost", label: "Impact Cost", axisLabel: "IMPACT COST (relative)", max: 100 },
+];
+
 export type RiskSignal = {
   id: string;
   title: string;
@@ -8,6 +17,9 @@ export type RiskSignal = {
   riskScore: number;
   timeOffsetDays: number;
   impactScore: number;
+  probability: number;
+  impactCost: number;
+  impactCostRaw: number;
   confidence: number;
   type: "schedule" | "budget" | "dependency" | "resource" | "technical" | "scope";
 };
@@ -17,6 +29,7 @@ interface RadarCanvasProps {
   onSignalClick: (signal: RiskSignal) => void;
   isDark: boolean;
   centerLabel?: string;
+  horizontalMetric?: HorizontalMetric;
   width?: number;
   height?: number;
 }
@@ -41,9 +54,11 @@ function mapSignalToCanvas(
   signal: RiskSignal,
   cx: number,
   cy: number,
-  radius: number
+  radius: number,
+  metric: HorizontalMetric = "riskScore"
 ): { x: number; y: number } {
-  const xNorm = clamp(signal.riskScore, 0, 100) / 100;
+  const xVal = signal[metric] ?? signal.riskScore;
+  const xNorm = clamp(xVal, 0, 100) / 100;
   const x = cx - radius + xNorm * 2 * radius;
 
   const yNorm = clamp(signal.timeOffsetDays, -90, 90) / 90;
@@ -52,11 +67,16 @@ function mapSignalToCanvas(
   return { x, y };
 }
 
+function getMetricValue(signal: RiskSignal, metric: HorizontalMetric): number {
+  return signal[metric] ?? signal.riskScore;
+}
+
 export default function RadarCanvas({
   signals,
   onSignalClick,
   isDark,
   centerLabel,
+  horizontalMetric = "riskScore",
 }: RadarCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -265,7 +285,7 @@ export default function RadarCanvas({
 
       const now = Date.now();
       signals.forEach((signal) => {
-        const pos = mapSignalToCanvas(signal, cx, cy, radius);
+        const pos = mapSignalToCanvas(signal, cx, cy, radius, horizontalMetric);
         const dx = pos.x - cx;
         const dy = pos.y - cy;
         if (Math.abs(dx) > clipRadius || Math.abs(dy) > clipRadius) return;
@@ -302,16 +322,31 @@ export default function RadarCanvas({
 
       ctx.restore();
 
+      const metricLabels: Record<HorizontalMetric, [string, string]> = {
+        riskScore: ["LOW RISK", "HIGH RISK"],
+        impactScore: ["LOW IMPACT", "HIGH IMPACT"],
+        probability: ["LOW PROB", "HIGH PROB"],
+        impactCost: ["LOW COST", "HIGH COST"],
+      };
+      const [leftLabel, rightLabel] = metricLabels[horizontalMetric] || metricLabels.riskScore;
+      ctx.fillStyle = labelColor;
+      ctx.font = "10px sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText(leftLabel, cx - clipRadius + 4, cy - clipRadius - 8);
+      ctx.textAlign = "right";
+      ctx.fillText(rightLabel, cx + clipRadius - 4, cy - clipRadius - 8);
+
       ctx.fillStyle = labelColor;
       ctx.font = "bold 11px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("FUTURE (+days)", cx, cy - clipRadius - 8);
+      ctx.fillText("FUTURE (+days)", cx, cy - clipRadius - 22);
       ctx.fillText("PAST (-days)", cx, cy + clipRadius + 18);
       ctx.save();
       ctx.translate(cx - clipRadius - 10, cy);
       ctx.rotate(-Math.PI / 2);
       ctx.textAlign = "center";
-      ctx.fillText("RISK LEVEL (0\u2013100)", 0, 0);
+      const metricMeta = HORIZONTAL_METRICS.find((m) => m.value === horizontalMetric) || HORIZONTAL_METRICS[0];
+      ctx.fillText(metricMeta.axisLabel, 0, 0);
       ctx.restore();
 
       ctx.textAlign = "center";
@@ -327,7 +362,7 @@ export default function RadarCanvas({
 
       animRef.current = requestAnimationFrame(draw);
     },
-    [signals, dims, isDark, bgColor, accent, labelColor, tickColor, gridAlpha, axisAlpha, sweepTrailAlpha, sweepLineAlpha, borderAlpha, centerLabel, zoom]
+    [signals, dims, isDark, bgColor, accent, labelColor, tickColor, gridAlpha, axisAlpha, sweepTrailAlpha, sweepLineAlpha, borderAlpha, centerLabel, zoom, horizontalMetric]
   );
 
   useEffect(() => {
@@ -359,7 +394,7 @@ export default function RadarCanvas({
 
       let found: RiskSignal | null = null;
       for (const signal of signals) {
-        const pos = mapSignalToCanvas(signal, cx, cy, radius);
+        const pos = mapSignalToCanvas(signal, cx, cy, radius, horizontalMetric);
         if (!isInClip(pos.x, pos.y)) continue;
         const dotRadius = clamp(signal.impactScore * 0.06 + 3, 3, 12);
         const dist = Math.sqrt((mx - pos.x) ** 2 + (my - pos.y) ** 2);
@@ -370,7 +405,7 @@ export default function RadarCanvas({
       }
 
       if (found) {
-        const pos = mapSignalToCanvas(found, cx, cy, radius);
+        const pos = mapSignalToCanvas(found, cx, cy, radius, horizontalMetric);
         setTooltip({ signal: found, x: pos.x, y: pos.y });
         canvas.style.cursor = "pointer";
       } else {
@@ -378,7 +413,7 @@ export default function RadarCanvas({
         canvas.style.cursor = "default";
       }
     },
-    [signals, dims, zoom, isInClip]
+    [signals, dims, zoom, isInClip, horizontalMetric]
   );
 
   const handleClick = useCallback(
@@ -393,7 +428,7 @@ export default function RadarCanvas({
       const radius = getRadius(dims.width, dims.height);
 
       for (const signal of signals) {
-        const pos = mapSignalToCanvas(signal, cx, cy, radius);
+        const pos = mapSignalToCanvas(signal, cx, cy, radius, horizontalMetric);
         if (!isInClip(pos.x, pos.y)) continue;
         const dotRadius = clamp(signal.impactScore * 0.06 + 3, 3, 12);
         const dist = Math.sqrt((mx - pos.x) ** 2 + (my - pos.y) ** 2);
@@ -403,7 +438,7 @@ export default function RadarCanvas({
         }
       }
     },
-    [signals, dims, onSignalClick, zoom, isInClip]
+    [signals, dims, onSignalClick, zoom, isInClip, horizontalMetric]
   );
 
   const tooltipBg = isDark ? "bg-slate-900/95 border-green-500/30 shadow-green-500/10" : "bg-white/95 border-green-600/30 shadow-green-600/10";
@@ -465,6 +500,18 @@ export default function RadarCanvas({
               {tooltip.signal.riskScore}
             </span>
           </div>
+          {horizontalMetric !== "riskScore" && (
+            <div className={tooltipText}>
+              {(HORIZONTAL_METRICS.find((m) => m.value === horizontalMetric) || HORIZONTAL_METRICS[0]).label}:{" "}
+              <span className="font-medium">
+                {horizontalMetric === "impactCost"
+                  ? (tooltip.signal.impactCostRaw > 0
+                    ? `$${tooltip.signal.impactCostRaw.toLocaleString()}`
+                    : "N/A")
+                  : getMetricValue(tooltip.signal, horizontalMetric)}
+              </span>
+            </div>
+          )}
           <div className={tooltipText}>
             Time:{" "}
             {tooltip.signal.timeOffsetDays > 0

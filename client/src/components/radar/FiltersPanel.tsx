@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { FastForward, RotateCcw } from "lucide-react";
+import { type HorizontalMetric, HORIZONTAL_METRICS } from "./RadarCanvas";
 
 export type RadarFilters = {
   minRiskScore: number;
@@ -25,6 +26,8 @@ interface FiltersPanelProps {
   isDark: boolean;
   timeProjectionMonths: number;
   onTimeProjectionChange: (months: number) => void;
+  horizontalMetric: HorizontalMetric;
+  onHorizontalMetricChange: (metric: HorizontalMetric) => void;
 }
 
 const SIGNAL_TYPES = [
@@ -37,7 +40,7 @@ const SIGNAL_TYPES = [
   { value: "scope", label: "Scope" },
 ];
 
-export default function FiltersPanel({ filters, onChange, portfolios, isDark, timeProjectionMonths, onTimeProjectionChange }: FiltersPanelProps) {
+export default function FiltersPanel({ filters, onChange, portfolios, isDark, timeProjectionMonths, onTimeProjectionChange, horizontalMetric, onHorizontalMetricChange }: FiltersPanelProps) {
   const update = (partial: Partial<RadarFilters>) => {
     onChange({ ...filters, ...partial });
   };
@@ -95,6 +98,22 @@ export default function FiltersPanel({ filters, onChange, portfolios, isDark, ti
           <span>6mo</span>
           <span>12mo</span>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label className={`text-xs font-semibold ${labelCls}`}>X-Axis Metric</Label>
+        <Select value={horizontalMetric} onValueChange={(val) => onHorizontalMetricChange(val as HorizontalMetric)}>
+          <SelectTrigger className={`text-xs ${selectTrigger}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className={selectContent}>
+            {HORIZONTAL_METRICS.map((m) => (
+              <SelectItem key={m.value} value={m.value} className={`text-xs ${selectItem}`}>
+                {m.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-2">
