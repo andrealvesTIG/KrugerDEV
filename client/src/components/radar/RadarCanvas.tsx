@@ -15,6 +15,7 @@ interface RadarCanvasProps {
   signals: RiskSignal[];
   onSignalClick: (signal: RiskSignal) => void;
   isDark: boolean;
+  centerLabel?: string;
   width?: number;
   height?: number;
 }
@@ -54,6 +55,7 @@ export default function RadarCanvas({
   signals,
   onSignalClick,
   isDark,
+  centerLabel,
 }: RadarCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -262,13 +264,19 @@ export default function RadarCanvas({
       ctx.fillText("HIGH RISK", cx + radius - 4, cy - 8);
 
       ctx.textAlign = "center";
-      ctx.fillStyle = isDark ? `rgba(${accent},0.5)` : `rgba(${accent},0.6)`;
-      ctx.font = "10px sans-serif";
-      ctx.fillText("NOW", cx + 14, cy + 14);
+      if (centerLabel) {
+        ctx.fillStyle = isDark ? "rgba(245,158,11,0.7)" : "rgba(217,119,6,0.8)";
+        ctx.font = "bold 11px sans-serif";
+        ctx.fillText(centerLabel, cx + 20, cy + 14);
+      } else {
+        ctx.fillStyle = isDark ? `rgba(${accent},0.5)` : `rgba(${accent},0.6)`;
+        ctx.font = "10px sans-serif";
+        ctx.fillText("NOW", cx + 14, cy + 14);
+      }
 
       animRef.current = requestAnimationFrame(draw);
     },
-    [signals, dims, isDark, bgColor, accent, labelColor, gridAlpha, axisAlpha, sweepTrailAlpha, sweepLineAlpha, borderAlpha]
+    [signals, dims, isDark, bgColor, accent, labelColor, gridAlpha, axisAlpha, sweepTrailAlpha, sweepLineAlpha, borderAlpha, centerLabel]
   );
 
   useEffect(() => {

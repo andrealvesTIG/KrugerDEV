@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FastForward, RotateCcw } from "lucide-react";
 
 export type RadarFilters = {
   minRiskScore: number;
@@ -22,6 +23,8 @@ interface FiltersPanelProps {
   onChange: (filters: RadarFilters) => void;
   portfolios: { id: number; name: string }[];
   isDark: boolean;
+  timeProjectionMonths: number;
+  onTimeProjectionChange: (months: number) => void;
 }
 
 const SIGNAL_TYPES = [
@@ -34,7 +37,7 @@ const SIGNAL_TYPES = [
   { value: "scope", label: "Scope" },
 ];
 
-export default function FiltersPanel({ filters, onChange, portfolios, isDark }: FiltersPanelProps) {
+export default function FiltersPanel({ filters, onChange, portfolios, isDark, timeProjectionMonths, onTimeProjectionChange }: FiltersPanelProps) {
   const update = (partial: Partial<RadarFilters>) => {
     onChange({ ...filters, ...partial });
   };
@@ -48,6 +51,9 @@ export default function FiltersPanel({ filters, onChange, portfolios, isDark }: 
   const selectItem = isDark ? "text-slate-300" : "text-slate-700";
   const legendBorder = isDark ? "border-slate-700/50" : "border-slate-200";
   const legendLabel = isDark ? "text-slate-400" : "text-slate-500";
+  const projectionActive = timeProjectionMonths > 0;
+  const projectionAccent = isDark ? "text-amber-400" : "text-amber-600";
+  const projectionBg = isDark ? "bg-amber-500/5 border border-amber-500/20 rounded-lg p-3" : "bg-amber-50 border border-amber-300/30 rounded-lg p-3";
 
   return (
     <div className={`w-64 shrink-0 p-4 flex flex-col gap-6 overflow-y-auto ${panelBg}`}>
@@ -55,6 +61,40 @@ export default function FiltersPanel({ filters, onChange, portfolios, isDark }: 
         <h3 className={`text-sm font-semibold uppercase tracking-wider mb-4 ${heading}`}>
           Filters
         </h3>
+      </div>
+
+      <div className={projectionActive ? projectionBg : "space-y-2"}>
+        <div className="flex items-center justify-between mb-2">
+          <Label className={`text-xs font-semibold flex items-center gap-1.5 ${projectionActive ? projectionAccent : labelCls}`}>
+            <FastForward className="w-3.5 h-3.5" />
+            Time Projection: {timeProjectionMonths === 0 ? "Now" : `+${timeProjectionMonths}mo`}
+          </Label>
+          {projectionActive && (
+            <button
+              onClick={() => onTimeProjectionChange(0)}
+              className={`p-1 rounded hover:bg-amber-500/20 transition-colors ${projectionAccent}`}
+              title="Reset to Now"
+            >
+              <RotateCcw className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+        <Slider
+          min={0}
+          max={12}
+          step={1}
+          value={[timeProjectionMonths]}
+          onValueChange={([val]) => onTimeProjectionChange(val)}
+          className={projectionActive
+            ? "[&_[role=slider]]:bg-amber-500 [&_[role=slider]]:border-amber-400"
+            : "[&_[role=slider]]:bg-green-500 [&_[role=slider]]:border-green-400"
+          }
+        />
+        <div className={`flex justify-between text-[10px] mt-1 ${subText}`}>
+          <span>Now</span>
+          <span>6mo</span>
+          <span>12mo</span>
+        </div>
       </div>
 
       <div className="space-y-2">

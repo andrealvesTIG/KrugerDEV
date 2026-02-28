@@ -1,10 +1,10 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useProjects } from "@/hooks/use-projects";
 import { useTheme } from "@/components/theme-provider";
-import { Zap, Radio, AlertTriangle, Shield, Activity } from "lucide-react";
+import { Zap, Radio, AlertTriangle, Shield, Activity, Clock } from "lucide-react";
 import RadarCanvas, { type RiskSignal } from "@/components/radar/RadarCanvas";
 import FiltersPanel, { type RadarFilters } from "@/components/radar/FiltersPanel";
 import DetailsDrawer from "@/components/radar/DetailsDrawer";
@@ -146,6 +146,13 @@ export default function PmoRadar() {
 
   const [selectedSignal, setSelectedSignal] = useState<RiskSignal | null>(null);
   const [simOverrides, setSimOverrides] = useState<Map<string, number>>(new Map());
+  const [timeProjectionMonths, setTimeProjectionMonths] = useState(0);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const { data: portfoliosData } = usePortfolios(currentOrganization?.id);
   const portfolios = portfoliosData || [];
@@ -183,8 +190,24 @@ export default function PmoRadar() {
     });
   }, [risksData, projectsMap, projectPortfolioMap, simOverrides]);
 
+  const projectionOffsetDays = Math.round(timeProjectionMonths * 30.44);
+
+  const projectedDate = useMemo(() => {
+    const d = new Date(currentTime);
+    d.setDate(d.getDate() + projectionOffsetDays);
+    return d;
+  }, [currentTime, projectionOffsetDays]);
+
+  const projectedSignals = useMemo(() => {
+    if (projectionOffsetDays === 0) return allSignals;
+    return allSignals.map((s) => ({
+      ...s,
+      timeOffsetDays: s.timeOffsetDays - projectionOffsetDays,
+    }));
+  }, [allSignals, projectionOffsetDays]);
+
   const filteredSignals = useMemo(() => {
-    return allSignals.filter((s: EnrichedSignal) => {
+    return projectedSignals.filter((s: EnrichedSignal) => {
       if (s.riskScore < filters.minRiskScore) return false;
       if (filters.futureOnly && s.timeOffsetDays < 0) return false;
       if (filters.highRiskOnly && s.riskScore <= 70) return false;
@@ -194,7 +217,7 @@ export default function PmoRadar() {
       }
       return true;
     });
-  }, [allSignals, filters]);
+  }, [projectedSignals, filters]);
 
   const stats = useMemo(() => {
     const total = filteredSignals.length;
@@ -233,6 +256,17 @@ export default function PmoRadar() {
     ? "bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20"
     : "bg-green-500/10 border-green-500/30 text-green-700 hover:bg-green-500/20";
 
+  const clockStr = currentTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const dateStr = currentTime.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+
+  const projectedDateStr = timeProjectionMonths > 0
+    ? projectedDate.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })
+    : null;
+
+  const centerLabel = timeProjectionMonths > 0
+    ? projectedDate.toLocaleDateString([], { month: "short", year: "numeric" })
+    : undefined;
+
   return (
     <div className={`flex flex-col h-full w-full ${pageBg}`}>
       <div className={`flex items-center justify-between px-4 py-3 border-b shrink-0 ${headerBg}`}>
@@ -241,6 +275,23 @@ export default function PmoRadar() {
           <h1 className={`text-lg font-semibold tracking-wider uppercase ${titleColor}`}>
             PMO Radar
           </h1>
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ml-2 ${statBg}`}>
+            <Clock className={`w-3.5 h-3.5 ${accentGreen}`} />
+            <div className="flex flex-col leading-none">
+              <span className={`text-xs font-mono font-semibold ${accentGreen}`}>{clockStr}</span>
+              <span className={`text-[10px] ${statLabel}`}>{dateStr}</span>
+            </div>
+          </div>
+          {timeProjectionMonths > 0 && (
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${isDark ? "bg-amber-500/10 border-amber-500/30" : "bg-amber-50 border-amber-300"}`}>
+              <span className={`text-xs font-semibold ${isDark ? "text-amber-400" : "text-amber-600"}`}>
+                Projecting: {projectedDateStr}
+              </span>
+              <span className={`text-[10px] ${isDark ? "text-amber-500/70" : "text-amber-500"}`}>
+                (+{timeProjectionMonths}mo)
+              </span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-4 text-xs">
@@ -281,10 +332,12 @@ export default function PmoRadar() {
           onChange={setFilters}
           portfolios={portfolios.map((p: any) => ({ id: p.id, name: p.name }))}
           isDark={isDark}
+          timeProjectionMonths={timeProjectionMonths}
+          onTimeProjectionChange={setTimeProjectionMonths}
         />
 
         <div className="flex-1 relative p-4 min-w-0">
-          <RadarCanvas signals={filteredSignals} onSignalClick={setSelectedSignal} isDark={isDark} />
+          <RadarCanvas signals={filteredSignals} onSignalClick={setSelectedSignal} isDark={isDark} centerLabel={centerLabel} />
         </div>
 
         <DetailsDrawer signal={selectedSignal} onClose={() => setSelectedSignal(null)} isDark={isDark} />
