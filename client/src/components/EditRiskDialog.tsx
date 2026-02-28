@@ -189,7 +189,7 @@ export function EditRiskDialog({
         )}
 
         <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col flex-1 overflow-hidden">
-          <div className="space-y-5 pt-4 flex-1 overflow-y-auto pr-1">
+          <div className="space-y-6 pt-4 flex-1 overflow-y-auto pr-1">
             <div className="space-y-2">
               <Label>Title <span className="text-destructive">*</span></Label>
               <Input {...form.register("title")} data-testid="input-risk-title" />
