@@ -189,8 +189,8 @@ export function EditRiskDialog({
         )}
 
         <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col flex-1 overflow-hidden">
-          <div className="flex flex-col gap-5 pt-4 flex-1 overflow-y-auto pr-1">
-            <div className="space-y-1.5 pb-1">
+          <div className="flex flex-col gap-4 pt-4 flex-1 overflow-y-auto pr-1 [&_input]:focus-visible:ring-offset-0 [&_button[role=combobox]]:focus-visible:ring-offset-0">
+            <div className="space-y-1.5 pb-2">
               <Label>Title <span className="text-destructive">*</span></Label>
               <Input {...form.register("title")} data-testid="input-risk-title" />
               {form.formState.errors.title && (
@@ -198,7 +198,7 @@ export function EditRiskDialog({
               )}
             </div>
 
-            <div className="grid grid-cols-3 gap-3 pb-1">
+            <div className="grid grid-cols-3 gap-3 pb-2">
               <div className="space-y-1.5">
                 <Label>Probability</Label>
                 <Controller control={form.control} name="probability" render={({ field }) => (
@@ -241,7 +241,7 @@ export function EditRiskDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 pb-1">
+            <div className="grid grid-cols-2 gap-3 pb-2">
               <div className="space-y-1.5">
                 <Label>Due Date</Label>
                 <Input
