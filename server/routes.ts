@@ -11570,7 +11570,22 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       return res.status(401).json({ message: 'Authentication required' });
     }
     
-    const { organizationId, industry, customIndustry } = req.body;
+    const { organizationId, industry, customIndustry, dataTypes } = req.body;
+    
+    const allDataTypes = ['portfolios', 'projects', 'tasks', 'issues', 'risks', 'assignments', 'timesheets', 'intakes'];
+    const selectedTypes = new Set<string>(
+      Array.isArray(dataTypes) && dataTypes.length > 0 ? dataTypes : allDataTypes
+    );
+    
+    if (selectedTypes.has('timesheets') || selectedTypes.has('assignments')) {
+      selectedTypes.add('tasks');
+    }
+    if (selectedTypes.has('tasks') || selectedTypes.has('issues') || selectedTypes.has('risks')) {
+      selectedTypes.add('projects');
+    }
+    if (selectedTypes.has('projects')) {
+      selectedTypes.add('portfolios');
+    }
     
     if (!organizationId) {
       return res.status(400).json({ message: 'organizationId is required' });
@@ -11697,6 +11712,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         decisions: 0,
         resources: 0,
         intakes: 0,
+        assignments: 0,
+        timesheets: 0,
       };
       
       const sanitizeBudget = (value: any) => {
@@ -11708,6 +11725,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       const today = new Date();
       
       for (const portfolioTemplate of template.portfolios) {
+        if (!selectedTypes.has('portfolios')) continue;
         const portfolio = await storage.createPortfolio({
           organizationId,
           name: portfolioTemplate.name,
@@ -11717,6 +11735,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         stats.portfolios++;
         
         for (const projectTemplate of portfolioTemplate.projects) {
+          if (!selectedTypes.has('projects')) continue;
           const startDate = new Date(today);
           startDate.setDate(startDate.getDate() - 60);
           const endDate = new Date(today);
@@ -11738,30 +11757,34 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           });
           stats.projects++;
           
-          let taskIndex = 1;
-          for (const taskTemplate of projectTemplate.tasks) {
-            const taskStart = new Date(today);
-            taskStart.setDate(taskStart.getDate() - 30);
-            const taskEnd = new Date(today);
-            taskEnd.setDate(taskEnd.getDate() + 60);
-            
-            await storage.createTask({
-              projectId: project.id,
-              name: taskTemplate.name,
-              description: taskTemplate.description,
-              startDate: taskStart.toISOString().split('T')[0],
-              endDate: taskEnd.toISOString().split('T')[0],
-              durationDays: 90,
-              progress: taskTemplate.progress,
-              status: taskTemplate.status,
-              assignee: taskTemplate.assignee,
-              isDemo: true,
-              taskIndex: taskIndex++,
-            });
-            stats.tasks++;
+          const createdTaskIds: number[] = [];
+          if (selectedTypes.has('tasks') && projectTemplate.tasks) {
+            let taskIndex = 1;
+            for (const taskTemplate of projectTemplate.tasks) {
+              const taskStart = new Date(today);
+              taskStart.setDate(taskStart.getDate() - 30);
+              const taskEnd = new Date(today);
+              taskEnd.setDate(taskEnd.getDate() + 60);
+              
+              const task = await storage.createTask({
+                projectId: project.id,
+                name: taskTemplate.name,
+                description: taskTemplate.description,
+                startDate: taskStart.toISOString().split('T')[0],
+                endDate: taskEnd.toISOString().split('T')[0],
+                durationDays: 90,
+                progress: taskTemplate.progress,
+                status: taskTemplate.status,
+                assignee: taskTemplate.assignee,
+                isDemo: true,
+                taskIndex: taskIndex++,
+              });
+              createdTaskIds.push(task.id);
+              stats.tasks++;
+            }
           }
           
-          for (const riskTemplate of projectTemplate.risks) {
+          if (selectedTypes.has('risks') && projectTemplate.risks) for (const riskTemplate of projectTemplate.risks) {
             await storage.createRisk({
               projectId: project.id,
               title: riskTemplate.title,
@@ -11775,7 +11798,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             stats.risks++;
           }
           
-          for (const milestoneTemplate of projectTemplate.milestones) {
+          if (projectTemplate.milestones) for (const milestoneTemplate of projectTemplate.milestones) {
             const dueDate = new Date(today);
             dueDate.setDate(dueDate.getDate() + milestoneTemplate.dueDaysFromNow);
             const startDateMs = new Date(dueDate);
@@ -11796,7 +11819,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             stats.milestones++;
           }
           
-          for (const issueTemplate of projectTemplate.issues) {
+          if (selectedTypes.has('issues') && projectTemplate.issues) for (const issueTemplate of projectTemplate.issues) {
             await storage.createIssue({
               projectId: project.id,
               title: issueTemplate.title,
@@ -11810,7 +11833,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             stats.issues++;
           }
           
-          for (const finTemplate of projectTemplate.financials) {
+          if (projectTemplate.financials) for (const finTemplate of projectTemplate.financials) {
             await storage.createProjectFinancial({
               projectId: project.id,
               category: finTemplate.category,
@@ -11969,7 +11992,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         }
       }
       
-      // Generate demo resources (organization-level)
+      const createdResourceIds: number[] = [];
       const resourceTemplates = [
         { name: 'John Smith', email: 'john.smith@demo.com', title: 'Senior Project Manager', department: 'Project Management', skills: 'Agile,Scrum,PMP,Risk Management' },
         { name: 'Sarah Johnson', email: 'sarah.johnson@demo.com', title: 'Business Analyst', department: 'Business Analysis', skills: 'Requirements,BPMN,SQL,Data Analysis' },
@@ -11979,7 +12002,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       ];
       
       for (const resourceTemplate of resourceTemplates) {
-        await storage.createResource({
+        const resource = await storage.createResource({
           organizationId,
           displayName: resourceTemplate.name,
           email: resourceTemplate.email,
@@ -11990,34 +12013,93 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           isActive: true,
           isDemo: true,
         });
+        createdResourceIds.push(resource.id);
         stats.resources++;
       }
       
-      // Generate demo project intakes (pipeline items)
-      const intakeTemplates = [
-        { name: 'Customer Portal Enhancement', status: 'submitted', businessUnit: 'Customer Success', funding: 'Business Funded', budget: '450000', description: 'Enhance self-service capabilities in customer portal' },
-        { name: 'Data Analytics Platform', status: 'approved', businessUnit: 'Data & Analytics', funding: 'IT Funded', budget: '800000', description: 'Enterprise data analytics and reporting platform' },
-        { name: 'Mobile App v3.0', status: 'draft', businessUnit: 'Digital', funding: 'Shared', budget: '350000', description: 'Major mobile application redesign and feature update' },
-        { name: 'Security Compliance Upgrade', status: 'submitted', businessUnit: 'IT Security', funding: 'IT Funded', budget: '275000', description: 'SOC2 and ISO compliance infrastructure updates' },
-      ];
+      if (selectedTypes.has('assignments') && createdResourceIds.length > 0) {
+        const demoTasks = await db.select({ id: tasks.id, projectId: tasks.projectId })
+          .from(tasks)
+          .innerJoin(projects, eq(tasks.projectId, projects.id))
+          .where(and(eq(projects.organizationId, organizationId), eq(tasks.isDemo, true)));
+        
+        for (const task of demoTasks) {
+          const numAssignees = Math.min(1 + Math.floor(Math.random() * 2), createdResourceIds.length);
+          const shuffled = [...createdResourceIds].sort(() => Math.random() - 0.5);
+          const roles = ['Lead', 'Support', 'Reviewer', 'Contributor'];
+          for (let i = 0; i < numAssignees; i++) {
+            await db.insert(taskResourceAssignments).values({
+              taskId: task.id,
+              resourceId: shuffled[i],
+              allocationPercentage: i === 0 ? 80 : 40,
+              role: roles[i % roles.length],
+            });
+            stats.assignments++;
+          }
+        }
+      }
       
-      const year = today.getFullYear();
-      for (let intakeIdx = 0; intakeIdx < intakeTemplates.length; intakeIdx++) {
-        const intakeTemplate = intakeTemplates[intakeIdx];
-        await storage.createProjectIntake({
-          organizationId,
-          intakeNumber: `INT-${year}-${String(intakeIdx + 1).padStart(3, '0')}`,
-          projectName: intakeTemplate.name,
-          description: intakeTemplate.description,
-          status: intakeTemplate.status,
-          businessUnit: intakeTemplate.businessUnit,
-          fundingSource: intakeTemplate.funding,
-          estimatedBudget: intakeTemplate.budget,
-          currentStep: intakeTemplate.status === 'approved' ? 'pmo_approved' : 'basic_info',
-          basicInfoComplete: true,
-          isDemo: true,
-        });
-        stats.intakes++;
+      if (selectedTypes.has('timesheets') && createdResourceIds.length > 0) {
+        const demoTasks = await db.select({ id: tasks.id, projectId: tasks.projectId })
+          .from(tasks)
+          .innerJoin(projects, eq(tasks.projectId, projects.id))
+          .where(and(eq(projects.organizationId, organizationId), eq(tasks.isDemo, true)));
+        
+        if (demoTasks.length > 0 && userId) {
+          for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
+            const entryDate = new Date(today);
+            entryDate.setDate(entryDate.getDate() - dayOffset);
+            if (entryDate.getDay() === 0 || entryDate.getDay() === 6) continue;
+            
+            const numEntries = 1 + Math.floor(Math.random() * 2);
+            for (let e = 0; e < numEntries; e++) {
+              const task = demoTasks[Math.floor(Math.random() * demoTasks.length)];
+              const resource = createdResourceIds[Math.floor(Math.random() * createdResourceIds.length)];
+              const hours = [1, 1.5, 2, 2.5, 3, 4, 6, 8][Math.floor(Math.random() * 8)];
+              
+              await storage.createTimesheetEntry({
+                organizationId,
+                userId: userId,
+                resourceId: resource,
+                taskId: task.id,
+                projectId: task.projectId,
+                entryDate: entryDate.toISOString().split('T')[0],
+                hours: String(hours),
+                notes: ['Development work', 'Code review', 'Testing', 'Documentation', 'Meeting', 'Design review'][Math.floor(Math.random() * 6)],
+                status: dayOffset > 7 ? 'Approved' : dayOffset > 3 ? 'Submitted' : 'Draft',
+              });
+              stats.timesheets++;
+            }
+          }
+        }
+      }
+      
+      if (selectedTypes.has('intakes')) {
+        const intakeTemplates = [
+          { name: 'Customer Portal Enhancement', status: 'submitted', businessUnit: 'Customer Success', funding: 'Business Funded', budget: '450000', description: 'Enhance self-service capabilities in customer portal' },
+          { name: 'Data Analytics Platform', status: 'approved', businessUnit: 'Data & Analytics', funding: 'IT Funded', budget: '800000', description: 'Enterprise data analytics and reporting platform' },
+          { name: 'Mobile App v3.0', status: 'draft', businessUnit: 'Digital', funding: 'Shared', budget: '350000', description: 'Major mobile application redesign and feature update' },
+          { name: 'Security Compliance Upgrade', status: 'submitted', businessUnit: 'IT Security', funding: 'IT Funded', budget: '275000', description: 'SOC2 and ISO compliance infrastructure updates' },
+        ];
+        
+        const year = today.getFullYear();
+        for (let intakeIdx = 0; intakeIdx < intakeTemplates.length; intakeIdx++) {
+          const intakeTemplate = intakeTemplates[intakeIdx];
+          await storage.createProjectIntake({
+            organizationId,
+            intakeNumber: `INT-${year}-${String(intakeIdx + 1).padStart(3, '0')}`,
+            projectName: intakeTemplate.name,
+            description: intakeTemplate.description,
+            status: intakeTemplate.status,
+            businessUnit: intakeTemplate.businessUnit,
+            fundingSource: intakeTemplate.funding,
+            estimatedBudget: intakeTemplate.budget,
+            currentStep: intakeTemplate.status === 'approved' ? 'pmo_approved' : 'basic_info',
+            basicInfoComplete: true,
+            isDemo: true,
+          });
+          stats.intakes++;
+        }
       }
       
       res.status(201).json({

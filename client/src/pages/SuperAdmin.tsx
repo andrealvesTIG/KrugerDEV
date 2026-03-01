@@ -189,6 +189,9 @@ function OrganizationsTab() {
   const [demoDataOrg, setDemoDataOrg] = useState<Organization | null>(null);
   const [deleteDemoDataOrg, setDeleteDemoDataOrg] = useState<Organization | null>(null);
   const [selectedIndustry, setSelectedIndustry] = useState<string>("");
+  const allDemoDataTypes = ['portfolios', 'projects', 'tasks', 'issues', 'risks', 'assignments', 'timesheets', 'intakes'] as const;
+  const [selectedDataTypes, setSelectedDataTypes] = useState<string[]>([...allDemoDataTypes]);
+  const [demoStats, setDemoStats] = useState<Record<string, number> | null>(null);
   const [deactivatedOpen, setDeactivatedOpen] = useState(false);
   const [restoreOrgId, setRestoreOrgId] = useState<number | null>(null);
   const [billingOrg, setBillingOrg] = useState<Organization | null>(null);
@@ -383,8 +386,8 @@ function OrganizationsTab() {
   });
 
   const generateDemoData = useMutation({
-    mutationFn: async ({ organizationId, industry }: { organizationId: number; industry: string }) => {
-      const response = await apiRequest('POST', '/api/demo-data/generate', { organizationId, industry });
+    mutationFn: async ({ organizationId, industry, dataTypes }: { organizationId: number; industry: string; dataTypes: string[] }) => {
+      const response = await apiRequest('POST', '/api/demo-data/generate', { organizationId, industry, dataTypes });
       return response.json();
     },
     onSuccess: (data: any) => {
@@ -395,12 +398,13 @@ function OrganizationsTab() {
       queryClient.invalidateQueries({ queryKey: ['/api/milestones'] });
       queryClient.invalidateQueries({ queryKey: ['/api/issues'] });
       queryClient.invalidateQueries({ queryKey: ['/api/project-financials'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/resources'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/timesheets'] });
+      setDemoStats(data.stats);
       toast({ 
         title: "Demo Data Generated", 
-        description: `Created ${data.stats.portfolios} portfolios, ${data.stats.projects} projects, ${data.stats.tasks} tasks, ${data.stats.risks} risks, ${data.stats.milestones} milestones, ${data.stats.issues} issues` 
+        description: `Successfully generated demo data for ${demoDataOrg?.name}` 
       });
-      setDemoDataOrg(null);
-      setSelectedIndustry("");
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to generate demo data", variant: "destructive" });
@@ -946,78 +950,164 @@ function OrganizationsTab() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={demoDataOrg !== null} onOpenChange={() => { setDemoDataOrg(null); setSelectedIndustry(""); }}>
-        <DialogContent className="sm:max-w-[500px]">
+      <Dialog open={demoDataOrg !== null} onOpenChange={(open) => { if (!open) { setDemoDataOrg(null); setSelectedIndustry(""); setDemoStats(null); setSelectedDataTypes([...allDemoDataTypes]); } }}>
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-amber-500" />
               Generate Demo Data
             </DialogTitle>
             <DialogDescription>
-              Generate sample portfolios, projects, tasks, risks, and more for <strong>{demoDataOrg?.name}</strong>
+              Generate sample data for <strong>{demoDataOrg?.name}</strong>. Select the data types you want to populate.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Select Industry</Label>
-              <Select value={selectedIndustry} onValueChange={setSelectedIndustry}>
-                <SelectTrigger data-testid="select-industry">
-                  <SelectValue placeholder="Choose an industry..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {industries?.map(ind => (
-                    <SelectItem key={ind.id} value={ind.id}>
-                      <div className="flex flex-col">
-                        <span>{ind.label}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedIndustry && industries && (
-                <p className="text-sm text-muted-foreground mt-2">
-                  {industries.find(i => i.id === selectedIndustry)?.description}
+          {demoStats ? (
+            <div className="space-y-4 py-4">
+              <div className="rounded-lg border bg-green-50 dark:bg-green-900/20 p-4 space-y-3">
+                <p className="text-sm font-medium flex items-center gap-2 text-green-700 dark:text-green-400">
+                  <CheckCircle className="h-4 w-4" />
+                  Demo data generated successfully
                 </p>
-              )}
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(demoStats).filter(([, count]) => count > 0).map(([key, count]) => (
+                    <div key={key} className="flex items-center justify-between text-sm px-2 py-1 rounded bg-white dark:bg-slate-800">
+                      <span className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                      <Badge variant="secondary">{count}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={() => { setDemoDataOrg(null); setSelectedIndustry(""); setDemoStats(null); setSelectedDataTypes([...allDemoDataTypes]); }}>
+                  Done
+                </Button>
+              </DialogFooter>
             </div>
-            <div className="rounded-lg bg-muted p-4 space-y-2">
-              <p className="text-sm font-medium flex items-center gap-2">
-                <Database className="h-4 w-4" />
-                This will create:
-              </p>
-              <ul className="text-sm text-muted-foreground space-y-1 ml-6 list-disc">
-                <li>2-3 Portfolios with strategic context</li>
-                <li>3-5 Projects with realistic timelines</li>
-                <li>Tasks, Risks, Milestones, and Issues</li>
-                <li>Financial records with CapEx/OpEx breakdown</li>
-              </ul>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setDemoDataOrg(null); setSelectedIndustry(""); }}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={() => demoDataOrg && selectedIndustry && generateDemoData.mutate({ 
-                organizationId: demoDataOrg.id, 
-                industry: selectedIndustry 
-              })}
-              disabled={!selectedIndustry || generateDemoData.isPending}
-              data-testid="button-generate-demo-data"
-            >
-              {generateDemoData.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Generate Data
-                </>
-              )}
-            </Button>
-          </DialogFooter>
+          ) : (
+            <>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Select Industry</Label>
+                  <Select value={selectedIndustry} onValueChange={setSelectedIndustry}>
+                    <SelectTrigger data-testid="select-industry">
+                      <SelectValue placeholder="Choose an industry..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {industries?.map(ind => (
+                        <SelectItem key={ind.id} value={ind.id}>
+                          <div className="flex flex-col">
+                            <span>{ind.label}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedIndustry && industries && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {industries.find(i => i.id === selectedIndustry)?.description}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Data Types to Generate</Label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        if (selectedDataTypes.length === allDemoDataTypes.length) {
+                          setSelectedDataTypes([]);
+                        } else {
+                          setSelectedDataTypes([...allDemoDataTypes]);
+                        }
+                      }}
+                    >
+                      {selectedDataTypes.length === allDemoDataTypes.length ? "Deselect All" : "Select All"}
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      { key: 'portfolios', label: 'Portfolios', desc: 'Strategic groupings' },
+                      { key: 'projects', label: 'Projects', desc: 'With timelines & budgets' },
+                      { key: 'tasks', label: 'Tasks', desc: 'Work items & milestones' },
+                      { key: 'issues', label: 'Issues', desc: 'Bugs & enhancements' },
+                      { key: 'risks', label: 'Risks', desc: 'Risk register entries' },
+                      { key: 'assignments', label: 'Assignments', desc: 'Resource-to-task links' },
+                      { key: 'timesheets', label: 'Timesheets', desc: 'Time entries (2 weeks)' },
+                      { key: 'intakes', label: 'Intakes', desc: 'Pipeline requests' },
+                    ] as const).map(item => {
+                      const isSelected = selectedDataTypes.includes(item.key);
+                      const isDependency = !isSelected && (
+                        (item.key === 'portfolios' && selectedDataTypes.some(t => ['projects', 'tasks', 'issues', 'risks', 'assignments', 'timesheets'].includes(t))) ||
+                        (item.key === 'projects' && selectedDataTypes.some(t => ['tasks', 'issues', 'risks', 'assignments', 'timesheets'].includes(t))) ||
+                        (item.key === 'tasks' && selectedDataTypes.some(t => ['assignments', 'timesheets'].includes(t)))
+                      );
+                      return (
+                        <div
+                          key={item.key}
+                          className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${isSelected ? 'bg-primary/5 border-primary' : isDependency ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800' : 'hover:bg-muted/50'}`}
+                          onClick={() => {
+                            setSelectedDataTypes(prev =>
+                              prev.includes(item.key)
+                                ? prev.filter(t => t !== item.key)
+                                : [...prev, item.key]
+                            );
+                          }}
+                        >
+                          <Checkbox
+                            checked={isSelected || isDependency}
+                            onCheckedChange={() => {
+                              setSelectedDataTypes(prev =>
+                                prev.includes(item.key)
+                                  ? prev.filter(t => t !== item.key)
+                                  : [...prev, item.key]
+                              );
+                            }}
+                            className="mt-0.5"
+                            disabled={isDependency}
+                          />
+                          <div>
+                            <p className="text-sm font-medium leading-tight">{item.label}</p>
+                            <p className="text-xs text-muted-foreground">{item.desc}</p>
+                            {isDependency && (
+                              <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Auto-included as dependency</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setDemoDataOrg(null); setSelectedIndustry(""); setDemoStats(null); setSelectedDataTypes([...allDemoDataTypes]); }}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={() => demoDataOrg && selectedIndustry && generateDemoData.mutate({ 
+                    organizationId: demoDataOrg.id, 
+                    industry: selectedIndustry,
+                    dataTypes: selectedDataTypes
+                  })}
+                  disabled={!selectedIndustry || selectedDataTypes.length === 0 || generateDemoData.isPending}
+                  data-testid="button-generate-demo-data"
+                >
+                  {generateDemoData.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Generate Data
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
