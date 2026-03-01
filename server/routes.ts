@@ -832,7 +832,8 @@ async function seedDatabase() {
       probability: "Medium",
       impact: "High",
       status: "Open",
-      mitigationPlan: "Early review of App Store guidelines, implement in-app purchase where required, thorough privacy policy review."
+      mitigationPlan: "Early review of App Store guidelines, implement in-app purchase where required, thorough privacy policy review.",
+      costExposure: "75000",
     });
 
     await storage.createRisk({
@@ -842,7 +843,8 @@ async function seedDatabase() {
       probability: "Low",
       impact: "High",
       status: "Mitigated",
-      mitigationPlan: "Implement fallback payment processor (PayPal), add offline cart persistence, display helpful error messages."
+      mitigationPlan: "Implement fallback payment processor (PayPal), add offline cart persistence, display helpful error messages.",
+      costExposure: "120000",
     });
 
     await storage.createRisk({
@@ -852,7 +854,8 @@ async function seedDatabase() {
       probability: "High",
       impact: "Medium",
       status: "Open",
-      mitigationPlan: "Implement connection pooling, add Redis pub/sub for horizontal scaling, load testing at 10x expected traffic."
+      mitigationPlan: "Implement connection pooling, add Redis pub/sub for horizontal scaling, load testing at 10x expected traffic.",
+      costExposure: "45000",
     });
 
     await storage.createRisk({
@@ -862,7 +865,8 @@ async function seedDatabase() {
       probability: "High",
       impact: "High",
       status: "Open",
-      mitigationPlan: "Extensive data validation scripts, parallel run of old and new systems, rollback plan within 24 hours."
+      mitigationPlan: "Extensive data validation scripts, parallel run of old and new systems, rollback plan within 24 hours.",
+      costExposure: "200000",
     });
 
     await storage.createRisk({
@@ -872,7 +876,8 @@ async function seedDatabase() {
       probability: "Medium",
       impact: "High",
       status: "Open",
-      mitigationPlan: "Start with basic Kubernetes networking, gradually introduce Istio features, extensive monitoring with Prometheus/Grafana."
+      mitigationPlan: "Start with basic Kubernetes networking, gradually introduce Istio features, extensive monitoring with Prometheus/Grafana.",
+      costExposure: "85000",
     });
 
     await storage.createRisk({
@@ -882,7 +887,8 @@ async function seedDatabase() {
       probability: "Medium",
       impact: "Medium",
       status: "Open",
-      mitigationPlan: "Implement Kubecost for cost monitoring, use spot instances for non-critical workloads, regular right-sizing reviews."
+      mitigationPlan: "Implement Kubecost for cost monitoring, use spot instances for non-critical workloads, regular right-sizing reviews.",
+      costExposure: "60000",
     });
 
     await storage.createRisk({
@@ -892,7 +898,8 @@ async function seedDatabase() {
       probability: "Medium",
       impact: "Critical",
       status: "Open",
-      mitigationPlan: "Continuous security scanning with Snyk, internal penetration testing before audit, dedicated security sprint buffer."
+      mitigationPlan: "Continuous security scanning with Snyk, internal penetration testing before audit, dedicated security sprint buffer.",
+      costExposure: "350000",
     });
 
     // ==================== ISSUES ====================
@@ -905,7 +912,8 @@ async function seedDatabase() {
       priority: "High",
       status: "In Progress",
       type: "Bug",
-      assignee: "James Wilson"
+      assignee: "James Wilson",
+      costExposure: "15000",
     });
 
     await storage.createIssue({
@@ -915,7 +923,8 @@ async function seedDatabase() {
       priority: "Medium",
       status: "Open",
       type: "Enhancement",
-      assignee: null
+      assignee: null,
+      costExposure: "8000",
     });
 
     await storage.createIssue({
@@ -925,7 +934,8 @@ async function seedDatabase() {
       priority: "Critical",
       status: "Open",
       type: "Bug",
-      assignee: "Maria Garcia"
+      assignee: "Maria Garcia",
+      costExposure: "95000",
     });
 
     // SaaS Dashboard Issues
@@ -936,7 +946,8 @@ async function seedDatabase() {
       priority: "Medium",
       status: "In Progress",
       type: "Bug",
-      assignee: "David Park"
+      assignee: "David Park",
+      costExposure: "12000",
     });
 
     await storage.createIssue({
@@ -946,7 +957,8 @@ async function seedDatabase() {
       priority: "Low",
       status: "Open",
       type: "Enhancement",
-      assignee: null
+      assignee: null,
+      costExposure: "3000",
     });
 
     await storage.createIssue({
@@ -956,7 +968,8 @@ async function seedDatabase() {
       priority: "High",
       status: "Open",
       type: "Bug",
-      assignee: "Emma Thompson"
+      assignee: "Emma Thompson",
+      costExposure: "35000",
     });
 
     // CRM Issues
@@ -967,7 +980,8 @@ async function seedDatabase() {
       priority: "High",
       status: "In Progress",
       type: "Bug",
-      assignee: "Backend Team"
+      assignee: "Backend Team",
+      costExposure: "20000",
     });
 
     await storage.createIssue({
@@ -977,7 +991,8 @@ async function seedDatabase() {
       priority: "Medium",
       status: "Open",
       type: "Task",
-      assignee: null
+      assignee: null,
+      costExposure: "10000",
     });
 
     // Kubernetes Issues
@@ -988,7 +1003,8 @@ async function seedDatabase() {
       priority: "Critical",
       status: "In Progress",
       type: "Bug",
-      assignee: "Chris Lee"
+      assignee: "Chris Lee",
+      costExposure: "150000",
     });
 
     await storage.createIssue({
@@ -998,7 +1014,8 @@ async function seedDatabase() {
       priority: "Medium",
       status: "Open",
       type: "Task",
-      assignee: "Jennifer Wu"
+      assignee: "Jennifer Wu",
+      costExposure: "5000",
     });
 
     await storage.createIssue({
@@ -1008,7 +1025,8 @@ async function seedDatabase() {
       priority: "High",
       status: "Open",
       type: "Enhancement",
-      assignee: "Robert Taylor"
+      assignee: "Robert Taylor",
+      costExposure: "25000",
     });
 
     // CI/CD Issues
@@ -1019,7 +1037,8 @@ async function seedDatabase() {
       priority: "High",
       status: "Resolved",
       type: "Bug",
-      assignee: "DevOps Team"
+      assignee: "DevOps Team",
+      costExposure: "18000",
     });
 
     await storage.createIssue({
@@ -1029,7 +1048,8 @@ async function seedDatabase() {
       priority: "Medium",
       status: "Closed",
       type: "Enhancement",
-      assignee: "DevOps Team"
+      assignee: "DevOps Team",
+      costExposure: "7000",
     });
 
     console.log("Database seeded with software development demo data successfully.");
@@ -11651,13 +11671,13 @@ Create a JSON object with this exact structure:
             { "name": "Task name", "description": "Task description", "progress": 80, "status": "Not Started|In Progress|Completed|On Hold", "assignee": "Person Name" }
           ],
           "risks": [
-            { "title": "Risk title", "description": "Risk description", "probability": "Low|Medium|High", "impact": "Low|Medium|High|Critical", "status": "Open|Mitigated|Closed", "mitigationPlan": "Mitigation strategy" }
+            { "title": "Risk title", "description": "Risk description", "probability": "Low|Medium|High", "impact": "Low|Medium|High|Critical", "status": "Open|Mitigated|Closed", "mitigationPlan": "Mitigation strategy", "costExposure": "50000" }
           ],
           "milestones": [
             { "title": "Milestone title", "description": "Description", "dueDaysFromNow": 30, "completed": false, "status": "Backlog|In Progress|Done", "priority": "Low|Medium|High|Critical", "assignee": "Person Name" }
           ],
           "issues": [
-            { "title": "Issue title", "description": "Description", "priority": "Low|Medium|High|Critical", "status": "Open|In Progress|Resolved|Closed", "type": "Bug|Task|Enhancement", "assignee": "Person Name" }
+            { "title": "Issue title", "description": "Description", "priority": "Low|Medium|High|Critical", "status": "Open|In Progress|Resolved|Closed", "type": "Bug|Task|Enhancement", "assignee": "Person Name", "costExposure": "25000" }
           ],
           "financials": [
             { "category": "CapEx|OpEx", "lineItem": "Line item name", "description": "Description", "budgetAmount": "100000", "plannedAmount": "90000", "actualAmount": "45000", "notes": "Notes" }
@@ -11793,6 +11813,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
               impact: riskTemplate.impact,
               status: riskTemplate.status,
               mitigationPlan: riskTemplate.mitigationPlan,
+              costExposure: riskTemplate.costExposure || null,
               isDemo: true,
             });
             stats.risks++;
@@ -11828,6 +11849,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
               status: issueTemplate.status,
               type: issueTemplate.type,
               assignee: issueTemplate.assignee,
+              costExposure: issueTemplate.costExposure || null,
               isDemo: true,
             });
             stats.issues++;
@@ -14319,6 +14341,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
           priority: issueData.priority || "Medium",
           status: issueData.status || "Open",
           type: issueData.type || "Task",
+          costExposure: issueData.costExposure || null,
         });
         createdIssues.push(issue);
       }
@@ -14334,6 +14357,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
           impact: riskData.impact || "Medium",
           status: riskData.status || "Open",
           mitigationPlan: riskData.mitigationPlan,
+          costExposure: riskData.costExposure || null,
         });
         createdRisks.push(risk);
       }
@@ -14444,7 +14468,8 @@ For RISKS (array):
   "probability": "Medium",
   "impact": "Medium",
   "status": "Open",
-  "mitigationPlan": "How to mitigate"
+  "mitigationPlan": "How to mitigate",
+  "costExposure": "50000"
 }
 
 For ISSUES (array):
@@ -14453,7 +14478,8 @@ For ISSUES (array):
   "description": "Description",
   "priority": "Medium",
   "status": "Open",
-  "type": "Task"
+  "type": "Task",
+  "costExposure": "25000"
 }
 
 For MILESTONES (array):
@@ -14692,6 +14718,7 @@ Return ONLY valid JSON.`;
             impact: riskData.impact || "Medium",
             status: riskData.status || "Open",
             mitigationPlan: riskData.mitigationPlan,
+            costExposure: riskData.costExposure || null,
           });
           createdRisks.push(risk);
         }
@@ -14713,6 +14740,7 @@ Return ONLY valid JSON.`;
             priority: issueData.priority || "Medium",
             status: issueData.status || "Open",
             type: issueData.type || "Task",
+            costExposure: issueData.costExposure || null,
           });
           createdIssues.push(issue);
         }
@@ -14883,8 +14911,8 @@ Return a JSON response with this structure:
 
 For a PROJECT: { "name": "Project name", "description": "Description", "status": "Initiation", "priority": "Medium", "health": "Green", "budget": 0 }
 For TASKS (array): { "name": "Task name", "description": "Description", "durationDays": 5, "status": "Not Started", "priority": "Medium" }
-For RISKS (array): { "title": "Risk title", "description": "Description", "probability": "Medium", "impact": "Medium", "status": "Open", "mitigationPlan": "How to mitigate" }
-For ISSUES (array): { "title": "Issue title", "description": "Description", "priority": "Medium", "status": "Open", "type": "Task" }
+For RISKS (array): { "title": "Risk title", "description": "Description", "probability": "Medium", "impact": "Medium", "status": "Open", "mitigationPlan": "How to mitigate", "costExposure": "50000" }
+For ISSUES (array): { "title": "Issue title", "description": "Description", "priority": "Medium", "status": "Open", "type": "Task", "costExposure": "25000" }
 For MILESTONES (array): { "name": "Milestone name", "description": "Description", "daysFromStart": 30 }
 For RESOURCES (array): { "displayName": "Full Name", "email": "email@example.com", "title": "Job Title", "department": "Department", "skills": "Skill1, Skill2" }
 
@@ -15148,6 +15176,7 @@ Return ONLY valid JSON.`;
             impact: riskData.impact || "Medium",
             status: riskData.status || "Open",
             mitigationPlan: riskData.mitigationPlan,
+            costExposure: riskData.costExposure || null,
           });
           createdRisks.push(risk);
         }
@@ -15169,6 +15198,7 @@ Return ONLY valid JSON.`;
             priority: issueData.priority || "Medium",
             status: issueData.status || "Open",
             type: issueData.type || "Task",
+            costExposure: issueData.costExposure || null,
           });
           createdIssues.push(issue);
         }
