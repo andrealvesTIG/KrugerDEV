@@ -51,6 +51,7 @@ export interface EditRiskDialogProps {
     mitigationPlan?: string | null;
     escalatedToPortfolio?: boolean | null;
     escalatedAt?: Date | string | null;
+    itemType?: string | null;
   } | null;
   onSubmit: (data: RiskFormData) => void;
   isSubmitting?: boolean;
@@ -101,6 +102,8 @@ export function EditRiskDialog({
 }: EditRiskDialogProps) {
   const [showHistory, setShowHistory] = useState(false);
   const { toast } = useToast();
+  const isIssue = risk?.itemType === 'issue';
+  const itemLabel = isIssue ? 'Issue' : 'Risk';
 
   const form = useForm<RiskFormData>({
     resolver: zodResolver(riskFormSchema),
@@ -162,8 +165,8 @@ export function EditRiskDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
-          <DialogTitle>Edit Risk</DialogTitle>
-          <DialogDescription>Modify the risk details below.</DialogDescription>
+          <DialogTitle>Edit {itemLabel}</DialogTitle>
+          <DialogDescription>Modify the {itemLabel.toLowerCase()} details below.</DialogDescription>
         </DialogHeader>
 
         {(projectLink || portfolioLink) && (
@@ -189,7 +192,7 @@ export function EditRiskDialog({
         )}
 
         <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col flex-1 overflow-hidden">
-          <div className="flex flex-col gap-4 pt-4 flex-1 overflow-y-auto pr-1 [&_input]:focus-visible:ring-offset-0 [&_button[role=combobox]]:focus-visible:ring-offset-0">
+          <div className="flex flex-col gap-4 pt-4 flex-1 overflow-y-auto pr-1 [&_label]:relative [&_label]:z-10 [&_input]:focus-visible:ring-offset-0 [&_textarea]:focus-visible:ring-offset-0 [&_button[role=combobox]]:focus-visible:ring-offset-0">
             <div className="space-y-1.5 pb-2">
               <Label>Title <span className="text-destructive">*</span></Label>
               <Input {...form.register("title")} data-testid="input-risk-title" />
