@@ -243,7 +243,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   ensureModule("pmo-radar", "finance", "simulation");
   ensureModule("timesheets", "portfolio", "tasks");
   ensureModule("lessons-learned", "help");
-  ensureModule("invoices", "finance", "simulation");
+  ensureModule("invoices", "finance", "pmo-radar");
   ensureModule("user-guide", "help");
   
   const helpGroup = updatedStructure.find(g => g.id === "help");
