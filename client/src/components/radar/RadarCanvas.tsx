@@ -142,7 +142,7 @@ function drawClouds(ctx: CanvasRenderingContext2D, clouds: Cloud[], w: number, h
     for (const blob of cloud.blobs) {
       ctx.beginPath();
       ctx.ellipse(cloud.x + blob.dx, y + blob.dy, blob.rx, blob.ry, 0, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(255,255,255,${cloud.opacity})`;
+      ctx.fillStyle = `rgba(200,210,225,${cloud.opacity * 1.3})`;
       ctx.fill();
     }
   }
@@ -296,10 +296,10 @@ export default function RadarCanvas({
         ctx.fillStyle = grad;
       } else {
         const grad = ctx.createLinearGradient(0, 0, 0, h);
-        grad.addColorStop(0, "#dbeafe");
-        grad.addColorStop(0.35, "#e0f2fe");
-        grad.addColorStop(0.65, "#f0f9ff");
-        grad.addColorStop(1, "#f1f5f9");
+        grad.addColorStop(0, "#eff6ff");
+        grad.addColorStop(0.35, "#f0f9ff");
+        grad.addColorStop(0.65, "#f8fafc");
+        grad.addColorStop(1, "#f8fafc");
         ctx.fillStyle = grad;
       }
       ctx.fillRect(0, 0, w, h);
