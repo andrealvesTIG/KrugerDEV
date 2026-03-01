@@ -820,37 +820,6 @@ function ProjectsTab({ portfolioId, organizationId, isCustom }: { portfolioId: n
                     <td className="p-3 text-sm">${Number(project.budget).toLocaleString()}</td>
                     <td className="p-3">
                       <div className="flex items-center gap-1">
-                        {(() => {
-                          const projectIndex = projects?.findIndex((p: Project) => p.id === project.id) ?? -1;
-                          const prevProject = projectIndex > 0 ? projects?.[projectIndex - 1] : null;
-                          const nextProject = projectIndex < (projects?.length ?? 0) - 1 ? projects?.[projectIndex + 1] : null;
-                          return (
-                            <>
-                              <Link href={prevProject ? `/projects/${prevProject.id}` : "#"}>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
-                                  disabled={!prevProject}
-                                  className="h-8 w-8"
-                                  data-testid={`button-prev-project-${project.id}`}
-                                >
-                                  <ChevronLeft className="h-4 w-4" />
-                                </Button>
-                              </Link>
-                              <Link href={nextProject ? `/projects/${nextProject.id}` : "#"}>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
-                                  disabled={!nextProject}
-                                  className="h-8 w-8"
-                                  data-testid={`button-next-project-${project.id}`}
-                                >
-                                  <ChevronRight className="h-4 w-4" />
-                                </Button>
-                              </Link>
-                            </>
-                          );
-                        })()}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8" data-testid={`button-menu-project-${project.id}`}>
