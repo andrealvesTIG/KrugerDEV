@@ -69,7 +69,8 @@ import {
   portfolioRiskAssessments, type PortfolioRiskAssessment, type InsertPortfolioRiskAssessment,
   projectRiskAssessments, type ProjectRiskAssessment, type InsertProjectRiskAssessment,
   customDashboards, apiRequestLogs, userActivityLogs, featureUsageLogs,
-  errorLogs, helpTickets, simulationRuns, reportSubscriptions,
+  errorLogs, helpTickets, simulationRuns, simulationEvents, reportSubscriptions,
+  legacyRisks, legacyRiskChangeLogs, legacyRiskResourceAssignments,
   apiTokens, type ApiToken, type InsertApiToken
 } from "@shared/schema";
 import { eq, and, desc, asc, or, ilike, sql, isNull, isNotNull, inArray, notInArray } from "drizzle-orm";
@@ -1764,6 +1765,8 @@ export class DatabaseStorage implements IStorage {
         await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
         const deletedAssignments = await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, task.id)).returning();
         taskAssignmentsDeleted += deletedAssignments.length;
+        await db.delete(notifications).where(eq(notifications.taskId, task.id));
+        await db.update(issues).set({ relatedTaskId: null }).where(eq(issues.relatedTaskId, task.id));
       }
       stats.assignments += taskAssignmentsDeleted;
       
@@ -1771,10 +1774,22 @@ export class DatabaseStorage implements IStorage {
         .where(and(eq(tasks.projectId, project.id), eq(tasks.isDemo, true))).returning();
       stats.tasks += deletedTasks.length;
       
+      const demoIssuesAndRisks = await db.select({ id: issues.id }).from(issues)
+        .where(and(eq(issues.projectId, project.id), eq(issues.isDemo, true)));
+      for (const item of demoIssuesAndRisks) {
+        await db.delete(issueChangeLogs).where(eq(issueChangeLogs.issueId, item.id));
+        await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.issueId, item.id));
+      }
+
       const deletedRisks = await db.delete(issues)
         .where(and(eq(issues.projectId, project.id), eq(issues.itemType, 'risk'), eq(issues.isDemo, true))).returning();
       stats.risks += deletedRisks.length;
       
+      const demoMilestones = await db.select({ id: milestones.id }).from(milestones)
+        .where(and(eq(milestones.projectId, project.id), eq(milestones.isDemo, true)));
+      for (const ms of demoMilestones) {
+        await db.delete(notifications).where(eq(notifications.milestoneId, ms.id));
+      }
       const deletedMilestones = await db.delete(milestones)
         .where(and(eq(milestones.projectId, project.id), eq(milestones.isDemo, true))).returning();
       stats.milestones += deletedMilestones.length;
@@ -1828,6 +1843,36 @@ export class DatabaseStorage implements IStorage {
         Number(remainingDecisions[0]?.count || 0) > 0;
       
       if (!hasRemainingChildren) {
+        await db.delete(lessonsLearned).where(eq(lessonsLearned.projectId, project.id));
+        await db.delete(projectChangeLogs).where(eq(projectChangeLogs.projectId, project.id));
+        await db.delete(healthStatusHistory).where(eq(healthStatusHistory.projectId, project.id));
+        await db.delete(statusReportHistory).where(eq(statusReportHistory.projectId, project.id));
+        await db.delete(billableStatusComments).where(eq(billableStatusComments.projectId, project.id));
+        await db.delete(costItems).where(eq(costItems.projectId, project.id));
+        await db.delete(projectCustomFieldValues).where(eq(projectCustomFieldValues.projectId, project.id));
+        await db.delete(projectScores).where(eq(projectScores.projectId, project.id));
+        await db.delete(projectRiskAssessments).where(eq(projectRiskAssessments.projectId, project.id));
+        await db.delete(customPortfolioProjects).where(eq(customPortfolioProjects.projectId, project.id));
+        await db.delete(simulationEvents).where(eq(simulationEvents.projectId, project.id));
+        await db.update(mppImports).set({ projectId: null }).where(eq(mppImports.projectId, project.id));
+        await db.update(projectIntakes).set({ createdProjectId: null }).where(eq(projectIntakes.createdProjectId, project.id));
+        await db.delete(notifications).where(eq(notifications.projectId, project.id));
+        const projectInvoiceRows = await db.select({ id: projectInvoices.id }).from(projectInvoices).where(eq(projectInvoices.projectId, project.id));
+        for (const inv of projectInvoiceRows) {
+          await db.delete(invoiceNotes).where(eq(invoiceNotes.invoiceId, inv.id));
+        }
+        await db.delete(projectInvoices).where(eq(projectInvoices.projectId, project.id));
+        const comments = await db.select({ id: projectComments.id }).from(projectComments).where(eq(projectComments.projectId, project.id));
+        for (const c of comments) {
+          await db.delete(notifications).where(eq(notifications.commentId, c.id));
+        }
+        await db.delete(projectComments).where(eq(projectComments.projectId, project.id));
+        const legacyRiskRows = await db.select({ id: legacyRisks.id }).from(legacyRisks).where(eq(legacyRisks.projectId, project.id));
+        for (const lr of legacyRiskRows) {
+          await db.delete(legacyRiskChangeLogs).where(eq(legacyRiskChangeLogs.riskId, lr.id));
+          await db.delete(legacyRiskResourceAssignments).where(eq(legacyRiskResourceAssignments.riskId, lr.id));
+        }
+        await db.delete(legacyRisks).where(eq(legacyRisks.projectId, project.id));
         await db.delete(projects).where(eq(projects.id, project.id));
         stats.projects++;
       }
@@ -1841,6 +1886,8 @@ export class DatabaseStorage implements IStorage {
         .where(eq(projects.portfolioId, portfolio.id));
       
       if (Number(remainingProjects[0]?.count || 0) === 0) {
+        await db.delete(portfolioRiskAssessments).where(eq(portfolioRiskAssessments.portfolioId, portfolio.id));
+        await db.delete(notifications).where(eq(notifications.portfolioId, portfolio.id));
         await db.delete(portfolios).where(eq(portfolios.id, portfolio.id));
         stats.portfolios++;
       }
@@ -1863,6 +1910,8 @@ export class DatabaseStorage implements IStorage {
         const deletedAssignments = await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.resourceId, resourceId)).returning();
         stats.assignments += deletedAssignments.length;
         await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.resourceId, resourceId));
+        await db.delete(resourceSkills).where(eq(resourceSkills.resourceId, resourceId));
+        await db.delete(resourceAvailability).where(eq(resourceAvailability.resourceId, resourceId));
       }
     }
     
