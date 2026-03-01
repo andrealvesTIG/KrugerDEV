@@ -1628,8 +1628,8 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
       </AlertDialog>
 
       <Dialog open={riskDialogOpen} onOpenChange={setRiskDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
-          <DialogHeader>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center gap-2" data-testid="text-risk-dialog-title">
               <Shield className="h-5 w-5" />
               Portfolio Risk Assessment
@@ -1638,7 +1638,7 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
               AI-powered risk analysis for {portfolioName}
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="flex-1 pr-4">
+          <div className="flex-1 min-h-0 overflow-y-auto pr-2">
             {riskReport && (
               <div className="space-y-6 pb-4">
                 <div className={cn("rounded-lg p-6 text-center", getRiskScoreBg(riskReport.riskScore || 0))} data-testid="display-risk-score">
@@ -1791,8 +1791,8 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
                 )}
               </div>
             )}
-          </ScrollArea>
-          <DialogFooter className="flex-row flex-wrap gap-2 pt-4 border-t">
+          </div>
+          <DialogFooter className="flex-shrink-0 flex-row flex-wrap gap-2 pt-4 border-t">
             {riskAssessmentId && (
               <Button
                 variant="outline"
