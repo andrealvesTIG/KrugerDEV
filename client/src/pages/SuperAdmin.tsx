@@ -424,9 +424,28 @@ function OrganizationsTab() {
       queryClient.invalidateQueries({ queryKey: ['/api/milestones'] });
       queryClient.invalidateQueries({ queryKey: ['/api/issues'] });
       queryClient.invalidateQueries({ queryKey: ['/api/project-financials'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/resources'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/project-intakes'] });
+      const s = data.stats;
+      const parts = [];
+      if (s.portfolios) parts.push(`${s.portfolios} portfolios`);
+      if (s.projects) parts.push(`${s.projects} projects`);
+      if (s.tasks) parts.push(`${s.tasks} tasks`);
+      if (s.risks) parts.push(`${s.risks} risks`);
+      if (s.issues) parts.push(`${s.issues} issues`);
+      if (s.milestones) parts.push(`${s.milestones} milestones`);
+      if (s.financials) parts.push(`${s.financials} financials`);
+      if (s.changeRequests) parts.push(`${s.changeRequests} change requests`);
+      if (s.documents) parts.push(`${s.documents} documents`);
+      if (s.benefits) parts.push(`${s.benefits} benefits`);
+      if (s.decisions) parts.push(`${s.decisions} decisions`);
+      if (s.assignments) parts.push(`${s.assignments} assignments`);
+      if (s.timesheets) parts.push(`${s.timesheets} timesheets`);
+      if (s.resources) parts.push(`${s.resources} resources`);
+      if (s.intakes) parts.push(`${s.intakes} intakes`);
       toast({ 
         title: "Demo Data Removed", 
-        description: `Deleted ${data.stats.portfolios} portfolios, ${data.stats.projects} projects, ${data.stats.tasks} tasks, ${data.stats.risks} risks, ${data.stats.milestones} milestones, ${data.stats.issues} issues, ${data.stats.financials} financial records` 
+        description: parts.length > 0 ? `Deleted ${parts.join(', ')}` : 'No demo data found to remove'
       });
       setDeleteDemoDataOrg(null);
     },
@@ -1119,7 +1138,7 @@ function OrganizationsTab() {
               Remove Demo Data
             </DialogTitle>
             <DialogDescription>
-              This will permanently delete only <strong>demo-generated</strong> portfolios, projects, tasks, risks, milestones, issues, and financial records for <strong>{deleteDemoDataOrg?.name}</strong>.
+              This will permanently delete all <strong>demo-generated</strong> data for <strong>{deleteDemoDataOrg?.name}</strong>, including portfolios, projects, tasks, risks, issues, milestones, financials, change requests, documents, benefits, decisions, assignments, timesheets, resources, and intakes.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg bg-muted border p-4 space-y-2">

@@ -233,6 +233,12 @@ export interface IStorage {
     financials: number;
     intakes: number;
     resources: number;
+    changeRequests: number;
+    documents: number;
+    benefits: number;
+    decisions: number;
+    timesheets: number;
+    assignments: number;
   }>;
 
   // Recycle Bin
@@ -1717,6 +1723,12 @@ export class DatabaseStorage implements IStorage {
     financials: number;
     intakes: number;
     resources: number;
+    changeRequests: number;
+    documents: number;
+    benefits: number;
+    decisions: number;
+    timesheets: number;
+    assignments: number;
   }> {
     const stats = {
       portfolios: 0,
@@ -1728,74 +1740,99 @@ export class DatabaseStorage implements IStorage {
       financials: 0,
       intakes: 0,
       resources: 0,
+      changeRequests: 0,
+      documents: 0,
+      benefits: 0,
+      decisions: 0,
+      timesheets: 0,
+      assignments: 0,
     };
 
-    // Get ALL projects for this organization (not just demo ones)
-    // We need to delete demo items from ALL projects, not just demo projects
     const allProjects = await db.select().from(projects)
       .where(eq(projects.organizationId, organizationId));
     
     for (const project of allProjects) {
-      // Delete DEMO tasks for this project (and their dependencies/logs)
       const demoTasks = await db.select().from(tasks)
         .where(and(eq(tasks.projectId, project.id), eq(tasks.isDemo, true)));
+      
+      let taskAssignmentsDeleted = 0;
       for (const task of demoTasks) {
+        const deletedTimesheets = await db.delete(timesheetEntries).where(eq(timesheetEntries.taskId, task.id)).returning();
+        stats.timesheets += deletedTimesheets.length;
         await db.delete(taskDependencies).where(eq(taskDependencies.taskId, task.id));
         await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, task.id));
         await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
-        await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, task.id));
+        const deletedAssignments = await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, task.id)).returning();
+        taskAssignmentsDeleted += deletedAssignments.length;
       }
+      stats.assignments += taskAssignmentsDeleted;
+      
       const deletedTasks = await db.delete(tasks)
         .where(and(eq(tasks.projectId, project.id), eq(tasks.isDemo, true))).returning();
       stats.tasks += deletedTasks.length;
       
-      // Delete DEMO risks (now in issues table with itemType='risk')
       const deletedRisks = await db.delete(issues)
         .where(and(eq(issues.projectId, project.id), eq(issues.itemType, 'risk'), eq(issues.isDemo, true))).returning();
       stats.risks += deletedRisks.length;
       
-      // Delete DEMO milestones
       const deletedMilestones = await db.delete(milestones)
         .where(and(eq(milestones.projectId, project.id), eq(milestones.isDemo, true))).returning();
       stats.milestones += deletedMilestones.length;
       
-      // Delete DEMO issues (non-risk)
       const deletedIssues = await db.delete(issues)
         .where(and(eq(issues.projectId, project.id), eq(issues.itemType, 'issue'), eq(issues.isDemo, true))).returning();
       stats.issues += deletedIssues.length;
       
-      // Delete DEMO financials
       const deletedFinancials = await db.delete(projectFinancials)
         .where(and(eq(projectFinancials.projectId, project.id), eq(projectFinancials.isDemo, true))).returning();
       stats.financials += deletedFinancials.length;
+
+      const deletedChangeRequests = await db.delete(changeRequests)
+        .where(and(eq(changeRequests.projectId, project.id), eq(changeRequests.isDemo, true))).returning();
+      stats.changeRequests += deletedChangeRequests.length;
+
+      const deletedDocuments = await db.delete(projectDocuments)
+        .where(and(eq(projectDocuments.projectId, project.id), eq(projectDocuments.isDemo, true))).returning();
+      stats.documents += deletedDocuments.length;
+
+      const deletedBenefits = await db.delete(projectBenefits)
+        .where(and(eq(projectBenefits.projectId, project.id), eq(projectBenefits.isDemo, true))).returning();
+      stats.benefits += deletedBenefits.length;
+
+      const deletedDecisions = await db.delete(projectDecisions)
+        .where(and(eq(projectDecisions.projectId, project.id), eq(projectDecisions.isDemo, true))).returning();
+      stats.decisions += deletedDecisions.length;
     }
     
-    // Now delete demo projects that have no remaining children
     const demoProjects = await db.select().from(projects)
       .where(and(eq(projects.organizationId, organizationId), eq(projects.isDemo, true)));
     
     for (const project of demoProjects) {
       const remainingTasks = await db.select({ count: sql`count(*)` }).from(tasks).where(eq(tasks.projectId, project.id));
-      const remainingRisks = await db.select({ count: sql`count(*)` }).from(issues).where(and(eq(issues.projectId, project.id), eq(issues.itemType, 'risk')));
+      const remainingIssuesAll = await db.select({ count: sql`count(*)` }).from(issues).where(eq(issues.projectId, project.id));
       const remainingMilestones = await db.select({ count: sql`count(*)` }).from(milestones).where(eq(milestones.projectId, project.id));
-      const remainingIssues = await db.select({ count: sql`count(*)` }).from(issues).where(eq(issues.projectId, project.id));
       const remainingFinancials = await db.select({ count: sql`count(*)` }).from(projectFinancials).where(eq(projectFinancials.projectId, project.id));
+      const remainingCRs = await db.select({ count: sql`count(*)` }).from(changeRequests).where(eq(changeRequests.projectId, project.id));
+      const remainingDocs = await db.select({ count: sql`count(*)` }).from(projectDocuments).where(eq(projectDocuments.projectId, project.id));
+      const remainingBenefits = await db.select({ count: sql`count(*)` }).from(projectBenefits).where(eq(projectBenefits.projectId, project.id));
+      const remainingDecisions = await db.select({ count: sql`count(*)` }).from(projectDecisions).where(eq(projectDecisions.projectId, project.id));
       
       const hasRemainingChildren = 
         Number(remainingTasks[0]?.count || 0) > 0 ||
-        Number(remainingRisks[0]?.count || 0) > 0 ||
+        Number(remainingIssuesAll[0]?.count || 0) > 0 ||
         Number(remainingMilestones[0]?.count || 0) > 0 ||
-        Number(remainingIssues[0]?.count || 0) > 0 ||
-        Number(remainingFinancials[0]?.count || 0) > 0;
+        Number(remainingFinancials[0]?.count || 0) > 0 ||
+        Number(remainingCRs[0]?.count || 0) > 0 ||
+        Number(remainingDocs[0]?.count || 0) > 0 ||
+        Number(remainingBenefits[0]?.count || 0) > 0 ||
+        Number(remainingDecisions[0]?.count || 0) > 0;
       
-      // Only delete the demo project if it has no remaining children
       if (!hasRemainingChildren) {
         await db.delete(projects).where(eq(projects.id, project.id));
         stats.projects++;
       }
     }
     
-    // Delete DEMO portfolios only if they have no remaining projects
     const demoPortfolios = await db.select().from(portfolios)
       .where(and(eq(portfolios.organizationId, organizationId), eq(portfolios.isDemo, true)));
     
@@ -1809,19 +1846,24 @@ export class DatabaseStorage implements IStorage {
       }
     }
     
-    // Delete DEMO intakes (organization-level)
     const deletedIntakes = await db.delete(projectIntakes)
       .where(and(eq(projectIntakes.organizationId, organizationId), eq(projectIntakes.isDemo, true))).returning();
     stats.intakes = deletedIntakes.length;
     
-    // Delete DEMO resources and their assignments (organization-level)
     const demoResources = await db.select().from(resources)
       .where(and(eq(resources.organizationId, organizationId), eq(resources.isDemo, true)));
     
-    for (const resource of demoResources) {
-      // Delete any task/issue resource assignments for this demo resource (risks use issue_resource_assignments now)
-      await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.resourceId, resource.id));
-      await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.resourceId, resource.id));
+    const demoResourceIds = demoResources.map(r => r.id);
+    
+    if (demoResourceIds.length > 0) {
+      for (const resourceId of demoResourceIds) {
+        const deletedTimesheets = await db.delete(timesheetEntries).where(eq(timesheetEntries.resourceId, resourceId)).returning();
+        stats.timesheets += deletedTimesheets.length;
+        
+        const deletedAssignments = await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.resourceId, resourceId)).returning();
+        stats.assignments += deletedAssignments.length;
+        await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.resourceId, resourceId));
+      }
     }
     
     const deletedResources = await db.delete(resources)
