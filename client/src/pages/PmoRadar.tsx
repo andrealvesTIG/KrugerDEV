@@ -243,7 +243,7 @@ export default function PmoRadar() {
   const [simOverrides, setSimOverrides] = useState<Map<string, number>>(new Map());
   const [timeProjectionMonths, setTimeProjectionMonths] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [horizontalMetric, setHorizontalMetric] = useState<HorizontalMetric>("riskScore");
+  const [horizontalMetric, setHorizontalMetric] = useState<HorizontalMetric>("costExposureNorm");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingRisk, setEditingRisk] = useState<any>(null);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
