@@ -9710,11 +9710,14 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
       
       // Calculate endDate from duration if provided
-      if (input.durationDays && input.startDate) {
-        const startDate = new Date(input.startDate);
-        const endDate = new Date(startDate);
-        endDate.setDate(endDate.getDate() + input.durationDays - 1);
-        input.endDate = endDate.toISOString().split('T')[0];
+      if (input.durationDays != null && input.startDate) {
+        if (input.durationDays === 0) {
+          input.isMilestone = true;
+          input.endDate = input.startDate;
+        } else {
+          const start = new Date(input.startDate + 'T00:00:00');
+          input.endDate = formatDateStr(calculateEndDate(start, input.durationDays));
+        }
       }
       
       const existingTasks = await storage.getTasksByProject(input.projectId);
@@ -9891,6 +9894,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
       
       if (input.durationDays != null) {
+        if (input.durationDays === 0) {
+          input.isMilestone = true;
+        }
         const startDate = input.startDate || previousTask.startDate;
         if (startDate) {
           const start = new Date(startDate + 'T00:00:00');

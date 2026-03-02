@@ -776,12 +776,13 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
       const duration = Math.max(0, (value as number) ?? 0);
       updates.durationDays = duration;
       
-      if (task.startDate) {
-        if (duration === 0) {
+      if (duration === 0) {
+        updates.isMilestone = true;
+        if (task.startDate) {
           updates.endDate = task.startDate;
-        } else {
-          updates.endDate = calculateEndDateFromWorkingDays(task.startDate, duration);
         }
+      } else if (task.startDate) {
+        updates.endDate = calculateEndDateFromWorkingDays(task.startDate, duration);
       }
     }
     

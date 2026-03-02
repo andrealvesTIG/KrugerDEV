@@ -349,6 +349,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     if (startDate && durationDays !== null && !isNaN(durationDays) && durationDays >= 0) {
       if (durationDays === 0) {
         form.setValue("endDate", startDate);
+        setIsMilestone(true);
       } else {
         const newEnd = calculateEndDateFromWorkingDays(startDate, durationDays);
         form.setValue("endDate", newEnd);
