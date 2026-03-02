@@ -8050,6 +8050,180 @@ export async function registerRoutes(
     }
   });
 
+  app.post('/api/projects/:id/import-csv', upload.single('file'), async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied to this project" });
+      }
+
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No CSV file uploaded" });
+      }
+
+      const csvContent = req.file.buffer.toString('utf-8');
+      const parseResult = Papa.parse(csvContent, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: (header: string) => header.trim(),
+      });
+
+      if (parseResult.errors.length > 0) {
+        const criticalErrors = parseResult.errors.filter((e: any) => e.type !== 'FieldMismatch');
+        if (criticalErrors.length > 0) {
+          return res.status(400).json({ 
+            message: "CSV parsing errors", 
+            errors: criticalErrors.slice(0, 5).map((e: any) => `Row ${e.row}: ${e.message}`)
+          });
+        }
+      }
+
+      const rows = parseResult.data as Record<string, string>[];
+      if (rows.length === 0) {
+        return res.status(400).json({ message: "CSV file is empty or has no data rows" });
+      }
+
+      const existingTasks = await storage.getTasksByProject(projectId);
+      const existingByWbs = new Map<string, typeof existingTasks[0]>();
+      const existingByName = new Map<string, typeof existingTasks[0][]>();
+      for (const t of existingTasks) {
+        if (t.wbs) {
+          existingByWbs.set(t.wbs.trim(), t);
+        }
+        if (t.name) {
+          const key = t.name.toLowerCase().trim();
+          if (!existingByName.has(key)) existingByName.set(key, []);
+          existingByName.get(key)!.push(t);
+        }
+      }
+
+      const matchedTaskIds = new Set<number>();
+
+      const findExistingTask = (wbs: string, name: string): typeof existingTasks[0] | undefined => {
+        if (wbs) {
+          const byWbs = existingByWbs.get(wbs);
+          if (byWbs && !matchedTaskIds.has(byWbs.id)) return byWbs;
+        }
+        const nameKey = name.toLowerCase().trim();
+        const byName = existingByName.get(nameKey);
+        if (byName) {
+          const unmatched = byName.find(t => !matchedTaskIds.has(t.id));
+          if (unmatched) return unmatched;
+        }
+        return undefined;
+      };
+
+      const isValidDate = (d: string) => d && !isNaN(new Date(d).getTime());
+
+      let created = 0;
+      let updated = 0;
+      let skipped = 0;
+
+      for (const row of rows) {
+        const name = (row['Name'] || '').trim();
+        const type = (row['Type'] || '').trim();
+
+        if (!name || type === 'Project') {
+          skipped++;
+          continue;
+        }
+
+        const startDate = (row['Start Date'] || '').trim();
+        const endDate = (row['End Date'] || '').trim();
+        const durationStr = (row['Duration (days)'] || '').trim();
+        const progressStr = (row['% Complete'] || '').trim();
+        const status = (row['Status'] || '').trim();
+        const priority = (row['Priority'] || '').trim();
+        const assignee = (row['Assigned To'] || '').trim();
+        const description = (row['Description'] || '').trim();
+        const wbs = (row['WBS'] || '').trim();
+
+        const isMilestone = type === 'Milestone';
+        const durationDays = durationStr ? parseInt(durationStr, 10) : undefined;
+        const progress = progressStr ? parseInt(progressStr, 10) : undefined;
+
+        const validStatuses = ['Not Started', 'In Progress', 'On Hold', 'Completed', 'Cancelled'];
+        const validPriorities = ['Low', 'Medium', 'High', 'Critical'];
+        const taskStatus = validStatuses.includes(status) ? status : undefined;
+        const taskPriority = validPriorities.includes(priority) ? priority : undefined;
+
+        const existingTask = findExistingTask(wbs, name);
+
+        if (existingTask) {
+          matchedTaskIds.add(existingTask.id);
+          const updates: Record<string, any> = {};
+          if (description && description !== (existingTask.description || '')) updates.description = description;
+          if (isValidDate(startDate) && startDate !== (existingTask.startDate || '')) updates.startDate = startDate;
+          if (isValidDate(endDate) && endDate !== (existingTask.endDate || '')) updates.endDate = endDate;
+          if (durationDays !== undefined && !isNaN(durationDays) && durationDays !== existingTask.durationDays) updates.durationDays = durationDays;
+          if (progress !== undefined && !isNaN(progress) && progress !== existingTask.progress) updates.progress = progress;
+          if (taskStatus && taskStatus !== existingTask.status) updates.status = taskStatus;
+          if (taskPriority && taskPriority !== (existingTask.priority || '')) updates.priority = taskPriority;
+          if (assignee && assignee !== (existingTask.assignee || '')) updates.assignee = assignee;
+          if (isMilestone !== existingTask.isMilestone) updates.isMilestone = isMilestone;
+          if (wbs && wbs !== (existingTask.wbs || '')) updates.wbs = wbs;
+          if (name !== existingTask.name) updates.name = name;
+
+          if (Object.keys(updates).length > 0) {
+            await storage.updateTask(existingTask.id, updates);
+            updated++;
+          } else {
+            skipped++;
+          }
+        } else {
+          const today = new Date().toISOString().split('T')[0];
+          const resolvedStartDate = isValidDate(startDate) ? startDate : today;
+          const resolvedEndDate = isValidDate(endDate) ? endDate : (
+            durationDays && isValidDate(startDate)
+              ? new Date(new Date(startDate).getTime() + (durationDays - 1) * 86400000).toISOString().split('T')[0]
+              : resolvedStartDate
+          );
+
+          const taskData: any = {
+            projectId,
+            name,
+            startDate: resolvedStartDate,
+            endDate: resolvedEndDate,
+            isMilestone,
+          };
+          if (description) taskData.description = description;
+          if (durationDays !== undefined && !isNaN(durationDays)) taskData.durationDays = durationDays;
+          if (progress !== undefined && !isNaN(progress)) taskData.progress = progress;
+          if (taskStatus) taskData.status = taskStatus;
+          if (taskPriority) taskData.priority = taskPriority;
+          if (assignee) taskData.assignee = assignee;
+          if (wbs) taskData.wbs = wbs;
+
+          await storage.createTask(taskData);
+          created++;
+        }
+      }
+
+      res.json({
+        message: `Import complete: ${created} tasks created, ${updated} tasks updated, ${skipped} rows skipped`,
+        created,
+        updated,
+        skipped,
+      });
+    } catch (err) {
+      console.error('CSV import error:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error importing CSV" : classified.message });
+    }
+  });
+
   // Project Status Report Email
   app.post('/api/projects/:id/status-report/email', async (req, res) => {
     try {

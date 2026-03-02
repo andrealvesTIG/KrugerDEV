@@ -34,7 +34,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, Clock, ChevronDown, ChevronUp, ChevronRight, Milestone as MilestoneIcon, ClipboardList, ExternalLink, Download, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Flag, FlagTriangleRight } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, Clock, ChevronDown, ChevronUp, ChevronRight, Milestone as MilestoneIcon, ClipboardList, ExternalLink, Download, Upload, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Flag, FlagTriangleRight } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -197,6 +197,8 @@ export default function ProjectDetails() {
   };
   const [isProjectHistoryOpen, setIsProjectHistoryOpen] = useState(false);
   const [isStatusReportOpen, setIsStatusReportOpen] = useState(false);
+  const [isImportingCsv, setIsImportingCsv] = useState(false);
+  const csvImportInputRef = useRef<HTMLInputElement>(null);
   const [sectionsCollapsed, setSectionsCollapsed] = useState({
     workflow: false,
     stats: false,
@@ -458,6 +460,38 @@ export default function ProjectDetails() {
   // Check if project is in locked (terminal) state
   const isProjectLocked = isProjectStatusLocked(project.status);
 
+  const handleCsvImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !project) return;
+
+    setIsImportingCsv(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch(`/api/projects/${project.id}/import-csv`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: "Import failed", description: data.message || "Failed to import CSV", variant: "destructive" });
+      } else {
+        toast({ title: "Import successful", description: data.message });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id, 'tasks'] });
+      }
+    } catch (err) {
+      toast({ title: "Import failed", description: "An error occurred while importing the CSV file", variant: "destructive" });
+    } finally {
+      setIsImportingCsv(false);
+      if (csvImportInputRef.current) {
+        csvImportInputRef.current.value = '';
+      }
+    }
+  };
+
   const handleStatusChange = (status: string) => {
     // If trying to lock the project, show confirmation
     if (status === "Closed" && !isProjectLocked) {
@@ -657,8 +691,24 @@ export default function ProjectDetails() {
                 <GanttChart className="h-4 w-4 mr-2" />
                 Download as MS Project XML
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={() => csvImportInputRef.current?.click()}
+                disabled={isImportingCsv}
+                data-testid="menu-import-csv"
+              >
+                {isImportingCsv ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                {isImportingCsv ? 'Importing...' : 'Import from CSV'}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <input
+            ref={csvImportInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={handleCsvImport}
+          />
           
           <Tooltip>
             <TooltipTrigger asChild>

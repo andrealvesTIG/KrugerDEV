@@ -25,6 +25,7 @@ The application features a professional, enterprise-grade UI inspired by Linear 
 **Resource Management**: Features tracking of resource skills, availability, and utilization, with views for Capacity Planning, Workload Dashboard, and Availability Calendar.
 **PMO Radar**: A dynamic risk visualization page displaying risks and issues on a radar-style interface with interactive filters, time projection, timeline playback, and detailed drill-down capabilities. Overdue items are visually highlighted.
 **Shared Risk Editing**: Utilizes a single, shared `EditRiskDialog` component across the application for consistent risk management, supporting AI suggestions, resource assignments, and change history.
+**CSV Import/Export Round-Trip**: Tasks can be exported to CSV from the project details page and re-imported after modifications. The import matches existing tasks by WBS code first, then by name, and only updates fields that have changed. New rows in the CSV create new tasks. The import endpoint is `POST /api/projects/:id/import-csv` using multipart file upload.
 
 ## External Dependencies
 
