@@ -5077,10 +5077,7 @@ export async function registerRoutes(
           ? plannerTask.dueDateTime.split('T')[0] 
           : (plannerTask.startDateTime ? plannerTask.startDateTime.split('T')[0] : defaultEndDate);
 
-        const startMs = new Date(taskStartDate).getTime();
-        const endMs = new Date(taskEndDate).getTime();
-        const diffDays = Math.ceil((endMs - startMs) / (1000 * 60 * 60 * 24));
-        const durationDays = Number.isFinite(diffDays) ? Math.max(0, diffDays) : 1;
+        const durationDays = calculateDuration(new Date(taskStartDate), new Date(taskEndDate));
         const taskIsMilestone = durationDays === 0;
 
         const task = await storage.createTask({
@@ -5463,14 +5460,9 @@ export async function registerRoutes(
         return "Not Started";
       };
       
-      // Helper to calculate duration in days
-      const calculateDuration = (start: string | null, end: string | null): number => {
+      const calcDurationDays = (start: string | null, end: string | null): number => {
         if (!start || !end) return 1;
-        const startDate = new Date(start);
-        const endDate = new Date(end);
-        const diffTime = endDate.getTime() - startDate.getTime();
-        const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return Math.max(0, days);
+        return calculateDuration(new Date(start), new Date(end));
       };
 
       for (const dvTask of dataverseTasks) {
@@ -5509,7 +5501,7 @@ export async function registerRoutes(
         if (dvTask.msdyn_duration !== null && dvTask.msdyn_duration !== undefined) {
           durationDays = Math.round(dvTask.msdyn_duration / (60 * 24));
         } else {
-          durationDays = calculateDuration(taskStartDate, taskEndDate);
+          durationDays = calcDurationDays(taskStartDate, taskEndDate);
         }
         const taskIsMilestone = durationDays === 0;
 
@@ -6169,13 +6161,9 @@ export async function registerRoutes(
           return "Not Started";
         };
         
-        const calculateDuration = (start: string | null, end: string | null): number => {
+        const calcDurationDays = (start: string | null, end: string | null): number => {
           if (!start || !end) return 1;
-          const startDate = new Date(start);
-          const endDate = new Date(end);
-          const diffTime = endDate.getTime() - startDate.getTime();
-          const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          return Math.max(0, days);
+          return calculateDuration(new Date(start), new Date(end));
         };
 
         // Create tasks from Dataverse
@@ -6214,7 +6202,7 @@ export async function registerRoutes(
           if (dvTask.msdyn_duration !== null && dvTask.msdyn_duration !== undefined) {
             durationDays = Math.round(dvTask.msdyn_duration / (60 * 24));
           } else {
-            durationDays = calculateDuration(taskStartDate, taskEndDate);
+            durationDays = calcDurationDays(taskStartDate, taskEndDate);
           }
           const taskIsMilestone = durationDays === 0;
 
@@ -7156,10 +7144,7 @@ export async function registerRoutes(
           ? plannerTask.dueDateTime.split('T')[0] 
           : (plannerTask.startDateTime ? plannerTask.startDateTime.split('T')[0] : defaultEndDate);
 
-        const startMs = new Date(taskStartDate).getTime();
-        const endMs = new Date(taskEndDate).getTime();
-        const diffDays = Math.ceil((endMs - startMs) / (1000 * 60 * 60 * 24));
-        const durationDays = Number.isFinite(diffDays) ? Math.max(0, diffDays) : 1;
+        const durationDays = calculateDuration(new Date(taskStartDate), new Date(taskEndDate));
         const taskIsMilestone = durationDays === 0;
 
         const task = await storage.createTask({
@@ -7837,7 +7822,7 @@ export async function registerRoutes(
           'Project',
           project.startDate || '',
           project.endDate || '',
-          project.startDate && project.endDate ? String(Math.ceil((new Date(project.endDate).getTime() - new Date(project.startDate).getTime()) / (1000 * 60 * 60 * 24))) : '',
+          project.startDate && project.endDate ? String(calculateDuration(new Date(project.startDate), new Date(project.endDate))) : '',
           String(project.completionPercentage || 0),
           project.status || '',
           project.priority || '',
@@ -7853,7 +7838,7 @@ export async function registerRoutes(
             task.isMilestone ? 'Milestone' : 'Task',
             task.startDate || '',
             task.endDate || '',
-            task.durationDays ? String(task.durationDays) : '',
+            task.durationDays != null ? String(task.durationDays) : '',
             String(task.progress || 0),
             task.status || '',
             '',
@@ -7924,7 +7909,7 @@ export async function registerRoutes(
       <Priority>500</Priority>
       <Start>${projectStart}</Start>
       <Finish>${projectEnd}</Finish>
-      <Duration>PT${Math.max(1, Math.ceil((new Date(projectEnd).getTime() - new Date(projectStart).getTime()) / (1000 * 60 * 60 * 24)) * 8)}H0M0S</Duration>
+      <Duration>PT${Math.max(1, calculateDuration(new Date(projectStart), new Date(projectEnd)) * 8)}H0M0S</Duration>
       <DurationFormat>7</DurationFormat>
       <Summary>1</Summary>
       <Milestone>0</Milestone>
@@ -7937,7 +7922,7 @@ export async function registerRoutes(
           taskUid++;
           const taskStart = task.startDate ? new Date(task.startDate).toISOString() : projectStart;
           const taskEnd = task.endDate ? new Date(task.endDate).toISOString() : taskStart;
-          const duration = task.durationDays || Math.max(1, Math.ceil((new Date(taskEnd).getTime() - new Date(taskStart).getTime()) / (1000 * 60 * 60 * 24)));
+          const duration = task.durationDays ?? Math.max(1, calculateDuration(new Date(taskStart), new Date(taskEnd)));
           
           taskXml += `
     <Task>
@@ -9492,7 +9477,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         let totalDuration = 0;
         let weightedProgress = 0;
         for (const leaf of validLeaves) {
-          const duration = Math.max(1, Math.ceil((new Date(leaf.endDate!).getTime() - new Date(leaf.startDate!).getTime()) / (1000 * 60 * 60 * 24)) + 1);
+          const duration = Math.max(1, calculateDuration(new Date(leaf.startDate!), new Date(leaf.endDate!)));
           totalDuration += duration;
           weightedProgress += (leaf.progress || 0) * duration;
         }
@@ -9901,7 +9886,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
           input.endDate = formatDateStr(end);
         }
       } else if (input.startDate && input.startDate !== previousTask.startDate && input.endDate === undefined) {
-        const duration = previousTask.durationDays || (previousTask.startDate && previousTask.endDate
+        const duration = previousTask.durationDays ?? (previousTask.startDate && previousTask.endDate
           ? calculateDuration(new Date(previousTask.startDate + 'T00:00:00'), new Date(previousTask.endDate + 'T00:00:00'))
           : 1);
         if (duration > 0) {
@@ -10269,7 +10254,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
       const currentStart = successor.startDate ? new Date(successor.startDate + 'T00:00:00') : null;
       const currentEnd = successor.endDate ? new Date(successor.endDate + 'T00:00:00') : null;
-      const duration = successor.durationDays || (currentStart && currentEnd ? calculateDuration(currentStart, currentEnd) : 1);
+      const duration = successor.durationDays ?? (currentStart && currentEnd ? calculateDuration(currentStart, currentEnd) : 1);
 
       let newStart: Date | null = null;
       let newEnd: Date | null = null;

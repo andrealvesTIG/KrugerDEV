@@ -1237,7 +1237,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
             case 'estimatedHours':
               // Est Hours is read-only - calculated from resource assignments
               const durationForCalc = task.durationDays ?? (task.startDate && task.endDate 
-                ? Math.floor((new Date(task.endDate).getTime() - new Date(task.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1 
+                ? calculateDurationInWorkingDays(task.startDate, task.endDate)
                 : 0);
               const estHoursBreakdown = taskAssignments?.map(assignment => {
                 const weeklyCapacity = Number(assignment.resource.weeklyCapacity) || 40;

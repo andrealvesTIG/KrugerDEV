@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { calculateEndDate, formatDateStr } from "./lib/workingDays";
 import {
   users, portfolios, projects, customPortfolioProjects, milestones, issues, tasks,
   organizations, organizationMembers, organizationInvites, organizationAccessRequests, externalShares, taskChangeLogs, taskDependencies, projectFinancials,
@@ -3139,7 +3140,7 @@ export class DatabaseStorage implements IStorage {
       const startDate = importedTask.startDate || today;
       const endDate = importedTask.finishDate || 
         (importedTask.durationDays 
-          ? new Date(new Date(startDate).getTime() + importedTask.durationDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+          ? formatDateStr(calculateEndDate(new Date(startDate), importedTask.durationDays))
           : defaultEndDate);
 
       const isSummary = importedTask.isSummary || false;
@@ -3320,7 +3321,7 @@ export class DatabaseStorage implements IStorage {
       const startDate = importedTask.startDate || today;
       const endDate = importedTask.finishDate || 
         (importedTask.durationDays 
-          ? new Date(new Date(startDate).getTime() + importedTask.durationDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+          ? formatDateStr(calculateEndDate(new Date(startDate), importedTask.durationDays))
           : defaultEndDate);
 
       const isSummary = importedTask.isSummary || false;
