@@ -1815,6 +1815,7 @@ function PeriodManagementTab() {
                       <CalendarComponent
                         mode="single"
                         selected={dateRange.from}
+                        defaultMonth={dateRange.from}
                         onSelect={(date) => setDateRange(prev => ({ ...prev, from: date }))}
                         initialFocus
                       />
@@ -1834,6 +1835,7 @@ function PeriodManagementTab() {
                       <CalendarComponent
                         mode="single"
                         selected={dateRange.to}
+                        defaultMonth={dateRange.to}
                         onSelect={(date) => setDateRange(prev => ({ ...prev, to: date }))}
                         initialFocus
                       />
@@ -3330,6 +3332,7 @@ export default function Timesheets() {
                         <CalendarComponent
                           mode="single"
                           selected={currentDate}
+                          defaultMonth={currentDate}
                           onSelect={(date) => {
                             if (date) {
                               setCurrentDate(date);

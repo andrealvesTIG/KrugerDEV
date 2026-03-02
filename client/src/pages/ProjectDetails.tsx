@@ -2805,7 +2805,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={project.startDate ? new Date(project.startDate) : undefined} onSelect={(date) => handleDateChange('startDate', date)} initialFocus />
+                  <Calendar mode="single" selected={project.startDate ? new Date(project.startDate) : undefined} defaultMonth={project.startDate ? new Date(project.startDate) : undefined} showDateInput onDateInputSelect={(date) => handleDateChange('startDate', date)} onSelect={(date) => handleDateChange('startDate', date)} initialFocus />
                 </PopoverContent>
               </Popover>
             </div>
@@ -2819,7 +2819,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={project.endDate ? new Date(project.endDate) : undefined} onSelect={(date) => handleDateChange('endDate', date)} initialFocus />
+                  <Calendar mode="single" selected={project.endDate ? new Date(project.endDate) : undefined} defaultMonth={project.endDate ? new Date(project.endDate) : undefined} showDateInput onDateInputSelect={(date) => handleDateChange('endDate', date)} onSelect={(date) => handleDateChange('endDate', date)} initialFocus />
                 </PopoverContent>
               </Popover>
             </div>

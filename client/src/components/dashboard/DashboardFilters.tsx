@@ -159,6 +159,7 @@ export function DashboardFilters({
                 <Calendar
                   mode="range"
                   selected={{ from: filters.dateRange.from, to: filters.dateRange.to }}
+                  defaultMonth={filters.dateRange.from}
                   onSelect={(range) => {
                     updateFilter("dateRange", { from: range?.from, to: range?.to });
                   }}

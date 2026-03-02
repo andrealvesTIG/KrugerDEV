@@ -270,6 +270,13 @@ function InlineEditCell({
             <Calendar
               mode="single"
               selected={selectedDate}
+              defaultMonth={selectedDate}
+              showDateInput
+              onDateInputSelect={(date) => {
+                const dateStr = format(date, 'yyyy-MM-dd');
+                onSave(dateStr);
+                setIsEditing(false);
+              }}
               onSelect={(date) => {
                 if (date) {
                   const dateStr = format(date, 'yyyy-MM-dd');
