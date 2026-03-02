@@ -34,7 +34,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, Clock, ChevronDown, ChevronUp, ChevronRight, Milestone as MilestoneIcon, ClipboardList, ExternalLink, Download, Upload, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Flag, FlagTriangleRight } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, Clock, ChevronDown, ChevronUp, ChevronRight, Milestone as MilestoneIcon, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Flag, FlagTriangleRight } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -659,11 +659,11 @@ export default function ProjectDetails() {
               <TooltipTrigger asChild>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="icon" data-testid="button-download-project">
-                    <Download className="h-4 w-4" />
+                    <ArrowDownUp className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
               </TooltipTrigger>
-              <TooltipContent>Download Project</TooltipContent>
+              <TooltipContent>Export / Import</TooltipContent>
             </Tooltip>
             <DropdownMenuContent align="end">
               <DropdownMenuItem 
