@@ -722,32 +722,17 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
     
     // Auto-calculate duration when start or end date changes
     if (field === 'startDate') {
-      if (value && task.endDate) {
-        const start = parseISO(value as string);
-        const end = parseISO(task.endDate);
-        if (start <= end) {
-          const calculatedDuration = calculateDurationInWorkingDays(value as string, task.endDate);
-          updates.durationDays = Math.max(1, calculatedDuration);
-        } else {
-          const currentDuration = task.durationDays ?? 1;
-          const effectiveDuration = currentDuration === 0 ? 0 : Math.max(1, currentDuration);
-          if (effectiveDuration === 0) {
-            updates.endDate = value as string;
-          } else {
-            updates.endDate = calculateEndDateFromWorkingDays(value as string, effectiveDuration);
-          }
-          updates.durationDays = effectiveDuration;
-        }
-      } else if (value && !task.endDate) {
-        const duration = task.durationDays ?? 1;
-        const effectiveDuration = duration === 0 ? 0 : Math.max(1, duration);
+      if (value) {
+        const currentDuration = task.durationDays ?? (task.startDate && task.endDate
+          ? calculateDurationInWorkingDays(task.startDate, task.endDate) : 1);
+        const effectiveDuration = currentDuration === 0 ? 0 : Math.max(1, currentDuration);
         if (effectiveDuration === 0) {
           updates.endDate = value as string;
         } else {
           updates.endDate = calculateEndDateFromWorkingDays(value as string, effectiveDuration);
         }
         updates.durationDays = effectiveDuration;
-      } else if (!value) {
+      } else {
         updates.endDate = null;
         updates.durationDays = null;
       }

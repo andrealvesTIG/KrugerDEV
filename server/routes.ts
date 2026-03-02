@@ -9858,6 +9858,23 @@ Format your response as a numbered list with clear, concise strategies. Do not i
           const end = calculateEndDate(start, input.durationDays);
           input.endDate = formatDateStr(end);
         }
+      } else if (input.startDate && input.startDate !== previousTask.startDate && input.endDate === undefined) {
+        const duration = previousTask.durationDays || (previousTask.startDate && previousTask.endDate
+          ? calculateDuration(new Date(previousTask.startDate + 'T00:00:00'), new Date(previousTask.endDate + 'T00:00:00'))
+          : 1);
+        if (duration > 0) {
+          const start = new Date(input.startDate + 'T00:00:00');
+          const end = calculateEndDate(start, duration);
+          input.endDate = formatDateStr(end);
+          input.durationDays = duration;
+        }
+      } else if (input.endDate && input.endDate !== previousTask.endDate && input.startDate === undefined) {
+        const startDate = previousTask.startDate;
+        if (startDate) {
+          const start = new Date(startDate + 'T00:00:00');
+          const end = new Date(input.endDate + 'T00:00:00');
+          input.durationDays = calculateDuration(start, end);
+        }
       }
       
       const updated = await storage.updateTask(taskId, input);
@@ -10013,39 +10030,48 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const dependentTaskForDates = await storage.getTask(taskId);
       
       if (predecessorTaskForDates?.endDate && dependentTaskForDates) {
-        // Calculate new start date: predecessor end date + 1 day
-        const predecessorEnd = new Date(predecessorTaskForDates.endDate);
-        const nextDay = new Date(predecessorEnd);
-        nextDay.setDate(nextDay.getDate() + 1);
-        newStartDate = nextDay.toISOString().split('T')[0];
+        const predecessorEnd = new Date(predecessorTaskForDates.endDate + 'T00:00:00');
+        const adjustedStart = nextWorkingDay(predecessorEnd);
+        newStartDate = formatDateStr(adjustedStart);
         
-        // If current start is before the new start, adjust it
-        const currentStart = dependentTaskForDates.startDate ? new Date(dependentTaskForDates.startDate) : null;
-        if (!currentStart || currentStart < nextDay) {
-          // Calculate duration to maintain task length
-          const currentEnd = dependentTaskForDates.endDate ? new Date(dependentTaskForDates.endDate) : null;
-          const duration = currentStart && currentEnd ? 
-            Math.ceil((currentEnd.getTime() - currentStart.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+        const currentStart = dependentTaskForDates.startDate ? new Date(dependentTaskForDates.startDate + 'T00:00:00') : null;
+        if (!currentStart || currentStart < adjustedStart) {
+          const currentEnd = dependentTaskForDates.endDate ? new Date(dependentTaskForDates.endDate + 'T00:00:00') : null;
+          const duration = dependentTaskForDates.durationDays ?? (currentStart && currentEnd
+            ? calculateDuration(currentStart, currentEnd) : 1);
           
-          // Set new end date based on duration
-          const newEnd = new Date(nextDay);
-          newEnd.setDate(newEnd.getDate() + duration);
-          newEndDate = newEnd.toISOString().split('T')[0];
-          
-          await storage.updateTask(taskId, { 
-            startDate: newStartDate,
-            endDate: newEndDate,
-          });
+          if (duration === 0 || dependentTaskForDates.isMilestone) {
+            newEndDate = newStartDate;
+            await storage.updateTask(taskId, { 
+              startDate: newStartDate,
+              endDate: newStartDate,
+              durationDays: 0,
+            });
+          } else {
+            const newEnd = calculateEndDate(adjustedStart, Math.max(1, duration));
+            newEndDate = formatDateStr(newEnd);
+            await storage.updateTask(taskId, { 
+              startDate: newStartDate,
+              endDate: newEndDate,
+              durationDays: Math.max(1, duration),
+            });
+          }
           dateAdjusted = true;
         }
       }
       
+      let propagatedTasks: { taskId: number; newStartDate: string; newEndDate: string }[] = [];
+      if (dependentTaskForDates) {
+        propagatedTasks = await propagateScheduleForProject(dependentTaskForDates.projectId);
+      }
+
       res.status(201).json({ 
         ...dependency, 
         dateAdjusted,
         adjustedTaskId: dateAdjusted ? taskId : null,
         newStartDate: dateAdjusted ? newStartDate : null,
         newEndDate: dateAdjusted ? newEndDate : null,
+        propagatedTasks,
       });
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
