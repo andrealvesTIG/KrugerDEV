@@ -9481,8 +9481,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (validLeaves.length > 0) {
         const startDates = validLeaves.map(t => new Date(t.startDate!).getTime());
         const endDates = validLeaves.map(t => new Date(t.endDate!).getTime());
-        const minStart = new Date(Math.min(...startDates)).toISOString().split('T')[0];
-        const maxEnd = new Date(Math.max(...endDates)).toISOString().split('T')[0];
+        const minStartDate = new Date(Math.min(...startDates));
+        const maxEndDate = new Date(Math.max(...endDates));
+        const minStart = minStartDate.toISOString().split('T')[0];
+        const maxEnd = maxEndDate.toISOString().split('T')[0];
+        
+        const rollUpDurationDays = calculateDuration(minStartDate, maxEndDate);
         
         // Calculate weighted average progress based on duration
         let totalDuration = 0;
@@ -9509,6 +9513,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         const needsUpdate = 
           parentTask.startDate !== minStart || 
           parentTask.endDate !== maxEnd || 
+          parentTask.durationDays !== rollUpDurationDays ||
           parentTask.progress !== avgProgress ||
           parentTask.estimatedHours !== estHoursStr ||
           parentTask.actualHours !== actHoursStr ||
@@ -9522,6 +9527,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
             updates: {
               startDate: minStart,
               endDate: maxEnd,
+              durationDays: rollUpDurationDays,
               progress: avgProgress,
               estimatedHours: estHoursStr,
               actualHours: actHoursStr,

@@ -2936,7 +2936,7 @@ function ProjectGanttView({
       actualStartDate: null,
       actualEndDate: null,
       durationDays: earliestStart && latestEnd ? 
-        Math.ceil((new Date(latestEnd).getTime() - new Date(earliestStart).getTime()) / (1000 * 60 * 60 * 24)) + 1 : null,
+        calculateDurationInWorkingDays(earliestStart, latestEnd) : null,
       estimatedHours: totalEstimatedHours > 0 ? String(totalEstimatedHours) : null,
       actualHours: totalActualHours > 0 ? String(totalActualHours) : null,
       remainingHours: null,
