@@ -1154,12 +1154,10 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                 />
               );
             case 'durationDays':
-              // Calculate duration from dates if not stored (working days)
-              const calculatedDuration = task.durationDays ?? (
-                task.startDate && task.endDate 
-                  ? calculateDurationInWorkingDays(task.startDate, task.endDate) 
-                  : null
-              );
+              // Always calculate duration from dates in working days for consistency
+              const calculatedDuration = (task.startDate && task.endDate)
+                ? calculateDurationInWorkingDays(task.startDate, task.endDate)
+                : (task.durationDays ?? null);
               return (
                 <InlineEditCell
                   value={calculatedDuration}
@@ -3950,7 +3948,7 @@ function ProjectGanttView({
                       if (colId === 'durationDays') {
                         return (
                           <div key={colId} style={{ width: `${colWidth}px` }} className="flex-shrink-0 border-r px-1 flex items-center">
-                            <span className="text-[11px]">{projectSummaryTask.durationDays ? `${projectSummaryTask.durationDays}d` : '—'}</span>
+                            <span className="text-[11px]">{projectSummaryTask.durationDays != null ? `${projectSummaryTask.durationDays}d` : '—'}</span>
                           </div>
                         );
                       }
