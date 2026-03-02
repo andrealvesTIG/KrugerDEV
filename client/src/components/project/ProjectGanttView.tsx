@@ -1544,22 +1544,19 @@ const ProjectGanttTaskRowTimeline = memo(function ProjectGanttTaskRowTimeline({
   const isCritical = showCriticalPath && isOnCriticalPath;
   
   // Determine rendering mode:
-  // - Zero duration (same start/end date OR durationDays === 0): Show diamond only
-  // - Has duration AND marked as milestone: Show bar + diamond at end
-  // - Has duration but NOT milestone: Show bar only
-  // Calculate actual duration from dates (more reliable than stored durationDays)
-  const calculatedDurationDays = start && end ? differenceInDays(end, start) : null;
-  const isZeroDuration = calculatedDurationDays === 0 || 
-    (task.durationDays !== null && task.durationDays !== undefined && task.durationDays === 0 && calculatedDurationDays === null);
+  // - Milestone (isMilestone flag OR durationDays === 0): Show diamond only
+  // - Has duration AND NOT milestone: Show bar only
+  // - 1-day tasks (same start/end): Show a short bar, NOT a diamond
   const isMarkedAsMilestone = task.isMilestone === true;
-  const hasDuration = !isZeroDuration && hasValidDates;
+  const isZeroDuration = task.durationDays !== null && task.durationDays !== undefined && task.durationDays === 0;
+  const isMilestone = isMarkedAsMilestone || isZeroDuration;
   
-  // Show diamond only for zero-duration tasks (start == end date)
-  const showDiamondOnly = isZeroDuration && hasValidDates;
-  // Show bar for tasks with actual duration (end date > start date)
-  const showBar = hasDuration;
-  // Show diamond at end of bar if task has duration AND is marked as milestone
-  const showMilestoneDiamond = hasDuration && isMarkedAsMilestone;
+  // Show diamond only for explicitly flagged milestones or 0-duration tasks
+  const showDiamondOnly = isMilestone && hasValidDates;
+  // Show bar for all non-milestone tasks with valid dates (including 1-day tasks)
+  const showBar = !isMilestone && hasValidDates;
+  // Show diamond at end of bar if task has duration AND is marked as milestone (not used when showDiamondOnly)
+  const showMilestoneDiamond = false;
 
   return (
     <div 
