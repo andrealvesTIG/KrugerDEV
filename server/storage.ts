@@ -753,6 +753,116 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteOrganization(id: number): Promise<void> {
+    const orgProjects = await db.select({ id: projects.id }).from(projects).where(eq(projects.organizationId, id));
+    const projectIds = orgProjects.map(p => p.id);
+
+    if (projectIds.length > 0) {
+      for (const projectId of projectIds) {
+        const projectTasks = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.projectId, projectId));
+        const taskIds = projectTasks.map(t => t.id);
+        if (taskIds.length > 0) {
+          await db.delete(timesheetEntries).where(inArray(timesheetEntries.taskId, taskIds));
+          await db.delete(taskDependencies).where(inArray(taskDependencies.taskId, taskIds));
+          await db.delete(taskDependencies).where(inArray(taskDependencies.dependsOnTaskId, taskIds));
+          await db.delete(taskChangeLogs).where(inArray(taskChangeLogs.taskId, taskIds));
+          await db.delete(taskResourceAssignments).where(inArray(taskResourceAssignments.taskId, taskIds));
+          await db.delete(notifications).where(inArray(notifications.taskId, taskIds));
+          await db.update(issues).set({ relatedTaskId: null }).where(inArray(issues.relatedTaskId, taskIds));
+        }
+        await db.delete(tasks).where(eq(tasks.projectId, projectId));
+
+        const projectIssueRows = await db.select({ id: issues.id }).from(issues).where(eq(issues.projectId, projectId));
+        const issueIds = projectIssueRows.map(i => i.id);
+        if (issueIds.length > 0) {
+          await db.delete(issueChangeLogs).where(inArray(issueChangeLogs.issueId, issueIds));
+          await db.delete(issueResourceAssignments).where(inArray(issueResourceAssignments.issueId, issueIds));
+        }
+        await db.delete(issues).where(eq(issues.projectId, projectId));
+
+        const milestoneRows = await db.select({ id: milestones.id }).from(milestones).where(eq(milestones.projectId, projectId));
+        const milestoneIds = milestoneRows.map(m => m.id);
+        if (milestoneIds.length > 0) {
+          await db.delete(notifications).where(inArray(notifications.milestoneId, milestoneIds));
+        }
+        await db.delete(milestones).where(eq(milestones.projectId, projectId));
+
+        await db.delete(projectFinancials).where(eq(projectFinancials.projectId, projectId));
+        await db.delete(changeRequests).where(eq(changeRequests.projectId, projectId));
+        await db.delete(projectDocuments).where(eq(projectDocuments.projectId, projectId));
+        await db.delete(projectBenefits).where(eq(projectBenefits.projectId, projectId));
+        await db.delete(projectDecisions).where(eq(projectDecisions.projectId, projectId));
+        await db.delete(lessonsLearned).where(eq(lessonsLearned.projectId, projectId));
+        await db.delete(projectChangeLogs).where(eq(projectChangeLogs.projectId, projectId));
+        await db.delete(healthStatusHistory).where(eq(healthStatusHistory.projectId, projectId));
+        await db.delete(statusReportHistory).where(eq(statusReportHistory.projectId, projectId));
+        await db.delete(billableStatusComments).where(eq(billableStatusComments.projectId, projectId));
+        await db.delete(costItems).where(eq(costItems.projectId, projectId));
+        await db.delete(projectCustomFieldValues).where(eq(projectCustomFieldValues.projectId, projectId));
+        await db.delete(projectScores).where(eq(projectScores.projectId, projectId));
+        await db.delete(projectRiskAssessments).where(eq(projectRiskAssessments.projectId, projectId));
+        await db.delete(customPortfolioProjects).where(eq(customPortfolioProjects.projectId, projectId));
+        await db.delete(simulationEvents).where(eq(simulationEvents.projectId, projectId));
+        await db.update(mppImports).set({ projectId: null }).where(eq(mppImports.projectId, projectId));
+        await db.update(projectIntakes).set({ createdProjectId: null }).where(eq(projectIntakes.createdProjectId, projectId));
+        await db.delete(notifications).where(eq(notifications.projectId, projectId));
+        const invoiceRows = await db.select({ id: projectInvoices.id }).from(projectInvoices).where(eq(projectInvoices.projectId, projectId));
+        for (const inv of invoiceRows) {
+          await db.delete(invoiceNotes).where(eq(invoiceNotes.invoiceId, inv.id));
+        }
+        await db.delete(projectInvoices).where(eq(projectInvoices.projectId, projectId));
+        const commentRows = await db.select({ id: projectComments.id }).from(projectComments).where(eq(projectComments.projectId, projectId));
+        for (const c of commentRows) {
+          await db.delete(notifications).where(eq(notifications.commentId, c.id));
+        }
+        await db.delete(projectComments).where(eq(projectComments.projectId, projectId));
+        const legacyRiskRows = await db.select({ id: legacyRisks.id }).from(legacyRisks).where(eq(legacyRisks.projectId, projectId));
+        for (const lr of legacyRiskRows) {
+          await db.delete(legacyRiskChangeLogs).where(eq(legacyRiskChangeLogs.riskId, lr.id));
+          await db.delete(legacyRiskResourceAssignments).where(eq(legacyRiskResourceAssignments.riskId, lr.id));
+        }
+        await db.delete(legacyRisks).where(eq(legacyRisks.projectId, projectId));
+      }
+      await db.delete(projects).where(eq(projects.organizationId, id));
+    }
+
+    const orgPortfolios = await db.select({ id: portfolios.id }).from(portfolios).where(eq(portfolios.organizationId, id));
+    for (const portfolio of orgPortfolios) {
+      await db.delete(portfolioRiskAssessments).where(eq(portfolioRiskAssessments.portfolioId, portfolio.id));
+      await db.delete(notifications).where(eq(notifications.portfolioId, portfolio.id));
+    }
+    await db.delete(portfolios).where(eq(portfolios.organizationId, id));
+
+    const orgResources = await db.select({ id: resources.id }).from(resources).where(eq(resources.organizationId, id));
+    const resourceIds = orgResources.map(r => r.id);
+    if (resourceIds.length > 0) {
+      await db.delete(resourceSkills).where(inArray(resourceSkills.resourceId, resourceIds));
+      await db.delete(resourceAvailability).where(inArray(resourceAvailability.resourceId, resourceIds));
+      await db.delete(taskResourceAssignments).where(inArray(taskResourceAssignments.resourceId, resourceIds));
+      await db.delete(issueResourceAssignments).where(inArray(issueResourceAssignments.resourceId, resourceIds));
+      await db.delete(timesheetEntries).where(inArray(timesheetEntries.resourceId, resourceIds));
+    }
+    await db.delete(resources).where(eq(resources.organizationId, id));
+
+    await db.delete(projectIntakes).where(eq(projectIntakes.organizationId, id));
+    await db.delete(organizationInvites).where(eq(organizationInvites.organizationId, id));
+    await db.delete(organizationAccessRequests).where(eq(organizationAccessRequests.organizationId, id));
+    await db.delete(organizationIntegrations).where(eq(organizationIntegrations.organizationId, id));
+    await db.delete(notifications).where(eq(notifications.organizationId, id));
+    await db.delete(customFieldDefinitions).where(eq(customFieldDefinitions.organizationId, id));
+    await db.delete(customDashboards).where(eq(customDashboards.organizationId, id));
+    await db.delete(helpTickets).where(eq(helpTickets.organizationId, id));
+    await db.delete(featureUsageLogs).where(eq(featureUsageLogs.organizationId, id));
+    await db.delete(simulationRuns).where(eq(simulationRuns.organizationId, id));
+    await db.delete(reportSubscriptions).where(eq(reportSubscriptions.organizationId, id));
+    await db.delete(apiTokens).where(eq(apiTokens.organizationId, id));
+    await db.delete(mppImports).where(eq(mppImports.organizationId, id));
+    await db.delete(projectViews).where(eq(projectViews.organizationId, id));
+    await db.delete(systemProjectViews).where(eq(systemProjectViews.organizationId, id));
+    await db.delete(projectScoringCriteria).where(eq(projectScoringCriteria.organizationId, id));
+    await db.delete(nonProjectTimeEntries).where(eq(nonProjectTimeEntries.organizationId, id));
+    await db.delete(timeCategories).where(eq(timeCategories.organizationId, id));
+    await db.delete(timesheetPeriods).where(eq(timesheetPeriods.organizationId, id));
+    await db.delete(statusReportHistory).where(eq(statusReportHistory.organizationId, id));
     await db.delete(organizationMembers).where(eq(organizationMembers.organizationId, id));
     await db.delete(organizations).where(eq(organizations.id, id));
   }
@@ -1549,38 +1659,35 @@ export class DatabaseStorage implements IStorage {
     const projectIds = portfolioProjects.map(p => p.id);
     if (projectIds.length === 0) return [];
     
-    const allRisks: (Risk & { projectName: string })[] = [];
-    for (const project of portfolioProjects) {
-      const projectRisks = await db.select().from(issues).where(
-        and(eq(issues.projectId, project.id), eq(issues.itemType, 'risk'), isNull(issues.deletedAt))
-      );
-      allRisks.push(...projectRisks.map(r => ({ ...r, projectName: project.name })));
-    }
-    return allRisks;
+    const projectMap = new Map(portfolioProjects.map(p => [p.id, p.name]));
+    const allRisks = await db.select().from(issues).where(
+      and(inArray(issues.projectId, projectIds), eq(issues.itemType, 'risk'), isNull(issues.deletedAt))
+    );
+    return allRisks.map(r => ({ ...r, projectName: projectMap.get(r.projectId!) || '' }));
   }
 
   async getPortfolioIssues(portfolioId: number): Promise<(Issue & { projectName: string })[]> {
     const portfolioProjects = await this.getPortfolioProjects(portfolioId);
-    if (portfolioProjects.length === 0) return [];
+    const projectIds = portfolioProjects.map(p => p.id);
+    if (projectIds.length === 0) return [];
     
-    const allIssues: (Issue & { projectName: string })[] = [];
-    for (const project of portfolioProjects) {
-      const projectIssues = await db.select().from(issues).where(eq(issues.projectId, project.id));
-      allIssues.push(...projectIssues.map(i => ({ ...i, projectName: project.name })));
-    }
-    return allIssues;
+    const projectMap = new Map(portfolioProjects.map(p => [p.id, p.name]));
+    const allIssues = await db.select().from(issues).where(
+      and(inArray(issues.projectId, projectIds), eq(issues.itemType, 'issue'), isNull(issues.deletedAt))
+    );
+    return allIssues.map(i => ({ ...i, projectName: projectMap.get(i.projectId!) || '' }));
   }
 
   async getPortfolioMilestones(portfolioId: number): Promise<(Milestone & { projectName: string })[]> {
     const portfolioProjects = await this.getPortfolioProjects(portfolioId);
-    if (portfolioProjects.length === 0) return [];
+    const projectIds = portfolioProjects.map(p => p.id);
+    if (projectIds.length === 0) return [];
     
-    const allMilestones: (Milestone & { projectName: string })[] = [];
-    for (const project of portfolioProjects) {
-      const projectMilestones = await db.select().from(milestones).where(eq(milestones.projectId, project.id));
-      allMilestones.push(...projectMilestones.map(m => ({ ...m, projectName: project.name })));
-    }
-    return allMilestones;
+    const projectMap = new Map(portfolioProjects.map(p => [p.id, p.name]));
+    const allMilestones = await db.select().from(milestones).where(
+      inArray(milestones.projectId, projectIds)
+    );
+    return allMilestones.map(m => ({ ...m, projectName: projectMap.get(m.projectId!) || '' }));
   }
 
   // Global Search

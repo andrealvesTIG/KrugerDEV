@@ -1452,7 +1452,8 @@ export async function registerRoutes(
       const orgUsers = allUsers.filter(u => memberUserIds.includes(u.id));
       return res.json(sanitizeUsers(orgUsers));
     } catch (err) {
-      res.json([]);
+      console.error('Error listing org users:', err);
+      res.status(500).json({ message: 'Failed to list organization users' });
     }
   });
 
@@ -1582,6 +1583,17 @@ export async function registerRoutes(
   // Update user profile
   app.patch('/api/users/:userId/profile', async (req, res) => {
     try {
+      const currentUserId = getUserIdFromRequest(req);
+      if (!currentUserId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      const targetUserId = req.params.userId;
+      if (currentUserId !== targetUserId) {
+        const currentUser = await storage.getUser(currentUserId);
+        if (!currentUser || currentUser.role !== 'super_admin') {
+          return res.status(403).json({ message: 'You can only update your own profile' });
+        }
+      }
       const { firstName, lastName, email } = req.body;
       const [updated] = await db.update(users)
         .set({ 
@@ -1590,7 +1602,7 @@ export async function registerRoutes(
           email,
           updatedAt: new Date()
         })
-        .where(eq(users.id, req.params.userId))
+        .where(eq(users.id, targetUserId))
         .returning();
       res.json(sanitizeUser(updated));
     } catch (err) {
@@ -1770,10 +1782,24 @@ export async function registerRoutes(
   // --- Organizations ---
   app.get('/api/organizations', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
       const orgs = await storage.getOrganizations();
-      res.json(orgs);
+      if (hasAdminAccess(user)) {
+        return res.json(orgs);
+      }
+      const memberships = await storage.getUserOrganizations(userId);
+      const memberOrgIds = new Set(memberships.map(m => m.organizationId));
+      res.json(orgs.filter(o => memberOrgIds.has(o.id)));
     } catch (err) {
-      res.json([]);
+      console.error('Error fetching organizations:', err);
+      res.status(500).json({ message: 'Failed to fetch organizations' });
     }
   });
 
@@ -2925,6 +2951,16 @@ export async function registerRoutes(
         }
         
         try {
+          if (maxSeats !== null) {
+            const freshMembers = await storage.getOrganizationMembers(orgId);
+            const freshInvites = await storage.getOrganizationInvites(orgId);
+            const freshPending = freshInvites.filter(i => i.status === 'pending').length;
+            if (freshMembers.length + freshPending >= maxSeats) {
+              results.errors.push(`${normalizedEmail}: Seat limit reached. Upgrade to invite more.`);
+              continue;
+            }
+          }
+
           // Generate a secure token for the magic link
           const crypto = await import('crypto');
           const inviteToken = crypto.randomBytes(32).toString('hex');
@@ -10095,6 +10131,14 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const projectId = Number(req.params.projectId);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: 'Project not found' });
+      if (project.organizationId) {
+        const userOrgs = await storage.getUserOrganizations(userId);
+        if (!userOrgs.find(m => m.organizationId === project.organizationId)) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+      }
       const dependencies = await storage.getProjectDependencies(projectId);
       res.json(dependencies);
     } catch (err) {

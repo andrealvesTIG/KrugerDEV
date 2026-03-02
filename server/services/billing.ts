@@ -261,10 +261,10 @@ export class MockBillingProvider implements BillingProvider {
     return subscription;
   }
 
-  async getOrCreateBillingCycle(subscriptionId: number): Promise<BillingCycle> {
+  async getOrCreateBillingCycle(subscriptionId: number, dbHandle: typeof db = db): Promise<BillingCycle> {
     const { start, end } = getMonthBoundaries();
 
-    const [existingCycle] = await db
+    const [existingCycle] = await dbHandle
       .select()
       .from(billingCycles)
       .where(
@@ -279,7 +279,7 @@ export class MockBillingProvider implements BillingProvider {
       return existingCycle;
     }
 
-    const [newCycle] = await db
+    const [newCycle] = await dbHandle
       .insert(billingCycles)
       .values({
         subscriptionId,
@@ -289,14 +289,14 @@ export class MockBillingProvider implements BillingProvider {
       })
       .returning();
 
-    const [subscription] = await db
+    const [subscription] = await dbHandle
       .select()
       .from(subscriptions)
       .where(eq(subscriptions.id, subscriptionId))
       .limit(1);
 
     if (subscription) {
-      const rules = await db
+      const rules = await dbHandle
         .select()
         .from(planMeterRules)
         .innerJoin(meters, eq(planMeterRules.meterId, meters.id))
@@ -309,11 +309,10 @@ export class MockBillingProvider implements BillingProvider {
         const meterInfo = meterRules[0]?.meters;
         const quotaRule = meterRules.find((r) => r.plan_meter_rules.ruleType === "INCLUDED_QUOTA");
         const rawIncludedUnits = quotaRule?.plan_meter_rules.includedUnitsMonthly || 0;
-        // Credits meter stores values in hundredths (500 = 5 credits), so multiply plan values by 100
         const isCredits = meterInfo?.code === 'credits';
         const includedUnits = rawIncludedUnits * (isCredits ? 100 : 1);
 
-        await db.insert(usageRollups).values({
+        await dbHandle.insert(usageRollups).values({
           billingCycleId: newCycle.id,
           meterId,
           includedUnits,
@@ -332,9 +331,10 @@ export class MockBillingProvider implements BillingProvider {
   async checkLimit(
     subscriptionId: number,
     meterCode: string,
-    unitsToAdd: number = 1
+    unitsToAdd: number = 1,
+    dbHandle: typeof db = db
   ): Promise<UsageCheckResult> {
-    const [subscription] = await db
+    const [subscription] = await dbHandle
       .select()
       .from(subscriptions)
       .where(eq(subscriptions.id, subscriptionId))
@@ -352,7 +352,7 @@ export class MockBillingProvider implements BillingProvider {
       };
     }
 
-    const [meter] = await db.select().from(meters).where(eq(meters.code, meterCode)).limit(1);
+    const [meter] = await dbHandle.select().from(meters).where(eq(meters.code, meterCode)).limit(1);
     if (!meter) {
       return {
         allowed: false,
@@ -365,7 +365,7 @@ export class MockBillingProvider implements BillingProvider {
       };
     }
 
-    const rules = await db
+    const rules = await dbHandle
       .select()
       .from(planMeterRules)
       .where(
@@ -375,9 +375,9 @@ export class MockBillingProvider implements BillingProvider {
         )
       );
 
-    const cycle = await this.getOrCreateBillingCycle(subscriptionId);
+    const cycle = await this.getOrCreateBillingCycle(subscriptionId, dbHandle);
 
-    const [rollup] = await db
+    const [rollup] = await dbHandle
       .select()
       .from(usageRollups)
       .where(
@@ -456,13 +456,6 @@ export class MockBillingProvider implements BillingProvider {
       return { success: true, usageEventId: existingEvent.id };
     }
 
-    const checkResult = await this.checkLimit(params.subscriptionId, params.meterCode, units);
-    console.log(`[USAGE] Check limit result:`, checkResult);
-    if (!checkResult.allowed) {
-      console.log(`[USAGE] Limit check failed: ${checkResult.reason}`);
-      return { success: false, error: checkResult.reason };
-    }
-
     const [meter] = await db.select().from(meters).where(eq(meters.code, params.meterCode)).limit(1);
     if (!meter) {
       console.log(`[USAGE] Meter not found: ${params.meterCode}`);
@@ -470,96 +463,104 @@ export class MockBillingProvider implements BillingProvider {
     }
     console.log(`[USAGE] Found meter: ${meter.id} (${meter.code})`);
 
+    const billingInstance = this;
+    return await db.transaction(async (tx) => {
+      const checkResult = await billingInstance.checkLimit(params.subscriptionId, params.meterCode, units, tx as any);
+      console.log(`[USAGE] Check limit result:`, checkResult);
+      if (!checkResult.allowed) {
+        console.log(`[USAGE] Limit check failed: ${checkResult.reason}`);
+        return { success: false, error: checkResult.reason } as RecordUsageResult;
+      }
 
-    const cycle = await this.getOrCreateBillingCycle(params.subscriptionId);
+      const cycle = await billingInstance.getOrCreateBillingCycle(params.subscriptionId, tx as any);
 
-    const [subscription] = await db
-      .select()
-      .from(subscriptions)
-      .where(eq(subscriptions.id, params.subscriptionId))
-      .limit(1);
+      const [subscription] = await tx
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.id, params.subscriptionId))
+        .limit(1);
 
-    const [usageEvent] = await db
-      .insert(usageEvents)
-      .values({
-        subscriptionId: params.subscriptionId,
-        billingCycleId: cycle.id,
-        meterId: meter.id,
-        units,
-        actorUserId: params.actorUserId,
-        orgId: subscription?.orgId,
-        requestId: params.requestId,
-        occurredAt: new Date(),
-      })
-      .returning();
-
-    const rules = await db
-      .select()
-      .from(planMeterRules)
-      .where(
-        and(
-          eq(planMeterRules.planId, subscription!.planId),
-          eq(planMeterRules.meterId, meter.id)
-        )
-      );
-
-    const quotaRule = rules.find((r) => r.ruleType === "INCLUDED_QUOTA");
-    const hardCapRule = rules.find((r) => r.ruleType === "HARD_CAP");
-    const overageRule = rules.find((r) => r.ruleType === "METERED_OVERAGE");
-
-    // Credits meter stores values in hundredths (500 = 5 credits), so multiply plan values by 100
-    const isCredits = params.meterCode === 'credits';
-    const includedQuota = (quotaRule?.includedUnitsMonthly || 0) * (isCredits ? 100 : 1);
-    const hardCap = hardCapRule?.hardCapUnits ? hardCapRule.hardCapUnits * (isCredits ? 100 : 1) : null;
-
-    const [currentRollup] = await db
-      .select()
-      .from(usageRollups)
-      .where(
-        and(eq(usageRollups.billingCycleId, cycle.id), eq(usageRollups.meterId, meter.id))
-      )
-      .limit(1);
-
-    const newUsedUnits = (currentRollup?.usedUnits || 0) + units;
-    const newRemainingUnits = Math.max(0, includedQuota - newUsedUnits);
-    const newOverageUnits = Math.max(0, newUsedUnits - includedQuota);
-    const overageCostMicrocents = overageRule
-      ? newOverageUnits * (overageRule.overageUnitPriceMicrocents || 0)
-      : 0;
-    const hardCapHit = hardCap !== null && hardCap !== undefined && newUsedUnits >= hardCap;
-
-    if (currentRollup) {
-      const [updatedRollup] = await db
-        .update(usageRollups)
-        .set({
-          usedUnits: newUsedUnits,
-          remainingUnits: newRemainingUnits,
-          overageUnits: newOverageUnits,
-          overageCostMicrocents,
-          hardCapHit,
-          updatedAt: new Date(),
-        })
-        .where(eq(usageRollups.id, currentRollup.id))
-        .returning();
-
-      return { success: true, usageEventId: usageEvent.id, rollup: updatedRollup };
-    } else {
-      const [newRollup] = await db
-        .insert(usageRollups)
+      const [usageEvent] = await tx
+        .insert(usageEvents)
         .values({
+          subscriptionId: params.subscriptionId,
           billingCycleId: cycle.id,
           meterId: meter.id,
-          includedUnits: includedQuota,
-          usedUnits: newUsedUnits,
-          remainingUnits: newRemainingUnits,
-          overageUnits: newOverageUnits,
-          overageCostMicrocents,
-          hardCapHit,
+          units,
+          actorUserId: params.actorUserId,
+          orgId: subscription?.orgId,
+          requestId: params.requestId,
+          occurredAt: new Date(),
         })
         .returning();
 
-      return { success: true, usageEventId: usageEvent.id, rollup: newRollup };
-    }
+      const rules = await tx
+        .select()
+        .from(planMeterRules)
+        .where(
+          and(
+            eq(planMeterRules.planId, subscription!.planId),
+            eq(planMeterRules.meterId, meter.id)
+          )
+        );
+
+      const quotaRule = rules.find((r) => r.ruleType === "INCLUDED_QUOTA");
+      const hardCapRule = rules.find((r) => r.ruleType === "HARD_CAP");
+      const overageRule = rules.find((r) => r.ruleType === "METERED_OVERAGE");
+
+      const isCredits = params.meterCode === 'credits';
+      const includedQuota = (quotaRule?.includedUnitsMonthly || 0) * (isCredits ? 100 : 1);
+      const hardCap = hardCapRule?.hardCapUnits ? hardCapRule.hardCapUnits * (isCredits ? 100 : 1) : null;
+
+      const [currentRollup] = await tx
+        .select()
+        .from(usageRollups)
+        .where(
+          and(eq(usageRollups.billingCycleId, cycle.id), eq(usageRollups.meterId, meter.id))
+        )
+        .limit(1);
+
+      const newUsedUnits = (currentRollup?.usedUnits || 0) + units;
+      const newRemainingUnits = Math.max(0, includedQuota - newUsedUnits);
+      const newOverageUnits = Math.max(0, newUsedUnits - includedQuota);
+      const overageCostMicrocents = overageRule
+        ? newOverageUnits * (overageRule.overageUnitPriceMicrocents || 0)
+        : 0;
+      const hardCapHit = hardCap !== null && hardCap !== undefined && newUsedUnits >= hardCap;
+
+      if (currentRollup) {
+        const [updatedRollup] = await tx
+          .update(usageRollups)
+          .set({
+            usedUnits: newUsedUnits,
+            remainingUnits: newRemainingUnits,
+            overageUnits: newOverageUnits,
+            overageCostMicrocents,
+            hardCapHit,
+            updatedAt: new Date(),
+          })
+          .where(eq(usageRollups.id, currentRollup.id))
+          .returning();
+
+        return { success: true, usageEventId: usageEvent.id, rollup: updatedRollup } as RecordUsageResult;
+      } else {
+        const [newRollup] = await tx
+          .insert(usageRollups)
+          .values({
+            billingCycleId: cycle.id,
+            meterId: meter.id,
+            includedUnits: includedQuota,
+            usedUnits: newUsedUnits,
+            remainingUnits: newRemainingUnits,
+            overageUnits: newOverageUnits,
+            overageCostMicrocents,
+            hardCapHit,
+          })
+          .returning();
+
+        return { success: true, usageEventId: usageEvent.id, rollup: newRollup } as RecordUsageResult;
+      }
+    });
   }
 
   async calculateOverages(billingCycleId: number): Promise<{ totalMicrocents: number; byMeter: Record<string, number> }> {
