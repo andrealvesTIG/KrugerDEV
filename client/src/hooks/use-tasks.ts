@@ -86,9 +86,8 @@ export function useCreateTask() {
       return res.json();
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
-      // Invalidate and immediately refetch all task queries
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'], exact: false, refetchType: 'all' });
+      queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+      queryClient.refetchQueries({ queryKey: ['/api/tasks'], exact: false });
     },
   });
 }
@@ -98,9 +97,8 @@ export function useUpdateTask() {
     mutationFn: ({ id, projectId, ...data }: { id: number; projectId: number } & UpdateTaskRequest) =>
       apiRequest('PUT', `/api/tasks/${id}`, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
-      // Invalidate and immediately refetch all task queries
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'], exact: false, refetchType: 'all' });
+      queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+      queryClient.refetchQueries({ queryKey: ['/api/tasks'], exact: false });
     },
   });
 }
@@ -110,9 +108,8 @@ export function useDeleteTask() {
     mutationFn: ({ id }: { id: number; projectId: number }) =>
       apiRequest('DELETE', `/api/tasks/${id}`),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
-      // Invalidate and immediately refetch all task queries
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'], exact: false, refetchType: 'all' });
+      queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+      queryClient.refetchQueries({ queryKey: ['/api/tasks'], exact: false });
     },
   });
 }
@@ -152,8 +149,7 @@ export function useReorderTask() {
       }
     },
     onSettled: (_, __, variables) => {
-      // Refetch to get accurate WBS from server
-      queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+      queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
     },
   });
 }
@@ -179,10 +175,9 @@ export function useAddTaskDependency() {
     mutationFn: ({ taskId, dependsOnTaskId, projectId }: { taskId: number; dependsOnTaskId: number; projectId?: number }) =>
       apiRequest('POST', `/api/tasks/${taskId}/dependencies`, { dependsOnTaskId }),
     onSuccess: (data: any, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks', variables.taskId, 'dependencies'] });
-      // Also invalidate project tasks if dates were adjusted
+      queryClient.refetchQueries({ queryKey: ['/api/tasks', variables.taskId, 'dependencies'] });
       if (variables.projectId) {
-        queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+        queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
       }
     },
   });
@@ -193,7 +188,7 @@ export function useRemoveTaskDependency() {
     mutationFn: ({ taskId, dependsOnTaskId }: { taskId: number; dependsOnTaskId: number }) =>
       apiRequest('DELETE', `/api/tasks/${taskId}/dependencies/${dependsOnTaskId}`),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks', variables.taskId, 'dependencies'] });
+      queryClient.refetchQueries({ queryKey: ['/api/tasks', variables.taskId, 'dependencies'] });
     },
   });
 }
