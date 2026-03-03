@@ -2891,7 +2891,6 @@ export class DatabaseStorage implements IStorage {
         ));
     }
     
-    // Combine results and deduplicate by task ID
     const taskMap = new Map<number, { task: Task; project: Project }>();
     for (const item of assignedByResource) {
       taskMap.set(item.task.id, item);
@@ -2900,7 +2899,12 @@ export class DatabaseStorage implements IStorage {
       taskMap.set(item.task.id, item);
     }
     
-    return Array.from(taskMap.values());
+    return Array.from(taskMap.values()).sort((a, b) => {
+      if (a.project.id !== b.project.id) {
+        return a.project.name.localeCompare(b.project.name);
+      }
+      return (a.task.taskIndex ?? 999999) - (b.task.taskIndex ?? 999999);
+    });
   }
 
   async addTaskResourceAssignment(assignment: InsertTaskResourceAssignment): Promise<TaskResourceAssignment> {
