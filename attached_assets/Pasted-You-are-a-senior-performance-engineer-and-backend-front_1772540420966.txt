@@ -1,0 +1,55 @@
+You are a senior performance engineer and backend/frontend developer.
+
+Goal:
+Make an overall evaluation of the schedule performance when working with date schedules (filtering, sorting, paging, and rendering items by due date). I want a practical, evidence-driven assessment and concrete improvements.
+
+Context:
+I have an app that lists “tasks/schedules” with date fields (due date, start date, completion date). The UI supports:
+- filtering by date ranges (e.g., overdue, next 7/30/90 days)
+- sorting by due date
+- pagination (server-side if possible)
+- displaying assignee info and plan/project info
+
+What to do:
+1) Read the codebase and identify every place where dates are:
+   - parsed, formatted, converted between timezones
+   - compared or filtered (especially overdue logic)
+   - used in sorting and pagination
+   - sent over JSON and rendered in the UI
+2) Evaluate performance risks with date-based schedules:
+   - N+1 calls to fetch tasks/users
+   - repeated conversions (DateTime <-> string) in loops
+   - filtering/sorting done in memory instead of DB/API query
+   - expensive per-row formatting in the UI
+   - missing indexes if a DB is used
+   - inefficient API calls (fetching all tasks then filtering)
+3) Identify correctness risks that affect performance:
+   - timezone issues (UTC vs local)
+   - inclusive/exclusive boundaries (>= vs >)
+   - date-only vs datetime comparisons
+   - daylight savings transitions
+   - null/empty dates
+4) Provide:
+   - a “current state” summary (where time is spent)
+   - a complexity estimate (Big-O) for key operations
+   - specific bottlenecks with file/line references
+   - quick wins (low effort, high impact)
+   - deeper improvements (caching, batching, query shaping)
+   - monitoring recommendations (timers/metrics/logging)
+5) Add a small benchmark harness:
+   - generate N synthetic tasks with random due dates
+   - measure filtering/sorting/paging runtime for N = 1k, 10k, 100k
+   - print results and highlight hotspots
+
+Constraints:
+- Prefer server-side filtering/sorting/paging if possible.
+- Use UTC internally; only format to local time at the presentation layer.
+- Avoid parsing date strings repeatedly; use typed dates.
+- Provide code changes as patches or clear diffs.
+
+Output format:
+- Executive summary (3–6 bullet points)
+- Detailed findings (with references)
+- Recommended changes (ordered by impact)
+- Benchmark results + how to run
+- Risks and validation checklist
