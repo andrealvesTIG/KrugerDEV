@@ -2968,7 +2968,30 @@ function ProjectGanttView({
 
   const handleAddTask = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && newTaskName.trim()) {
-      onCreateTask(newTaskName.trim());
+      const lastTask = tasks.length > 0 ? tasks[tasks.length - 1] : null;
+      const outlineLevel = lastTask?.outlineLevel || 1;
+      const parentId = lastTask?.parentId || null;
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      createTask.mutate({
+        projectId,
+        name: newTaskName.trim(),
+        startDate: todayStr,
+        endDate: calculateEndDateFromWorkingDays(todayStr, 1),
+        durationDays: 1,
+        outlineLevel,
+        parentId,
+        status: 'Not Started',
+        progress: 0,
+      }, {
+        onError: (error: unknown) => {
+          const err = error as { limitExceeded?: boolean; message?: string };
+          if (err.limitExceeded) {
+            toast({ title: "Limit reached", description: err.message || "Task limit reached", variant: "destructive" });
+          } else {
+            toast({ title: "Error", description: err.message || "Failed to create task", variant: "destructive" });
+          }
+        }
+      });
       setNewTaskName('');
     }
   };
