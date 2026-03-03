@@ -1193,6 +1193,69 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteProject(id: number): Promise<void> {
+    const projectTasks = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.projectId, id));
+    const taskIds = projectTasks.map(t => t.id);
+    if (taskIds.length > 0) {
+      await db.delete(timesheetEntries).where(inArray(timesheetEntries.taskId, taskIds));
+      await db.delete(taskDependencies).where(inArray(taskDependencies.taskId, taskIds));
+      await db.delete(taskDependencies).where(inArray(taskDependencies.dependsOnTaskId, taskIds));
+      await db.delete(taskChangeLogs).where(inArray(taskChangeLogs.taskId, taskIds));
+      await db.delete(taskResourceAssignments).where(inArray(taskResourceAssignments.taskId, taskIds));
+      await db.delete(notifications).where(inArray(notifications.taskId, taskIds));
+      await db.update(issues).set({ relatedTaskId: null }).where(inArray(issues.relatedTaskId, taskIds));
+    }
+    await db.delete(tasks).where(eq(tasks.projectId, id));
+
+    const projectIssueRows = await db.select({ id: issues.id }).from(issues).where(eq(issues.projectId, id));
+    const issueIds = projectIssueRows.map(i => i.id);
+    if (issueIds.length > 0) {
+      await db.delete(issueChangeLogs).where(inArray(issueChangeLogs.issueId, issueIds));
+      await db.delete(issueResourceAssignments).where(inArray(issueResourceAssignments.issueId, issueIds));
+    }
+    await db.delete(issues).where(eq(issues.projectId, id));
+
+    const milestoneRows = await db.select({ id: milestones.id }).from(milestones).where(eq(milestones.projectId, id));
+    if (milestoneRows.length > 0) {
+      await db.delete(notifications).where(inArray(notifications.milestoneId, milestoneRows.map(m => m.id)));
+    }
+    await db.delete(milestones).where(eq(milestones.projectId, id));
+
+    await db.delete(projectFinancials).where(eq(projectFinancials.projectId, id));
+    await db.delete(changeRequests).where(eq(changeRequests.projectId, id));
+    await db.delete(projectDocuments).where(eq(projectDocuments.projectId, id));
+    await db.delete(projectBenefits).where(eq(projectBenefits.projectId, id));
+    await db.delete(projectDecisions).where(eq(projectDecisions.projectId, id));
+    await db.delete(lessonsLearned).where(eq(lessonsLearned.projectId, id));
+    await db.delete(projectChangeLogs).where(eq(projectChangeLogs.projectId, id));
+    await db.delete(healthStatusHistory).where(eq(healthStatusHistory.projectId, id));
+    await db.delete(statusReportHistory).where(eq(statusReportHistory.projectId, id));
+    await db.delete(billableStatusComments).where(eq(billableStatusComments.projectId, id));
+    await db.delete(costItems).where(eq(costItems.projectId, id));
+    await db.delete(projectCustomFieldValues).where(eq(projectCustomFieldValues.projectId, id));
+    await db.delete(projectScores).where(eq(projectScores.projectId, id));
+    await db.delete(projectRiskAssessments).where(eq(projectRiskAssessments.projectId, id));
+    await db.delete(customPortfolioProjects).where(eq(customPortfolioProjects.projectId, id));
+    await db.delete(simulationEvents).where(eq(simulationEvents.projectId, id));
+    await db.update(mppImports).set({ projectId: null }).where(eq(mppImports.projectId, id));
+    await db.update(projectIntakes).set({ createdProjectId: null }).where(eq(projectIntakes.createdProjectId, id));
+    await db.delete(notifications).where(eq(notifications.projectId, id));
+    const invoiceRows = await db.select({ id: projectInvoices.id }).from(projectInvoices).where(eq(projectInvoices.projectId, id));
+    for (const inv of invoiceRows) {
+      await db.delete(invoiceNotes).where(eq(invoiceNotes.invoiceId, inv.id));
+    }
+    await db.delete(projectInvoices).where(eq(projectInvoices.projectId, id));
+    const commentRows = await db.select({ id: projectComments.id }).from(projectComments).where(eq(projectComments.projectId, id));
+    for (const c of commentRows) {
+      await db.delete(notifications).where(eq(notifications.commentId, c.id));
+    }
+    await db.delete(projectComments).where(eq(projectComments.projectId, id));
+    const legacyRiskRows = await db.select({ id: legacyRisks.id }).from(legacyRisks).where(eq(legacyRisks.projectId, id));
+    for (const lr of legacyRiskRows) {
+      await db.delete(legacyRiskChangeLogs).where(eq(legacyRiskChangeLogs.riskId, lr.id));
+      await db.delete(legacyRiskResourceAssignments).where(eq(legacyRiskResourceAssignments.riskId, lr.id));
+    }
+    await db.delete(legacyRisks).where(eq(legacyRisks.projectId, id));
+
     await db.delete(projects).where(eq(projects.id, id));
   }
 
@@ -1209,7 +1272,7 @@ export class DatabaseStorage implements IStorage {
 
   async getRisk(id: number): Promise<Risk | undefined> {
     const [risk] = await db.select().from(issues).where(
-      and(eq(issues.id, id), eq(issues.itemType, 'risk'))
+      and(eq(issues.id, id), eq(issues.itemType, 'risk'), isNull(issues.deletedAt))
     );
     return risk;
   }
@@ -1294,7 +1357,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getIssue(id: number): Promise<Issue | undefined> {
-    const [issue] = await db.select().from(issues).where(eq(issues.id, id));
+    const [issue] = await db.select().from(issues).where(
+      and(eq(issues.id, id), isNull(issues.deletedAt))
+    );
     return issue;
   }
 
@@ -2034,63 +2099,43 @@ export class DatabaseStorage implements IStorage {
   async getDeletedItems(organizationId: number): Promise<RecycleBinItem[]> {
     const items: RecycleBinItem[] = [];
 
-    // Get deleted portfolios
     const deletedPortfolios = await db.select().from(portfolios)
       .where(and(eq(portfolios.organizationId, organizationId), isNotNull(portfolios.deletedAt)));
     for (const p of deletedPortfolios) {
-      const deleter = p.deletedBy ? await this.getUser(p.deletedBy) : null;
       items.push({
-        id: p.id,
-        type: 'portfolio',
-        name: p.name,
-        deletedAt: p.deletedAt!,
-        deletedBy: p.deletedBy,
-        deletedByName: deleter ? `${deleter.firstName || ''} ${deleter.lastName || ''}`.trim() || deleter.email || 'Unknown' : undefined
+        id: p.id, type: 'portfolio', name: p.name,
+        deletedAt: p.deletedAt!, deletedBy: p.deletedBy
       });
     }
 
-    // Get deleted projects
     const deletedProjects = await db.select().from(projects)
       .where(and(eq(projects.organizationId, organizationId), isNotNull(projects.deletedAt)));
     for (const p of deletedProjects) {
-      const deleter = p.deletedBy ? await this.getUser(p.deletedBy) : null;
       items.push({
-        id: p.id,
-        type: 'project',
-        name: p.name,
-        deletedAt: p.deletedAt!,
-        deletedBy: p.deletedBy,
-        deletedByName: deleter ? `${deleter.firstName || ''} ${deleter.lastName || ''}`.trim() || deleter.email || 'Unknown' : undefined
+        id: p.id, type: 'project', name: p.name,
+        deletedAt: p.deletedAt!, deletedBy: p.deletedBy
       });
     }
 
-    // Get project IDs for this organization to filter related items
     const orgProjects = await db.select({ id: projects.id, name: projects.name }).from(projects)
       .where(eq(projects.organizationId, organizationId));
     const projectMap = new Map(orgProjects.map(p => [p.id, p.name]));
     const projectIds = orgProjects.map(p => p.id);
 
     if (projectIds.length > 0) {
-      // Get deleted tasks
       const deletedTasks = await db.select().from(tasks)
         .where(and(
           sql`${tasks.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
           isNotNull(tasks.deletedAt)
         ));
       for (const t of deletedTasks) {
-        const deleter = t.deletedBy ? await this.getUser(t.deletedBy) : null;
         items.push({
-          id: t.id,
-          type: 'task',
-          name: t.name,
+          id: t.id, type: 'task', name: t.name,
           projectName: projectMap.get(t.projectId),
-          deletedAt: t.deletedAt!,
-          deletedBy: t.deletedBy,
-          deletedByName: deleter ? `${deleter.firstName || ''} ${deleter.lastName || ''}`.trim() || deleter.email || 'Unknown' : undefined
+          deletedAt: t.deletedAt!, deletedBy: t.deletedBy
         });
       }
 
-      // Get deleted risks (now in issues table with itemType='risk')
       const deletedRisks = await db.select().from(issues)
         .where(and(
           eq(issues.itemType, 'risk'),
@@ -2098,58 +2143,59 @@ export class DatabaseStorage implements IStorage {
           isNotNull(issues.deletedAt)
         ));
       for (const r of deletedRisks) {
-        const deleter = r.deletedBy ? await this.getUser(r.deletedBy) : null;
         items.push({
-          id: r.id,
-          type: 'risk',
-          name: r.title,
+          id: r.id, type: 'risk', name: r.title,
           projectName: projectMap.get(r.projectId),
-          deletedAt: r.deletedAt!,
-          deletedBy: r.deletedBy,
-          deletedByName: deleter ? `${deleter.firstName || ''} ${deleter.lastName || ''}`.trim() || deleter.email || 'Unknown' : undefined
+          deletedAt: r.deletedAt!, deletedBy: r.deletedBy
         });
       }
 
-      // Get deleted milestones
       const deletedMilestones = await db.select().from(milestones)
         .where(and(
           sql`${milestones.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
           isNotNull(milestones.deletedAt)
         ));
       for (const m of deletedMilestones) {
-        const deleter = m.deletedBy ? await this.getUser(m.deletedBy) : null;
         items.push({
-          id: m.id,
-          type: 'milestone',
-          name: m.title,
+          id: m.id, type: 'milestone', name: m.title,
           projectName: projectMap.get(m.projectId),
-          deletedAt: m.deletedAt!,
-          deletedBy: m.deletedBy,
-          deletedByName: deleter ? `${deleter.firstName || ''} ${deleter.lastName || ''}`.trim() || deleter.email || 'Unknown' : undefined
+          deletedAt: m.deletedAt!, deletedBy: m.deletedBy
         });
       }
 
-      // Get deleted issues
       const deletedIssues = await db.select().from(issues)
         .where(and(
+          eq(issues.itemType, 'issue'),
           sql`${issues.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
           isNotNull(issues.deletedAt)
         ));
       for (const i of deletedIssues) {
-        const deleter = i.deletedBy ? await this.getUser(i.deletedBy) : null;
         items.push({
-          id: i.id,
-          type: 'issue',
-          name: i.title,
+          id: i.id, type: 'issue', name: i.title,
           projectName: projectMap.get(i.projectId),
-          deletedAt: i.deletedAt!,
-          deletedBy: i.deletedBy,
-          deletedByName: deleter ? `${deleter.firstName || ''} ${deleter.lastName || ''}`.trim() || deleter.email || 'Unknown' : undefined
+          deletedAt: i.deletedAt!, deletedBy: i.deletedBy
         });
       }
     }
 
-    // Sort by deletedAt descending (most recent first)
+    const deleterIds = [...new Set(items.map(i => i.deletedBy).filter(Boolean))] as string[];
+    const userMap = new Map<string, { firstName?: string | null; lastName?: string | null; email?: string | null }>();
+    if (deleterIds.length > 0) {
+      const deleterUsers = await db.select().from(users).where(inArray(users.id, deleterIds));
+      for (const u of deleterUsers) {
+        userMap.set(u.id, u);
+      }
+    }
+
+    for (const item of items) {
+      if (item.deletedBy) {
+        const deleter = userMap.get(item.deletedBy);
+        item.deletedByName = deleter
+          ? `${deleter.firstName || ''} ${deleter.lastName || ''}`.trim() || deleter.email || 'Unknown'
+          : undefined;
+      }
+    }
+
     return items.sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
   }
 
@@ -2438,15 +2484,18 @@ export class DatabaseStorage implements IStorage {
       const [keep, ...toDelete] = group;
       
       for (const dup of toDelete) {
-        // Re-point any assignments to the canonical resource (risks use issue_resource_assignments now)
         await db.update(taskResourceAssignments)
           .set({ resourceId: keep.id })
           .where(eq(taskResourceAssignments.resourceId, dup.id));
         await db.update(issueResourceAssignments)
           .set({ resourceId: keep.id })
           .where(eq(issueResourceAssignments.resourceId, dup.id));
+        await db.update(timesheetEntries)
+          .set({ resourceId: keep.id })
+          .where(eq(timesheetEntries.resourceId, dup.id));
+        await db.delete(resourceSkills).where(eq(resourceSkills.resourceId, dup.id));
+        await db.delete(resourceAvailability).where(eq(resourceAvailability.resourceId, dup.id));
 
-        // Delete the duplicate
         await db.delete(resources).where(eq(resources.id, dup.id));
         deletedCount++;
       }

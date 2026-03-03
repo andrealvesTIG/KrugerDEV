@@ -5,7 +5,11 @@ import type { Task, InsertTask, UpdateTaskRequest, TaskChangeLog, TaskDependency
 export function useTasks(projectId: number) {
   return useQuery<Task[]>({
     queryKey: ['/api/projects', projectId, 'tasks'],
-    queryFn: () => fetch(`/api/projects/${projectId}/tasks`).then(r => r.json()),
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/tasks`);
+      if (!res.ok) throw new Error('Failed to fetch tasks');
+      return res.json();
+    },
     enabled: projectId > 0,
   });
 }
@@ -157,7 +161,11 @@ export function useReorderTask() {
 export function useTaskHistory(taskId: number) {
   return useQuery<TaskChangeLog[]>({
     queryKey: ['/api/tasks', taskId, 'history'],
-    queryFn: () => fetch(`/api/tasks/${taskId}/history`).then(r => r.json()),
+    queryFn: async () => {
+      const res = await fetch(`/api/tasks/${taskId}/history`);
+      if (!res.ok) throw new Error('Failed to fetch task history');
+      return res.json();
+    },
     enabled: taskId > 0,
   });
 }
@@ -165,7 +173,11 @@ export function useTaskHistory(taskId: number) {
 export function useTaskDependencies(taskId: number) {
   return useQuery<TaskDependency[]>({
     queryKey: ['/api/tasks', taskId, 'dependencies'],
-    queryFn: () => fetch(`/api/tasks/${taskId}/dependencies`).then(r => r.json()),
+    queryFn: async () => {
+      const res = await fetch(`/api/tasks/${taskId}/dependencies`);
+      if (!res.ok) throw new Error('Failed to fetch task dependencies');
+      return res.json();
+    },
     enabled: taskId > 0,
   });
 }
@@ -196,7 +208,11 @@ export function useRemoveTaskDependency() {
 export function useProjectDependencies(projectId: number) {
   return useQuery<TaskDependency[]>({
     queryKey: ['/api/projects', projectId, 'dependencies'],
-    queryFn: () => fetch(`/api/projects/${projectId}/dependencies`).then(r => r.json()),
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/dependencies`);
+      if (!res.ok) throw new Error('Failed to fetch project dependencies');
+      return res.json();
+    },
     enabled: projectId > 0,
   });
 }

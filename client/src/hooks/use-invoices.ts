@@ -5,7 +5,11 @@ import type { ProjectInvoice, InsertProjectInvoice } from "@shared/schema";
 export function useProjectInvoices(projectId: number) {
   return useQuery<ProjectInvoice[]>({
     queryKey: ['/api/projects', projectId, 'invoices'],
-    queryFn: () => fetch(`/api/projects/${projectId}/invoices`).then(r => r.json()),
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/invoices`);
+      if (!res.ok) throw new Error('Failed to fetch project invoices');
+      return res.json();
+    },
     enabled: projectId > 0,
   });
 }
@@ -13,7 +17,11 @@ export function useProjectInvoices(projectId: number) {
 export function useOrganizationInvoices(organizationId: number | null | undefined) {
   return useQuery<ProjectInvoice[]>({
     queryKey: ['/api/organizations', organizationId, 'invoices'],
-    queryFn: () => fetch(`/api/organizations/${organizationId}/invoices`).then(r => r.json()),
+    queryFn: async () => {
+      const res = await fetch(`/api/organizations/${organizationId}/invoices`);
+      if (!res.ok) throw new Error('Failed to fetch organization invoices');
+      return res.json();
+    },
     enabled: !!organizationId,
   });
 }

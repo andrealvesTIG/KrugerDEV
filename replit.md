@@ -21,7 +21,7 @@ The application features a professional, enterprise-grade UI inspired by Linear 
 **Help & Feedback**: Provides a system for users to submit tickets with text and screenshots.
 **Integration Settings**: Stores organization-scoped integration credentials and connection statuses, with encrypted OAuth tokens.
 **API Design**: Follows a consistent API error convention (400, 401, 403, 404, 500 status codes) and maintains a comprehensive OpenAPI 3.0 specification via `server/swagger.ts`.
-**Performance Optimizations**: Includes extensive database indexing, N+1 query fixes, `React.memo` and `useCallback` for UI components, bulk assignment fetching, and virtual scrolling for large data sets.
+**Performance Optimizations**: Includes extensive database indexing, N+1 query fixes (including batched user lookups in Recycle Bin), `React.memo` and `useCallback` for UI components, bulk assignment fetching, `inArray` batch queries for portfolio aggregation, and virtual scrolling for large data sets. Frontend fetch hooks use `res.ok` checks to properly surface HTTP errors.
 **Resource Management**: Features tracking of resource skills, availability, and utilization, with views for Capacity Planning, Workload Dashboard, and Availability Calendar.
 **PMO Radar**: A dynamic risk visualization page displaying risks and issues on a radar-style interface with interactive filters, time projection, timeline playback, and detailed drill-down capabilities. Overdue items are visually highlighted.
 **Shared Risk Editing**: Utilizes a single, shared `EditRiskDialog` component across the application for consistent risk management, supporting AI suggestions, resource assignments, and change history.
