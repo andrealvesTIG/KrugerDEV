@@ -9676,6 +9676,22 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
     const limit = parseInt(req.query.limit as string) || 100;
     const offset = parseInt(req.query.offset as string) || 0;
+
+    const dateFilters: import('./storage').TaskDateFilterOptions = {};
+    if (req.query.startDateFrom) dateFilters.startDateFrom = req.query.startDateFrom as string;
+    if (req.query.startDateTo) dateFilters.startDateTo = req.query.startDateTo as string;
+    if (req.query.endDateFrom) dateFilters.endDateFrom = req.query.endDateFrom as string;
+    if (req.query.endDateTo) dateFilters.endDateTo = req.query.endDateTo as string;
+    if (req.query.overdue === 'true') dateFilters.overdue = true;
+    const sortByParam = req.query.sortBy as string | undefined;
+    if (sortByParam && ['startDate', 'endDate', 'createdAt'].includes(sortByParam)) {
+      dateFilters.sortBy = sortByParam as 'startDate' | 'endDate' | 'createdAt';
+    }
+    const sortOrderParam = req.query.sortOrder as string | undefined;
+    if (sortOrderParam && ['asc', 'desc'].includes(sortOrderParam)) {
+      dateFilters.sortOrder = sortOrderParam as 'asc' | 'desc';
+    }
+    const hasDateFilters = Object.keys(dateFilters).length > 0 ? dateFilters : undefined;
     
     // Determine which orgs to query
     const targetOrgIds = organizationId !== null
@@ -9700,26 +9716,27 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         onlyTaskIds = await getTeamMemberTaskIds(userId, orgId);
       }
       const { tasks: paginatedTasks, total } = await storage.getTasksByOrganizationPaginated(
-        orgId, limit, offset, onlyTaskIds
+        orgId, limit, offset, onlyTaskIds, hasDateFilters
       );
       const hasMore = offset + limit < total;
       const enrichedTasks = await enrichTasksWithTimesheetHours(paginatedTasks);
       return res.json({ tasks: enrichedTasks, total, hasMore });
     }
     
-    // Multi-org: aggregate per-org results then paginate in memory
-    let allFilteredTasks: Task[] = [];
-    for (const orgId of targetOrgIds) {
-      let onlyTaskIds: number[] | undefined;
-      if (teamMemberOrgIds.has(orgId) && userId) {
-        onlyTaskIds = await getTeamMemberTaskIds(userId, orgId);
-      }
-      const { tasks: orgTasks } = await storage.getTasksByOrganizationPaginated(orgId, 999999, 0, onlyTaskIds);
-      allFilteredTasks = allFilteredTasks.concat(orgTasks);
+    // Multi-org: single batched query instead of per-org loop
+    const teamMemberTargetOrgIds = targetOrgIds.filter(id => teamMemberOrgIds.has(id));
+    const unrestrictedOrgIds = targetOrgIds.filter(id => !teamMemberOrgIds.has(id));
+
+    let restrictedTaskIds: number[] | undefined;
+    if (teamMemberTargetOrgIds.length > 0 && userId) {
+      const taskIdPromises = teamMemberTargetOrgIds.map(orgId => getTeamMemberTaskIds(userId, orgId));
+      const taskIdArrays = await Promise.all(taskIdPromises);
+      restrictedTaskIds = taskIdArrays.flat();
     }
-    
-    const total = allFilteredTasks.length;
-    const paginatedTasks = allFilteredTasks.slice(offset, offset + limit);
+
+    const { tasks: paginatedTasks, total } = await storage.getTasksByMultipleOrganizationsPaginated(
+      targetOrgIds, limit, offset, restrictedTaskIds, unrestrictedOrgIds, hasDateFilters
+    );
     const hasMore = offset + limit < total;
     const enrichedTasks = await enrichTasksWithTimesheetHours(paginatedTasks);
     res.json({ tasks: enrichedTasks, total, hasMore });

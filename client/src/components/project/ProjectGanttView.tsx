@@ -668,6 +668,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   onCreateTaskAt,
   onDeleteTask,
   preloadedAssignments,
+  precomputedDates,
 }: { 
   task: Task;
   rowIndex: number;
@@ -701,6 +702,16 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   onCreateTaskAt?: (task: Task, position: 'above' | 'below') => void;
   onDeleteTask?: (task: Task) => void;
   preloadedAssignments?: (TaskResourceAssignment & { resource: Resource })[];
+  precomputedDates?: {
+    startFormatted: string;
+    endFormatted: string;
+    baselineStartFormatted: string;
+    baselineEndFormatted: string;
+    actualStartFormatted: string;
+    actualEndFormatted: string;
+    constraintDateFormatted: string;
+    duration: number | null;
+  };
 }) {
   const [isEditingResources, setIsEditingResources] = useState(false);
   const { data: fetchedAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(isEditingResources ? task.id : null);
@@ -1106,7 +1117,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell
                   value={task.startDate}
-                  displayValue={task.startDate ? format(parseISO(task.startDate), 'MM/dd/yyyy') : '—'}
+                  displayValue={precomputedDates?.startFormatted ?? (task.startDate ? format(parseISO(task.startDate), 'MM/dd/yyyy') : '—')}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('startDate', val as string | null, task.startDate)}
                   disabled={isSummaryTask || isReadOnly}
@@ -1116,7 +1127,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell
                   value={task.endDate}
-                  displayValue={task.endDate ? format(parseISO(task.endDate), 'MM/dd/yyyy') : '—'}
+                  displayValue={precomputedDates?.endFormatted ?? (task.endDate ? format(parseISO(task.endDate), 'MM/dd/yyyy') : '—')}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('endDate', val as string | null, task.endDate)}
                   disabled={isSummaryTask || isReadOnly}
@@ -1126,7 +1137,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell
                   value={task.baselineStartDate}
-                  displayValue={task.baselineStartDate ? format(parseISO(task.baselineStartDate), 'MM/dd/yyyy') : '—'}
+                  displayValue={precomputedDates?.baselineStartFormatted ?? (task.baselineStartDate ? format(parseISO(task.baselineStartDate), 'MM/dd/yyyy') : '—')}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('baselineStartDate', val as string | null, task.baselineStartDate)}
                   disabled={isSummaryTask || isReadOnly}
@@ -1136,7 +1147,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell
                   value={task.baselineEndDate}
-                  displayValue={task.baselineEndDate ? format(parseISO(task.baselineEndDate), 'MM/dd/yyyy') : '—'}
+                  displayValue={precomputedDates?.baselineEndFormatted ?? (task.baselineEndDate ? format(parseISO(task.baselineEndDate), 'MM/dd/yyyy') : '—')}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('baselineEndDate', val as string | null, task.baselineEndDate)}
                   disabled={isSummaryTask || isReadOnly}
@@ -1146,7 +1157,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell
                   value={task.actualStartDate}
-                  displayValue={task.actualStartDate ? format(parseISO(task.actualStartDate), 'MM/dd/yyyy') : '—'}
+                  displayValue={precomputedDates?.actualStartFormatted ?? (task.actualStartDate ? format(parseISO(task.actualStartDate), 'MM/dd/yyyy') : '—')}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('actualStartDate', val as string | null, task.actualStartDate)}
                   disabled={isSummaryTask || isReadOnly}
@@ -1156,17 +1167,16 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell
                   value={task.actualEndDate}
-                  displayValue={task.actualEndDate ? format(parseISO(task.actualEndDate), 'MM/dd/yyyy') : '—'}
+                  displayValue={precomputedDates?.actualEndFormatted ?? (task.actualEndDate ? format(parseISO(task.actualEndDate), 'MM/dd/yyyy') : '—')}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('actualEndDate', val as string | null, task.actualEndDate)}
                   disabled={isSummaryTask || isReadOnly}
                 />
               );
             case 'durationDays':
-              // Always calculate duration from dates in working days for consistency
-              const calculatedDuration = (task.startDate && task.endDate)
+              const calculatedDuration = precomputedDates?.duration ?? ((task.startDate && task.endDate)
                 ? calculateDurationInWorkingDays(task.startDate, task.endDate)
-                : (task.durationDays ?? null);
+                : (task.durationDays ?? null));
               return (
                 <InlineEditCell
                   value={calculatedDuration}
@@ -1390,7 +1400,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell
                   value={task.constraintDate}
-                  displayValue={task.constraintDate ? format(parseISO(task.constraintDate), 'MM/dd/yyyy') : '—'}
+                  displayValue={precomputedDates?.constraintDateFormatted ?? (task.constraintDate ? format(parseISO(task.constraintDate), 'MM/dd/yyyy') : '—')}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('constraintDate', val as string | null, task.constraintDate)}
                   disabled={isReadOnly}
@@ -1502,6 +1512,7 @@ const ProjectGanttTaskRowTimeline = memo(function ProjectGanttTaskRowTimeline({
   showCriticalPath,
   isOnCriticalPath,
   hasDependencies,
+  precomputedDates,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
@@ -1512,15 +1523,15 @@ const ProjectGanttTaskRowTimeline = memo(function ProjectGanttTaskRowTimeline({
   showCriticalPath: boolean;
   isOnCriticalPath: boolean;
   hasDependencies?: boolean;
+  precomputedDates?: { start: Date | null; end: Date | null; baselineStart: Date | null; baselineEnd: Date | null };
 }) {
   const hasValidDates = task.startDate && task.endDate;
-  const start = hasValidDates ? parseISO(task.startDate) : null;
-  const end = hasValidDates ? parseISO(task.endDate) : null;
+  const start = precomputedDates?.start ?? (hasValidDates ? parseISO(task.startDate) : null);
+  const end = precomputedDates?.end ?? (hasValidDates ? parseISO(task.endDate) : null);
   
-  // Calculate baseline bar position
   const hasBaseline = task.baselineStartDate && task.baselineEndDate;
-  const baselineStart = hasBaseline ? parseISO(task.baselineStartDate!) : null;
-  const baselineEnd = hasBaseline ? parseISO(task.baselineEndDate!) : null;
+  const baselineStart = precomputedDates?.baselineStart ?? (hasBaseline ? parseISO(task.baselineStartDate!) : null);
+  const baselineEnd = precomputedDates?.baselineEnd ?? (hasBaseline ? parseISO(task.baselineEndDate!) : null);
   
   let leftPercent = 0;
   let widthPercent = 0;
@@ -3259,6 +3270,54 @@ function ProjectGanttView({
   const hasAnyBaselines = useMemo(() => {
     return tasks.some(t => t.baselineStartDate && t.baselineEndDate);
   }, [tasks]);
+
+  const parsedDatesMap = useMemo(() => {
+    const map = new Map<number, {
+      start: Date | null;
+      end: Date | null;
+      baselineStart: Date | null;
+      baselineEnd: Date | null;
+      actualStart: Date | null;
+      actualEnd: Date | null;
+      constraintDate: Date | null;
+      startFormatted: string;
+      endFormatted: string;
+      baselineStartFormatted: string;
+      baselineEndFormatted: string;
+      actualStartFormatted: string;
+      actualEndFormatted: string;
+      constraintDateFormatted: string;
+      duration: number | null;
+    }>();
+    for (const t of tasks) {
+      const start = t.startDate ? parseISO(t.startDate) : null;
+      const end = t.endDate ? parseISO(t.endDate) : null;
+      const baselineStart = t.baselineStartDate ? parseISO(t.baselineStartDate) : null;
+      const baselineEnd = t.baselineEndDate ? parseISO(t.baselineEndDate) : null;
+      const actualStart = t.actualStartDate ? parseISO(t.actualStartDate) : null;
+      const actualEnd = t.actualEndDate ? parseISO(t.actualEndDate) : null;
+      const constraintDate = t.constraintDate ? parseISO(t.constraintDate) : null;
+      const duration = (start && end) ? calculateDurationInWorkingDays(t.startDate, t.endDate) : (t.durationDays ?? null);
+      map.set(t.id, {
+        start,
+        end,
+        baselineStart,
+        baselineEnd,
+        actualStart,
+        actualEnd,
+        constraintDate,
+        startFormatted: start ? format(start, 'MM/dd/yyyy') : '—',
+        endFormatted: end ? format(end, 'MM/dd/yyyy') : '—',
+        baselineStartFormatted: baselineStart ? format(baselineStart, 'MM/dd/yyyy') : '—',
+        baselineEndFormatted: baselineEnd ? format(baselineEnd, 'MM/dd/yyyy') : '—',
+        actualStartFormatted: actualStart ? format(actualStart, 'MM/dd/yyyy') : '—',
+        actualEndFormatted: actualEnd ? format(actualEnd, 'MM/dd/yyyy') : '—',
+        constraintDateFormatted: constraintDate ? format(constraintDate, 'MM/dd/yyyy') : '—',
+        duration,
+      });
+    }
+    return map;
+  }, [tasks]);
   
   const { minDate, maxDate, dateRange, autoZoomLevel } = useMemo(() => {
     let minDate: Date;
@@ -3274,15 +3333,16 @@ function ProjectGanttView({
       return y >= MIN_VALID_YEAR && y <= MAX_VALID_YEAR && !isNaN(d.getTime());
     };
     const tasksWithDates = tasks.filter(t => {
-      if (!t.startDate || !t.endDate) return false;
-      const s = parseISO(t.startDate);
-      const e = parseISO(t.endDate);
-      return isValidDate(s) && isValidDate(e);
+      const parsed = parsedDatesMap.get(t.id);
+      return parsed?.start && parsed?.end && isValidDate(parsed.start) && isValidDate(parsed.end);
     });
     let scheduleMin: Date | null = null;
     let scheduleMax: Date | null = null;
     if (tasksWithDates.length > 0) {
-      const dates = tasksWithDates.flatMap(t => [parseISO(t.startDate), parseISO(t.endDate)]).filter(isValidDate);
+      const dates = tasksWithDates.flatMap(t => {
+        const parsed = parsedDatesMap.get(t.id)!;
+        return [parsed.start!, parsed.end!];
+      }).filter(isValidDate);
       scheduleMin = new Date(Math.min(...dates.map(d => d.getTime())));
       scheduleMax = new Date(Math.max(...dates.map(d => d.getTime())));
     }
@@ -3319,7 +3379,7 @@ function ProjectGanttView({
       maxDate = endOfMonth(addDays(today, 60));
       return { minDate, maxDate, dateRange: eachDayOfInterval({ start: minDate, end: maxDate }), autoZoomLevel: 'month' as ZoomLevel };
     }
-  }, [tasks, today, projectStartDate, projectEndDate]);
+  }, [tasks, parsedDatesMap, today, projectStartDate, projectEndDate]);
 
   useEffect(() => {
     setZoomLevel(autoZoomLevel);
@@ -4037,6 +4097,7 @@ function ProjectGanttView({
                             onCreateTaskAt={handleCreateTaskAt}
                             onDeleteTask={handleDeleteTask}
                             preloadedAssignments={taskAssignmentsMap.get(task.id)}
+                            precomputedDates={parsedDatesMap.get(task.id)}
                           />
                         </div>
                       );
@@ -4082,6 +4143,7 @@ function ProjectGanttView({
                               onCreateTaskAt={handleCreateTaskAt}
                               onDeleteTask={handleDeleteTask}
                               preloadedAssignments={taskAssignmentsMap.get(task.id)}
+                              precomputedDates={parsedDatesMap.get(task.id)}
                             />
                           )}
                         </SortableTaskRow>
@@ -4189,6 +4251,7 @@ function ProjectGanttView({
                               showCriticalPath={showCriticalPath}
                               isOnCriticalPath={criticalTaskIds.has(task.id)}
                               hasDependencies={tasksWithDependencies.has(task.id)}
+                              precomputedDates={parsedDatesMap.get(task.id)}
                             />
                           </div>
                         );
@@ -4208,6 +4271,7 @@ function ProjectGanttView({
                         showCriticalPath={showCriticalPath}
                         isOnCriticalPath={criticalTaskIds.has(task.id)}
                         hasDependencies={tasksWithDependencies.has(task.id)}
+                        precomputedDates={parsedDatesMap.get(task.id)}
                       />
                     ))
                   )}

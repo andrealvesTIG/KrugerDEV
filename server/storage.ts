@@ -74,7 +74,7 @@ import {
   legacyRisks, legacyRiskChangeLogs, legacyRiskResourceAssignments,
   apiTokens, type ApiToken, type InsertApiToken
 } from "@shared/schema";
-import { eq, and, desc, asc, or, ilike, sql, isNull, isNotNull, inArray, notInArray } from "drizzle-orm";
+import { eq, and, desc, asc, or, ilike, sql, isNull, isNotNull, inArray, notInArray, gte, lte, lt } from "drizzle-orm";
 import { 
   billingAuditLogs, 
   subscriptions, 
@@ -85,6 +85,16 @@ import {
   referrals,
   referralPayouts 
 } from "@shared/models/billing";
+
+export interface TaskDateFilterOptions {
+  startDateFrom?: string;
+  startDateTo?: string;
+  endDateFrom?: string;
+  endDateTo?: string;
+  overdue?: boolean;
+  sortBy?: 'startDate' | 'endDate' | 'createdAt';
+  sortOrder?: 'asc' | 'desc';
+}
 
 export interface IStorage {
   // Users
@@ -177,7 +187,8 @@ export interface IStorage {
   getTasks(projectId: number): Promise<Task[]>;
   getTasksByProject(projectId: number): Promise<Task[]>;
   getAllTasks(): Promise<Task[]>;
-  getTasksByOrganizationPaginated(organizationId: number, limit: number, offset: number, onlyTaskIds?: number[]): Promise<{ tasks: Task[]; total: number }>;
+  getTasksByOrganizationPaginated(organizationId: number, limit: number, offset: number, onlyTaskIds?: number[], dateFilters?: TaskDateFilterOptions): Promise<{ tasks: Task[]; total: number }>;
+  getTasksByMultipleOrganizationsPaginated(orgIds: number[], limit: number, offset: number, restrictedTaskIds?: number[], unrestrictedOrgIds?: number[], dateFilters?: TaskDateFilterOptions): Promise<{ tasks: Task[]; total: number }>;
   getTask(id: number): Promise<Task | undefined>;
   createTask(task: InsertTask): Promise<Task>;
   updateTask(id: number, updates: UpdateTaskRequest): Promise<Task>;
@@ -1415,7 +1426,38 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(tasks).where(isNull(tasks.deletedAt)).orderBy(desc(tasks.createdAt));
   }
 
-  async getTasksByOrganizationPaginated(organizationId: number, limit: number, offset: number, onlyTaskIds?: number[]): Promise<{ tasks: Task[]; total: number }> {
+  private buildDateFilterConditions(filters?: TaskDateFilterOptions) {
+    const conditions: any[] = [];
+    if (!filters) return conditions;
+    if (filters.startDateFrom) {
+      conditions.push(or(isNull(tasks.startDate), gte(tasks.startDate, filters.startDateFrom)));
+    }
+    if (filters.startDateTo) {
+      conditions.push(or(isNull(tasks.startDate), lte(tasks.startDate, filters.startDateTo)));
+    }
+    if (filters.endDateFrom) {
+      conditions.push(or(isNull(tasks.endDate), gte(tasks.endDate, filters.endDateFrom)));
+    }
+    if (filters.endDateTo) {
+      conditions.push(or(isNull(tasks.endDate), lte(tasks.endDate, filters.endDateTo)));
+    }
+    if (filters.overdue) {
+      const today = new Date().toISOString().split('T')[0];
+      conditions.push(lt(tasks.endDate, today));
+      conditions.push(sql`${tasks.status} NOT IN ('Completed', 'Cancelled')`);
+    }
+    return conditions;
+  }
+
+  private getTaskSortOrder(filters?: TaskDateFilterOptions) {
+    if (!filters?.sortBy) return desc(tasks.createdAt);
+    const col = filters.sortBy === 'startDate' ? tasks.startDate
+      : filters.sortBy === 'endDate' ? tasks.endDate
+      : tasks.createdAt;
+    return filters.sortOrder === 'asc' ? asc(col) : desc(col);
+  }
+
+  async getTasksByOrganizationPaginated(organizationId: number, limit: number, offset: number, onlyTaskIds?: number[], dateFilters?: TaskDateFilterOptions): Promise<{ tasks: Task[]; total: number }> {
     const orgProjectIds = await db.select({ id: projects.id }).from(projects)
       .where(and(eq(projects.organizationId, organizationId), isNull(projects.deletedAt)));
     const projectIdList = orgProjectIds.map(p => p.id);
@@ -1424,6 +1466,7 @@ export class DatabaseStorage implements IStorage {
     const conditions = [
       isNull(tasks.deletedAt),
       inArray(tasks.projectId, projectIdList),
+      ...this.buildDateFilterConditions(dateFilters),
     ];
     if (onlyTaskIds !== undefined) {
       if (onlyTaskIds.length === 0) return { tasks: [], total: 0 };
@@ -1436,7 +1479,78 @@ export class DatabaseStorage implements IStorage {
 
     const result = await db.select().from(tasks)
       .where(baseConditions)
-      .orderBy(desc(tasks.createdAt))
+      .orderBy(this.getTaskSortOrder(dateFilters))
+      .limit(limit)
+      .offset(offset);
+
+    return { tasks: result, total };
+  }
+
+  async getTasksByMultipleOrganizationsPaginated(
+    orgIds: number[],
+    limit: number,
+    offset: number,
+    restrictedTaskIds?: number[],
+    unrestrictedOrgIds?: number[],
+    dateFilters?: TaskDateFilterOptions
+  ): Promise<{ tasks: Task[]; total: number }> {
+    if (orgIds.length === 0) return { tasks: [], total: 0 };
+
+    const orgProjectRows = await db.select({ id: projects.id, organizationId: projects.organizationId })
+      .from(projects)
+      .where(and(inArray(projects.organizationId, orgIds), isNull(projects.deletedAt)));
+
+    if (orgProjectRows.length === 0) return { tasks: [], total: 0 };
+
+    const unrestrictedOrgSet = new Set(unrestrictedOrgIds || orgIds);
+    const unrestrictedProjectIds = orgProjectRows
+      .filter(p => unrestrictedOrgSet.has(p.organizationId))
+      .map(p => p.id);
+    const restrictedProjectIds = orgProjectRows
+      .filter(p => !unrestrictedOrgSet.has(p.organizationId))
+      .map(p => p.id);
+
+    const hasUnrestricted = unrestrictedProjectIds.length > 0;
+    const hasRestricted = restrictedProjectIds.length > 0 && restrictedTaskIds && restrictedTaskIds.length > 0;
+
+    if (!hasUnrestricted && !hasRestricted) return { tasks: [], total: 0 };
+
+    const dateConditions = this.buildDateFilterConditions(dateFilters);
+
+    let baseConditions;
+    if (hasUnrestricted && hasRestricted) {
+      baseConditions = and(
+        isNull(tasks.deletedAt),
+        or(
+          inArray(tasks.projectId, unrestrictedProjectIds),
+          and(
+            inArray(tasks.projectId, restrictedProjectIds),
+            inArray(tasks.id, restrictedTaskIds!)
+          )
+        ),
+        ...dateConditions
+      );
+    } else if (hasUnrestricted) {
+      baseConditions = and(
+        isNull(tasks.deletedAt),
+        inArray(tasks.projectId, unrestrictedProjectIds),
+        ...dateConditions
+      );
+    } else {
+      baseConditions = and(
+        isNull(tasks.deletedAt),
+        inArray(tasks.projectId, restrictedProjectIds),
+        inArray(tasks.id, restrictedTaskIds!),
+        ...dateConditions
+      );
+    }
+
+    const [countResult] = await db.select({ count: sql<number>`count(*)::int` }).from(tasks).where(baseConditions);
+    const total = countResult?.count ?? 0;
+
+    const result = await db.select().from(tasks)
+      .where(baseConditions)
+      .orderBy(this.getTaskSortOrder(dateFilters))
       .limit(limit)
       .offset(offset);
 

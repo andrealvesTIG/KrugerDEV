@@ -440,6 +440,11 @@ export const tasks = pgTable("tasks", {
   index("tasks_project_id_idx").on(table.projectId),
   index("tasks_parent_id_idx").on(table.parentId),
   index("tasks_deleted_at_idx").on(table.deletedAt),
+  index("tasks_start_date_idx").on(table.startDate),
+  index("tasks_end_date_idx").on(table.endDate),
+  index("tasks_status_idx").on(table.status),
+  index("tasks_created_at_idx").on(table.createdAt),
+  index("tasks_project_deleted_task_idx").on(table.projectId, table.deletedAt, table.taskIndex),
 ]);
 
 // Task Change Logs (Audit Trail)

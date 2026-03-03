@@ -1368,6 +1368,7 @@ function GanttTaskRow({
   onToggleCollapse,
   allowIndentation = true,
   preloadedAssignments,
+  precomputedDates,
 }: { 
   task: Task; 
   projects: any[]; 
@@ -1383,6 +1384,7 @@ function GanttTaskRow({
   onToggleCollapse: (taskId: number) => void;
   allowIndentation?: boolean;
   preloadedAssignments?: (TaskResourceAssignment & { resource: Resource })[];
+  precomputedDates?: { start: Date | null; end: Date | null; baselineStart: Date | null; baselineEnd: Date | null; startFormatted: string; endFormatted: string };
 }) {
   const [isEditingResources, setIsEditingResources] = useState(false);
   const { data: fetchedAssignments } = useTaskResourceAssignments(isEditingResources ? task.id : null);
@@ -1407,8 +1409,8 @@ function GanttTaskRow({
   };
 
   const hasValidDates = task.startDate && task.endDate;
-  const start = hasValidDates ? parseISO(task.startDate) : null;
-  const end = hasValidDates ? parseISO(task.endDate) : null;
+  const start = precomputedDates?.start ?? (hasValidDates ? parseISO(task.startDate) : null);
+  const end = precomputedDates?.end ?? (hasValidDates ? parseISO(task.endDate) : null);
   
   let leftPercent = 0;
   let widthPercent = 0;
@@ -1421,10 +1423,9 @@ function GanttTaskRow({
     widthPercent = (duration / totalDays) * 100;
   }
 
-  // Baseline bar calculations
   const hasBaseline = task.baselineStartDate && task.baselineEndDate;
-  const baselineStart = hasBaseline ? parseISO(task.baselineStartDate!) : null;
-  const baselineEnd = hasBaseline ? parseISO(task.baselineEndDate!) : null;
+  const baselineStart = precomputedDates?.baselineStart ?? (hasBaseline ? parseISO(task.baselineStartDate!) : null);
+  const baselineEnd = precomputedDates?.baselineEnd ?? (hasBaseline ? parseISO(task.baselineEndDate!) : null);
   
   let baselineLeftPercent = 0;
   let baselineWidthPercent = 0;
@@ -1556,12 +1557,12 @@ function GanttTaskRow({
       )}
       {visibleColumns.includes('startDate') && (
         <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
-          {task.startDate ? format(parseISO(task.startDate), 'MM/dd/yy') : '—'}
+          {precomputedDates?.startFormatted ?? (task.startDate ? format(parseISO(task.startDate), 'MM/dd/yy') : '—')}
         </div>
       )}
       {visibleColumns.includes('endDate') && (
         <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
-          {task.endDate ? format(parseISO(task.endDate), 'MM/dd/yy') : '—'}
+          {precomputedDates?.endFormatted ?? (task.endDate ? format(parseISO(task.endDate), 'MM/dd/yy') : '—')}
         </div>
       )}
       {visibleColumns.includes('duration') && (
@@ -1939,14 +1940,39 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
     return { visibleTasks, taskHasChildren };
   }, [tasks, collapsedTasks]);
 
+  const taskParsedDatesMap = useMemo(() => {
+    const map = new Map<number, { start: Date | null; end: Date | null; baselineStart: Date | null; baselineEnd: Date | null; startFormatted: string; endFormatted: string }>();
+    for (const t of tasks) {
+      const start = t.startDate ? parseISO(t.startDate) : null;
+      const end = t.endDate ? parseISO(t.endDate) : null;
+      const baselineStart = t.baselineStartDate ? parseISO(t.baselineStartDate) : null;
+      const baselineEnd = t.baselineEndDate ? parseISO(t.baselineEndDate) : null;
+      map.set(t.id, {
+        start,
+        end,
+        baselineStart,
+        baselineEnd,
+        startFormatted: start ? format(start, 'MM/dd/yy') : '—',
+        endFormatted: end ? format(end, 'MM/dd/yy') : '—',
+      });
+    }
+    return map;
+  }, [tasks]);
+
   const { minDate, maxDate, dateRange, autoZoomLevel } = useMemo(() => {
-    const tasksWithDates = tasks.filter(t => t.startDate && t.endDate);
+    const tasksWithDates = tasks.filter(t => {
+      const parsed = taskParsedDatesMap.get(t.id);
+      return parsed?.start && parsed?.end;
+    });
     
     let minDate: Date;
     let maxDate: Date;
     
     if (tasksWithDates.length > 0) {
-      const dates = tasksWithDates.flatMap(t => [parseISO(t.startDate), parseISO(t.endDate)]);
+      const dates = tasksWithDates.flatMap(t => {
+        const parsed = taskParsedDatesMap.get(t.id)!;
+        return [parsed.start!, parsed.end!];
+      });
       const earliestDate = new Date(Math.min(...dates.map(d => d.getTime())));
       const latestDate = new Date(Math.max(...dates.map(d => d.getTime())));
       
@@ -1968,7 +1994,7 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
       maxDate = endOfMonth(addDays(today, 60));
       return { minDate, maxDate, dateRange: eachDayOfInterval({ start: minDate, end: maxDate }), autoZoomLevel: 'month' as TaskZoomLevel };
     }
-  }, [tasks, today]);
+  }, [tasks, taskParsedDatesMap, today]);
 
   useEffect(() => {
     setZoomLevel(autoZoomLevel);
@@ -2194,6 +2220,7 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
             onToggleCollapse={toggleCollapse}
             allowIndentation={!embedded}
             preloadedAssignments={orgTaskAssignments?.filter(a => a.taskId === task.id)}
+            precomputedDates={taskParsedDatesMap.get(task.id)}
           />
         ))}
       </div>
