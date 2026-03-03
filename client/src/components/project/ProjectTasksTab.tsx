@@ -471,13 +471,16 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
 
     if (editingTask) {
       updateTask.mutate({ id: editingTask.id, ...taskData }, {
-        onSuccess: () => {
-          // Only update resources if invite didn't already handle it
+        onSuccess: (result) => {
           if (!inviteAssignedRef.current) {
             updateTaskResources.mutate({ taskId: editingTask.id, resourceIds: selectedResourceIds });
           }
           inviteAssignedRef.current = false;
-          toast({ title: "Success", description: "Task updated" });
+          if (result?.datesCorrectedByDependency) {
+            toast({ title: "Dates adjusted", description: "The start date was adjusted to respect task dependencies", variant: "default" });
+          } else {
+            toast({ title: "Success", description: "Task updated" });
+          }
           setIsDialogOpen(false);
           setEditingTask(null);
         },

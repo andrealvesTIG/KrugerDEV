@@ -797,6 +797,11 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
       projectId: task.projectId,
       ...updates,
     }, {
+      onSuccess: (result) => {
+        if (result?.datesCorrectedByDependency) {
+          toast({ title: "Dates adjusted", description: "The dates were adjusted to respect task dependencies", variant: "default" });
+        }
+      },
       onError: (error) => {
         toast({ 
           title: "Update failed", 

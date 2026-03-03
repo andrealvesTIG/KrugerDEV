@@ -98,8 +98,10 @@ export function useCreateTask() {
 
 export function useUpdateTask() {
   return useMutation({
-    mutationFn: ({ id, projectId, ...data }: { id: number; projectId: number } & UpdateTaskRequest) =>
-      apiRequest('PUT', `/api/tasks/${id}`, data),
+    mutationFn: async ({ id, projectId, ...data }: { id: number; projectId: number } & UpdateTaskRequest) => {
+      const res = await apiRequest('PUT', `/api/tasks/${id}`, data);
+      return res.json() as Promise<Task & { datesCorrectedByDependency?: boolean }>;
+    },
     onSuccess: (_, variables) => {
       queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
       queryClient.refetchQueries({ queryKey: ['/api/tasks'], exact: false });

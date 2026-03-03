@@ -427,9 +427,7 @@ export default function Tasks() {
 
     if (editingTask) {
       updateTask.mutate({ id: editingTask.id, ...taskData }, {
-        onSuccess: () => {
-          // Only update resources if invite didn't already handle it
-          // inviteAssignedRef prevents race condition where form uses stale state
+        onSuccess: (result) => {
           if (!inviteAssignedRef.current) {
             updateTaskResources.mutate({ 
               taskId: editingTask.id, 
@@ -437,8 +435,12 @@ export default function Tasks() {
               allocations: resourceAllocations 
             });
           }
-          inviteAssignedRef.current = false; // Reset for next edit
-          toast({ title: "Success", description: "Task updated" });
+          inviteAssignedRef.current = false;
+          if (result?.datesCorrectedByDependency) {
+            toast({ title: "Dates adjusted", description: "The start date was adjusted to respect task dependencies", variant: "default" });
+          } else {
+            toast({ title: "Success", description: "Task updated" });
+          }
           setIsDialogOpen(false);
           setEditingTask(null);
         },

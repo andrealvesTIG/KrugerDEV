@@ -10023,7 +10023,19 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         propagatedTasks = await propagateScheduleForProject(updated.projectId);
       }
       
-      res.json({ ...updated, propagatedTasks });
+      // If the task itself was adjusted by propagation, re-fetch to return accurate data
+      let finalTask = updated;
+      let datesCorrectedByDependency = false;
+      const selfAdjustment = propagatedTasks.find(p => p.taskId === taskId);
+      if (selfAdjustment) {
+        const refetched = await storage.getTask(taskId);
+        if (refetched) {
+          finalTask = refetched;
+          datesCorrectedByDependency = true;
+        }
+      }
+      
+      res.json({ ...finalTask, propagatedTasks, datesCorrectedByDependency });
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
       const classified = classifyError(err);
