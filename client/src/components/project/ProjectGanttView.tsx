@@ -11,7 +11,7 @@ import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useProjec
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Task, TaskResourceAssignment, Resource } from "@shared/schema";
 import { computeWbsValues } from "@/lib/taskWbs";
 import { ResourceAssignment, ResourceAllocation } from "@/components/ResourceAssignment";
@@ -582,7 +582,7 @@ function TaskNameCell({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Task</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{task.name}"? This action cannot be undone.
+              Are you sure you want to delete "{task.name}"? You can undo this with Ctrl+Z.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -692,7 +692,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   onToggleBaselineSelection: (taskId: number, hasChildren: boolean) => void;
   showCriticalPath: boolean;
   isOnCriticalPath: boolean;
-  onTrackChange?: (taskId: number, projectId: number, field: string, oldValue: unknown, newValue: unknown) => void;
+  onTrackChange?: (taskId: number, projectId: number, before: Record<string, unknown>, after: Record<string, unknown>, label: string) => void;
   prevTaskLevel?: number;
   isSelected: boolean;
   onToggleSelection: (taskId: number) => void;
@@ -800,10 +800,19 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
       }
     }
     
-    // Track the change for undo/redo if callback provided (track even if oldValue is undefined/null)
-    // Note: oldValue is the actual stored value, updates may contain calculated values
     if (onTrackChange) {
-      onTrackChange(task.id, task.projectId, field, oldValue ?? null, value);
+      const beforeSnapshot: Record<string, unknown> = {};
+      const afterSnapshot: Record<string, unknown> = {};
+      for (const key of Object.keys(updates)) {
+        beforeSnapshot[key] = (task as Record<string, unknown>)[key] ?? null;
+        afterSnapshot[key] = updates[key];
+      }
+      const fieldLabels: Record<string, string> = {
+        startDate: 'Start Date', endDate: 'End Date', durationDays: 'Duration',
+        name: 'Name', status: 'Status', progress: 'Progress', outlineLevel: 'Outline Level',
+        isMilestone: 'Milestone',
+      };
+      onTrackChange(task.id, task.projectId, beforeSnapshot, afterSnapshot, fieldLabels[field] || field);
     }
     
     updateTask.mutate({
@@ -2003,10 +2012,14 @@ function ProjectGanttView({
     }
   };
 
-  // Undo/redo history for all Gantt chart changes
   type GanttAction = 
     | { type: 'reorder'; taskId: number; fromIndex: number; toIndex: number }
-    | { type: 'update'; taskId: number; projectId: number; field: string; oldValue: unknown; newValue: unknown };
+    | { type: 'update'; taskId: number; projectId: number; before: Record<string, unknown>; after: Record<string, unknown>; label: string }
+    | { type: 'create'; taskId: number; projectId: number }
+    | { type: 'delete'; taskId: number; projectId: number }
+    | { type: 'addDependency'; taskId: number; dependsOnTaskId: number; projectId: number }
+    | { type: 'removeDependency'; taskId: number; dependsOnTaskId: number; projectId: number };
+  const MAX_UNDO_STACK = 50;
   const [undoStack, setUndoStack] = useState<GanttAction[]>([]);
   const [redoStack, setRedoStack] = useState<GanttAction[]>([]);
   
@@ -2029,9 +2042,8 @@ function ProjectGanttView({
     
     if (activeIndex === -1 || overIndex === -1) return;
     
-    // Save to undo stack
-    setUndoStack(prev => [...prev, { type: 'reorder', taskId: Number(active.id), fromIndex: activeIndex, toIndex: overIndex }]);
-    setRedoStack([]); // Clear redo stack on new action
+    setUndoStack(prev => [...prev.slice(-(MAX_UNDO_STACK - 1)), { type: 'reorder', taskId: Number(active.id), fromIndex: activeIndex, toIndex: overIndex }]);
+    setRedoStack([]);
     
     reorderTask.mutate({
       projectId,
@@ -2049,98 +2061,141 @@ function ProjectGanttView({
     });
   };
   
-  // Push a task update to undo stack (for tracking all changes)
-  const pushToUndoStack = useCallback((taskId: number, projectId: number, field: string, oldValue: unknown, newValue: unknown) => {
-    setUndoStack(prev => [...prev, { type: 'update', taskId, projectId, field, oldValue, newValue }]);
-    setRedoStack([]); // Clear redo stack on new action
+  const pushActionToUndoStack = useCallback((action: GanttAction) => {
+    setUndoStack(prev => [...prev.slice(-(MAX_UNDO_STACK - 1)), action]);
+    setRedoStack([]);
   }, []);
+
+  const pushToUndoStack = useCallback((taskId: number, projectId: number, before: Record<string, unknown>, after: Record<string, unknown>, label: string) => {
+    pushActionToUndoStack({ type: 'update', taskId, projectId, before, after, label });
+  }, [pushActionToUndoStack]);
   
-  // Undo last action (reorder or update)
-  const handleUndo = () => {
+  const undoErrorRollback = useCallback((action: GanttAction) => {
+    setUndoStack(prev => [...prev, action]);
+    setRedoStack(prev => prev.slice(0, -1));
+    toast({ title: "Error", description: "Failed to undo", variant: "destructive" });
+  }, [toast]);
+
+  const redoErrorRollback = useCallback((action: GanttAction) => {
+    setRedoStack(prev => [...prev, action]);
+    setUndoStack(prev => prev.slice(0, -1));
+    toast({ title: "Error", description: "Failed to redo", variant: "destructive" });
+  }, [toast]);
+
+  const handleUndo = useCallback(() => {
     if (undoStack.length === 0) return;
     
     const lastAction = undoStack[undoStack.length - 1];
     setUndoStack(prev => prev.slice(0, -1));
     setRedoStack(prev => [...prev, lastAction]);
     
-    if (lastAction.type === 'reorder') {
-      // Reorder back to original position
-      reorderTask.mutate({
-        projectId,
-        taskId: lastAction.taskId,
-        newIndex: lastAction.fromIndex,
-      }, {
-        onSuccess: () => {
-          toast({ title: "Undone", description: "Task order restored" });
-        },
-        onError: () => {
-          setUndoStack(prev => [...prev, lastAction]);
-          setRedoStack(prev => prev.slice(0, -1));
-          toast({ title: "Error", description: "Failed to undo", variant: "destructive" });
-        }
-      });
-    } else if (lastAction.type === 'update') {
-      // Restore previous field value
-      updateTask.mutate({
-        id: lastAction.taskId,
-        projectId: lastAction.projectId,
-        [lastAction.field]: lastAction.oldValue,
-      }, {
-        onSuccess: () => {
-          toast({ title: "Undone", description: `Task ${lastAction.field} restored` });
-        },
-        onError: () => {
-          setUndoStack(prev => [...prev, lastAction]);
-          setRedoStack(prev => prev.slice(0, -1));
-          toast({ title: "Error", description: "Failed to undo", variant: "destructive" });
-        }
-      });
+    switch (lastAction.type) {
+      case 'reorder':
+        reorderTask.mutate({ projectId, taskId: lastAction.taskId, newIndex: lastAction.fromIndex }, {
+          onSuccess: () => toast({ title: "Undone", description: "Task order restored" }),
+          onError: () => undoErrorRollback(lastAction),
+        });
+        break;
+      case 'update':
+        updateTask.mutate({ id: lastAction.taskId, projectId: lastAction.projectId, ...lastAction.before }, {
+          onSuccess: () => toast({ title: "Undone", description: `${lastAction.label} restored` }),
+          onError: () => undoErrorRollback(lastAction),
+        });
+        break;
+      case 'create':
+        deleteTask.mutate({ id: lastAction.taskId, projectId: lastAction.projectId }, {
+          onSuccess: () => toast({ title: "Undone", description: "Task creation undone" }),
+          onError: () => undoErrorRollback(lastAction),
+        });
+        break;
+      case 'delete':
+        apiRequest('POST', `/api/organizations/${organizationId}/recycle-bin/restore`, { type: 'task', itemId: lastAction.taskId }).then(() => {
+          queryClient.refetchQueries({ queryKey: ['/api/projects', lastAction.projectId, 'tasks'] });
+          toast({ title: "Undone", description: "Task restored" });
+        }).catch(() => undoErrorRollback(lastAction));
+        break;
+      case 'addDependency':
+        removeDependency.mutate({ taskId: lastAction.taskId, dependsOnTaskId: lastAction.dependsOnTaskId }, {
+          onSuccess: () => toast({ title: "Undone", description: "Dependency removed" }),
+          onError: () => undoErrorRollback(lastAction),
+        });
+        break;
+      case 'removeDependency':
+        addDependency.mutate({ taskId: lastAction.taskId, dependsOnTaskId: lastAction.dependsOnTaskId, projectId: lastAction.projectId }, {
+          onSuccess: () => toast({ title: "Undone", description: "Dependency restored" }),
+          onError: () => undoErrorRollback(lastAction),
+        });
+        break;
     }
-  };
-  
-  // Redo last undone action
-  const handleRedo = () => {
+  }, [undoStack, projectId, organizationId, reorderTask, updateTask, deleteTask, addDependency, removeDependency, toast, undoErrorRollback]);
+
+  const handleRedo = useCallback(() => {
     if (redoStack.length === 0) return;
     
     const lastAction = redoStack[redoStack.length - 1];
     setRedoStack(prev => prev.slice(0, -1));
     setUndoStack(prev => [...prev, lastAction]);
     
-    if (lastAction.type === 'reorder') {
-      // Reorder to the target position again
-      reorderTask.mutate({
-        projectId,
-        taskId: lastAction.taskId,
-        newIndex: lastAction.toIndex,
-      }, {
-        onSuccess: () => {
-          toast({ title: "Redone", description: "Task order reapplied" });
-        },
-        onError: () => {
-          setRedoStack(prev => [...prev, lastAction]);
-          setUndoStack(prev => prev.slice(0, -1));
-          toast({ title: "Error", description: "Failed to redo", variant: "destructive" });
-        }
-      });
-    } else if (lastAction.type === 'update') {
-      // Reapply the change
-      updateTask.mutate({
-        id: lastAction.taskId,
-        projectId: lastAction.projectId,
-        [lastAction.field]: lastAction.newValue,
-      }, {
-        onSuccess: () => {
-          toast({ title: "Redone", description: `Task ${lastAction.field} reapplied` });
-        },
-        onError: () => {
-          setRedoStack(prev => [...prev, lastAction]);
-          setUndoStack(prev => prev.slice(0, -1));
-          toast({ title: "Error", description: "Failed to redo", variant: "destructive" });
-        }
-      });
+    switch (lastAction.type) {
+      case 'reorder':
+        reorderTask.mutate({ projectId, taskId: lastAction.taskId, newIndex: lastAction.toIndex }, {
+          onSuccess: () => toast({ title: "Redone", description: "Task reordered" }),
+          onError: () => redoErrorRollback(lastAction),
+        });
+        break;
+      case 'update':
+        updateTask.mutate({ id: lastAction.taskId, projectId: lastAction.projectId, ...lastAction.after }, {
+          onSuccess: () => toast({ title: "Redone", description: `${lastAction.label} reapplied` }),
+          onError: () => redoErrorRollback(lastAction),
+        });
+        break;
+      case 'create':
+        apiRequest('POST', `/api/organizations/${organizationId}/recycle-bin/restore`, { type: 'task', itemId: lastAction.taskId }).then(() => {
+          queryClient.refetchQueries({ queryKey: ['/api/projects', lastAction.projectId, 'tasks'] });
+          toast({ title: "Redone", description: "Task restored" });
+        }).catch(() => redoErrorRollback(lastAction));
+        break;
+      case 'delete':
+        deleteTask.mutate({ id: lastAction.taskId, projectId: lastAction.projectId }, {
+          onSuccess: () => toast({ title: "Redone", description: "Task deleted" }),
+          onError: () => redoErrorRollback(lastAction),
+        });
+        break;
+      case 'addDependency':
+        addDependency.mutate({ taskId: lastAction.taskId, dependsOnTaskId: lastAction.dependsOnTaskId, projectId: lastAction.projectId }, {
+          onSuccess: () => toast({ title: "Redone", description: "Dependency added" }),
+          onError: () => redoErrorRollback(lastAction),
+        });
+        break;
+      case 'removeDependency':
+        removeDependency.mutate({ taskId: lastAction.taskId, dependsOnTaskId: lastAction.dependsOnTaskId }, {
+          onSuccess: () => toast({ title: "Redone", description: "Dependency removed" }),
+          onError: () => redoErrorRollback(lastAction),
+        });
+        break;
     }
-  };
-  
+  }, [redoStack, projectId, organizationId, reorderTask, updateTask, deleteTask, addDependency, removeDependency, toast, redoErrorRollback]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+
+      const isMod = e.metaKey || e.ctrlKey;
+      if (!isMod) return;
+
+      if (e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [handleUndo, handleRedo]);
+
   // Fetch project dependencies and calculate CPM
   const { data: projectDependenciesData } = useProjectDependencies(projectId);
   const projectDependencies = Array.isArray(projectDependenciesData) ? projectDependenciesData : [];
@@ -2395,8 +2450,7 @@ function ProjectGanttView({
       return;
     }
     
-    // Push to undo stack before making the change
-    pushToUndoStack(task.id, task.projectId, 'outlineLevel', currentLevel, newLevel);
+    pushToUndoStack(task.id, task.projectId, { outlineLevel: currentLevel }, { outlineLevel: newLevel }, 'Indent');
     
     updateTask.mutate({ 
       id: task.id, 
@@ -2407,7 +2461,6 @@ function ProjectGanttView({
         toast({ title: "Updated", description: `Task indented to level ${newLevel}` });
       },
       onError: () => {
-        // Remove from undo stack on error
         setUndoStack(prev => prev.slice(0, -1));
         toast({ title: "Error", description: "Failed to indent task", variant: "destructive" });
       }
@@ -2422,8 +2475,7 @@ function ProjectGanttView({
       return;
     }
     
-    // Push to undo stack before making the change
-    pushToUndoStack(task.id, task.projectId, 'outlineLevel', currentLevel, newLevel);
+    pushToUndoStack(task.id, task.projectId, { outlineLevel: currentLevel }, { outlineLevel: newLevel }, 'Outdent');
     
     updateTask.mutate({ 
       id: task.id, 
@@ -2434,7 +2486,6 @@ function ProjectGanttView({
         toast({ title: "Updated", description: `Task outdented to level ${newLevel}` });
       },
       onError: () => {
-        // Remove from undo stack on error
         setUndoStack(prev => prev.slice(0, -1));
         toast({ title: "Error", description: "Failed to outdent task", variant: "destructive" });
       }
@@ -2669,7 +2720,6 @@ function ProjectGanttView({
           dependsOnTaskId: predecessorTask.id,
           projectId,
         });
-        // Add to working deps for subsequent circular checks
         workingDeps.push({
           id: 0,
           taskId: successorTask.id,
@@ -2679,6 +2729,7 @@ function ProjectGanttView({
           createdAt: new Date(),
         });
         existingDepSet.add(depKey);
+        pushActionToUndoStack({ type: 'addDependency', taskId: successorTask.id, dependsOnTaskId: predecessorTask.id, projectId });
         successCount++;
       } catch (error: unknown) {
         errorCount++;
@@ -2738,6 +2789,7 @@ function ProjectGanttView({
           taskId: dep.taskId,
           dependsOnTaskId: dep.dependsOnTaskId,
         });
+        pushActionToUndoStack({ type: 'removeDependency', taskId: dep.taskId, dependsOnTaskId: dep.dependsOnTaskId, projectId });
         successCount++;
       } catch (error: unknown) {
         errorCount++;
@@ -3034,6 +3086,7 @@ function ProjectGanttView({
           taskId: newTask.id,
           newIndex: targetIndex,
         });
+        pushActionToUndoStack({ type: 'create', taskId: newTask.id, projectId });
         toast({ title: "Task created", description: `New task created ${position} "${referenceTask.name}"` });
       },
       onError: (error: unknown) => {
@@ -3045,11 +3098,12 @@ function ProjectGanttView({
         }
       }
     });
-  }, [tasks, projectId, createTask, reorderTask, toast]);
+  }, [tasks, projectId, createTask, reorderTask, pushActionToUndoStack, toast]);
 
   const handleDeleteTask = useCallback((task: Task) => {
     deleteTask.mutate({ id: task.id, projectId: task.projectId }, {
       onSuccess: () => {
+        pushActionToUndoStack({ type: 'delete', taskId: task.id, projectId: task.projectId });
         toast({ title: "Task deleted", description: `"${task.name}" has been deleted` });
       },
       onError: (error: unknown) => {
@@ -3057,7 +3111,7 @@ function ProjectGanttView({
         toast({ title: "Error", description: err.message || "Failed to delete task", variant: "destructive" });
       }
     });
-  }, [deleteTask, toast]);
+  }, [deleteTask, pushActionToUndoStack, toast]);
 
   // State for dependencies dialog
   const [dependenciesDialogTask, setDependenciesDialogTask] = useState<Task | null>(null);
@@ -3651,13 +3705,16 @@ function ProjectGanttView({
                     variant="outline"
                     size="icon"
                     onClick={handleUndo}
-                    disabled={undoStack.length === 0 || reorderTask.isPending}
-                    data-testid="button-undo-reorder"
+                    disabled={undoStack.length === 0 || updateTask.isPending || reorderTask.isPending || deleteTask.isPending}
+                    data-testid="button-undo"
                   >
                     <Undo2 className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Undo reorder</TooltipContent>
+                <TooltipContent>
+                  <span>Undo</span>
+                  <kbd className="ml-1.5 inline-flex h-5 items-center rounded border bg-muted px-1 font-mono text-[10px] font-medium text-muted-foreground">⌘Z</kbd>
+                </TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -3665,13 +3722,16 @@ function ProjectGanttView({
                     variant="outline"
                     size="icon"
                     onClick={handleRedo}
-                    disabled={redoStack.length === 0 || reorderTask.isPending}
-                    data-testid="button-redo-reorder"
+                    disabled={redoStack.length === 0 || updateTask.isPending || reorderTask.isPending || deleteTask.isPending}
+                    data-testid="button-redo"
                   >
                     <Redo2 className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Redo reorder</TooltipContent>
+                <TooltipContent>
+                  <span>Redo</span>
+                  <kbd className="ml-1.5 inline-flex h-5 items-center rounded border bg-muted px-1 font-mono text-[10px] font-medium text-muted-foreground">⌘Y</kbd>
+                </TooltipContent>
               </Tooltip>
             </div>
             {!hideTimeline && (
