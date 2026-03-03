@@ -3766,24 +3766,34 @@ function ProjectGanttView({
                   </TooltipTrigger>
                   <TooltipContent>Scroll to selected task</TooltipContent>
                 </Tooltip>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleZoomIn}
-                  disabled={zoomLevels.indexOf(zoomLevel) === 0}
-                  data-testid="button-gantt-zoom-in"
-                >
-                  <ZoomIn className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleZoomOut}
-                  disabled={zoomLevels.indexOf(zoomLevel) === zoomLevels.length - 1}
-                  data-testid="button-gantt-zoom-out"
-                >
-                  <ZoomOut className="h-4 w-4" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handleZoomIn}
+                      disabled={zoomLevels.indexOf(zoomLevel) === 0}
+                      data-testid="button-gantt-zoom-in"
+                    >
+                      <ZoomIn className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Zoom in timeline</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handleZoomOut}
+                      disabled={zoomLevels.indexOf(zoomLevel) === zoomLevels.length - 1}
+                      data-testid="button-gantt-zoom-out"
+                    >
+                      <ZoomOut className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Zoom out timeline</TooltipContent>
+                </Tooltip>
               </div>
             )}
           </div>
@@ -4004,16 +4014,21 @@ function ProjectGanttView({
                 {/* Add column button - fixed at right edge */}
                 <div className="flex-shrink-0 border-l p-1 bg-muted/50">
                   <DropdownMenu open={isAddColumnOpen} onOpenChange={(open) => { setIsAddColumnOpen(open); if (!open) setColumnSearchQuery(''); }}>
-                    <DropdownMenuTrigger asChild>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-5 w-5"
-                        data-testid="button-add-column"
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </DropdownMenuTrigger>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <DropdownMenuTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-5 w-5"
+                            data-testid="button-add-column"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent>Add column</TooltipContent>
+                    </Tooltip>
                     <DropdownMenuContent align="end" className="w-56">
                       <div className="p-2">
                         <Input
