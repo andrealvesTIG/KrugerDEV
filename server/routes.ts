@@ -9683,6 +9683,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     if (req.query.endDateFrom) dateFilters.endDateFrom = req.query.endDateFrom as string;
     if (req.query.endDateTo) dateFilters.endDateTo = req.query.endDateTo as string;
     if (req.query.overdue === 'true') dateFilters.overdue = true;
+    if (req.query.today && /^\d{4}-\d{2}-\d{2}$/.test(req.query.today as string)) {
+      dateFilters.today = req.query.today as string;
+    }
     const sortByParam = req.query.sortBy as string | undefined;
     if (sortByParam && ['startDate', 'endDate', 'createdAt'].includes(sortByParam)) {
       dateFilters.sortBy = sortByParam as 'startDate' | 'endDate' | 'createdAt';

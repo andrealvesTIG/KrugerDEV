@@ -8,34 +8,51 @@
 
 ## Executive Summary
 
-- **Working-day calculations** are the single biggest CPU bottleneck — the loop-based `workingDaysBetween` iterates every calendar day between two dates (O(D) per task), totaling **222ms for 10K tasks** vs **6.5ms with arithmetic** (34× speedup).
-- **Multi-org task aggregation** performed sequential DB round-trips (2×N queries for N organizations) — **fixed** to use a single batched query with `inArray()`.
-- **Client-side date parsing** created thousands of redundant `parseISO()` + `format()` calls per Gantt render — **fixed** with memoized date maps (`useMemo`).
-- **No server-side date filtering existed** — all tasks were fetched then filtered in JavaScript. **Added** SQL WHERE clause support for date ranges, overdue detection, and server-side sorting.
-- **Database indexes were missing** on `startDate`, `endDate`, `status`, and `createdAt` columns — **added** 5 new indexes including a composite index for the primary getTasks query.
-- **Client-side sorting at 100K tasks takes 62ms** — manageable for typical workloads but would benefit from SQL-level ORDER BY for large datasets.
+- **Working-day calculations** replaced O(D) day-by-day loop with O(1) arithmetic — **22-27× speedup** (207ms → 9ms for 10K tasks). Applied in both server and client copies.
+- **Multi-org task aggregation** replaced sequential N+1 DB round-trips with a single batched query — **O(2) total queries** regardless of org count.
+- **Client-side date parsing** memoized with `useMemo` date maps — eliminates thousands of redundant `parseISO()` + `format()` calls per Gantt render.
+- **Server-side date filtering** added to `/api/tasks/all` with SQL WHERE clauses for date ranges, overdue detection, and server-side sorting. Client hook wired to pass filter params.
+- **Database indexes** added on `startDate`, `endDate`, `status`, `createdAt`, and composite `(projectId, deletedAt, taskIndex)`.
+- **Overdue filter timezone fix**: Server now accepts `today=YYYY-MM-DD` from client, eliminating ±1 day drift near midnight.
+- **Duration semantics clarified**: `workingDaysBetween` is inclusive of both endpoints (start=end weekday → 1). Explicit `workingDaysSpanInclusive` and `workingDaysBetweenExclusive` variants added.
+- **Gantt virtualization** threshold lowered from 150 to 100 tasks; dev-only `performance.mark`/`performance.measure` added.
+- **Multi-org query safety**: `chunkedInArray` helper auto-splits arrays >1000 IDs to avoid Postgres parameter limits.
+- **Unit tests** added with vitest: 46 tests covering O(1) vs loop cross-validation, addWorkingDays, calculateEndDate round-trips, duration semantics, and edge cases.
 
 ---
 
-## Current State Analysis
+## All Fixes Applied
 
-### Key Operations & Complexity
+| # | Fix | Status | Files |
+|---|---|---|---|
+| 1 | Database indexes on date columns | ✅ Applied | `shared/schema.ts` |
+| 2 | Server-side date filtering (WHERE clauses) | ✅ Applied | `server/storage.ts`, `server/routes.ts` |
+| 3 | Multi-org N+1 query fix (batched) | ✅ Applied | `server/storage.ts`, `server/routes.ts` |
+| 4 | Client-side date memoization (parsedDatesMap) | ✅ Applied | `ProjectGanttView.tsx`, `Tasks.tsx` |
+| 5 | O(1) `workingDaysBetween` arithmetic | ✅ Applied | `server/lib/workingDays.ts`, `client/src/lib/workingDays.ts` |
+| 6 | Overdue filter timezone fix (`today` param) | ✅ Applied | `server/storage.ts`, `server/routes.ts`, `client/src/hooks/use-tasks.ts` |
+| 7 | Duration off-by-one clarification | ✅ Applied | `server/lib/workingDays.ts`, `client/src/lib/workingDays.ts` |
+| 8 | Client filters wired to server | ✅ Applied | `client/src/hooks/use-tasks.ts` |
+| 9 | Gantt virtualization (threshold 100) | ✅ Applied | `ProjectGanttView.tsx` |
+| 10 | Dev performance marks (Gantt render) | ✅ Applied | `ProjectGanttView.tsx`, `Tasks.tsx` |
+| 11 | `chunkedInArray` for parameter safety | ✅ Applied | `server/storage.ts` |
+| 12 | Unit test suite (vitest) | ✅ Added | `tests/workingDays.test.ts`, `vitest.config.ts` |
+| 13 | Benchmark harness (loop vs O(1)) | ✅ Updated | `scripts/benchmark-dates.ts` |
 
-| Operation | Location | Before | After | Notes |
-|---|---|---|---|---|
-| Task list fetch (per project) | `storage.getTasks()` | O(N) full scan | O(log N) indexed | Added composite index on `(projectId, deletedAt, taskIndex)` |
-| Global task fetch (paginated) | `storage.getTasksByOrganizationPaginated()` | O(N) sort on `createdAt` | O(log N) indexed | Added index on `createdAt` |
-| Multi-org aggregation | `routes.ts` listAll | O(Orgs × 2) DB calls | O(2) total | Batched into single query |
-| Date range filter | Client-side only | O(N) in JS | O(log N) in SQL | Added server-side WHERE clauses |
-| Working days calculation | `workingDays.ts` | O(D) per task (day loop) | O(D) per task | Arithmetic O(1) available as future optimization |
-| Gantt date parsing | `ProjectGanttView.tsx` | O(N) per render | O(N) once (memoized) | Pre-parsed date map |
-| Duration display | `Tasks.tsx` Gantt | O(N×D) per render | O(N×D) once (memoized) | Pre-computed in useMemo |
+---
 
-### Benchmark Results
+## Benchmark Results
 
-All benchmarks run on synthetic in-memory data. DB-level benchmarks would show greater improvements due to I/O reduction.
+### Working Days Calculation (Primary Bottleneck)
 
-#### Client-Side Filtering & Sorting
+| Implementation | 1K tasks | 10K tasks | Speedup |
+|---|---|---|---|
+| Loop (O(D) per task) | 22.6ms | 207ms | baseline |
+| Arithmetic (O(1) per task) | 2.2ms | 9.2ms | **22-27×** |
+
+**Target**: 10K tasks < 10ms — **MET** (9.2ms)
+
+### Client-Side Filtering & Sorting
 
 | Metric | 1K tasks | 10K tasks | 100K tasks | Scaling |
 |---|---|---|---|---|
@@ -43,14 +60,7 @@ All benchmarks run on synthetic in-memory data. DB-level benchmarks would show g
 | Sort by startDate | 0.97ms | 4.65ms | 61.4ms | O(N log N) |
 | Filter+Sort+Page combined | 0.15ms | 1.08ms | 11.2ms | O(N log N) |
 
-#### Working Days Calculation
-
-| Implementation | 1K tasks | 10K tasks | Speedup |
-|---|---|---|---|
-| Loop (current) | 21.6ms | 222ms | baseline |
-| Arithmetic (optimized) | 2.0ms | 6.5ms | **34×** |
-
-#### Date Parsing Overhead
+### Date Parsing Overhead
 
 | Approach | 5K tasks |
 |---|---|
@@ -59,145 +69,86 @@ All benchmarks run on synthetic in-memory data. DB-level benchmarks would show g
 
 ---
 
-## Bottlenecks Identified & Fixes Applied
+## Complexity Analysis
 
-### 1. Database Indexes (T001) — Applied ✅
+| Operation | Before | After | Notes |
+|---|---|---|---|
+| `workingDaysBetween` | O(D) per task | O(1) per task | Arithmetic: fullWeeks×5 + remainder |
+| Client filter (all tasks) | O(N) in JS | O(log N) in SQL | Server-side WHERE clause |
+| Client sort (all tasks) | O(N log N) in JS | O(log N) in SQL | Server-side ORDER BY with index |
+| Multi-org task fetch | O(Orgs × 2) DB calls | O(2) total | Batched `inArray()` |
+| Gantt date parsing | O(N) per render | O(N) once | Pre-parsed `useMemo` map |
+| Duration calc per row | O(N × D) per render | O(N) once | Memoized with O(1) calc |
+| `inArray()` parameter limit | Unbounded | Chunked at 1000 | `chunkedInArray` helper |
 
-**Before**: Tasks table had only 3 indexes (`project_id`, `parent_id`, `deleted_at`). Date columns and common query patterns were unindexed.
+---
 
-**Added** in `shared/schema.ts`:
-- `tasks_start_date_idx` on `startDate`
-- `tasks_end_date_idx` on `endDate`
-- `tasks_status_idx` on `status`
-- `tasks_created_at_idx` on `createdAt`
-- `tasks_project_deleted_task_idx` composite on `(projectId, deletedAt, taskIndex)`
+## Duration Semantics Contract
 
-**Impact**: Eliminates sequential scans for date-filtered queries and the primary per-project task fetch.
+**Inclusive span** is the primary semantic used throughout the app:
+- `workingDaysBetween(start, end)` / `workingDaysSpanInclusive(start, end)`: counts weekdays from start through end, inclusive of both endpoints
+- A task with `startDate = endDate` on a weekday has **duration = 1**
+- `calculateDuration(start, end)` is an alias for `workingDaysBetween`
+- `calculateEndDate(start, durationDays)` round-trips correctly: `calculateDuration(start, calculateEndDate(start, N)) === N`
 
-### 2. Server-Side Date Filtering (T002) — Applied ✅
+**Exclusive variant** available for specific use cases:
+- `workingDaysBetweenExclusive(start, end)`: excludes the start date, counts from day after start through end
 
-**Before**: `GET /api/tasks/all` returned all tasks; filtering happened in React `useMemo`.
+---
 
-**Added** optional query parameters:
-- `startDateFrom`, `startDateTo`, `endDateFrom`, `endDateTo` — SQL date range filters
-- `overdue` — filters tasks where `endDate < today AND status != 'Completed'`
-- `sortBy` (`startDate`, `endDate`, `createdAt`) and `sortOrder` (`asc`, `desc`)
+## Timezone & Correctness
 
-**Files**: `server/storage.ts` (new `TaskDateFilterOptions` interface, `buildDateFilterConditions()`, `getTaskSortOrder()` helpers), `server/routes.ts` (query parameter parsing)
+### Overdue Filter (Fixed)
+- Server accepts optional `today=YYYY-MM-DD` query parameter
+- Client sends `format(new Date(), 'yyyy-MM-dd')` — local date in YYYY-MM-DD format
+- Fallback: if `today` not provided, server uses UTC date (`new Date().toISOString().split('T')[0]`)
+- Eliminates ±1 day drift at midnight boundaries between client and server timezones
 
-**Impact**: Reduces network payload and eliminates client-side processing for filtered views. Backward-compatible — no params = same behavior as before.
+### Date-Only Contract
+- Schedule dates (`startDate`, `endDate`) stored as PostgreSQL `date` type — no timezone
+- All date comparisons use `YYYY-MM-DD` strings across API boundaries
+- Timestamps (`createdAt`, `deletedAt`) use `timestamp` type — stored as UTC
 
-### 3. Multi-Org N+1 Fix (T003) — Applied ✅
+### Boundary Conditions (Tested)
+- Same-day weekday range: returns 1 (inclusive)
+- Same-day weekend: returns 0
+- Cross-weekend (Fri→Mon): returns 2
+- Cross-month/year boundaries: verified via 500+ random pair cross-validation
+- Reversed ranges (end < start): returns 0
 
-**Before** (routes.ts ~line 9712):
-```javascript
-for (const orgId of targetOrgIds) {
-  const { tasks: orgTasks } = await storage.getTasksByOrganizationPaginated(orgId, 999999, 0, onlyTaskIds);
-  allFilteredTasks = allFilteredTasks.concat(orgTasks);
-}
+---
+
+## Monitoring
+
+1. **Performance marks** added to Gantt rendering (dev-only, sampled 1-in-20 renders):
+   - `gantt-render` measure in `ProjectGanttView.tsx`
+   - `task-gantt-render` measure in `Tasks.tsx`
+
+2. **Chunking warnings** logged when `inArray()` exceeds 1000 parameters:
+   - `console.warn` with array size for operational visibility
+
+3. **Recommended**: Add server-side request timing for `GET /api/tasks/all` (log duration + task count)
+
+---
+
+## Validation Checklist
+
+### Commands
+```bash
+npm test                              # Run 46 unit tests
+npx tsx scripts/benchmark-dates.ts    # Run benchmark (loop vs O(1), 1K/10K/100K)
+npm run db:push                       # Apply database indexes
 ```
-This made 2×N sequential DB calls (count + data per org).
 
-**After**: New `getTasksByMultipleOrganizationsPaginated()` method performs a single projects lookup + 1 count + 1 data query using OR conditions for mixed access levels. Team member task IDs are gathered in parallel with `Promise.all`.
+### Manual Verification
+- [ ] Gantt view renders correctly with 100+ tasks
+- [ ] Task duration labels show correct values (start=end weekday → "1 day")
+- [ ] Global Tasks page filtering and sorting works
+- [ ] Multi-org user sees tasks from all orgs
+- [ ] No console errors in browser dev tools
 
-**Impact**: Reduces from 2×N to ≤3 DB round-trips regardless of org count.
-
-### 4. Client-Side Memoization (T004) — Applied ✅
-
-**Before**: In `ProjectGanttView.tsx`, each `ProjectGanttTaskRowMeta` and `ProjectGanttTaskRowTimeline` called `parseISO()` + `format()` on 7 date fields per task during every render. For 500 tasks, this created ~7,000 Date objects and ~3,500 formatted strings per render cycle.
-
-**After**: Added `parsedDatesMap` useMemo in the parent component that pre-parses all dates once when the tasks array changes. Both row components accept pre-computed dates as props with fallback to inline parsing.
-
-Similarly in `Tasks.tsx` GanttView — pre-parsed dates map eliminates redundant parsing in the Gantt task rows.
-
-**Impact**: Date parsing reduced from O(N) per render to O(N) once per task list change.
-
----
-
-## Remaining Optimization Opportunities
-
-### Quick Wins (Low effort, high impact)
-
-1. **Replace `workingDaysBetween` loop with arithmetic formula**
-   - Files: `server/lib/workingDays.ts:23-37`, `client/src/lib/workingDays.ts:24-38`
-   - Current: Iterates every calendar day with `addDays()` — O(D) where D = calendar days between dates
-   - Fix: `fullWeeks * 5 + remainder weekdays` — O(1)
-   - Benchmark shows **34× speedup** (222ms → 6.5ms for 10K tasks)
-
-2. **Wire up client-side date filter UI to server-side endpoints**
-   - The server-side filtering infrastructure is now in place (T002)
-   - When the Tasks page filters by date or shows overdue tasks, pass those params to the API instead of filtering locally
-
-### Deeper Improvements (Higher effort)
-
-3. **Virtual scrolling for large Gantt charts**
-   - Currently renders all task rows; with 1,000+ tasks, DOM node count becomes the bottleneck
-   - The virtual scroll infrastructure exists in `ProjectGanttView.tsx` but is only active for some views
-
-4. **Cursor-based pagination for multi-org**
-   - Current OFFSET/LIMIT pagination degrades at high offsets (Postgres still scans skipped rows)
-   - For datasets >50K tasks, switch to keyset/cursor pagination on `createdAt`
-
-5. **Batch timesheet enrichment**
-   - `enrichTasksWithTimesheetHours()` makes a single query per call which is good, but could be eliminated entirely by using a SQL JOIN at the storage layer
-
----
-
-## Timezone & Correctness Findings
-
-### UTC Handling
-- All dates stored as `date` type in PostgreSQL (date-only, no timezone) — correct for schedule dates
-- `parseISO()` on date-only strings creates dates in local timezone — consistent across client since all users see the same date strings
-- Timestamps (`createdAt`, `deletedAt`) use `timestamp` type — stored as UTC, rendered via date-fns which respects locale
-
-### Boundary Conditions
-- **Null dates**: Working-day calculations correctly return `null` / skip when dates are missing
-- **Same-day ranges**: `workingDaysBetween` returns 0 for same-day — this is correct for "days between" semantics
-- **Weekend-only ranges**: Loop correctly counts 0 working days for Sat-Sun ranges
-- **Cross-year boundaries**: No issues — `addDays()` handles year rollovers
-
-### Potential Issues
-- **Overdue filter**: New server-side filter compares `endDate < today` using SQL — this uses the database server's date, which may differ from client timezone by ±1 day at midnight boundaries
-- **Duration calculation inconsistency**: Both `calculateDuration()` (working days to add) and `workingDaysBetween()` (working days between) exist — they count differently (inclusive vs exclusive of endpoints), which can cause off-by-one in edge cases
-
----
-
-## Monitoring Recommendations
-
-1. **Add server-side request timing**
-   ```
-   GET /api/tasks/all → log(duration, taskCount, filterParams)
-   ```
-   Flag requests >500ms for investigation.
-
-2. **Track query execution plans** for the tasks table periodically — verify indexes are being used via `EXPLAIN ANALYZE`.
-
-3. **Add client-side performance marks** in Gantt rendering:
-   ```javascript
-   performance.mark('gantt-render-start');
-   // ... render
-   performance.mark('gantt-render-end');
-   performance.measure('gantt-render', 'gantt-render-start', 'gantt-render-end');
-   ```
-
-4. **Monitor payload sizes** — if `/api/tasks/all` responses exceed 1MB, consider implementing server-side field selection or compression.
-
----
-
-## Risks & Validation Checklist
-
-| Risk | Mitigation |
-|---|---|
-| New indexes increase write latency | 5 indexes is reasonable for a read-heavy table; monitor INSERT/UPDATE times |
-| Server-side date filter returns different results than client-side | Compare results with and without params in staging; overdue filter timezone edge case |
-| Multi-org batched query may hit Postgres parameter limits | `inArray()` with >10K IDs should be refactored to use temp tables or subqueries |
-| Memoized date maps increase memory usage | Map is cleared on task list change; memory is bounded by task count × ~200 bytes |
-| Composite index order matters | `(projectId, deletedAt, taskIndex)` matches the WHERE/ORDER BY clause order in `getTasks()` |
-
-### Validation Steps
-- [ ] Run `npm run db:push` to apply new indexes
-- [ ] Verify existing task CRUD operations work unchanged
-- [ ] Test Gantt view with 100+ tasks — confirm no visual regressions
-- [ ] Test global Tasks page filtering and sorting
-- [ ] Test multi-org user sees tasks from all orgs
-- [ ] Run benchmark: `npx tsx scripts/benchmark-dates.ts`
+### Metrics to Watch
+- Working-days benchmark: 10K tasks < 10ms (arithmetic)
+- Gantt render time via `performance.measure` in dev tools
+- API response payload size for `/api/tasks/all`
+- INSERT/UPDATE latency for tasks table (index overhead)

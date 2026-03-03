@@ -2227,6 +2227,20 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
     </div>
   );
 
+  const taskGanttRenderCountRef = useRef(0);
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      taskGanttRenderCountRef.current += 1;
+      if (taskGanttRenderCountRef.current % 20 === 1) {
+        performance.mark('task-gantt-render-start');
+        requestAnimationFrame(() => {
+          performance.mark('task-gantt-render-end');
+          performance.measure('task-gantt-render', 'task-gantt-render-start', 'task-gantt-render-end');
+        });
+      }
+    }
+  });
+
   if (embedded) {
     return <div className="border rounded-md">{ganttContent}</div>;
   }

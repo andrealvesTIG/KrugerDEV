@@ -2885,7 +2885,7 @@ function ProjectGanttView({
   }, [tasks, collapsedTasks]);
 
   // Virtual scrolling: only render rows visible in the viewport when task count is large
-  const VIRTUAL_SCROLL_THRESHOLD = 150;
+  const VIRTUAL_SCROLL_THRESHOLD = 100;
   const useVirtualScroll = visibleTasks.length > VIRTUAL_SCROLL_THRESHOLD;
   const rowVirtualizer = useVirtualizer({
     count: visibleTasks.length,
@@ -3491,6 +3491,20 @@ function ProjectGanttView({
       setZoomLevel(autoZoomLevel);
     }
   };
+
+  const ganttRenderCountRef = useRef(0);
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      ganttRenderCountRef.current += 1;
+      if (ganttRenderCountRef.current % 20 === 1) {
+        performance.mark('gantt-render-start');
+        requestAnimationFrame(() => {
+          performance.mark('gantt-render-end');
+          performance.measure('gantt-render', 'gantt-render-start', 'gantt-render-end');
+        });
+      }
+    }
+  });
 
   return (
     <Card className={cn(

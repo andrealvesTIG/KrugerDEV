@@ -1,6 +1,17 @@
 import { useQuery, useMutation, useInfiniteQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Task, InsertTask, UpdateTaskRequest, TaskChangeLog, TaskDependency } from "@shared/schema";
+import { format } from "date-fns";
+
+export interface TaskFilterParams {
+  startDateFrom?: string;
+  startDateTo?: string;
+  endDateFrom?: string;
+  endDateTo?: string;
+  overdue?: boolean;
+  sortBy?: 'startDate' | 'endDate' | 'createdAt';
+  sortOrder?: 'asc' | 'desc';
+}
 
 export function useTasks(projectId: number) {
   return useQuery<Task[]>({
@@ -35,12 +46,25 @@ export function useAllTasks() {
   });
 }
 
-export function usePaginatedTasks(limit: number = 100, organizationId?: number | null) {
+export function usePaginatedTasks(limit: number = 100, organizationId?: number | null, filters?: TaskFilterParams) {
   const query = useInfiniteQuery<PaginatedTasksResponse>({
-    queryKey: ['/api/tasks', 'paginated', organizationId],
+    queryKey: ['/api/tasks', 'paginated', organizationId, filters],
     queryFn: async ({ pageParam = 0 }) => {
-      const orgParam = organizationId ? `&organizationId=${organizationId}` : '';
-      const res = await fetch(`/api/tasks?limit=${limit}&offset=${pageParam}${orgParam}`);
+      const params = new URLSearchParams();
+      params.set('limit', String(limit));
+      params.set('offset', String(pageParam));
+      if (organizationId) params.set('organizationId', String(organizationId));
+      if (filters?.startDateFrom) params.set('startDateFrom', filters.startDateFrom);
+      if (filters?.startDateTo) params.set('startDateTo', filters.startDateTo);
+      if (filters?.endDateFrom) params.set('endDateFrom', filters.endDateFrom);
+      if (filters?.endDateTo) params.set('endDateTo', filters.endDateTo);
+      if (filters?.overdue) {
+        params.set('overdue', 'true');
+        params.set('today', format(new Date(), 'yyyy-MM-dd'));
+      }
+      if (filters?.sortBy) params.set('sortBy', filters.sortBy);
+      if (filters?.sortOrder) params.set('sortOrder', filters.sortOrder);
+      const res = await fetch(`/api/tasks?${params.toString()}`);
       if (!res.ok) {
         throw new Error('Failed to fetch tasks');
       }

@@ -1,36 +1,7 @@
 import { performance } from "perf_hooks";
+import { workingDaysBetween, workingDaysBetweenLoop } from "../server/lib/workingDays";
 
-function isWorkingDay(date: Date): boolean {
-  const day = date.getDay();
-  return day !== 0 && day !== 6;
-}
-
-function workingDaysBetween(startDate: Date, endDate: Date): number {
-  if (startDate > endDate) return 0;
-  let count = 0;
-  const current = new Date(startDate);
-  while (current <= endDate) {
-    if (isWorkingDay(current)) {
-      count++;
-    }
-    current.setDate(current.getDate() + 1);
-  }
-  return count;
-}
-
-function workingDaysBetweenOptimized(startDate: Date, endDate: Date): number {
-  if (startDate > endDate) return 0;
-  const totalDays = Math.floor((endDate.getTime() - startDate.getTime()) / 86400000) + 1;
-  const fullWeeks = Math.floor(totalDays / 7);
-  let workingDays = fullWeeks * 5;
-  const remainder = totalDays % 7;
-  const startDay = startDate.getDay();
-  for (let i = 0; i < remainder; i++) {
-    const day = (startDay + fullWeeks * 7 + i) % 7;
-    if (day !== 0 && day !== 6) workingDays++;
-  }
-  return workingDays;
-}
+const workingDaysBetweenOptimized = workingDaysBetween;
 
 interface SyntheticTask {
   id: number;
@@ -149,7 +120,7 @@ function runWorkingDaysBenchmark(tasks: SyntheticTask[]): {
 
   const loopImpl = measure("workingDaysBetween (loop)", () => {
     for (const t of subset) {
-      workingDaysBetween(new Date(t.startDate), new Date(t.endDate));
+      workingDaysBetweenLoop(new Date(t.startDate), new Date(t.endDate));
     }
   });
 
@@ -446,6 +417,10 @@ function main() {
     console.log();
   }
 
+  console.log("=".repeat(80));
+  console.log("  TARGET: 10K tasks arithmetic working-days should be < 10ms");
+  const met = allResults[10000].working.optimizedImpl < 10;
+  console.log(`  Result: ${allResults[10000].working.optimizedImpl.toFixed(3)}ms — ${met ? 'TARGET MET ✓' : 'TARGET NOT MET ✗'}`);
   console.log("=".repeat(80));
   console.log("  Benchmark complete.");
   console.log("=".repeat(80));

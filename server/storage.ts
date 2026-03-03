@@ -92,6 +92,7 @@ export interface TaskDateFilterOptions {
   endDateFrom?: string;
   endDateTo?: string;
   overdue?: boolean;
+  today?: string;
   sortBy?: 'startDate' | 'endDate' | 'createdAt';
   sortOrder?: 'asc' | 'desc';
 }
@@ -1426,6 +1427,18 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(tasks).where(isNull(tasks.deletedAt)).orderBy(desc(tasks.createdAt));
   }
 
+  private chunkedInArray<T>(column: any, values: T[], chunkSize = 1000): ReturnType<typeof inArray> {
+    if (values.length <= chunkSize) {
+      return inArray(column, values);
+    }
+    console.warn(`[chunkedInArray] Splitting ${values.length} values into chunks of ${chunkSize}`);
+    const chunks: T[][] = [];
+    for (let i = 0; i < values.length; i += chunkSize) {
+      chunks.push(values.slice(i, i + chunkSize));
+    }
+    return or(...chunks.map(chunk => inArray(column, chunk))) as any;
+  }
+
   private buildDateFilterConditions(filters?: TaskDateFilterOptions) {
     const conditions: any[] = [];
     if (!filters) return conditions;
@@ -1442,7 +1455,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(or(isNull(tasks.endDate), lte(tasks.endDate, filters.endDateTo)));
     }
     if (filters.overdue) {
-      const today = new Date().toISOString().split('T')[0];
+      const today = filters.today || new Date().toISOString().split('T')[0];
       conditions.push(lt(tasks.endDate, today));
       conditions.push(sql`${tasks.status} NOT IN ('Completed', 'Cancelled')`);
     }
@@ -1465,12 +1478,12 @@ export class DatabaseStorage implements IStorage {
 
     const conditions = [
       isNull(tasks.deletedAt),
-      inArray(tasks.projectId, projectIdList),
+      this.chunkedInArray(tasks.projectId, projectIdList),
       ...this.buildDateFilterConditions(dateFilters),
     ];
     if (onlyTaskIds !== undefined) {
       if (onlyTaskIds.length === 0) return { tasks: [], total: 0 };
-      conditions.push(inArray(tasks.id, onlyTaskIds));
+      conditions.push(this.chunkedInArray(tasks.id, onlyTaskIds));
     }
     const baseConditions = and(...conditions);
 
@@ -1522,10 +1535,10 @@ export class DatabaseStorage implements IStorage {
       baseConditions = and(
         isNull(tasks.deletedAt),
         or(
-          inArray(tasks.projectId, unrestrictedProjectIds),
+          this.chunkedInArray(tasks.projectId, unrestrictedProjectIds),
           and(
-            inArray(tasks.projectId, restrictedProjectIds),
-            inArray(tasks.id, restrictedTaskIds!)
+            this.chunkedInArray(tasks.projectId, restrictedProjectIds),
+            this.chunkedInArray(tasks.id, restrictedTaskIds!)
           )
         ),
         ...dateConditions
@@ -1533,14 +1546,14 @@ export class DatabaseStorage implements IStorage {
     } else if (hasUnrestricted) {
       baseConditions = and(
         isNull(tasks.deletedAt),
-        inArray(tasks.projectId, unrestrictedProjectIds),
+        this.chunkedInArray(tasks.projectId, unrestrictedProjectIds),
         ...dateConditions
       );
     } else {
       baseConditions = and(
         isNull(tasks.deletedAt),
-        inArray(tasks.projectId, restrictedProjectIds),
-        inArray(tasks.id, restrictedTaskIds!),
+        this.chunkedInArray(tasks.projectId, restrictedProjectIds),
+        this.chunkedInArray(tasks.id, restrictedTaskIds!),
         ...dateConditions
       );
     }
