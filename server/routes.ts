@@ -9975,6 +9975,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (input.durationDays != null) {
         if (input.durationDays === 0) {
           input.isMilestone = true;
+        } else if (input.isMilestone === undefined) {
+          input.isMilestone = false;
         }
         const startDate = input.startDate || previousTask.startDate;
         if (startDate) {

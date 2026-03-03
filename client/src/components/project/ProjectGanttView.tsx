@@ -781,8 +781,11 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
         if (task.startDate) {
           updates.endDate = task.startDate;
         }
-      } else if (task.startDate) {
-        updates.endDate = calculateEndDateFromWorkingDays(task.startDate, duration);
+      } else {
+        updates.isMilestone = false;
+        if (task.startDate) {
+          updates.endDate = calculateEndDateFromWorkingDays(task.startDate, duration);
+        }
       }
     }
     

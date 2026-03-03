@@ -353,6 +353,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       } else {
         const newEnd = calculateEndDateFromWorkingDays(startDate, durationDays);
         form.setValue("endDate", newEnd);
+        setIsMilestone(false);
       }
       form.setValue("durationDays", durationDays);
     }
