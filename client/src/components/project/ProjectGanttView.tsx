@@ -2176,6 +2176,18 @@ function ProjectGanttView({
     }
   }, [redoStack, projectId, organizationId, reorderTask, updateTask, deleteTask, addDependency, removeDependency, toast, redoErrorRollback]);
 
+  const describeAction = useCallback((action: GanttAction | undefined): string => {
+    if (!action) return '';
+    switch (action.type) {
+      case 'reorder': return 'Reorder task';
+      case 'update': return action.label;
+      case 'create': return 'Create task';
+      case 'delete': return 'Delete task';
+      case 'addDependency': return 'Add dependency';
+      case 'removeDependency': return 'Remove dependency';
+    }
+  }, []);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -3712,8 +3724,10 @@ function ProjectGanttView({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <span>Undo</span>
-                  <kbd className="ml-1.5 inline-flex h-5 items-center rounded border bg-muted px-1 font-mono text-[10px] font-medium text-muted-foreground">⌘Z</kbd>
+                  <div className="flex items-center gap-1.5">
+                    <span>{undoStack.length > 0 ? `Undo: ${describeAction(undoStack[undoStack.length - 1])}` : 'Nothing to undo'}</span>
+                    <kbd className="inline-flex h-5 items-center rounded border bg-muted px-1 font-mono text-[10px] font-medium text-muted-foreground">⌘Z</kbd>
+                  </div>
                 </TooltipContent>
               </Tooltip>
               <Tooltip>
@@ -3729,8 +3743,10 @@ function ProjectGanttView({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <span>Redo</span>
-                  <kbd className="ml-1.5 inline-flex h-5 items-center rounded border bg-muted px-1 font-mono text-[10px] font-medium text-muted-foreground">⌘Y</kbd>
+                  <div className="flex items-center gap-1.5">
+                    <span>{redoStack.length > 0 ? `Redo: ${describeAction(redoStack[redoStack.length - 1])}` : 'Nothing to redo'}</span>
+                    <kbd className="inline-flex h-5 items-center rounded border bg-muted px-1 font-mono text-[10px] font-medium text-muted-foreground">⌘Y</kbd>
+                  </div>
                 </TooltipContent>
               </Tooltip>
             </div>
