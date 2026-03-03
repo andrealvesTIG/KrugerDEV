@@ -9463,6 +9463,36 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   }
   
+  async function recalculateTaskEstimatedHours(taskId: number) {
+    const task = await storage.getTask(taskId);
+    if (!task) return;
+    const assignments = await storage.getTaskResourceAssignments(taskId);
+    if (assignments.length === 0) return;
+
+    let duration = task.durationDays;
+    if (!duration && task.startDate && task.endDate) {
+      const start = new Date(task.startDate + 'T00:00:00');
+      const end = new Date(task.endDate + 'T00:00:00');
+      duration = calculateDuration(start, end);
+    }
+
+    if (duration && duration > 0) {
+      let totalEstimatedHours = 0;
+      for (const assignment of assignments) {
+        const allocationPct = assignment.allocationPercentage ?? 100;
+        const weeklyCapacityStr = assignment.resource?.weeklyCapacity;
+        const weeklyCapacity = weeklyCapacityStr ? parseFloat(weeklyCapacityStr) : 40;
+        const dailyHours = weeklyCapacity / 5;
+        const hoursForResource = (allocationPct / 100) * dailyHours * duration;
+        totalEstimatedHours += hoursForResource;
+      }
+      const roundedHours = Math.round(totalEstimatedHours * 100) / 100;
+      await storage.updateTask(taskId, { estimatedHours: String(roundedHours) });
+    } else {
+      await storage.updateTask(taskId, { estimatedHours: null });
+    }
+  }
+
   // Helper function to roll up dates and values from children to parent tasks
   async function rollUpParentTasks(projectId: number) {
     // First, ensure parentId is correctly set based on outline levels
@@ -10017,6 +10047,10 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const datesChanged = (input.startDate !== undefined && input.startDate !== previousTask.startDate) ||
                            (input.endDate !== undefined && input.endDate !== previousTask.endDate) ||
                            (input.durationDays !== undefined && input.durationDays !== previousTask.durationDays);
+      
+      if (datesChanged) {
+        await recalculateTaskEstimatedHours(taskId);
+      }
       
       let propagatedTasks: { taskId: number; newStartDate: string; newEndDate: string }[] = [];
       if (datesChanged && updated.projectId) {
@@ -11323,38 +11357,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const assignments = await storage.getTaskResourceAssignments(taskId);
       
       // Auto-calculate estimated hours based on resource assignments
-      // Formula: sum of (allocation% / 100) × (weeklyCapacity / 5 days) × durationDays
-      const task = await storage.getTask(taskId);
-      if (task && assignments.length > 0) {
-        // Calculate duration from dates if durationDays is not set
-        let duration = task.durationDays;
-        if (!duration && task.startDate && task.endDate) {
-          const start = new Date(task.startDate);
-          const end = new Date(task.endDate);
-          const diffMs = end.getTime() - start.getTime();
-          const msPerDay = 24 * 60 * 60 * 1000;
-          duration = Math.floor(diffMs / msPerDay) + 1; // +1 for inclusive
-        }
-        
-        if (duration && duration > 0) {
-          let totalEstimatedHours = 0;
-          for (const assignment of assignments) {
-            const allocationPct = assignment.allocationPercentage ?? 100;
-            const weeklyCapacityStr = assignment.resource?.weeklyCapacity;
-            const weeklyCapacity = weeklyCapacityStr ? parseFloat(weeklyCapacityStr) : 40;
-            const dailyHours = weeklyCapacity / 5; // 5-day work week
-            const hoursForResource = (allocationPct / 100) * dailyHours * duration;
-            totalEstimatedHours += hoursForResource;
-          }
-          // Update task with calculated estimated hours (estimatedHours is numeric/string type)
-          const roundedHours = Math.round(totalEstimatedHours * 100) / 100;
-          await storage.updateTask(taskId, { estimatedHours: String(roundedHours) });
-        } else {
-          // Clear estimated hours if no valid duration
-          await storage.updateTask(taskId, { estimatedHours: null });
-        }
-      } else if (task && assignments.length === 0) {
-        // Clear estimated hours if no resources assigned
+      if (assignments.length > 0) {
+        await recalculateTaskEstimatedHours(taskId);
+      } else {
         await storage.updateTask(taskId, { estimatedHours: null });
       }
       
