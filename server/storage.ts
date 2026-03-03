@@ -1751,7 +1751,7 @@ export class DatabaseStorage implements IStorage {
     
     const projectMap = new Map(portfolioProjects.map(p => [p.id, p.name]));
     const allMilestones = await db.select().from(milestones).where(
-      inArray(milestones.projectId, projectIds)
+      and(inArray(milestones.projectId, projectIds), isNull(milestones.deletedAt))
     );
     return allMilestones.map(m => ({ ...m, projectName: projectMap.get(m.projectId!) || '' }));
   }

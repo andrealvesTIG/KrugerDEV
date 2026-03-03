@@ -4108,7 +4108,15 @@ export async function registerRoutes(
   // --- Portfolio Aggregations ---
   app.get('/api/portfolios/:id/projects', async (req, res) => {
     try {
-      const projects = await storage.getPortfolioProjects(Number(req.params.id));
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const portfolioId = Number(req.params.id);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
+      if (!await userHasOrgAccess(userId, portfolio.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const projects = await storage.getPortfolioProjects(portfolioId);
       res.json(projects);
     } catch (err) {
       const classified = classifyError(err);
@@ -4162,7 +4170,13 @@ export async function registerRoutes(
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
-      const risks = await storage.getPortfolioRisks(Number(req.params.id));
+      const portfolioId = Number(req.params.id);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
+      if (!await userHasOrgAccess(userId, portfolio.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const risks = await storage.getPortfolioRisks(portfolioId);
       res.json(risks);
     } catch (err) {
       const classified = classifyError(err);
@@ -4174,7 +4188,13 @@ export async function registerRoutes(
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
-      const issues = await storage.getPortfolioIssues(Number(req.params.id));
+      const portfolioId = Number(req.params.id);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
+      if (!await userHasOrgAccess(userId, portfolio.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const issues = await storage.getPortfolioIssues(portfolioId);
       res.json(issues);
     } catch (err) {
       const classified = classifyError(err);
@@ -4184,7 +4204,15 @@ export async function registerRoutes(
 
   app.get('/api/portfolios/:id/milestones', async (req, res) => {
     try {
-      const milestones = await storage.getPortfolioMilestones(Number(req.params.id));
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const portfolioId = Number(req.params.id);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
+      if (!await userHasOrgAccess(userId, portfolio.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const milestones = await storage.getPortfolioMilestones(portfolioId);
       res.json(milestones);
     } catch (err) {
       const classified = classifyError(err);
@@ -4286,6 +4314,11 @@ export async function registerRoutes(
       if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const portfolioId = Number(req.params.id);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: "Portfolio not found" });
+      if (!await userHasOrgAccess(userId, portfolio.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       const assessment = await storage.getLatestPortfolioRiskAssessment(portfolioId);
       if (!assessment) return res.json(null);
 
@@ -4439,10 +4472,14 @@ export async function registerRoutes(
       const userId = req.session?.userId || (req.user as any)?.id;
       if (!userId) return res.status(401).json({ message: "Authentication required" });
 
-      const assessment = await storage.getLatestPortfolioRiskAssessment(Number(req.params.id));
+      const portfolioId = Number(req.params.id);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: "Portfolio not found" });
+      if (!await userHasOrgAccess(userId, portfolio.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const assessment = await storage.getLatestPortfolioRiskAssessment(portfolioId);
       if (!assessment) return res.status(404).json({ message: "No assessment found" });
-
-      const portfolio = await storage.getPortfolio(assessment.portfolioId);
       const report = JSON.parse(assessment.reportJson);
 
       const { generateRiskAssessmentPDF } = await import("./services/portfolioRiskAssessment");
@@ -4668,13 +4705,17 @@ export async function registerRoutes(
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
-      const portfolio = await storage.getPortfolio(Number(req.params.id));
+      const portfolioId = Number(req.params.id);
+      const portfolio = await storage.getPortfolio(portfolioId);
       if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
+      if (!await userHasOrgAccess(userId, portfolio.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       
-      const projects = await storage.getPortfolioProjects(Number(req.params.id));
-      const risks = await storage.getPortfolioRisks(Number(req.params.id));
-      const issues = await storage.getPortfolioIssues(Number(req.params.id));
-      const milestones = await storage.getPortfolioMilestones(Number(req.params.id));
+      const projects = await storage.getPortfolioProjects(portfolioId);
+      const risks = await storage.getPortfolioRisks(portfolioId);
+      const issues = await storage.getPortfolioIssues(portfolioId);
+      const milestones = await storage.getPortfolioMilestones(portfolioId);
       
       // Calculate metrics
       const totalBudget = projects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
@@ -4785,6 +4826,9 @@ export async function registerRoutes(
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const project = await storage.getProject(Number(req.params.id));
     if (!project) return res.status(404).json({ message: "Project not found" });
+    if (!await userHasOrgAccess(userId, project.organizationId)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
     
     // Fetch user names for createdBy and updatedBy in parallel
     const [createdByUser, updatedByUser] = await Promise.all([
@@ -9294,6 +9338,11 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const portfolioId = Number(req.params.id);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
+      if (!await userHasOrgAccess(userId, portfolio.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       const portfolioProjects = await storage.getPortfolioProjects(portfolioId);
       const projectIds = portfolioProjects.map(p => p.id);
       
