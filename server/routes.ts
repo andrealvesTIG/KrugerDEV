@@ -9021,7 +9021,15 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
   // --- Milestones ---
   app.get(api.milestones.list.path, async (req, res) => {
-    const milestones = await storage.getMilestones(Number(req.params.projectId));
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+    const projectId = Number(req.params.projectId);
+    const project = await storage.getProject(projectId);
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+    if (!await userHasOrgAccess(userId, project.organizationId)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    const milestones = await storage.getMilestones(projectId);
     res.json(milestones);
   });
 
@@ -9100,7 +9108,15 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
   // --- Issues ---
   app.get(api.issues.list.path, async (req, res) => {
-    const issues = await storage.getIssues(Number(req.params.projectId));
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+    const projectId = Number(req.params.projectId);
+    const project = await storage.getProject(projectId);
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+    if (!await userHasOrgAccess(userId, project.organizationId)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    const issues = await storage.getIssues(projectId);
     res.json(issues);
   });
 

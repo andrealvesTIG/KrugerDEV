@@ -252,6 +252,7 @@ export default function Profile() {
     queryFn: async () => {
       if (!user?.id) return [];
       const res = await fetch(`/api/users/${user.id}/organizations`);
+      if (!res.ok) throw new Error('Failed to fetch organizations');
       return res.json();
     },
     enabled: !!user?.id

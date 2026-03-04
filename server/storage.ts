@@ -1991,10 +1991,11 @@ export class DatabaseStorage implements IStorage {
       )
       .limit(limit);
 
-    // Filter milestones by accessible projects
+    // Filter milestones by accessible projects (exclude soft-deleted)
     const milestoneResults = await db.select().from(milestones)
       .where(
         and(
+          isNull(milestones.deletedAt),
           sql`${milestones.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
           or(
             sql`COALESCE(${milestones.title}, '') ILIKE ${searchPattern}`,
@@ -2921,6 +2922,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateTaskResourceAssignments(taskId: number, resourceIds: number[], allocations?: { resourceId: number; allocationPercentage: number }[]): Promise<void> {
+    const task = await this.getTask(taskId);
+    if (!task) return;
+
     // Remove all existing assignments
     await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, taskId));
     
@@ -2940,10 +2944,6 @@ export class DatabaseStorage implements IStorage {
       await db.insert(taskResourceAssignments).values(assignmentData);
     }
     
-    // Calculate estimated hours based on resource allocations
-    // Formula: sum of (allocation% / 100) * (weeklyCapacity / 5 days) * durationDays
-    const task = await this.getTask(taskId);
-    
     if (resourceIds.length === 0) {
       // No resources assigned - clear estimated hours
       await db.update(tasks)
@@ -2951,8 +2951,6 @@ export class DatabaseStorage implements IStorage {
         .where(eq(tasks.id, taskId));
       return;
     }
-    
-    if (!task) return;
     
     // Get task duration (from stored value or calculate from dates)
     // Duration semantics: 0 = milestone, 1 = same-day, N = N days

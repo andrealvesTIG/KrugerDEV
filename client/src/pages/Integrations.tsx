@@ -232,6 +232,7 @@ export default function Integrations() {
     queryKey: ["/api/dynamics365/status", currentOrganization?.id],
     queryFn: async () => {
       const res = await fetch(`/api/dynamics365/status?organizationId=${currentOrganization?.id}`);
+      if (!res.ok) throw new Error('Failed to fetch Dynamics 365 status');
       return res.json();
     },
     enabled: !!currentOrganization?.id,
