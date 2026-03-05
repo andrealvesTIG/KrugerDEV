@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useAllIssues, useUpdateIssue, useDeleteIssue, useIssueHistory, useEscalateIssue } from "@/hooks/use-issues";
+import { useAllIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory, useEscalateIssue } from "@/hooks/use-issues";
 import { useConvertRiskToIssue, useAiMitigationSuggestion } from "@/hooks/use-risks";
 import { CreateRiskDialog } from "@/components/CreateRiskDialog";
 import { CreateIssueDialog } from "@/components/CreateIssueDialog";
@@ -22,12 +22,13 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Search, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, MoreVertical, Pencil, Users, AlertTriangle, History, ChevronDown, ChevronUp, ArrowUpToLine, ArrowDownFromLine, Settings2, Check, X } from "lucide-react";
+import { Loader2, Search, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, MoreVertical, Pencil, Users, AlertTriangle, History, ChevronDown, ChevronUp, ArrowUpToLine, ArrowDownFromLine, Settings2, Check, X, Download, Upload, FileSpreadsheet } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useForm, Controller } from "react-hook-form";
 import { type Issue } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
+import { exportIssuesToFile, parseImportFile, generateTemplate, type ImportedIssue, type ImportResult } from "@/lib/issuesExportImport";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
 
@@ -295,6 +296,13 @@ export default function Issues() {
   const [isRiskDialogOpen, setIsRiskDialogOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(getInitialColumns);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importingItems, setImportingItems] = useState(false);
+  const [importProjectId, setImportProjectId] = useState<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const createIssue = useCreateIssue();
 
   const { data: issueHistory, isLoading: historyLoading } = useIssueHistory(editingIssue?.id || 0);
 
@@ -407,6 +415,84 @@ export default function Issues() {
     return projects?.find(p => p.id === projectId)?.name || "Unknown Project";
   };
 
+  const projectNameMap: Record<number, string> = {};
+  projects?.forEach(p => { projectNameMap[p.id] = p.name; });
+
+  const handleExport = useCallback((format: 'csv' | 'xlsx') => {
+    if (!filteredIssues || filteredIssues.length === 0) {
+      toast({ title: "Nothing to export", description: "No issues or risks to export", variant: "destructive" });
+      return;
+    }
+    const label = typeFilter === "all" ? "all" : typeFilter;
+    exportIssuesToFile(filteredIssues as any, projectNameMap, format, label);
+    toast({ title: "Exported", description: `${filteredIssues.length} items exported as ${format.toUpperCase()}` });
+  }, [filteredIssues, projectNameMap, typeFilter, toast]);
+
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportLoading(true);
+    try {
+      const result = await parseImportFile(file);
+      setImportResult(result);
+      setIsImportDialogOpen(true);
+      if (projects && projects.length > 0 && !importProjectId) {
+        setImportProjectId(projects[0].id);
+      }
+    } catch (err: any) {
+      toast({ title: "Import Error", description: err.message, variant: "destructive" });
+    } finally {
+      setImportLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }, [projects, importProjectId, toast]);
+
+  const handleImportConfirm = useCallback(async () => {
+    if (!importResult || !importProjectId) return;
+    setImportingItems(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const item of importResult.items) {
+      try {
+        const payload: any = {
+          projectId: importProjectId,
+          title: item.title,
+          itemType: item.itemType || 'issue',
+        };
+        if (item.description) payload.description = item.description;
+        if (item.priority) payload.priority = item.priority;
+        if (item.status) payload.status = item.status;
+        if (item.type) payload.type = item.type;
+        if (item.category) payload.category = item.category;
+        if (item.severity) payload.severity = item.severity;
+        if (item.assignee) payload.assignee = item.assignee;
+        if (item.dueDate) payload.dueDate = item.dueDate;
+        if (item.costExposure) payload.costExposure = item.costExposure;
+        if (item.impactCost) payload.impactCost = item.impactCost;
+        if (item.riskScore) payload.riskScore = item.riskScore;
+        if (item.probability) payload.probability = item.probability;
+        if (item.impact) payload.impact = item.impact;
+        if (item.mitigationPlan) payload.mitigationPlan = item.mitigationPlan;
+        if (item.responseStrategy) payload.responseStrategy = item.responseStrategy;
+
+        await createIssue.mutateAsync(payload);
+        successCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    setImportingItems(false);
+    setIsImportDialogOpen(false);
+    setImportResult(null);
+    toast({
+      title: "Import Complete",
+      description: `${successCount} items imported${failCount > 0 ? `, ${failCount} failed` : ''}`,
+      variant: failCount > 0 ? "destructive" : "default",
+    });
+  }, [importResult, importProjectId, createIssue, toast]);
+
   const activeColumns = ALL_COLUMNS.filter(c => visibleColumns.has(c.key));
 
   if (isLoading) {
@@ -518,6 +604,55 @@ export default function Issues() {
         </Popover>
 
         <div className="flex gap-2 shrink-0 ml-auto">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" className="gap-1.5">
+                <Download className="h-4 w-4" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleExport('xlsx')}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Export as Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport('csv')}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Export as CSV (.csv)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" className="gap-1.5" disabled={importLoading}>
+                {importLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                Import
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                <Upload className="h-4 w-4 mr-2" />
+                Import from File
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => generateTemplate('xlsx')}>
+                <Download className="h-4 w-4 mr-2" />
+                Download Template (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => generateTemplate('csv')}>
+                <Download className="h-4 w-4 mr-2" />
+                Download Template (.csv)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+
           <Button size="sm" data-testid="button-create-issue" onClick={() => setIsDialogOpen(true)}>
             <Plus className="mr-1.5 h-4 w-4" /> New Issue
           </Button>
@@ -854,6 +989,110 @@ export default function Issues() {
               data-testid="button-confirm-delete-issue"
             >
               {deleteIssue.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isImportDialogOpen} onOpenChange={(open) => { if (!importingItems) { setIsImportDialogOpen(open); if (!open) setImportResult(null); } }}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Import Issues & Risks</DialogTitle>
+            <DialogDescription>
+              Review the parsed data before importing.
+            </DialogDescription>
+          </DialogHeader>
+
+          {importResult && (
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-primary">{importResult.items.length}</div>
+                  <div className="text-xs text-muted-foreground">Items found</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">{importResult.items.filter(i => i.itemType === 'issue').length}</div>
+                  <div className="text-xs text-muted-foreground">Issues</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-amber-600">{importResult.items.filter(i => i.itemType === 'risk').length}</div>
+                  <div className="text-xs text-muted-foreground">Risks</div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Import to Project <span className="text-destructive">*</span></Label>
+                <Select value={importProjectId?.toString() || ''} onValueChange={(val) => setImportProjectId(parseInt(val))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects?.map(p => (
+                      <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {importResult.warnings.length > 0 && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Warnings</p>
+                  {importResult.warnings.map((w, i) => (
+                    <p key={i} className="text-xs text-amber-700 dark:text-amber-300 mt-1">{w}</p>
+                  ))}
+                </div>
+              )}
+
+              {importResult.errors.length > 0 && (
+                <div className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/30">
+                  <p className="text-sm font-medium text-red-800 dark:text-red-200">Errors</p>
+                  {importResult.errors.map((e, i) => (
+                    <p key={i} className="text-xs text-red-700 dark:text-red-300 mt-1">{e}</p>
+                  ))}
+                </div>
+              )}
+
+              {importResult.items.length > 0 && (
+                <div className="max-h-48 overflow-y-auto border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/30">
+                        <TableHead className="text-xs">Type</TableHead>
+                        <TableHead className="text-xs">Title</TableHead>
+                        <TableHead className="text-xs">Priority</TableHead>
+                        <TableHead className="text-xs">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {importResult.items.map((item, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell className="py-1.5 text-xs">
+                            <Badge variant="outline" className={cn("text-xs", item.itemType === 'risk' ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700")}>
+                              {item.itemType === 'risk' ? 'Risk' : 'Issue'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="py-1.5 text-xs font-medium truncate max-w-[200px]">{item.title}</TableCell>
+                          <TableCell className="py-1.5 text-xs">{item.priority || '—'}</TableCell>
+                          <TableCell className="py-1.5 text-xs">{item.status || '—'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setIsImportDialogOpen(false); setImportResult(null); }} disabled={importingItems}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleImportConfirm}
+              disabled={importingItems || !importResult || importResult.items.length === 0 || !importProjectId}
+            >
+              {importingItems && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Import {importResult?.items.length || 0} Items
             </Button>
           </DialogFooter>
         </DialogContent>
