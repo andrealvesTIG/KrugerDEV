@@ -501,9 +501,11 @@ export default function PmoRadar() {
       });
 
     const maxSimMonths = Math.max(12, Math.ceil(timeProjectionMonths) + 3);
-    const exposureOverSim: { month: string; value: number }[] = [];
+    const exposureOverSim: { month: string; total: number; overdue: number }[] = [];
     for (let m = 0; m <= maxSimMonths; m += 1) {
       let totalCost = 0;
+      let overdueCost = 0;
+      const offsetDays = Math.round(m * 30.44);
       filteredSignals.forEach((s) => {
         const ce = s.costExposure ?? 0;
         if (ce <= 0) return;
@@ -516,21 +518,25 @@ export default function PmoRadar() {
         const resolveMonth = 1 + h * 10;
         const fate = hashId(numericId + 3333);
 
+        let effectiveCost = ce;
         if (m >= resolveMonth) {
           if (fate < 0.35) {
             const monthsPastResolve = m - resolveMonth;
             const fadeProgress = Math.min(monthsPastResolve / 1.5, 1);
             if (fadeProgress >= 1) return;
-            totalCost += ce * (1 - fadeProgress);
-            return;
+            effectiveCost = ce * (1 - fadeProgress);
           } else if (fate < 0.7) {
-            totalCost += ce * 0.3;
-            return;
+            effectiveCost = ce * 0.3;
           }
         }
-        totalCost += ce;
+        totalCost += effectiveCost;
+
+        const projectedOffset = s.timeOffsetDays - offsetDays;
+        if (projectedOffset < 0) {
+          overdueCost += effectiveCost;
+        }
       });
-      exposureOverSim.push({ month: `+${m}mo`, value: Math.round(totalCost) });
+      exposureOverSim.push({ month: `+${m}mo`, total: Math.round(totalCost), overdue: Math.round(overdueCost) });
     }
 
     return { bySeverity, futureVsOverdue, costOverTime, exposureOverSim };
@@ -793,19 +799,24 @@ export default function PmoRadar() {
                             <stop offset="5%" stopColor={isDark ? "#22d3ee" : "#0891b2"} stopOpacity={0.3} />
                             <stop offset="95%" stopColor={isDark ? "#22d3ee" : "#0891b2"} stopOpacity={0.02} />
                           </linearGradient>
+                          <linearGradient id="overdueGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.25} />
+                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0.02} />
+                          </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#e2e8f0"} />
                         <XAxis dataKey="month" tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 9 }} axisLine={false} tickLine={false} interval={Math.max(0, Math.floor(costChartData.exposureOverSim.length / 6) - 1)} />
                         <YAxis tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatCompactCurrency(v)} width={45} />
                         <RechartsTooltip
-                          formatter={(value: number) => [formatCompactCurrency(value), "Cost Exposure"]}
+                          formatter={(value: number, name: string) => [formatCompactCurrency(value), name === "total" ? "Total Exposure" : "Overdue Exposure"]}
                           contentStyle={{ backgroundColor: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, borderRadius: 6, fontSize: 12 }}
                           labelStyle={{ color: isDark ? "#e2e8f0" : "#1e293b" }}
                         />
                         {timeProjectionMonths > 0 && (
                           <ReferenceLine x={`+${Math.round(timeProjectionMonths)}mo`} stroke={isDark ? "#f59e0b" : "#d97706"} strokeDasharray="4 3" strokeWidth={1.5} label={{ value: `+${timeProjectionMonths.toFixed(1)}mo`, position: "top", fill: isDark ? "#f59e0b" : "#d97706", fontSize: 9, fontWeight: 600 }} />
                         )}
-                        <Area type="monotone" dataKey="value" stroke={isDark ? "#22d3ee" : "#0891b2"} strokeWidth={2} fill="url(#exposureGrad)" dot={false} activeDot={{ fill: isDark ? "#22d3ee" : "#0891b2", r: 4, stroke: isDark ? "#0f172a" : "#fff", strokeWidth: 2 }} />
+                        <Area type="monotone" dataKey="total" name="total" stroke={isDark ? "#22d3ee" : "#0891b2"} strokeWidth={2} fill="url(#exposureGrad)" dot={false} activeDot={{ fill: isDark ? "#22d3ee" : "#0891b2", r: 4, stroke: isDark ? "#0f172a" : "#fff", strokeWidth: 2 }} />
+                        <Area type="monotone" dataKey="overdue" name="overdue" stroke="#ef4444" strokeWidth={1.5} fill="url(#overdueGrad)" dot={false} activeDot={{ fill: "#ef4444", r: 3, stroke: isDark ? "#0f172a" : "#fff", strokeWidth: 2 }} strokeDasharray="4 2" />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
