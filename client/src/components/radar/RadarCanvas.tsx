@@ -312,7 +312,8 @@ export default function RadarCanvas({
 
       ctx.save();
       ctx.beginPath();
-      ctx.rect(cx - clipRadius - 2, cy - clipRadius - 2, clipRadius * 2 + 4, clipRadius * 2 + 4);
+      const clipPad = 40;
+      ctx.rect(cx - clipRadius - clipPad, cy - clipRadius - clipPad, clipRadius * 2 + clipPad * 2, clipRadius * 2 + clipPad * 2);
       ctx.clip();
 
       const gridLineWidth = isDark ? 1.5 : 2;
@@ -415,7 +416,7 @@ export default function RadarCanvas({
         const pos = mapSignalToCanvas(signal, cx, cy, radius, horizontalMetric);
         const dx = pos.x - cx;
         const dy = pos.y - cy;
-        if (Math.abs(dx) > clipRadius || Math.abs(dy) > clipRadius) return;
+        if (Math.abs(dx) > clipRadius + clipPad || Math.abs(dy) > clipRadius + clipPad) return;
 
         const dotAngle = Math.atan2(dy, dx);
         let angleDiff = sweepAngle - dotAngle;
@@ -571,7 +572,7 @@ export default function RadarCanvas({
       const cx = dims.width / 2;
       const cy = dims.height / 2;
       const cr = baseRadius(dims.width, dims.height);
-      return Math.abs(px - cx) <= cr + 2 && Math.abs(py - cy) <= cr + 2;
+      return Math.abs(px - cx) <= cr + 40 && Math.abs(py - cy) <= cr + 40;
     },
     [dims]
   );
