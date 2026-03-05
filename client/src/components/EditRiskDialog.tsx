@@ -196,9 +196,9 @@ export function EditRiskDialog({
         )}
 
         <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col flex-1 overflow-hidden">
-          <div className="flex flex-col gap-4 pt-4 flex-1 overflow-y-auto pr-1 [&_label]:relative [&_label]:z-10 [&_input]:focus-visible:ring-offset-0 [&_textarea]:focus-visible:ring-offset-0 [&_button[role=combobox]]:focus-visible:ring-offset-0">
-            <div className="space-y-1.5 pb-2">
-              <Label>Title <span className="text-destructive">*</span></Label>
+          <div className="flex flex-col gap-4 pt-4 flex-1 overflow-y-auto pr-1">
+            <div className="space-y-2 pb-2">
+              <Label className="block">Title <span className="text-destructive">*</span></Label>
               <Input {...form.register("title")} data-testid="input-risk-title" />
               {form.formState.errors.title && (
                 <p className="text-xs text-destructive">{form.formState.errors.title.message as string || "Title is required"}</p>
