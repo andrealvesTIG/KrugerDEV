@@ -11,7 +11,7 @@ import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useIssueR
 import { useTheme } from "@/components/theme-provider";
 import { useToast } from "@/hooks/use-toast";
 import { Radio, Loader2, History, ChevronUp, ChevronDown } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Cell, LineChart, Line, CartesianGrid } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Cell, LineChart, Line, CartesianGrid, ReferenceLine, Area, AreaChart } from "recharts";
 import { Link } from "wouter";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -500,8 +500,41 @@ export default function PmoRadar() {
         return { month: `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(m) - 1]} ${y.slice(2)}`, value };
       });
 
-    return { bySeverity, futureVsOverdue, costOverTime };
-  }, [filteredSignals, stats]);
+    const maxSimMonths = Math.max(12, Math.ceil(timeProjectionMonths) + 3);
+    const exposureOverSim: { month: string; value: number }[] = [];
+    for (let m = 0; m <= maxSimMonths; m += 1) {
+      let totalCost = 0;
+      filteredSignals.forEach((s) => {
+        const ce = s.costExposure ?? 0;
+        if (ce <= 0) return;
+
+        const isAlreadyResolved = s.status === "Closed" || s.status === "Mitigated";
+        if (isAlreadyResolved) return;
+
+        const numericId = parseInt(s.id.replace(/^(issue|risk)-/, "")) || 0;
+        const h = hashId(numericId + 7777);
+        const resolveMonth = 1 + h * 10;
+        const fate = hashId(numericId + 3333);
+
+        if (m >= resolveMonth) {
+          if (fate < 0.35) {
+            const monthsPastResolve = m - resolveMonth;
+            const fadeProgress = Math.min(monthsPastResolve / 1.5, 1);
+            if (fadeProgress >= 1) return;
+            totalCost += ce * (1 - fadeProgress);
+            return;
+          } else if (fate < 0.7) {
+            totalCost += ce * 0.3;
+            return;
+          }
+        }
+        totalCost += ce;
+      });
+      exposureOverSim.push({ month: `+${m}mo`, value: Math.round(totalCost) });
+    }
+
+    return { bySeverity, futureVsOverdue, costOverTime, exposureOverSim };
+  }, [filteredSignals, stats, timeProjectionMonths]);
 
   const handleEditSignal = useCallback((signal: RiskSignal) => {
     if (signal.itemType === "issue") {
@@ -746,25 +779,34 @@ export default function PmoRadar() {
                 </ResponsiveContainer>
               </div>
 
-              {costChartData.costOverTime.length > 1 && (
+              {costChartData.exposureOverSim.length > 1 && (
                 <>
                   <div className={`w-px shrink-0 ${isDark ? "bg-slate-700/50" : "bg-slate-200"}`} />
                   <div className="flex-1 min-w-0">
                     <div className={`text-[11px] font-semibold uppercase tracking-wide mb-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                      Cost Over Time
+                      Exposure Over Simulation
                     </div>
                     <ResponsiveContainer width="100%" height="85%">
-                      <LineChart data={costChartData.costOverTime} margin={{ top: 8, right: 12, bottom: 4, left: 10 }}>
+                      <AreaChart data={costChartData.exposureOverSim} margin={{ top: 8, right: 12, bottom: 4, left: 10 }}>
+                        <defs>
+                          <linearGradient id="exposureGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={isDark ? "#22d3ee" : "#0891b2"} stopOpacity={0.3} />
+                            <stop offset="95%" stopColor={isDark ? "#22d3ee" : "#0891b2"} stopOpacity={0.02} />
+                          </linearGradient>
+                        </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#e2e8f0"} />
-                        <XAxis dataKey="month" tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                        <XAxis dataKey="month" tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 9 }} axisLine={false} tickLine={false} interval={Math.max(0, Math.floor(costChartData.exposureOverSim.length / 6) - 1)} />
                         <YAxis tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatCompactCurrency(v)} width={45} />
                         <RechartsTooltip
                           formatter={(value: number) => [formatCompactCurrency(value), "Cost Exposure"]}
                           contentStyle={{ backgroundColor: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, borderRadius: 6, fontSize: 12 }}
                           labelStyle={{ color: isDark ? "#e2e8f0" : "#1e293b" }}
                         />
-                        <Line type="monotone" dataKey="value" stroke={isDark ? "#22d3ee" : "#0891b2"} strokeWidth={2} dot={{ fill: isDark ? "#22d3ee" : "#0891b2", r: 3 }} activeDot={{ r: 5 }} />
-                      </LineChart>
+                        {timeProjectionMonths > 0 && (
+                          <ReferenceLine x={`+${Math.round(timeProjectionMonths)}mo`} stroke={isDark ? "#f59e0b" : "#d97706"} strokeDasharray="4 3" strokeWidth={1.5} label={{ value: `+${timeProjectionMonths.toFixed(1)}mo`, position: "top", fill: isDark ? "#f59e0b" : "#d97706", fontSize: 9, fontWeight: 600 }} />
+                        )}
+                        <Area type="monotone" dataKey="value" stroke={isDark ? "#22d3ee" : "#0891b2"} strokeWidth={2} fill="url(#exposureGrad)" dot={false} activeDot={{ fill: isDark ? "#22d3ee" : "#0891b2", r: 4, stroke: isDark ? "#0f172a" : "#fff", strokeWidth: 2 }} />
+                      </AreaChart>
                     </ResponsiveContainer>
                   </div>
                 </>
