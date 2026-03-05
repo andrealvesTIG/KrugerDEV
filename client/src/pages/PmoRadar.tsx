@@ -11,7 +11,7 @@ import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useIssueR
 import { useTheme } from "@/components/theme-provider";
 import { useToast } from "@/hooks/use-toast";
 import { Radio, Loader2, History, ChevronUp, ChevronDown } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Cell } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Cell, LineChart, Line, CartesianGrid } from "recharts";
 import { Link } from "wouter";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -485,12 +485,22 @@ export default function PmoRadar() {
       { name: "Overdue", value: stats.costExposurePast, color: "#ef4444" },
     ].filter((d) => d.value > 0);
 
-    const topProjects = Array.from(projectCosts.entries())
-      .map(([name, value]) => ({ name: name.length > 18 ? name.slice(0, 16) + "…" : name, fullName: name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
+    const monthBuckets = new Map<string, number>();
+    filteredSignals.forEach((s) => {
+      const ce = s.costExposure ?? 0;
+      if (ce <= 0 || !s.dueDate) return;
+      const d = new Date(s.dueDate);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      monthBuckets.set(key, (monthBuckets.get(key) || 0) + ce);
+    });
+    const costOverTime = Array.from(monthBuckets.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, value]) => {
+        const [y, m] = month.split("-");
+        return { month: `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(m) - 1]} ${y.slice(2)}`, value };
+      });
 
-    return { bySeverity, futureVsOverdue, topProjects };
+    return { bySeverity, futureVsOverdue, costOverTime };
   }, [filteredSignals, stats]);
 
   const handleEditSignal = useCallback((signal: RiskSignal) => {
@@ -731,30 +741,25 @@ export default function PmoRadar() {
                 </ResponsiveContainer>
               </div>
 
-              {costChartData.topProjects.length > 0 && (
+              {costChartData.costOverTime.length > 1 && (
                 <>
                   <div className={`w-px shrink-0 ${isDark ? "bg-slate-700/50" : "bg-slate-200"}`} />
                   <div className="flex-1 min-w-0">
                     <div className={`text-[11px] font-semibold uppercase tracking-wide mb-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                      Top Projects by Cost
+                      Cost Over Time
                     </div>
                     <ResponsiveContainer width="100%" height="85%">
-                      <BarChart data={costChartData.topProjects} layout="vertical" margin={{ top: 4, right: 40, bottom: 4, left: 10 }}>
-                        <XAxis type="number" hide />
-                        <YAxis type="category" dataKey="name" width={100} tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <LineChart data={costChartData.costOverTime} margin={{ top: 8, right: 12, bottom: 4, left: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#e2e8f0"} />
+                        <XAxis dataKey="month" tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatCompactCurrency(v)} width={45} />
                         <RechartsTooltip
-                          formatter={(value: number, _name: string, props: any) => [formatCompactCurrency(value), props.payload?.fullName || "Cost"]}
+                          formatter={(value: number) => [formatCompactCurrency(value), "Cost Exposure"]}
                           contentStyle={{ backgroundColor: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, borderRadius: 6, fontSize: 12 }}
                           labelStyle={{ color: isDark ? "#e2e8f0" : "#1e293b" }}
                         />
-                        <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={14}
-                          label={{ position: "right", fill: isDark ? "#cbd5e1" : "#475569", fontSize: 10, formatter: (v: number) => formatCompactCurrency(v) }}
-                        >
-                          {costChartData.topProjects.map((_, index) => (
-                            <Cell key={index} fill={isDark ? "#22d3ee" : "#0891b2"} fillOpacity={isDark ? 0.7 : 0.8} />
-                          ))}
-                        </Bar>
-                      </BarChart>
+                        <Line type="monotone" dataKey="value" stroke={isDark ? "#22d3ee" : "#0891b2"} strokeWidth={2} dot={{ fill: isDark ? "#22d3ee" : "#0891b2", r: 3 }} activeDot={{ r: 5 }} />
+                      </LineChart>
                     </ResponsiveContainer>
                   </div>
                 </>
