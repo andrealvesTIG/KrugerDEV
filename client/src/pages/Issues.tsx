@@ -868,13 +868,13 @@ export default function Issues() {
     switch (colKey) {
       case "title":
         return (
-          <InlineEditCell
-            issue={issue}
-            field="title"
-            value={issue.title}
-            onSave={handleInlineSave}
-            placeholder="Enter title"
-          />
+          <div
+            className="cursor-pointer px-1 py-0.5 rounded hover:bg-muted/60 min-h-[28px] flex items-center text-sm truncate font-medium text-primary hover:underline"
+            onClick={() => openEditDialog(issue)}
+            title={issue.title}
+          >
+            {issue.title || <span className="text-muted-foreground/50 italic">Untitled</span>}
+          </div>
         );
 
       case "itemType":
