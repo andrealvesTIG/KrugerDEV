@@ -252,6 +252,7 @@ export default function PmoRadar() {
   const [editingIssue, setEditingIssue] = useState<any>(null);
   const [issueResourceIds, setIssueResourceIds] = useState<number[]>([]);
   const [showIssueHistory, setShowIssueHistory] = useState(false);
+  const [costChartsExpanded, setCostChartsExpanded] = useState(true);
 
   const { toast } = useToast();
   const updateRisk = useUpdateRisk();
@@ -661,86 +662,104 @@ export default function PmoRadar() {
       </div>
 
       {showCostTiles && (costChartData.bySeverity.length > 0 || costChartData.futureVsOverdue.length > 0) && (
-        <div className={`shrink-0 border-b px-4 py-3 ${isDark ? "bg-slate-900/40 border-green-500/10" : "bg-white/60 border-green-600/10"}`} style={{ height: 200 }}>
-          <div className="flex gap-4 h-full">
-            <div className="flex-1 min-w-0">
-              <div className={`text-[11px] font-semibold uppercase tracking-wide mb-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                Cost by Severity
-              </div>
-              <ResponsiveContainer width="100%" height="85%">
-                <BarChart data={costChartData.bySeverity} layout="vertical" margin={{ top: 4, right: 40, bottom: 4, left: 10 }}>
-                  <XAxis type="number" hide />
-                  <YAxis type="category" dataKey="name" width={55} tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <RechartsTooltip
-                    formatter={(value: number) => [formatCompactCurrency(value), "Cost"]}
-                    contentStyle={{ backgroundColor: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, borderRadius: 6, fontSize: 12 }}
-                    labelStyle={{ color: isDark ? "#e2e8f0" : "#1e293b" }}
-                  />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20}
-                    label={{ position: "right", fill: isDark ? "#cbd5e1" : "#475569", fontSize: 11, formatter: (v: number) => formatCompactCurrency(v) }}
-                  >
-                    {costChartData.bySeverity.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} fillOpacity={isDark ? 0.8 : 0.9} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className={`w-px shrink-0 ${isDark ? "bg-slate-700/50" : "bg-slate-200"}`} />
-
-            <div className="flex-1 min-w-0">
-              <div className={`text-[11px] font-semibold uppercase tracking-wide mb-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                Future vs Overdue Exposure
-              </div>
-              <ResponsiveContainer width="100%" height="85%">
-                <BarChart data={costChartData.futureVsOverdue} margin={{ top: 4, right: 40, bottom: 4, left: 10 }}>
-                  <XAxis dataKey="name" tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis hide />
-                  <RechartsTooltip
-                    formatter={(value: number) => [formatCompactCurrency(value), "Cost"]}
-                    contentStyle={{ backgroundColor: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, borderRadius: 6, fontSize: 12 }}
-                    labelStyle={{ color: isDark ? "#e2e8f0" : "#1e293b" }}
-                  />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={40}
-                    label={{ position: "top", fill: isDark ? "#cbd5e1" : "#475569", fontSize: 11, formatter: (v: number) => formatCompactCurrency(v) }}
-                  >
-                    {costChartData.futureVsOverdue.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} fillOpacity={isDark ? 0.8 : 0.9} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {costChartData.topProjects.length > 0 && (
-              <>
-                <div className={`w-px shrink-0 ${isDark ? "bg-slate-700/50" : "bg-slate-200"}`} />
-                <div className="flex-1 min-w-0">
-                  <div className={`text-[11px] font-semibold uppercase tracking-wide mb-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                    Top Projects by Cost
-                  </div>
-                  <ResponsiveContainer width="100%" height="85%">
-                    <BarChart data={costChartData.topProjects} layout="vertical" margin={{ top: 4, right: 40, bottom: 4, left: 10 }}>
-                      <XAxis type="number" hide />
-                      <YAxis type="category" dataKey="name" width={100} tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
-                      <RechartsTooltip
-                        formatter={(value: number, _name: string, props: any) => [formatCompactCurrency(value), props.payload?.fullName || "Cost"]}
-                        contentStyle={{ backgroundColor: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, borderRadius: 6, fontSize: 12 }}
-                        labelStyle={{ color: isDark ? "#e2e8f0" : "#1e293b" }}
-                      />
-                      <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={14}
-                        label={{ position: "right", fill: isDark ? "#cbd5e1" : "#475569", fontSize: 10, formatter: (v: number) => formatCompactCurrency(v) }}
-                      >
-                        {costChartData.topProjects.map((_, index) => (
-                          <Cell key={index} fill={isDark ? "#22d3ee" : "#0891b2"} fillOpacity={isDark ? 0.7 : 0.8} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+        <div className={`shrink-0 border-b ${isDark ? "bg-slate-900/40 border-green-500/10" : "bg-white/60 border-green-600/10"}`}>
+          <button
+            type="button"
+            onClick={() => setCostChartsExpanded(!costChartsExpanded)}
+            className={`flex items-center justify-between w-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide cursor-pointer select-none transition-colors ${isDark ? "text-slate-400 hover:text-slate-300 hover:bg-slate-800/40" : "text-slate-500 hover:text-slate-600 hover:bg-slate-100/80"}`}
+          >
+            <span className="flex items-center gap-2">
+              Cost Exposure Charts
+              <span className={`text-[10px] font-normal normal-case tracking-normal ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                Total: {formatCompactCurrency(stats.costExposureTotal)}
+              </span>
+            </span>
+            {costChartsExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </button>
+          <div
+            className="overflow-hidden transition-all duration-300 ease-in-out"
+            style={{ height: costChartsExpanded ? 190 : 0, opacity: costChartsExpanded ? 1 : 0 }}
+          >
+            <div className="flex gap-4 h-full px-4 pb-3">
+              <div className="flex-1 min-w-0">
+                <div className={`text-[11px] font-semibold uppercase tracking-wide mb-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  Cost by Severity
                 </div>
-              </>
-            )}
+                <ResponsiveContainer width="100%" height="85%">
+                  <BarChart data={costChartData.bySeverity} layout="vertical" margin={{ top: 4, right: 40, bottom: 4, left: 10 }}>
+                    <XAxis type="number" hide />
+                    <YAxis type="category" dataKey="name" width={55} tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <RechartsTooltip
+                      formatter={(value: number) => [formatCompactCurrency(value), "Cost"]}
+                      contentStyle={{ backgroundColor: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, borderRadius: 6, fontSize: 12 }}
+                      labelStyle={{ color: isDark ? "#e2e8f0" : "#1e293b" }}
+                    />
+                    <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20}
+                      label={{ position: "right", fill: isDark ? "#cbd5e1" : "#475569", fontSize: 11, formatter: (v: number) => formatCompactCurrency(v) }}
+                    >
+                      {costChartData.bySeverity.map((entry, index) => (
+                        <Cell key={index} fill={entry.color} fillOpacity={isDark ? 0.8 : 0.9} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className={`w-px shrink-0 ${isDark ? "bg-slate-700/50" : "bg-slate-200"}`} />
+
+              <div className="flex-1 min-w-0">
+                <div className={`text-[11px] font-semibold uppercase tracking-wide mb-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  Future vs Overdue Exposure
+                </div>
+                <ResponsiveContainer width="100%" height="85%">
+                  <BarChart data={costChartData.futureVsOverdue} margin={{ top: 4, right: 40, bottom: 4, left: 10 }}>
+                    <XAxis dataKey="name" tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis hide />
+                    <RechartsTooltip
+                      formatter={(value: number) => [formatCompactCurrency(value), "Cost"]}
+                      contentStyle={{ backgroundColor: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, borderRadius: 6, fontSize: 12 }}
+                      labelStyle={{ color: isDark ? "#e2e8f0" : "#1e293b" }}
+                    />
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={40}
+                      label={{ position: "top", fill: isDark ? "#cbd5e1" : "#475569", fontSize: 11, formatter: (v: number) => formatCompactCurrency(v) }}
+                    >
+                      {costChartData.futureVsOverdue.map((entry, index) => (
+                        <Cell key={index} fill={entry.color} fillOpacity={isDark ? 0.8 : 0.9} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {costChartData.topProjects.length > 0 && (
+                <>
+                  <div className={`w-px shrink-0 ${isDark ? "bg-slate-700/50" : "bg-slate-200"}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-[11px] font-semibold uppercase tracking-wide mb-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                      Top Projects by Cost
+                    </div>
+                    <ResponsiveContainer width="100%" height="85%">
+                      <BarChart data={costChartData.topProjects} layout="vertical" margin={{ top: 4, right: 40, bottom: 4, left: 10 }}>
+                        <XAxis type="number" hide />
+                        <YAxis type="category" dataKey="name" width={100} tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                        <RechartsTooltip
+                          formatter={(value: number, _name: string, props: any) => [formatCompactCurrency(value), props.payload?.fullName || "Cost"]}
+                          contentStyle={{ backgroundColor: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, borderRadius: 6, fontSize: 12 }}
+                          labelStyle={{ color: isDark ? "#e2e8f0" : "#1e293b" }}
+                        />
+                        <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={14}
+                          label={{ position: "right", fill: isDark ? "#cbd5e1" : "#475569", fontSize: 10, formatter: (v: number) => formatCompactCurrency(v) }}
+                        >
+                          {costChartData.topProjects.map((_, index) => (
+                            <Cell key={index} fill={isDark ? "#22d3ee" : "#0891b2"} fillOpacity={isDark ? 0.7 : 0.8} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
