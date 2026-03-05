@@ -648,7 +648,7 @@ export default function PmoRadar() {
               </span>
             </div>
           )}
-          {showCostTiles && (costChartData.bySeverity.length > 0 || costChartData.futureVsOverdue.length > 0) && (
+          {showCostTiles && (costChartData.costOverTime.length > 0 || costChartData.futureVsOverdue.length > 0) && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -729,7 +729,7 @@ export default function PmoRadar() {
         </div>
       </div>
 
-      {showCostTiles && (costChartData.bySeverity.length > 0 || costChartData.futureVsOverdue.length > 0) && (
+      {showCostTiles && (costChartData.costOverTime.length > 0 || costChartData.futureVsOverdue.length > 0) && (
         <div
           className={`shrink-0 border-b overflow-hidden transition-all duration-300 ease-in-out ${isDark ? "bg-slate-900/40 border-green-500/10" : "bg-white/60 border-green-600/10"}`}
           style={{ height: costChartsExpanded ? 190 : 0, opacity: costChartsExpanded ? 1 : 0 }}
@@ -737,24 +737,19 @@ export default function PmoRadar() {
             <div className="flex gap-4 h-full px-4 pb-3">
               <div className="flex-1 min-w-0">
                 <div className={`text-[11px] font-semibold uppercase tracking-wide mb-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                  Cost by Severity
+                  Exposure by Due Date
                 </div>
                 <ResponsiveContainer width="100%" height="85%">
-                  <BarChart data={costChartData.bySeverity} layout="vertical" margin={{ top: 4, right: 40, bottom: 4, left: 10 }}>
-                    <XAxis type="number" hide />
-                    <YAxis type="category" dataKey="name" width={55} tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <BarChart data={costChartData.costOverTime} margin={{ top: 8, right: 12, bottom: 4, left: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#e2e8f0"} />
+                    <XAxis dataKey="month" tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 9 }} axisLine={false} tickLine={false} interval={Math.max(0, Math.floor(costChartData.costOverTime.length / 6) - 1)} />
+                    <YAxis tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatCompactCurrency(v)} width={45} />
                     <RechartsTooltip
-                      formatter={(value: number) => [formatCompactCurrency(value), "Cost"]}
+                      formatter={(value: number) => [formatCompactCurrency(value), "Exposure"]}
                       contentStyle={{ backgroundColor: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, borderRadius: 6, fontSize: 12 }}
                       labelStyle={{ color: isDark ? "#e2e8f0" : "#1e293b" }}
                     />
-                    <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20}
-                      label={{ position: "right", fill: isDark ? "#cbd5e1" : "#475569", fontSize: 11, formatter: (v: number) => formatCompactCurrency(v) }}
-                    >
-                      {costChartData.bySeverity.map((entry, index) => (
-                        <Cell key={index} fill={entry.color} fillOpacity={isDark ? 0.8 : 0.9} />
-                      ))}
-                    </Bar>
+                    <Bar dataKey="value" radius={[3, 3, 0, 0]} barSize={18} fill={isDark ? "#22d3ee" : "#0891b2"} fillOpacity={isDark ? 0.7 : 0.8} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
