@@ -420,30 +420,9 @@ export default function Issues() {
   return (
     <>
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-display font-bold text-foreground" data-testid="text-page-title">Issues & Risks</h1>
-          <p className="mt-1 text-muted-foreground">Track and manage issues and risks across all projects.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button data-testid="button-create-issue" onClick={() => setIsDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> New Issue
-          </Button>
-          <CreateIssueDialog
-            open={isDialogOpen}
-            onOpenChange={setIsDialogOpen}
-            organizationId={currentOrganization?.id ?? null}
-          />
-
-          <Button variant="outline" data-testid="button-create-risk" onClick={() => setIsRiskDialogOpen(true)}>
-            <AlertTriangle className="mr-2 h-4 w-4" /> New Risk
-          </Button>
-          <CreateRiskDialog
-            open={isRiskDialogOpen}
-            onOpenChange={setIsRiskDialogOpen}
-            organizationId={currentOrganization?.id ?? null}
-          />
-        </div>
+      <div>
+        <h1 className="text-3xl font-display font-bold text-foreground" data-testid="text-page-title">Issues & Risks</h1>
+        <p className="mt-1 text-muted-foreground">Track and manage issues and risks across all projects.</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 bg-card p-3 rounded-xl border border-border shadow-sm">
@@ -537,6 +516,25 @@ export default function Issues() {
             </div>
           </PopoverContent>
         </Popover>
+
+        <div className="flex gap-2 shrink-0 ml-auto">
+          <Button size="sm" data-testid="button-create-issue" onClick={() => setIsDialogOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" /> New Issue
+          </Button>
+          <CreateIssueDialog
+            open={isDialogOpen}
+            onOpenChange={setIsDialogOpen}
+            organizationId={currentOrganization?.id ?? null}
+          />
+          <Button size="sm" variant="outline" data-testid="button-create-risk" onClick={() => setIsRiskDialogOpen(true)}>
+            <AlertTriangle className="mr-1.5 h-4 w-4" /> New Risk
+          </Button>
+          <CreateRiskDialog
+            open={isRiskDialogOpen}
+            onOpenChange={setIsRiskDialogOpen}
+            organizationId={currentOrganization?.id ?? null}
+          />
+        </div>
       </div>
 
       <Card>
