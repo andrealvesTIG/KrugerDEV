@@ -447,26 +447,52 @@ export default function Issues() {
     }
   }, [projects, importProjectId, toast]);
 
+  const projectNameToId = useMemo(() => {
+    const map: Record<string, number> = {};
+    projects?.forEach(p => { map[p.name.toLowerCase().trim()] = p.id; });
+    return map;
+  }, [projects]);
+
   const importMatchResults = useMemo(() => {
-    if (!importResult || !importProjectId || !issues) return null;
-    const projectIssues = issues.filter(i => i.projectId === importProjectId);
+    if (!importResult || !issues) return null;
     return importResult.items.map(item => {
+      const resolvedProjectId = item.projectName
+        ? projectNameToId[item.projectName.toLowerCase().trim()] || null
+        : null;
+      const targetProjectId = resolvedProjectId || importProjectId || null;
       const titleLower = item.title.toLowerCase().trim();
-      const match = projectIssues.find(
-        existing => existing.title.toLowerCase().trim() === titleLower && (existing.itemType || 'issue') === item.itemType
-      );
-      return { item, existingMatch: match || null };
+      const match = targetProjectId
+        ? issues.find(
+            existing => existing.projectId === targetProjectId
+              && existing.title.toLowerCase().trim() === titleLower
+              && (existing.itemType || 'issue') === item.itemType
+          )
+        : null;
+      return {
+        item,
+        existingMatch: match || null,
+        resolvedProjectId: targetProjectId,
+        projectMatched: !!resolvedProjectId,
+      };
     });
-  }, [importResult, importProjectId, issues]);
+  }, [importResult, importProjectId, issues, projectNameToId]);
+
+  const unmatchedProjectCount = useMemo(() => {
+    if (!importMatchResults) return 0;
+    return importMatchResults.filter(r => !r.projectMatched).length;
+  }, [importMatchResults]);
 
   const handleImportConfirm = useCallback(async () => {
-    if (!importResult || !importProjectId || !importMatchResults) return;
+    if (!importResult || !importMatchResults) return;
+    if (unmatchedProjectCount > 0 && !importProjectId) return;
     setImportingItems(true);
     let createdCount = 0;
     let mergedCount = 0;
     let failCount = 0;
 
-    for (const { item, existingMatch } of importMatchResults) {
+    for (const { item, existingMatch, resolvedProjectId } of importMatchResults) {
+      const targetProjectId = resolvedProjectId || importProjectId;
+      if (!targetProjectId) { failCount++; continue; }
       try {
         const payload: any = {};
         if (item.description) payload.description = item.description;
@@ -488,14 +514,14 @@ export default function Issues() {
         if (existingMatch) {
           await updateIssue.mutateAsync({
             id: existingMatch.id,
-            projectId: importProjectId,
+            projectId: existingMatch.projectId,
             title: item.title,
             ...payload,
           });
           mergedCount++;
         } else {
           await createIssue.mutateAsync({
-            projectId: importProjectId,
+            projectId: targetProjectId,
             title: item.title,
             itemType: item.itemType || 'issue',
             ...payload,
@@ -519,7 +545,7 @@ export default function Issues() {
       description: parts.join(', '),
       variant: failCount > 0 ? "destructive" : "default",
     });
-  }, [importResult, importProjectId, importMatchResults, createIssue, updateIssue, toast]);
+  }, [importResult, importProjectId, importMatchResults, unmatchedProjectCount, createIssue, updateIssue, toast]);
 
   const activeColumns = ALL_COLUMNS.filter(c => visibleColumns.has(c.key));
 
@@ -1048,19 +1074,22 @@ export default function Issues() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Import to Project <span className="text-destructive">*</span></Label>
-                <Select value={importProjectId?.toString() || ''} onValueChange={(val) => setImportProjectId(parseInt(val))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects?.map(p => (
-                      <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {unmatchedProjectCount > 0 && (
+                <div className="space-y-2">
+                  <Label>Default Project <span className="text-destructive">*</span></Label>
+                  <p className="text-xs text-muted-foreground">Used for {unmatchedProjectCount} item{unmatchedProjectCount !== 1 ? 's' : ''} without a recognized project name</p>
+                  <Select value={importProjectId?.toString() || ''} onValueChange={(val) => setImportProjectId(parseInt(val))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects?.map(p => (
+                        <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {importResult.warnings.length > 0 && (
                 <div className="rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
@@ -1088,13 +1117,14 @@ export default function Issues() {
                         <TableHead className="text-xs">Action</TableHead>
                         <TableHead className="text-xs">Type</TableHead>
                         <TableHead className="text-xs">Title</TableHead>
-                        <TableHead className="text-xs">Priority</TableHead>
+                        <TableHead className="text-xs">Project</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(importMatchResults || importResult.items.map(item => ({ item, existingMatch: null as any }))).map((entry, idx) => {
-                        const item = 'item' in entry ? entry.item : entry;
-                        const isMatch = 'existingMatch' in entry && entry.existingMatch;
+                      {(importMatchResults || importResult.items.map(item => ({ item, existingMatch: null as any, resolvedProjectId: null as number | null, projectMatched: false }))).map((entry, idx) => {
+                        const { item, existingMatch, resolvedProjectId, projectMatched } = entry;
+                        const isMatch = !!existingMatch;
+                        const projectName = resolvedProjectId ? (projects?.find(p => p.id === resolvedProjectId)?.name || '—') : '(default)';
                         return (
                           <TableRow key={idx}>
                             <TableCell className="py-1.5 text-xs">
@@ -1107,8 +1137,10 @@ export default function Issues() {
                                 {item.itemType === 'risk' ? 'Risk' : 'Issue'}
                               </Badge>
                             </TableCell>
-                            <TableCell className="py-1.5 text-xs font-medium truncate max-w-[180px]">{item.title}</TableCell>
-                            <TableCell className="py-1.5 text-xs">{item.priority || '—'}</TableCell>
+                            <TableCell className="py-1.5 text-xs font-medium truncate max-w-[150px]">{item.title}</TableCell>
+                            <TableCell className="py-1.5 text-xs truncate max-w-[120px]" title={projectName}>
+                              {projectMatched ? projectName : <span className="text-muted-foreground italic">{projectName}</span>}
+                            </TableCell>
                           </TableRow>
                         );
                       })}
@@ -1125,7 +1157,7 @@ export default function Issues() {
             </Button>
             <Button
               onClick={handleImportConfirm}
-              disabled={importingItems || !importResult || importResult.items.length === 0 || !importProjectId}
+              disabled={importingItems || !importResult || importResult.items.length === 0 || (unmatchedProjectCount > 0 && !importProjectId)}
             >
               {importingItems && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Import {importResult?.items.length || 0} Items
