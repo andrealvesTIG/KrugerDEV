@@ -209,7 +209,7 @@ export default function RadarCanvas({
   const sweepLineAlpha = isDark ? 0.7 : 0.7;
   const borderAlpha = isDark ? 0.4 : 0.6;
 
-  const baseRadius = (w: number, h: number) => Math.min(w / 2, h / 2) * 0.85;
+  const baseRadius = (w: number, h: number) => Math.min(w / 2, h / 2) * 0.80;
   const getRadius = (w: number, h: number) => baseRadius(w, h) * zoom;
 
   useEffect(() => {
@@ -449,7 +449,7 @@ export default function RadarCanvas({
         }
 
         const isOverdue = signal.timeOffsetDays < 0;
-        const dotRadius = clamp(signal.impactScore * 0.05 + 2.5, 2.5, 9);
+        const dotRadius = clamp(signal.impactScore * 0.07 + 4, 4, 14);
         const [r, g, b] = isOverdue ? [239, 68, 68] as [number, number, number] : getRiskColorRgb(signal.riskScore);
         const alpha = isOverdue ? 1 : clamp(signal.confidence, 0.3, 1);
 
@@ -480,7 +480,7 @@ export default function RadarCanvas({
 
         ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
         ctx.strokeStyle = `rgba(${r},${g},${b},${alpha * 0.8})`;
-        ctx.lineWidth = isOverdue ? 2 : 1;
+        ctx.lineWidth = isOverdue ? 2.5 : 1.5;
         if (signal.itemType === "issue") {
           ctx.beginPath();
           ctx.arc(pos.x, pos.y, dotRadius * scale, 0, Math.PI * 2);
@@ -489,9 +489,9 @@ export default function RadarCanvas({
         } else {
           const s = dotRadius * scale;
           ctx.beginPath();
-          ctx.moveTo(pos.x, pos.y - s);
-          ctx.lineTo(pos.x + s, pos.y + s * 0.75);
-          ctx.lineTo(pos.x - s, pos.y + s * 0.75);
+          ctx.moveTo(pos.x, pos.y - s * 1.2);
+          ctx.lineTo(pos.x + s, pos.y + s * 0.7);
+          ctx.lineTo(pos.x - s, pos.y + s * 0.7);
           ctx.closePath();
           ctx.fill();
           ctx.stroke();
@@ -500,10 +500,10 @@ export default function RadarCanvas({
 
         if (isOverdue && signal.costExposure != null && signal.costExposure > 0) {
           const label = formatCompactCurrency(signal.costExposure);
-          ctx.font = "bold 9px sans-serif";
+          ctx.font = "bold 10px sans-serif";
           ctx.fillStyle = "#ef4444";
           ctx.textAlign = "left";
-          ctx.fillText(label, pos.x + dotRadius * scale + 4, pos.y + 3);
+          ctx.fillText(label, pos.x + dotRadius * scale + 5, pos.y + 4);
         }
       });
 
@@ -519,17 +519,17 @@ export default function RadarCanvas({
       ctx.fillStyle = labelColor;
       ctx.font = isDark ? "bold 11px sans-serif" : "bold 12px sans-serif";
       ctx.textAlign = "left";
-      ctx.fillText(leftLabel, cx - clipRadius + 4, cy - clipRadius - 8);
+      ctx.fillText(leftLabel, cx - clipRadius + 4, cy - clipRadius - 12);
       ctx.textAlign = "right";
-      ctx.fillText(rightLabel, cx + clipRadius - 4, cy - clipRadius - 8);
+      ctx.fillText(rightLabel, cx + clipRadius - 4, cy - clipRadius - 12);
 
       ctx.fillStyle = labelColor;
       ctx.font = isDark ? "bold 12px sans-serif" : "bold 13px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("FUTURE (+days)", cx, cy - clipRadius - 22);
-      ctx.fillText("PAST (-days)", cx, cy + clipRadius + 18);
+      ctx.fillText("FUTURE (+days)", cx, cy - clipRadius - 26);
+      ctx.fillText("PAST (-days)", cx, cy + clipRadius + 24);
       ctx.save();
-      ctx.translate(cx - clipRadius - 10, cy);
+      ctx.translate(cx - clipRadius - 18, cy);
       ctx.rotate(-Math.PI / 2);
       ctx.textAlign = "center";
       const metricMeta = HORIZONTAL_METRICS.find((m) => m.value === horizontalMetric) || HORIZONTAL_METRICS[0];
@@ -583,9 +583,9 @@ export default function RadarCanvas({
       for (const signal of signals) {
         const pos = mapSignalToCanvas(signal, cx, cy, radius, horizontalMetric);
         if (!isInClip(pos.x, pos.y)) continue;
-        const dotRadius = clamp(signal.impactScore * 0.05 + 2.5, 2.5, 9);
+        const dotRadius = clamp(signal.impactScore * 0.07 + 4, 4, 14);
         const dist = Math.sqrt((mx - pos.x) ** 2 + (my - pos.y) ** 2);
-        if (dist <= dotRadius + 4) {
+        if (dist <= dotRadius + 5) {
           found = signal;
           break;
         }
@@ -618,9 +618,9 @@ export default function RadarCanvas({
       for (const signal of signals) {
         const pos = mapSignalToCanvas(signal, cx, cy, radius, horizontalMetric);
         if (!isInClip(pos.x, pos.y)) continue;
-        const dotRadius = clamp(signal.impactScore * 0.05 + 2.5, 2.5, 9);
+        const dotRadius = clamp(signal.impactScore * 0.07 + 4, 4, 14);
         const dist = Math.sqrt((mx - pos.x) ** 2 + (my - pos.y) ** 2);
-        if (dist <= dotRadius + 4) {
+        if (dist <= dotRadius + 5) {
           onSignalClick(signal);
           hit = true;
           break;
