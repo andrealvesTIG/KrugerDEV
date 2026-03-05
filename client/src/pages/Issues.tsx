@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAllIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory, useEscalateIssue } from "@/hooks/use-issues";
 import { useConvertRiskToIssue, useAiMitigationSuggestion } from "@/hooks/use-risks";
 import { CreateRiskDialog } from "@/components/CreateRiskDialog";
@@ -447,19 +447,28 @@ export default function Issues() {
     }
   }, [projects, importProjectId, toast]);
 
+  const importMatchResults = useMemo(() => {
+    if (!importResult || !importProjectId || !issues) return null;
+    const projectIssues = issues.filter(i => i.projectId === importProjectId);
+    return importResult.items.map(item => {
+      const titleLower = item.title.toLowerCase().trim();
+      const match = projectIssues.find(
+        existing => existing.title.toLowerCase().trim() === titleLower && (existing.itemType || 'issue') === item.itemType
+      );
+      return { item, existingMatch: match || null };
+    });
+  }, [importResult, importProjectId, issues]);
+
   const handleImportConfirm = useCallback(async () => {
-    if (!importResult || !importProjectId) return;
+    if (!importResult || !importProjectId || !importMatchResults) return;
     setImportingItems(true);
-    let successCount = 0;
+    let createdCount = 0;
+    let mergedCount = 0;
     let failCount = 0;
 
-    for (const item of importResult.items) {
+    for (const { item, existingMatch } of importMatchResults) {
       try {
-        const payload: any = {
-          projectId: importProjectId,
-          title: item.title,
-          itemType: item.itemType || 'issue',
-        };
+        const payload: any = {};
         if (item.description) payload.description = item.description;
         if (item.priority) payload.priority = item.priority;
         if (item.status) payload.status = item.status;
@@ -476,8 +485,23 @@ export default function Issues() {
         if (item.mitigationPlan) payload.mitigationPlan = item.mitigationPlan;
         if (item.responseStrategy) payload.responseStrategy = item.responseStrategy;
 
-        await createIssue.mutateAsync(payload);
-        successCount++;
+        if (existingMatch) {
+          await updateIssue.mutateAsync({
+            id: existingMatch.id,
+            projectId: importProjectId,
+            title: item.title,
+            ...payload,
+          });
+          mergedCount++;
+        } else {
+          await createIssue.mutateAsync({
+            projectId: importProjectId,
+            title: item.title,
+            itemType: item.itemType || 'issue',
+            ...payload,
+          });
+          createdCount++;
+        }
       } catch {
         failCount++;
       }
@@ -486,12 +510,16 @@ export default function Issues() {
     setImportingItems(false);
     setIsImportDialogOpen(false);
     setImportResult(null);
+    const parts: string[] = [];
+    if (createdCount > 0) parts.push(`${createdCount} created`);
+    if (mergedCount > 0) parts.push(`${mergedCount} updated`);
+    if (failCount > 0) parts.push(`${failCount} failed`);
     toast({
       title: "Import Complete",
-      description: `${successCount} items imported${failCount > 0 ? `, ${failCount} failed` : ''}`,
+      description: parts.join(', '),
       variant: failCount > 0 ? "destructive" : "default",
     });
-  }, [importResult, importProjectId, createIssue, toast]);
+  }, [importResult, importProjectId, importMatchResults, createIssue, updateIssue, toast]);
 
   const activeColumns = ALL_COLUMNS.filter(c => visibleColumns.has(c.key));
 
@@ -1008,15 +1036,15 @@ export default function Issues() {
               <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-primary">{importResult.items.length}</div>
-                  <div className="text-xs text-muted-foreground">Items found</div>
+                  <div className="text-xs text-muted-foreground">Total</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">{importResult.items.filter(i => i.itemType === 'issue').length}</div>
-                  <div className="text-xs text-muted-foreground">Issues</div>
+                  <div className="text-2xl font-bold text-green-600">{importMatchResults ? importMatchResults.filter(r => !r.existingMatch).length : importResult.items.length}</div>
+                  <div className="text-xs text-muted-foreground">New</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-amber-600">{importResult.items.filter(i => i.itemType === 'risk').length}</div>
-                  <div className="text-xs text-muted-foreground">Risks</div>
+                  <div className="text-2xl font-bold text-orange-600">{importMatchResults ? importMatchResults.filter(r => r.existingMatch).length : 0}</div>
+                  <div className="text-xs text-muted-foreground">Merge</div>
                 </div>
               </div>
 
@@ -1057,25 +1085,33 @@ export default function Issues() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/30">
+                        <TableHead className="text-xs">Action</TableHead>
                         <TableHead className="text-xs">Type</TableHead>
                         <TableHead className="text-xs">Title</TableHead>
                         <TableHead className="text-xs">Priority</TableHead>
-                        <TableHead className="text-xs">Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {importResult.items.map((item, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell className="py-1.5 text-xs">
-                            <Badge variant="outline" className={cn("text-xs", item.itemType === 'risk' ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700")}>
-                              {item.itemType === 'risk' ? 'Risk' : 'Issue'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="py-1.5 text-xs font-medium truncate max-w-[200px]">{item.title}</TableCell>
-                          <TableCell className="py-1.5 text-xs">{item.priority || '—'}</TableCell>
-                          <TableCell className="py-1.5 text-xs">{item.status || '—'}</TableCell>
-                        </TableRow>
-                      ))}
+                      {(importMatchResults || importResult.items.map(item => ({ item, existingMatch: null as any }))).map((entry, idx) => {
+                        const item = 'item' in entry ? entry.item : entry;
+                        const isMatch = 'existingMatch' in entry && entry.existingMatch;
+                        return (
+                          <TableRow key={idx}>
+                            <TableCell className="py-1.5 text-xs">
+                              <Badge variant="outline" className={cn("text-xs", isMatch ? "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300" : "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300")}>
+                                {isMatch ? 'Merge' : 'New'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="py-1.5 text-xs">
+                              <Badge variant="outline" className={cn("text-xs", item.itemType === 'risk' ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700")}>
+                                {item.itemType === 'risk' ? 'Risk' : 'Issue'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="py-1.5 text-xs font-medium truncate max-w-[180px]">{item.title}</TableCell>
+                            <TableCell className="py-1.5 text-xs">{item.priority || '—'}</TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -1093,6 +1129,9 @@ export default function Issues() {
             >
               {importingItems && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Import {importResult?.items.length || 0} Items
+              {importMatchResults && importMatchResults.filter(r => r.existingMatch).length > 0
+                ? ` (${importMatchResults.filter(r => r.existingMatch).length} merge)`
+                : ''}
             </Button>
           </DialogFooter>
         </DialogContent>
