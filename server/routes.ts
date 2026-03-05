@@ -2594,8 +2594,26 @@ export async function registerRoutes(
       const orgId = Number(req.params.id);
       const currentUserId = getUserIdFromRequest(req);
       
+      if (!currentUserId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      
       if (!await userHasOrgAccess(currentUserId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const members = await storage.getOrganizationMembers(orgId);
+      const requesterMembership = members.find(m => m.userId === currentUserId);
+      if (!requesterMembership || (requesterMembership.role !== 'owner' && requesterMembership.role !== 'org_admin')) {
+        const [currentUser] = await db.select().from(users).where(eq(users.id, currentUserId));
+        if (!hasAdminAccess(currentUser)) {
+          return res.status(403).json({ message: 'Only organization owners and admins can update member roles' });
+        }
+      }
+      
+      const targetMembership = members.find(m => m.userId === req.params.userId);
+      if (targetMembership?.role === 'owner') {
+        return res.status(403).json({ message: 'Cannot change the role of an organization owner' });
       }
       
       const { role } = req.body;
@@ -2612,15 +2630,45 @@ export async function registerRoutes(
   });
 
   app.delete('/api/organizations/:id/members/:userId', async (req, res) => {
-    const orgId = Number(req.params.id);
-    const currentUserId = getUserIdFromRequest(req);
-    
-    if (!await userHasOrgAccess(currentUserId, orgId)) {
-      return res.status(403).json({ message: 'Access denied to this organization' });
+    try {
+      const orgId = Number(req.params.id);
+      const currentUserId = getUserIdFromRequest(req);
+      
+      if (!currentUserId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      
+      if (!await userHasOrgAccess(currentUserId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const members = await storage.getOrganizationMembers(orgId);
+      const requesterMembership = members.find(m => m.userId === currentUserId);
+      const targetUserId = req.params.userId;
+      
+      if (currentUserId !== targetUserId) {
+        if (!requesterMembership || (requesterMembership.role !== 'owner' && requesterMembership.role !== 'org_admin')) {
+          const [currentUser] = await db.select().from(users).where(eq(users.id, currentUserId));
+          if (!hasAdminAccess(currentUser)) {
+            return res.status(403).json({ message: 'Only organization owners and admins can remove members' });
+          }
+        }
+      }
+      
+      const targetMembership = members.find(m => m.userId === targetUserId);
+      if (targetMembership?.role === 'owner') {
+        const ownerCount = members.filter(m => m.role === 'owner').length;
+        if (ownerCount <= 1) {
+          return res.status(403).json({ message: 'Cannot remove the last owner of an organization' });
+        }
+      }
+      
+      await storage.removeOrganizationMember(orgId, targetUserId);
+      res.status(204).send();
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to remove member' : classified.message });
     }
-    
-    await storage.removeOrganizationMember(orgId, req.params.userId);
-    res.status(204).send();
   });
 
   // --- Organization Seat Info ---

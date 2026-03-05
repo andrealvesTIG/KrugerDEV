@@ -80,6 +80,9 @@ import {
   subscriptions, 
   seatAssignments, 
   usageEvents,
+  usageRollups,
+  billingCycles,
+  invoiceRecords,
   resourceCreditCosts,
   referralCodes,
   referrals,
@@ -876,6 +879,27 @@ export class DatabaseStorage implements IStorage {
     await db.delete(timeCategories).where(eq(timeCategories.organizationId, id));
     await db.delete(timesheetPeriods).where(eq(timesheetPeriods.organizationId, id));
     await db.delete(statusReportHistory).where(eq(statusReportHistory.organizationId, id));
+    const orgSubscriptions = await db.select({ id: subscriptions.id }).from(subscriptions).where(eq(subscriptions.orgId, id));
+    const subscriptionIds = orgSubscriptions.map(s => s.id);
+    if (subscriptionIds.length > 0) {
+      for (const subId of subscriptionIds) {
+        const subCycles = await db.select({ id: billingCycles.id }).from(billingCycles).where(eq(billingCycles.subscriptionId, subId));
+        const cycleIds = subCycles.map(c => c.id);
+        if (cycleIds.length > 0) {
+          await db.delete(usageRollups).where(inArray(usageRollups.billingCycleId, cycleIds));
+          await db.delete(usageEvents).where(inArray(usageEvents.billingCycleId, cycleIds));
+        }
+        await db.delete(billingCycles).where(eq(billingCycles.subscriptionId, subId));
+        await db.delete(invoiceRecords).where(eq(invoiceRecords.subscriptionId, subId));
+      }
+      await db.delete(billingTransactions).where(inArray(billingTransactions.subscriptionId, subscriptionIds));
+      await db.delete(subscriptions).where(eq(subscriptions.orgId, id));
+    }
+    await db.delete(seatAssignments).where(eq(seatAssignments.orgId, id));
+    await db.delete(billingAuditLogs).where(eq(billingAuditLogs.orgId, id));
+    await db.delete(usageEvents).where(eq(usageEvents.orgId, id));
+    await db.delete(billingTransactions).where(eq(billingTransactions.orgId, id));
+
     await db.delete(organizationMembers).where(eq(organizationMembers.organizationId, id));
     await db.delete(organizations).where(eq(organizations.id, id));
   }

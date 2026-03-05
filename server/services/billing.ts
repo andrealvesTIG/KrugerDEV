@@ -824,7 +824,7 @@ export async function checkCreditLimit(
     };
   } catch (error) {
     console.error("Error checking credit limit:", error);
-    return { allowed: true, creditsRequired: 0 };
+    return { allowed: false, creditsRequired: 0, error: "Billing system temporarily unavailable" };
   }
 }
 
