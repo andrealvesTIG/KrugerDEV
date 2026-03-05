@@ -23,6 +23,7 @@ const riskFormSchema = z.object({
   status: z.string(),
   dueDate: z.string().optional(),
   costExposure: z.string().optional(),
+  riskScore: z.string().optional(),
   mitigationPlan: z.string().optional(),
 });
 
@@ -50,6 +51,7 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
     status: "Open",
     dueDate: "",
     costExposure: "",
+    riskScore: "",
     mitigationPlan: "",
   };
 
@@ -75,7 +77,7 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
   };
 
   const onSubmit = (data: any) => {
-    const payload = { ...data, dueDate: data.dueDate || null, costExposure: data.costExposure || null };
+    const payload = { ...data, dueDate: data.dueDate || null, costExposure: data.costExposure || null, riskScore: data.riskScore ? parseInt(data.riskScore) : null };
     createRisk.mutate(payload, {
       onSuccess: () => {
         toast({ title: "Success", description: "Risk created successfully" });
@@ -220,7 +222,7 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Due Date</Label>
                 <Input
@@ -238,6 +240,17 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
                   {...form.register("costExposure")}
                   data-testid="input-risk-cost-exposure"
                   placeholder="$ amount"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Risk Score</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="100"
+                  {...form.register("riskScore")}
+                  data-testid="input-risk-score"
+                  placeholder="1-100"
                 />
               </div>
             </div>

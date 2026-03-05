@@ -22,6 +22,7 @@ const riskFormSchema = z.object({
   status: z.string(),
   dueDate: z.string().optional(),
   costExposure: z.string().optional(),
+  riskScore: z.string().optional(),
   mitigationPlan: z.string(),
 });
 
@@ -48,6 +49,7 @@ export interface EditRiskDialogProps {
     status?: string | null;
     dueDate?: string | null;
     costExposure?: string | null;
+    riskScore?: number | null;
     mitigationPlan?: string | null;
     escalatedToPortfolio?: boolean | null;
     escalatedAt?: Date | string | null;
@@ -115,6 +117,7 @@ export function EditRiskDialog({
       status: "Open",
       dueDate: "",
       costExposure: "",
+      riskScore: "",
       mitigationPlan: "",
     },
   });
@@ -129,6 +132,7 @@ export function EditRiskDialog({
         status: risk.status || "Open",
         dueDate: risk.dueDate ? risk.dueDate.substring(0, 10) : "",
         costExposure: risk.costExposure || "",
+        riskScore: risk.riskScore ? String(risk.riskScore) : "",
         mitigationPlan: risk.mitigationPlan || "",
       });
       setShowHistory(false);
@@ -136,7 +140,7 @@ export function EditRiskDialog({
   }, [risk]);
 
   const handleSubmit = (data: RiskFormData) => {
-    onSubmit({ ...data, dueDate: data.dueDate || null, costExposure: data.costExposure || null } as any);
+    onSubmit({ ...data, dueDate: data.dueDate || null, costExposure: data.costExposure || null, riskScore: data.riskScore ? parseInt(data.riskScore) : null } as any);
   };
 
   const handleAiSuggest = async () => {
@@ -244,7 +248,7 @@ export function EditRiskDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 pb-2">
+            <div className="grid grid-cols-3 gap-3 pb-2">
               <div className="space-y-1.5">
                 <Label>Due Date</Label>
                 <Input
@@ -262,6 +266,17 @@ export function EditRiskDialog({
                   {...form.register("costExposure")}
                   data-testid="input-risk-cost-exposure"
                   placeholder="$ amount"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Risk Score</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="100"
+                  {...form.register("riskScore")}
+                  data-testid="input-risk-score"
+                  placeholder="1-100"
                 />
               </div>
             </div>
