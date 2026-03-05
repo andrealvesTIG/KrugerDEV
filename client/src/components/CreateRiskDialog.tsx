@@ -104,7 +104,7 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
         message={limitError?.message}
       />
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[560px]">
           <DialogHeader>
             <DialogTitle>Create New Risk</DialogTitle>
             <DialogDescription>Add a new risk to track potential issues</DialogDescription>

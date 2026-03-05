@@ -167,7 +167,7 @@ export function EditRiskDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col overflow-hidden">
+      <DialogContent className="sm:max-w-[560px] max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Edit {itemLabel}</DialogTitle>
           <DialogDescription>Modify the {itemLabel.toLowerCase()} details below.</DialogDescription>
