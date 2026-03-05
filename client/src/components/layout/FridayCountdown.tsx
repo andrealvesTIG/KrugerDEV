@@ -210,6 +210,7 @@ export function FridayCountdown() {
       <DialogTrigger asChild>
         <div 
           className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-transparent text-slate-600 dark:text-slate-300 text-xs font-mono cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors"
+          style={{ fontVariantNumeric: 'tabular-nums', minWidth: '200px' }}
           title="Time until Friday"
           data-testid="friday-countdown"
         >
