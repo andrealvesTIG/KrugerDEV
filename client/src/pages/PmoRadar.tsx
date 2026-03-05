@@ -565,35 +565,35 @@ export default function PmoRadar() {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-3 text-[11px]">
+        <div className="flex items-center gap-3 text-xs">
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className={`flex items-center gap-1.5 px-2 py-1 rounded ${isDark ? "bg-slate-800/80" : "bg-slate-100"} cursor-default`}>
-                <span className={statLabel}>{stats.total}</span>
-                <span className={`text-[10px] ${statLabel} opacity-70`}>Signals</span>
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${isDark ? "bg-slate-800/80" : "bg-slate-100"} cursor-default`}>
+                <span className={`text-sm font-bold ${statLabel}`}>{stats.total}</span>
+                <span className={`text-xs ${statLabel} opacity-70`}>Total Signals</span>
               </div>
             </TooltipTrigger>
             <TooltipContent side="bottom"><p>Total active risk signals on the radar</p></TooltipContent>
           </Tooltip>
 
-          <div className={`flex items-center gap-1.5 px-2 py-1 rounded ${isDark ? "bg-slate-800/80" : "bg-slate-100"}`}>
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${isDark ? "bg-slate-800/80" : "bg-slate-100"}`}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="text-red-500 font-semibold cursor-default">{stats.high} <span className="font-normal opacity-70 text-[10px]">High</span></span>
+                <span className="text-red-500 font-bold text-sm cursor-default">{stats.high} <span className="font-medium opacity-80 text-xs">High</span></span>
               </TooltipTrigger>
               <TooltipContent side="bottom"><p>High severity risks (score &gt; 70)</p></TooltipContent>
             </Tooltip>
-            <span className={`text-[9px] ${statLabel} opacity-40`}>/</span>
+            <span className={`text-xs ${statLabel} opacity-40`}>/</span>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="text-yellow-500 font-semibold cursor-default">{stats.medium} <span className="font-normal opacity-70 text-[10px]">Med</span></span>
+                <span className="text-yellow-500 font-bold text-sm cursor-default">{stats.medium} <span className="font-medium opacity-80 text-xs">Med</span></span>
               </TooltipTrigger>
               <TooltipContent side="bottom"><p>Medium severity risks (score 31-70)</p></TooltipContent>
             </Tooltip>
-            <span className={`text-[9px] ${statLabel} opacity-40`}>/</span>
+            <span className={`text-xs ${statLabel} opacity-40`}>/</span>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="text-green-500 font-semibold cursor-default">{stats.low} <span className="font-normal opacity-70 text-[10px]">Low</span></span>
+                <span className="text-green-500 font-bold text-sm cursor-default">{stats.low} <span className="font-medium opacity-80 text-xs">Low</span></span>
               </TooltipTrigger>
               <TooltipContent side="bottom"><p>Low severity risks (score &le; 30)</p></TooltipContent>
             </Tooltip>
@@ -603,9 +603,9 @@ export default function PmoRadar() {
             <>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className={`flex items-center gap-1.5 px-2 py-1 rounded ${isDark ? "bg-slate-800/80" : "bg-slate-100"} cursor-default`}>
-                    <span className={`text-[10px] ${statLabel} opacity-70`}>Exposure</span>
-                    <span className={`font-semibold ${accentGreen}`}>{formatCompactCurrency(stats.costExposureFuture)}</span>
+                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${isDark ? "bg-slate-800/80" : "bg-slate-100"} cursor-default`}>
+                    <span className={`text-xs ${statLabel} opacity-70`}>Cost Exposure</span>
+                    <span className={`font-bold text-sm ${accentGreen}`}>{formatCompactCurrency(stats.costExposureFuture)}</span>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="bottom"><p>Cost exposure from upcoming risks (not yet due)</p></TooltipContent>
@@ -613,9 +613,9 @@ export default function PmoRadar() {
               {stats.costExposurePast > 0 && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded cursor-default ${isDark ? "bg-red-950/40 border border-red-500/20" : "bg-red-50 border border-red-200"}`}>
-                      <span className="text-[10px] text-red-400 opacity-80">Overdue</span>
-                      <span className="font-semibold text-red-500">{formatCompactCurrency(stats.costExposurePast)}</span>
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md cursor-default ${isDark ? "bg-red-950/40 border border-red-500/20" : "bg-red-50 border border-red-200"}`}>
+                      <span className="text-xs text-red-400 opacity-80">Overdue Exposure</span>
+                      <span className="font-bold text-sm text-red-500">{formatCompactCurrency(stats.costExposurePast)}</span>
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="bottom"><p>Cost exposure from overdue risks (past due date)</p></TooltipContent>
