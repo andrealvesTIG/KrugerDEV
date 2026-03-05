@@ -252,7 +252,7 @@ export default function PmoRadar() {
   const [editingIssue, setEditingIssue] = useState<any>(null);
   const [issueResourceIds, setIssueResourceIds] = useState<number[]>([]);
   const [showIssueHistory, setShowIssueHistory] = useState(false);
-  const [costChartsExpanded, setCostChartsExpanded] = useState(true);
+  const [costChartsExpanded, setCostChartsExpanded] = useState(false);
 
   const { toast } = useToast();
   const updateRisk = useUpdateRisk();
@@ -609,6 +609,25 @@ export default function PmoRadar() {
               </span>
             </div>
           )}
+          {showCostTiles && (costChartData.bySeverity.length > 0 || costChartData.futureVsOverdue.length > 0) && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => setCostChartsExpanded(!costChartsExpanded)}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded border text-[11px] font-medium cursor-pointer select-none transition-colors ${
+                    costChartsExpanded
+                      ? isDark ? "bg-green-500/15 border-green-500/30 text-green-400" : "bg-green-50 border-green-300 text-green-700"
+                      : isDark ? "bg-slate-800/60 border-slate-600/30 text-slate-400 hover:text-slate-300" : "bg-slate-100 border-slate-300 text-slate-500 hover:text-slate-600"
+                  }`}
+                >
+                  Charts
+                  {costChartsExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom"><p>{costChartsExpanded ? "Hide" : "Show"} cost exposure charts</p></TooltipContent>
+            </Tooltip>
+          )}
         </div>
         <div className="flex items-center gap-3 text-xs">
           <Tooltip>
@@ -672,24 +691,10 @@ export default function PmoRadar() {
       </div>
 
       {showCostTiles && (costChartData.bySeverity.length > 0 || costChartData.futureVsOverdue.length > 0) && (
-        <div className={`shrink-0 border-b ${isDark ? "bg-slate-900/40 border-green-500/10" : "bg-white/60 border-green-600/10"}`}>
-          <button
-            type="button"
-            onClick={() => setCostChartsExpanded(!costChartsExpanded)}
-            className={`flex items-center justify-between w-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide cursor-pointer select-none transition-colors ${isDark ? "text-slate-400 hover:text-slate-300 hover:bg-slate-800/40" : "text-slate-500 hover:text-slate-600 hover:bg-slate-100/80"}`}
-          >
-            <span className="flex items-center gap-2">
-              Cost Exposure Charts
-              <span className={`text-[10px] font-normal normal-case tracking-normal ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-                Total: {formatCompactCurrency(stats.costExposureTotal)}
-              </span>
-            </span>
-            {costChartsExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          </button>
-          <div
-            className="overflow-hidden transition-all duration-300 ease-in-out"
-            style={{ height: costChartsExpanded ? 190 : 0, opacity: costChartsExpanded ? 1 : 0 }}
-          >
+        <div
+          className={`shrink-0 border-b overflow-hidden transition-all duration-300 ease-in-out ${isDark ? "bg-slate-900/40 border-green-500/10" : "bg-white/60 border-green-600/10"}`}
+          style={{ height: costChartsExpanded ? 190 : 0, opacity: costChartsExpanded ? 1 : 0 }}
+        >
             <div className="flex gap-4 h-full px-4 pb-3">
               <div className="flex-1 min-w-0">
                 <div className={`text-[11px] font-semibold uppercase tracking-wide mb-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
@@ -765,7 +770,6 @@ export default function PmoRadar() {
                 </>
               )}
             </div>
-          </div>
         </div>
       )}
 
