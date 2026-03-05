@@ -602,6 +602,54 @@ export default function RadarCanvas({
       ctx.fillText(metricMeta.axisLabel, 0, 0);
       ctx.restore();
 
+      const shipScale = 1.1;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(shipScale, shipScale);
+
+      ctx.beginPath();
+      ctx.moveTo(-10, 2);
+      ctx.lineTo(-8, 6);
+      ctx.lineTo(8, 6);
+      ctx.lineTo(10, 2);
+      ctx.quadraticCurveTo(11, 8, 6, 10);
+      ctx.lineTo(-6, 10);
+      ctx.quadraticCurveTo(-11, 8, -10, 2);
+      ctx.closePath();
+      ctx.fillStyle = isDark ? "rgba(34,211,238,0.55)" : "rgba(8,145,178,0.5)";
+      ctx.fill();
+      ctx.strokeStyle = isDark ? "rgba(34,211,238,0.7)" : "rgba(8,145,178,0.65)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(0, 2);
+      ctx.lineTo(0, -10);
+      ctx.strokeStyle = isDark ? "rgba(34,211,238,0.6)" : "rgba(8,145,178,0.55)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(0, -10);
+      ctx.lineTo(6, -4);
+      ctx.lineTo(0, -2);
+      ctx.closePath();
+      ctx.fillStyle = isDark ? "rgba(34,211,238,0.45)" : "rgba(8,145,178,0.4)";
+      ctx.fill();
+      ctx.strokeStyle = isDark ? "rgba(34,211,238,0.6)" : "rgba(8,145,178,0.55)";
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(0, 0, 14, 0, Math.PI * 2);
+      ctx.strokeStyle = isDark ? "rgba(34,211,238,0.2)" : "rgba(8,145,178,0.15)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.restore();
+
       ctx.textAlign = "center";
       if (centerLabel) {
         ctx.fillStyle = isDark ? "rgba(245,158,11,0.7)" : "rgba(217,119,6,0.8)";
