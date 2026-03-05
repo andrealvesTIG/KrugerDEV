@@ -142,7 +142,7 @@ function drawClouds(ctx: CanvasRenderingContext2D, clouds: Cloud[], w: number, h
     for (const blob of cloud.blobs) {
       ctx.beginPath();
       ctx.ellipse(cloud.x + blob.dx, y + blob.dy, blob.rx, blob.ry, 0, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(200,210,225,${cloud.opacity * 1.3})`;
+      ctx.fillStyle = `rgba(210,220,235,${cloud.opacity * 0.8})`;
       ctx.fill();
     }
   }
@@ -197,17 +197,17 @@ export default function RadarCanvas({
   const stars = useMemo(() => generateStars(120, dims.width, dims.height), [dims.width, dims.height]);
   const clouds = useMemo(() => generateClouds(14, dims.width, dims.height), [dims.width, dims.height]);
 
-  const accentR = isDark ? 34 : 22;
-  const accentG = isDark ? 197 : 163;
-  const accentB = isDark ? 94 : 74;
+  const accentR = isDark ? 34 : 16;
+  const accentG = isDark ? 197 : 140;
+  const accentB = isDark ? 94 : 60;
   const accent = `${accentR},${accentG},${accentB}`;
-  const labelColor = isDark ? `rgba(${accent},0.7)` : `rgba(${accent},0.9)`;
-  const tickColor = isDark ? `rgba(${accent},0.4)` : `rgba(${accent},0.55)`;
-  const gridAlpha = isDark ? 0.15 : 0.25;
-  const axisAlpha = isDark ? 0.3 : 0.4;
-  const sweepTrailAlpha = isDark ? 0.2 : 0.12;
-  const sweepLineAlpha = isDark ? 0.7 : 0.6;
-  const borderAlpha = isDark ? 0.4 : 0.5;
+  const labelColor = isDark ? `rgba(${accent},0.7)` : `rgba(${accentR},${accentG},${accentB},1)`;
+  const tickColor = isDark ? `rgba(${accent},0.4)` : `rgba(${accentR},${accentG},${accentB},0.85)`;
+  const gridAlpha = isDark ? 0.15 : 0.4;
+  const axisAlpha = isDark ? 0.3 : 0.6;
+  const sweepTrailAlpha = isDark ? 0.2 : 0.15;
+  const sweepLineAlpha = isDark ? 0.7 : 0.7;
+  const borderAlpha = isDark ? 0.4 : 0.6;
 
   const baseRadius = (w: number, h: number) => Math.min(w / 2, h / 2) * 0.85;
   const getRadius = (w: number, h: number) => baseRadius(w, h) * zoom;
@@ -296,10 +296,10 @@ export default function RadarCanvas({
         ctx.fillStyle = grad;
       } else {
         const grad = ctx.createLinearGradient(0, 0, 0, h);
-        grad.addColorStop(0, "#eff6ff");
-        grad.addColorStop(0.35, "#f0f9ff");
-        grad.addColorStop(0.65, "#f8fafc");
-        grad.addColorStop(1, "#f8fafc");
+        grad.addColorStop(0, "#ffffff");
+        grad.addColorStop(0.35, "#fcfcfd");
+        grad.addColorStop(0.65, "#fafbfc");
+        grad.addColorStop(1, "#f8f9fb");
         ctx.fillStyle = grad;
       }
       ctx.fillRect(0, 0, w, h);
@@ -315,12 +315,15 @@ export default function RadarCanvas({
       ctx.rect(cx - clipRadius - 2, cy - clipRadius - 2, clipRadius * 2 + 4, clipRadius * 2 + 4);
       ctx.clip();
 
+      const gridLineWidth = isDark ? 1 : 1.5;
+      const axisLineWidth = isDark ? 1 : 2;
+
       for (let i = 1; i <= 4; i++) {
         const r = (radius / 4) * i;
         ctx.beginPath();
         ctx.arc(cx, cy, r, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(${accent},${gridAlpha})`;
-        ctx.lineWidth = 1;
+        ctx.lineWidth = gridLineWidth;
         ctx.stroke();
       }
 
@@ -328,17 +331,17 @@ export default function RadarCanvas({
       ctx.moveTo(cx - radius, cy);
       ctx.lineTo(cx + radius, cy);
       ctx.strokeStyle = `rgba(${accent},${axisAlpha})`;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = axisLineWidth;
       ctx.stroke();
 
       ctx.beginPath();
       ctx.moveTo(cx, cy - radius);
       ctx.lineTo(cx, cy + radius);
       ctx.strokeStyle = `rgba(${accent},${axisAlpha})`;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = axisLineWidth;
       ctx.stroke();
 
-      ctx.font = "9px sans-serif";
+      ctx.font = isDark ? "9px sans-serif" : "bold 10px sans-serif";
       ctx.fillStyle = tickColor;
 
       const xTicks = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
@@ -348,10 +351,10 @@ export default function RadarCanvas({
         if (xPos < cx - clipRadius - 1 || xPos > cx + clipRadius + 1) continue;
 
         ctx.beginPath();
-        ctx.moveTo(xPos, cy - 3);
-        ctx.lineTo(xPos, cy + 3);
+        ctx.moveTo(xPos, cy - 4);
+        ctx.lineTo(xPos, cy + 4);
         ctx.strokeStyle = `rgba(${accent},${axisAlpha * 0.7})`;
-        ctx.lineWidth = 1;
+        ctx.lineWidth = isDark ? 1 : 1.5;
         ctx.stroke();
 
         if (val % 20 === 0 || val === 50) {
@@ -372,10 +375,10 @@ export default function RadarCanvas({
         if (yPos < cy - clipRadius - 1 || yPos > cy + clipRadius + 1) continue;
 
         ctx.beginPath();
-        ctx.moveTo(cx - 3, yPos);
-        ctx.lineTo(cx + 3, yPos);
+        ctx.moveTo(cx - 4, yPos);
+        ctx.lineTo(cx + 4, yPos);
         ctx.strokeStyle = `rgba(${accent},${axisAlpha * 0.7})`;
-        ctx.lineWidth = 1;
+        ctx.lineWidth = isDark ? 1 : 1.5;
         ctx.stroke();
 
         ctx.textAlign = "left";
@@ -514,14 +517,14 @@ export default function RadarCanvas({
       };
       const [leftLabel, rightLabel] = metricLabels[horizontalMetric] || metricLabels.riskScore;
       ctx.fillStyle = labelColor;
-      ctx.font = "10px sans-serif";
+      ctx.font = isDark ? "10px sans-serif" : "bold 11px sans-serif";
       ctx.textAlign = "left";
       ctx.fillText(leftLabel, cx - clipRadius + 4, cy - clipRadius - 8);
       ctx.textAlign = "right";
       ctx.fillText(rightLabel, cx + clipRadius - 4, cy - clipRadius - 8);
 
       ctx.fillStyle = labelColor;
-      ctx.font = "bold 11px sans-serif";
+      ctx.font = isDark ? "bold 11px sans-serif" : "bold 12px sans-serif";
       ctx.textAlign = "center";
       ctx.fillText("FUTURE (+days)", cx, cy - clipRadius - 22);
       ctx.fillText("PAST (-days)", cx, cy + clipRadius + 18);
