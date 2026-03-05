@@ -11,7 +11,7 @@ import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useIssueR
 import { useTheme } from "@/components/theme-provider";
 import { useToast } from "@/hooks/use-toast";
 import { Radio, Loader2, History, ChevronUp, ChevronDown } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Cell, LineChart, Line, CartesianGrid, ReferenceLine, Area, AreaChart } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, LineChart, Line, CartesianGrid, ReferenceLine, Area, AreaChart } from "recharts";
 import { Link } from "wouter";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -500,6 +500,37 @@ export default function PmoRadar() {
         return { month: `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(m) - 1]} ${y.slice(2)}`, value };
       });
 
+    const now = new Date();
+    const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const pastFutureTimeline: { month: string; past: number; future: number; isNow: boolean }[] = [];
+    let minOffset = 0, maxOffset = 0;
+    filteredSignals.forEach((s) => {
+      if (!s.dueDate || (s.costExposure ?? 0) <= 0) return;
+      const d = new Date(s.dueDate);
+      const offset = (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth());
+      if (offset < minOffset) minOffset = offset;
+      if (offset > maxOffset) maxOffset = offset;
+    });
+    minOffset = Math.min(minOffset, -3);
+    maxOffset = Math.max(maxOffset, 3);
+    const tlBuckets = new Map<number, { past: number; future: number }>();
+    filteredSignals.forEach((s) => {
+      const ce = s.costExposure ?? 0;
+      if (ce <= 0 || !s.dueDate) return;
+      const d = new Date(s.dueDate);
+      const offset = (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth());
+      const bucket = tlBuckets.get(offset) || { past: 0, future: 0 };
+      if (offset < 0) bucket.past += ce;
+      else bucket.future += ce;
+      tlBuckets.set(offset, bucket);
+    });
+    for (let o = minOffset; o <= maxOffset; o++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + o, 1);
+      const label = `${monthNames[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
+      const bucket = tlBuckets.get(o) || { past: 0, future: 0 };
+      pastFutureTimeline.push({ month: label, past: Math.round(bucket.past), future: Math.round(bucket.future), isNow: o === 0 });
+    }
+
     const maxSimMonths = Math.max(12, Math.ceil(timeProjectionMonths) + 3);
     const exposureOverSim: { month: string; total: number; overdue: number }[] = [];
     for (let m = 0; m <= maxSimMonths; m += 1) {
@@ -539,7 +570,7 @@ export default function PmoRadar() {
       exposureOverSim.push({ month: `+${m}mo`, total: Math.round(totalCost), overdue: Math.round(overdueCost) });
     }
 
-    return { bySeverity, futureVsOverdue, costOverTime, exposureOverSim };
+    return { bySeverity, futureVsOverdue, costOverTime, pastFutureTimeline, exposureOverSim };
   }, [filteredSignals, stats, timeProjectionMonths]);
 
   const handleEditSignal = useCallback((signal: RiskSignal) => {
@@ -758,24 +789,21 @@ export default function PmoRadar() {
 
               <div className="flex-1 min-w-0">
                 <div className={`text-[11px] font-semibold uppercase tracking-wide mb-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                  Future vs Overdue Exposure
+                  Exposure Timeline
                 </div>
                 <ResponsiveContainer width="100%" height="85%">
-                  <BarChart data={costChartData.futureVsOverdue} margin={{ top: 4, right: 40, bottom: 4, left: 10 }}>
-                    <XAxis dataKey="name" tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis hide />
+                  <BarChart data={costChartData.pastFutureTimeline} margin={{ top: 8, right: 12, bottom: 4, left: 10 }} stackOffset="sign">
+                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#e2e8f0"} />
+                    <XAxis dataKey="month" tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 9 }} axisLine={false} tickLine={false} interval={Math.max(0, Math.floor(costChartData.pastFutureTimeline.length / 7) - 1)} />
+                    <YAxis tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatCompactCurrency(v)} width={45} />
                     <RechartsTooltip
-                      formatter={(value: number) => [formatCompactCurrency(value), "Cost"]}
+                      formatter={(value: number, name: string) => [formatCompactCurrency(value), name === "past" ? "Overdue" : "Future"]}
                       contentStyle={{ backgroundColor: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, borderRadius: 6, fontSize: 12 }}
                       labelStyle={{ color: isDark ? "#e2e8f0" : "#1e293b" }}
                     />
-                    <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={40}
-                      label={{ position: "top", fill: isDark ? "#cbd5e1" : "#475569", fontSize: 11, formatter: (v: number) => formatCompactCurrency(v) }}
-                    >
-                      {costChartData.futureVsOverdue.map((entry, index) => (
-                        <Cell key={index} fill={entry.color} fillOpacity={isDark ? 0.8 : 0.9} />
-                      ))}
-                    </Bar>
+                    {(() => { const nowEntry = costChartData.pastFutureTimeline.find(e => e.isNow); return nowEntry ? <ReferenceLine x={nowEntry.month} stroke={isDark ? "#f59e0b" : "#d97706"} strokeDasharray="4 3" strokeWidth={1.5} label={{ value: "NOW", position: "top", fill: isDark ? "#f59e0b" : "#d97706", fontSize: 9, fontWeight: 700 }} /> : null; })()}
+                    <Bar dataKey="past" name="past" stackId="a" fill="#ef4444" fillOpacity={isDark ? 0.7 : 0.8} radius={[3, 3, 0, 0]} barSize={14} />
+                    <Bar dataKey="future" name="future" stackId="a" fill={isDark ? "#22d3ee" : "#0891b2"} fillOpacity={isDark ? 0.7 : 0.8} radius={[3, 3, 0, 0]} barSize={14} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
