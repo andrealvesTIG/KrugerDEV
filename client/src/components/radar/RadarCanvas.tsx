@@ -602,51 +602,111 @@ export default function RadarCanvas({
       ctx.fillText(metricMeta.axisLabel, 0, 0);
       ctx.restore();
 
-      const shipScale = 1.1;
       ctx.save();
       ctx.translate(cx, cy);
-      ctx.scale(shipScale, shipScale);
+
+      const boatHeading = -Math.PI / 2;
 
       ctx.beginPath();
-      ctx.moveTo(-10, 2);
-      ctx.lineTo(-8, 6);
-      ctx.lineTo(8, 6);
-      ctx.lineTo(10, 2);
-      ctx.quadraticCurveTo(11, 8, 6, 10);
-      ctx.lineTo(-6, 10);
-      ctx.quadraticCurveTo(-11, 8, -10, 2);
-      ctx.closePath();
-      ctx.fillStyle = isDark ? "rgba(34,211,238,0.55)" : "rgba(8,145,178,0.5)";
-      ctx.fill();
-      ctx.strokeStyle = isDark ? "rgba(34,211,238,0.7)" : "rgba(8,145,178,0.65)";
+      ctx.arc(0, 0, 22, 0, Math.PI * 2);
+      ctx.strokeStyle = isDark ? "rgba(34,211,238,0.12)" : "rgba(8,145,178,0.1)";
       ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.beginPath();
+      ctx.arc(0, 0, 15, 0, Math.PI * 2);
+      ctx.strokeStyle = isDark ? "rgba(34,211,238,0.08)" : "rgba(8,145,178,0.06)";
+      ctx.lineWidth = 0.8;
       ctx.stroke();
 
+      const headingLen = 20;
       ctx.beginPath();
-      ctx.moveTo(0, 2);
-      ctx.lineTo(0, -10);
-      ctx.strokeStyle = isDark ? "rgba(34,211,238,0.6)" : "rgba(8,145,178,0.55)";
-      ctx.lineWidth = 1.5;
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(boatHeading) * headingLen, Math.sin(boatHeading) * headingLen);
+      ctx.strokeStyle = isDark ? "rgba(34,211,238,0.25)" : "rgba(8,145,178,0.2)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.save();
+      ctx.rotate(boatHeading + Math.PI / 2);
+
+      ctx.beginPath();
+      ctx.moveTo(0, -14);
+      ctx.quadraticCurveTo(4, -10, 6, -4);
+      ctx.lineTo(7, 4);
+      ctx.quadraticCurveTo(7, 10, 4, 12);
+      ctx.lineTo(-4, 12);
+      ctx.quadraticCurveTo(-7, 10, -7, 4);
+      ctx.lineTo(-6, -4);
+      ctx.quadraticCurveTo(-4, -10, 0, -14);
+      ctx.closePath();
+
+      const hullGrad = ctx.createLinearGradient(0, -14, 0, 12);
+      if (isDark) {
+        hullGrad.addColorStop(0, "rgba(34,211,238,0.5)");
+        hullGrad.addColorStop(0.5, "rgba(34,211,238,0.35)");
+        hullGrad.addColorStop(1, "rgba(34,211,238,0.2)");
+      } else {
+        hullGrad.addColorStop(0, "rgba(8,145,178,0.45)");
+        hullGrad.addColorStop(0.5, "rgba(8,145,178,0.3)");
+        hullGrad.addColorStop(1, "rgba(8,145,178,0.18)");
+      }
+      ctx.fillStyle = hullGrad;
+      ctx.fill();
+      ctx.strokeStyle = isDark ? "rgba(34,211,238,0.65)" : "rgba(8,145,178,0.55)";
+      ctx.lineWidth = 1.2;
       ctx.stroke();
 
       ctx.beginPath();
       ctx.moveTo(0, -10);
-      ctx.lineTo(6, -4);
-      ctx.lineTo(0, -2);
-      ctx.closePath();
-      ctx.fillStyle = isDark ? "rgba(34,211,238,0.45)" : "rgba(8,145,178,0.4)";
-      ctx.fill();
-      ctx.strokeStyle = isDark ? "rgba(34,211,238,0.6)" : "rgba(8,145,178,0.55)";
+      ctx.lineTo(0, 8);
+      ctx.strokeStyle = isDark ? "rgba(34,211,238,0.3)" : "rgba(8,145,178,0.25)";
       ctx.lineWidth = 0.8;
       ctx.stroke();
 
       ctx.beginPath();
-      ctx.arc(0, 0, 14, 0, Math.PI * 2);
-      ctx.strokeStyle = isDark ? "rgba(34,211,238,0.2)" : "rgba(8,145,178,0.15)";
-      ctx.lineWidth = 1;
-      ctx.setLineDash([3, 3]);
+      ctx.moveTo(-4.5, -1);
+      ctx.lineTo(4.5, -1);
+      ctx.strokeStyle = isDark ? "rgba(34,211,238,0.2)" : "rgba(8,145,178,0.18)";
+      ctx.lineWidth = 0.6;
       ctx.stroke();
-      ctx.setLineDash([]);
+
+      ctx.beginPath();
+      ctx.moveTo(-3.5, 4);
+      ctx.lineTo(3.5, 4);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.ellipse(0, -2, 2.5, 3.5, 0, 0, Math.PI * 2);
+      ctx.fillStyle = isDark ? "rgba(34,211,238,0.4)" : "rgba(8,145,178,0.35)";
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.ellipse(0, 7, 1.8, 2.2, 0, 0, Math.PI * 2);
+      ctx.fillStyle = isDark ? "rgba(34,211,238,0.25)" : "rgba(8,145,178,0.2)";
+      ctx.fill();
+
+      ctx.restore();
+
+      ctx.save();
+      const wt = bgTimeRef.current * 0.8;
+      for (let ring = 0; ring < 3; ring++) {
+        const phase = (wt + ring * 0.7) % 2;
+        if (phase < 1.6) {
+          const rr = 10 + phase * 10;
+          const alpha = (1 - phase / 1.6) * (isDark ? 0.15 : 0.12);
+          ctx.beginPath();
+          ctx.arc(0, 0, rr, 0, Math.PI * 2);
+          ctx.strokeStyle = isDark ? `rgba(34,211,238,${alpha})` : `rgba(8,145,178,${alpha})`;
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
 
       ctx.restore();
 
