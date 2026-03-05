@@ -446,35 +446,34 @@ export default function Issues() {
         </div>
       </div>
 
-      <div className="flex gap-2 mb-4">
-        <Button
-          variant={typeFilter === "all" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setTypeFilter("all")}
-          data-testid="button-filter-all"
-        >
-          All
-        </Button>
-        <Button
-          variant={typeFilter === "issue" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setTypeFilter("issue")}
-          data-testid="button-filter-issues"
-        >
-          Issues
-        </Button>
-        <Button
-          variant={typeFilter === "risk" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setTypeFilter("risk")}
-          data-testid="button-filter-risks"
-        >
-          Risks
-        </Button>
-      </div>
-
-      <div className="flex flex-col gap-4 sm:flex-row bg-card p-4 rounded-xl border border-border shadow-sm">
-        <div className="relative flex-1">
+      <div className="flex flex-wrap items-center gap-3 bg-card p-3 rounded-xl border border-border shadow-sm">
+        <div className="flex gap-1 shrink-0">
+          <Button
+            variant={typeFilter === "all" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTypeFilter("all")}
+            data-testid="button-filter-all"
+          >
+            All
+          </Button>
+          <Button
+            variant={typeFilter === "issue" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTypeFilter("issue")}
+            data-testid="button-filter-issues"
+          >
+            Issues
+          </Button>
+          <Button
+            variant={typeFilter === "risk" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTypeFilter("risk")}
+            data-testid="button-filter-risks"
+          >
+            Risks
+          </Button>
+        </div>
+        <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="pl-10 border-slate-200"
@@ -484,7 +483,7 @@ export default function Issues() {
             data-testid="input-search-issues"
           />
         </div>
-        <div className="w-full sm:w-[160px]">
+        <div className="w-[150px] shrink-0">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger data-testid="select-filter-status">
               <SelectValue placeholder="Status" />
@@ -498,7 +497,7 @@ export default function Issues() {
             </SelectContent>
           </Select>
         </div>
-        <div className="w-full sm:w-[160px]">
+        <div className="w-[150px] shrink-0">
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
             <SelectTrigger data-testid="select-filter-priority">
               <SelectValue placeholder="Priority" />
@@ -515,7 +514,7 @@ export default function Issues() {
 
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5">
+            <Button variant="outline" size="sm" className="gap-1.5 shrink-0">
               <Settings2 className="h-4 w-4" />
               Columns
             </Button>
