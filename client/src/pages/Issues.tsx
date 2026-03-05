@@ -7,6 +7,7 @@ import { EditRiskDialog, type RiskFormData } from "@/components/EditRiskDialog";
 import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
+import { useAuth } from "@/hooks/use-auth";
 import { useUpdateIssueResourceAssignments, useIssueResourceAssignments, useAllIssueResourceAssignments, useResources } from "@/hooks/use-resources";
 import type { IssueResourceAssignment, Resource } from "@shared/schema";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
@@ -272,7 +273,8 @@ function IssueResourceDisplay({ assignments }: { assignments: (IssueResourceAssi
 }
 
 export default function Issues() {
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, memberships } = useOrganization();
+  const { user } = useAuth();
   const { data: issues, isLoading } = useAllIssues(currentOrganization?.id);
   const { data: projects } = useProjects(currentOrganization?.id);
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
@@ -283,6 +285,9 @@ export default function Issues() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<"all" | "issue" | "risk">("all");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const convertRiskToIssue = useConvertRiskToIssue();
   const updateIssue = useUpdateIssue();
   const deleteIssue = useDeleteIssue();
@@ -305,6 +310,21 @@ export default function Issues() {
   const createIssue = useCreateIssue();
 
   const { data: issueHistory, isLoading: historyLoading } = useIssueHistory(editingIssue?.id || 0);
+
+  const currentMembership = memberships?.find(m => m.organizationId === currentOrganization?.id);
+  const isAdmin = user?.role === 'super_admin' || currentMembership?.role === 'org_admin' || currentOrganization?.ownerId === user?.id;
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [search, statusFilter, priorityFilter, typeFilter]);
+
+  const toggleSelectId = useCallback((id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
 
   const editForm = useForm({
     defaultValues: {
@@ -410,6 +430,44 @@ export default function Issues() {
       (typeFilter === "risk" && issue.itemType === "risk");
     return matchesSearch && matchesStatus && matchesPriority && matchesType;
   });
+
+  const toggleSelectAll = useCallback(() => {
+    if (!filteredIssues) return;
+    setSelectedIds(prev => {
+      const allFilteredIds = filteredIssues.map(i => i.id);
+      const allSelected = allFilteredIds.length > 0 && allFilteredIds.every(id => prev.has(id));
+      if (allSelected) return new Set();
+      return new Set(allFilteredIds);
+    });
+  }, [filteredIssues]);
+
+  const handleBulkDelete = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    setBulkDeleting(true);
+    let successCount = 0;
+    let failCount = 0;
+    const issueMap = new Map(issues?.map(i => [i.id, i]) || []);
+
+    for (const id of selectedIds) {
+      const issue = issueMap.get(id);
+      if (!issue) { failCount++; continue; }
+      try {
+        await deleteIssue.mutateAsync({ id: issue.id, projectId: issue.projectId });
+        successCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    setBulkDeleting(false);
+    setShowBulkDeleteConfirm(false);
+    setSelectedIds(new Set());
+    toast({
+      title: "Bulk Delete Complete",
+      description: `${successCount} items deleted${failCount > 0 ? `, ${failCount} failed` : ''}`,
+      variant: failCount > 0 ? "destructive" : "default",
+    });
+  }, [selectedIds, issues, deleteIssue, toast]);
 
   const getProjectName = (projectId: number) => {
     return projects?.find(p => p.id === projectId)?.name || "Unknown Project";
@@ -734,12 +792,31 @@ export default function Issues() {
               <CardDescription>{filteredIssues?.length || 0} {typeFilter === "all" ? "items" : typeFilter === "issue" ? "issues" : "risks"} found</CardDescription>
             </div>
           </div>
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-3 mt-2 p-2 rounded-lg bg-muted/50 border">
+              <span className="text-sm font-medium">{selectedIds.size} selected</span>
+              <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                <X className="h-3.5 w-3.5 mr-1" /> Clear
+              </Button>
+              {isAdmin && (
+                <Button size="sm" variant="destructive" onClick={() => setShowBulkDeleteConfirm(true)}>
+                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete Selected
+                </Button>
+              )}
+            </div>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
+                  <TableHead className="w-[40px] px-2">
+                    <Checkbox
+                      checked={filteredIssues && filteredIssues.length > 0 && filteredIssues.every(i => selectedIds.has(i.id))}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                  </TableHead>
                   {activeColumns.map(col => (
                     <TableHead key={col.key} className={cn("text-xs font-semibold uppercase tracking-wider whitespace-nowrap", col.width)}>
                       {col.label}
@@ -749,7 +826,13 @@ export default function Issues() {
               </TableHeader>
               <TableBody>
                 {filteredIssues?.map((issue) => (
-                  <TableRow key={issue.id} className="group" data-testid={`row-issue-${issue.id}`}>
+                  <TableRow key={issue.id} className={cn("group", selectedIds.has(issue.id) && "bg-primary/5")} data-testid={`row-issue-${issue.id}`}>
+                    <TableCell className="py-1.5 px-2">
+                      <Checkbox
+                        checked={selectedIds.has(issue.id)}
+                        onCheckedChange={() => toggleSelectId(issue.id)}
+                      />
+                    </TableCell>
                     {activeColumns.map(col => (
                       <TableCell key={col.key} className="py-1.5 px-2">
                         {renderCell(col.key, issue)}
@@ -759,7 +842,7 @@ export default function Issues() {
                 ))}
                 {filteredIssues?.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={activeColumns.length} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={activeColumns.length + 1} className="text-center py-12 text-muted-foreground">
                       No issues found. Create your first issue to get started.
                     </TableCell>
                   </TableRow>
@@ -1043,6 +1126,26 @@ export default function Issues() {
               data-testid="button-confirm-delete-issue"
             >
               {deleteIssue.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {selectedIds.size} Items</DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground">Are you sure you want to delete {selectedIds.size} selected item{selectedIds.size !== 1 ? 's' : ''}? They will be moved to the recycle bin.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkDeleteConfirm(false)} disabled={bulkDeleting}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+            >
+              {bulkDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {bulkDeleting ? "Deleting..." : `Delete ${selectedIds.size} Items`}
             </Button>
           </DialogFooter>
         </DialogContent>
