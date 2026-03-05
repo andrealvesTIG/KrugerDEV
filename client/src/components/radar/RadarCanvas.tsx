@@ -412,6 +412,7 @@ export default function RadarCanvas({
       ctx.shadowBlur = 0;
 
       const now = Date.now();
+      const pendingLabels: { x: number; y: number; r: number; g: number; b: number; dotRadius: number; title: string; riskScore: number }[] = [];
       signals.forEach((signal) => {
         const pos = mapSignalToCanvas(signal, cx, cy, radius, horizontalMetric);
         const dx = pos.x - cx;
@@ -483,9 +484,65 @@ export default function RadarCanvas({
           ctx.textAlign = "left";
           ctx.fillText(label, pos.x + dotRadius * scale + 5, pos.y + 4);
         }
+
+        pendingLabels.push({
+          x: pos.x, y: pos.y, r: r, g: g, b: b,
+          dotRadius: dotRadius * scale,
+          title: signal.title,
+          riskScore: signal.riskScore,
+        });
       });
 
       ctx.restore();
+
+      const maxLabels = 20;
+      const labelCandidates = pendingLabels
+        .sort((a, b) => b.riskScore - a.riskScore)
+        .slice(0, maxLabels);
+
+      const placedLabelRects: { x: number; y: number; w: number; h: number }[] = [];
+      ctx.font = `${isDark ? "500" : "600"} 9px system-ui, sans-serif`;
+      const labelH = 11;
+
+      for (const lb of labelCandidates) {
+        const labelText = lb.title.length > 18 ? lb.title.slice(0, 17) + "\u2026" : lb.title;
+        const calloutLen = lb.dotRadius + 10;
+        const goRight = lb.x <= cx;
+        const goUp = lb.y >= cy;
+        const calloutDx = goRight ? calloutLen : -calloutLen;
+        const calloutDy = goUp ? -calloutLen * 0.6 : calloutLen * 0.6;
+        let labelX = lb.x + calloutDx;
+        let labelY = lb.y + calloutDy;
+
+        labelX = clamp(labelX, 30, w - 30);
+        labelY = clamp(labelY, 12, h - 12);
+
+        const textW = ctx.measureText(labelText).width + 6;
+        const rectX = goRight ? labelX : labelX - textW;
+        const rect = { x: rectX, y: labelY - labelH / 2, w: textW, h: labelH };
+
+        let overlaps = false;
+        for (const pr of placedLabelRects) {
+          if (rect.x < pr.x + pr.w && rect.x + rect.w > pr.x && rect.y < pr.y + pr.h && rect.y + rect.h > pr.y) {
+            overlaps = true;
+            break;
+          }
+        }
+        if (overlaps) continue;
+        placedLabelRects.push(rect);
+
+        ctx.beginPath();
+        ctx.moveTo(lb.x + (goRight ? lb.dotRadius + 2 : -lb.dotRadius - 2), lb.y);
+        ctx.lineTo(labelX, labelY);
+        ctx.strokeStyle = `rgba(${lb.r},${lb.g},${lb.b},${isDark ? 0.35 : 0.3})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.textAlign = goRight ? "left" : "right";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = isDark ? `rgba(226,232,240,0.7)` : `rgba(51,65,85,0.75)`;
+        ctx.fillText(labelText, labelX + (goRight ? 3 : -3), labelY);
+      }
 
       ctx.font = isDark ? "bold 10px sans-serif" : "bold 11px sans-serif";
       ctx.fillStyle = tickColor;
