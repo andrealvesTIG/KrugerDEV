@@ -341,49 +341,26 @@ export default function RadarCanvas({
       ctx.lineWidth = axisLineWidth;
       ctx.stroke();
 
-      ctx.font = isDark ? "bold 10px sans-serif" : "bold 11px sans-serif";
-      ctx.fillStyle = tickColor;
-
-      const xTicks = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
-      const isCostMetric = horizontalMetric === "costExposureNorm";
-      for (const val of xTicks) {
+      for (const val of [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]) {
         const xPos = cx - radius + (val / 100) * 2 * radius;
         if (xPos < cx - clipRadius - 1 || xPos > cx + clipRadius + 1) continue;
-
         ctx.beginPath();
         ctx.moveTo(xPos, cy - 4);
         ctx.lineTo(xPos, cy + 4);
         ctx.strokeStyle = `rgba(${accent},${axisAlpha * 0.8})`;
         ctx.lineWidth = isDark ? 1.5 : 2;
         ctx.stroke();
-
-        if (val % 20 === 0 || val === 50) {
-          ctx.textAlign = "center";
-          if (isCostMetric && maxCostExposure > 0) {
-            const dollarVal = (val / 100) * maxCostExposure;
-            ctx.fillText(formatCompactCurrency(dollarVal), xPos, cy + 14);
-          } else {
-            ctx.fillText(String(val), xPos, cy + 14);
-          }
-        }
       }
 
-      const yTicks = [-90, -60, -30, 0, 30, 60, 90];
-      for (const val of yTicks) {
-        if (val === 0) continue;
+      for (const val of [-90, -60, -30, 30, 60, 90]) {
         const yPos = cy - (val / 90) * radius;
         if (yPos < cy - clipRadius - 1 || yPos > cy + clipRadius + 1) continue;
-
         ctx.beginPath();
         ctx.moveTo(cx - 4, yPos);
         ctx.lineTo(cx + 4, yPos);
         ctx.strokeStyle = `rgba(${accent},${axisAlpha * 0.8})`;
         ctx.lineWidth = isDark ? 1.5 : 2;
         ctx.stroke();
-
-        ctx.textAlign = "left";
-        const label = val > 0 ? `+${val}d` : `${val}d`;
-        ctx.fillText(label, cx + 6, yPos + 3);
       }
 
       const sweepAngle = angleRef.current;
@@ -509,6 +486,37 @@ export default function RadarCanvas({
 
       ctx.restore();
 
+      ctx.font = isDark ? "bold 10px sans-serif" : "bold 11px sans-serif";
+      ctx.fillStyle = tickColor;
+
+      const xTicks = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+      const isCostMetric = horizontalMetric === "costExposureNorm";
+      for (const val of xTicks) {
+        const xPos = cx - radius + (val / 100) * 2 * radius;
+        if (xPos < cx - clipRadius - 1 || xPos > cx + clipRadius + 1) continue;
+
+        if (val % 20 === 0 || val === 50) {
+          ctx.textAlign = "center";
+          if (isCostMetric && maxCostExposure > 0) {
+            const dollarVal = (val / 100) * maxCostExposure;
+            ctx.fillText(formatCompactCurrency(dollarVal), xPos, cy + 16);
+          } else {
+            ctx.fillText(String(val), xPos, cy + 16);
+          }
+        }
+      }
+
+      const yTicks = [-90, -60, -30, 0, 30, 60, 90];
+      for (const val of yTicks) {
+        if (val === 0) continue;
+        const yPos = cy - (val / 90) * radius;
+        if (yPos < cy - clipRadius - 1 || yPos > cy + clipRadius + 1) continue;
+
+        ctx.textAlign = "left";
+        const label = val > 0 ? `+${val}d` : `${val}d`;
+        ctx.fillText(label, cx + 8, yPos + 4);
+      }
+
       const metricLabels: Record<HorizontalMetric, [string, string]> = {
         riskScore: ["LOW RISK", "HIGH RISK"],
         impactScore: ["LOW IMPACT", "HIGH IMPACT"],
@@ -549,7 +557,7 @@ export default function RadarCanvas({
 
       animRef.current = requestAnimationFrame(draw);
     },
-    [signals, dims, isDark, accent, labelColor, tickColor, gridAlpha, axisAlpha, sweepTrailAlpha, sweepLineAlpha, borderAlpha, centerLabel, zoom, horizontalMetric, stars, clouds]
+    [signals, dims, isDark, accent, labelColor, tickColor, gridAlpha, axisAlpha, sweepTrailAlpha, sweepLineAlpha, borderAlpha, centerLabel, zoom, horizontalMetric, maxCostExposure, stars, clouds]
   );
 
   useEffect(() => {
