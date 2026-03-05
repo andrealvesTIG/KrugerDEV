@@ -577,97 +577,97 @@ export default function Issues() {
           </Select>
         </div>
 
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5 shrink-0">
-              <Settings2 className="h-4 w-4" />
-              Columns
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-56 p-2" align="end">
-            <div className="text-sm font-medium px-2 py-1.5 text-muted-foreground">Toggle columns</div>
-            <div className="space-y-0.5">
-              {ALL_COLUMNS.filter(c => !c.alwaysVisible).map(col => (
-                <label
-                  key={col.key}
-                  className="flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer hover:bg-muted/60 text-sm"
-                >
-                  <Checkbox
-                    checked={visibleColumns.has(col.key)}
-                    onCheckedChange={() => toggleColumn(col.key)}
-                  />
-                  {col.label}
-                </label>
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
-
         <div className="flex gap-2 shrink-0 ml-auto">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" className="gap-1.5">
-                <Download className="h-4 w-4" />
-                Export
+              <Button size="sm" data-testid="button-new-item">
+                <Plus className="mr-1.5 h-4 w-4" /> New
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleExport('xlsx')}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Export as Excel (.xlsx)
+              <DropdownMenuItem onClick={() => setIsDialogOpen(true)} data-testid="button-create-issue">
+                <Bug className="h-4 w-4 mr-2" />
+                New Issue
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport('csv')}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Export as CSV (.csv)
+              <DropdownMenuItem onClick={() => setIsRiskDialogOpen(true)} data-testid="button-create-risk">
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                New Risk
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <CreateIssueDialog
+            open={isDialogOpen}
+            onOpenChange={setIsDialogOpen}
+            organizationId={currentOrganization?.id ?? null}
+          />
+          <CreateRiskDialog
+            open={isRiskDialogOpen}
+            onOpenChange={setIsRiskDialogOpen}
+            organizationId={currentOrganization?.id ?? null}
+          />
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" className="gap-1.5" disabled={importLoading}>
-                {importLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                Import
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 w-8 p-0 shrink-0" disabled={importLoading}>
+                {importLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreVertical className="h-4 w-4" />}
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                <Upload className="h-4 w-4 mr-2" />
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-1" align="end">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60 cursor-pointer">
+                    <Settings2 className="h-4 w-4" />
+                    Columns
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-2" side="left" align="start">
+                  <div className="text-sm font-medium px-2 py-1.5 text-muted-foreground">Toggle columns</div>
+                  <div className="space-y-0.5">
+                    {ALL_COLUMNS.filter(c => !c.alwaysVisible).map(col => (
+                      <label
+                        key={col.key}
+                        className="flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer hover:bg-muted/60 text-sm"
+                      >
+                        <Checkbox
+                          checked={visibleColumns.has(col.key)}
+                          onCheckedChange={() => toggleColumn(col.key)}
+                        />
+                        {col.label}
+                      </label>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <div className="h-px bg-border my-1" />
+              <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60 cursor-pointer" onClick={() => handleExport('xlsx')}>
+                <FileSpreadsheet className="h-4 w-4" />
+                Export as Excel
+              </button>
+              <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60 cursor-pointer" onClick={() => handleExport('csv')}>
+                <FileSpreadsheet className="h-4 w-4" />
+                Export as CSV
+              </button>
+              <div className="h-px bg-border my-1" />
+              <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60 cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="h-4 w-4" />
                 Import from File
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => generateTemplate('xlsx')}>
-                <Download className="h-4 w-4 mr-2" />
+              </button>
+              <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60 cursor-pointer" onClick={() => generateTemplate('xlsx')}>
+                <Download className="h-4 w-4" />
                 Download Template (.xlsx)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => generateTemplate('csv')}>
-                <Download className="h-4 w-4 mr-2" />
+              </button>
+              <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60 cursor-pointer" onClick={() => generateTemplate('csv')}>
+                <Download className="h-4 w-4" />
                 Download Template (.csv)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </button>
+            </PopoverContent>
+          </Popover>
           <input
             ref={fileInputRef}
             type="file"
             accept=".csv,.xlsx,.xls"
             className="hidden"
             onChange={handleFileSelect}
-          />
-
-          <Button size="sm" data-testid="button-create-issue" onClick={() => setIsDialogOpen(true)}>
-            <Plus className="mr-1.5 h-4 w-4" /> New Issue
-          </Button>
-          <CreateIssueDialog
-            open={isDialogOpen}
-            onOpenChange={setIsDialogOpen}
-            organizationId={currentOrganization?.id ?? null}
-          />
-          <Button size="sm" variant="outline" data-testid="button-create-risk" onClick={() => setIsRiskDialogOpen(true)}>
-            <AlertTriangle className="mr-1.5 h-4 w-4" /> New Risk
-          </Button>
-          <CreateRiskDialog
-            open={isRiskDialogOpen}
-            onOpenChange={setIsRiskDialogOpen}
-            organizationId={currentOrganization?.id ?? null}
           />
         </div>
       </div>
