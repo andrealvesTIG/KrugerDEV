@@ -250,28 +250,30 @@ export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonPro
         title: "Created Successfully",
         description: data.message || "Items created",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/resources'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/risks'] });
+      queryClient.refetchQueries({ queryKey: ['/api/projects'] });
+      queryClient.refetchQueries({ queryKey: ['/api/resources'] });
+      queryClient.refetchQueries({ queryKey: ['/api/risks'] });
       if (scopedProjectId) {
-        queryClient.invalidateQueries({ queryKey: ['/api/projects', scopedProjectId] });
-        queryClient.invalidateQueries({ queryKey: ['/api/projects', scopedProjectId, 'tasks'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/projects', scopedProjectId, 'risks'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/projects', scopedProjectId, 'issues'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/projects', scopedProjectId, 'milestones'] });
+        queryClient.refetchQueries({ queryKey: ['/api/projects', scopedProjectId] });
+        queryClient.refetchQueries({ queryKey: ['/api/projects', scopedProjectId, 'tasks'] });
+        queryClient.refetchQueries({ queryKey: ['/api/projects', scopedProjectId, 'risks'] });
+        queryClient.refetchQueries({ queryKey: ['/api/projects', scopedProjectId, 'issues'] });
+        queryClient.refetchQueries({ queryKey: ['/api/projects', scopedProjectId, 'milestones'] });
+        queryClient.refetchQueries({ queryKey: ['/api/projects', scopedProjectId, 'change-requests'] });
+        queryClient.refetchQueries({ queryKey: ['/api/projects', scopedProjectId, 'documents'] });
       }
       if (data.created?.project) {
         const pid = data.created.project.id;
-        queryClient.invalidateQueries({ queryKey: ['/api/projects', pid] });
-        queryClient.invalidateQueries({ queryKey: ['/api/projects', pid, 'tasks'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/projects', pid, 'risks'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/projects', pid, 'issues'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/projects', pid, 'milestones'] });
+        queryClient.refetchQueries({ queryKey: ['/api/projects', pid] });
+        queryClient.refetchQueries({ queryKey: ['/api/projects', pid, 'tasks'] });
+        queryClient.refetchQueries({ queryKey: ['/api/projects', pid, 'risks'] });
+        queryClient.refetchQueries({ queryKey: ['/api/projects', pid, 'issues'] });
+        queryClient.refetchQueries({ queryKey: ['/api/projects', pid, 'milestones'] });
       }
       if (data.created?.projects?.length > 0) {
         for (const proj of data.created.projects) {
-          queryClient.invalidateQueries({ queryKey: ['/api/projects', proj.id] });
-          queryClient.invalidateQueries({ queryKey: ['/api/projects', proj.id, 'tasks'] });
+          queryClient.refetchQueries({ queryKey: ['/api/projects', proj.id] });
+          queryClient.refetchQueries({ queryKey: ['/api/projects', proj.id, 'tasks'] });
         }
       }
       setAiDialogOpen(false);
