@@ -3686,25 +3686,26 @@ function ProjectGanttView({
               <Flag className="h-3.5 w-3.5" />
               Baseline Schedule
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1" data-testid="button-outline-control">
-                  <ListTodo className="h-3.5 w-3.5" />
-                  Outline
-                  <ChevronDown className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={expandAllTasks} data-testid="button-expand-all-tasks">
-                  <ChevronDown className="h-4 w-4 mr-2" />
-                  Expand All
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={collapseAllTasks} data-testid="button-collapse-all-tasks">
-                  <ChevronRight className="h-4 w-4 mr-2" />
-                  Collapse All
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center border rounded-md">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" className="gap-1 rounded-r-none border-r" onClick={expandAllTasks} data-testid="button-expand-all-tasks">
+                    <ChevronDown className="h-3.5 w-3.5" />
+                    <span className="hidden lg:inline text-xs">Expand All</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Expand All Tasks</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" className="gap-1 rounded-l-none" onClick={collapseAllTasks} data-testid="button-collapse-all-tasks">
+                    <ChevronRight className="h-3.5 w-3.5" />
+                    <span className="hidden lg:inline text-xs">Collapse All</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Collapse All Tasks</TooltipContent>
+              </Tooltip>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
