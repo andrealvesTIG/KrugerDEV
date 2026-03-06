@@ -57,11 +57,16 @@ function getActionLabel(type: string) {
   }
 }
 
+export interface AICreateButtonProps {
+  projectId?: number;
+  projectName?: string;
+}
+
 export interface AICreateButtonHandle {
   openWithVoice: () => void;
 }
 
-export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreateButton(_props, ref) {
+export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonProps>(function AICreateButton({ projectId: scopedProjectId, projectName: scopedProjectName }, ref) {
   const { currentOrganization } = useOrganization();
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
@@ -204,6 +209,7 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
       const response = await apiRequest('POST', '/api/ai/smart-create/preview', {
         prompt,
         organizationId: currentOrganization?.id,
+        projectId: scopedProjectId,
       });
       return response.json();
     },
@@ -233,7 +239,7 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
     mutationFn: async ({ actions, projectId }: { actions: PreviewAction[]; projectId?: number }) => {
       const response = await apiRequest('POST', '/api/ai/smart-create/execute', {
         organizationId: currentOrganization?.id,
-        projectId,
+        projectId: projectId || scopedProjectId,
         actions: actions.map(a => ({ type: a.type, details: a.details })),
       });
       return response.json();
@@ -246,6 +252,13 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
       queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
       queryClient.invalidateQueries({ queryKey: ['/api/resources'] });
       queryClient.invalidateQueries({ queryKey: ['/api/risks'] });
+      if (scopedProjectId) {
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', scopedProjectId] });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', scopedProjectId, 'tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', scopedProjectId, 'risks'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', scopedProjectId, 'issues'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', scopedProjectId, 'milestones'] });
+      }
       if (data.created?.project) {
         const pid = data.created.project.id;
         queryClient.invalidateQueries({ queryKey: ['/api/projects', pid] });
@@ -261,7 +274,7 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
         }
       }
       setAiDialogOpen(false);
-      if (data.redirectTo) {
+      if (!scopedProjectId && data.redirectTo) {
         setLocation(data.redirectTo);
       }
     },
@@ -329,7 +342,9 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
                 AI Create
               </DialogTitle>
               <DialogDescription>
-                Describe what you want to create. AI will analyze your request and show you a preview before creating anything.
+                {scopedProjectId && scopedProjectName
+                  ? `Describe what you want to create inside "${scopedProjectName}". AI will analyze your request and show you a preview before creating anything.`
+                  : "Describe what you want to create. AI will analyze your request and show you a preview before creating anything."}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -374,7 +389,9 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
                   <Textarea
                     id="ai-prompt"
                     data-testid="textarea-ai-prompt"
-                    placeholder={"Examples:\n\u2022 Create a mobile app project with tasks for design, development, and testing\n\u2022 Add 5 team members for a software development team\n\u2022 Generate risks for a cloud migration initiative\n\u2022 Create milestones for a product launch..."}
+                    placeholder={scopedProjectId
+                      ? "Examples:\n\u2022 Create tasks for design, development, and testing\n\u2022 Generate risks for this project\n\u2022 Add milestones for the key deliverables\n\u2022 Create issues for known blockers..."
+                      : "Examples:\n\u2022 Create a mobile app project with tasks for design, development, and testing\n\u2022 Add 5 team members for a software development team\n\u2022 Generate risks for a cloud migration initiative\n\u2022 Create milestones for a product launch..."}
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
                     className="min-h-[140px]"

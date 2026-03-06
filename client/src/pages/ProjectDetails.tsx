@@ -48,6 +48,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { AICreateButton } from "@/components/layout/AICreateButton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { useLocation } from "wouter";
@@ -629,6 +630,8 @@ export default function ProjectDetails() {
           <p className="mt-2 max-w-2xl text-muted-foreground">{project.description}</p>
         </div>
         <div className="flex items-center gap-3">
+           <AICreateButton projectId={project.id} projectName={project.name} />
+
            <Select value={project.health || "Green"} onValueChange={handleHealthChange}>
             <SelectTrigger className="w-[140px]">
               <SelectValue placeholder="Health" />
