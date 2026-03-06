@@ -1861,9 +1861,13 @@ function ProjectGanttView({
     const leftPane = leftPaneRef.current;
     if (!leftPane) return;
     const onWheel = (e: WheelEvent) => {
-      if (rightPaneRef.current && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      const rp = rightPaneRef.current;
+      if (rp && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        const atTop = rp.scrollTop <= 0 && e.deltaY < 0;
+        const atBottom = rp.scrollTop + rp.clientHeight >= rp.scrollHeight - 1 && e.deltaY > 0;
+        if (atTop || atBottom) return;
         e.preventDefault();
-        rightPaneRef.current.scrollTop += e.deltaY;
+        rp.scrollTop += e.deltaY;
       }
     };
     leftPane.addEventListener('wheel', onWheel, { passive: false });
