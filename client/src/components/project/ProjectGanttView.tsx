@@ -2886,20 +2886,43 @@ function ProjectGanttView({
     return new Set<number>();
   });
 
+  const hasInitializedCollapseRef = useRef(false);
+
+  useEffect(() => {
+    hasInitializedCollapseRef.current = false;
+  }, [projectId, authUser?.id]);
+
   useEffect(() => {
     if (!authUser?.id) return;
+    if (hasInitializedCollapseRef.current) return;
+
     try {
       const saved = localStorage.getItem(getCollapsedTasksKey(projectId, authUser.id));
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
           setCollapsedTasks(new Set<number>(parsed));
+          hasInitializedCollapseRef.current = true;
           return;
         }
       }
     } catch {}
-    setCollapsedTasks(new Set<number>());
-  }, [projectId, authUser?.id]);
+
+    if (tasks && tasks.length > 0) {
+      const parentIds = new Set<number>();
+      for (let i = 0; i < tasks.length; i++) {
+        const currentLevel = tasks[i].outlineLevel || 1;
+        if (i + 1 < tasks.length) {
+          const nextLevel = tasks[i + 1].outlineLevel || 1;
+          if (nextLevel > currentLevel) {
+            parentIds.add(tasks[i].id);
+          }
+        }
+      }
+      setCollapsedTasks(parentIds);
+      hasInitializedCollapseRef.current = true;
+    }
+  }, [projectId, authUser?.id, tasks]);
 
   const toggleCollapse = useCallback((taskId: number) => {
     setCollapsedTasks(prev => {
