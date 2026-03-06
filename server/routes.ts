@@ -9898,7 +9898,20 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
         // Position subtask right after the parent's last existing child
         if (input.taskIndex === undefined || input.taskIndex === null) {
-          const sortedTasks = [...existingTasks].sort((a, b) => (a.taskIndex || 0) - (b.taskIndex || 0));
+          const hasNullIndices = existingTasks.some(t => t.taskIndex === null || t.taskIndex === undefined);
+          let sortedTasks: typeof existingTasks;
+          if (hasNullIndices) {
+            sortedTasks = [...existingTasks].sort((a, b) => (a.taskIndex || 999999) - (b.taskIndex || 999999));
+            for (let i = 0; i < sortedTasks.length; i++) {
+              const t = sortedTasks[i];
+              if (t.taskIndex !== i + 1) {
+                await storage.updateTask(t.id, { taskIndex: i + 1 });
+                t.taskIndex = i + 1;
+              }
+            }
+          } else {
+            sortedTasks = [...existingTasks].sort((a, b) => (a.taskIndex || 0) - (b.taskIndex || 0));
+          }
           const parentIdx = sortedTasks.findIndex(t => t.id === input.parentId);
           let insertAfterIdx = parentIdx;
           for (let i = parentIdx + 1; i < sortedTasks.length; i++) {
@@ -9929,9 +9942,20 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       } else {
         // Auto-assign taskIndex if not provided (top-level task)
         if (input.taskIndex === undefined || input.taskIndex === null) {
-          const maxExistingIndex = existingTasks.reduce((max, t) => Math.max(max, t.taskIndex || 0), 0);
-          const taskCount = existingTasks.length;
-          input.taskIndex = Math.max(maxExistingIndex, taskCount) + 1;
+          const hasNullIndices = existingTasks.some(t => t.taskIndex === null || t.taskIndex === undefined);
+          if (hasNullIndices) {
+            const sortedExisting = [...existingTasks].sort((a, b) => (a.taskIndex || 999999) - (b.taskIndex || 999999));
+            for (let i = 0; i < sortedExisting.length; i++) {
+              const t = sortedExisting[i];
+              if (t.taskIndex !== i + 1) {
+                await storage.updateTask(t.id, { taskIndex: i + 1 });
+              }
+            }
+            input.taskIndex = sortedExisting.length + 1;
+          } else {
+            const maxExistingIndex = existingTasks.reduce((max, t) => Math.max(max, t.taskIndex || 0), 0);
+            input.taskIndex = maxExistingIndex + 1;
+          }
         }
       }
       
