@@ -10520,30 +10520,28 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const projectId = Number(req.params.projectId);
-      const { taskId, newIndex } = req.body as { taskId: number; newIndex: number };
+      const { taskId, newIndex, taskIds } = req.body as { taskId: number; newIndex: number; taskIds?: number[] };
       
       if (!taskId || newIndex === undefined) {
         return res.status(400).json({ message: "taskId and newIndex are required" });
       }
       
-      // Get all tasks for the project sorted by current taskIndex
       const allTasks = await storage.getTasksByProject(projectId);
       const sortedTasks = [...allTasks].sort((a, b) => (a.taskIndex || 0) - (b.taskIndex || 0));
       
-      // Find the task being moved
-      const taskToMove = sortedTasks.find(t => t.id === taskId);
-      if (!taskToMove) {
+      const idsToMove = taskIds || [taskId];
+      const idSet = new Set(idsToMove);
+      
+      const tasksToMove = idsToMove.map(id => sortedTasks.find(t => t.id === id)).filter(Boolean) as typeof sortedTasks;
+      if (tasksToMove.length === 0) {
         return res.status(404).json({ message: "Task not found" });
       }
       
-      // Remove the task from its current position
-      const tasksWithoutMoved = sortedTasks.filter(t => t.id !== taskId);
+      const tasksWithoutMoved = sortedTasks.filter(t => !idSet.has(t.id));
       
-      // Insert at new position (newIndex is 0-based)
       const clampedIndex = Math.max(0, Math.min(newIndex, tasksWithoutMoved.length));
-      tasksWithoutMoved.splice(clampedIndex, 0, taskToMove);
+      tasksWithoutMoved.splice(clampedIndex, 0, ...tasksToMove);
       
-      // Update taskIndex for all tasks
       for (let i = 0; i < tasksWithoutMoved.length; i++) {
         const task = tasksWithoutMoved[i];
         if (task.taskIndex !== i + 1) {
@@ -10551,7 +10549,6 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         }
       }
       
-      // Recalculate WBS
       await recalculateProjectWBS(projectId);
       
       res.json({ message: "Tasks reordered successfully" });

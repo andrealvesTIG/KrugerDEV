@@ -2013,7 +2013,7 @@ function ProjectGanttView({
   };
 
   type GanttAction = 
-    | { type: 'reorder'; taskId: number; fromIndex: number; toIndex: number }
+    | { type: 'reorder'; taskId: number; fromIndex: number; toIndex: number; taskIds?: number[] }
     | { type: 'update'; taskId: number; projectId: number; before: Record<string, unknown>; after: Record<string, unknown>; label: string }
     | { type: 'create'; taskId: number; projectId: number }
     | { type: 'delete'; taskId: number; projectId: number }
@@ -2033,6 +2033,20 @@ function ProjectGanttView({
   );
   
   // Handle task reorder on drag end
+  const getSubtaskIndices = useCallback((parentIndex: number, taskList: Task[]): number[] => {
+    const parentLevel = taskList[parentIndex].outlineLevel || 1;
+    const indices: number[] = [];
+    for (let i = parentIndex + 1; i < taskList.length; i++) {
+      const level = taskList[i].outlineLevel || 1;
+      if (level > parentLevel) {
+        indices.push(i);
+      } else {
+        break;
+      }
+    }
+    return indices;
+  }, []);
+
   const handleTaskDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -2042,19 +2056,48 @@ function ProjectGanttView({
     
     if (activeIndex === -1 || overIndex === -1) return;
     
-    setUndoStack(prev => [...prev.slice(-(MAX_UNDO_STACK - 1)), { type: 'reorder', taskId: Number(active.id), fromIndex: activeIndex, toIndex: overIndex }]);
+    const subtaskIndices = getSubtaskIndices(activeIndex, tasks);
+    const groupIds = [tasks[activeIndex].id, ...subtaskIndices.map(i => tasks[i].id)];
+    const groupSize = groupIds.length;
+    const groupEndIndex = activeIndex + subtaskIndices.length;
+
+    if (overIndex >= activeIndex && overIndex <= groupEndIndex) return;
+
+    const groupIdSet = new Set(groupIds);
+    const remaining = tasks.filter(t => !groupIdSet.has(t.id));
+    const overIndexInRemaining = remaining.findIndex(t => t.id === Number(over.id));
+
+    let newIndex: number;
+    if (overIndex > activeIndex) {
+      const overLevel = remaining[overIndexInRemaining].outlineLevel || 1;
+      let insertAfter = overIndexInRemaining;
+      for (let i = overIndexInRemaining + 1; i < remaining.length; i++) {
+        if ((remaining[i].outlineLevel || 1) > overLevel) {
+          insertAfter = i;
+        } else break;
+      }
+      newIndex = insertAfter + 1;
+    } else {
+      newIndex = overIndexInRemaining;
+    }
+
+    const fromIndex = remaining.findIndex(t => t.id === tasks[groupEndIndex + 1]?.id);
+    const actionFromIndex = fromIndex === -1 ? remaining.length : fromIndex;
+
+    const actionTaskIds = groupSize > 1 ? groupIds : undefined;
+    setUndoStack(prev => [...prev.slice(-(MAX_UNDO_STACK - 1)), { type: 'reorder', taskId: Number(active.id), fromIndex: actionFromIndex, toIndex: newIndex, taskIds: actionTaskIds }]);
     setRedoStack([]);
     
     reorderTask.mutate({
       projectId,
       taskId: Number(active.id),
-      newIndex: overIndex,
+      newIndex,
+      taskIds: actionTaskIds,
     }, {
       onSuccess: () => {
         toast({ title: "Task reordered", description: "Task order updated successfully" });
       },
       onError: () => {
-        // Remove from undo stack on error
         setUndoStack(prev => prev.slice(0, -1));
         toast({ title: "Error", description: "Failed to reorder task", variant: "destructive" });
       }
@@ -2091,7 +2134,7 @@ function ProjectGanttView({
     
     switch (lastAction.type) {
       case 'reorder':
-        reorderTask.mutate({ projectId, taskId: lastAction.taskId, newIndex: lastAction.fromIndex }, {
+        reorderTask.mutate({ projectId, taskId: lastAction.taskId, newIndex: lastAction.fromIndex, taskIds: lastAction.taskIds }, {
           onSuccess: () => toast({ title: "Undone", description: "Task order restored" }),
           onError: () => undoErrorRollback(lastAction),
         });
@@ -2138,7 +2181,7 @@ function ProjectGanttView({
     
     switch (lastAction.type) {
       case 'reorder':
-        reorderTask.mutate({ projectId, taskId: lastAction.taskId, newIndex: lastAction.toIndex }, {
+        reorderTask.mutate({ projectId, taskId: lastAction.taskId, newIndex: lastAction.toIndex, taskIds: lastAction.taskIds }, {
           onSuccess: () => toast({ title: "Redone", description: "Task reordered" }),
           onError: () => redoErrorRollback(lastAction),
         });
