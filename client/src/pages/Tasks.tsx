@@ -2326,6 +2326,7 @@ function KanbanView({
             getProjectName={getProjectName}
             onTaskClick={onTaskClick}
             onDeleteTask={onDeleteTask}
+            orgTaskAssignments={orgTaskAssignments}
           />
         ))}
       </div>
@@ -2355,13 +2356,15 @@ function KanbanColumn({
   tasks, 
   getProjectName, 
   onTaskClick,
-  onDeleteTask 
+  onDeleteTask,
+  orgTaskAssignments,
 }: { 
   column: { id: string; label: string; color: string }; 
   tasks: Task[]; 
   getProjectName: (id: number) => string;
   onTaskClick: (task: Task) => void;
   onDeleteTask: (task: Task) => void;
+  orgTaskAssignments?: (TaskResourceAssignment & { resource: Resource })[];
 }) {
   const { setNodeRef, isOver } = useSortable({
     id: column.id,
