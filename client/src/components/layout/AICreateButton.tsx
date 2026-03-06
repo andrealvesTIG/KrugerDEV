@@ -60,13 +60,14 @@ function getActionLabel(type: string) {
 export interface AICreateButtonProps {
   projectId?: number;
   projectName?: string;
+  variant?: "default" | "fab";
 }
 
 export interface AICreateButtonHandle {
   openWithVoice: () => void;
 }
 
-export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonProps>(function AICreateButton({ projectId: scopedProjectId, projectName: scopedProjectName }, ref) {
+export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonProps>(function AICreateButton({ projectId: scopedProjectId, projectName: scopedProjectName, variant = "default" }, ref) {
   const { currentOrganization } = useOrganization();
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
@@ -328,10 +329,20 @@ export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonPro
   return (
     <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="gap-1.5" data-testid="button-ai-create">
-          <Sparkles className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">AI Create</span>
-        </Button>
+        {variant === "fab" ? (
+          <Button
+            size="lg"
+            className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow p-0"
+            data-testid="button-ai-create-fab"
+          >
+            <Sparkles className="h-5 w-5" />
+          </Button>
+        ) : (
+          <Button size="sm" className="gap-1.5" data-testid="button-ai-create">
+            <Sparkles className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">AI Create</span>
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[540px]">
         {step === "input" && (

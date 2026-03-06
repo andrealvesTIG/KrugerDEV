@@ -630,8 +630,6 @@ export default function ProjectDetails() {
           <p className="mt-2 max-w-2xl text-muted-foreground">{project.description}</p>
         </div>
         <div className="flex items-center gap-3">
-           <AICreateButton projectId={project.id} projectName={project.name} />
-
            <Select value={project.health || "Green"} onValueChange={handleHealthChange}>
             <SelectTrigger className="w-[140px]">
               <SelectValue placeholder="Health" />
@@ -3335,6 +3333,8 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
           </div>
         </CollapsibleContent>
       </Collapsible>
+
+      <AICreateButton projectId={project.id} projectName={project.name} variant="fab" />
     </div>
   );
 }
