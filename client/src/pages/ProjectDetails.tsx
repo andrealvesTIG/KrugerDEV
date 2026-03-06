@@ -1042,6 +1042,8 @@ export default function ProjectDetails() {
         changeRequests={projectChangeRequests || []}
         documents={projectDocuments || []}
       />
+
+      <AICreateButton projectId={project.id} projectName={project.name} variant="fab" />
     </div>
   );
 }
@@ -3334,7 +3336,6 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
         </CollapsibleContent>
       </Collapsible>
 
-      <AICreateButton projectId={project.id} projectName={project.name} variant="fab" />
     </div>
   );
 }
