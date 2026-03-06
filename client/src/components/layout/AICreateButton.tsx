@@ -245,37 +245,13 @@ export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonPro
       });
       return response.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: async (data: any) => {
       toast({
         title: "Created Successfully",
         description: data.message || "Items created",
       });
-      queryClient.refetchQueries({ queryKey: ['/api/projects'] });
-      queryClient.refetchQueries({ queryKey: ['/api/resources'] });
-      queryClient.refetchQueries({ queryKey: ['/api/risks'] });
-      if (scopedProjectId) {
-        queryClient.refetchQueries({ queryKey: ['/api/projects', scopedProjectId] });
-        queryClient.refetchQueries({ queryKey: ['/api/projects', scopedProjectId, 'tasks'] });
-        queryClient.refetchQueries({ queryKey: ['/api/projects', scopedProjectId, 'risks'] });
-        queryClient.refetchQueries({ queryKey: ['/api/projects', scopedProjectId, 'issues'] });
-        queryClient.refetchQueries({ queryKey: ['/api/projects', scopedProjectId, 'milestones'] });
-        queryClient.refetchQueries({ queryKey: ['/api/projects', scopedProjectId, 'change-requests'] });
-        queryClient.refetchQueries({ queryKey: ['/api/projects', scopedProjectId, 'documents'] });
-      }
-      if (data.created?.project) {
-        const pid = data.created.project.id;
-        queryClient.refetchQueries({ queryKey: ['/api/projects', pid] });
-        queryClient.refetchQueries({ queryKey: ['/api/projects', pid, 'tasks'] });
-        queryClient.refetchQueries({ queryKey: ['/api/projects', pid, 'risks'] });
-        queryClient.refetchQueries({ queryKey: ['/api/projects', pid, 'issues'] });
-        queryClient.refetchQueries({ queryKey: ['/api/projects', pid, 'milestones'] });
-      }
-      if (data.created?.projects?.length > 0) {
-        for (const proj of data.created.projects) {
-          queryClient.refetchQueries({ queryKey: ['/api/projects', proj.id] });
-          queryClient.refetchQueries({ queryKey: ['/api/projects', proj.id, 'tasks'] });
-        }
-      }
+      await queryClient.invalidateQueries();
+      await queryClient.refetchQueries();
       setAiDialogOpen(false);
       if (!scopedProjectId && data.redirectTo) {
         setLocation(data.redirectTo);
