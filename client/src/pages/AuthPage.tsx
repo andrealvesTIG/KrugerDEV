@@ -72,6 +72,8 @@ export default function AuthPage() {
     },
     onSuccess: (user) => {
       queryClient.setQueryData(["/api/auth/user"], user);
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/users', user.id, 'organizations'] });
       setLocation("/");
     },
     onError: (error: Error) => {
@@ -95,6 +97,8 @@ export default function AuthPage() {
     },
     onSuccess: (result) => {
       queryClient.setQueryData(["/api/auth/user"], result);
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/users', result.id, 'organizations'] });
       
       // If a new organization was created, redirect to onboarding
       if (result.organizationCreated && result.organizationId && result.organizationName) {
