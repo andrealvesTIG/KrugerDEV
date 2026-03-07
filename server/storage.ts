@@ -1327,6 +1327,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteRisk(id: number): Promise<void> {
+    await db.delete(notifications).where(eq(notifications.riskIssueId, id));
+    await db.delete(issueChangeLogs).where(eq(issueChangeLogs.issueId, id));
+    await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.issueId, id));
     await db.delete(issues).where(and(eq(issues.id, id), eq(issues.itemType, 'risk')));
   }
 
@@ -1378,6 +1381,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteMilestone(id: number): Promise<void> {
+    await db.delete(notifications).where(eq(notifications.milestoneId, id));
     await db.delete(milestones).where(eq(milestones.id, id));
   }
 
@@ -1422,6 +1426,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteIssue(id: number): Promise<void> {
+    await db.delete(notifications).where(eq(notifications.riskIssueId, id));
+    await db.delete(issueChangeLogs).where(eq(issueChangeLogs.issueId, id));
+    await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.issueId, id));
     await db.delete(issues).where(eq(issues.id, id));
   }
 

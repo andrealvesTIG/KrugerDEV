@@ -4906,6 +4906,10 @@ export async function registerRoutes(
       
       const input = api.projects.create.input.parse(req.body);
       
+      if (!await userHasOrgAccess(userId, input.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
       // Check project limit before creation (using org subscription if available)
       if (userId) {
         const { checkAndEnforceLimit, METER_CODES } = await import("./services/billing");
@@ -7698,6 +7702,10 @@ export async function registerRoutes(
       const userId = getUserIdFromRequest(req);
       const existing = await storage.getProject(projectId);
       if (!existing) return res.status(404).json({ message: "Project not found" });
+      
+      if (!await userHasOrgAccess(userId, existing.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
       
       const input = api.projects.update.input.parse(req.body);
       const sanitizedInput: Record<string, any> = {
@@ -13065,6 +13073,11 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
   // Convert MPP import to a project with tasks
   app.post('/api/mpp-imports/:id/convert', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      
       const id = Number(req.params.id);
       const { name, portfolioId, description, status, priority } = req.body;
       
@@ -13072,6 +13085,10 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       const mppImport = await storage.getMppImport(id);
       if (!mppImport) {
         return res.status(404).json({ message: "Import not found" });
+      }
+      
+      if (!await userHasOrgAccess(userId, mppImport.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
       }
       
       if (mppImport.projectId) {
@@ -19156,6 +19173,10 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
       }
 
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
       const periods = await storage.getClosedPeriodsForDateRange(organizationId, startDate, endDate);
       res.json(periods);
     } catch (error) {
@@ -19593,6 +19614,14 @@ Return ONLY valid JSON.`;
       // Verify the authenticated user owns this entry
       if (existingEntry.userId !== userId) {
         return res.status(403).json({ message: 'Access denied' });
+      }
+
+      // Check if entry date is in a closed period
+      const closedPeriods = await storage.getClosedPeriodsForDateRange(
+        existingEntry.organizationId, existingEntry.entryDate, existingEntry.entryDate
+      );
+      if (closedPeriods.length > 0) {
+        return res.status(403).json({ message: 'Cannot update entries in a closed period' });
       }
 
       // Only allow updating hours and notes
