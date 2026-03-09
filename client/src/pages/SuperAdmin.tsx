@@ -206,22 +206,26 @@ function OrganizationsTab() {
   const pageSize = 15;
 
   const { data: organizations, isLoading } = useQuery<Organization[]>({
-    queryKey: ['/api/organizations']
+    queryKey: ['/api/organizations'],
+    staleTime: 0,
   });
 
   const { data: deactivatedOrgs, isLoading: deactivatedLoading } = useQuery<Organization[]>({
     queryKey: ['/api/admin/organizations/deactivated'],
     enabled: user?.role === 'super_admin',
+    staleTime: 0,
   });
 
   const { data: industries } = useQuery<IndustryOption[]>({
     queryKey: ['/api/demo-data/industries'],
     enabled: user?.role === 'super_admin',
+    staleTime: 0,
   });
 
   const { data: users } = useQuery<User[]>({
     queryKey: ['/api/users'],
     enabled: user?.role === 'super_admin',
+    staleTime: 0,
   });
 
   const { data: allOrgMembers } = useQuery<{ organizationId: number; userId: string }[]>({
@@ -232,6 +236,7 @@ function OrganizationsTab() {
       return res.json();
     },
     enabled: user?.role === 'super_admin',
+    staleTime: 0,
   });
 
   interface OrgSubscription {
@@ -243,6 +248,7 @@ function OrganizationsTab() {
 
   const { data: orgSubscriptions } = useQuery<OrgSubscription[]>({
     queryKey: ['/api/admin/organizations/subscriptions'],
+    staleTime: 0,
   });
 
   interface OrgCreditUsage { included: number; used: number; remaining: number; overage: number; }
@@ -253,6 +259,7 @@ function OrganizationsTab() {
       if (!res.ok) return {};
       return res.json();
     },
+    staleTime: 0,
   });
 
   const getOrgPlan = (orgId: number) => {
@@ -1403,11 +1410,13 @@ function AllUsersTab() {
   const pageSize = 15;
   
   const { data: users, isLoading } = useQuery<User[]>({
-    queryKey: ['/api/users']
+    queryKey: ['/api/users'],
+    staleTime: 0,
   });
 
   const { data: allOrganizations } = useQuery<Organization[]>({
-    queryKey: ['/api/organizations']
+    queryKey: ['/api/organizations'],
+    staleTime: 0,
   });
 
   const { data: allOrgMembers } = useQuery<{ organizationId: number; userId: string }[]>({
@@ -1417,11 +1426,13 @@ function AllUsersTab() {
       if (!res.ok) return [];
       return res.json();
     },
+    staleTime: 0,
   });
 
   interface OrgSub { orgId: number; planName: string | null; planCode: string | null; status: string; }
   const { data: orgSubscriptions } = useQuery<OrgSub[]>({
     queryKey: ['/api/admin/organizations/subscriptions'],
+    staleTime: 0,
   });
 
   interface UserActivity { totalActions: number; activeDays: number; lastActiveAt: string | null; usageEvents: number; }
@@ -1432,6 +1443,7 @@ function AllUsersTab() {
       if (!res.ok) return {};
       return res.json();
     },
+    staleTime: 0,
   });
 
   const getUserOrgs = (userId: string) => {
@@ -1518,6 +1530,7 @@ function AllUsersTab() {
       return res.json();
     },
     enabled: !!editingUser?.id,
+    staleTime: 0,
   });
 
   const updateUserRole = useMutation({
@@ -2686,6 +2699,7 @@ function PlansTab() {
   const plansUrl = isSuperAdmin ? '/api/billing/plans?includeInactive=true' : '/api/billing/plans';
   const { data: plansResponse, isLoading } = useQuery<{ plans: PlanData[]; creditCosts: any[] }>({
     queryKey: [plansUrl],
+    staleTime: 0,
   });
   const plans = plansResponse?.plans;
 
@@ -3533,6 +3547,7 @@ function OrgMembersEditor({ orgId, allUsers }: { orgId: number; allUsers: User[]
       if (!res.ok) return [];
       return res.json();
     },
+    staleTime: 0,
   });
 
   const addMember = useMutation({
@@ -3690,7 +3705,8 @@ function CreditCostsTab() {
   const [newCreditCost, setNewCreditCost] = useState<number>(0);
 
   const { data: creditCosts, isLoading } = useQuery<CreditCost[]>({
-    queryKey: ['/api/admin/credit-costs']
+    queryKey: ['/api/admin/credit-costs'],
+    staleTime: 0,
   });
 
   const updateCost = useMutation({
@@ -3867,10 +3883,12 @@ function ConsentsTab() {
 
   const { data: consents, isLoading: consentsLoading } = useQuery<ConsentRecord[]>({
     queryKey: ["/api/admin/consents"],
+    staleTime: 0,
   });
 
   const { data: stats, isLoading: statsLoading } = useQuery<ConsentStats>({
     queryKey: ["/api/admin/consents/stats"],
+    staleTime: 0,
   });
 
   if (consentsLoading || statsLoading) {
@@ -4200,31 +4218,37 @@ function MonitoringTab() {
       if (!r.ok) throw new Error(`Failed to fetch overview: ${r.status}`);
       return r.json();
     },
+    staleTime: 0,
   });
 
   const { data: userActivity, isLoading: activityLoading, refetch: refetchActivity } = useQuery<UserActivity>({
     queryKey: ['/api/admin/monitoring/user-activity'],
     enabled: subTab === 'users',
+    staleTime: 0,
   });
 
   const { data: featureUsage, isLoading: featuresLoading, refetch: refetchFeatures } = useQuery<FeatureUsage>({
     queryKey: ['/api/admin/monitoring/feature-usage'],
     enabled: subTab === 'features',
+    staleTime: 0,
   });
 
   const { data: performance, isLoading: perfLoading, refetch: refetchPerf } = useQuery<PerformanceMetrics>({
     queryKey: ['/api/admin/monitoring/performance'],
     enabled: subTab === 'performance',
+    staleTime: 0,
   });
 
   const { data: databaseStats, isLoading: dbLoading, refetch: refetchDb } = useQuery<DatabaseStats>({
     queryKey: ['/api/admin/monitoring/database'],
     enabled: subTab === 'database',
+    staleTime: 0,
   });
 
   const { data: orgUsage, isLoading: orgLoading, refetch: refetchOrg } = useQuery<OrgUsage>({
     queryKey: ['/api/admin/monitoring/organization-usage'],
     enabled: subTab === 'organizations',
+    staleTime: 0,
   });
 
   const ledgerQueryString = new URLSearchParams({
@@ -4247,6 +4271,7 @@ function MonitoringTab() {
       return res.json();
     },
     enabled: subTab === 'users',
+    staleTime: 0,
   });
 
   const handleRefresh = () => {
@@ -6049,6 +6074,7 @@ function HelpTicketsTab() {
 
   const { data: tickets = [], isLoading } = useQuery<HelpTicket[]>({
     queryKey: ["/api/admin/help-tickets"],
+    staleTime: 0,
   });
 
   const updateTicketMutation = useMutation({
@@ -6470,6 +6496,7 @@ function AnalyticsTab() {
 
   const { data: analytics, isLoading, refetch } = useQuery<AnalyticsDashboard>({
     queryKey: ['/api/admin/analytics/dashboard'],
+    staleTime: 0,
   });
 
   const handleRefresh = () => {
