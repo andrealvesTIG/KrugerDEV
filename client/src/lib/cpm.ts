@@ -10,6 +10,7 @@ export interface CPMTask {
   endDate: string | null;
   durationDays: number | null;
   isMilestone?: boolean | null;
+  isSummary?: boolean | null;
   constraintType?: string | null;
   constraintDate?: string | null;
 }
@@ -179,7 +180,7 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
     };
   }
 
-  const validTasks = tasks.filter(t => t.startDate && t.endDate);
+  const validTasks = tasks.filter(t => t.startDate && t.endDate && !t.isSummary);
   if (validTasks.length === 0) {
     return {
       results: new Map(),
@@ -353,7 +354,8 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
 
   for (const node of finalNodes) {
     node.TF = node.LS - node.ES;
-    const isCritical = Math.abs(node.TF) <= FLOAT_TOLERANCE;
+    const hasConnections = node.predecessors.length > 0 || node.successors.length > 0;
+    const isCritical = hasConnections && Math.abs(node.TF) <= FLOAT_TOLERANCE;
 
     results.set(node.id, {
       id: node.id,
@@ -372,7 +374,10 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
 
   const criticalPath: number[] = [];
   const criticalNodes = Array.from(nodes.values())
-    .filter(n => Math.abs(n.TF) <= FLOAT_TOLERANCE)
+    .filter(n => {
+      const hasConnections = n.predecessors.length > 0 || n.successors.length > 0;
+      return hasConnections && Math.abs(n.TF) <= FLOAT_TOLERANCE;
+    })
     .sort((a, b) => a.ES - b.ES);
 
   const visited = new Set<number>();
