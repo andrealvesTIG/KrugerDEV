@@ -4003,7 +4003,7 @@ function ProjectGanttView({
             <div ref={leftPaneRef} className={cn("h-full overflow-x-auto relative scrollbar-thin", hideTimeline ? "overflow-y-auto" : "overflow-y-hidden")}>
               <div style={{ minWidth: `${totalColumnsWidth}px` }}>
               {/* Header row - height must match timeline header */}
-              <div className="flex border-b bg-muted/50 sticky top-0 z-10 h-[28px]">
+              <div className="flex border-b bg-muted sticky top-0 z-20 h-[28px]">
                 {/* Bulk selection header column */}
                 <div className="w-8 flex-shrink-0 border-r p-1 flex items-center justify-center">
                   <Checkbox
@@ -4372,7 +4372,7 @@ function ProjectGanttView({
                   style={{ minWidth: `${filteredDates.length * 60}px` }}
                 >
                   {/* Timeline header - height must match metadata header */}
-                  <div className="flex border-b bg-muted/50 sticky top-0 z-10 h-[28px]">
+                  <div className="flex border-b bg-muted sticky top-0 z-20 h-[28px]">
                     {filteredDates.map((date, i) => (
                       <div key={i} className={cn("flex-1 p-1 text-center text-[10px] font-medium text-muted-foreground border-l", columnWidth)}>
                         {format(date, dateFormat)}
