@@ -203,7 +203,7 @@ export function IssuesTab({ projectId, projectName, portfolioId, urlIssueId, rea
               <DialogDescription>{editingIssue ? "Modify the issue details below." : "Create a new bug, task, or enhancement."}</DialogDescription>
             </DialogHeader>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
-              <div className="flex flex-col gap-4 pt-4 flex-1 overflow-y-auto pr-1">
+              <div className="flex flex-col gap-4 pt-4 flex-1 overflow-y-auto px-1">
               <div className="space-y-2">
                 <Label>Title</Label>
                 <Input {...form.register("title")} data-testid="input-issue-title" />
