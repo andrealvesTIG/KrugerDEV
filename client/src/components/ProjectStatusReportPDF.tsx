@@ -842,8 +842,12 @@ export function ProjectStatusReportPDF({
             <Text style={styles.statLabel}>Milestones</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={[styles.statValue, styles.statValueOrange]}>{openRisks.length + openIssues.length}</Text>
-            <Text style={styles.statLabel}>Open Items</Text>
+            <Text style={[styles.statValue, styles.statValueOrange]}>{openRisks.length}</Text>
+            <Text style={styles.statLabel}>Open Risks</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={[styles.statValue, { color: "#ef4444" }]}>{openIssues.length}</Text>
+            <Text style={styles.statLabel}>Open Issues</Text>
           </View>
         </View>
 

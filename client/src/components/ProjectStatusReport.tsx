@@ -630,7 +630,7 @@ export function ProjectStatusReport({
           </div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="border rounded-lg p-4 text-center">
             <span className="text-3xl font-bold text-primary">{taskStats.total}</span>
             <span className="text-sm text-muted-foreground block">Total Tasks</span>
@@ -644,8 +644,12 @@ export function ProjectStatusReport({
             <span className="text-sm text-muted-foreground block">Milestones</span>
           </div>
           <div className="border rounded-lg p-4 text-center">
-            <span className="text-3xl font-bold text-orange-600">{riskStats.total + issueStats.total}</span>
-            <span className="text-sm text-muted-foreground block">Open Items</span>
+            <span className="text-3xl font-bold text-orange-600">{riskStats.total}</span>
+            <span className="text-sm text-muted-foreground block">Open Risks</span>
+          </div>
+          <div className="border rounded-lg p-4 text-center">
+            <span className="text-3xl font-bold text-red-600">{issueStats.total}</span>
+            <span className="text-sm text-muted-foreground block">Open Issues</span>
           </div>
         </div>
       </div>
