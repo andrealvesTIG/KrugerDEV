@@ -197,12 +197,13 @@ export function IssuesTab({ projectId, projectName, portfolioId, urlIssueId, rea
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingIssue(null); }}>
           <DialogTrigger asChild><Button size="sm" onClick={openCreateDialog} disabled={readOnly} data-testid="button-add-issue"><Plus className="mr-2 h-4 w-4" /> Add Issue</Button></DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col overflow-hidden">
             <DialogHeader>
               <DialogTitle>{editingIssue ? "Edit Issue" : "Add New Issue"}</DialogTitle>
               <DialogDescription>{editingIssue ? "Modify the issue details below." : "Create a new bug, task, or enhancement."}</DialogDescription>
             </DialogHeader>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
+              <div className="flex flex-col gap-4 pt-4 flex-1 overflow-y-auto pr-1">
               <div className="space-y-2">
                 <Label>Title</Label>
                 <Input {...form.register("title")} data-testid="input-issue-title" />
@@ -297,8 +298,9 @@ export function IssuesTab({ projectId, projectName, portfolioId, urlIssueId, rea
                   Escalated on {format(new Date(editingIssue.escalatedAt), 'MMM d, yyyy')}
                 </p>
               )}
+              </div>
               
-              <DialogFooter className="gap-2">
+              <DialogFooter className="gap-2 pt-4 border-t">
                 {editingIssue && (
                   <Button 
                     type="button" 
