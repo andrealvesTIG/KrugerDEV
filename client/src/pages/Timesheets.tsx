@@ -155,9 +155,10 @@ interface TaskRowProps {
   isDateInClosedPeriod: (date: Date) => boolean;
   getClosedPeriodName: (date: Date) => string | null;
   taskColumnWidth?: number;
+  timesheetLocked?: boolean;
 }
 
-function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, clearRow, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName, taskColumnWidth = 360 }: TaskRowProps) {
+function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, clearRow, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName, taskColumnWidth = 360, timesheetLocked = false }: TaskRowProps) {
   const rowTotal = getRowTotal(task.id);
   const isRowOvertime = rowTotal > 40;
   
@@ -168,11 +169,20 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
       animate={{ opacity: 1, height: "auto" }}
       exit={{ opacity: 0, height: 0 }}
       transition={{ duration: 0.2, delay: index * 0.02 }}
-      className="border-t border-border/50 hover:bg-muted/20 transition-colors group"
+      className={`border-t border-border/50 hover:bg-muted/20 transition-colors group ${timesheetLocked ? "opacity-75" : ""}`}
     >
       <td className={`px-3 py-1.5 ${indented ? 'pl-10' : ''} align-middle`} style={{ width: taskColumnWidth, minWidth: taskColumnWidth, maxWidth: taskColumnWidth }}>
         <div className="flex items-center gap-2 w-full overflow-hidden">
-          <ListTodo className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          {timesheetLocked ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Lock className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+              </TooltipTrigger>
+              <TooltipContent side="top">Timesheet locked for this {task.timesheetBlocked ? "task" : "project"}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <ListTodo className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          )}
           <div className="flex flex-col min-w-0 flex-1">
             <span className="text-foreground text-sm leading-tight break-all line-clamp-1">{task.name}</span>
             {!indented && (
@@ -187,7 +197,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
         const status = entry?.status;
         const isPeriodClosed = isDateInClosedPeriod(date);
         const closedPeriodName = isPeriodClosed ? getClosedPeriodName(date) : null;
-        const isEditable = (!status || status === "Draft" || status === "Rejected") && !isPeriodClosed;
+        const isEditable = (!status || status === "Draft" || status === "Rejected") && !isPeriodClosed && !timesheetLocked;
         const hasNote = !!(gridData[task.id]?.[dateKey]?.notes);
         const isTodayDate = isToday(date);
         const isWeekendDay = isWeekend(date);
@@ -316,7 +326,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
 
 interface TimesheetGridProps {
   dates: Date[];
-  assignedTasks: { task: Task; project: Project }[];
+  assignedTasks: { task: Task; project: Project; timesheetLocked?: boolean }[];
   entries: TimesheetEntryWithDetails[];
   onSave: (data: Record<string, Record<string, { hours: number; notes: string; id?: number }>>) => void;
   isSaving: boolean;
@@ -704,7 +714,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   };
 
   const groupedTasks = useMemo(() => {
-    const groups: Record<number, { project: Project; tasks: { task: Task; project: Project }[] }> = {};
+    const groups: Record<number, { project: Project; tasks: { task: Task; project: Project; timesheetLocked?: boolean }[] }> = {};
     for (const item of assignedTasks) {
       if (!groups[item.project.id]) {
         groups[item.project.id] = { project: item.project, tasks: [] };
@@ -924,7 +934,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                     </motion.tr>
                     
                     <AnimatePresence>
-                      {!isCollapsed && group.tasks.map(({ task, project }) => {
+                      {!isCollapsed && group.tasks.map(({ task, project, timesheetLocked }) => {
                         const flatIndex = taskIndexMap.get(task.id) ?? 0;
                         return (
                           <TaskRow
@@ -947,6 +957,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                             isDateInClosedPeriod={isDateInClosedPeriod}
                             getClosedPeriodName={getClosedPeriodName}
                             taskColumnWidth={taskColumnWidth}
+                            timesheetLocked={timesheetLocked}
                           />
                         );
                       })}
@@ -955,7 +966,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                 );
               })
             ) : (
-              assignedTasks.map(({ task, project }, index) => (
+              assignedTasks.map(({ task, project, timesheetLocked }, index) => (
                 <TaskRow
                   key={task.id}
                   task={task}
@@ -975,6 +986,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                   isDateInClosedPeriod={isDateInClosedPeriod}
                   getClosedPeriodName={getClosedPeriodName}
                   taskColumnWidth={taskColumnWidth}
+                  timesheetLocked={timesheetLocked}
                 />
               ))
             )}

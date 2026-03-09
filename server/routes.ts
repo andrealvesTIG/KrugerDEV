@@ -18563,16 +18563,12 @@ Return ONLY valid JSON.`;
       // Pass userId to also include tasks where user is the ownerId
       const assignedTasks = await storage.getAssignedTasksForResource(userResource.id, organizationId, userId);
 
-      // Filter out tasks where the task or project is blocked for timesheets
-      const filteredTasks = assignedTasks.filter(item => {
-        // Check if task itself is blocked
-        if (item.task.timesheetBlocked) return false;
-        // Check if the project is blocked
-        if (item.project.timesheetBlocked) return false;
-        return true;
-      });
+      const result = assignedTasks.map(item => ({
+        ...item,
+        timesheetLocked: !!(item.task.timesheetBlocked || item.project.timesheetBlocked)
+      }));
 
-      res.json(filteredTasks);
+      res.json(result);
     } catch (error) {
       console.error('Error getting assigned tasks:', error);
       const classified = classifyError(error);
