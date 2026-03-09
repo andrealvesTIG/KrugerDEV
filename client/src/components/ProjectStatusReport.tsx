@@ -625,11 +625,11 @@ export function ProjectStatusReport({
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="border rounded-lg p-4 text-center">
-            <span className="text-3xl font-bold text-primary">{tasks.length}</span>
+            <span className="text-3xl font-bold text-primary">{taskStats.total}</span>
             <span className="text-sm text-muted-foreground block">Total Tasks</span>
           </div>
           <div className="border rounded-lg p-4 text-center">
-            <span className="text-3xl font-bold text-green-600">{Math.round(taskStats.completedPercent)}%</span>
+            <span className="text-3xl font-bold text-green-600">{project.completionPercentage ?? Math.round(taskStats.completedPercent)}%</span>
             <span className="text-sm text-muted-foreground block">Complete</span>
           </div>
           <div className="border rounded-lg p-4 text-center">

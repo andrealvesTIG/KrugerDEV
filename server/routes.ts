@@ -8408,10 +8408,11 @@ export async function registerRoutes(
       const changeRequests = await storage.getChangeRequests(projectId);
       const documents = await storage.getProjectDocuments(projectId);
       
-      const completed = tasks.filter(t => t.status === "Completed" || t.progress === 100).length;
-      const inProgress = tasks.filter(t => t.status === "In Progress").length;
-      const notStarted = tasks.filter(t => t.status === "Not Started" || (!t.status && t.progress === 0)).length;
-      const total = tasks.length || 1;
+      const leafTasks = tasks.filter(t => !t.isSummary);
+      const completed = leafTasks.filter(t => t.status === "Completed" || t.progress === 100).length;
+      const inProgress = leafTasks.filter(t => t.status === "In Progress").length;
+      const notStarted = leafTasks.filter(t => t.status === "Not Started" || (!t.status && t.progress === 0)).length;
+      const total = leafTasks.length || 1;
       
       const budget = financials.reduce((sum, f) => sum + parseFloat(f.budgetAmount || "0"), 0);
       const actual = financials.reduce((sum, f) => sum + parseFloat(f.actualAmount || "0"), 0);
@@ -8679,11 +8680,11 @@ export async function registerRoutes(
     <table width="100%" cellpadding="0" cellspacing="8" style="margin-bottom: 16px;">
       <tr>
         <td width="25%" style="background: #f9fafb; border-radius: 8px; padding: 12px; text-align: center;">
-          <div style="font-size: 24px; font-weight: 700; color: #3b82f6;">${tasks.length}</div>
+          <div style="font-size: 24px; font-weight: 700; color: #3b82f6;">${leafTasks.length}</div>
           <div style="font-size: 11px; color: #6b7280;">Total Tasks</div>
         </td>
         <td width="25%" style="background: #f9fafb; border-radius: 8px; padding: 12px; text-align: center;">
-          <div style="font-size: 24px; font-weight: 700; color: #22c55e;">${Math.round((completed / total) * 100)}%</div>
+          <div style="font-size: 24px; font-weight: 700; color: #22c55e;">${project.completionPercentage ?? Math.round((completed / total) * 100)}%</div>
           <div style="font-size: 11px; color: #6b7280;">Complete</div>
         </td>
         <td width="25%" style="background: #f9fafb; border-radius: 8px; padding: 12px; text-align: center;">
@@ -8759,8 +8760,8 @@ ${documents.slice(0, 5).map(doc => `- ${doc.title || 'Untitled'} (${(doc.categor
 ${documents.length > 5 ? `+ ${documents.length - 5} more documents` : ''}
 ` : ''}
 SUMMARY STATISTICS
-- Total Tasks: ${tasks.length}
-- Completion: ${Math.round((completed / total) * 100)}%
+- Total Tasks: ${leafTasks.length}
+- Completion: ${project.completionPercentage ?? Math.round((completed / total) * 100)}%
 - Milestones: ${milestones.filter(m => !m.deletedAt).length}
 - Open Items: ${allOpenRisks.length + allOpenIssues.length}
 

@@ -830,7 +830,7 @@ export function ProjectStatusReportPDF({
             <Text style={styles.statLabel}>Total Tasks</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={[styles.statValue, styles.statValueGreen]}>{Math.round(safePercent(completed, totalTasks))}%</Text>
+            <Text style={[styles.statValue, styles.statValueGreen]}>{project.completionPercentage ?? Math.round(safePercent(completed, totalTasks))}%</Text>
             <Text style={styles.statLabel}>Complete</Text>
           </View>
           <View style={styles.statBox}>
