@@ -502,10 +502,10 @@ export function ProjectStatusReportPDF({
     ...openIssues.slice(0, 2).map((i) => ({ type: "issue" as const, title: i.title, priority: i.priority })),
   ].slice(0, 5);
 
-  const majorMilestones = milestones
+  const allMilestones = milestones
     .filter((m) => !m.deletedAt)
-    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-    .slice(0, 6);
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  const majorMilestones = allMilestones.slice(0, 8);
 
   const getMilestoneStatus = (milestone: Milestone) => {
     if (milestone.completed || milestone.status === "Done") return "Complete";
@@ -733,26 +733,33 @@ export function ProjectStatusReportPDF({
             {majorMilestones.length === 0 ? (
               <Text style={styles.text}>No milestones defined</Text>
             ) : (
-              majorMilestones.map((milestone) => {
-                const status = getMilestoneStatus(milestone);
-                return (
-                  <View key={milestone.id} style={styles.milestoneRow}>
-                    <Text style={styles.milestoneTitle}>{milestone.title}</Text>
-                    <Text style={styles.milestoneDate}>
-                      {format(new Date(milestone.dueDate), "MMM d, yyyy")}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.milestoneStatus,
-                        status === "Complete" ? styles.statusComplete :
-                        status === "At Risk" ? styles.statusAtRisk : styles.statusOnTrack,
-                      ]}
-                    >
-                      {status}
-                    </Text>
-                  </View>
-                );
-              })
+              <>
+                {majorMilestones.map((milestone) => {
+                  const status = getMilestoneStatus(milestone);
+                  return (
+                    <View key={milestone.id} style={styles.milestoneRow}>
+                      <Text style={styles.milestoneTitle}>{milestone.title}</Text>
+                      <Text style={styles.milestoneDate}>
+                        {format(new Date(milestone.dueDate), "MMM d, yyyy")}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.milestoneStatus,
+                          status === "Complete" ? styles.statusComplete :
+                          status === "At Risk" ? styles.statusAtRisk : styles.statusOnTrack,
+                        ]}
+                      >
+                        {status}
+                      </Text>
+                    </View>
+                  );
+                })}
+                {allMilestones.length > majorMilestones.length && (
+                  <Text style={{ fontSize: 8, color: "#9ca3af", marginTop: 4 }}>
+                    + {allMilestones.length - majorMilestones.length} more milestone{allMilestones.length - majorMilestones.length !== 1 ? "s" : ""}
+                  </Text>
+                )}
+              </>
             )}
           </View>
 

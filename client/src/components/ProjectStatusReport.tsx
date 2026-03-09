@@ -1,9 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { format, differenceInDays, isAfter, isBefore } from "date-fns";
 import type { Project, Risk, Issue, Milestone, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle2, Circle, Clock, Target, TrendingUp, Users, DollarSign, Calendar, Flag, FileText, GitPullRequest } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Circle, Clock, Target, TrendingUp, Users, DollarSign, Calendar, Flag, FileText, GitPullRequest, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Legend, Tooltip } from "recharts";
 
@@ -68,6 +68,9 @@ export function ProjectStatusReport({
   documents = [],
   executiveSummary
 }: ProjectStatusReportProps) {
+  const MILESTONE_PREVIEW_COUNT = 5;
+  const [showAllMilestones, setShowAllMilestones] = useState(false);
+
   const taskStats = useMemo(() => {
     const leafTasks = tasks.filter(t => !t.isSummary);
     const completed = leafTasks.filter(t => t.status === "Completed").length;
@@ -151,8 +154,7 @@ export function ProjectStatusReport({
   const majorMilestones = useMemo(() => {
     return milestones
       .filter(m => !m.deletedAt)
-      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-      .slice(0, 6);
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   }, [milestones]);
 
   const timelineData = useMemo(() => {
@@ -329,16 +331,30 @@ export function ProjectStatusReport({
             </div>
 
             {timelineData.milestones.length > 0 && (
-              <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-2">
-                {timelineData.milestones.slice(0, 6).map(m => (
-                  <div key={m.id} className="flex items-center gap-2 text-xs">
-                    <Flag className={cn(
-                      "h-3 w-3",
-                      m.isComplete ? "text-green-500" : m.isAtRisk ? "text-red-500" : "text-yellow-500"
-                    )} />
-                    <span className="truncate">{m.title}</span>
-                  </div>
-                ))}
+              <div className="mt-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {(showAllMilestones ? timelineData.milestones : timelineData.milestones.slice(0, MILESTONE_PREVIEW_COUNT)).map(m => (
+                    <div key={m.id} className="flex items-center gap-2 text-xs">
+                      <Flag className={cn(
+                        "h-3 w-3 shrink-0",
+                        m.isComplete ? "text-green-500" : m.isAtRisk ? "text-red-500" : "text-yellow-500"
+                      )} />
+                      <span className="truncate">{m.title}</span>
+                    </div>
+                  ))}
+                </div>
+                {timelineData.milestones.length > MILESTONE_PREVIEW_COUNT && (
+                  <button
+                    onClick={() => setShowAllMilestones(!showAllMilestones)}
+                    className="mt-2 text-xs text-primary hover:underline flex items-center gap-1"
+                  >
+                    {showAllMilestones ? (
+                      <>Show less <ChevronUp className="h-3 w-3" /></>
+                    ) : (
+                      <>Show all {timelineData.milestones.length} milestones <ChevronDown className="h-3 w-3" /></>
+                    )}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -491,24 +507,38 @@ export function ProjectStatusReport({
             </h2>
             <div className="space-y-2">
               {majorMilestones.length > 0 ? (
-                <table className="w-full text-sm">
-                  <tbody>
-                    {majorMilestones.map((milestone) => {
-                      const status = getMilestoneStatus(milestone);
-                      return (
-                        <tr key={milestone.id} className="border-b border-border last:border-0">
-                          <td className="py-2 pr-2">{milestone.title}</td>
-                          <td className="py-2 pr-2 text-muted-foreground">
-                            {format(new Date(milestone.dueDate), "MMM d, yyyy")}
-                          </td>
-                          <td className={cn("py-2 text-right font-medium", getMilestoneStatusColor(status))}>
-                            {status}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                <>
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {(showAllMilestones ? majorMilestones : majorMilestones.slice(0, MILESTONE_PREVIEW_COUNT)).map((milestone) => {
+                        const status = getMilestoneStatus(milestone);
+                        return (
+                          <tr key={milestone.id} className="border-b border-border last:border-0">
+                            <td className="py-2 pr-2">{milestone.title}</td>
+                            <td className="py-2 pr-2 text-muted-foreground">
+                              {format(new Date(milestone.dueDate), "MMM d, yyyy")}
+                            </td>
+                            <td className={cn("py-2 text-right font-medium", getMilestoneStatusColor(status))}>
+                              {status}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {majorMilestones.length > MILESTONE_PREVIEW_COUNT && (
+                    <button
+                      onClick={() => setShowAllMilestones(!showAllMilestones)}
+                      className="mt-2 text-xs text-primary hover:underline flex items-center gap-1"
+                    >
+                      {showAllMilestones ? (
+                        <>Show less <ChevronUp className="h-3 w-3" /></>
+                      ) : (
+                        <>Show all {majorMilestones.length} milestones <ChevronDown className="h-3 w-3" /></>
+                      )}
+                    </button>
+                  )}
+                </>
               ) : (
                 <p className="text-sm text-muted-foreground">No milestones defined</p>
               )}
