@@ -1129,6 +1129,8 @@ function ProjectTimeline({
   onMilestoneClick?: (taskId: number) => void;
 }) {
   const [isOpen, setIsOpen] = useState(true);
+  const [showAllMilestones, setShowAllMilestones] = useState(false);
+  const TIMELINE_MILESTONE_LIMIT = 10;
   const { data: tasks } = useTasks(projectId);
   
   const getHiddenTasksKey = () => `project-timeline-hidden-${projectId}`;
@@ -1231,9 +1233,24 @@ function ProjectTimeline({
     return events.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
   }, [tasks]);
   
-  const visibleEvents = useMemo(() => {
+  const nonHiddenEvents = useMemo(() => {
     return allEvents.filter(e => !hiddenTaskIds.has(e.id));
   }, [allEvents, hiddenTaskIds]);
+
+  const visibleEvents = useMemo(() => {
+    if (showAllMilestones || nonHiddenEvents.length <= TIMELINE_MILESTONE_LIMIT) {
+      return nonHiddenEvents;
+    }
+    const today = new Date();
+    const scored = nonHiddenEvents.map(e => {
+      const daysDiff = Math.abs(differenceInDays(e.endDate, today));
+      return { event: e, score: daysDiff };
+    });
+    scored.sort((a, b) => a.score - b.score);
+    const selected = scored.slice(0, TIMELINE_MILESTONE_LIMIT).map(s => s.event);
+    selected.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+    return selected;
+  }, [nonHiddenEvents, showAllMilestones]);
   
   const hiddenEvents = useMemo(() => {
     return allEvents.filter(e => hiddenTaskIds.has(e.id));
@@ -1761,10 +1778,33 @@ function ProjectTimeline({
                   </DropdownMenu>
                 )}
               </div>
-              <span className="text-muted-foreground/70">
-                {visibleEvents.length} milestone{visibleEvents.length !== 1 ? 's' : ''}
-                {hiddenEvents.length > 0 && ` (${hiddenEvents.length} hidden)`}
-              </span>
+              <div className="flex items-center gap-2">
+                {nonHiddenEvents.length > TIMELINE_MILESTONE_LIMIT && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs gap-1"
+                    onClick={() => setShowAllMilestones(!showAllMilestones)}
+                  >
+                    {showAllMilestones ? (
+                      <>
+                        <ChevronUp className="h-3 w-3" />
+                        Show fewer
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-3 w-3" />
+                        Show all {nonHiddenEvents.length}
+                      </>
+                    )}
+                  </Button>
+                )}
+                <span className="text-muted-foreground/70">
+                  {visibleEvents.length} milestone{visibleEvents.length !== 1 ? 's' : ''}
+                  {nonHiddenEvents.length > visibleEvents.length && !showAllMilestones && ` of ${nonHiddenEvents.length}`}
+                  {hiddenEvents.length > 0 && ` (${hiddenEvents.length} hidden)`}
+                </span>
+              </div>
             </div>
           </CardContent>
         </CollapsibleContent>
