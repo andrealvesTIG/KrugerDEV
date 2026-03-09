@@ -34,7 +34,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, Clock, ChevronDown, ChevronUp, ChevronRight, Milestone as MilestoneIcon, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Flag, FlagTriangleRight } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, Clock, ChevronDown, ChevronUp, ChevronRight, Milestone as MilestoneIcon, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Flag, FlagTriangleRight, ImageDown } from "lucide-react";
+import { toPng } from "html-to-image";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -199,6 +200,7 @@ export default function ProjectDetails() {
   const [isProjectHistoryOpen, setIsProjectHistoryOpen] = useState(false);
   const [isStatusReportOpen, setIsStatusReportOpen] = useState(false);
   const [isImportingCsv, setIsImportingCsv] = useState(false);
+  const [isExportingPng, setIsExportingPng] = useState(false);
   const csvImportInputRef = useRef<HTMLInputElement>(null);
   const [sectionsCollapsed, setSectionsCollapsed] = useState({
     workflow: false,
@@ -493,6 +495,41 @@ export default function ProjectDetails() {
     }
   };
 
+  const handleExportPng = async () => {
+    if (!project) return;
+    setIsExportingPng(true);
+    try {
+      const scheduleEl = document.querySelector('[data-schedule-export="true"]') as HTMLElement | null;
+      const ganttEl = document.querySelector('[data-gantt-export="true"]') as HTMLElement | null;
+      const targetEl = ganttEl || scheduleEl;
+      
+      if (!targetEl) {
+        toast({ title: "Export failed", description: "Please switch to the Tasks tab to export the schedule as PNG", variant: "destructive" });
+        return;
+      }
+
+      const dataUrl = await toPng(targetEl, {
+        backgroundColor: '#ffffff',
+        pixelRatio: 2,
+        filter: (node: HTMLElement) => {
+          if (node.dataset?.testid === 'button-tasks-fullscreen') return false;
+          return true;
+        },
+      });
+      
+      const link = document.createElement('a');
+      link.download = `${project.name.replace(/[^a-zA-Z0-9]/g, '_')}_schedule.png`;
+      link.href = dataUrl;
+      link.click();
+      toast({ title: "Export complete", description: "Schedule exported as PNG image" });
+    } catch (err) {
+      console.error('PNG export failed:', err);
+      toast({ title: "Export failed", description: "An error occurred while generating the PNG image", variant: "destructive" });
+    } finally {
+      setIsExportingPng(false);
+    }
+  };
+
   const handleStatusChange = (status: string) => {
     // If trying to lock the project, show confirmation
     if (status === "Closed" && !isProjectLocked) {
@@ -691,6 +728,14 @@ export default function ProjectDetails() {
               >
                 <GanttChart className="h-4 w-4 mr-2" />
                 Download as MS Project XML
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={handleExportPng}
+                disabled={isExportingPng}
+                data-testid="menu-download-png"
+              >
+                {isExportingPng ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ImageDown className="h-4 w-4 mr-2" />}
+                {isExportingPng ? 'Exporting...' : 'Download Schedule as PNG'}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem 

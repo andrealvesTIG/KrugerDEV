@@ -509,6 +509,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
 
   return (
     <div 
+      data-schedule-export="true"
       className={cn(
         "space-y-4",
         isFullscreen && "fixed top-0 right-0 bottom-0 z-40 bg-background p-4 flex flex-col overflow-hidden"

@@ -3643,7 +3643,7 @@ function ProjectGanttView({
   });
 
   return (
-    <Card className={cn(
+    <Card data-gantt-export="true" className={cn(
       "overflow-hidden transition-all duration-200",
       isFullscreen && "flex-1 flex flex-col"
     )}>
