@@ -533,16 +533,86 @@ export default function ProjectDetails() {
         return;
       }
 
-      const dataUrl = await toPng(targetEl, {
-        backgroundColor: '#ffffff',
-        pixelRatio: 2,
-        filter: (node: HTMLElement) => {
-          if (node.dataset?.scheduleToolbar === 'true') return false;
-          if (node.dataset?.ganttToolbar === 'true') return false;
-          if (node.dataset?.testid === 'button-tasks-fullscreen') return false;
-          return true;
-        },
-      });
+      const savedStyles: { el: HTMLElement; props: Record<string, string> }[] = [];
+      const expandForExport = () => {
+        const card = targetEl!;
+        const panels = card.querySelectorAll<HTMLElement>('[data-panel]');
+        const panelGroup = card.querySelector<HTMLElement>('[data-panel-group]');
+        const scrollContainers = card.querySelectorAll<HTMLElement>('.overflow-x-auto, .overflow-y-hidden, .overflow-y-auto, .overflow-hidden');
+        const truncated = card.querySelectorAll<HTMLElement>('.truncate');
+
+        if (panelGroup) {
+          savedStyles.push({ el: panelGroup, props: { height: panelGroup.style.height, maxHeight: panelGroup.style.maxHeight, overflow: panelGroup.style.overflow } });
+          panelGroup.style.height = 'auto';
+          panelGroup.style.maxHeight = 'none';
+          panelGroup.style.overflow = 'visible';
+          const cls = panelGroup.className;
+          if (cls.includes('h-[500px]')) {
+            panelGroup.dataset.exportRemovedClass = 'h-[500px]';
+            panelGroup.classList.remove('h-[500px]');
+          }
+        }
+
+        panels.forEach(panel => {
+          savedStyles.push({ el: panel, props: { overflow: panel.style.overflow, maxWidth: panel.style.maxWidth, flexShrink: panel.style.flexShrink } });
+          panel.style.overflow = 'visible';
+          panel.style.maxWidth = 'none';
+          panel.style.flexShrink = '0';
+        });
+
+        scrollContainers.forEach(el => {
+          savedStyles.push({ el, props: { overflow: el.style.overflow, overflowX: el.style.overflowX, overflowY: el.style.overflowY, height: el.style.height, maxHeight: el.style.maxHeight } });
+          el.style.overflow = 'visible';
+          el.style.overflowX = 'visible';
+          el.style.overflowY = 'visible';
+          el.style.height = 'auto';
+          el.style.maxHeight = 'none';
+        });
+
+        truncated.forEach(el => {
+          savedStyles.push({ el, props: { overflow: el.style.overflow, textOverflow: el.style.textOverflow, whiteSpace: el.style.whiteSpace } });
+          el.style.overflow = 'visible';
+          el.style.textOverflow = 'unset';
+          el.style.whiteSpace = 'nowrap';
+        });
+
+        savedStyles.push({ el: card, props: { width: card.style.width, maxWidth: card.style.maxWidth, overflow: card.style.overflow } });
+        card.style.width = 'auto';
+        card.style.maxWidth = 'none';
+        card.style.overflow = 'visible';
+      };
+
+      const restoreAfterExport = () => {
+        savedStyles.forEach(({ el, props }) => {
+          Object.entries(props).forEach(([key, value]) => {
+            (el.style as any)[key] = value;
+          });
+        });
+        const panelGroup = targetEl!.querySelector<HTMLElement>('[data-panel-group]');
+        if (panelGroup?.dataset.exportRemovedClass) {
+          panelGroup.classList.add(panelGroup.dataset.exportRemovedClass);
+          delete panelGroup.dataset.exportRemovedClass;
+        }
+      };
+
+      expandForExport();
+      await new Promise(r => requestAnimationFrame(r));
+
+      let dataUrl: string;
+      try {
+        dataUrl = await toPng(targetEl, {
+          backgroundColor: '#ffffff',
+          pixelRatio: 2,
+          filter: (node: HTMLElement) => {
+            if (node.dataset?.scheduleToolbar === 'true') return false;
+            if (node.dataset?.ganttToolbar === 'true') return false;
+            if (node.dataset?.testid === 'button-tasks-fullscreen') return false;
+            return true;
+          },
+        });
+      } finally {
+        restoreAfterExport();
+      }
 
       if (needsTabSwitch) {
         setActiveTab(previousTab);
