@@ -534,30 +534,46 @@ export default function ProjectDetails() {
       }
 
       const savedStyles: { el: HTMLElement; props: Record<string, string> }[] = [];
+      const removedClasses: { el: HTMLElement; cls: string }[] = [];
       const expandForExport = () => {
         const card = targetEl!;
         const panels = card.querySelectorAll<HTMLElement>('[data-panel]');
         const panelGroup = card.querySelector<HTMLElement>('[data-panel-group]');
+        const resizeHandles = card.querySelectorAll<HTMLElement>('[data-resize-handle-active],.resize-handle,[data-panel-resize-handle-id]');
         const scrollContainers = card.querySelectorAll<HTMLElement>('.overflow-x-auto, .overflow-y-hidden, .overflow-y-auto, .overflow-hidden');
         const truncated = card.querySelectorAll<HTMLElement>('.truncate');
 
         if (panelGroup) {
-          savedStyles.push({ el: panelGroup, props: { height: panelGroup.style.height, maxHeight: panelGroup.style.maxHeight, overflow: panelGroup.style.overflow } });
+          savedStyles.push({ el: panelGroup, props: { height: panelGroup.style.height, maxHeight: panelGroup.style.maxHeight, overflow: panelGroup.style.overflow, display: panelGroup.style.display } });
           panelGroup.style.height = 'auto';
           panelGroup.style.maxHeight = 'none';
           panelGroup.style.overflow = 'visible';
-          const cls = panelGroup.className;
-          if (cls.includes('h-[500px]')) {
-            panelGroup.dataset.exportRemovedClass = 'h-[500px]';
-            panelGroup.classList.remove('h-[500px]');
-          }
+          panelGroup.style.display = 'flex';
+          ['h-[500px]', 'flex-1'].forEach(cls => {
+            if (panelGroup.classList.contains(cls)) {
+              removedClasses.push({ el: panelGroup, cls });
+              panelGroup.classList.remove(cls);
+            }
+          });
         }
 
+        resizeHandles.forEach(handle => {
+          savedStyles.push({ el: handle, props: { display: handle.style.display } });
+          handle.style.display = 'none';
+        });
+
         panels.forEach(panel => {
-          savedStyles.push({ el: panel, props: { overflow: panel.style.overflow, maxWidth: panel.style.maxWidth, flexShrink: panel.style.flexShrink } });
+          savedStyles.push({ el: panel, props: { overflow: panel.style.overflow, flex: panel.style.flex, minWidth: panel.style.minWidth, width: panel.style.width } });
           panel.style.overflow = 'visible';
-          panel.style.maxWidth = 'none';
-          panel.style.flexShrink = '0';
+          panel.style.flex = 'none';
+          const innerContent = panel.querySelector<HTMLElement>('[style*="min-width"]');
+          if (innerContent && innerContent.style.minWidth) {
+            panel.style.width = innerContent.style.minWidth;
+            panel.style.minWidth = innerContent.style.minWidth;
+          } else {
+            panel.style.width = 'max-content';
+            panel.style.minWidth = 'max-content';
+          }
         });
 
         scrollContainers.forEach(el => {
@@ -588,11 +604,9 @@ export default function ProjectDetails() {
             (el.style as any)[key] = value;
           });
         });
-        const panelGroup = targetEl!.querySelector<HTMLElement>('[data-panel-group]');
-        if (panelGroup?.dataset.exportRemovedClass) {
-          panelGroup.classList.add(panelGroup.dataset.exportRemovedClass);
-          delete panelGroup.dataset.exportRemovedClass;
-        }
+        removedClasses.forEach(({ el, cls }) => {
+          el.classList.add(cls);
+        });
       };
 
       expandForExport();
