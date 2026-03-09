@@ -334,7 +334,7 @@ export async function setupProjectOnlineRoutes(app: Express) {
           changedBy: null,
           changedByName: 'System',
           changeType: 'created',
-          changeSummary: `Project "${newProject.name}" imported from Project Online`,
+          changeSummary: `Project "${newProject.name}" created by System — imported from Microsoft Project Online`,
           previousValues: null,
           newValues: null,
         });

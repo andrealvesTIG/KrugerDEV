@@ -490,7 +490,7 @@ async function seedDatabase() {
       health: "Green",
       completionPercentage: 45
     });
-    await storage.createProjectChangeLog({ projectId: ecommerceApp.id, changedBy: null, changedByName: 'System', changeType: 'created', changeSummary: `Project "${ecommerceApp.name}" created`, previousValues: null, newValues: null });
+    await storage.createProjectChangeLog({ projectId: ecommerceApp.id, changedBy: null, changedByName: 'System', changeType: 'created', changeSummary: `Project "${ecommerceApp.name}" created by System — seeded demo data`, previousValues: null, newValues: null });
 
     const bankingApp = await storage.createProject({
       portfolioId: mobilePortfolio.id,
@@ -506,7 +506,7 @@ async function seedDatabase() {
       health: "Yellow",
       completionPercentage: 15
     });
-    await storage.createProjectChangeLog({ projectId: bankingApp.id, changedBy: null, changedByName: 'System', changeType: 'created', changeSummary: `Project "${bankingApp.name}" created`, previousValues: null, newValues: null });
+    await storage.createProjectChangeLog({ projectId: bankingApp.id, changedBy: null, changedByName: 'System', changeType: 'created', changeSummary: `Project "${bankingApp.name}" created by System — seeded demo data`, previousValues: null, newValues: null });
 
     // Web Platform Projects
     const saasApp = await storage.createProject({
@@ -523,7 +523,7 @@ async function seedDatabase() {
       health: "Green",
       completionPercentage: 60
     });
-    await storage.createProjectChangeLog({ projectId: saasApp.id, changedBy: null, changedByName: 'System', changeType: 'created', changeSummary: `Project "${saasApp.name}" created`, previousValues: null, newValues: null });
+    await storage.createProjectChangeLog({ projectId: saasApp.id, changedBy: null, changedByName: 'System', changeType: 'created', changeSummary: `Project "${saasApp.name}" created by System — seeded demo data`, previousValues: null, newValues: null });
 
     const crmApp = await storage.createProject({
       portfolioId: webPlatformPortfolio.id,
@@ -539,7 +539,7 @@ async function seedDatabase() {
       health: "Red",
       completionPercentage: 35
     });
-    await storage.createProjectChangeLog({ projectId: crmApp.id, changedBy: null, changedByName: 'System', changeType: 'created', changeSummary: `Project "${crmApp.name}" created`, previousValues: null, newValues: null });
+    await storage.createProjectChangeLog({ projectId: crmApp.id, changedBy: null, changedByName: 'System', changeType: 'created', changeSummary: `Project "${crmApp.name}" created by System — seeded demo data`, previousValues: null, newValues: null });
 
     const apiGateway = await storage.createProject({
       portfolioId: webPlatformPortfolio.id,
@@ -555,7 +555,7 @@ async function seedDatabase() {
       health: "Green",
       completionPercentage: 5
     });
-    await storage.createProjectChangeLog({ projectId: apiGateway.id, changedBy: null, changedByName: 'System', changeType: 'created', changeSummary: `Project "${apiGateway.name}" created`, previousValues: null, newValues: null });
+    await storage.createProjectChangeLog({ projectId: apiGateway.id, changedBy: null, changedByName: 'System', changeType: 'created', changeSummary: `Project "${apiGateway.name}" created by System — seeded demo data`, previousValues: null, newValues: null });
 
     // Infrastructure Projects
     const k8sMigration = await storage.createProject({
@@ -572,7 +572,7 @@ async function seedDatabase() {
       health: "Yellow",
       completionPercentage: 40
     });
-    await storage.createProjectChangeLog({ projectId: k8sMigration.id, changedBy: null, changedByName: 'System', changeType: 'created', changeSummary: `Project "${k8sMigration.name}" created`, previousValues: null, newValues: null });
+    await storage.createProjectChangeLog({ projectId: k8sMigration.id, changedBy: null, changedByName: 'System', changeType: 'created', changeSummary: `Project "${k8sMigration.name}" created by System — seeded demo data`, previousValues: null, newValues: null });
 
     const cicdPipeline = await storage.createProject({
       portfolioId: infraPortfolio.id,
@@ -588,7 +588,7 @@ async function seedDatabase() {
       health: "Green",
       completionPercentage: 90
     });
-    await storage.createProjectChangeLog({ projectId: cicdPipeline.id, changedBy: null, changedByName: 'System', changeType: 'created', changeSummary: `Project "${cicdPipeline.name}" created`, previousValues: null, newValues: null });
+    await storage.createProjectChangeLog({ projectId: cicdPipeline.id, changedBy: null, changedByName: 'System', changeType: 'created', changeSummary: `Project "${cicdPipeline.name}" created by System — seeded demo data`, previousValues: null, newValues: null });
 
     // ==================== TASKS ====================
     
@@ -4951,12 +4951,13 @@ export async function registerRoutes(
       
       // Log change
       const user = userId ? await storage.getUser(userId) : null;
+      const creatorName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System';
       await storage.createProjectChangeLog({
         projectId: project.id,
         changedBy: userId || null,
-        changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+        changedByName: creatorName,
         changeType: 'created',
-        changeSummary: `Project "${project.name}" created`,
+        changeSummary: `Project "${project.name}" created by ${creatorName}`,
         previousValues: null,
         newValues: JSON.stringify(project),
       });
@@ -5132,12 +5133,13 @@ export async function registerRoutes(
 
       // Log change
       const user = userId ? await storage.getUser(userId) : null;
+      const plannerCreatorName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System';
       await storage.createProjectChangeLog({
         projectId: project.id,
         changedBy: userId || null,
-        changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+        changedByName: plannerCreatorName,
         changeType: 'created',
-        changeSummary: `Project "${project.name}" imported from Microsoft Planner`,
+        changeSummary: `Project "${project.name}" created by ${plannerCreatorName} — imported from Microsoft Planner`,
         previousValues: null,
         newValues: JSON.stringify(project),
       });
@@ -5528,12 +5530,13 @@ export async function registerRoutes(
 
       // Log change
       const user = userId ? await storage.getUser(userId) : null;
+      const premiumCreatorName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System';
       await storage.createProjectChangeLog({
         projectId: project.id,
         changedBy: userId || null,
-        changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+        changedByName: premiumCreatorName,
         changeType: 'created',
-        changeSummary: `Project "${project.name}" imported from Planner Premium (Dataverse)`,
+        changeSummary: `Project "${project.name}" created by ${premiumCreatorName} — imported from Planner Premium`,
         previousValues: null,
         newValues: JSON.stringify(project),
       });
@@ -12216,7 +12219,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             completionPercentage: projectTemplate.completionPercentage,
             isDemo: true,
           });
-          await storage.createProjectChangeLog({ projectId: project.id, changedBy: userId || null, changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'System' : 'System', changeType: 'created', changeSummary: `Project "${project.name}" created`, previousValues: null, newValues: null });
+          const demoCreatorName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'System' : 'System';
+          await storage.createProjectChangeLog({ projectId: project.id, changedBy: userId || null, changedByName: demoCreatorName, changeType: 'created', changeSummary: `Project "${project.name}" created by ${demoCreatorName} — generated as demo data`, previousValues: null, newValues: null });
           stats.projects++;
           
           const createdTaskIds: number[] = [];
@@ -13114,6 +13118,19 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         description,
         status,
         priority,
+      });
+      
+      const mppUser = userId ? await storage.getUser(userId) : null;
+      const mppUserName = mppUser ? `${mppUser.firstName || ''} ${mppUser.lastName || ''}`.trim() || mppUser.email || 'Unknown' : 'System';
+      const sourceFileName = mppImport.fileName || 'MS Project file';
+      await storage.createProjectChangeLog({
+        projectId: result.project.id,
+        changedBy: userId || null,
+        changedByName: mppUserName,
+        changeType: 'created',
+        changeSummary: `Project "${result.project.name}" created by ${mppUserName} — imported from ${sourceFileName}`,
+        previousValues: null,
+        newValues: null,
       });
       
       res.json({
@@ -14750,12 +14767,13 @@ Return ONLY valid JSON, no markdown or explanations.`;
       const project = await storage.createProject(projectData);
       
       const aiUser = userId ? await storage.getUser(userId) : null;
+      const aiCreatorName = aiUser ? `${aiUser.firstName || ''} ${aiUser.lastName || ''}`.trim() || aiUser.email || 'Unknown' : 'System';
       await storage.createProjectChangeLog({
         projectId: project.id,
         changedBy: userId || null,
-        changedByName: aiUser ? `${aiUser.firstName || ''} ${aiUser.lastName || ''}`.trim() || aiUser.email || 'Unknown' : 'System',
+        changedByName: aiCreatorName,
         changeType: 'created',
-        changeSummary: `Project "${project.name}" created via AI`,
+        changeSummary: `Project "${project.name}" created by ${aiCreatorName} — generated with AI`,
         previousValues: null,
         newValues: null,
       });
@@ -15069,7 +15087,8 @@ Return ONLY valid JSON.`;
           };
           const project = await storage.createProject(projectData);
           const projUser = userId ? await storage.getUser(userId) : null;
-          await storage.createProjectChangeLog({ projectId: project.id, changedBy: userId || null, changedByName: projUser ? `${projUser.firstName || ''} ${projUser.lastName || ''}`.trim() || projUser.email || 'Unknown' : 'System', changeType: 'created', changeSummary: `Project "${project.name}" created via AI`, previousValues: null, newValues: null });
+          const projCreatorName = projUser ? `${projUser.firstName || ''} ${projUser.lastName || ''}`.trim() || projUser.email || 'Unknown' : 'System';
+          await storage.createProjectChangeLog({ projectId: project.id, changedBy: userId || null, changedByName: projCreatorName, changeType: 'created', changeSummary: `Project "${project.name}" created by ${projCreatorName} — generated with AI`, previousValues: null, newValues: null });
           projectIndexToId[i] = project.id;
           createdProjects.push(project);
           if (i === 0) currentProjectId = project.id;
@@ -15094,7 +15113,8 @@ Return ONLY valid JSON.`;
         
         const project = await storage.createProject(projectData);
         const projUser = userId ? await storage.getUser(userId) : null;
-        await storage.createProjectChangeLog({ projectId: project.id, changedBy: userId || null, changedByName: projUser ? `${projUser.firstName || ''} ${projUser.lastName || ''}`.trim() || projUser.email || 'Unknown' : 'System', changeType: 'created', changeSummary: `Project "${project.name}" created via AI`, previousValues: null, newValues: null });
+        const projCreatorName = projUser ? `${projUser.firstName || ''} ${projUser.lastName || ''}`.trim() || projUser.email || 'Unknown' : 'System';
+        await storage.createProjectChangeLog({ projectId: project.id, changedBy: userId || null, changedByName: projCreatorName, changeType: 'created', changeSummary: `Project "${project.name}" created by ${projCreatorName} — generated with AI`, previousValues: null, newValues: null });
         currentProjectId = project.id;
         projectIndexToId[0] = project.id;
         results.created.project = project;
@@ -15533,6 +15553,7 @@ Return ONLY valid JSON.`;
       if (projectActions.length > 1) {
         const createdProjects = [];
         const actionUser = userId ? await storage.getUser(userId) : null;
+        const actionCreatorName = actionUser ? `${actionUser.firstName || ''} ${actionUser.lastName || ''}`.trim() || actionUser.email || 'Unknown' : 'System';
         for (let i = 0; i < projectActions.length; i++) {
           const proj = projectActions[i].details;
           const project = await storage.createProject({
@@ -15547,7 +15568,7 @@ Return ONLY valid JSON.`;
             startDate: today.toISOString().split('T')[0],
             source: "ai_generated",
           });
-          await storage.createProjectChangeLog({ projectId: project.id, changedBy: userId || null, changedByName: actionUser ? `${actionUser.firstName || ''} ${actionUser.lastName || ''}`.trim() || actionUser.email || 'Unknown' : 'System', changeType: 'created', changeSummary: `Project "${project.name}" created via AI`, previousValues: null, newValues: null });
+          await storage.createProjectChangeLog({ projectId: project.id, changedBy: userId || null, changedByName: actionCreatorName, changeType: 'created', changeSummary: `Project "${project.name}" created by ${actionCreatorName} — generated with AI`, previousValues: null, newValues: null });
           projectIndexToId[i] = project.id;
           createdProjects.push(project);
           if (i === 0) currentProjectId = project.id;
@@ -15569,7 +15590,8 @@ Return ONLY valid JSON.`;
           source: "ai_generated",
         });
         const actionUser = userId ? await storage.getUser(userId) : null;
-        await storage.createProjectChangeLog({ projectId: project.id, changedBy: userId || null, changedByName: actionUser ? `${actionUser.firstName || ''} ${actionUser.lastName || ''}`.trim() || actionUser.email || 'Unknown' : 'System', changeType: 'created', changeSummary: `Project "${project.name}" created via AI`, previousValues: null, newValues: null });
+        const actionCreatorName = actionUser ? `${actionUser.firstName || ''} ${actionUser.lastName || ''}`.trim() || actionUser.email || 'Unknown' : 'System';
+        await storage.createProjectChangeLog({ projectId: project.id, changedBy: userId || null, changedByName: actionCreatorName, changeType: 'created', changeSummary: `Project "${project.name}" created by ${actionCreatorName} — generated with AI`, previousValues: null, newValues: null });
         currentProjectId = project.id;
         projectIndexToId[0] = project.id;
         results.created.project = project;
