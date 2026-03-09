@@ -201,27 +201,34 @@ function OrganizationsTab() {
   const [searchQuery, setSearchQuery] = useState("");
   const [visibleColumns, setVisibleColumns] = useState<OrgColumnKey[]>(defaultOrgColumns);
   const [currentPage, setCurrentPage] = useState(1);
-  const [sortBy, setSortBy] = useState<string>("newest");
+  type OrgSortField = 'name' | 'slug' | 'description' | 'owner' | 'members' | 'plan' | 'credits' | 'created';
+  type OrgSortDirection = 'asc' | 'desc';
+  const [orgSortField, setOrgSortField] = useState<OrgSortField>('created');
+  const [orgSortDirection, setOrgSortDirection] = useState<OrgSortDirection>('desc');
   const [planFilter, setPlanFilter] = useState<string>("all");
   const pageSize = 15;
 
   const { data: organizations, isLoading } = useQuery<Organization[]>({
-    queryKey: ['/api/organizations']
+    queryKey: ['/api/organizations'],
+    staleTime: 0,
   });
 
   const { data: deactivatedOrgs, isLoading: deactivatedLoading } = useQuery<Organization[]>({
     queryKey: ['/api/admin/organizations/deactivated'],
     enabled: user?.role === 'super_admin',
+    staleTime: 0,
   });
 
   const { data: industries } = useQuery<IndustryOption[]>({
     queryKey: ['/api/demo-data/industries'],
     enabled: user?.role === 'super_admin',
+    staleTime: 0,
   });
 
   const { data: users } = useQuery<User[]>({
     queryKey: ['/api/users'],
     enabled: user?.role === 'super_admin',
+    staleTime: 0,
   });
 
   const { data: allOrgMembers } = useQuery<{ organizationId: number; userId: string }[]>({
@@ -232,6 +239,7 @@ function OrganizationsTab() {
       return res.json();
     },
     enabled: user?.role === 'super_admin',
+    staleTime: 0,
   });
 
   interface OrgSubscription {
@@ -243,6 +251,7 @@ function OrganizationsTab() {
 
   const { data: orgSubscriptions } = useQuery<OrgSubscription[]>({
     queryKey: ['/api/admin/organizations/subscriptions'],
+    staleTime: 0,
   });
 
   interface OrgCreditUsage { included: number; used: number; remaining: number; overage: number; }
@@ -253,6 +262,7 @@ function OrganizationsTab() {
       if (!res.ok) return {};
       return res.json();
     },
+    staleTime: 0,
   });
 
   const getOrgPlan = (orgId: number) => {
@@ -291,25 +301,46 @@ function OrganizationsTab() {
       }
     }
     const sorted = [...result];
-    switch (sortBy) {
-      case "newest":
-        sorted.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
-        break;
-      case "oldest":
-        sorted.sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
-        break;
-      case "name-asc":
-        sorted.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
-        break;
-      case "name-desc":
-        sorted.sort((a, b) => (b.name ?? '').localeCompare(a.name ?? ''));
-        break;
-      case "members":
-        sorted.sort((a, b) => getMemberCount(b.id) - getMemberCount(a.id));
-        break;
-    }
+    sorted.sort((a, b) => {
+      let comparison = 0;
+      switch (orgSortField) {
+        case 'name':
+          comparison = (a.name ?? '').localeCompare(b.name ?? '');
+          break;
+        case 'slug':
+          comparison = (a.slug ?? '').localeCompare(b.slug ?? '');
+          break;
+        case 'description':
+          comparison = (a.description ?? '').localeCompare(b.description ?? '');
+          break;
+        case 'owner':
+          comparison = getOwnerName(a.ownerId).localeCompare(getOwnerName(b.ownerId));
+          break;
+        case 'members':
+          comparison = getMemberCount(a.id) - getMemberCount(b.id);
+          break;
+        case 'plan': {
+          const pA = getOrgPlan(a.id);
+          const pB = getOrgPlan(b.id);
+          const planA = pA?.planName || pA?.planCode || '';
+          const planB = pB?.planName || pB?.planCode || '';
+          comparison = planA.localeCompare(planB);
+          break;
+        }
+        case 'credits': {
+          const credA = orgCreditUsage?.[a.id]?.used ?? 0;
+          const credB = orgCreditUsage?.[b.id]?.used ?? 0;
+          comparison = credA - credB;
+          break;
+        }
+        case 'created':
+          comparison = new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime();
+          break;
+      }
+      return orgSortDirection === 'asc' ? comparison : -comparison;
+    });
     return sorted;
-  }, [organizations, searchQuery, sortBy, users, allOrgMembers, planFilter, orgSubscriptions]);
+  }, [organizations, searchQuery, orgSortField, orgSortDirection, users, allOrgMembers, planFilter, orgSubscriptions, orgCreditUsage]);
 
   const totalPages = Math.max(1, Math.ceil((filteredOrganizations?.length ?? 0) / pageSize));
   const effectiveCurrentPage = Math.min(currentPage, totalPages);
@@ -322,6 +353,16 @@ function OrganizationsTab() {
     setVisibleColumns(prev => 
       prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
     );
+  };
+
+  const handleOrgSort = (field: OrgSortField) => {
+    if (orgSortField === field) {
+      setOrgSortDirection(orgSortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setOrgSortField(field);
+      setOrgSortDirection('asc');
+    }
+    setCurrentPage(1);
   };
 
   const columnLabels: Record<OrgColumnKey, string> = {
@@ -503,18 +544,6 @@ function OrganizationsTab() {
               data-testid="input-org-search"
             />
           </div>
-          <Select value={sortBy} onValueChange={(v) => { setSortBy(v); setCurrentPage(1); }}>
-            <SelectTrigger className="w-[160px]" data-testid="select-sort-by">
-              <SelectValue placeholder="Sort by..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="newest">Newest First</SelectItem>
-              <SelectItem value="oldest">Oldest First</SelectItem>
-              <SelectItem value="name-asc">Name A-Z</SelectItem>
-              <SelectItem value="name-desc">Name Z-A</SelectItem>
-              <SelectItem value="members">Most Members</SelectItem>
-            </SelectContent>
-          </Select>
           <Select value={planFilter} onValueChange={(v) => { setPlanFilter(v); setCurrentPage(1); }}>
             <SelectTrigger className="w-[140px]" data-testid="select-plan-filter">
               <SelectValue placeholder="Plan..." />
@@ -586,14 +615,70 @@ function OrganizationsTab() {
         <Table>
           <TableHeader>
             <TableRow>
-              {visibleColumns.includes('name') && <TableHead>Name</TableHead>}
-              {visibleColumns.includes('slug') && <TableHead>Slug</TableHead>}
-              {visibleColumns.includes('description') && <TableHead>Description</TableHead>}
-              {visibleColumns.includes('owner') && <TableHead>Owner</TableHead>}
-              {visibleColumns.includes('members') && <TableHead>Members</TableHead>}
-              {visibleColumns.includes('plan') && <TableHead>Plan</TableHead>}
-              {visibleColumns.includes('credits') && <TableHead>Credits (Used / Included)</TableHead>}
-              {visibleColumns.includes('created') && <TableHead>Created</TableHead>}
+              {visibleColumns.includes('name') && (
+                <TableHead className="cursor-pointer select-none hover:bg-muted/50" onClick={() => handleOrgSort('name')}>
+                  <div className="flex items-center gap-1">
+                    Name
+                    {orgSortField === 'name' && (orgSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                  </div>
+                </TableHead>
+              )}
+              {visibleColumns.includes('slug') && (
+                <TableHead className="cursor-pointer select-none hover:bg-muted/50" onClick={() => handleOrgSort('slug')}>
+                  <div className="flex items-center gap-1">
+                    Slug
+                    {orgSortField === 'slug' && (orgSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                  </div>
+                </TableHead>
+              )}
+              {visibleColumns.includes('description') && (
+                <TableHead className="cursor-pointer select-none hover:bg-muted/50" onClick={() => handleOrgSort('description')}>
+                  <div className="flex items-center gap-1">
+                    Description
+                    {orgSortField === 'description' && (orgSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                  </div>
+                </TableHead>
+              )}
+              {visibleColumns.includes('owner') && (
+                <TableHead className="cursor-pointer select-none hover:bg-muted/50" onClick={() => handleOrgSort('owner')}>
+                  <div className="flex items-center gap-1">
+                    Owner
+                    {orgSortField === 'owner' && (orgSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                  </div>
+                </TableHead>
+              )}
+              {visibleColumns.includes('members') && (
+                <TableHead className="cursor-pointer select-none hover:bg-muted/50" onClick={() => handleOrgSort('members')}>
+                  <div className="flex items-center gap-1">
+                    Members
+                    {orgSortField === 'members' && (orgSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                  </div>
+                </TableHead>
+              )}
+              {visibleColumns.includes('plan') && (
+                <TableHead className="cursor-pointer select-none hover:bg-muted/50" onClick={() => handleOrgSort('plan')}>
+                  <div className="flex items-center gap-1">
+                    Plan
+                    {orgSortField === 'plan' && (orgSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                  </div>
+                </TableHead>
+              )}
+              {visibleColumns.includes('credits') && (
+                <TableHead className="cursor-pointer select-none hover:bg-muted/50" onClick={() => handleOrgSort('credits')}>
+                  <div className="flex items-center gap-1">
+                    Credits (Used / Included)
+                    {orgSortField === 'credits' && (orgSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                  </div>
+                </TableHead>
+              )}
+              {visibleColumns.includes('created') && (
+                <TableHead className="cursor-pointer select-none hover:bg-muted/50" onClick={() => handleOrgSort('created')}>
+                  <div className="flex items-center gap-1">
+                    Created
+                    {orgSortField === 'created' && (orgSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                  </div>
+                </TableHead>
+              )}
               <TableHead className="w-[120px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -1403,11 +1488,13 @@ function AllUsersTab() {
   const pageSize = 15;
   
   const { data: users, isLoading } = useQuery<User[]>({
-    queryKey: ['/api/users']
+    queryKey: ['/api/users'],
+    staleTime: 0,
   });
 
   const { data: allOrganizations } = useQuery<Organization[]>({
-    queryKey: ['/api/organizations']
+    queryKey: ['/api/organizations'],
+    staleTime: 0,
   });
 
   const { data: allOrgMembers } = useQuery<{ organizationId: number; userId: string }[]>({
@@ -1417,11 +1504,13 @@ function AllUsersTab() {
       if (!res.ok) return [];
       return res.json();
     },
+    staleTime: 0,
   });
 
   interface OrgSub { orgId: number; planName: string | null; planCode: string | null; status: string; }
   const { data: orgSubscriptions } = useQuery<OrgSub[]>({
     queryKey: ['/api/admin/organizations/subscriptions'],
+    staleTime: 0,
   });
 
   interface UserActivity { totalActions: number; activeDays: number; lastActiveAt: string | null; usageEvents: number; }
@@ -1432,6 +1521,7 @@ function AllUsersTab() {
       if (!res.ok) return {};
       return res.json();
     },
+    staleTime: 0,
   });
 
   const getUserOrgs = (userId: string) => {
@@ -1518,6 +1608,7 @@ function AllUsersTab() {
       return res.json();
     },
     enabled: !!editingUser?.id,
+    staleTime: 0,
   });
 
   const updateUserRole = useMutation({
@@ -2686,6 +2777,7 @@ function PlansTab() {
   const plansUrl = isSuperAdmin ? '/api/billing/plans?includeInactive=true' : '/api/billing/plans';
   const { data: plansResponse, isLoading } = useQuery<{ plans: PlanData[]; creditCosts: any[] }>({
     queryKey: [plansUrl],
+    staleTime: 0,
   });
   const plans = plansResponse?.plans;
 
@@ -3533,6 +3625,7 @@ function OrgMembersEditor({ orgId, allUsers }: { orgId: number; allUsers: User[]
       if (!res.ok) return [];
       return res.json();
     },
+    staleTime: 0,
   });
 
   const addMember = useMutation({
@@ -3690,7 +3783,8 @@ function CreditCostsTab() {
   const [newCreditCost, setNewCreditCost] = useState<number>(0);
 
   const { data: creditCosts, isLoading } = useQuery<CreditCost[]>({
-    queryKey: ['/api/admin/credit-costs']
+    queryKey: ['/api/admin/credit-costs'],
+    staleTime: 0,
   });
 
   const updateCost = useMutation({
@@ -3867,10 +3961,12 @@ function ConsentsTab() {
 
   const { data: consents, isLoading: consentsLoading } = useQuery<ConsentRecord[]>({
     queryKey: ["/api/admin/consents"],
+    staleTime: 0,
   });
 
   const { data: stats, isLoading: statsLoading } = useQuery<ConsentStats>({
     queryKey: ["/api/admin/consents/stats"],
+    staleTime: 0,
   });
 
   if (consentsLoading || statsLoading) {
@@ -4200,31 +4296,37 @@ function MonitoringTab() {
       if (!r.ok) throw new Error(`Failed to fetch overview: ${r.status}`);
       return r.json();
     },
+    staleTime: 0,
   });
 
   const { data: userActivity, isLoading: activityLoading, refetch: refetchActivity } = useQuery<UserActivity>({
     queryKey: ['/api/admin/monitoring/user-activity'],
     enabled: subTab === 'users',
+    staleTime: 0,
   });
 
   const { data: featureUsage, isLoading: featuresLoading, refetch: refetchFeatures } = useQuery<FeatureUsage>({
     queryKey: ['/api/admin/monitoring/feature-usage'],
     enabled: subTab === 'features',
+    staleTime: 0,
   });
 
   const { data: performance, isLoading: perfLoading, refetch: refetchPerf } = useQuery<PerformanceMetrics>({
     queryKey: ['/api/admin/monitoring/performance'],
     enabled: subTab === 'performance',
+    staleTime: 0,
   });
 
   const { data: databaseStats, isLoading: dbLoading, refetch: refetchDb } = useQuery<DatabaseStats>({
     queryKey: ['/api/admin/monitoring/database'],
     enabled: subTab === 'database',
+    staleTime: 0,
   });
 
   const { data: orgUsage, isLoading: orgLoading, refetch: refetchOrg } = useQuery<OrgUsage>({
     queryKey: ['/api/admin/monitoring/organization-usage'],
     enabled: subTab === 'organizations',
+    staleTime: 0,
   });
 
   const ledgerQueryString = new URLSearchParams({
@@ -4247,6 +4349,7 @@ function MonitoringTab() {
       return res.json();
     },
     enabled: subTab === 'users',
+    staleTime: 0,
   });
 
   const handleRefresh = () => {
@@ -6049,6 +6152,7 @@ function HelpTicketsTab() {
 
   const { data: tickets = [], isLoading } = useQuery<HelpTicket[]>({
     queryKey: ["/api/admin/help-tickets"],
+    staleTime: 0,
   });
 
   const updateTicketMutation = useMutation({
@@ -6470,6 +6574,7 @@ function AnalyticsTab() {
 
   const { data: analytics, isLoading, refetch } = useQuery<AnalyticsDashboard>({
     queryKey: ['/api/admin/analytics/dashboard'],
+    staleTime: 0,
   });
 
   const handleRefresh = () => {

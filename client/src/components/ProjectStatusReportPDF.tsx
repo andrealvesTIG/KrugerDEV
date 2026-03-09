@@ -478,6 +478,8 @@ export function ProjectStatusReportPDF({
   const inProgress = leafTasks.filter((t) => t.status === "In Progress").length;
   const notStarted = leafTasks.filter((t) => t.status === "Not Started" || (!t.status && t.progress === 0)).length;
   const totalTasks = leafTasks.length || 1;
+  const totalProgress = tasks.reduce((sum, t) => sum + (t.progress || 0), 0);
+  const overallCompletion = tasks.length > 0 ? Math.round(totalProgress / tasks.length) : 0;
 
   const budget = financials.reduce((sum, f) => sum + parseFloat(f.budgetAmount || "0"), 0);
   const actual = financials.reduce((sum, f) => sum + parseFloat(f.actualAmount || "0"), 0);
@@ -487,10 +489,12 @@ export function ProjectStatusReportPDF({
   const forecast = planned > 0 ? planned : totalBudget;
   const variance = totalBudget - actual;
 
-  const openRisks = risks.filter((r) => r.status === "Open" && !r.deletedAt);
+  const riskClosedStatuses = ["Closed", "Mitigated", "Accepted"];
+  const issueClosedStatuses = ["Closed", "Resolved"];
+  const openRisks = risks.filter((r) => !riskClosedStatuses.includes(r.status || "") && !r.deletedAt);
   const riskHigh = openRisks.filter((r) => r.impact === "High" || r.probability === "High").length;
   
-  const openIssues = issues.filter((i) => (i.status === "Open" || i.status === "In Progress") && !i.deletedAt);
+  const openIssues = issues.filter((i) => !issueClosedStatuses.includes(i.status || "") && !i.deletedAt);
   const issueCritical = openIssues.filter((i) => i.priority === "Critical" || i.priority === "High").length;
 
   const topRisksAndIssues = [
@@ -498,10 +502,10 @@ export function ProjectStatusReportPDF({
     ...openIssues.slice(0, 2).map((i) => ({ type: "issue" as const, title: i.title, priority: i.priority })),
   ].slice(0, 5);
 
-  const majorMilestones = milestones
+  const allMilestones = milestones
     .filter((m) => !m.deletedAt)
-    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-    .slice(0, 6);
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  const majorMilestones = allMilestones.slice(0, 8);
 
   const getMilestoneStatus = (milestone: Milestone) => {
     if (milestone.completed || milestone.status === "Done") return "Complete";
@@ -539,7 +543,7 @@ export function ProjectStatusReportPDF({
       end,
       progressPercent,
       daysRemaining,
-      completionPercent: project.completionPercentage || 0,
+      completionPercent: overallCompletion,
     };
   }
 
@@ -729,26 +733,33 @@ export function ProjectStatusReportPDF({
             {majorMilestones.length === 0 ? (
               <Text style={styles.text}>No milestones defined</Text>
             ) : (
-              majorMilestones.map((milestone) => {
-                const status = getMilestoneStatus(milestone);
-                return (
-                  <View key={milestone.id} style={styles.milestoneRow}>
-                    <Text style={styles.milestoneTitle}>{milestone.title}</Text>
-                    <Text style={styles.milestoneDate}>
-                      {format(new Date(milestone.dueDate), "MMM d, yyyy")}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.milestoneStatus,
-                        status === "Complete" ? styles.statusComplete :
-                        status === "At Risk" ? styles.statusAtRisk : styles.statusOnTrack,
-                      ]}
-                    >
-                      {status}
-                    </Text>
-                  </View>
-                );
-              })
+              <>
+                {majorMilestones.map((milestone) => {
+                  const status = getMilestoneStatus(milestone);
+                  return (
+                    <View key={milestone.id} style={styles.milestoneRow}>
+                      <Text style={styles.milestoneTitle}>{milestone.title}</Text>
+                      <Text style={styles.milestoneDate}>
+                        {format(new Date(milestone.dueDate), "MMM d, yyyy")}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.milestoneStatus,
+                          status === "Complete" ? styles.statusComplete :
+                          status === "At Risk" ? styles.statusAtRisk : styles.statusOnTrack,
+                        ]}
+                      >
+                        {status}
+                      </Text>
+                    </View>
+                  );
+                })}
+                {allMilestones.length > majorMilestones.length && (
+                  <Text style={{ fontSize: 8, color: "#9ca3af", marginTop: 4 }}>
+                    + {allMilestones.length - majorMilestones.length} more milestone{allMilestones.length - majorMilestones.length !== 1 ? "s" : ""}
+                  </Text>
+                )}
+              </>
             )}
           </View>
 
@@ -830,7 +841,7 @@ export function ProjectStatusReportPDF({
             <Text style={styles.statLabel}>Total Tasks</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={[styles.statValue, styles.statValueGreen]}>{Math.round(safePercent(completed, totalTasks))}%</Text>
+            <Text style={[styles.statValue, styles.statValueGreen]}>{overallCompletion}%</Text>
             <Text style={styles.statLabel}>Complete</Text>
           </View>
           <View style={styles.statBox}>
@@ -838,8 +849,12 @@ export function ProjectStatusReportPDF({
             <Text style={styles.statLabel}>Milestones</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={[styles.statValue, styles.statValueOrange]}>{openRisks.length + openIssues.length}</Text>
-            <Text style={styles.statLabel}>Open Items</Text>
+            <Text style={[styles.statValue, styles.statValueOrange]}>{openRisks.length}</Text>
+            <Text style={styles.statLabel}>Open Risks</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={[styles.statValue, { color: "#ef4444" }]}>{openIssues.length}</Text>
+            <Text style={styles.statLabel}>Open Issues</Text>
           </View>
         </View>
 

@@ -39,7 +39,8 @@ import { cn } from "@/lib/utils";
 import {
   Loader2, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X,
   LayoutGrid, History, MoreVertical, CheckSquare, Clock, DollarSign, ClipboardList,
-  FolderOpen, Download, Upload, Eye, Share2, Mail, ArrowUpToLine, CloudDownload, RefreshCw, MessageCircle, Search, Link as LinkIcon
+  FolderOpen, Download, Upload, Eye, Share2, Mail, ArrowUpToLine, CloudDownload, RefreshCw, MessageCircle, Search, Link as LinkIcon,
+  ChevronDown, ChevronUp
 } from "lucide-react";
 
 const issuePriorityColors = {
@@ -72,6 +73,7 @@ export function IssuesTab({ projectId, projectName, portfolioId, urlIssueId, rea
   const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
   const [deleteIssueData, setDeleteIssueData] = useState<Issue | null>(null);
   const [historyIssueId, setHistoryIssueId] = useState<number | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [escalateToPortfolio, setEscalateToPortfolio] = useState(false);
   const createIssue = useCreateIssue();
@@ -79,6 +81,7 @@ export function IssuesTab({ projectId, projectName, portfolioId, urlIssueId, rea
   const deleteIssue = useDeleteIssue();
   const updateIssueResources = useUpdateIssueResourceAssignments();
   const { data: issueAssignments } = useIssueResourceAssignments(editingIssue?.id ?? null);
+  const { data: issueHistory, isLoading: historyLoading } = useIssueHistory(editingIssue?.id || 0);
   const { toast } = useToast();
   
   useEffect(() => {
@@ -106,6 +109,7 @@ export function IssuesTab({ projectId, projectName, portfolioId, urlIssueId, rea
 
   const openEditDialog = (issue: Issue) => {
     setEditingIssue(issue);
+    setShowHistory(false);
     setEscalateToPortfolio(issue.escalatedToPortfolio || false);
     form.reset({
       projectId: issue.projectId,
@@ -137,6 +141,7 @@ export function IssuesTab({ projectId, projectName, portfolioId, urlIssueId, rea
 
   const openCreateDialog = () => {
     setEditingIssue(null);
+    setShowHistory(false);
     setSelectedResourceIds([]);
     setEscalateToPortfolio(false);
     form.reset({
@@ -197,12 +202,13 @@ export function IssuesTab({ projectId, projectName, portfolioId, urlIssueId, rea
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingIssue(null); }}>
           <DialogTrigger asChild><Button size="sm" onClick={openCreateDialog} disabled={readOnly} data-testid="button-add-issue"><Plus className="mr-2 h-4 w-4" /> Add Issue</Button></DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col overflow-hidden">
             <DialogHeader>
               <DialogTitle>{editingIssue ? "Edit Issue" : "Add New Issue"}</DialogTitle>
               <DialogDescription>{editingIssue ? "Modify the issue details below." : "Create a new bug, task, or enhancement."}</DialogDescription>
             </DialogHeader>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
+              <div className="space-y-4 pt-4 flex-1 overflow-y-auto px-1">
               <div className="space-y-2">
                 <Label>Title</Label>
                 <Input {...form.register("title")} data-testid="input-issue-title" />
@@ -237,29 +243,29 @@ export function IssuesTab({ projectId, projectName, portfolioId, urlIssueId, rea
                   )} />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Status</Label>
-                 <Controller control={form.control} name="status" render={({field}) => (
-                  <Select onValueChange={field.onChange} value={field.value || "Open"}>
-                     <SelectTrigger data-testid="select-issue-status"><SelectValue /></SelectTrigger>
-                     <SelectContent>
-                       <SelectItem value="Open">Open</SelectItem>
-                       <SelectItem value="In Progress">In Progress</SelectItem>
-                       <SelectItem value="Resolved">Resolved</SelectItem>
-                       <SelectItem value="Closed">Closed</SelectItem>
-                     </SelectContent>
-                  </Select>
-                )} />
-              </div>
               <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                   <Controller control={form.control} name="status" render={({field}) => (
+                    <Select onValueChange={field.onChange} value={field.value || "Open"}>
+                       <SelectTrigger data-testid="select-issue-status"><SelectValue /></SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="Open">Open</SelectItem>
+                         <SelectItem value="In Progress">In Progress</SelectItem>
+                         <SelectItem value="Resolved">Resolved</SelectItem>
+                         <SelectItem value="Closed">Closed</SelectItem>
+                       </SelectContent>
+                    </Select>
+                  )} />
+                </div>
                 <div className="space-y-2">
                   <Label>Due Date</Label>
                   <Input type="date" {...form.register("dueDate")} data-testid="input-issue-due-date" />
                 </div>
-                <div className="space-y-2">
-                  <Label>Cost Exposure ($)</Label>
-                  <Input type="number" min="0" step="0.01" {...form.register("impactCost")} data-testid="input-issue-cost-exposure" placeholder="$ amount" />
-                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Cost Exposure ($)</Label>
+                <Input type="number" min="0" step="0.01" {...form.register("impactCost")} data-testid="input-issue-cost-exposure" placeholder="$ amount" />
               </div>
               <div className="space-y-2">
                 <Label>Description</Label>
@@ -297,29 +303,75 @@ export function IssuesTab({ projectId, projectName, portfolioId, urlIssueId, rea
                   Escalated on {format(new Date(editingIssue.escalatedAt), 'MMM d, yyyy')}
                 </p>
               )}
-              
-              <DialogFooter className="gap-2">
-                {editingIssue && (
+
+              {editingIssue && (
+                <div className="border-t pt-4">
                   <Button 
                     type="button" 
-                    variant="destructive" 
-                    onClick={() => {
-                      deleteIssue.mutate({ id: editingIssue.id, projectId }, {
-                        onSuccess: () => {
-                          toast({ title: "Deleted", description: "Issue deleted" });
-                          setIsDialogOpen(false);
-                          setEditingIssue(null);
-                        }
-                      });
-                    }}
+                    variant="ghost" 
+                    className="w-full justify-between px-0 hover:bg-transparent"
+                    onClick={() => setShowHistory(!showHistory)}
+                    data-testid="button-toggle-history"
                   >
-                    Delete
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <History className="h-4 w-4" />
+                      Change History
+                    </span>
+                    {showHistory ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </Button>
-                )}
-                <Button type="submit" data-testid="button-save-issue" disabled={createIssue.isPending || updateIssue.isPending}>
-                  {(createIssue.isPending || updateIssue.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editingIssue ? "Update Issue" : "Save Issue"}
-                </Button>
+                  {showHistory && (
+                    <div className="mt-3 max-h-48 overflow-y-auto space-y-2">
+                      {historyLoading ? (
+                        <div className="flex items-center justify-center py-4">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        </div>
+                      ) : issueHistory && issueHistory.length > 0 ? (
+                        issueHistory.map((log) => (
+                          <div key={log.id} className="text-xs border-l-2 border-muted pl-3 py-1">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <span className="font-medium text-foreground">{log.changedByName || 'System'}</span>
+                              <span>•</span>
+                              <span>{new Date(log.changedAt!).toLocaleDateString()} {new Date(log.changedAt!).toLocaleTimeString()}</span>
+                            </div>
+                            <div className="mt-1">{log.changeSummary}</div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground py-2">No change history available</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              </div>
+
+              <DialogFooter className="flex justify-between gap-2 pt-4 border-t mt-4 shrink-0">
+                <div>
+                  {editingIssue && (
+                    <Button 
+                      type="button" 
+                      variant="destructive" 
+                      onClick={() => {
+                        deleteIssue.mutate({ id: editingIssue.id, projectId }, {
+                          onSuccess: () => {
+                            toast({ title: "Deleted", description: "Issue deleted" });
+                            setIsDialogOpen(false);
+                            setEditingIssue(null);
+                          }
+                        });
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={() => { setIsDialogOpen(false); setEditingIssue(null); }}>Cancel</Button>
+                  <Button type="submit" data-testid="button-save-issue" disabled={createIssue.isPending || updateIssue.isPending}>
+                    {(createIssue.isPending || updateIssue.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {editingIssue ? "Update Issue" : "Save Issue"}
+                  </Button>
+                </div>
               </DialogFooter>
             </form>
           </DialogContent>

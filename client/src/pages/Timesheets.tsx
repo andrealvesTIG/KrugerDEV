@@ -155,9 +155,10 @@ interface TaskRowProps {
   isDateInClosedPeriod: (date: Date) => boolean;
   getClosedPeriodName: (date: Date) => string | null;
   taskColumnWidth?: number;
+  timesheetLocked?: boolean;
 }
 
-function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, clearRow, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName, taskColumnWidth = 360 }: TaskRowProps) {
+function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, clearRow, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName, taskColumnWidth = 360, timesheetLocked = false }: TaskRowProps) {
   const rowTotal = getRowTotal(task.id);
   const isRowOvertime = rowTotal > 40;
   
@@ -168,11 +169,20 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
       animate={{ opacity: 1, height: "auto" }}
       exit={{ opacity: 0, height: 0 }}
       transition={{ duration: 0.2, delay: index * 0.02 }}
-      className="border-t border-border/50 hover:bg-muted/20 transition-colors group"
+      className={`border-t border-border/50 hover:bg-muted/20 transition-colors group ${timesheetLocked ? "opacity-75" : ""}`}
     >
       <td className={`px-3 py-1.5 ${indented ? 'pl-10' : ''} align-middle`} style={{ width: taskColumnWidth, minWidth: taskColumnWidth, maxWidth: taskColumnWidth }}>
         <div className="flex items-center gap-2 w-full overflow-hidden">
-          <ListTodo className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          {timesheetLocked ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Lock className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+              </TooltipTrigger>
+              <TooltipContent side="top">Timesheet locked for this {task.timesheetBlocked ? "task" : "project"}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <ListTodo className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          )}
           <div className="flex flex-col min-w-0 flex-1">
             <span className="text-foreground text-sm leading-tight break-all line-clamp-1">{task.name}</span>
             {!indented && (
@@ -187,7 +197,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
         const status = entry?.status;
         const isPeriodClosed = isDateInClosedPeriod(date);
         const closedPeriodName = isPeriodClosed ? getClosedPeriodName(date) : null;
-        const isEditable = (!status || status === "Draft" || status === "Rejected") && !isPeriodClosed;
+        const isEditable = (!status || status === "Draft" || status === "Rejected") && !isPeriodClosed && !timesheetLocked;
         const hasNote = !!(gridData[task.id]?.[dateKey]?.notes);
         const isTodayDate = isToday(date);
         const isWeekendDay = isWeekend(date);
@@ -316,7 +326,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
 
 interface TimesheetGridProps {
   dates: Date[];
-  assignedTasks: { task: Task; project: Project }[];
+  assignedTasks: { task: Task; project: Project; timesheetLocked?: boolean }[];
   entries: TimesheetEntryWithDetails[];
   onSave: (data: Record<string, Record<string, { hours: number; notes: string; id?: number }>>) => void;
   isSaving: boolean;
@@ -704,7 +714,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   };
 
   const groupedTasks = useMemo(() => {
-    const groups: Record<number, { project: Project; tasks: { task: Task; project: Project }[] }> = {};
+    const groups: Record<number, { project: Project; tasks: { task: Task; project: Project; timesheetLocked?: boolean }[] }> = {};
     for (const item of assignedTasks) {
       if (!groups[item.project.id]) {
         groups[item.project.id] = { project: item.project, tasks: [] };
@@ -924,7 +934,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                     </motion.tr>
                     
                     <AnimatePresence>
-                      {!isCollapsed && group.tasks.map(({ task, project }) => {
+                      {!isCollapsed && group.tasks.map(({ task, project, timesheetLocked }) => {
                         const flatIndex = taskIndexMap.get(task.id) ?? 0;
                         return (
                           <TaskRow
@@ -947,6 +957,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                             isDateInClosedPeriod={isDateInClosedPeriod}
                             getClosedPeriodName={getClosedPeriodName}
                             taskColumnWidth={taskColumnWidth}
+                            timesheetLocked={timesheetLocked}
                           />
                         );
                       })}
@@ -955,7 +966,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                 );
               })
             ) : (
-              assignedTasks.map(({ task, project }, index) => (
+              assignedTasks.map(({ task, project, timesheetLocked }, index) => (
                 <TaskRow
                   key={task.id}
                   task={task}
@@ -975,6 +986,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                   isDateInClosedPeriod={isDateInClosedPeriod}
                   getClosedPeriodName={getClosedPeriodName}
                   taskColumnWidth={taskColumnWidth}
+                  timesheetLocked={timesheetLocked}
                 />
               ))
             )}
@@ -2350,6 +2362,333 @@ function MyReportTab() {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function TimesheetHistoryTab({ userId, organizationId }: { userId: string | undefined; organizationId: number | null }) {
+  const [historyRange, setHistoryRange] = useState<"4weeks" | "3months" | "6months" | "12months">("3months");
+  const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const { startDate: histStartDate, endDate: histEndDate } = useMemo(() => {
+    const now = new Date();
+    const end = formatDateKey(now);
+    let start: string;
+    switch (historyRange) {
+      case "4weeks":
+        start = formatDateKey(addDays(now, -28));
+        break;
+      case "3months":
+        start = formatDateKey(subMonths(now, 3));
+        break;
+      case "6months":
+        start = formatDateKey(subMonths(now, 6));
+        break;
+      case "12months":
+        start = formatDateKey(subMonths(now, 12));
+        break;
+    }
+    return { startDate: start, endDate: end };
+  }, [historyRange]);
+
+  const { data: historyEntries = [], isLoading, isError } = useTimesheetEntries(userId, organizationId, histStartDate, histEndDate);
+
+  const filteredEntries = useMemo(() => {
+    if (statusFilter === "all") return historyEntries;
+    return historyEntries.filter(e => (e.status || "Draft") === statusFilter);
+  }, [historyEntries, statusFilter]);
+
+  const weeklyGroups = useMemo(() => {
+    const groups: Record<string, { weekStart: Date; weekEnd: Date; entries: TimesheetEntryWithDetails[]; totalHours: number; statusCounts: Record<string, number> }> = {};
+
+    for (const entry of filteredEntries) {
+      const entryDate = parseISO(entry.entryDate);
+      const weekStart = startOfWeek(entryDate, { weekStartsOn: 1 });
+      const weekEnd = addDays(weekStart, 6);
+      const weekKey = formatDateKey(weekStart);
+
+      if (!groups[weekKey]) {
+        groups[weekKey] = { weekStart, weekEnd, entries: [], totalHours: 0, statusCounts: {} };
+      }
+      groups[weekKey].entries.push(entry);
+      groups[weekKey].totalHours += Number(entry.hours || 0);
+      const status = entry.status || "Draft";
+      groups[weekKey].statusCounts[status] = (groups[weekKey].statusCounts[status] || 0) + 1;
+    }
+
+    return Object.entries(groups)
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([key, group]) => ({ weekKey: key, ...group }));
+  }, [filteredEntries]);
+
+  const totalHours = filteredEntries.reduce((sum, e) => sum + Number(e.hours || 0), 0);
+  const statusSummary = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const e of filteredEntries) {
+      const s = e.status || "Draft";
+      counts[s] = (counts[s] || 0) + 1;
+    }
+    return counts;
+  }, [filteredEntries]);
+
+  const toggleWeek = (weekKey: string) => {
+    setExpandedWeeks(prev => {
+      const next = new Set(prev);
+      if (next.has(weekKey)) next.delete(weekKey);
+      else next.add(weekKey);
+      return next;
+    });
+  };
+
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case "Approved": return "default";
+      case "Submitted": return "secondary";
+      case "Rejected": return "destructive";
+      default: return "outline";
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "Approved": return "text-green-600 bg-green-50 border-green-200";
+      case "Submitted": return "text-blue-600 bg-blue-50 border-blue-200";
+      case "Rejected": return "text-red-600 bg-red-50 border-red-200";
+      default: return "text-gray-600 bg-gray-50 border-gray-200";
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-8">
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
+            <span className="text-muted-foreground">Loading timesheet history...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-8">
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+            <h3 className="text-lg font-medium text-foreground mb-2">Failed to Load History</h3>
+            <p className="text-muted-foreground max-w-md">
+              Unable to load timesheet history. Please try again later.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Period:</span>
+                <Select value={historyRange} onValueChange={(v: "4weeks" | "3months" | "6months" | "12months") => setHistoryRange(v)}>
+                  <SelectTrigger className="w-[140px] h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="4weeks">Last 4 weeks</SelectItem>
+                    <SelectItem value="3months">Last 3 months</SelectItem>
+                    <SelectItem value="6months">Last 6 months</SelectItem>
+                    <SelectItem value="12months">Last 12 months</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Status:</span>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[120px] h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="Draft">Draft</SelectItem>
+                    <SelectItem value="Submitted">Submitted</SelectItem>
+                    <SelectItem value="Approved">Approved</SelectItem>
+                    <SelectItem value="Rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-1.5">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">{totalHours.toFixed(1)}h</span>
+                <span className="text-muted-foreground">total</span>
+              </div>
+              <div className="text-muted-foreground">
+                {filteredEntries.length} entries · {weeklyGroups.length} weeks
+              </div>
+            </div>
+          </div>
+          {Object.keys(statusSummary).length > 0 && (
+            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
+              {Object.entries(statusSummary).sort(([a], [b]) => a.localeCompare(b)).map(([status, count]) => (
+                <Badge key={status} variant={getStatusBadgeVariant(status)} className="text-xs">
+                  {status}: {count}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {weeklyGroups.length === 0 ? (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-8">
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <History className="h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">No History Found</h3>
+              <p className="text-muted-foreground max-w-md">
+                No timesheet entries found for the selected period and filters.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {weeklyGroups.map(({ weekKey, weekStart, weekEnd, entries: weekEntries, totalHours: weekTotal, statusCounts }) => {
+            const isExpanded = expandedWeeks.has(weekKey);
+            const projectGroups: Record<string, { project: Project | undefined; entries: TimesheetEntryWithDetails[]; hours: number }> = {};
+            for (const e of weekEntries) {
+              const pKey = String(e.projectId);
+              if (!projectGroups[pKey]) {
+                projectGroups[pKey] = { project: e.project, entries: [], hours: 0 };
+              }
+              projectGroups[pKey].entries.push(e);
+              projectGroups[pKey].hours += Number(e.hours || 0);
+            }
+
+            const allApproved = weekEntries.every(e => e.status === "Approved");
+            const hasRejected = weekEntries.some(e => e.status === "Rejected");
+            const allDraft = weekEntries.every(e => (e.status || "Draft") === "Draft");
+            const weekStatusLabel = allApproved ? "Approved" : hasRejected ? "Has Rejections" : allDraft ? "Draft" : "Mixed";
+            const weekStatusClass = allApproved ? "text-green-600" : hasRejected ? "text-red-600" : allDraft ? "text-gray-500" : "text-blue-600";
+
+            return (
+              <Card key={weekKey} className="border-0 shadow-sm">
+                <button
+                  onClick={() => toggleWeek(weekKey)}
+                  className="w-full text-left"
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                        <div>
+                          <div className="font-medium text-sm">
+                            {format(weekStart, "MMM d")} – {format(weekEnd, "MMM d, yyyy")}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {weekEntries.length} entries · {Object.keys(projectGroups).length} project{Object.keys(projectGroups).length !== 1 ? "s" : ""}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className={`text-xs font-medium ${weekStatusClass}`}>{weekStatusLabel}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-semibold">{weekTotal.toFixed(1)}h</span>
+                        </div>
+                      </div>
+                    </div>
+                    {isExpanded && (
+                      <div className="flex items-center gap-1.5 mt-2">
+                        {Object.entries(statusCounts).map(([status, count]) => (
+                          <span key={status} className={`text-[11px] px-1.5 py-0.5 rounded border ${getStatusColor(status)}`}>
+                            {status}: {count}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </button>
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-4 pb-4 border-t border-border">
+                        <table className="w-full text-sm mt-3">
+                          <thead>
+                            <tr className="text-xs text-muted-foreground border-b border-border">
+                              <th className="text-left pb-2 font-medium">Date</th>
+                              <th className="text-left pb-2 font-medium">Project</th>
+                              <th className="text-left pb-2 font-medium">Task</th>
+                              <th className="text-right pb-2 font-medium">Hours</th>
+                              <th className="text-left pb-2 font-medium pl-4">Status</th>
+                              <th className="text-left pb-2 font-medium">Notes</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {weekEntries
+                              .sort((a, b) => a.entryDate.localeCompare(b.entryDate))
+                              .map((entry) => (
+                                <tr key={entry.id} className="border-b border-border/50 last:border-0">
+                                  <td className="py-2 text-xs whitespace-nowrap">
+                                    {format(parseISO(entry.entryDate), "EEE, MMM d")}
+                                  </td>
+                                  <td className="py-2 text-xs">
+                                    <span className="text-foreground">{entry.project?.name || "—"}</span>
+                                  </td>
+                                  <td className="py-2 text-xs max-w-[200px] truncate">
+                                    {entry.task?.name || "—"}
+                                  </td>
+                                  <td className="py-2 text-xs text-right font-medium tabular-nums">
+                                    {Number(entry.hours).toFixed(1)}
+                                  </td>
+                                  <td className="py-2 pl-4">
+                                    <Badge variant={getStatusBadgeVariant(entry.status || "Draft")} className="text-[11px] px-1.5 py-0">
+                                      {entry.status || "Draft"}
+                                    </Badge>
+                                  </td>
+                                  <td className="py-2 text-xs text-muted-foreground max-w-[200px] truncate">
+                                    {entry.rejectionReason ? (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className="text-red-600 cursor-help">{entry.rejectionReason}</span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>{entry.rejectionReason}</TooltipContent>
+                                      </Tooltip>
+                                    ) : entry.notes ? (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className="cursor-help">{entry.notes}</span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>{entry.notes}</TooltipContent>
+                                      </Tooltip>
+                                    ) : "—"}
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -3757,18 +4096,10 @@ export default function Timesheets() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <Card className="border-0 shadow-sm">
-              <CardContent className="p-8">
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <History className="h-12 w-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium text-foreground mb-2">Timesheet History</h3>
-                  <p className="text-muted-foreground max-w-md">
-                    View your past timesheet submissions and their approval status. 
-                    History feature coming soon.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <TimesheetHistoryTab
+              userId={user?.id}
+              organizationId={currentOrganization?.id || null}
+            />
           </motion.div>
         )}
 

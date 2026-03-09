@@ -329,6 +329,16 @@ export async function setupProjectOnlineRoutes(app: Express) {
           source: "imported",
         });
 
+        await storage.createProjectChangeLog({
+          projectId: newProject.id,
+          changedBy: null,
+          changedByName: 'System',
+          changeType: 'created',
+          changeSummary: `Project "${newProject.name}" created by System — imported from Microsoft Project Online`,
+          previousValues: null,
+          newValues: null,
+        });
+
         const tasksUrl = `${siteUrl}/_api/ProjectServer/Projects('${projectId}')/Tasks`;
         const tasksResponse = await fetch(tasksUrl, {
           headers: {

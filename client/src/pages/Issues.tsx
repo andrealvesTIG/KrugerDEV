@@ -951,7 +951,7 @@ export default function Issues() {
           })()}
 
           <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="flex flex-col flex-1 overflow-hidden">
-            <div className="space-y-4 pt-4 flex-1 overflow-y-auto pr-1">
+            <div className="space-y-4 pt-4 flex-1 overflow-y-auto px-1">
             <div className="space-y-2">
               <Label>Title</Label>
               <Input {...editForm.register("title")} data-testid="input-edit-issue-title" />

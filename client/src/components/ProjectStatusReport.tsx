@@ -1,9 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { format, differenceInDays, isAfter, isBefore } from "date-fns";
 import type { Project, Risk, Issue, Milestone, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle2, Circle, Clock, Target, TrendingUp, Users, DollarSign, Calendar, Flag, FileText, GitPullRequest } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Circle, Clock, Target, TrendingUp, Users, DollarSign, Calendar, Flag, FileText, GitPullRequest, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Legend, Tooltip } from "recharts";
 
@@ -68,12 +68,17 @@ export function ProjectStatusReport({
   documents = [],
   executiveSummary
 }: ProjectStatusReportProps) {
+  const MILESTONE_PREVIEW_COUNT = 5;
+  const [showAllMilestones, setShowAllMilestones] = useState(false);
+
   const taskStats = useMemo(() => {
     const leafTasks = tasks.filter(t => !t.isSummary);
     const completed = leafTasks.filter(t => t.status === "Completed").length;
     const inProgress = leafTasks.filter(t => t.status === "In Progress").length;
     const notStarted = leafTasks.filter(t => t.status === "Not Started" || (!t.status && t.progress === 0)).length;
     const total = leafTasks.length || 1;
+    const totalProgress = tasks.reduce((sum, t) => sum + (t.progress || 0), 0);
+    const overallCompletion = tasks.length > 0 ? Math.round(totalProgress / tasks.length) : 0;
     return {
       completed,
       inProgress,
@@ -81,7 +86,8 @@ export function ProjectStatusReport({
       total: leafTasks.length,
       completedPercent: (completed / total) * 100,
       inProgressPercent: (inProgress / total) * 100,
-      notStartedPercent: (notStarted / total) * 100
+      notStartedPercent: (notStarted / total) * 100,
+      overallCompletion
     };
   }, [tasks]);
 
@@ -115,7 +121,8 @@ export function ProjectStatusReport({
   ], [financialSummary]);
 
   const riskStats = useMemo(() => {
-    const openRisks = risks.filter(r => r.status === "Open" && !r.deletedAt);
+    const closedStatuses = ["Closed", "Mitigated", "Accepted"];
+    const openRisks = risks.filter(r => !closedStatuses.includes(r.status || "") && !r.deletedAt);
     const high = openRisks.filter(r => r.impact === "High" || r.probability === "High").length;
     const medium = openRisks.filter(r => r.impact === "Medium" && r.probability !== "High").length;
     const low = openRisks.filter(r => r.impact === "Low" && r.probability === "Low").length;
@@ -123,7 +130,8 @@ export function ProjectStatusReport({
   }, [risks]);
 
   const issueStats = useMemo(() => {
-    const openIssues = issues.filter(i => (i.status === "Open" || i.status === "In Progress") && !i.deletedAt);
+    const closedStatuses = ["Closed", "Resolved"];
+    const openIssues = issues.filter(i => !closedStatuses.includes(i.status || "") && !i.deletedAt);
     const critical = openIssues.filter(i => i.priority === "Critical").length;
     const high = openIssues.filter(i => i.priority === "High").length;
     const medium = openIssues.filter(i => i.priority === "Medium").length;
@@ -131,11 +139,13 @@ export function ProjectStatusReport({
   }, [issues]);
 
   const topRisksAndIssues = useMemo(() => {
+    const riskClosedStatuses = ["Closed", "Mitigated", "Accepted"];
+    const issueClosedStatuses = ["Closed", "Resolved"];
     const openRisks = risks
-      .filter(r => r.status === "Open" && !r.deletedAt)
+      .filter(r => !riskClosedStatuses.includes(r.status || "") && !r.deletedAt)
       .slice(0, 3);
     const openIssues = issues
-      .filter(i => (i.status === "Open" || i.status === "In Progress") && !i.deletedAt)
+      .filter(i => !issueClosedStatuses.includes(i.status || "") && !i.deletedAt)
       .slice(0, 3);
     return [...openRisks.map(r => ({ type: "risk", title: r.title, priority: r.impact })), 
             ...openIssues.map(i => ({ type: "issue", title: i.title, priority: i.priority }))].slice(0, 5);
@@ -144,8 +154,7 @@ export function ProjectStatusReport({
   const majorMilestones = useMemo(() => {
     return milestones
       .filter(m => !m.deletedAt)
-      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-      .slice(0, 6);
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   }, [milestones]);
 
   const timelineData = useMemo(() => {
@@ -207,7 +216,7 @@ export function ProjectStatusReport({
   const budgetHealth = financialSummary.actual > financialSummary.budget ? "Red" : 
                        financialSummary.actual > financialSummary.budget * 0.9 ? "Yellow" : "Green";
   
-  const scheduleHealth = timelineData && timelineData.progressPercent > (project.completionPercentage || 0) + 10 ? "Yellow" : 
+  const scheduleHealth = timelineData && timelineData.progressPercent > taskStats.overallCompletion + 10 ? "Yellow" : 
                          project.health || "Green";
 
   return (
@@ -278,7 +287,7 @@ export function ProjectStatusReport({
               />
               <div 
                 className="absolute top-0 left-0 h-full bg-primary transition-all"
-                style={{ width: `${project.completionPercentage || 0}%` }}
+                style={{ width: `${taskStats.overallCompletion}%` }}
               />
               
               <div 
@@ -318,20 +327,34 @@ export function ProjectStatusReport({
                   <Flag className="h-3 w-3 text-yellow-500 fill-yellow-500" /> Milestone
                 </span>
               </div>
-              <span>{project.completionPercentage || 0}% Complete</span>
+              <span>{taskStats.overallCompletion}% Complete</span>
             </div>
 
             {timelineData.milestones.length > 0 && (
-              <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-2">
-                {timelineData.milestones.slice(0, 6).map(m => (
-                  <div key={m.id} className="flex items-center gap-2 text-xs">
-                    <Flag className={cn(
-                      "h-3 w-3",
-                      m.isComplete ? "text-green-500" : m.isAtRisk ? "text-red-500" : "text-yellow-500"
-                    )} />
-                    <span className="truncate">{m.title}</span>
-                  </div>
-                ))}
+              <div className="mt-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {(showAllMilestones ? timelineData.milestones : timelineData.milestones.slice(0, MILESTONE_PREVIEW_COUNT)).map(m => (
+                    <div key={m.id} className="flex items-center gap-2 text-xs">
+                      <Flag className={cn(
+                        "h-3 w-3 shrink-0",
+                        m.isComplete ? "text-green-500" : m.isAtRisk ? "text-red-500" : "text-yellow-500"
+                      )} />
+                      <span className="truncate">{m.title}</span>
+                    </div>
+                  ))}
+                </div>
+                {timelineData.milestones.length > MILESTONE_PREVIEW_COUNT && (
+                  <button
+                    onClick={() => setShowAllMilestones(!showAllMilestones)}
+                    className="mt-2 text-xs text-primary hover:underline flex items-center gap-1"
+                  >
+                    {showAllMilestones ? (
+                      <>Show less <ChevronUp className="h-3 w-3" /></>
+                    ) : (
+                      <>Show all {timelineData.milestones.length} milestones <ChevronDown className="h-3 w-3" /></>
+                    )}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -484,24 +507,38 @@ export function ProjectStatusReport({
             </h2>
             <div className="space-y-2">
               {majorMilestones.length > 0 ? (
-                <table className="w-full text-sm">
-                  <tbody>
-                    {majorMilestones.map((milestone) => {
-                      const status = getMilestoneStatus(milestone);
-                      return (
-                        <tr key={milestone.id} className="border-b border-border last:border-0">
-                          <td className="py-2 pr-2">{milestone.title}</td>
-                          <td className="py-2 pr-2 text-muted-foreground">
-                            {format(new Date(milestone.dueDate), "MMM d, yyyy")}
-                          </td>
-                          <td className={cn("py-2 text-right font-medium", getMilestoneStatusColor(status))}>
-                            {status}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                <>
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {(showAllMilestones ? majorMilestones : majorMilestones.slice(0, MILESTONE_PREVIEW_COUNT)).map((milestone) => {
+                        const status = getMilestoneStatus(milestone);
+                        return (
+                          <tr key={milestone.id} className="border-b border-border last:border-0">
+                            <td className="py-2 pr-2">{milestone.title}</td>
+                            <td className="py-2 pr-2 text-muted-foreground">
+                              {format(new Date(milestone.dueDate), "MMM d, yyyy")}
+                            </td>
+                            <td className={cn("py-2 text-right font-medium", getMilestoneStatusColor(status))}>
+                              {status}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {majorMilestones.length > MILESTONE_PREVIEW_COUNT && (
+                    <button
+                      onClick={() => setShowAllMilestones(!showAllMilestones)}
+                      className="mt-2 text-xs text-primary hover:underline flex items-center gap-1"
+                    >
+                      {showAllMilestones ? (
+                        <>Show less <ChevronUp className="h-3 w-3" /></>
+                      ) : (
+                        <>Show all {majorMilestones.length} milestones <ChevronDown className="h-3 w-3" /></>
+                      )}
+                    </button>
+                  )}
+                </>
               ) : (
                 <p className="text-sm text-muted-foreground">No milestones defined</p>
               )}
@@ -623,13 +660,13 @@ export function ProjectStatusReport({
           </div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="border rounded-lg p-4 text-center">
-            <span className="text-3xl font-bold text-primary">{tasks.length}</span>
+            <span className="text-3xl font-bold text-primary">{taskStats.total}</span>
             <span className="text-sm text-muted-foreground block">Total Tasks</span>
           </div>
           <div className="border rounded-lg p-4 text-center">
-            <span className="text-3xl font-bold text-green-600">{Math.round(taskStats.completedPercent)}%</span>
+            <span className="text-3xl font-bold text-green-600">{taskStats.overallCompletion}%</span>
             <span className="text-sm text-muted-foreground block">Complete</span>
           </div>
           <div className="border rounded-lg p-4 text-center">
@@ -637,8 +674,12 @@ export function ProjectStatusReport({
             <span className="text-sm text-muted-foreground block">Milestones</span>
           </div>
           <div className="border rounded-lg p-4 text-center">
-            <span className="text-3xl font-bold text-orange-600">{riskStats.total + issueStats.total}</span>
-            <span className="text-sm text-muted-foreground block">Open Items</span>
+            <span className="text-3xl font-bold text-orange-600">{riskStats.total}</span>
+            <span className="text-sm text-muted-foreground block">Open Risks</span>
+          </div>
+          <div className="border rounded-lg p-4 text-center">
+            <span className="text-3xl font-bold text-red-600">{issueStats.total}</span>
+            <span className="text-sm text-muted-foreground block">Open Issues</span>
           </div>
         </div>
       </div>
