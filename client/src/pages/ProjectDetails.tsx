@@ -499,12 +499,37 @@ export default function ProjectDetails() {
     if (!project) return;
     setIsExportingPng(true);
     try {
-      const scheduleEl = document.querySelector('[data-schedule-export="true"]') as HTMLElement | null;
-      const ganttEl = document.querySelector('[data-gantt-export="true"]') as HTMLElement | null;
-      const targetEl = ganttEl || scheduleEl;
-      
+      const previousTab = activeTab;
+      let needsTabSwitch = false;
+
+      let targetEl = document.querySelector('[data-gantt-export="true"]') as HTMLElement | null
+        || document.querySelector('[data-schedule-export="true"]') as HTMLElement | null;
+
       if (!targetEl) {
-        toast({ title: "Export failed", description: "Please switch to the Tasks tab to export the schedule as PNG", variant: "destructive" });
+        needsTabSwitch = true;
+        setActiveTab('tasks');
+        await new Promise<void>((resolve) => {
+          const maxAttempts = 50;
+          let attempts = 0;
+          const check = () => {
+            attempts++;
+            const el = document.querySelector('[data-gantt-export="true"]') as HTMLElement | null
+              || document.querySelector('[data-schedule-export="true"]') as HTMLElement | null;
+            if (el) {
+              targetEl = el;
+              resolve();
+            } else if (attempts < maxAttempts) {
+              requestAnimationFrame(check);
+            } else {
+              resolve();
+            }
+          };
+          requestAnimationFrame(check);
+        });
+      }
+
+      if (!targetEl) {
+        toast({ title: "Export failed", description: "Could not find the schedule view to export", variant: "destructive" });
         return;
       }
 
@@ -516,7 +541,11 @@ export default function ProjectDetails() {
           return true;
         },
       });
-      
+
+      if (needsTabSwitch) {
+        setActiveTab(previousTab);
+      }
+
       const link = document.createElement('a');
       link.download = `${project.name.replace(/[^a-zA-Z0-9]/g, '_')}_schedule.png`;
       link.href = dataUrl;
