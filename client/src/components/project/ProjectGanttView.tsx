@@ -3651,7 +3651,7 @@ function ProjectGanttView({
         "p-0 flex flex-col",
         isFullscreen && "h-full flex-1"
       )}>
-        <div className="flex items-center justify-between gap-4 p-3 border-b bg-muted/30 flex-wrap flex-shrink-0">
+        <div data-gantt-toolbar="true" className="flex items-center justify-between gap-4 p-3 border-b bg-muted/30 flex-wrap flex-shrink-0">
           <div className="flex items-center gap-2">
             {!hideTimeline && (
               <span className="text-sm font-medium text-muted-foreground">

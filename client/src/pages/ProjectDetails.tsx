@@ -538,6 +538,7 @@ export default function ProjectDetails() {
         pixelRatio: 2,
         filter: (node: HTMLElement) => {
           if (node.dataset?.scheduleToolbar === 'true') return false;
+          if (node.dataset?.ganttToolbar === 'true') return false;
           if (node.dataset?.testid === 'button-tasks-fullscreen') return false;
           return true;
         },
