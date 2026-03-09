@@ -74,6 +74,8 @@ export function ProjectStatusReport({
     const inProgress = leafTasks.filter(t => t.status === "In Progress").length;
     const notStarted = leafTasks.filter(t => t.status === "Not Started" || (!t.status && t.progress === 0)).length;
     const total = leafTasks.length || 1;
+    const totalProgress = tasks.reduce((sum, t) => sum + (t.progress || 0), 0);
+    const overallCompletion = tasks.length > 0 ? Math.round(totalProgress / tasks.length) : 0;
     return {
       completed,
       inProgress,
@@ -81,7 +83,8 @@ export function ProjectStatusReport({
       total: leafTasks.length,
       completedPercent: (completed / total) * 100,
       inProgressPercent: (inProgress / total) * 100,
-      notStartedPercent: (notStarted / total) * 100
+      notStartedPercent: (notStarted / total) * 100,
+      overallCompletion
     };
   }, [tasks]);
 
@@ -115,7 +118,8 @@ export function ProjectStatusReport({
   ], [financialSummary]);
 
   const riskStats = useMemo(() => {
-    const openRisks = risks.filter(r => r.status === "Open" && !r.deletedAt);
+    const closedStatuses = ["Closed", "Mitigated", "Accepted"];
+    const openRisks = risks.filter(r => !closedStatuses.includes(r.status || "") && !r.deletedAt);
     const high = openRisks.filter(r => r.impact === "High" || r.probability === "High").length;
     const medium = openRisks.filter(r => r.impact === "Medium" && r.probability !== "High").length;
     const low = openRisks.filter(r => r.impact === "Low" && r.probability === "Low").length;
@@ -123,7 +127,8 @@ export function ProjectStatusReport({
   }, [risks]);
 
   const issueStats = useMemo(() => {
-    const openIssues = issues.filter(i => (i.status === "Open" || i.status === "In Progress") && !i.deletedAt);
+    const closedStatuses = ["Closed", "Resolved"];
+    const openIssues = issues.filter(i => !closedStatuses.includes(i.status || "") && !i.deletedAt);
     const critical = openIssues.filter(i => i.priority === "Critical").length;
     const high = openIssues.filter(i => i.priority === "High").length;
     const medium = openIssues.filter(i => i.priority === "Medium").length;
@@ -131,11 +136,13 @@ export function ProjectStatusReport({
   }, [issues]);
 
   const topRisksAndIssues = useMemo(() => {
+    const riskClosedStatuses = ["Closed", "Mitigated", "Accepted"];
+    const issueClosedStatuses = ["Closed", "Resolved"];
     const openRisks = risks
-      .filter(r => r.status === "Open" && !r.deletedAt)
+      .filter(r => !riskClosedStatuses.includes(r.status || "") && !r.deletedAt)
       .slice(0, 3);
     const openIssues = issues
-      .filter(i => (i.status === "Open" || i.status === "In Progress") && !i.deletedAt)
+      .filter(i => !issueClosedStatuses.includes(i.status || "") && !i.deletedAt)
       .slice(0, 3);
     return [...openRisks.map(r => ({ type: "risk", title: r.title, priority: r.impact })), 
             ...openIssues.map(i => ({ type: "issue", title: i.title, priority: i.priority }))].slice(0, 5);
@@ -207,7 +214,7 @@ export function ProjectStatusReport({
   const budgetHealth = financialSummary.actual > financialSummary.budget ? "Red" : 
                        financialSummary.actual > financialSummary.budget * 0.9 ? "Yellow" : "Green";
   
-  const scheduleHealth = timelineData && timelineData.progressPercent > (project.completionPercentage || 0) + 10 ? "Yellow" : 
+  const scheduleHealth = timelineData && timelineData.progressPercent > taskStats.overallCompletion + 10 ? "Yellow" : 
                          project.health || "Green";
 
   return (
@@ -278,7 +285,7 @@ export function ProjectStatusReport({
               />
               <div 
                 className="absolute top-0 left-0 h-full bg-primary transition-all"
-                style={{ width: `${project.completionPercentage || 0}%` }}
+                style={{ width: `${taskStats.overallCompletion}%` }}
               />
               
               <div 
@@ -318,7 +325,7 @@ export function ProjectStatusReport({
                   <Flag className="h-3 w-3 text-yellow-500 fill-yellow-500" /> Milestone
                 </span>
               </div>
-              <span>{project.completionPercentage || 0}% Complete</span>
+              <span>{taskStats.overallCompletion}% Complete</span>
             </div>
 
             {timelineData.milestones.length > 0 && (
@@ -629,7 +636,7 @@ export function ProjectStatusReport({
             <span className="text-sm text-muted-foreground block">Total Tasks</span>
           </div>
           <div className="border rounded-lg p-4 text-center">
-            <span className="text-3xl font-bold text-green-600">{project.completionPercentage ?? Math.round(taskStats.completedPercent)}%</span>
+            <span className="text-3xl font-bold text-green-600">{taskStats.overallCompletion}%</span>
             <span className="text-sm text-muted-foreground block">Complete</span>
           </div>
           <div className="border rounded-lg p-4 text-center">

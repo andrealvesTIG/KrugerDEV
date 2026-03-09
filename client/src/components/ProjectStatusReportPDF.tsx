@@ -478,6 +478,8 @@ export function ProjectStatusReportPDF({
   const inProgress = leafTasks.filter((t) => t.status === "In Progress").length;
   const notStarted = leafTasks.filter((t) => t.status === "Not Started" || (!t.status && t.progress === 0)).length;
   const totalTasks = leafTasks.length || 1;
+  const totalProgress = tasks.reduce((sum, t) => sum + (t.progress || 0), 0);
+  const overallCompletion = tasks.length > 0 ? Math.round(totalProgress / tasks.length) : 0;
 
   const budget = financials.reduce((sum, f) => sum + parseFloat(f.budgetAmount || "0"), 0);
   const actual = financials.reduce((sum, f) => sum + parseFloat(f.actualAmount || "0"), 0);
@@ -487,10 +489,12 @@ export function ProjectStatusReportPDF({
   const forecast = planned > 0 ? planned : totalBudget;
   const variance = totalBudget - actual;
 
-  const openRisks = risks.filter((r) => r.status === "Open" && !r.deletedAt);
+  const riskClosedStatuses = ["Closed", "Mitigated", "Accepted"];
+  const issueClosedStatuses = ["Closed", "Resolved"];
+  const openRisks = risks.filter((r) => !riskClosedStatuses.includes(r.status || "") && !r.deletedAt);
   const riskHigh = openRisks.filter((r) => r.impact === "High" || r.probability === "High").length;
   
-  const openIssues = issues.filter((i) => (i.status === "Open" || i.status === "In Progress") && !i.deletedAt);
+  const openIssues = issues.filter((i) => !issueClosedStatuses.includes(i.status || "") && !i.deletedAt);
   const issueCritical = openIssues.filter((i) => i.priority === "Critical" || i.priority === "High").length;
 
   const topRisksAndIssues = [
@@ -539,7 +543,7 @@ export function ProjectStatusReportPDF({
       end,
       progressPercent,
       daysRemaining,
-      completionPercent: project.completionPercentage || 0,
+      completionPercent: overallCompletion,
     };
   }
 
@@ -830,7 +834,7 @@ export function ProjectStatusReportPDF({
             <Text style={styles.statLabel}>Total Tasks</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={[styles.statValue, styles.statValueGreen]}>{project.completionPercentage ?? Math.round(safePercent(completed, totalTasks))}%</Text>
+            <Text style={[styles.statValue, styles.statValueGreen]}>{overallCompletion}%</Text>
             <Text style={styles.statLabel}>Complete</Text>
           </View>
           <View style={styles.statBox}>
