@@ -853,7 +853,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div data-schedule-toolbar="true" className="flex flex-wrap items-center justify-between gap-3">
         <Tabs value={view} onValueChange={(v) => setView(v as "table" | "gantt" | "kanban")}>
           <TabsList>
             <TabsTrigger value="gantt" className="gap-2">

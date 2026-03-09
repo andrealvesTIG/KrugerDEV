@@ -537,6 +537,7 @@ export default function ProjectDetails() {
         backgroundColor: '#ffffff',
         pixelRatio: 2,
         filter: (node: HTMLElement) => {
+          if (node.dataset?.scheduleToolbar === 'true') return false;
           if (node.dataset?.testid === 'button-tasks-fullscreen') return false;
           return true;
         },
