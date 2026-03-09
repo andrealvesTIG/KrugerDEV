@@ -357,9 +357,12 @@ const doc = new Document({
         makeTable(
           ["Variable", "Description"],
           [
-            ["AZURE_STORAGE_CONNECTION_STRING", "Azure Blob Storage connection string (new, replaces Replit Object Storage)"],
+            ["AZURE_STORAGE_ACCOUNT_NAME", "Azure Blob Storage account name (used with Managed Identity for credential-free access)"],
             ["AZURE_STORAGE_CONTAINER_NAME", "Blob container name for file uploads"],
           ]
+        ),
+        para(
+          "Note: When using Managed Identity (recommended), the storage account name is sufficient — no connection string or access key is needed. The Container App's system-assigned managed identity is granted Storage Blob Data Contributor role on the storage account. If Managed Identity is not available, AZURE_STORAGE_CONNECTION_STRING can be used as a fallback."
         ),
 
         para(
@@ -388,7 +391,43 @@ const doc = new Document({
           "Approximately 400-600MB due to the Node.js runtime + Java JRE + application code + MPXJ JAR files. Using Alpine-based images and multi-stage builds can help reduce this. If the Java parser is extracted as a separate service, the main container would be significantly smaller (~150-200MB)."
         ),
 
-        heading("5.2 Database", HeadingLevel.HEADING_2),
+        heading("5.2 Inside vs. Outside the Container", HeadingLevel.HEADING_2),
+        ...qaPair(
+          "What runs inside the container?",
+          "The container includes: (1) the Node.js runtime executing the Express backend server, (2) the pre-built React SPA served as static files by Express, (3) the Java JRE and MPXJ library for parsing Microsoft Project (.mpp) files, (4) the node-cron scheduler for automated report generation, and (5) all application code, npm dependencies, and configuration. Everything runs as a single Node.js process (node ./dist/index.cjs) listening on port 5000."
+        ),
+        ...qaPair(
+          "What runs outside the container (as managed Azure services)?",
+          "The following components live outside the container as separate Azure services: (1) PostgreSQL database — hosted on Azure Database for PostgreSQL Flexible Server, (2) File/blob storage — hosted on Azure Blob Storage, (3) Secrets management — handled by Azure Key Vault, (4) TLS/HTTPS termination — handled by Azure Container Apps ingress, (5) Container image registry — Azure Container Registry (ACR), (6) Logging infrastructure — Azure Log Analytics Workspace, (7) Networking — Azure VNet and private endpoints. Additionally, external third-party APIs (OpenAI, Resend, Google OAuth, Microsoft Graph) are called over the internet from the container."
+        ),
+        ...qaPair(
+          "What is the boundary of responsibility between the container and Azure services?",
+          "The container is responsible for application logic, request handling, authentication flows, and business rules. Azure manages infrastructure concerns: database availability and backups (PostgreSQL Flexible Server), file durability and redundancy (Blob Storage), secret rotation and access policies (Key Vault), auto-scaling and load balancing (Container Apps), TLS certificates (Container Apps ingress), and log aggregation (Log Analytics). This separation means the application team focuses on code, while Azure handles operational infrastructure."
+        ),
+
+        heading("5.3 Azure Permissions & Resource Group Configuration", HeadingLevel.HEADING_2),
+        ...qaPair(
+          "What Azure RBAC roles are needed to set up the resource group and deploy the application?",
+          "The following roles are needed: (1) Contributor role on the Resource Group — to create and manage all Azure resources (Container Apps, ACR, PostgreSQL, Blob Storage, Key Vault, VNet, Log Analytics). (2) User Access Administrator — to assign roles and manage access policies on resources within the group (e.g., granting the Container App's managed identity access to Key Vault and ACR). (3) If using Azure Entra ID App Registrations for OAuth, the person configuring authentication needs Application Administrator or Cloud Application Administrator role in Azure AD. For day-to-day operations after initial setup, narrower roles can be assigned."
+        ),
+        ...qaPair(
+          "What specific permissions are needed for each Azure service?",
+          "For Azure Container Registry: AcrPush (to push images from CI/CD) and AcrPull (assigned to the Container App's managed identity to pull images). For Azure Key Vault: Key Vault Secrets Officer (for initial secret setup) and Key Vault Secrets User (assigned to the Container App's managed identity to read secrets at runtime). For Azure Blob Storage: Storage Blob Data Contributor (assigned to the Container App's managed identity for read/write file operations). For Azure Database for PostgreSQL: the database admin credentials are managed separately — an admin user is created during provisioning and used in the DATABASE_URL connection string. For VNet: Network Contributor is needed to configure subnets, private endpoints, and network security groups."
+        ),
+        ...qaPair(
+          "Should we use Managed Identities or service principals?",
+          "We strongly recommend using Azure Managed Identities (system-assigned) for the Container App. This eliminates the need to store and rotate credentials for service-to-service communication. The Container App's managed identity can be granted access to ACR (image pull), Key Vault (secret retrieval), and Blob Storage (file operations) — all without embedding any credentials in the application code or environment variables. The only credential that remains as a traditional secret is the PostgreSQL connection string (DATABASE_URL), which should be stored in Key Vault."
+        ),
+        ...qaPair(
+          "What does the resource group structure look like?",
+          "We recommend a single resource group containing all related resources: the Container Apps Environment, the Container App itself, ACR, PostgreSQL Flexible Server, Storage Account (Blob), Key Vault, VNet with subnets, Log Analytics Workspace, and optionally Application Insights. For production environments with stricter governance, some organizations prefer separating shared services (like ACR) into a separate resource group. The naming convention should follow Azure best practices (e.g., rg-fridayreport-prod-westeurope)."
+        ),
+        ...qaPair(
+          "Who needs access after the initial deployment?",
+          "After initial setup, access can be narrowed: (1) CI/CD pipeline service principal — needs AcrPush on ACR and Contributor on the Container App to deploy new revisions. (2) Developers — Reader role on the resource group plus access to Log Analytics for troubleshooting. (3) DevOps/SRE — Contributor on the resource group for scaling, configuration changes, and incident response. (4) Database administrators — access to the PostgreSQL Flexible Server for schema changes and performance tuning. All human access should use Azure AD authentication with MFA enforced."
+        ),
+
+        heading("5.4 Database", HeadingLevel.HEADING_2),
         ...qaPair(
           "How do we handle database migrations?",
           "The project uses Drizzle ORM with migrations stored in a migrations/ folder. Migrations can be run as a pre-deployment step or as an init container in Azure Container Apps using 'npx drizzle-kit migrate'."
@@ -402,13 +441,13 @@ const doc = new Document({
           "User sessions are stored in a PostgreSQL 'sessions' table using connect-pg-simple. This means sessions survive container restarts and work correctly across multiple container instances."
         ),
 
-        heading("5.3 Storage", HeadingLevel.HEADING_2),
+        heading("5.5 Storage", HeadingLevel.HEADING_2),
         ...qaPair(
           "How does file storage work and what changes are needed?",
           "Currently, the application uses Replit Object Storage via a Google Cloud Storage-compatible client. For Azure, this needs to be replaced with Azure Blob Storage using the @azure/storage-blob SDK. The storage abstraction layer in the codebase makes this a contained change — only the storage service implementation needs to be swapped."
         ),
 
-        heading("5.4 Authentication", HeadingLevel.HEADING_2),
+        heading("5.6 Authentication", HeadingLevel.HEADING_2),
         ...qaPair(
           "How does Microsoft authentication work?",
           "Already integrated using MSAL (@azure/msal-node). For Azure deployment, the redirect URIs in the Azure AD App Registration need to be updated to point to the new Azure Container Apps domain. The authentication flow itself remains unchanged."
@@ -422,7 +461,7 @@ const doc = new Document({
           "No. Replit Auth is specific to the Replit platform and should be removed or disabled for the Azure deployment. The remaining authentication methods (Email/Password, Google, Microsoft) will work without changes to their core logic."
         ),
 
-        heading("5.5 Networking & Security", HeadingLevel.HEADING_2),
+        heading("5.7 Networking & Security", HeadingLevel.HEADING_2),
         ...qaPair(
           "How do we secure the database connection?",
           "Use Azure VNet integration. Place the Container App and PostgreSQL Flexible Server in the same VNet or use private endpoints. Azure PostgreSQL Flexible Server supports SSL/TLS connections natively and can be configured to deny public access entirely."
@@ -436,7 +475,7 @@ const doc = new Document({
           "We recommend Azure Key Vault integrated with Container Apps. Container Apps can reference Key Vault secrets directly in environment variable configuration, avoiding hardcoded secrets and enabling centralized secret rotation."
         ),
 
-        heading("5.6 CI/CD & Deployment", HeadingLevel.HEADING_2),
+        heading("5.8 CI/CD & Deployment", HeadingLevel.HEADING_2),
         ...qaPair(
           "What does the deployment pipeline look like?",
           "Typical flow: Push code to Git repository -> CI/CD pipeline builds Docker image -> Push image to Azure Container Registry (ACR) -> Deploy new revision to Azure Container Apps. This can be implemented with GitHub Actions or Azure DevOps Pipelines."
@@ -446,7 +485,7 @@ const doc = new Document({
           "Yes. Azure Container Apps supports revision-based deployments with traffic splitting, enabling blue-green or canary deployment strategies natively. New revisions can be deployed alongside existing ones, with traffic gradually shifted."
         ),
 
-        heading("5.7 Cost & Performance", HeadingLevel.HEADING_2),
+        heading("5.9 Cost & Performance", HeadingLevel.HEADING_2),
         ...qaPair(
           "What Azure Container Apps plan should we use?",
           "Start with the Consumption plan (pay-per-use, scales to zero when idle). If dedicated resources, VNet integration with private endpoints, or specific SLAs are required, consider the Dedicated (Workload Profiles) plan."
@@ -456,7 +495,7 @@ const doc = new Document({
           "The main cost components are: Azure Database for PostgreSQL Flexible Server (typically the largest cost), Container Apps compute (vCPU/memory hours), Azure Blob Storage (storage + transactions), network egress, and external API costs (OpenAI, Resend — these remain the same regardless of hosting)."
         ),
 
-        heading("5.8 Microsoft Integrations", HeadingLevel.HEADING_2),
+        heading("5.10 Microsoft Integrations", HeadingLevel.HEADING_2),
         ...qaPair(
           "Do the Microsoft Planner/Project Online integrations need changes?",
           "The integration code itself does not change. However, the Azure AD App Registration needs to be updated with the correct redirect URIs and API permissions for the new domain. If the customer already uses Azure AD, this simplifies things significantly since they can leverage their existing tenant."
