@@ -2531,10 +2531,25 @@ export async function registerRoutes(
 
   app.get('/api/users/:userId/organizations', async (req, res) => {
     try {
-      const memberships = await storage.getUserOrganizations(req.params.userId);
+      const currentUserId = getUserIdFromRequest(req);
+      if (!currentUserId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      const targetUserId = req.params.userId;
+
+      if (currentUserId !== targetUserId) {
+        const [currentUser] = await db.select().from(users).where(eq(users.id, currentUserId));
+        if (!currentUser || currentUser.role !== 'super_admin') {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+      }
+
+      const memberships = await storage.getUserOrganizations(targetUserId);
       res.json(memberships);
     } catch (err) {
-      res.json([]);
+      console.error('Error fetching user organizations:', err);
+      res.status(500).json({ message: 'Failed to fetch organizations' });
     }
   });
 
