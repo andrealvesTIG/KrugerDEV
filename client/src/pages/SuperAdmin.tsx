@@ -6568,19 +6568,69 @@ interface AnalyticsDashboard {
   topUsers: Array<{ user_id: string; email: string; first_name: string; last_name: string; request_count: number; last_activity: string }>;
 }
 
+type UserFilter = 'total' | 'today' | 'week' | 'month' | null;
+
+interface AnalyticsUser {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  createdAt: string;
+  emailVerified: boolean;
+  role: string;
+  profileImageUrl: string | null;
+  deactivatedAt: string | null;
+}
+
 function AnalyticsTab() {
   const { toast } = useToast();
   const [chartView, setChartView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [userFilter, setUserFilter] = useState<UserFilter>(null);
 
   const { data: analytics, isLoading, refetch } = useQuery<AnalyticsDashboard>({
     queryKey: ['/api/admin/analytics/dashboard'],
     staleTime: 0,
   });
 
+  const { data: allUsers = [], isLoading: isLoadingUsers } = useQuery<AnalyticsUser[]>({
+    queryKey: ['/api/users'],
+    enabled: userFilter !== null,
+  });
+
   const handleRefresh = () => {
     refetch();
     toast({ title: "Analytics refreshed" });
   };
+
+  const toggleFilter = (filter: UserFilter) => {
+    setUserFilter(prev => prev === filter ? null : filter);
+  };
+
+  const filteredUsers = useMemo(() => {
+    if (!userFilter || allUsers.length === 0) return [];
+    const now = new Date();
+    const sorted = [...allUsers].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    if (userFilter === 'total') return sorted;
+    if (userFilter === 'today') {
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+      return sorted.filter(u => {
+        const d = new Date(u.createdAt);
+        return d >= todayStart && d < todayEnd;
+      });
+    }
+    if (userFilter === 'week') {
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return sorted.filter(u => new Date(u.createdAt) >= weekAgo);
+    }
+    if (userFilter === 'month') {
+      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      return sorted.filter(u => new Date(u.createdAt) >= monthAgo);
+    }
+    return sorted;
+  }, [userFilter, allUsers]);
+
+  const filterLabel = userFilter === 'total' ? 'All Users' : userFilter === 'today' ? 'New Users Today' : userFilter === 'week' ? 'New Users This Week' : userFilter === 'month' ? 'New Users This Month' : '';
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -6663,7 +6713,11 @@ function AnalyticsTab() {
 
       {/* Key Metrics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-        <Card className="hover-elevate" data-testid="card-total-users">
+        <Card
+          className={`hover-elevate cursor-pointer transition-all ${userFilter === 'total' ? 'ring-2 ring-primary shadow-md' : ''}`}
+          data-testid="card-total-users"
+          onClick={() => toggleFilter('total')}
+        >
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <Users className="h-4 w-4" />
@@ -6673,7 +6727,11 @@ function AnalyticsTab() {
           </CardContent>
         </Card>
 
-        <Card className="hover-elevate" data-testid="card-new-users-today">
+        <Card
+          className={`hover-elevate cursor-pointer transition-all ${userFilter === 'today' ? 'ring-2 ring-primary shadow-md' : ''}`}
+          data-testid="card-new-users-today"
+          onClick={() => toggleFilter('today')}
+        >
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <UserPlus className="h-4 w-4" />
@@ -6683,7 +6741,11 @@ function AnalyticsTab() {
           </CardContent>
         </Card>
 
-        <Card className="hover-elevate" data-testid="card-new-users-week">
+        <Card
+          className={`hover-elevate cursor-pointer transition-all ${userFilter === 'week' ? 'ring-2 ring-primary shadow-md' : ''}`}
+          data-testid="card-new-users-week"
+          onClick={() => toggleFilter('week')}
+        >
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <TrendingUp className="h-4 w-4" />
@@ -6693,7 +6755,11 @@ function AnalyticsTab() {
           </CardContent>
         </Card>
 
-        <Card className="hover-elevate" data-testid="card-new-users-month">
+        <Card
+          className={`hover-elevate cursor-pointer transition-all ${userFilter === 'month' ? 'ring-2 ring-primary shadow-md' : ''}`}
+          data-testid="card-new-users-month"
+          onClick={() => toggleFilter('month')}
+        >
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <BarChart3 className="h-4 w-4" />
@@ -6713,6 +6779,77 @@ function AnalyticsTab() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Filtered Users Table */}
+      {userFilter && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              {filterLabel} ({filteredUsers.length})
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => setUserFilter(null)}>
+              <X className="h-4 w-4 mr-1" />
+              Close
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {isLoadingUsers ? (
+              <div className="flex items-center justify-center py-8 text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                Loading users...
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No users found for this filter</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Verified</TableHead>
+                      <TableHead>Signed Up</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredUsers.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium">
+                          {[user.firstName, user.lastName].filter(Boolean).join(' ') || '-'}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{user.email}</TableCell>
+                        <TableCell>
+                          <Badge variant={user.role === 'super_admin' ? 'default' : 'outline'} className="text-xs">
+                            {user.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {user.emailVerified ? (
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Yes
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-muted-foreground">No</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {user.createdAt ? format(new Date(user.createdAt), 'MMM d, yyyy h:mm a') : '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Active Users */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
