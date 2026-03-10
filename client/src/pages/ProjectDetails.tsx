@@ -1221,6 +1221,7 @@ export default function ProjectDetails() {
         projectId={project.id}
         startDate={project.startDate}
         endDate={project.endDate}
+        milestones={projectMilestones || []}
         onMilestoneClick={(taskId) => {
           setActiveTab('tasks');
           window.history.replaceState(null, '', `?tab=tasks&taskId=${taskId}`);
@@ -1535,6 +1536,7 @@ interface TimelineEvent {
   startDate: Date;
   endDate: Date;
   completed: boolean;
+  source?: 'task' | 'milestone';
 }
 
 
@@ -1542,12 +1544,16 @@ function ProjectTimeline({
   projectId, 
   startDate, 
   endDate,
-  onMilestoneClick 
+  milestones: projectMilestones,
+  onMilestoneClick,
+  onMilestoneTableClick 
 }: { 
   projectId: number;
   startDate: string | null;
   endDate: string | null;
+  milestones?: any[];
   onMilestoneClick?: (taskId: number) => void;
+  onMilestoneTableClick?: (milestoneId: number) => void;
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const [showAllMilestones, setShowAllMilestones] = useState(false);
@@ -1648,11 +1654,26 @@ function ProjectTimeline({
         startDate: effectiveStartDate,
         endDate: effectiveEndDate,
         completed: t.status === 'Completed',
+        source: 'task',
+      });
+    });
+
+    projectMilestones?.filter(m => m.dueDate && !m.deletedAt).forEach((m) => {
+      const dueDate = parseISO(m.dueDate);
+      const msStartDate = m.startDate ? parseISO(m.startDate) : dueDate;
+      events.push({
+        id: m.id + 1000000,
+        type: 'point' as const,
+        title: m.title || m.name,
+        startDate: msStartDate,
+        endDate: dueDate,
+        completed: !!m.completed || m.status === 'Done',
+        source: 'milestone',
       });
     });
     
     return events.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
-  }, [tasks]);
+  }, [tasks, projectMilestones]);
   
   const nonHiddenEvents = useMemo(() => {
     return allEvents.filter(e => !hiddenTaskIds.has(e.id));
@@ -1996,7 +2017,13 @@ function ProjectTimeline({
                     <div
                       className="absolute top-1/2 -translate-y-1/2 cursor-pointer z-20 flex items-center justify-center"
                       style={{ left: `calc(${point.position}% - 7px)` }}
-                      onClick={() => onMilestoneClick?.(point.id)}
+                      onClick={() => {
+                        if (point.source === 'milestone') {
+                          onMilestoneTableClick?.(point.id - 1000000);
+                        } else {
+                          onMilestoneClick?.(point.id);
+                        }
+                      }}
                       data-testid={`timeline-milestone-${point.id}`}
                     >
                       <div
@@ -2012,7 +2039,13 @@ function ProjectTimeline({
                   <TooltipContent className="space-y-2">
                     <button
                       className="font-medium text-primary hover:underline cursor-pointer text-left"
-                      onClick={() => onMilestoneClick?.(point.id)}
+                      onClick={() => {
+                        if (point.source === 'milestone') {
+                          onMilestoneTableClick?.(point.id - 1000000);
+                        } else {
+                          onMilestoneClick?.(point.id);
+                        }
+                      }}
                     >
                       {point.title}
                     </button>

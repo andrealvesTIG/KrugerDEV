@@ -16001,11 +16001,14 @@ Return ONLY valid JSON.`;
           const targetProjectId = (msData.projectIndex !== undefined && projectIndexToId[msData.projectIndex])
             ? projectIndexToId[msData.projectIndex]
             : currentProjectId;
+          const msStartDate = new Date(milestoneDate);
+          msStartDate.setDate(msStartDate.getDate() - 7);
           const milestone = await storage.createMilestone({
             projectId: targetProjectId,
             title: msData.name || msData.title || "Milestone",
             description: msData.description,
             dueDate: milestoneDate.toISOString().split('T')[0],
+            startDate: msStartDate.toISOString().split('T')[0],
             status: "Not Started",
           });
           createdMilestones.push(milestone);
@@ -16033,6 +16036,46 @@ Return ONLY valid JSON.`;
       }
 
       await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_smart_create_confirmed_${Date.now()}`, organizationId ? Number(organizationId) : undefined);
+
+      const aiUser = userId ? await storage.getUser(userId) : null;
+      const aiCreatorName = aiUser ? `${aiUser.firstName || ''} ${aiUser.lastName || ''}`.trim() || aiUser.email || 'Unknown' : 'System';
+
+      try {
+        const allCreatedItems = [
+          ...(results.created.tasks || []).map((t: any) => ({ type: 'task', id: t.id, name: t.name, projectId: t.projectId })),
+          ...(results.created.risks || []).map((r: any) => ({ type: 'risk', id: r.id, name: r.title, projectId: r.projectId })),
+          ...(results.created.issues || []).map((i: any) => ({ type: 'issue', id: i.id, name: i.title, projectId: i.projectId })),
+          ...(results.created.milestones || []).map((m: any) => ({ type: 'milestone', id: m.id, name: m.title, projectId: m.projectId })),
+        ];
+
+        const itemsByProject = new Map<number, typeof allCreatedItems>();
+        for (const item of allCreatedItems) {
+          const pid = item.projectId || currentProjectId;
+          if (!pid) continue;
+          if (!itemsByProject.has(pid)) itemsByProject.set(pid, []);
+          itemsByProject.get(pid)!.push(item);
+        }
+
+        for (const [pid, items] of itemsByProject) {
+          const grouped: Record<string, string[]> = {};
+          for (const item of items) {
+            if (!grouped[item.type]) grouped[item.type] = [];
+            grouped[item.type].push(`"${item.name}"`);
+          }
+          const summaryParts = Object.entries(grouped).map(([type, names]) => `${names.length} ${type}(s): ${names.join(', ')}`);
+          await storage.createProjectChangeLog({
+            projectId: pid,
+            changedBy: userId || null,
+            changedByName: aiCreatorName,
+            changeType: 'ai_create',
+            changeSummary: `AI Create by ${aiCreatorName} — ${summaryParts.join('; ')}`,
+            previousValues: null,
+            newValues: JSON.stringify(items),
+          });
+        }
+      } catch (logErr) {
+        console.error("Error writing AI create change logs:", logErr);
+      }
 
       let redirectTo;
       if (results.created.projects?.length > 0) {
