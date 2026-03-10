@@ -5997,9 +5997,9 @@ function MonitoringTab() {
                             {creditsIncluded > 0 ? (
                               <div className="flex items-center justify-end gap-2">
                                 <span className={creditPct > 80 ? 'text-destructive font-semibold' : ''}>
-                                  {formatNumber(creditsUsed)}
+                                  {creditsUsed.toLocaleString()}
                                 </span>
-                                <span className="text-xs text-muted-foreground">/ {formatNumber(creditsIncluded)}</span>
+                                <span className="text-xs text-muted-foreground">/ {creditsIncluded.toLocaleString()}</span>
                               </div>
                             ) : (
                               <span className="text-muted-foreground">-</span>
