@@ -585,6 +585,8 @@ export default function ProjectDetails() {
         });
 
         scrollContainers.forEach(el => {
+          const isGanttBar = el.classList.contains('absolute') && el.classList.contains('rounded-sm');
+          if (isGanttBar) return;
           savedStyles.push({ el, props: { overflow: el.style.overflow, overflowX: el.style.overflowX, overflowY: el.style.overflowY, height: el.style.height, maxHeight: el.style.maxHeight, width: el.style.width, maxWidth: el.style.maxWidth } });
           el.style.overflow = 'visible';
           el.style.overflowX = 'visible';
@@ -613,6 +615,9 @@ export default function ProjectDetails() {
 
         const allFixedHeightEls = card.querySelectorAll<HTMLElement>('.h-full');
         allFixedHeightEls.forEach(el => {
+          const isBarFill = el.closest('[class*="absolute"][class*="rounded-sm"]');
+          const isInlineDecorative = el.closest('[class*="absolute"][style*="height"]');
+          if (isBarFill || isInlineDecorative) return;
           savedStyles.push({ el, props: { height: el.style.height } });
           el.style.height = 'auto';
         });
