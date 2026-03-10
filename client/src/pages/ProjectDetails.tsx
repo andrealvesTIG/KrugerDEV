@@ -1683,15 +1683,25 @@ function ProjectTimeline({
     if (!effectiveStart || !effectiveEnd) return null;
     
     const today = startOfDay(new Date());
-    const totalDays = differenceInDays(effectiveEnd, effectiveStart);
+    let rangeStart = effectiveStart;
+    let rangeEnd = effectiveEnd;
+    const rawDays = differenceInDays(rangeEnd, rangeStart);
+    if (rawDays < 14) {
+      const midpoint = new Date((rangeStart.getTime() + rangeEnd.getTime()) / 2);
+      rangeStart = new Date(midpoint);
+      rangeStart.setDate(rangeStart.getDate() - 14);
+      rangeEnd = new Date(midpoint);
+      rangeEnd.setDate(rangeEnd.getDate() + 14);
+    }
+    const totalDays = differenceInDays(rangeEnd, rangeStart);
     
     if (totalDays <= 0) return null;
     
-    const rawTodayPosition = (differenceInDays(today, effectiveStart) / totalDays) * 100;
+    const rawTodayPosition = (differenceInDays(today, rangeStart) / totalDays) * 100;
     
     return {
-      start: effectiveStart,
-      end: effectiveEnd,
+      start: rangeStart,
+      end: rangeEnd,
       totalDays,
       today,
       todayPosition: rawTodayPosition,
