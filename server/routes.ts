@@ -15537,9 +15537,50 @@ Return ONLY valid JSON.`;
       }
 
       const existingProjects = await storage.getProjects(Number(organizationId));
-      const projectListForAI = existingProjects
-        .filter((p: any) => !p.deletedAt)
+      const activeProjects = existingProjects.filter((p: any) => !p.deletedAt);
+      const projectListForAI = activeProjects
         .map((p: any) => ({ id: p.id, name: p.name }));
+
+      let detailProjectId: number | null = projectId ? Number(projectId) : null;
+      if (!detailProjectId) {
+        const promptLower = prompt.toLowerCase().trim();
+        const nameMatch = activeProjects.find((p: any) => {
+          const pName = p.name.toLowerCase().trim();
+          return promptLower.includes(pName) || pName.includes(promptLower.replace(/^.*?(on|for|in|to)\s+/i, '').trim());
+        });
+        if (nameMatch) {
+          detailProjectId = nameMatch.id;
+        }
+      }
+
+      let targetProjectDetails = '';
+      if (detailProjectId) {
+        const proj = activeProjects.find((p: any) => p.id === detailProjectId);
+        if (proj) {
+          const [projTasks, projRisks, projIssues, projMilestones] = await Promise.all([
+            storage.getTasks(detailProjectId),
+            storage.getRisks(detailProjectId),
+            storage.getIssues(detailProjectId),
+            storage.getMilestones(detailProjectId),
+          ]);
+          const activeTasks = projTasks.filter((t: any) => !t.deletedAt);
+          const activeRisks = projRisks.filter((r: any) => !r.deletedAt);
+          const activeIssues = projIssues.filter((i: any) => !i.deletedAt);
+          targetProjectDetails = `\n\nTarget project details:
+- Name: "${proj.name}"
+- Description: ${proj.description || 'N/A'}
+- Status: ${proj.status || 'N/A'}
+- Priority: ${proj.priority || 'N/A'}
+- Health: ${proj.health || 'N/A'}
+- Budget: ${proj.budget || 'N/A'}
+- Start Date: ${proj.startDate || 'N/A'}
+- End Date: ${proj.endDate || 'N/A'}
+- Existing tasks (${activeTasks.length}): ${activeTasks.slice(0, 20).map((t: any) => `"${t.name}" [${t.status}]`).join(', ') || 'None'}
+- Existing risks (${activeRisks.length}): ${activeRisks.slice(0, 10).map((r: any) => `"${r.title}" [${r.status}, ${r.probability} prob., ${r.impact} impact]`).join(', ') || 'None'}
+- Existing issues (${activeIssues.length}): ${activeIssues.slice(0, 10).map((i: any) => `"${i.title}" [${i.status}, ${i.priority}]`).join(', ') || 'None'}
+- Existing milestones (${projMilestones.length}): ${projMilestones.slice(0, 10).map((m: any) => `"${m.title}" [${m.status}, due: ${m.dueDate || 'N/A'}]`).join(', ') || 'None'}`;
+        }
+      }
 
       const systemPrompt = `You are an AI assistant for a project portfolio management system. Based on the user's request, determine what they want to create and generate the appropriate data.
 
@@ -15592,24 +15633,46 @@ Guidelines:
 - If user mentions "resource", "team member", "person", "staff" create resources only
 - If the user asks to create items across multiple existing projects, you can reference multiple existing projects.
 - If the user says "assign me" or similar, set "assignToMe": true
-- Be specific and realistic based on the domain context
 - Generate 3-8 items when creating multiple of the same type
 - When distributing tasks across multiple projects, assign each task a "projectIndex" (0-based)
+
+Context-Awareness Rules (IMPORTANT):
+- When project details are provided in the context (description, status, existing tasks, risks, issues, milestones), use them to generate highly relevant and specific items.
+- Risks should reflect realistic threats to the specific project domain, technology stack, timeline, and scope. Reference actual project characteristics.
+- Issues should be relevant to the project's current phase, status, and existing work items. They should address practical concerns specific to this project.
+- Tasks should complement (not duplicate) existing tasks. Consider the project timeline, current phase, and what work would logically come next.
+- Milestones should align with the project timeline, existing tasks, and deliverable schedule.
+- Do NOT create generic or boilerplate items. Every item should be specifically tailored to the project's actual context.
+- Do NOT duplicate items that already exist in the project. Check the existing items list and create new, different ones.
+- Use realistic cost exposure values appropriate to the project's budget and scale.
+- Set appropriate probability/impact levels based on the project's actual risk profile.
 
 For MULTIPLE PROJECTS, use:
 { "projects": [{ "name": "...", ... }, ...], "tasks": [{ "name": "...", "projectIndex": 0, ... }, ...] }
 
 Return ONLY valid JSON.`;
 
-      const existingProjectsContext = projectListForAI.length > 0
-        ? `\n\nExisting projects in this organization:\n${projectListForAI.map((p: any) => `- ID: ${p.id}, Name: "${p.name}"`).join('\n')}`
+      const projectSummariesForAI = activeProjects.map((p: any) => {
+        let summary = `- ID: ${p.id}, Name: "${p.name}"`;
+        if (p.description) summary += `, Description: "${p.description.substring(0, 200)}"`;
+        if (p.status) summary += `, Status: ${p.status}`;
+        if (p.priority) summary += `, Priority: ${p.priority}`;
+        if (p.health) summary += `, Health: ${p.health}`;
+        if (p.startDate) summary += `, Start: ${p.startDate}`;
+        if (p.endDate) summary += `, End: ${p.endDate}`;
+        if (p.budget) summary += `, Budget: ${p.budget}`;
+        return summary;
+      });
+
+      const existingProjectsContext = projectSummariesForAI.length > 0
+        ? `\n\nExisting projects in this organization:\n${projectSummariesForAI.join('\n')}`
         : '\n\nNo existing projects in this organization.';
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Request: ${prompt}\n\nContext: organizationId=${organizationId}${projectId ? `, projectId=${projectId}` : ''}${existingProjectsContext}` }
+          { role: "user", content: `Request: ${prompt}\n\nContext: organizationId=${organizationId}${projectId ? `, projectId=${projectId}` : ''}${targetProjectDetails}${existingProjectsContext}` }
         ],
         response_format: { type: "json_object" },
         max_tokens: 4000,
@@ -15692,6 +15755,14 @@ Return ONLY valid JSON.`;
         if (fuzzyMatch) {
           resolvedExistingProjectId = fuzzyMatch.id;
           matchedProject = fuzzyMatch;
+        }
+      }
+
+      if (!resolvedExistingProjectId && !projectId && detailProjectId) {
+        const fallback = projectListForAI.find((p: any) => p.id === detailProjectId);
+        if (fallback) {
+          resolvedExistingProjectId = fallback.id;
+          matchedProject = fallback;
         }
       }
 
