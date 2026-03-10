@@ -547,11 +547,13 @@ export default function ProjectDetails() {
         const truncated = card.querySelectorAll<HTMLElement>('.truncate');
 
         if (panelGroup) {
-          savedStyles.push({ el: panelGroup, props: { height: panelGroup.style.height, maxHeight: panelGroup.style.maxHeight, overflow: panelGroup.style.overflow, display: panelGroup.style.display } });
+          savedStyles.push({ el: panelGroup, props: { height: panelGroup.style.height, maxHeight: panelGroup.style.maxHeight, overflow: panelGroup.style.overflow, display: panelGroup.style.display, width: panelGroup.style.width, maxWidth: panelGroup.style.maxWidth } });
           panelGroup.style.height = 'auto';
           panelGroup.style.maxHeight = 'none';
           panelGroup.style.overflow = 'visible';
           panelGroup.style.display = 'flex';
+          panelGroup.style.width = 'max-content';
+          panelGroup.style.maxWidth = 'none';
           ['h-[500px]', 'flex-1'].forEach(cls => {
             if (panelGroup.classList.contains(cls)) {
               removedClasses.push({ el: panelGroup, cls });
@@ -613,6 +615,33 @@ export default function ProjectDetails() {
         allFixedHeightEls.forEach(el => {
           savedStyles.push({ el, props: { height: el.style.height } });
           el.style.height = 'auto';
+        });
+
+        const allElements = card.querySelectorAll<HTMLElement>('*');
+        allElements.forEach(el => {
+          const cls = el.className;
+          if (typeof cls !== 'string') return;
+          const hasColorClass = /\b(bg-|text-|border-)(emerald|blue|slate|red|purple|amber|muted|primary|green|yellow|orange|rose|destructive|foreground|gray|zinc|neutral|stone|cyan|teal|indigo|violet|pink|fuchsia|lime|sky)\b/.test(cls);
+          if (!hasColorClass) return;
+          const computed = window.getComputedStyle(el);
+          savedStyles.push({ el, props: { 
+            backgroundColor: el.style.backgroundColor, 
+            borderColor: el.style.borderColor, 
+            color: el.style.color,
+            opacity: el.style.opacity,
+          }});
+          if (computed.backgroundColor && computed.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+            el.style.backgroundColor = computed.backgroundColor;
+          }
+          if (computed.borderColor) {
+            el.style.borderColor = computed.borderColor;
+          }
+          if (computed.color) {
+            el.style.color = computed.color;
+          }
+          if (computed.opacity) {
+            el.style.opacity = computed.opacity;
+          }
         });
       };
 
