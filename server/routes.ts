@@ -16001,15 +16001,17 @@ Return ONLY valid JSON.`;
           const targetProjectId = (msData.projectIndex !== undefined && projectIndexToId[msData.projectIndex])
             ? projectIndexToId[msData.projectIndex]
             : currentProjectId;
-          const msStartDate = new Date(milestoneDate);
-          msStartDate.setDate(msStartDate.getDate() - 7);
-          const milestone = await storage.createMilestone({
+          const milestone = await storage.createTask({
             projectId: targetProjectId,
-            title: msData.name || msData.title || "Milestone",
-            description: msData.description,
-            dueDate: milestoneDate.toISOString().split('T')[0],
-            startDate: msStartDate.toISOString().split('T')[0],
+            name: msData.name || msData.title || "Milestone",
+            description: msData.description || null,
+            startDate: milestoneDate.toISOString().split('T')[0],
+            endDate: milestoneDate.toISOString().split('T')[0],
+            durationDays: 0,
             status: "Not Started",
+            priority: "Medium",
+            progress: 0,
+            isMilestone: true,
           });
           createdMilestones.push(milestone);
         }
@@ -16045,7 +16047,7 @@ Return ONLY valid JSON.`;
           ...(results.created.tasks || []).map((t: any) => ({ type: 'task', id: t.id, name: t.name, projectId: t.projectId })),
           ...(results.created.risks || []).map((r: any) => ({ type: 'risk', id: r.id, name: r.title, projectId: r.projectId })),
           ...(results.created.issues || []).map((i: any) => ({ type: 'issue', id: i.id, name: i.title, projectId: i.projectId })),
-          ...(results.created.milestones || []).map((m: any) => ({ type: 'milestone', id: m.id, name: m.title, projectId: m.projectId })),
+          ...(results.created.milestones || []).map((m: any) => ({ type: 'milestone', id: m.id, name: m.name || m.title, projectId: m.projectId })),
         ];
 
         const itemsByProject = new Map<number, typeof allCreatedItems>();
