@@ -81,6 +81,7 @@ export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonPro
   const [previewActions, setPreviewActions] = useState<PreviewAction[]>([]);
   const [requiresProjectWarning, setRequiresProjectWarning] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [resolvedProjectName, setResolvedProjectName] = useState<string>("");
 
   const resetDialog = () => {
     setStep("input");
@@ -88,6 +89,7 @@ export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonPro
     setPreviewActions([]);
     setRequiresProjectWarning(false);
     setSelectedProjectId("");
+    setResolvedProjectName("");
   };
 
   const toggleVoiceInput = async () => {
@@ -218,6 +220,10 @@ export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonPro
       if (data.actions?.length > 0) {
         setPreviewActions(data.actions);
         setRequiresProjectWarning(!!data.requiresProject);
+        if (data.resolvedProjectId) {
+          setSelectedProjectId(String(data.resolvedProjectId));
+          setResolvedProjectName(data.resolvedProjectName || "");
+        }
         setStep("confirm");
       } else {
         toast({
@@ -422,6 +428,16 @@ export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonPro
               </DialogDescription>
             </DialogHeader>
             <div className="py-2">
+              {resolvedProjectName && !requiresProjectWarning && (
+                <div className="p-3 mb-3 rounded-md border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center gap-2">
+                    <FolderOpen className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      Adding to existing project: <strong>{resolvedProjectName}</strong>
+                    </p>
+                  </div>
+                </div>
+              )}
               {requiresProjectWarning && (
                 <div className="p-3 mb-3 rounded-md border bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 space-y-2">
                   <div className="flex items-center gap-2">

@@ -15536,6 +15536,11 @@ Return ONLY valid JSON.`;
         });
       }
 
+      const existingProjects = await storage.getProjects(Number(organizationId));
+      const projectListForAI = existingProjects
+        .filter((p: any) => !p.deletedAt)
+        .map((p: any) => ({ id: p.id, name: p.name }));
+
       const systemPrompt = `You are an AI assistant for a project portfolio management system. Based on the user's request, determine what they want to create and generate the appropriate data.
 
 Analyze the request and decide which type(s) of items to create:
@@ -15546,10 +15551,17 @@ Analyze the request and decide which type(s) of items to create:
 - "milestone" - For creating one or more milestones (requires projectId context)
 - "resource" - For creating team members/resources
 
+IMPORTANT: Before creating a new project, ALWAYS check the list of existing projects provided in the context. If the user references a project by name (or a name that closely matches an existing project), use that existing project instead of creating a new one. Set "existingProjectId" to the matching project's ID and do NOT include a "project" object in "items".
+
+Only create a new project if:
+1. The user explicitly asks to create a NEW project, OR
+2. No existing project matches what the user is describing
+
 Return a JSON response with this structure:
 {
   "intent": "project" | "task" | "risk" | "issue" | "milestone" | "resource" | "multiple",
   "requiresProject": boolean,
+  "existingProjectId": number | null,
   "assignToMe": boolean,
   "items": {
     "project": { ... } | null,
@@ -15561,6 +15573,8 @@ Return a JSON response with this structure:
   }
 }
 
+Set "existingProjectId" to the ID of the matching existing project when the user references one. Set it to null only if creating a brand new project or if no project context is needed.
+
 For a PROJECT: { "name": "Project name", "description": "Description", "status": "Initiation", "priority": "Medium", "health": "Green", "budget": 0 }
 For TASKS (array): { "name": "Task name", "description": "Description", "durationDays": 5, "status": "Not Started", "priority": "Medium" }
 For RISKS (array): { "title": "Risk title", "description": "Description", "probability": "Medium", "impact": "Medium", "status": "Open", "mitigationPlan": "How to mitigate", "costExposure": "50000" }
@@ -15569,13 +15583,14 @@ For MILESTONES (array): { "name": "Milestone name", "description": "Description"
 For RESOURCES (array): { "displayName": "Full Name", "email": "email@example.com", "title": "Job Title", "department": "Department", "skills": "Skill1, Skill2" }
 
 Guidelines:
-- If user mentions "project", "initiative", "program" create a project with related tasks/risks
-- If user mentions "task", "todo", "work item" create tasks. If no projectId is provided, also create a project.
-- If user mentions "risk", "concern", "threat" create risks. If no projectId, also create a project.
-- If user mentions "issue", "problem", "bug", "blocker" create issues. If no projectId, also create a project.
-- If user mentions "milestone", "deadline", "deliverable" create milestones. If no projectId, also create a project.
+- FIRST check if the user's request references any existing project by name. If it does, use "existingProjectId" instead of creating a new project.
+- If user wants to create a brand new project (e.g., "create a new project called X"), create a project with related tasks/risks.
+- If user mentions "task", "todo", "work item" create tasks. If no projectId is provided AND no existing project matches, also create a project.
+- If user mentions "risk", "concern", "threat" create risks. If no projectId AND no existing project matches, also create a project.
+- If user mentions "issue", "problem", "bug", "blocker" create issues. If no projectId AND no existing project matches, also create a project.
+- If user mentions "milestone", "deadline", "deliverable" create milestones. If no projectId AND no existing project matches, also create a project.
 - If user mentions "resource", "team member", "person", "staff" create resources only
-- If the user asks to create items across multiple projects, create a "projects" array instead of a single "project".
+- If the user asks to create items across multiple existing projects, you can reference multiple existing projects.
 - If the user says "assign me" or similar, set "assignToMe": true
 - Be specific and realistic based on the domain context
 - Generate 3-8 items when creating multiple of the same type
@@ -15586,11 +15601,15 @@ For MULTIPLE PROJECTS, use:
 
 Return ONLY valid JSON.`;
 
+      const existingProjectsContext = projectListForAI.length > 0
+        ? `\n\nExisting projects in this organization:\n${projectListForAI.map((p: any) => `- ID: ${p.id}, Name: "${p.name}"`).join('\n')}`
+        : '\n\nNo existing projects in this organization.';
+
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Request: ${prompt}\n\nContext: organizationId=${organizationId}${projectId ? `, projectId=${projectId}` : ''}` }
+          { role: "user", content: `Request: ${prompt}\n\nContext: organizationId=${organizationId}${projectId ? `, projectId=${projectId}` : ''}${existingProjectsContext}` }
         ],
         response_format: { type: "json_object" },
         max_tokens: 4000,
@@ -15652,15 +15671,46 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: "Could not understand what to create. Please be more specific.", intent: aiResult.intent });
       }
 
-      const needsProjectContext = actions.some(a => ["create_task", "create_risk", "create_issue", "create_milestone"].includes(a.type));
-      const hasProjectContext = projectId || actions.some(a => a.type === "create_project");
+      let resolvedExistingProjectId: number | null = null;
+      let matchedProject: { id: number; name: string } | null = null;
+
+      if (aiResult.existingProjectId) {
+        const candidateId = Number(aiResult.existingProjectId);
+        const found = projectListForAI.find((p: any) => p.id === candidateId);
+        if (found) {
+          resolvedExistingProjectId = found.id;
+          matchedProject = found;
+        }
+      }
+
+      if (!resolvedExistingProjectId && !projectId && aiResult.items?.project?.name) {
+        const aiProjectName = aiResult.items.project.name.toLowerCase().trim();
+        const fuzzyMatch = projectListForAI.find((p: any) => {
+          const existingName = p.name.toLowerCase().trim();
+          return existingName === aiProjectName || existingName.includes(aiProjectName) || aiProjectName.includes(existingName);
+        });
+        if (fuzzyMatch) {
+          resolvedExistingProjectId = fuzzyMatch.id;
+          matchedProject = fuzzyMatch;
+        }
+      }
+
+      let finalActions = actions;
+      if (resolvedExistingProjectId) {
+        finalActions = actions.filter((a: any) => a.type !== "create_project");
+      }
+
+      const needsProjectContext = finalActions.some(a => ["create_task", "create_risk", "create_issue", "create_milestone"].includes(a.type));
+      const hasProjectContext = projectId || resolvedExistingProjectId || finalActions.some(a => a.type === "create_project");
 
       res.json({
         success: true,
         intent: aiResult.intent,
-        actions,
+        actions: finalActions,
         requiresProject: needsProjectContext && !hasProjectContext,
-        summary: `AI identified ${actions.length} action(s) to perform`,
+        resolvedProjectId: resolvedExistingProjectId || undefined,
+        resolvedProjectName: matchedProject?.name || undefined,
+        summary: `AI identified ${finalActions.length} action(s) to perform${matchedProject ? ` for project "${matchedProject.name}"` : ''}`,
       });
     } catch (err) {
       console.error("Error with AI smart create preview:", err);
@@ -15701,6 +15751,13 @@ Return ONLY valid JSON.`;
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(Number(organizationId))) {
         return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+
+      if (projectId) {
+        const targetProject = await storage.getProject(Number(projectId));
+        if (!targetProject || targetProject.organizationId !== Number(organizationId)) {
+          return res.status(403).json({ message: "The selected project does not belong to this organization" });
+        }
       }
 
       const today = new Date();
