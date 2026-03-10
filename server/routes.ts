@@ -7924,6 +7924,25 @@ export async function registerRoutes(
       
       const tasks = await storage.getTasks(projectId);
       const milestones = await storage.getMilestones(projectId);
+
+      const tasksTable = (await import("@shared/schema")).tasks;
+      const taskAssignmentRows = await db.select({
+        taskId: taskResourceAssignments.taskId,
+        displayName: resources.displayName,
+      })
+        .from(taskResourceAssignments)
+        .innerJoin(resources, eq(taskResourceAssignments.resourceId, resources.id))
+        .innerJoin(tasksTable, eq(taskResourceAssignments.taskId, tasksTable.id))
+        .where(eq(tasksTable.projectId, projectId));
+
+      const taskResourceMap = new Map<number, string>();
+      for (const row of taskAssignmentRows) {
+        const existing = taskResourceMap.get(row.taskId);
+        const name = row.displayName || '';
+        if (name) {
+          taskResourceMap.set(row.taskId, existing ? `${existing}, ${name}` : name);
+        }
+      }
       
       const safeFileName = (project.name || 'project').replace(/[^a-z0-9]/gi, '_');
       
@@ -7969,7 +7988,7 @@ export async function registerRoutes(
             String(task.progress || 0),
             task.status || '',
             '',
-            task.assignee || '',
+            taskResourceMap.get(task.id) || task.assignee || '',
             task.description || ''
           ]);
         });
