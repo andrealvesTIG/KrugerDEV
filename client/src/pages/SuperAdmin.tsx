@@ -6701,15 +6701,9 @@ function AnalyticsTab() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Analytics Dashboard</h2>
-          <p className="text-muted-foreground">Comprehensive user and application statistics</p>
-        </div>
-        <Button variant="outline" onClick={handleRefresh} data-testid="button-refresh-analytics">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+      <div>
+        <h2 className="text-2xl font-bold">Analytics Dashboard</h2>
+        <p className="text-muted-foreground">Comprehensive user and application statistics</p>
       </div>
 
       {/* Key Metrics Cards */}
