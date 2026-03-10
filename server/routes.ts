@@ -4130,9 +4130,14 @@ export async function registerRoutes(
       const input = api.portfolios.update.input.parse(req.body);
       const portfolioId = Number(req.params.id);
       
+      const currentPortfolio = await storage.getPortfolio(portfolioId);
+      if (!currentPortfolio) return res.status(404).json({ message: "Portfolio not found" });
+      if (!await userHasOrgAccess(userId, currentPortfolio.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
       if (input.name) {
         const trimmedName = input.name.trim();
-        const currentPortfolio = await storage.getPortfolio(portfolioId);
         if (currentPortfolio && currentPortfolio.organizationId) {
           const existing = await storage.getPortfolios(currentPortfolio.organizationId);
           const duplicate = existing.find(p => p.id !== portfolioId && p.name.toLowerCase() === trimmedName.toLowerCase());
@@ -4155,9 +4160,21 @@ export async function registerRoutes(
   });
 
   app.delete(api.portfolios.delete.path, async (req, res) => {
-    const userId = getUserIdFromRequest(req);
-    await storage.softDeleteItem('portfolio', Number(req.params.id), userId!);
-    res.status(204).send();
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const portfolioId = Number(req.params.id);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: "Portfolio not found" });
+      if (!await userHasOrgAccess(userId, portfolio.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      await storage.softDeleteItem('portfolio', portfolioId, userId);
+      res.status(204).send();
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error deleting portfolio" : classified.message });
+    }
   });
 
   // --- Portfolio Aggregations ---
@@ -10878,6 +10895,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (!organizationId) {
         return res.status(400).json({ message: "organizationId is required" });
       }
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
       const resourceList = await storage.getResources(organizationId);
       res.json(resourceList);
     } catch (err) {
@@ -10895,6 +10915,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const organizationId = Number(req.query.organizationId);
       if (!organizationId) {
         return res.status(400).json({ message: "Organization ID is required" });
+      }
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
       }
       
       const allResources = await storage.getResources(organizationId);
@@ -11028,6 +11051,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (!primaryId || !secondaryId || !organizationId) {
         return res.status(400).json({ message: "Primary ID, Secondary ID, and Organization ID are required" });
       }
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
       
       const primary = await storage.getResource(primaryId);
       const secondary = await storage.getResource(secondaryId);
@@ -11070,9 +11096,14 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   // NOTE: This route MUST come before /api/resources/:id to avoid "assignments" being treated as an ID
   app.get('/api/resources/assignments', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const organizationId = Number(req.query.organizationId);
       if (!organizationId) {
         return res.status(400).json({ message: "Organization ID is required" });
+      }
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
       }
 
       // Get all task resource assignments with related data
@@ -11117,15 +11148,32 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
   // Get a single resource
   app.get('/api/resources/:id', async (req, res) => {
-    const resource = await storage.getResource(Number(req.params.id));
-    if (!resource) return res.status(404).json({ message: "Resource not found" });
-    res.json(resource);
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const resource = await storage.getResource(Number(req.params.id));
+      if (!resource) return res.status(404).json({ message: "Resource not found" });
+      if (!await userHasOrgAccess(userId, resource.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      res.json(resource);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching resource" : classified.message });
+    }
   });
 
   // Get task assignments for a resource
   app.get('/api/resources/:id/task-assignments', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const resourceId = Number(req.params.id);
+      const resource = await storage.getResource(resourceId);
+      if (!resource) return res.status(404).json({ message: "Resource not found" });
+      if (!await userHasOrgAccess(userId, resource.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
       const assignments = await db.select({
         taskId: taskResourceAssignments.taskId,
         taskName: tasks.name,
@@ -11152,7 +11200,14 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   // Get issue assignments for a resource
   app.get('/api/resources/:id/issue-assignments', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const resourceId = Number(req.params.id);
+      const resource = await storage.getResource(resourceId);
+      if (!resource) return res.status(404).json({ message: "Resource not found" });
+      if (!await userHasOrgAccess(userId, resource.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
       const assignments = await db.select({
         issueId: issueResourceAssignments.issueId,
         issueTitle: issues.title,
@@ -11230,9 +11285,14 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   // Update a resource
   app.put('/api/resources/:id', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const id = Number(req.params.id);
       const existing = await storage.getResource(id);
       if (!existing) return res.status(404).json({ message: "Resource not found" });
+      if (!await userHasOrgAccess(userId, existing.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
       
       const updated = await storage.updateResource(id, req.body);
       res.json(updated);
@@ -11244,11 +11304,21 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
   // Delete a resource
   app.delete('/api/resources/:id', async (req, res) => {
-    const id = Number(req.params.id);
-    const existing = await storage.getResource(id);
-    if (!existing) return res.status(404).json({ message: "Resource not found" });
-    await storage.deleteResource(id);
-    res.status(204).send();
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const existing = await storage.getResource(id);
+      if (!existing) return res.status(404).json({ message: "Resource not found" });
+      if (!await userHasOrgAccess(userId, existing.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      await storage.deleteResource(id);
+      res.status(204).send();
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error deleting resource" : classified.message });
+    }
   });
 
   // Create a resource with invitation - creates resource, org invite, and sends magic link email
@@ -12637,9 +12707,14 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
   // Get all project intakes for an organization
   app.get('/api/project-intakes', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const organizationId = Number(req.query.organizationId);
       if (!organizationId) {
         return res.status(400).json({ message: "organizationId is required" });
+      }
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
       }
       const intakes = await storage.getProjectIntakes(organizationId);
       res.json(intakes);
@@ -12653,11 +12728,16 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
   // Get a single project intake
   app.get('/api/project-intakes/:id', async (req, res) => {
     try {
-      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const intake = await storage.getProjectIntake(Number(req.params.id));
       if (!intake) return res.status(404).json({ message: "Project intake not found" });
+      if (!await userHasOrgAccess(userId, intake.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
       
       // If organizationId is provided, validate the intake belongs to that organization
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
       if (organizationId && intake.organizationId !== organizationId) {
         return res.status(404).json({ message: "Project intake not found in this organization" });
       }
@@ -13256,7 +13336,14 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
   // Get all change requests for a project
   app.get('/api/projects/:projectId/change-requests', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const projectId = Number(req.params.projectId);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
       const changeRequests = await storage.getChangeRequests(projectId);
       res.json(changeRequests);
     } catch (err) {
@@ -13271,6 +13358,12 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
     try {
       const projectId = Number(req.params.projectId);
       const userId = getUserIdFromRequest(req);
+      
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
       
       // Require email verification before creating
       const emailCheck = await requireEmailVerified(userId);
@@ -13316,8 +13409,15 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
   // Update a change request
   app.patch('/api/change-requests/:id', async (req, res) => {
     try {
-      const id = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const existingCR = await storage.getChangeRequest(id);
+      if (!existingCR) return res.status(404).json({ message: "Change request not found" });
+      const crProject = await storage.getProject(existingCR.projectId);
+      if (crProject && !await userHasOrgAccess(userId, crProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
       const updates = { ...req.body };
       
       // Track who reviewed/approved if status is changing to those states
@@ -13341,7 +13441,15 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
   // Delete a change request
   app.delete('/api/change-requests/:id', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const id = Number(req.params.id);
+      const existingCR = await storage.getChangeRequest(id);
+      if (!existingCR) return res.status(404).json({ message: "Change request not found" });
+      const crProject = await storage.getProject(existingCR.projectId);
+      if (crProject && !await userHasOrgAccess(userId, crProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
       await storage.deleteChangeRequest(id);
       res.json({ success: true });
     } catch (err) {
@@ -13356,7 +13464,14 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
   // Get all documents for a project
   app.get('/api/projects/:projectId/documents', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const projectId = Number(req.params.projectId);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
       const documents = await storage.getProjectDocuments(projectId);
       res.json(documents);
     } catch (err) {
@@ -13371,6 +13486,12 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
     try {
       const projectId = Number(req.params.projectId);
       const userId = getUserIdFromRequest(req);
+      
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
       
       // Require email verification before creating
       const emailCheck = await requireEmailVerified(userId);
@@ -13417,7 +13538,15 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
   // Update a document
   app.patch('/api/documents/:id', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const id = Number(req.params.id);
+      const existingDoc = await storage.getProjectDocument(id);
+      if (!existingDoc) return res.status(404).json({ message: "Document not found" });
+      const docProject = await storage.getProject(existingDoc.projectId);
+      if (docProject && !await userHasOrgAccess(userId, docProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
       const document = await storage.updateProjectDocument(id, req.body);
       res.json(document);
     } catch (err) {
@@ -13430,7 +13559,15 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
   // Delete a document
   app.delete('/api/documents/:id', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const id = Number(req.params.id);
+      const existingDoc = await storage.getProjectDocument(id);
+      if (!existingDoc) return res.status(404).json({ message: "Document not found" });
+      const docProject = await storage.getProject(existingDoc.projectId);
+      if (docProject && !await userHasOrgAccess(userId, docProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
       await storage.deleteProjectDocument(id);
       res.json({ success: true });
     } catch (err) {

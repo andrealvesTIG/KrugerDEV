@@ -2697,9 +2697,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteResource(id: number): Promise<void> {
-    // First delete all assignments for this resource (risks use issue_resource_assignments now)
+    // Clean up all FK-related records before deleting the resource
     await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.resourceId, id));
     await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.resourceId, id));
+    await db.delete(resourceSkills).where(eq(resourceSkills.resourceId, id));
+    await db.delete(resourceAvailability).where(eq(resourceAvailability.resourceId, id));
+    await db.delete(timesheetEntries).where(eq(timesheetEntries.resourceId, id));
+    await db.delete(nonProjectTimeEntries).where(eq(nonProjectTimeEntries.resourceId, id));
     // Then delete the resource
     await db.delete(resources).where(eq(resources.id, id));
   }
