@@ -86,8 +86,12 @@ export default function SuperAdmin() {
         </div>
       </div>
 
-      <Tabs defaultValue="organizations" className="w-full">
+      <Tabs defaultValue="monitoring" className="w-full">
         <TabsList className="bg-muted p-1 rounded-xl">
+          <TabsTrigger value="monitoring" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2" data-testid="tab-monitoring">
+            <Activity className="h-4 w-4" />
+            Analytics
+          </TabsTrigger>
           <TabsTrigger value="organizations" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2">
             <Building2 className="h-4 w-4" />
             Organizations
@@ -108,10 +112,6 @@ export default function SuperAdmin() {
             <FileCheck className="h-4 w-4" />
             User Consents
           </TabsTrigger>
-          <TabsTrigger value="monitoring" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2" data-testid="tab-monitoring">
-            <Activity className="h-4 w-4" />
-            Analytics
-          </TabsTrigger>
           <TabsTrigger value="help-tickets" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2" data-testid="tab-help-tickets">
             <HelpCircle className="h-4 w-4" />
             Help Tickets
@@ -122,6 +122,9 @@ export default function SuperAdmin() {
           </TabsTrigger>
         </TabsList>
         <div className="mt-6">
+          <TabsContent value="monitoring">
+            <MonitoringTab />
+          </TabsContent>
           <TabsContent value="organizations">
             <OrganizationsTab />
           </TabsContent>
@@ -136,9 +139,6 @@ export default function SuperAdmin() {
           </TabsContent>
           <TabsContent value="consents">
             <ConsentsTab />
-          </TabsContent>
-          <TabsContent value="monitoring">
-            <MonitoringTab />
           </TabsContent>
           <TabsContent value="help-tickets">
             <HelpTicketsTab />
