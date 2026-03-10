@@ -1,0 +1,25 @@
+1:36:37 PM [express] GET /api/project-risk-assessments/org/11 304 in 121ms :: []
+1:36:37 PM [express] GET /api/organizations/11/integrations 304 in 123ms :: []
+1:36:38 PM [vite] Internal server error: Failed to resolve import "html-to-image" from "client/src/pages/ProjectDetails.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /home/runner/workspace/client/src/pages/ProjectDetails.tsx:38:22
+  51 |  import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+  52 |  import { Loader2, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttCh...
+  53 |  import { toPng } from "html-to-image";
+     |                         ^
+  54 |  import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+  55 |  import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSep...
+      at TransformPluginContext._formatLog (/home/runner/workspace/node_modules/vite/dist/node/chunks/config.js:28998:43)
+      at TransformPluginContext.error (/home/runner/workspace/node_modules/vite/dist/node/chunks/config.js:28995:14)
+      at normalizeUrl (/home/runner/workspace/node_modules/vite/dist/node/chunks/config.js:27118:18)
+      at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+      at async <anonymous> (/home/runner/workspace/node_modules/vite/dist/node/chunks/config.js:27176:32)
+      at async Promise.all (index 38)
+      at async TransformPluginContext.transform (/home/runner/workspace/node_modules/vite/dist/node/chunks/config.js:27144:4)
+      at async EnvironmentPluginContainer.transform (/home/runner/workspace/node_modules/vite/dist/node/chunks/config.js:28796:14)
+      at async loadAndTransform (/home/runner/workspace/node_modules/vite/dist/node/chunks/config.js:22669:26)
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.11.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.0
+npm notice To update run: npm install -g npm@11.11.0
+npm notice
