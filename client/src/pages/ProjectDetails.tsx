@@ -567,7 +567,7 @@ export default function ProjectDetails() {
           handle.style.display = 'none';
         });
 
-        panels.forEach(panel => {
+        panels.forEach((panel, panelIndex) => {
           savedStyles.push({ el: panel, props: { overflow: panel.style.overflow, flex: panel.style.flex, minWidth: panel.style.minWidth, width: panel.style.width, maxWidth: panel.style.maxWidth, height: panel.style.height } });
           panel.style.overflow = 'visible';
           panel.style.flex = 'none';
@@ -575,7 +575,13 @@ export default function ProjectDetails() {
           panel.style.maxWidth = 'none';
           const innerContent = panel.querySelector<HTMLElement>('[style*="min-width"]');
           if (innerContent) {
-            const minW = innerContent.style.minWidth || `${innerContent.scrollWidth}px`;
+            const currentMinW = parseInt(innerContent.style.minWidth) || innerContent.scrollWidth;
+            const isTimelinePanel = panelIndex > 0 || (!panel.querySelector('input[data-testid="input-new-task"]') && innerContent.style.minWidth);
+            const exportWidth = isTimelinePanel ? Math.max(currentMinW, currentMinW * 1.5) : currentMinW;
+            const minW = `${exportWidth}px`;
+            savedStyles.push({ el: innerContent, props: { minWidth: innerContent.style.minWidth, width: innerContent.style.width } });
+            innerContent.style.minWidth = minW;
+            innerContent.style.width = minW;
             panel.style.width = minW;
             panel.style.minWidth = minW;
           } else {
