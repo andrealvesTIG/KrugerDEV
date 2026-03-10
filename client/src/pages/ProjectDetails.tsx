@@ -16,7 +16,7 @@ import { useCustomFieldDefinitions, useProjectCustomFieldValues, useUpdateProjec
 import { useCustomProjectTabs, useFullCustomTab } from "@/hooks/use-custom-tabs";
 import type { CustomFieldDefinition, ProjectCustomFieldValue, CustomProjectTab, CustomTabSection, CustomTabField } from "@shared/schema";
 import { useProjectFinancials } from "@/hooks/use-project-financials";
-import { useResources } from "@/hooks/use-resources";
+import { useResources, useProjectTaskAssignments } from "@/hooks/use-resources";
 import type { TaskResourceAssignment, Resource } from "@shared/schema";
 import { useOrganization } from "@/hooks/use-organization";
 import { useAuth } from "@/hooks/use-auth";
@@ -172,6 +172,7 @@ export default function ProjectDetails() {
   const { data: project, isLoading, refetch: refetchProject } = useProject(id);
   const { data: financials } = useProjectFinancials(id);
   const { data: projectTasks } = useTasks(id);
+  const { data: projectTaskAssignments } = useProjectTaskAssignments(id);
   const { data: projectRisks } = useRisks(id);
   const { data: projectIssues } = useIssues(id);
   const { data: projectMilestones } = useMilestones(id);
@@ -766,6 +767,17 @@ export default function ProjectDetails() {
         };
       });
 
+      const taskResourceMap = new Map<number, string>();
+      if (projectTaskAssignments) {
+        for (const assignment of projectTaskAssignments) {
+          const existing = taskResourceMap.get(assignment.taskId);
+          const name = assignment.resource?.displayName || '';
+          if (name) {
+            taskResourceMap.set(assignment.taskId, existing ? `${existing}, ${name}` : name);
+          }
+        }
+      }
+
       const getTaskValue = (task: Task, colId: GanttColumn, index: number): string | number => {
         switch (colId) {
           case 'taskIndex': return index + 1;
@@ -790,7 +802,7 @@ export default function ProjectDetails() {
           case 'remainingHours': return task.remainingHours != null ? task.remainingHours : '';
           case 'cost': return task.cost != null ? task.cost : '';
           case 'actualCost': return task.actualCost != null ? task.actualCost : '';
-          case 'resources': return task.assignee || '';
+          case 'resources': return taskResourceMap.get(task.id) || '';
           case 'assignee': return task.assignee || '';
           case 'constraintType': return task.constraintType || '';
           case 'constraintDate': return task.constraintDate || '';
