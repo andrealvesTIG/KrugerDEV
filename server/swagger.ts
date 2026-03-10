@@ -1234,6 +1234,26 @@ const spec = {
       }),
     },
 
+    '/projects/{id}/export': {
+      get: op('Projects', 'Export project schedule', {
+        description: 'Export project tasks, milestones, and resource assignments in CSV or MS Project XML (MSPDI) format. The CSV export includes WBS, task names, dates, duration, progress, status, priority, assigned resources (from resource assignments), and descriptions. The MSPDI export produces a full Microsoft Project-compatible XML file with task hierarchy, dependencies, and resource assignments.',
+        parameters: [
+          pathId(),
+          p('format', 'query', { type: 'string', enum: ['csv', 'mspdi', 'xml'] }, false, 'Export format: csv (default) or mspdi/xml for MS Project XML'),
+        ],
+        responses: {
+          '200': {
+            description: 'Exported file',
+            content: {
+              'text/csv': { schema: { type: 'string' } },
+              'application/xml': { schema: { type: 'string' } },
+            },
+          },
+          ...fullRes,
+        },
+      }),
+    },
+
     // ======================== TASKS ========================
     '/projects/{projectId}/tasks': {
       get: op('Tasks', 'List tasks for a project', {
@@ -1671,6 +1691,28 @@ const spec = {
       get: op('Resources', 'Get all resource assignments', {
         parameters: [qInt('orgId', true)],
         responses: { ...r200('All assignments'), ...authRes },
+      }),
+    },
+    '/projects/{id}/task-resource-assignments': {
+      get: op('Resources', 'Get all task resource assignments for a project', {
+        description: 'Returns all resource assignments for tasks in the specified project, including full resource details (displayName, email, title, department, etc.) for each assignment.',
+        parameters: [pathId()],
+        responses: {
+          ...r200('Task resource assignments', {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'integer' },
+                taskId: { type: 'integer' },
+                resourceId: { type: 'integer' },
+                allocationPercentage: { type: 'number', nullable: true },
+                resource: { $ref: '#/components/schemas/Resource' },
+              },
+            },
+          }),
+          ...idRes,
+        },
       }),
     },
     '/dashboard/utilization': {
