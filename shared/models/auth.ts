@@ -30,6 +30,7 @@ export const users = pgTable("users", {
   onboardingCompleted: boolean("onboarding_completed").default(false),
   detectedCompany: varchar("detected_company"),
   detectedIndustry: varchar("detected_industry"),
+  signupSource: varchar("signup_source"),
 
   // Microsoft 365 authentication
   microsoftId: varchar("microsoft_id").unique(), // Azure AD object ID (oid)

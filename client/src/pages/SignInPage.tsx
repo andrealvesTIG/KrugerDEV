@@ -247,6 +247,7 @@ export default function SignInPage() {
       const response = await apiRequest("POST", "/api/auth/passwordless/request", { 
         email: email.trim(),
         termsAccepted,
+        signupSource: "signin",
         ...honeypotPayload
       });
       const data = await response.json();

@@ -101,7 +101,7 @@ export async function setupAuth(app: Express) {
   // Register new user
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { email, password, firstName, lastName, honeypot1, honeypot2, formLoadTime } = req.body;
+      const { email, password, firstName, lastName, honeypot1, honeypot2, formLoadTime, signupSource } = req.body;
       console.log("Register attempt for:", email);
 
       // Verify honeypot (bot protection without external service)
@@ -156,6 +156,7 @@ export async function setupAuth(app: Express) {
         emailVerified: false,
         emailVerificationToken,
         emailVerificationExpiry,
+        signupSource: signupSource || null,
       }).returning();
 
       console.log("User created:", newUser.id);
@@ -570,7 +571,7 @@ export async function setupAuth(app: Express) {
 
   app.post("/api/auth/magic-link/request", async (req, res) => {
     try {
-      const { email, honeypot1, honeypot2, formLoadTime } = req.body;
+      const { email, honeypot1, honeypot2, formLoadTime, signupSource } = req.body;
       console.log("Magic link request for:", email);
 
       // Verify honeypot (bot protection without external service)
@@ -625,10 +626,14 @@ export async function setupAuth(app: Express) {
       // Store token with hashed version for comparison
       // Note: For magic links, the token IS the secret - no additional binding needed
       // as this is sign-up only (not login to existing accounts)
+      const tokenMetadata: Record<string, any> = {};
+      if (signupSource) tokenMetadata.signupSource = signupSource;
+      
       await db.insert(magicLinkTokens).values({
         email: normalizedEmail,
         token,
         expiresAt,
+        metadata: Object.keys(tokenMetadata).length > 0 ? JSON.stringify(tokenMetadata) : null,
       });
 
       // Build verification URL
@@ -713,13 +718,17 @@ export async function setupAuth(app: Express) {
         detectedCompany = name.charAt(0).toUpperCase() + name.slice(1);
       }
 
-      // Parse metadata to check for terms acceptance
+      // Parse metadata to check for terms acceptance and signup source
       let termsAcceptedAt: Date | null = null;
+      let signupSource: string | null = null;
       if (magicToken.metadata) {
         try {
           const metadata = JSON.parse(magicToken.metadata);
           if (metadata.termsAccepted) {
             termsAcceptedAt = new Date();
+          }
+          if (metadata.signupSource) {
+            signupSource = metadata.signupSource;
           }
         } catch (e) {
           console.error("Error parsing magic link metadata:", e);
@@ -736,6 +745,7 @@ export async function setupAuth(app: Express) {
         onboardingCompleted: false,
         emailVerified: true,
         termsAcceptedAt,
+        signupSource,
       }).returning();
 
       console.log("User created via magic link:", newUser.id);
@@ -790,7 +800,7 @@ export async function setupAuth(app: Express) {
   // Passwordless authentication - request (handles both new and existing users)
   app.post("/api/auth/passwordless/request", async (req, res) => {
     try {
-      const { email, honeypot1, honeypot2, formLoadTime, termsAccepted } = req.body;
+      const { email, honeypot1, honeypot2, formLoadTime, termsAccepted, signupSource } = req.body;
       console.log("Passwordless auth request for:", email);
 
       // Verify honeypot (bot protection without external service)
@@ -862,7 +872,7 @@ export async function setupAuth(app: Express) {
           token,
           type: "signup",
           expiresAt,
-          metadata: termsAccepted ? JSON.stringify({ termsAccepted: true }) : null,
+          metadata: (termsAccepted || signupSource) ? JSON.stringify({ ...(termsAccepted ? { termsAccepted: true } : {}), ...(signupSource ? { signupSource } : {}) }) : null,
         });
 
         const verifyUrl = `${appUrl}/auth/verify?token=${token}`;
@@ -1174,6 +1184,7 @@ export async function setupAuth(app: Express) {
           role: "user",
           emailVerified: true, // Auto-verified via magic link
           onboardingCompleted: false,
+          signupSource: "resource-invite",
         }).returning();
         
         currentUser = newUser;

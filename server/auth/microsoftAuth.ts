@@ -316,6 +316,7 @@ export async function setupMicrosoftAuth(app: Express) {
             detectedCompany,
             detectedIndustry,
             emailVerified: true,
+            signupSource: "microsoft",
           }).returning();
 
           sendWelcomeEmail(email, firstName || null).catch(err => {

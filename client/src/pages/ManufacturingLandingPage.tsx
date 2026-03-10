@@ -173,6 +173,7 @@ export default function ManufacturingLandingPage() {
       const response = await apiRequest("POST", "/api/auth/passwordless/request", {
         email: email.trim(),
         termsAccepted,
+        signupSource: "manufacturing",
         ...honeypotPayload
       });
       const data = await response.json();

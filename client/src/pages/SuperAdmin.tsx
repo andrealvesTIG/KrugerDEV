@@ -6580,6 +6580,7 @@ interface AnalyticsUser {
   role: string;
   profileImageUrl: string | null;
   deactivatedAt: string | null;
+  signupSource: string | null;
 }
 
 function AnalyticsTab() {
@@ -6812,6 +6813,7 @@ function AnalyticsTab() {
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Role</TableHead>
+                      <TableHead>Source</TableHead>
                       <TableHead>Verified</TableHead>
                       <TableHead>Signed Up</TableHead>
                     </TableRow>
@@ -6827,6 +6829,30 @@ function AnalyticsTab() {
                           <Badge variant={user.role === 'super_admin' ? 'default' : 'outline'} className="text-xs">
                             {user.role}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {user.signupSource ? (
+                            <Badge variant="outline" className="text-xs">
+                              {({
+                                'signin': 'Sign In',
+                                'signup': 'Signup Page',
+                                'auth-page': 'Auth Page',
+                                'uncon2026': 'UnCon 2026',
+                                'construction': 'Construction',
+                                'healthcare': 'Healthcare',
+                                'energy': 'Energy',
+                                'government': 'Government',
+                                'financial-services': 'Financial Services',
+                                'manufacturing': 'Manufacturing',
+                                'industrial-automation': 'Industrial Automation',
+                                'google': 'Google',
+                                'microsoft': 'Microsoft',
+                                'resource-invite': 'Resource Invite',
+                              } as Record<string, string>)[user.signupSource] || user.signupSource}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           {user.emailVerified ? (

@@ -82,7 +82,7 @@ export default function AuthPage() {
   });
 
   const registerMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string; referralCode?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number }) => {
+    mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string; referralCode?: string; signupSource?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number }) => {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -136,7 +136,7 @@ export default function AuthPage() {
   });
 
   const magicLinkMutation = useMutation({
-    mutationFn: async (data: { email: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number }) => {
+    mutationFn: async (data: { email: string; signupSource?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number }) => {
       const res = await fetch("/api/auth/magic-link/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -181,11 +181,11 @@ export default function AuthPage() {
     if (mode === "login") {
       loginMutation.mutate({ email, password, ...honeypotPayload });
     } else if (mode === "register") {
-      registerMutation.mutate({ email, password, firstName: firstName || undefined, lastName: lastName || undefined, referralCode: referralCode || undefined, ...honeypotPayload });
+      registerMutation.mutate({ email, password, firstName: firstName || undefined, lastName: lastName || undefined, referralCode: referralCode || undefined, signupSource: "auth-page", ...honeypotPayload });
     } else if (mode === "forgot-password") {
       forgotPasswordMutation.mutate({ email, ...honeypotPayload });
     } else if (mode === "magic-link") {
-      magicLinkMutation.mutate({ email: magicLinkEmail, ...honeypotPayload });
+      magicLinkMutation.mutate({ email: magicLinkEmail, signupSource: "auth-page", ...honeypotPayload });
     }
   };
 

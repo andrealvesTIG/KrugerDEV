@@ -175,6 +175,7 @@ export default function HealthcareLandingPage() {
       const response = await apiRequest("POST", "/api/auth/passwordless/request", {
         email: email.trim(),
         termsAccepted,
+        signupSource: "healthcare",
         ...honeypotPayload
       });
       const data = await response.json();

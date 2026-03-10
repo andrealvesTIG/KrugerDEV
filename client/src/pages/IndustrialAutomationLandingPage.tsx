@@ -172,6 +172,7 @@ export default function IndustrialAutomationLandingPage() {
       const response = await apiRequest("POST", "/api/auth/passwordless/request", {
         email: email.trim(),
         termsAccepted,
+        signupSource: "industrial-automation",
         ...honeypotPayload
       });
       const data = await response.json();

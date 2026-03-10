@@ -332,6 +332,7 @@ export function setupGoogleAuth(app: Express) {
           detectedCompany,
           detectedIndustry,
           emailVerified: userInfo.email_verified,
+          signupSource: "google",
         })
         .returning();
 

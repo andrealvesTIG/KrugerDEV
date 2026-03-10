@@ -79,6 +79,7 @@ export default function LandingPageNew() {
       const response = await apiRequest("POST", "/api/auth/passwordless/request", {
         email: email.trim(),
         termsAccepted,
+        signupSource: "signup",
         ...honeypotPayload
       });
       const data = await response.json();
