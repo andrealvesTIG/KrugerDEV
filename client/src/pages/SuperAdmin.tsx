@@ -4212,7 +4212,7 @@ type MonitoringSubTab = 'overview' | 'api-logs' | 'users' | 'features' | 'perfor
 
 function MonitoringTab() {
   const { toast } = useToast();
-  const [subTab, setSubTab] = useState<MonitoringSubTab>('overview');
+  const [subTab, setSubTab] = useState<MonitoringSubTab>('analytics');
   const [apiLogsPage, setApiLogsPage] = useState(1);
   const [methodFilter, setMethodFilter] = useState<string>('');
   const [pathFilter, setPathFilter] = useState<string>('');
@@ -6041,6 +6041,15 @@ function MonitoringTab() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           <Button
+            variant={subTab === 'analytics' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSubTab('analytics')}
+            data-testid="btn-subtab-analytics"
+          >
+            <TrendingUp className="h-4 w-4 mr-1" />
+            Analytics
+          </Button>
+          <Button
             variant={subTab === 'overview' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setSubTab('overview')}
@@ -6093,15 +6102,6 @@ function MonitoringTab() {
           >
             <Building2 className="h-4 w-4 mr-1" />
             Organizations
-          </Button>
-          <Button
-            variant={subTab === 'analytics' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setSubTab('analytics')}
-            data-testid="btn-subtab-analytics"
-          >
-            <TrendingUp className="h-4 w-4 mr-1" />
-            Analytics
           </Button>
         </div>
         <Button variant="outline" size="sm" onClick={handleRefresh} data-testid="btn-refresh-monitoring">
