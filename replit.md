@@ -49,6 +49,3 @@ The application features a professional, enterprise-grade UI inspired by Linear 
 ## AI Create Features
 **Smart Project Matching**: AI Create finds existing projects by name before creating new ones — uses server-side fuzzy name matching and passes existing project context (description, status, tasks, risks, issues, milestones, budget, dates) to OpenAI so generated items are project-specific and non-duplicate.
 **Change Log Tracking**: AI Create actions (tasks, risks, issues, milestones) are logged to `projectChangeLogs` with `changeType: 'ai_create'`, recording what was created and by whom.
-
-## Project Timeline
-**Dual Milestone Sources**: The `ProjectTimeline` component in `ProjectDetails.tsx` displays both task-milestones (`isMilestone: true` tasks) and milestones from the `milestones` table. Milestone-table items use `dueDate` as the point date. Events include a `source` field (`'task'` or `'milestone'`) to distinguish origins. Milestone-table IDs are offset by 1,000,000 to avoid collisions with task IDs.
