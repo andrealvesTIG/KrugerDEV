@@ -36,6 +36,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, Clock, ChevronDown, ChevronUp, ChevronRight, Milestone as MilestoneIcon, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Flag, FlagTriangleRight, ImageDown } from "lucide-react";
 import { toPng } from "html-to-image";
+import ExcelJS from "exceljs";
+import { GANTT_COLUMNS, type GanttColumn } from "@/components/project/ProjectGanttView";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -706,6 +708,192 @@ export default function ProjectDetails() {
     }
   };
 
+  const handleExportExcel = async () => {
+    if (!project || !projectTasks) return;
+    try {
+      const ganttEl = document.querySelector('[data-gantt-export="true"]');
+      let activeColumns: GanttColumn[] = [];
+      if (ganttEl) {
+        const headerCells = ganttEl.querySelectorAll<HTMLElement>('[data-column-id]');
+        headerCells.forEach(cell => {
+          const colId = cell.getAttribute('data-column-id') as GanttColumn;
+          if (colId) activeColumns.push(colId);
+        });
+      }
+      if (activeColumns.length === 0) {
+        activeColumns = ['taskIndex', 'wbs', 'task', 'startDate', 'endDate', 'durationDays', 'progress', 'estimatedHours', 'resources'];
+      }
+
+      const columnConfigs = activeColumns
+        .map(colId => GANTT_COLUMNS.find(c => c.id === colId))
+        .filter(Boolean) as typeof GANTT_COLUMNS;
+
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'FridayReport';
+      workbook.created = new Date();
+      const sheet = workbook.addWorksheet('Schedule');
+
+      const totalCols = columnConfigs.length;
+      const exportDate = format(new Date(), 'MMMM d, yyyy');
+
+      const titleRow = sheet.addRow([project.name || 'Project Schedule']);
+      titleRow.font = { size: 16, bold: true, color: { argb: 'FF1A1A2E' } };
+      titleRow.height = 30;
+      sheet.mergeCells(1, 1, 1, totalCols);
+      titleRow.getCell(1).alignment = { vertical: 'middle' };
+
+      const overallProgress = project.completionPercentage || 0;
+      const subRow = sheet.addRow([`Overall Progress: ${overallProgress}%   |   Export Date: ${exportDate}   |   Status: ${project.status || 'N/A'}`]);
+      subRow.font = { size: 11, color: { argb: 'FF555555' } };
+      subRow.height = 22;
+      sheet.mergeCells(2, 1, 2, totalCols);
+      subRow.getCell(1).alignment = { vertical: 'middle' };
+
+      sheet.addRow([]);
+
+      const headerValues = columnConfigs.map(col => col.label);
+      const headerRow = sheet.addRow(headerValues);
+      headerRow.height = 24;
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF1D4ED8' } },
+          bottom: { style: 'thin', color: { argb: 'FF1D4ED8' } },
+          left: { style: 'thin', color: { argb: 'FF1D4ED8' } },
+          right: { style: 'thin', color: { argb: 'FF1D4ED8' } },
+        };
+      });
+
+      const getTaskValue = (task: Task, colId: GanttColumn, index: number): string | number => {
+        switch (colId) {
+          case 'taskIndex': return index + 1;
+          case 'wbs': return task.wbs || '';
+          case 'task': return task.name || '';
+          case 'taskNumber': return task.taskNumber || '';
+          case 'outlineLevel': return task.outlineLevel || '';
+          case 'description': return task.description || '';
+          case 'startDate': return task.startDate || '';
+          case 'endDate': return task.endDate || '';
+          case 'baselineStartDate': return task.baselineStartDate || '';
+          case 'baselineEndDate': return task.baselineEndDate || '';
+          case 'actualStartDate': return task.actualStartDate || '';
+          case 'actualEndDate': return task.actualEndDate || '';
+          case 'durationDays': return task.durationDays != null ? `${task.durationDays}d` : '';
+          case 'progress': return task.progress != null ? task.progress : '';
+          case 'status': return task.status || '';
+          case 'priority': return task.priority || '';
+          case 'taskType': return task.taskType || '';
+          case 'estimatedHours': return task.estimatedHours != null ? task.estimatedHours : '';
+          case 'actualHours': return task.actualHours != null ? task.actualHours : '';
+          case 'remainingHours': return task.remainingHours != null ? task.remainingHours : '';
+          case 'cost': return task.cost != null ? task.cost : '';
+          case 'actualCost': return task.actualCost != null ? task.actualCost : '';
+          case 'resources': return task.assignee || '';
+          case 'assignee': return task.assignee || '';
+          case 'constraintType': return task.constraintType || '';
+          case 'constraintDate': return task.constraintDate || '';
+          case 'isMilestone': return task.isMilestone ? 'Yes' : 'No';
+          case 'isCritical': return task.isCritical ? 'Yes' : 'No';
+          case 'isSummary': return task.isSummary ? 'Yes' : 'No';
+          case 'timesheetBlocked': return task.timesheetBlocked ? 'Yes' : 'No';
+          case 'phase': return task.phase || '';
+          case 'category': return task.category || '';
+          case 'labels': return task.labels || '';
+          case 'notes': return task.notes || '';
+          default: return '';
+        }
+      };
+
+      const getProgressColor = (progress: number): string => {
+        if (progress >= 100) return 'FF16A34A';
+        if (progress >= 50) return 'FF2563EB';
+        if (progress > 0) return 'FFF59E0B';
+        return 'FF94A3B8';
+      };
+
+      const getStatusColor = (status: string): string => {
+        switch (status) {
+          case 'Completed': return 'FFDCFCE7';
+          case 'In Progress': return 'FFDBEAFE';
+          case 'Not Started': return 'FFF1F5F9';
+          case 'On Hold': return 'FFFEF3C7';
+          case 'Cancelled': return 'FFFEE2E2';
+          default: return 'FFFFFFFF';
+        }
+      };
+
+      projectTasks.forEach((task, index) => {
+        const rowValues = columnConfigs.map(col => getTaskValue(task, col.id, index));
+        const dataRow = sheet.addRow(rowValues);
+        dataRow.height = 20;
+
+        const isEvenRow = index % 2 === 0;
+        dataRow.eachCell((cell, colNumber) => {
+          const colConfig = columnConfigs[colNumber - 1];
+          cell.font = { size: 10 };
+          cell.alignment = { vertical: 'middle', wrapText: false };
+          cell.border = {
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          };
+
+          if (colConfig?.id === 'progress' && typeof cell.value === 'number') {
+            cell.font = { size: 10, bold: true, color: { argb: getProgressColor(cell.value as number) } };
+            cell.value = `${cell.value}%`;
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          } else if (colConfig?.id === 'status') {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: getStatusColor(String(cell.value)) } };
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          } else if (colConfig?.id === 'taskIndex') {
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          } else if (isEvenRow) {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+          }
+
+          if (colConfig?.id === 'task' && task.outlineLevel && task.outlineLevel > 1) {
+            const indent = '  '.repeat(task.outlineLevel - 1);
+            cell.value = `${indent}${cell.value}`;
+          }
+        });
+      });
+
+      columnConfigs.forEach((col, i) => {
+        const colNum = i + 1;
+        let width: number;
+        switch (col.id) {
+          case 'taskIndex': width = 6; break;
+          case 'wbs': width = 10; break;
+          case 'task': width = 35; break;
+          case 'description': width = 30; break;
+          case 'notes': width = 30; break;
+          case 'resources': width = 20; break;
+          case 'assignee': width = 18; break;
+          default: width = 14; break;
+        }
+        sheet.getColumn(colNum).width = width;
+      });
+
+      sheet.autoFilter = {
+        from: { row: 4, column: 1 },
+        to: { row: 4, column: totalCols },
+      };
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.download = `${(project.name || 'project').replace(/[^a-zA-Z0-9]/g, '_')}_schedule.xlsx`;
+      link.href = url;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Export complete", description: "Schedule exported as Excel file" });
+    } catch (err) {
+      console.error('Excel export failed:', err);
+      toast({ title: "Export failed", description: "An error occurred while generating the Excel file", variant: "destructive" });
+    }
+  };
+
   const handleStatusChange = (status: string) => {
     // If trying to lock the project, show confirmation
     if (status === "Closed" && !isProjectLocked) {
@@ -895,6 +1083,13 @@ export default function ProjectDetails() {
               >
                 <FileText className="h-4 w-4 mr-2" />
                 Download as CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={handleExportExcel}
+                data-testid="menu-export-excel"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export to Excel
               </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={() => {

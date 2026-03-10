@@ -4059,6 +4059,7 @@ function ProjectGanttView({
                       onDrop={(e) => handleColumnDrop(e, col.id)}
                       onContextMenu={(e) => handleColumnContextMenu(e, col.id)}
                       data-testid={`column-header-${col.id}`}
+                      data-column-id={col.id}
                     >
                       {/* Drag grip area */}
                       {isDraggable && (
