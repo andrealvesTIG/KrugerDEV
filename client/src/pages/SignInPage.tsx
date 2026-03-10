@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { IndustrySolutionsMenu, IndustrySolutionsMobileLinks } from "@/components/IndustrySolutionsMenu";
+import { EventsMenu, EventsMobileLinks } from "@/components/EventsMenu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -352,6 +353,7 @@ export default function SignInPage() {
               </div>
               <div className="hidden md:flex items-center gap-6">
                 <IndustrySolutionsMenu currentPath="/" variant="dark" />
+                <EventsMenu currentPath="/" variant="dark" />
                 <button onClick={() => scrollToSection('features-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-features">
                   Features
                 </button>
@@ -389,6 +391,7 @@ export default function SignInPage() {
           {mobileMenuOpen && (
             <div className="md:hidden bg-slate-800/95 backdrop-blur-md border-t border-slate-700 px-4 py-3 flex flex-col gap-1">
               <IndustrySolutionsMobileLinks onNavigate={() => setMobileMenuOpen(false)} variant="dark" />
+              <EventsMobileLinks onNavigate={() => setMobileMenuOpen(false)} variant="dark" />
               <button onClick={() => { scrollToSection('features-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors py-2">
                 Features
               </button>

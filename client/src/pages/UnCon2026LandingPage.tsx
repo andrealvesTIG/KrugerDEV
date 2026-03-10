@@ -12,6 +12,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { HoneypotField } from "@/components/HoneypotField";
 import { motion, useInView } from "framer-motion";
+import { EventsMenu, EventsMobileLinks } from "@/components/EventsMenu";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 
 const fadeUp = {
@@ -221,6 +222,7 @@ export default function UnCon2026LandingPage() {
             />
           </a>
           <div className="hidden sm:flex items-center gap-3">
+            <EventsMenu currentPath="/uncon2026" />
             <Button
               variant="ghost"
               onClick={() => setLocation("/auth")}
@@ -247,19 +249,22 @@ export default function UnCon2026LandingPage() {
 
       {mobileMenuOpen && (
         <div className="sm:hidden border-b border-border bg-background px-6 py-4 flex flex-col gap-3 sticky top-[65px] z-40">
-          <Button
-            variant="ghost"
-            className="w-full justify-start"
-            onClick={() => { setLocation("/auth"); setMobileMenuOpen(false); }}
-          >
-            Log in
-          </Button>
-          <Button
-            className="w-full bg-[#F37021] hover:bg-[#e0621a] text-white"
-            onClick={() => { scrollToSignUp(); setMobileMenuOpen(false); }}
-          >
-            Book Your Demo
-          </Button>
+          <EventsMobileLinks onNavigate={() => setMobileMenuOpen(false)} />
+          <div className="border-t border-border pt-3 flex flex-col gap-3">
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => { setLocation("/auth"); setMobileMenuOpen(false); }}
+            >
+              Log in
+            </Button>
+            <Button
+              className="w-full bg-[#F37021] hover:bg-[#e0621a] text-white"
+              onClick={() => { scrollToSignUp(); setMobileMenuOpen(false); }}
+            >
+              Book Your Demo
+            </Button>
+          </div>
         </div>
       )}
 
