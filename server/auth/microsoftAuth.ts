@@ -66,6 +66,7 @@ declare module "express-session" {
   interface SessionData {
     msOAuthState?: string;
     msOAuthNonce?: string;
+    oauthSignupSource?: string;
   }
 }
 
@@ -140,8 +141,17 @@ export async function setupMicrosoftAuth(app: Express) {
     req.session.msOAuthState = state;
     req.session.msOAuthNonce = nonce;
     
+    const signupSource = (req.query.source as string) || "microsoft";
+    req.session.oauthSignupSource = signupSource;
+    
     // Also store state in a cookie as backup for mobile viewport switching scenarios
     // This helps when session might change but cookies persist
+    res.cookie('oauth_signup_source', signupSource, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 10 * 60 * 1000,
+    });
     res.cookie('ms_oauth_state', state, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -316,7 +326,7 @@ export async function setupMicrosoftAuth(app: Express) {
             detectedCompany,
             detectedIndustry,
             emailVerified: true,
-            signupSource: "microsoft",
+            signupSource: req.session.oauthSignupSource || req.cookies?.oauth_signup_source || "microsoft",
           }).returning();
 
           sendWelcomeEmail(email, firstName || null).catch(err => {

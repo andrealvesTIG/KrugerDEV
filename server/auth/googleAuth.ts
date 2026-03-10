@@ -12,6 +12,7 @@ declare module "express-session" {
   interface SessionData {
     googleOAuthState?: string;
     googleOAuthNonce?: string;
+    oauthSignupSource?: string;
   }
 }
 
@@ -125,7 +126,16 @@ export function setupGoogleAuth(app: Express) {
     req.session.googleOAuthState = state;
     req.session.googleOAuthNonce = nonce;
     
+    const signupSource = (req.query.source as string) || "google";
+    req.session.oauthSignupSource = signupSource;
+    
     // Also store state in cookies as backup for mobile viewport switching
+    res.cookie('oauth_signup_source', signupSource, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 10 * 60 * 1000,
+    });
     res.cookie('google_oauth_state', state, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -332,7 +342,7 @@ export function setupGoogleAuth(app: Express) {
           detectedCompany,
           detectedIndustry,
           emailVerified: userInfo.email_verified,
-          signupSource: "google",
+          signupSource: req.session.oauthSignupSource || req.cookies?.oauth_signup_source || "google",
         })
         .returning();
 

@@ -41,6 +41,9 @@ export default function AuthPage() {
     queryKey: ["/api/auth/google/status"],
   });
 
+  const sourceParam = new URLSearchParams(search).get("source");
+  const effectiveSource = sourceParam || "auth-page";
+
   useEffect(() => {
     const params = new URLSearchParams(search);
     const error = params.get("error");
@@ -181,11 +184,11 @@ export default function AuthPage() {
     if (mode === "login") {
       loginMutation.mutate({ email, password, ...honeypotPayload });
     } else if (mode === "register") {
-      registerMutation.mutate({ email, password, firstName: firstName || undefined, lastName: lastName || undefined, referralCode: referralCode || undefined, signupSource: "auth-page", ...honeypotPayload });
+      registerMutation.mutate({ email, password, firstName: firstName || undefined, lastName: lastName || undefined, referralCode: referralCode || undefined, signupSource: effectiveSource, ...honeypotPayload });
     } else if (mode === "forgot-password") {
       forgotPasswordMutation.mutate({ email, ...honeypotPayload });
     } else if (mode === "magic-link") {
-      magicLinkMutation.mutate({ email: magicLinkEmail, signupSource: "auth-page", ...honeypotPayload });
+      magicLinkMutation.mutate({ email: magicLinkEmail, signupSource: effectiveSource, ...honeypotPayload });
     }
   };
 
@@ -387,7 +390,7 @@ export default function AuthPage() {
                     type="button"
                     variant="outline"
                     className="w-full"
-                    onClick={() => window.location.href = "/api/auth/microsoft/login"}
+                    onClick={() => window.location.href = "/api/auth/microsoft/login?source=" + encodeURIComponent(new URLSearchParams(window.location.search).get("source") || "auth-page")}
                     data-testid="button-microsoft-login"
                   >
                     <svg className="mr-2 h-4 w-4" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -404,7 +407,7 @@ export default function AuthPage() {
                     type="button"
                     variant="outline"
                     className="w-full"
-                    onClick={() => window.location.href = "/api/auth/google/login"}
+                    onClick={() => window.location.href = "/api/auth/google/login?source=" + encodeURIComponent(new URLSearchParams(window.location.search).get("source") || "auth-page")}
                     data-testid="button-google-login"
                   >
                     <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

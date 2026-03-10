@@ -56,11 +56,11 @@ export default function LandingPageNew() {
   });
 
   const handleGoogleSignIn = () => {
-    window.location.href = "/api/auth/google/login";
+    window.location.href = "/api/auth/google/login?source=signup";
   };
 
   const handleMicrosoftSignIn = () => {
-    window.location.href = "/api/auth/microsoft/login";
+    window.location.href = "/api/auth/microsoft/login?source=signup";
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -155,7 +155,7 @@ export default function LandingPageNew() {
           <EventsMenu currentPath="/signup" />
           <Button
             variant="ghost"
-            onClick={() => setLocation("/auth")}
+            onClick={() => setLocation("/auth?source=signup")}
             data-testid="button-login"
           >
             Log in
@@ -185,7 +185,7 @@ export default function LandingPageNew() {
             <Button
               variant="ghost"
               className="w-full justify-start"
-              onClick={() => { setLocation("/auth"); setMobileMenuOpen(false); }}
+              onClick={() => { setLocation("/auth?source=signup"); setMobileMenuOpen(false); }}
               data-testid="button-login-mobile"
             >
               Log in
@@ -422,7 +422,7 @@ export default function LandingPageNew() {
 
                     <p className="text-center text-sm text-muted-foreground pt-2">
                       Already have an account?{" "}
-                      <Link href="/signin" className="text-primary font-semibold hover:underline" data-testid="link-landing-signin">
+                      <Link href="/signin?source=signup" className="text-primary font-semibold hover:underline" data-testid="link-landing-signin">
                         Sign in
                       </Link>
                     </p>

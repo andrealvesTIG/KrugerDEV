@@ -150,11 +150,11 @@ export default function ManufacturingLandingPage() {
   });
 
   const handleGoogleSignIn = () => {
-    window.location.href = "/api/auth/google/login";
+    window.location.href = "/api/auth/google/login?source=manufacturing";
   };
 
   const handleMicrosoftSignIn = () => {
-    window.location.href = "/api/auth/microsoft/login";
+    window.location.href = "/api/auth/microsoft/login?source=manufacturing";
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -249,7 +249,7 @@ export default function ManufacturingLandingPage() {
             <IndustrySolutionsMenu currentPath="/manufacturing" />
             <Button
               variant="ghost"
-              onClick={() => setLocation("/auth")}
+              onClick={() => setLocation("/auth?source=manufacturing")}
             >
               Log in
             </Button>
@@ -278,7 +278,7 @@ export default function ManufacturingLandingPage() {
             <Button
               variant="ghost"
               className="w-full justify-start"
-              onClick={() => { setLocation("/auth"); setMobileMenuOpen(false); }}
+              onClick={() => { setLocation("/auth?source=manufacturing"); setMobileMenuOpen(false); }}
             >
               Log in
             </Button>
@@ -666,7 +666,7 @@ export default function ManufacturingLandingPage() {
 
                         <p className="text-center text-sm text-muted-foreground pt-2">
                           Already have an account?{" "}
-                          <Link href="/signin" className="text-primary font-semibold hover:underline">
+                          <Link href="/signin?source=manufacturing" className="text-primary font-semibold hover:underline">
                             Sign in
                           </Link>
                         </p>
@@ -694,7 +694,7 @@ export default function ManufacturingLandingPage() {
               <span className="text-muted-foreground">|</span>
               <a href="/guide" className="text-sm text-muted-foreground hover:text-foreground hover:underline">User Guide</a>
               <span className="text-muted-foreground">|</span>
-              <a href="/signup" className="text-sm text-muted-foreground hover:text-foreground hover:underline">General Sign Up</a>
+              <a href="/signup?source=manufacturing" className="text-sm text-muted-foreground hover:text-foreground hover:underline">General Sign Up</a>
             </div>
           </div>
           <p className="text-sm text-muted-foreground text-center mt-6">

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { useLocation, Link } from "wouter";
+import { useLocation, Link, useSearch } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -184,6 +184,8 @@ const faqs = [
 
 export default function SignInPage() {
   const [, setLocation] = useLocation();
+  const search = useSearch();
+  const effectiveSource = new URLSearchParams(search).get("source") || "signin";
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -228,7 +230,7 @@ export default function SignInPage() {
   });
 
   const handleGoogleSignIn = () => {
-    window.location.href = "/api/auth/google/login";
+    window.location.href = `/api/auth/google/login?source=${encodeURIComponent(effectiveSource)}`;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -247,7 +249,7 @@ export default function SignInPage() {
       const response = await apiRequest("POST", "/api/auth/passwordless/request", { 
         email: email.trim(),
         termsAccepted,
-        signupSource: "signin",
+        signupSource: effectiveSource,
         ...honeypotPayload
       });
       const data = await response.json();
@@ -277,7 +279,7 @@ export default function SignInPage() {
   };
 
   const handleMicrosoftSignIn = () => {
-    window.location.href = "/api/auth/microsoft/login";
+    window.location.href = `/api/auth/microsoft/login?source=${encodeURIComponent(effectiveSource)}`;
   };
 
   const scrollToSignIn = () => {
@@ -314,7 +316,7 @@ export default function SignInPage() {
               Try a different email
             </Button>
             <div className="text-center">
-              <Link href="/auth" className="text-sm text-primary hover:underline" data-testid="link-back-to-login">
+              <Link href="/auth?source=signin" className="text-sm text-primary hover:underline" data-testid="link-back-to-login">
                 Back to login page
               </Link>
             </div>
@@ -372,7 +374,7 @@ export default function SignInPage() {
                 </Link>
               </div>
               <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-                <Link href="/auth" className="text-slate-200 hover:text-white text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-login">
+                <Link href="/auth?source=signin" className="text-slate-200 hover:text-white text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-login">
                   Login
                 </Link>
                 <Button onClick={scrollToSignIn} size="sm" className="bg-orange-500 hover:bg-orange-400 text-white font-semibold text-xs sm:text-sm px-3 sm:px-4 shadow-lg shadow-orange-500/30" data-testid="button-nav-get-started">
@@ -829,7 +831,7 @@ export default function SignInPage() {
 
                     <p className="text-center text-sm text-slate-500 dark:text-slate-400 pt-2">
                       Already have an account?{" "}
-                      <Link href="/auth" className="text-primary font-semibold hover:underline" data-testid="link-signin">
+                      <Link href="/auth?source=signin" className="text-primary font-semibold hover:underline" data-testid="link-signin">
                         Sign in
                       </Link>
                     </p>
