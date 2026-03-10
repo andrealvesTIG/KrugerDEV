@@ -6587,6 +6587,8 @@ function AnalyticsTab() {
   const { toast } = useToast();
   const [chartView, setChartView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [userFilter, setUserFilter] = useState<UserFilter>(null);
+  const [sortColumn, setSortColumn] = useState<'name' | 'email' | 'role' | 'source' | 'verified' | 'signedUp'>('signedUp');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   const { data: analytics, isLoading, refetch } = useQuery<AnalyticsDashboard>({
     queryKey: ['/api/admin/analytics/dashboard'],
@@ -6607,29 +6609,64 @@ function AnalyticsTab() {
     setUserFilter(prev => prev === filter ? null : filter);
   };
 
+  const handleSort = (column: typeof sortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection(column === 'signedUp' ? 'desc' : 'asc');
+    }
+  };
+
   const filteredUsers = useMemo(() => {
     if (!userFilter || allUsers.length === 0) return [];
     const now = new Date();
-    const sorted = [...allUsers].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    if (userFilter === 'total') return sorted;
+    let filtered = [...allUsers];
     if (userFilter === 'today') {
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
-      return sorted.filter(u => {
+      filtered = filtered.filter(u => {
         const d = new Date(u.createdAt);
         return d >= todayStart && d < todayEnd;
       });
-    }
-    if (userFilter === 'week') {
+    } else if (userFilter === 'week') {
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      return sorted.filter(u => new Date(u.createdAt) >= weekAgo);
-    }
-    if (userFilter === 'month') {
+      filtered = filtered.filter(u => new Date(u.createdAt) >= weekAgo);
+    } else if (userFilter === 'month') {
       const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      return sorted.filter(u => new Date(u.createdAt) >= monthAgo);
+      filtered = filtered.filter(u => new Date(u.createdAt) >= monthAgo);
     }
-    return sorted;
-  }, [userFilter, allUsers]);
+
+    const dir = sortDirection === 'asc' ? 1 : -1;
+    filtered.sort((a, b) => {
+      switch (sortColumn) {
+        case 'name': {
+          const nameA = [a.firstName, a.lastName].filter(Boolean).join(' ').toLowerCase();
+          const nameB = [b.firstName, b.lastName].filter(Boolean).join(' ').toLowerCase();
+          return nameA.localeCompare(nameB) * dir;
+        }
+        case 'email':
+          return a.email.toLowerCase().localeCompare(b.email.toLowerCase()) * dir;
+        case 'role':
+          return a.role.localeCompare(b.role) * dir;
+        case 'source': {
+          const srcA = a.signupSource || '';
+          const srcB = b.signupSource || '';
+          return srcA.localeCompare(srcB) * dir;
+        }
+        case 'verified': {
+          const vA = a.emailVerified ? 1 : 0;
+          const vB = b.emailVerified ? 1 : 0;
+          return (vA - vB) * dir;
+        }
+        case 'signedUp':
+          return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * dir;
+        default:
+          return 0;
+      }
+    });
+    return filtered;
+  }, [userFilter, allUsers, sortColumn, sortDirection]);
 
   const filterLabel = userFilter === 'total' ? 'All Users' : userFilter === 'today' ? 'New Users Today' : userFilter === 'week' ? 'New Users This Week' : userFilter === 'month' ? 'New Users This Month' : '';
 
@@ -6804,12 +6841,29 @@ function AnalyticsTab() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Source</TableHead>
-                      <TableHead>Verified</TableHead>
-                      <TableHead>Signed Up</TableHead>
+                      {([
+                        ['name', 'Name'],
+                        ['email', 'Email'],
+                        ['role', 'Role'],
+                        ['source', 'Source'],
+                        ['verified', 'Verified'],
+                        ['signedUp', 'Signed Up'],
+                      ] as const).map(([key, label]) => (
+                        <TableHead
+                          key={key}
+                          className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
+                          onClick={() => handleSort(key)}
+                        >
+                          <div className="flex items-center gap-1">
+                            {label}
+                            {sortColumn === key ? (
+                              sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                            ) : (
+                              <ArrowDown className="h-3 w-3 opacity-0 group-hover:opacity-30" />
+                            )}
+                          </div>
+                        </TableHead>
+                      ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
