@@ -533,6 +533,9 @@ export default function ProjectDetails() {
         return;
       }
 
+      window.dispatchEvent(new Event('gantt-export-start'));
+      await new Promise(r => setTimeout(r, 100));
+
       const savedStyles: { el: HTMLElement; props: Record<string, string> }[] = [];
       const removedClasses: { el: HTMLElement; cls: string }[] = [];
       const expandForExport = () => {
@@ -563,13 +566,16 @@ export default function ProjectDetails() {
         });
 
         panels.forEach(panel => {
-          savedStyles.push({ el: panel, props: { overflow: panel.style.overflow, flex: panel.style.flex, minWidth: panel.style.minWidth, width: panel.style.width } });
+          savedStyles.push({ el: panel, props: { overflow: panel.style.overflow, flex: panel.style.flex, minWidth: panel.style.minWidth, width: panel.style.width, maxWidth: panel.style.maxWidth, height: panel.style.height } });
           panel.style.overflow = 'visible';
           panel.style.flex = 'none';
+          panel.style.height = 'auto';
+          panel.style.maxWidth = 'none';
           const innerContent = panel.querySelector<HTMLElement>('[style*="min-width"]');
-          if (innerContent && innerContent.style.minWidth) {
-            panel.style.width = innerContent.style.minWidth;
-            panel.style.minWidth = innerContent.style.minWidth;
+          if (innerContent) {
+            const minW = innerContent.style.minWidth || `${innerContent.scrollWidth}px`;
+            panel.style.width = minW;
+            panel.style.minWidth = minW;
           } else {
             panel.style.width = 'max-content';
             panel.style.minWidth = 'max-content';
@@ -577,12 +583,16 @@ export default function ProjectDetails() {
         });
 
         scrollContainers.forEach(el => {
-          savedStyles.push({ el, props: { overflow: el.style.overflow, overflowX: el.style.overflowX, overflowY: el.style.overflowY, height: el.style.height, maxHeight: el.style.maxHeight } });
+          savedStyles.push({ el, props: { overflow: el.style.overflow, overflowX: el.style.overflowX, overflowY: el.style.overflowY, height: el.style.height, maxHeight: el.style.maxHeight, width: el.style.width, maxWidth: el.style.maxWidth } });
           el.style.overflow = 'visible';
           el.style.overflowX = 'visible';
           el.style.overflowY = 'visible';
           el.style.height = 'auto';
           el.style.maxHeight = 'none';
+          el.style.maxWidth = 'none';
+          if (el.scrollWidth > el.clientWidth) {
+            el.style.width = `${el.scrollWidth}px`;
+          }
         });
 
         truncated.forEach(el => {
@@ -592,10 +602,18 @@ export default function ProjectDetails() {
           el.style.whiteSpace = 'nowrap';
         });
 
-        savedStyles.push({ el: card, props: { width: card.style.width, maxWidth: card.style.maxWidth, overflow: card.style.overflow } });
-        card.style.width = 'auto';
+        savedStyles.push({ el: card, props: { width: card.style.width, maxWidth: card.style.maxWidth, overflow: card.style.overflow, height: card.style.height, maxHeight: card.style.maxHeight, position: card.style.position } });
+        card.style.width = 'max-content';
         card.style.maxWidth = 'none';
         card.style.overflow = 'visible';
+        card.style.height = 'auto';
+        card.style.maxHeight = 'none';
+
+        const allFixedHeightEls = card.querySelectorAll<HTMLElement>('.h-full');
+        allFixedHeightEls.forEach(el => {
+          savedStyles.push({ el, props: { height: el.style.height } });
+          el.style.height = 'auto';
+        });
       };
 
       const restoreAfterExport = () => {
@@ -611,6 +629,7 @@ export default function ProjectDetails() {
 
       expandForExport();
       await new Promise(r => requestAnimationFrame(r));
+      await new Promise(r => setTimeout(r, 50));
 
       let dataUrl: string;
       try {
@@ -641,6 +660,7 @@ export default function ProjectDetails() {
       console.error('PNG export failed:', err);
       toast({ title: "Export failed", description: "An error occurred while generating the PNG image", variant: "destructive" });
     } finally {
+      window.dispatchEvent(new Event('gantt-export-end'));
       setIsExportingPng(false);
     }
   };

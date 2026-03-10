@@ -3015,7 +3015,18 @@ function ProjectGanttView({
 
   // Virtual scrolling: only render rows visible in the viewport when task count is large
   const VIRTUAL_SCROLL_THRESHOLD = 100;
-  const useVirtualScroll = visibleTasks.length > VIRTUAL_SCROLL_THRESHOLD;
+  const [forceDisableVirtualScroll, setForceDisableVirtualScroll] = useState(false);
+  useEffect(() => {
+    const handleExportStart = () => setForceDisableVirtualScroll(true);
+    const handleExportEnd = () => setForceDisableVirtualScroll(false);
+    window.addEventListener('gantt-export-start', handleExportStart);
+    window.addEventListener('gantt-export-end', handleExportEnd);
+    return () => {
+      window.removeEventListener('gantt-export-start', handleExportStart);
+      window.removeEventListener('gantt-export-end', handleExportEnd);
+    };
+  }, []);
+  const useVirtualScroll = visibleTasks.length > VIRTUAL_SCROLL_THRESHOLD && !forceDisableVirtualScroll;
   const rowVirtualizer = useVirtualizer({
     count: visibleTasks.length,
     getScrollElement: () => rightPaneRef.current,
