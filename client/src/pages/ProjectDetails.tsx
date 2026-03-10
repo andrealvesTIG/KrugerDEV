@@ -577,7 +577,7 @@ export default function ProjectDetails() {
           if (innerContent) {
             const currentMinW = parseInt(innerContent.style.minWidth) || innerContent.scrollWidth;
             const isTimelinePanel = panelIndex > 0 || (!panel.querySelector('input[data-testid="input-new-task"]') && innerContent.style.minWidth);
-            const exportWidth = isTimelinePanel ? Math.max(currentMinW, currentMinW * 1.5) : currentMinW;
+            const exportWidth = isTimelinePanel ? Math.max(currentMinW, currentMinW * 2.5) : currentMinW;
             const minW = `${exportWidth}px`;
             savedStyles.push({ el: innerContent, props: { minWidth: innerContent.style.minWidth, width: innerContent.style.width } });
             innerContent.style.minWidth = minW;
