@@ -67,6 +67,7 @@ const IndustrialAutomationLandingPage = lazy(() => import("@/pages/IndustrialAut
 const ConstructionLandingPage = lazy(() => import("@/pages/ConstructionLandingPage"));
 const EnergyLandingPage = lazy(() => import("@/pages/EnergyLandingPage"));
 const GovernmentLandingPage = lazy(() => import("@/pages/GovernmentLandingPage"));
+const UnCon2026LandingPage = lazy(() => import("@/pages/UnCon2026LandingPage"));
 
 function PageLoader() {
   return (
@@ -308,6 +309,9 @@ function App() {
                 </Route>
                 <Route path="/government">
                   <Suspense fallback={<PageLoader />}><GovernmentLandingPage /></Suspense>
+                </Route>
+                <Route path="/uncon2026">
+                  <Suspense fallback={<PageLoader />}><UnCon2026LandingPage /></Suspense>
                 </Route>
                 <Route>
                   <Router />
