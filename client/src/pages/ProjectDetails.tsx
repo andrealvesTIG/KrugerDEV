@@ -674,6 +674,7 @@ export default function ProjectDetails() {
             if (node.dataset?.scheduleToolbar === 'true') return false;
             if (node.dataset?.ganttToolbar === 'true') return false;
             if (node.dataset?.testid === 'button-tasks-fullscreen') return false;
+            if (node.dataset?.addTaskRow === 'true') return false;
             return true;
           },
         });

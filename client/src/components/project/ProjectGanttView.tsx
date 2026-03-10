@@ -4333,7 +4333,7 @@ function ProjectGanttView({
                 )}
                 {/* Add task row - hidden for read-only projects, height must match timeline side */}
                 {!isReadOnly && (
-                <div className="flex border-t bg-muted/20 h-[28px]">
+                <div data-add-task-row="true" className="flex border-t bg-muted/20 h-[28px]">
                   <div className="w-8 flex-shrink-0 border-r p-1" />
                   {baselineSelectionMode && <div className="w-8 flex-shrink-0 border-r p-1" />}
                   <div className="w-8 flex-shrink-0 border-r p-1" />
@@ -4456,7 +4456,7 @@ function ProjectGanttView({
                     ))
                   )}
                   {/* Empty row for add task alignment - must match left pane condition */}
-                  {!isReadOnly && <div className="h-[28px] border-t bg-muted/20" />}
+                  {!isReadOnly && <div data-add-task-row="true" className="h-[28px] border-t bg-muted/20" />}
                   
                   {/* TODAY vertical indicator line */}
                   {(() => {
