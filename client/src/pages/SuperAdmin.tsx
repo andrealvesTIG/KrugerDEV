@@ -6879,26 +6879,50 @@ function AnalyticsTab() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {user.signupSource ? (
-                            <Badge variant="outline" className="text-xs">
-                              {({
-                                'signin': 'Sign In',
-                                'signup': 'Signup Page',
-                                'auth-page': 'Auth Page',
-                                'uncon2026': 'UnCon 2026',
-                                'construction': 'Construction',
-                                'healthcare': 'Healthcare',
-                                'energy': 'Energy',
-                                'government': 'Government',
-                                'financial-services': 'Financial Services',
-                                'manufacturing': 'Manufacturing',
-                                'industrial-automation': 'Industrial Automation',
-                                'google': 'Google',
-                                'microsoft': 'Microsoft',
-                                'resource-invite': 'Resource Invite',
-                              } as Record<string, string>)[user.signupSource] || user.signupSource}
-                            </Badge>
-                          ) : (
+                          {user.signupSource ? (() => {
+                            const sourceLabels: Record<string, string> = {
+                              'signin': 'Sign In',
+                              'signup': 'Signup Page',
+                              'auth-page': 'Auth Page',
+                              'uncon2026': 'UnCon 2026',
+                              'construction': 'Construction',
+                              'healthcare': 'Healthcare',
+                              'energy': 'Energy',
+                              'government': 'Government',
+                              'financial-services': 'Financial Services',
+                              'manufacturing': 'Manufacturing',
+                              'industrial-automation': 'Industrial Automation',
+                              'google': 'Google',
+                              'microsoft': 'Microsoft',
+                              'resource-invite': 'Resource Invite',
+                            };
+                            const sourceLinks: Record<string, string> = {
+                              'uncon2026': '/uncon2026',
+                              'construction': '/construction',
+                              'healthcare': '/healthcare',
+                              'energy': '/energy',
+                              'government': '/government',
+                              'financial-services': '/financial-services',
+                              'manufacturing': '/manufacturing',
+                              'industrial-automation': '/industrial-automation',
+                              'signin': '/signin',
+                              'signup': '/signup',
+                              'auth-page': '/auth',
+                            };
+                            const label = sourceLabels[user.signupSource] || user.signupSource;
+                            const link = sourceLinks[user.signupSource];
+                            return link ? (
+                              <a href={link} target="_blank" rel="noopener noreferrer">
+                                <Badge variant="outline" className="text-xs cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors">
+                                  {label}
+                                </Badge>
+                              </a>
+                            ) : (
+                              <Badge variant="outline" className="text-xs">
+                                {label}
+                              </Badge>
+                            );
+                          })() : (
                             <span className="text-muted-foreground text-xs">-</span>
                           )}
                         </TableCell>
