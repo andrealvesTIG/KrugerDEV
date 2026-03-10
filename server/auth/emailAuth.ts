@@ -740,6 +740,10 @@ export async function setupAuth(app: Express) {
 
       console.log("User created via magic link:", newUser.id);
 
+      sendWelcomeEmail(magicToken.email, newUser.firstName || null).catch(err => {
+        console.error("Failed to send welcome email for magic link user:", err);
+      });
+
       // Mark token as used
       await db.update(magicLinkTokens).set({ usedAt: new Date() }).where(eq(magicLinkTokens.id, magicToken.id));
 
@@ -1175,6 +1179,10 @@ export async function setupAuth(app: Express) {
         currentUser = newUser;
         isNewUser = true;
         console.log(`Auto-created user account for ${magicToken.email} via resource invite`);
+
+        sendWelcomeEmail(magicToken.email.toLowerCase(), firstName || null).catch(err => {
+          console.error("Failed to send welcome email for resource invite user:", err);
+        });
       } else if (req.session.userId && req.session.userId !== existingUser.id) {
         // User is logged in with a different account
         return res.status(400).json({

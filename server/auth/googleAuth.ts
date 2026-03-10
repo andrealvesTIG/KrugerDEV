@@ -4,6 +4,7 @@ import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { lookupCompanyByEmail } from "../services/companyLookup";
 import { ensureUserOrganization } from "../services/onboarding";
+import { sendWelcomeEmail } from "../services/email";
 import crypto from "crypto";
 import { objectStorageClient } from "../replit_integrations/object_storage/objectStorage";
 
@@ -335,6 +336,10 @@ export function setupGoogleAuth(app: Express) {
         .returning();
 
       await ensureUserOrganization(newUser.id, email);
+
+      sendWelcomeEmail(email, firstName || null).catch(err => {
+        console.error("Failed to send welcome email for Google OAuth user:", err);
+      });
 
       req.session.userId = newUser.id;
       await new Promise<void>((resolve, reject) => {

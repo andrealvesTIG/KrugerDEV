@@ -5,6 +5,7 @@ import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { lookupCompanyByEmail } from "../services/companyLookup";
 import { ensureUserOrganization } from "../services/onboarding";
+import { sendWelcomeEmail } from "../services/email";
 import crypto from "crypto";
 import { objectStorageClient } from "../replit_integrations/object_storage/objectStorage";
 import { storage } from "../storage";
@@ -254,7 +255,7 @@ export async function setupMicrosoftAuth(app: Express) {
       
       const microsoftId = claims.oid;
       const tenantId = claims.tid;
-      const email = claims.email || claims.preferred_username;
+      const email = (claims.email || claims.preferred_username)?.toLowerCase().trim();
       const firstName = claims.given_name || claims.name?.split(" ")[0];
       const lastName = claims.family_name || claims.name?.split(" ").slice(1).join(" ");
 
@@ -316,6 +317,10 @@ export async function setupMicrosoftAuth(app: Express) {
             detectedIndustry,
             emailVerified: true,
           }).returning();
+
+          sendWelcomeEmail(email, firstName || null).catch(err => {
+            console.error("Failed to send welcome email for Microsoft OAuth user:", err);
+          });
         }
       } else {
         // Ensure email is verified for returning Microsoft users
