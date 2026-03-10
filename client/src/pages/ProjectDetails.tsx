@@ -1081,13 +1081,6 @@ export default function ProjectDetails() {
             </Tooltip>
             <DropdownMenuContent align="end">
               <DropdownMenuItem 
-                onClick={() => setIsStatusReportOpen(true)}
-                data-testid="menu-comprehensive-report"
-              >
-                <ClipboardList className="h-4 w-4 mr-2" />
-                Comprehensive Status Report
-              </DropdownMenuItem>
-              <DropdownMenuItem 
                 onClick={() => {
                   window.open(`/api/projects/${project.id}/export?format=csv`, '_blank');
                 }}
