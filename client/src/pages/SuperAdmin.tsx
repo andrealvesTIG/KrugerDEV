@@ -6620,21 +6620,25 @@ function AnalyticsTab() {
 
   const filteredUsers = useMemo(() => {
     if (!userFilter || allUsers.length === 0) return [];
-    const now = new Date();
     let filtered = [...allUsers];
+
+    const toNYDate = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    const todayNY = toNYDate(new Date());
+
+    const subtractDays = (dateStr: string, days: number) => {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const dt = new Date(y, m - 1, d - days);
+      return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    };
+
     if (userFilter === 'today') {
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
-      filtered = filtered.filter(u => {
-        const d = new Date(u.createdAt);
-        return d >= todayStart && d < todayEnd;
-      });
+      filtered = filtered.filter(u => toNYDate(new Date(u.createdAt)) === todayNY);
     } else if (userFilter === 'week') {
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      filtered = filtered.filter(u => new Date(u.createdAt) >= weekAgo);
+      const cutoff = subtractDays(todayNY, 7);
+      filtered = filtered.filter(u => toNYDate(new Date(u.createdAt)) >= cutoff);
     } else if (userFilter === 'month') {
-      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      filtered = filtered.filter(u => new Date(u.createdAt) >= monthAgo);
+      const cutoff = subtractDays(todayNY, 30);
+      filtered = filtered.filter(u => toNYDate(new Date(u.createdAt)) >= cutoff);
     }
 
     const dir = sortDirection === 'asc' ? 1 : -1;

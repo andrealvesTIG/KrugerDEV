@@ -22292,24 +22292,24 @@ Return ONLY valid JSON.`;
       const totalUsersResult = await db.execute(sql`SELECT COUNT(*) as count FROM users`);
       const totalUsers = Number(totalUsersResult.rows[0]?.count || 0);
 
-      // New users today
+      // New users today (EST/EDT timezone - New York)
       const newUsersTodayResult = await db.execute(sql`
         SELECT COUNT(*) as count FROM users 
-        WHERE DATE(created_at) = CURRENT_DATE
+        WHERE ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York')::date = (NOW() AT TIME ZONE 'America/New_York')::date
       `);
       const newUsersToday = Number(newUsersTodayResult.rows[0]?.count || 0);
 
-      // New users this week
+      // New users this week (EST/EDT timezone - New York)
       const newUsersWeekResult = await db.execute(sql`
         SELECT COUNT(*) as count FROM users 
-        WHERE created_at >= NOW() - INTERVAL '7 days'
+        WHERE ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York')::date >= ((NOW() AT TIME ZONE 'America/New_York')::date - INTERVAL '7 days')
       `);
       const newUsersThisWeek = Number(newUsersWeekResult.rows[0]?.count || 0);
 
-      // New users this month
+      // New users this month (EST/EDT timezone - New York)
       const newUsersMonthResult = await db.execute(sql`
         SELECT COUNT(*) as count FROM users 
-        WHERE created_at >= NOW() - INTERVAL '30 days'
+        WHERE ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York')::date >= ((NOW() AT TIME ZONE 'America/New_York')::date - INTERVAL '30 days')
       `);
       const newUsersThisMonth = Number(newUsersMonthResult.rows[0]?.count || 0);
 
@@ -22332,12 +22332,12 @@ Return ONLY valid JSON.`;
       `);
       const activeUsers30d = Number(activeUsers30dResult.rows[0]?.count || 0);
 
-      // Daily new user signups (last 30 days)
+      // Daily new user signups (last 30 days, EST/EDT timezone - New York)
       const dailySignupsResult = await db.execute(sql`
-        SELECT DATE(created_at) as date, COUNT(*) as count 
+        SELECT ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York')::date as date, COUNT(*) as count 
         FROM users 
-        WHERE created_at >= NOW() - INTERVAL '30 days'
-        GROUP BY DATE(created_at) 
+        WHERE ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York')::date >= ((NOW() AT TIME ZONE 'America/New_York')::date - INTERVAL '30 days')
+        GROUP BY ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York')::date 
         ORDER BY date ASC
       `);
 
