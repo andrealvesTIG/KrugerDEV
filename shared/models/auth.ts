@@ -55,6 +55,7 @@ export const users = pgTable("users", {
   jobTitle: varchar("job_title"),
   pmiId: varchar("pmi_id"),
   linkedinUrl: varchar("linkedin_url"),
+  publicProfileEnabled: boolean("public_profile_enabled").default(false),
 
   // Technician flag (managed by super admins only)
   isTechnician: boolean("is_technician").default(false),

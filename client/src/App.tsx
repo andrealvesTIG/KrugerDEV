@@ -58,6 +58,7 @@ const PmoRadar = lazy(() => import("@/pages/PmoRadar"));
 const ReportSubscriptions = lazy(() => import("@/pages/ReportSubscriptions"));
 const SharedRiskAssessment = lazy(() => import("@/pages/SharedRiskAssessment"));
 const SharedProjectRiskAssessment = lazy(() => import("@/pages/SharedProjectRiskAssessment"));
+const PublicBadgeProfile = lazy(() => import("@/pages/PublicBadgeProfile"));
 const Home = lazy(() => import("@/pages/Home"));
 const LandingPageNew = lazy(() => import("@/pages/LandingPageNew"));
 const HealthcareLandingPage = lazy(() => import("@/pages/HealthcareLandingPage"));
@@ -312,6 +313,9 @@ function App() {
                 </Route>
                 <Route path="/uncon2026">
                   <Suspense fallback={<PageLoader />}><UnCon2026LandingPage /></Suspense>
+                </Route>
+                <Route path="/badges/:userId">
+                  <Suspense fallback={<PageLoader />}><PublicBadgeProfile /></Suspense>
                 </Route>
                 <Route>
                   <Router />

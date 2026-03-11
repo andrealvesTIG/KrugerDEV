@@ -631,6 +631,48 @@ export default function Profile() {
                 )}
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Share2 className="h-5 w-5" />
+                      Public Profile
+                    </CardTitle>
+                    <CardDescription>Allow others to view your profile and badges via a public link</CardDescription>
+                  </div>
+                  <Switch
+                    checked={!!user?.publicProfileEnabled}
+                    onCheckedChange={async (checked) => {
+                      try {
+                        await apiRequest("PATCH", `/api/users/${user?.id}`, { publicProfileEnabled: checked });
+                        queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+                        toast({
+                          title: checked ? "Public profile enabled" : "Public profile disabled",
+                          description: checked ? "Your profile is now visible via your public link." : "Your public profile link is no longer accessible.",
+                        });
+                      } catch {
+                        toast({ title: "Failed to update", variant: "destructive" });
+                      }
+                    }}
+                  />
+                </div>
+              </CardHeader>
+              {user?.publicProfileEnabled && (
+                <CardContent>
+                  <div className="flex items-center gap-2">
+                    <Input readOnly value={`${window.location.origin}/badges/${user?.id}`} className="font-mono text-sm" />
+                    <Button variant="outline" size="sm" onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/badges/${user?.id}`);
+                      toast({ title: "Link copied!" });
+                    }}>
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
           </div>
         )}
 

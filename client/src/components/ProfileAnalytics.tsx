@@ -3,9 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Briefcase, ListChecks, CheckCircle2, AlertTriangle, Shield, Flag, Layers, Activity, Trophy, Award, Star, Crown, Flame, Zap, Rocket, Bug, ShieldCheck, Building2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Loader2, Briefcase, ListChecks, CheckCircle2, AlertTriangle, Shield, Flag, Layers, Activity, Trophy, Award, Star, Crown, Flame, Zap, Rocket, Bug, ShieldCheck, Building2, Share2, Link2, Download, ExternalLink } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { useCallback, useRef } from "react";
 
 interface ProfileAnalyticsData {
   stats: {
@@ -106,13 +110,63 @@ function getBadgeIcon(icon: string, className?: string) {
   }
 }
 
+function FridayReportBranding({ size = "sm" }: { size?: "sm" | "md" }) {
+  const iconSize = size === "md" ? "h-6 w-6" : "h-4 w-4";
+  const textSize = size === "md" ? "text-sm" : "text-[10px]";
+  const fontBoldSize = size === "md" ? "text-xs" : "text-[8px]";
+  return (
+    <div className="flex items-center gap-1">
+      <div className={cn(iconSize, "bg-primary rounded flex items-center justify-center shrink-0")}>
+        <span className={cn("text-primary-foreground font-bold", fontBoldSize)}>F</span>
+      </div>
+      <span className={cn("font-semibold text-muted-foreground", textSize)}>FridayReport.AI</span>
+    </div>
+  );
+}
+
 export default function ProfileAnalytics() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const badgeRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const { data, isLoading, error } = useQuery<ProfileAnalyticsData>({
     queryKey: [`/api/users/${user?.id}/profile-analytics`],
     enabled: !!user?.id,
   });
+
+  const profileUrl = `${window.location.origin}/badges/${user?.id}`;
+
+  const handleCopyLink = useCallback(() => {
+    navigator.clipboard.writeText(profileUrl);
+    toast({ title: "Link copied!", description: "Your public profile link has been copied to clipboard." });
+  }, [profileUrl, toast]);
+
+  const handleShareLinkedIn = useCallback(() => {
+    const url = encodeURIComponent(profileUrl);
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank', 'width=600,height=500');
+  }, [profileUrl]);
+
+  const handleShareTwitter = useCallback(() => {
+    const url = encodeURIComponent(profileUrl);
+    const text = encodeURIComponent(`Check out my PM profile and achievements on FridayReport.AI! #ProjectManagement #PMO`);
+    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank', 'width=600,height=500');
+  }, [profileUrl]);
+
+  const handleDownloadBadge = useCallback(async (badgeId: string, badgeName: string) => {
+    const el = badgeRefs.current[badgeId];
+    if (!el) return;
+    try {
+      const { toPng } = await import('html-to-image');
+      const dataUrl = await toPng(el, { pixelRatio: 2, backgroundColor: '#ffffff' });
+      const link = document.createElement('a');
+      link.download = `FridayReport-Badge-${badgeName.replace(/\s+/g, '-')}.png`;
+      link.href = dataUrl;
+      link.click();
+      toast({ title: "Badge downloaded!", description: `${badgeName} badge saved as PNG.` });
+    } catch {
+      toast({ title: "Error", description: "Failed to download badge image.", variant: "destructive" });
+    }
+  }, [toast]);
 
   if (isLoading) {
     return (
@@ -152,9 +206,33 @@ export default function ProfileAnalytics() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Analytics</h2>
-        <p className="text-muted-foreground">Your professional engagement and performance overview</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Analytics</h2>
+          <p className="text-muted-foreground">Your professional engagement and performance overview</p>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm">
+              <Share2 className="h-4 w-4 mr-2" />
+              Share Profile
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleCopyLink}>
+              <Link2 className="h-4 w-4 mr-2" />
+              Copy Link
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleShareLinkedIn}>
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Share on LinkedIn
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleShareTwitter}>
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Share on X (Twitter)
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <Card className={cn("border-2", TIER_BG[ranking.tier.name] || "")}>
@@ -168,6 +246,7 @@ export default function ProfileAnalytics() {
                 {ranking.tier.name}
               </h3>
               <p className="text-sm text-muted-foreground mt-1">Professional Rank</p>
+              <FridayReportBranding size="sm" />
             </div>
             <div className="flex-1 w-full space-y-4">
               <div className="flex items-center justify-between">
@@ -304,11 +383,16 @@ export default function ProfileAnalytics() {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Trophy className="h-5 w-5 text-amber-500" />
-            Badges ({earnedBadges.length}/{badges.length})
-          </CardTitle>
-          <CardDescription className="text-xs">Earn badges by reaching professional milestones</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-amber-500" />
+                Badges ({earnedBadges.length}/{badges.length})
+              </CardTitle>
+              <CardDescription className="text-xs">Earn badges by reaching professional milestones</CardDescription>
+            </div>
+            <FridayReportBranding size="md" />
+          </div>
         </CardHeader>
         <CardContent>
           {earnedBadges.length > 0 && (
@@ -318,8 +402,18 @@ export default function ProfileAnalytics() {
                 {earnedBadges.map(badge => (
                   <div
                     key={badge.id}
-                    className="flex flex-col items-center text-center p-3 rounded-lg border-2 border-amber-500/30 bg-amber-500/5"
+                    ref={el => { badgeRefs.current[badge.id] = el; }}
+                    className="flex flex-col items-center text-center p-3 rounded-lg border-2 border-amber-500/30 bg-amber-500/5 relative group"
                   >
+                    <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
+                      <button
+                        onClick={() => handleDownloadBadge(badge.id, badge.name)}
+                        className="p-1 rounded hover:bg-amber-500/10 text-muted-foreground hover:text-amber-600"
+                        title="Download badge as PNG"
+                      >
+                        <Download className="h-3 w-3" />
+                      </button>
+                    </div>
                     <div className="text-amber-500 mb-1">
                       {getBadgeIcon(badge.icon, "h-7 w-7")}
                     </div>
@@ -328,6 +422,9 @@ export default function ProfileAnalytics() {
                     <Badge variant="secondary" className="mt-1.5 text-[10px] px-1.5 py-0">
                       {badge.current}/{badge.threshold}
                     </Badge>
+                    <div className="mt-1.5">
+                      <FridayReportBranding size="sm" />
+                    </div>
                   </div>
                 ))}
               </div>
