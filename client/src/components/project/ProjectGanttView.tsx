@@ -2773,6 +2773,8 @@ function ProjectGanttView({
           taskId: successorTask.id,
           dependsOnTaskId: predecessorTask.id,
           projectId,
+          dependencyType: 'finish-to-start',
+          lagDays: 0,
         });
         workingDeps.push({
           id: 0,

@@ -1,13 +1,31 @@
 import { useState, useRef, useEffect } from "react";
-import { useTaskDependencies, useAddTaskDependency, useRemoveTaskDependency } from "@/hooks/use-tasks";
+import { useTaskDependencies, useAddTaskDependency, useRemoveTaskDependency, useUpdateTaskDependency } from "@/hooks/use-tasks";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Link2, ArrowRight, X, Plus, Search } from "lucide-react";
 import { cn, normalizeSearch } from "@/lib/utils";
 import type { Task } from "@shared/schema";
+
+const DEPENDENCY_TYPES = [
+  { value: "finish-to-start", label: "FS", description: "Finish-to-Start" },
+  { value: "start-to-start", label: "SS", description: "Start-to-Start" },
+  { value: "finish-to-finish", label: "FF", description: "Finish-to-Finish" },
+  { value: "start-to-finish", label: "SF", description: "Start-to-Finish" },
+] as const;
+
+function getDependencyLabel(type: string | null | undefined): string {
+  const found = DEPENDENCY_TYPES.find(t => t.value === type);
+  return found ? found.label : "FS";
+}
+
+function getDependencyDescription(type: string | null | undefined): string {
+  const found = DEPENDENCY_TYPES.find(t => t.value === type);
+  return found ? found.description : "Finish-to-Start";
+}
 
 export function TaskDependenciesSection({
   taskId,
@@ -21,8 +39,11 @@ export function TaskDependenciesSection({
   const { data: dependencies, isLoading } = useTaskDependencies(taskId);
   const addDependency = useAddTaskDependency();
   const removeDependency = useRemoveTaskDependency();
+  const updateDependency = useUpdateTaskDependency();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [selectedType, setSelectedType] = useState<string>("finish-to-start");
+  const [lagDays, setLagDays] = useState<number>(0);
   const listRef = useRef<HTMLDivElement>(null);
   const predecessorItemRef = useRef<HTMLDivElement>(null);
 
@@ -60,13 +81,13 @@ export function TaskDependenciesSection({
 
   const handleAddDependency = (predecessorId: number) => {
     addDependency.mutate(
-      { taskId, dependsOnTaskId: predecessorId, projectId },
+      { taskId, dependsOnTaskId: predecessorId, projectId, dependencyType: selectedType, lagDays },
       {
         onSuccess: (data: any) => {
           if (data?.dateAdjusted) {
             toast({
               title: "Dependency added",
-              description: `Task dates automatically adjusted to start after predecessor (${data.newStartDate} - ${data.newEndDate})`,
+              description: `Task dates automatically adjusted (${data.newStartDate} - ${data.newEndDate})`,
             });
           } else {
             toast({ title: "Success", description: "Dependency added" });
@@ -101,6 +122,42 @@ export function TaskDependenciesSection({
     );
   };
 
+  const handleUpdateDependencyType = (predecessorId: number, newType: string) => {
+    updateDependency.mutate(
+      { taskId, dependsOnTaskId: predecessorId, dependencyType: newType, projectId },
+      {
+        onSuccess: () => {
+          toast({ title: "Updated", description: `Dependency type changed to ${getDependencyDescription(newType)}` });
+        },
+        onError: (error: any) => {
+          toast({
+            title: "Error",
+            description: error?.message || "Failed to update dependency",
+            variant: "destructive",
+          });
+        },
+      }
+    );
+  };
+
+  const handleUpdateLag = (predecessorId: number, newLag: number) => {
+    updateDependency.mutate(
+      { taskId, dependsOnTaskId: predecessorId, lagDays: newLag, projectId },
+      {
+        onSuccess: () => {
+          toast({ title: "Updated", description: `Lag updated to ${newLag} day${newLag !== 1 ? 's' : ''}` });
+        },
+        onError: (error: any) => {
+          toast({
+            title: "Error",
+            description: error?.message || "Failed to update lag",
+            variant: "destructive",
+          });
+        },
+      }
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-4">
@@ -117,7 +174,7 @@ export function TaskDependenciesSection({
           Predecessors
         </Label>
         <p className="text-xs text-muted-foreground">
-          Tasks that must be completed before this task can start
+          Tasks that must complete (or start) before this task, depending on the link type
         </p>
       </div>
 
@@ -128,27 +185,62 @@ export function TaskDependenciesSection({
             return (
               <div
                 key={dep.id}
-                className="flex items-center justify-between p-2 rounded-md bg-muted/50 border"
+                className="flex items-center justify-between p-2 rounded-md bg-muted/50 border gap-2"
               >
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
                   <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <span className="text-sm truncate">
                     {predecessorTask?.name || `Task #${dep.dependsOnTaskId}`}
                   </span>
-                  <Badge variant="outline" className="text-xs flex-shrink-0">
-                    {dep.dependencyType || "Finish-to-Start"}
-                  </Badge>
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleRemoveDependency(dep.dependsOnTaskId)}
-                  disabled={removeDependency.isPending}
-                  data-testid={`remove-dependency-${dep.dependsOnTaskId}`}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <Select
+                    value={dep.dependencyType || "finish-to-start"}
+                    onValueChange={(val) => handleUpdateDependencyType(dep.dependsOnTaskId, val)}
+                  >
+                    <SelectTrigger className="h-7 w-[62px] text-xs px-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DEPENDENCY_TYPES.map(t => (
+                        <SelectItem key={t.value} value={t.value}>
+                          <span className="font-medium">{t.label}</span>
+                          <span className="text-muted-foreground ml-1">({t.description})</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="number"
+                    className="h-7 w-[52px] text-xs text-center px-1"
+                    title="Lag days"
+                    key={`lag-${dep.id}-${dep.lagDays}`}
+                    defaultValue={dep.lagDays || 0}
+                    onBlur={(e) => {
+                      const newLag = parseInt(e.target.value) || 0;
+                      if (newLag !== (dep.lagDays || 0)) {
+                        handleUpdateLag(dep.dependsOnTaskId, newLag);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                  />
+                  <span className="text-xs text-muted-foreground">d</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => handleRemoveDependency(dep.dependsOnTaskId)}
+                    disabled={removeDependency.isPending}
+                    data-testid={`remove-dependency-${dep.dependsOnTaskId}`}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             );
           })}
@@ -160,15 +252,39 @@ export function TaskDependenciesSection({
       )}
 
       <div className="space-y-2">
-        <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search tasks by name or ID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8"
+              data-testid="dependency-search-input"
+            />
+          </div>
+          <Select value={selectedType} onValueChange={setSelectedType}>
+            <SelectTrigger className="w-[72px] h-9 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DEPENDENCY_TYPES.map(t => (
+                <SelectItem key={t.value} value={t.value}>
+                  <span className="font-medium">{t.label}</span>
+                  <span className="text-muted-foreground ml-1">({t.description})</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Input
-            placeholder="Search tasks by name or ID..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8"
-            data-testid="dependency-search-input"
+            type="number"
+            className="w-[52px] h-9 text-xs text-center px-1"
+            title="Lag days for new dependency"
+            placeholder="Lag"
+            value={lagDays}
+            onChange={(e) => setLagDays(parseInt(e.target.value) || 0)}
           />
+          <span className="text-xs text-muted-foreground">d</span>
         </div>
         <div
           ref={listRef}

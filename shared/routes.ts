@@ -367,9 +367,26 @@ export const api = {
     addDependency: {
       method: 'POST' as const,
       path: '/api/tasks/:id/dependencies',
-      input: z.object({ dependsOnTaskId: z.number() }),
+      input: z.object({
+        dependsOnTaskId: z.number(),
+        dependencyType: z.enum(['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish']).optional().default('finish-to-start'),
+        lagDays: z.number().int().optional().default(0),
+      }),
       responses: {
         201: z.custom<typeof taskDependencies.$inferSelect>(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
+    updateDependency: {
+      method: 'PUT' as const,
+      path: '/api/tasks/:id/dependencies/:dependsOnTaskId',
+      input: z.object({
+        dependencyType: z.enum(['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish']).optional(),
+        lagDays: z.number().int().optional(),
+      }),
+      responses: {
+        200: z.custom<typeof taskDependencies.$inferSelect>(),
         400: errorSchemas.validation,
         404: errorSchemas.notFound,
       },

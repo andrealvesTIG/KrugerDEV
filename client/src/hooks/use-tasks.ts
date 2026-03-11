@@ -208,8 +208,40 @@ export function useTaskDependencies(taskId: number) {
 
 export function useAddTaskDependency() {
   return useMutation({
-    mutationFn: ({ taskId, dependsOnTaskId, projectId }: { taskId: number; dependsOnTaskId: number; projectId?: number }) =>
-      apiRequest('POST', `/api/tasks/${taskId}/dependencies`, { dependsOnTaskId }),
+    mutationFn: ({ taskId, dependsOnTaskId, projectId, dependencyType, lagDays }: { 
+      taskId: number; 
+      dependsOnTaskId: number; 
+      projectId?: number;
+      dependencyType?: string;
+      lagDays?: number;
+    }) =>
+      apiRequest('POST', `/api/tasks/${taskId}/dependencies`, { 
+        dependsOnTaskId,
+        ...(dependencyType ? { dependencyType } : {}),
+        ...(lagDays !== undefined ? { lagDays } : {}),
+      }),
+    onSuccess: (data: any, variables) => {
+      queryClient.refetchQueries({ queryKey: ['/api/tasks', variables.taskId, 'dependencies'] });
+      if (variables.projectId) {
+        queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+      }
+    },
+  });
+}
+
+export function useUpdateTaskDependency() {
+  return useMutation({
+    mutationFn: ({ taskId, dependsOnTaskId, dependencyType, lagDays, projectId }: { 
+      taskId: number; 
+      dependsOnTaskId: number; 
+      dependencyType?: string;
+      lagDays?: number;
+      projectId?: number;
+    }) =>
+      apiRequest('PUT', `/api/tasks/${taskId}/dependencies/${dependsOnTaskId}`, { 
+        ...(dependencyType ? { dependencyType } : {}),
+        ...(lagDays !== undefined ? { lagDays } : {}),
+      }),
     onSuccess: (data: any, variables) => {
       queryClient.refetchQueries({ queryKey: ['/api/tasks', variables.taskId, 'dependencies'] });
       if (variables.projectId) {

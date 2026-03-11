@@ -296,7 +296,13 @@ export function GanttDependencyLinks({
       const linkIndex = rowPairCounts.get(rowPairKey) || 0;
       rowPairCounts.set(rowPairKey, linkIndex + 1);
       
-      const type = (dep.dependencyType || 'FS') as 'FS' | 'SS' | 'FF' | 'SF';
+      const rawType = dep.dependencyType || 'FS';
+      const normalized = rawType.toLowerCase().replace(/[\s_-]/g, '');
+      const type: 'FS' | 'SS' | 'FF' | 'SF' = 
+        (normalized === 'finishtostart' || normalized === 'fs') ? 'FS' :
+        (normalized === 'starttostart' || normalized === 'ss') ? 'SS' :
+        (normalized === 'finishtofinish' || normalized === 'ff') ? 'FF' :
+        (normalized === 'starttofinish' || normalized === 'sf') ? 'SF' : 'FS';
       const path = getLinkPath(type, fromRect, toRect, linkIndex);
       
       result.push({

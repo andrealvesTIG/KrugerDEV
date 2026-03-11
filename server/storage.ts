@@ -220,6 +220,7 @@ export interface IStorage {
   getTaskDependents(taskId: number): Promise<TaskDependency[]>;
   getProjectDependencies(projectId: number): Promise<TaskDependency[]>;
   createTaskDependency(dependency: InsertTaskDependency): Promise<TaskDependency>;
+  updateTaskDependency(taskId: number, dependsOnTaskId: number, updates: { dependencyType?: string; lagDays?: number }): Promise<TaskDependency | undefined>;
   deleteTaskDependency(taskId: number, dependsOnTaskId: number): Promise<void>;
 
   // Project Financials
@@ -1804,6 +1805,25 @@ export class DatabaseStorage implements IStorage {
   async createTaskDependency(dependency: InsertTaskDependency): Promise<TaskDependency> {
     const [newDep] = await db.insert(taskDependencies).values(dependency).returning();
     return newDep;
+  }
+
+  async updateTaskDependency(taskId: number, dependsOnTaskId: number, updates: { dependencyType?: string; lagDays?: number }): Promise<TaskDependency | undefined> {
+    const cleanUpdates: Record<string, any> = {};
+    if (updates.dependencyType !== undefined) cleanUpdates.dependencyType = updates.dependencyType;
+    if (updates.lagDays !== undefined) cleanUpdates.lagDays = updates.lagDays;
+    if (Object.keys(cleanUpdates).length === 0) {
+      const existing = await db.select().from(taskDependencies)
+        .where(and(eq(taskDependencies.taskId, taskId), eq(taskDependencies.dependsOnTaskId, dependsOnTaskId)));
+      return existing[0];
+    }
+    const [updated] = await db.update(taskDependencies)
+      .set(cleanUpdates)
+      .where(and(
+        eq(taskDependencies.taskId, taskId),
+        eq(taskDependencies.dependsOnTaskId, dependsOnTaskId)
+      ))
+      .returning();
+    return updated;
   }
 
   async deleteTaskDependency(taskId: number, dependsOnTaskId: number): Promise<void> {

@@ -10307,7 +10307,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
       
       const taskId = Number(req.params.id);
-      const { dependsOnTaskId } = api.tasks.addDependency.input.parse(req.body);
+      const { dependsOnTaskId, dependencyType, lagDays } = api.tasks.addDependency.input.parse(req.body);
       
       // Prevent self-dependency
       if (taskId === dependsOnTaskId) {
@@ -10347,43 +10347,65 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const dependency = await storage.createTaskDependency({
         taskId,
         dependsOnTaskId,
+        dependencyType: dependencyType || 'finish-to-start',
+        lagDays: lagDays || 0,
       });
       
-      // Auto-adjust dependent task's start date based on predecessor's end date (Finish-to-Start)
       let dateAdjusted = false;
       let newStartDate: string | null = null;
       let newEndDate: string | null = null;
       
-      // Re-fetch tasks for date adjustment (fresh data after dependency creation)
       const predecessorTaskForDates = await storage.getTask(dependsOnTaskId);
       const dependentTaskForDates = await storage.getTask(taskId);
       
-      if (predecessorTaskForDates?.endDate && dependentTaskForDates) {
-        const predecessorEnd = new Date(predecessorTaskForDates.endDate + 'T00:00:00');
-        const adjustedStart = nextWorkingDay(predecessorEnd);
-        newStartDate = formatDateStr(adjustedStart);
+      if (predecessorTaskForDates && dependentTaskForDates) {
+        const predStart = predecessorTaskForDates.startDate ? new Date(predecessorTaskForDates.startDate + 'T00:00:00') : null;
+        const predEnd = predecessorTaskForDates.endDate ? new Date(predecessorTaskForDates.endDate + 'T00:00:00') : null;
+        const depType = (dependencyType || 'finish-to-start').toLowerCase().replace(/[\s_-]/g, '');
+        const lag = lagDays || 0;
+        
+        let requiredStart: Date | null = null;
+        let requiredEnd: Date | null = null;
+        
+        if ((depType === 'finishtostart' || depType === 'fs') && predEnd) {
+          const base = nextWorkingDay(predEnd);
+          requiredStart = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
+        } else if ((depType === 'starttostart' || depType === 'ss') && predStart) {
+          const base = ensureWorkingDay(new Date(predStart));
+          requiredStart = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
+        } else if ((depType === 'finishtofinish' || depType === 'ff') && predEnd) {
+          const base = ensureWorkingDay(new Date(predEnd));
+          requiredEnd = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
+        } else if ((depType === 'starttofinish' || depType === 'sf') && predStart) {
+          const base = ensureWorkingDay(new Date(predStart));
+          requiredEnd = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
+        }
         
         const currentStart = dependentTaskForDates.startDate ? new Date(dependentTaskForDates.startDate + 'T00:00:00') : null;
-        if (!currentStart || currentStart < adjustedStart) {
-          const currentEnd = dependentTaskForDates.endDate ? new Date(dependentTaskForDates.endDate + 'T00:00:00') : null;
-          const duration = dependentTaskForDates.durationDays ?? (currentStart && currentEnd
-            ? calculateDuration(currentStart, currentEnd) : 1);
-          
+        const currentEnd = dependentTaskForDates.endDate ? new Date(dependentTaskForDates.endDate + 'T00:00:00') : null;
+        const duration = dependentTaskForDates.durationDays ?? (currentStart && currentEnd
+          ? calculateDuration(currentStart, currentEnd) : 1);
+        
+        if (requiredStart && (!currentStart || currentStart < requiredStart)) {
+          newStartDate = formatDateStr(requiredStart);
           if (duration === 0 || dependentTaskForDates.isMilestone) {
             newEndDate = newStartDate;
-            await storage.updateTask(taskId, { 
-              startDate: newStartDate,
-              endDate: newStartDate,
-              durationDays: 0,
-            });
+            await storage.updateTask(taskId, { startDate: newStartDate, endDate: newStartDate, durationDays: 0 });
           } else {
-            const newEnd = calculateEndDate(adjustedStart, Math.max(1, duration));
+            const newEnd = calculateEndDate(requiredStart, Math.max(1, duration));
             newEndDate = formatDateStr(newEnd);
-            await storage.updateTask(taskId, { 
-              startDate: newStartDate,
-              endDate: newEndDate,
-              durationDays: Math.max(1, duration),
-            });
+            await storage.updateTask(taskId, { startDate: newStartDate, endDate: newEndDate, durationDays: Math.max(1, duration) });
+          }
+          dateAdjusted = true;
+        } else if (requiredEnd && (!currentEnd || currentEnd < requiredEnd)) {
+          newEndDate = formatDateStr(requiredEnd);
+          if (duration === 0 || dependentTaskForDates.isMilestone) {
+            newStartDate = newEndDate;
+            await storage.updateTask(taskId, { startDate: newEndDate, endDate: newEndDate, durationDays: 0 });
+          } else {
+            const newStart = ensureWorkingDay(addWorkingDays(requiredEnd, -(duration - 1)));
+            newStartDate = formatDateStr(newStart);
+            await storage.updateTask(taskId, { startDate: newStartDate, endDate: newEndDate, durationDays: Math.max(1, duration) });
           }
           dateAdjusted = true;
         }
@@ -10406,6 +10428,37 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? "Error adding dependency" : classified.message });
+    }
+  });
+
+  app.put(api.tasks.updateDependency.path, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      
+      const taskId = Number(req.params.id);
+      const dependsOnTaskId = Number(req.params.dependsOnTaskId);
+      const updates = api.tasks.updateDependency.input.parse(req.body);
+      
+      const updated = await storage.updateTaskDependency(taskId, dependsOnTaskId, updates);
+      if (!updated) {
+        return res.status(404).json({ message: 'Dependency not found' });
+      }
+      
+      const dependentTask = await storage.getTask(taskId);
+      let propagatedTasks: { taskId: number; newStartDate: string; newEndDate: string }[] = [];
+      if (dependentTask) {
+        propagatedTasks = await propagateScheduleForProject(dependentTask.projectId);
+      }
+      
+      res.json({ ...updated, propagatedTasks });
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating dependency" : classified.message });
     }
   });
 
