@@ -265,15 +265,15 @@ export default function ProfileAnalytics() {
               Copy Link
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleShareLinkedIn}>
-              <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+              <svg className="h-4 w-4 mr-2 flex-shrink-0" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4" fill="#0A66C2"/><path d="M7.5 10v7M7.5 7v.01M10.5 17v-4a2 2 0 014 0v4M10.5 10v7" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
               Share on LinkedIn
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleShareTwitter}>
-              <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+              <svg className="h-4 w-4 mr-2 flex-shrink-0" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4" fill="#000"/><path d="M16.99 3.75h2.7l-5.9 6.74 6.94 9.18h-5.44l-4.26-5.57-4.87 5.57H3.35l6.31-7.21L3.08 3.75h5.58l3.85 5.09zm-.95 14.31h1.5L8.14 5.29H6.52z" fill="#fff"/></svg>
               Share on X (Twitter)
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleShareTeams}>
-              <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="currentColor"><path d="M19.404 4.478c.608 0 1.101.493 1.101 1.101v5.464a4.4 4.4 0 01-4.399 4.399h-.5a5.725 5.725 0 01-1.27 2.393 5.46 5.46 0 01-2.077 1.508V21.6a2.4 2.4 0 01-2.4 2.4H4.8a2.4 2.4 0 01-2.4-2.4v-6.559a5.76 5.76 0 015.76-5.76h3.36c.158-.468.38-.91.66-1.312a4.36 4.36 0 013.555-1.833h.014c.025-.002.05-.002.076-.002h3.579zM16.5 2a2.5 2.5 0 110 5 2.5 2.5 0 010-5zm-6 1a3 3 0 110 6 3 3 0 010-6z"/></svg>
+              <svg className="h-4 w-4 mr-2 flex-shrink-0" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4" fill="#5059C9"/><circle cx="17" cy="7.5" r="2" fill="#7B83EB"/><path d="M19.5 10.5h-4a.5.5 0 00-.5.5v5a2.5 2.5 0 005 0v-5a.5.5 0 00-.5-.5z" fill="#7B83EB"/><circle cx="11" cy="7" r="2.5" fill="#fff"/><path d="M14.5 10.5h-7a.5.5 0 00-.5.5v5.5a3 3 0 006 0V11a.5.5 0 00-.5-.5z" fill="#fff"/><rect x="2" y="5" width="10" height="10" rx="1.5" fill="#5059C9"/><path d="M4.5 8.5h5M7 8.5V14" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/></svg>
               Share on Teams
             </DropdownMenuItem>
           </DropdownMenuContent>
