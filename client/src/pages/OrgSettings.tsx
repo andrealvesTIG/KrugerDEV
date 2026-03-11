@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle, LayoutGrid, Columns, Lightbulb, Mic, Receipt, Code2, PlayCircle, UserCheck, Home, Radar } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle, LayoutGrid, Columns, Lightbulb, Mic, Receipt, Code2, PlayCircle, UserCheck, Home, Radar, GraduationCap } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -761,6 +761,7 @@ const availableModules = [
   { key: "resources", name: "Resources", icon: Users, description: "Resource management" },
   { key: "calendar", name: "Calendar", icon: Calendar, description: "Calendar view" },
   { key: "user-guide", name: "User Guide", icon: BookOpen, description: "Help documentation" },
+  { key: "training", name: "Training", icon: GraduationCap, description: "Training & certification courses" },
 ];
 
 const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -779,6 +780,7 @@ const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>>
   resources: Users,
   calendar: Calendar,
   "user-guide": BookOpen,
+  training: GraduationCap,
 };
 
 function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder?: string[] | null, hiddenGroups?: string[] | null): SidebarStructure {
@@ -807,6 +809,7 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
       { type: "module" as const, key: "calendar", hidden: false },
       { type: "module" as const, key: "lessons-learned", hidden: false },
       { type: "module" as const, key: "user-guide", hidden: false },
+      { type: "module" as const, key: "training", hidden: false },
     ]},
   ];
 }
@@ -850,6 +853,7 @@ function migrateOldFlatStructure(structure: SidebarStructure): SidebarStructure 
       { type: "module" as const, key: "calendar", hidden: getItemHidden("calendar") },
       { type: "module" as const, key: "lessons-learned", hidden: getItemHidden("lessons-learned") },
       { type: "module" as const, key: "user-guide", hidden: helpGroup?.items.find(i => i.type === "module" && i.key === "user-guide")?.hidden ?? false },
+      { type: "module" as const, key: "training", hidden: helpGroup?.items.find(i => i.type === "module" && i.key === "training")?.hidden ?? false },
       ...customLinks,
     ]},
   ];
@@ -905,6 +909,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   ensureModule("lessons-learned", "help");
   ensureModule("invoices", "finance", "pmo-radar");
   ensureModule("user-guide", "help");
+  ensureModule("training", "help", "user-guide");
   
   const helpGroup = cleanedStructure.find(g => g.id === "help");
   if (!helpGroup) {
@@ -918,6 +923,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
         { type: "module" as const, key: "calendar", hidden: false },
         { type: "module" as const, key: "lessons-learned", hidden: false },
         { type: "module" as const, key: "user-guide", hidden: false },
+        { type: "module" as const, key: "training", hidden: false },
       ] 
     }];
   }

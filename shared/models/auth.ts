@@ -51,6 +51,12 @@ export const users = pgTable("users", {
   emailVerificationToken: varchar("email_verification_token"),
   emailVerificationExpiry: timestamp("email_verification_expiry"),
 
+  // Professional credentials
+  jobTitle: varchar("job_title"),
+  pmiId: varchar("pmi_id"),
+  linkedinUrl: varchar("linkedin_url"),
+  publicProfileEnabled: boolean("public_profile_enabled").default(true),
+
   // Technician flag (managed by super admins only)
   isTechnician: boolean("is_technician").default(false),
 

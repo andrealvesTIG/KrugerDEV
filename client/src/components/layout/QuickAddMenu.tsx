@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { Plus, FolderKanban, CheckSquare, AlertTriangle, Bug, FileText, FileEdit, Users, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +31,7 @@ type QuickAddType = "portfolio" | "project" | "task" | "risk" | "issue" | "resou
 export function QuickAddMenu() {
   const [activeDialog, setActiveDialog] = useState<QuickAddType>(null);
   const { currentOrganization } = useOrganization();
+  const [, navigate] = useLocation();
   const { toast } = useToast();
 
   const menuItems = [
@@ -74,6 +76,7 @@ export function QuickAddMenu() {
         open={activeDialog === "project"}
         onOpenChange={(open) => !open && setActiveDialog(null)}
         organizationId={currentOrganization?.id}
+        onProjectCreated={(projectId) => navigate(`/projects/${projectId}`)}
       />
       <CreateTaskDialog
         open={activeDialog === "task"}

@@ -48,15 +48,20 @@ import { PageTransition, FadeIn } from "@/components/ui/page-transition";
 
 const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing", "Closed"];
 
-function ProjectsPagination({ currentPage, totalPages, totalItems, pageSize, onPageChange }: {
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
+
+function ProjectsPagination({ currentPage, totalPages, totalItems, pageSize, onPageChange, onPageSizeChange, selectedPageSize }: {
   currentPage: number;
   totalPages: number;
   totalItems: number;
   pageSize: number;
   onPageChange: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
+  selectedPageSize?: number;
 }) {
-  const startItem = (currentPage - 1) * pageSize + 1;
-  const endItem = Math.min(currentPage * pageSize, totalItems);
+  const isAllSelected = (selectedPageSize ?? pageSize) === Infinity;
+  const startItem = isAllSelected ? 1 : (currentPage - 1) * pageSize + 1;
+  const endItem = isAllSelected ? totalItems : Math.min(currentPage * pageSize, totalItems);
 
   const getPageNumbers = () => {
     const pages: (number | 'ellipsis')[] = [];
@@ -79,43 +84,70 @@ function ProjectsPagination({ currentPage, totalPages, totalItems, pageSize, onP
       <span className="text-muted-foreground">
         Showing {startItem}–{endItem} of {totalItems} projects
       </span>
-      {totalPages > 1 && (
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0"
-            onClick={() => onPageChange(currentPage - 1)}
-            disabled={currentPage <= 1}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          {getPageNumbers().map((page, idx) =>
-            page === 'ellipsis' ? (
-              <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground">…</span>
-            ) : (
-              <Button
-                key={page}
-                variant={page === currentPage ? "default" : "outline"}
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={() => onPageChange(page)}
-              >
-                {page}
-              </Button>
-            )
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0"
-            onClick={() => onPageChange(currentPage + 1)}
-            disabled={currentPage >= totalPages}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
+      <div className="flex items-center gap-4">
+        {onPageSizeChange && (
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground text-xs">Items per page</span>
+            <Select
+              value={isAllSelected ? "all" : String(selectedPageSize ?? pageSize)}
+              onValueChange={(val) => {
+                if (val === "all") {
+                  onPageSizeChange(Infinity);
+                } else {
+                  onPageSizeChange(Number(val));
+                }
+              }}
+            >
+              <SelectTrigger className="h-8 w-[70px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <SelectItem key={size} value={String(size)}>{size}</SelectItem>
+                ))}
+                <SelectItem value="all">All</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        {totalPages > 1 && (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => onPageChange(currentPage - 1)}
+              disabled={currentPage <= 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            {getPageNumbers().map((page, idx) =>
+              page === 'ellipsis' ? (
+                <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground">…</span>
+              ) : (
+                <Button
+                  key={page}
+                  variant={page === currentPage ? "default" : "outline"}
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => onPageChange(page)}
+                >
+                  {page}
+                </Button>
+              )
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => onPageChange(currentPage + 1)}
+              disabled={currentPage >= totalPages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -156,6 +188,8 @@ interface ProjectsListViewProps {
   totalPages: number;
   pageSize: number;
   onPageChange: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
+  selectedPageSize?: number;
   isLoading?: boolean;
 }
 
@@ -172,6 +206,8 @@ function ProjectsListView({
   totalPages,
   pageSize,
   onPageChange,
+  onPageSizeChange,
+  selectedPageSize,
   isLoading,
 }: ProjectsListViewProps) {
   return (
@@ -426,6 +462,8 @@ function ProjectsListView({
             totalItems={filteredProjects.length}
             pageSize={pageSize}
             onPageChange={onPageChange}
+            onPageSizeChange={onPageSizeChange}
+            selectedPageSize={selectedPageSize}
           />
         </div>
       )}
@@ -499,8 +537,17 @@ export default function Projects() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [, navigate] = useLocation();
 
-  const LIST_PAGE_SIZE = 10;
+  const [listPageSize, setListPageSize] = useState<number>(() => {
+    const saved = localStorage.getItem("projects-list-page-size");
+    return saved ? (saved === "Infinity" ? Infinity : Number(saved)) : 10;
+  });
   const [listCurrentPage, setListCurrentPage] = useState(1);
+
+  const handleListPageSizeChange = useCallback((size: number) => {
+    setListPageSize(size);
+    setListCurrentPage(1);
+    localStorage.setItem("projects-list-page-size", String(size));
+  }, []);
 
   const generateProjectRiskAssessment = useMutation({
     mutationFn: async (projectId: number) => {
@@ -790,14 +837,17 @@ export default function Projects() {
     setListCurrentPage(1);
   }, [filteredProjects, view]);
 
+  const effectiveListPageSize = listPageSize === Infinity ? (filteredProjects?.length || 1) : listPageSize;
+
   const totalListPages = useMemo(() => {
-    return Math.max(1, Math.ceil((filteredProjects?.length || 0) / LIST_PAGE_SIZE));
-  }, [filteredProjects, LIST_PAGE_SIZE]);
+    return Math.max(1, Math.ceil((filteredProjects?.length || 0) / effectiveListPageSize));
+  }, [filteredProjects, effectiveListPageSize]);
 
   const displayedListProjects = useMemo(() => {
-    const start = (listCurrentPage - 1) * LIST_PAGE_SIZE;
-    return (filteredProjects || []).slice(start, start + LIST_PAGE_SIZE);
-  }, [filteredProjects, listCurrentPage, LIST_PAGE_SIZE]);
+    if (listPageSize === Infinity) return filteredProjects || [];
+    const start = (listCurrentPage - 1) * listPageSize;
+    return (filteredProjects || []).slice(start, start + listPageSize);
+  }, [filteredProjects, listCurrentPage, listPageSize]);
 
   const handleStatusChange = (projectId: number, newStatus: string) => {
     updateProject.mutate(
@@ -906,6 +956,7 @@ export default function Projects() {
             onOpenChange={setIsDialogOpen}
             portfolios={portfolios || []}
             organizationId={currentOrganization?.id}
+            onProjectCreated={(projectId) => navigate(`/projects/${projectId}`)}
           />
         </div>
       </FadeIn>
@@ -1083,8 +1134,10 @@ export default function Projects() {
                 setRiskAssessProjectId={setRiskAssessProjectId}
                 currentPage={listCurrentPage}
                 totalPages={totalListPages}
-                pageSize={LIST_PAGE_SIZE}
+                pageSize={effectiveListPageSize}
                 onPageChange={setListCurrentPage}
+                onPageSizeChange={handleListPageSizeChange}
+                selectedPageSize={listPageSize}
                 isLoading={isLoading}
               />
             ) : view === "grid" ? (
@@ -1129,8 +1182,10 @@ export default function Projects() {
           setRiskAssessProjectId={setRiskAssessProjectId}
           currentPage={listCurrentPage}
           totalPages={totalListPages}
-          pageSize={LIST_PAGE_SIZE}
+          pageSize={effectiveListPageSize}
           onPageChange={setListCurrentPage}
+          onPageSizeChange={handleListPageSizeChange}
+          selectedPageSize={listPageSize}
           isLoading={isLoading}
         />
       ) : !isFullscreen && view === "grid" ? (
@@ -1441,8 +1496,17 @@ function ProjectsGridView({
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [internalFullscreen, setInternalFullscreen] = useState(false);
 
-  const GRID_PAGE_SIZE = 10;
+  const [gridPageSize, setGridPageSize] = useState<number>(() => {
+    const saved = localStorage.getItem("projects-grid-page-size");
+    return saved ? (saved === "Infinity" ? Infinity : Number(saved)) : 10;
+  });
   const [gridCurrentPage, setGridCurrentPage] = useState(1);
+
+  const handleGridPageSizeChange = useCallback((size: number) => {
+    setGridPageSize(size);
+    setGridCurrentPage(1);
+    localStorage.setItem("projects-grid-page-size", String(size));
+  }, []);
 
   useEffect(() => {
     setGridCurrentPage(1);
@@ -1554,14 +1618,17 @@ function ProjectsGridView({
     return sortData(projects, sortState, getFieldValue);
   }, [projects, sortState, getFieldValue]);
 
+  const effectiveGridPageSize = gridPageSize === Infinity ? (sortedProjects.length || 1) : gridPageSize;
+
   const gridTotalPages = useMemo(() => {
-    return Math.max(1, Math.ceil(sortedProjects.length / GRID_PAGE_SIZE));
-  }, [sortedProjects, GRID_PAGE_SIZE]);
+    return Math.max(1, Math.ceil(sortedProjects.length / effectiveGridPageSize));
+  }, [sortedProjects, effectiveGridPageSize]);
 
   const displayedProjects = useMemo(() => {
-    const start = (gridCurrentPage - 1) * GRID_PAGE_SIZE;
-    return sortedProjects.slice(start, start + GRID_PAGE_SIZE);
-  }, [sortedProjects, gridCurrentPage, GRID_PAGE_SIZE]);
+    if (gridPageSize === Infinity) return sortedProjects;
+    const start = (gridCurrentPage - 1) * gridPageSize;
+    return sortedProjects.slice(start, start + gridPageSize);
+  }, [sortedProjects, gridCurrentPage, gridPageSize]);
 
   const handleApplyView = (view: { visibleColumns: string[]; columnOrder: string[] }) => {
     setVisibleColumns(view.visibleColumns);
@@ -2309,8 +2376,10 @@ function ProjectsGridView({
           currentPage={gridCurrentPage}
           totalPages={gridTotalPages}
           totalItems={sortedProjects.length}
-          pageSize={GRID_PAGE_SIZE}
+          pageSize={effectiveGridPageSize}
           onPageChange={setGridCurrentPage}
+          onPageSizeChange={handleGridPageSizeChange}
+          selectedPageSize={gridPageSize}
         />
       )}
       

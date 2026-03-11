@@ -2430,3 +2430,76 @@ export const insertApiTokenSchema = createInsertSchema(apiTokens).omit({
 });
 export type InsertApiToken = z.infer<typeof insertApiTokenSchema>;
 export type ApiToken = typeof apiTokens.$inferSelect;
+
+// === TRAINING CONTENT MANAGEMENT ===
+
+export const trainingModules = pgTable("training_modules", {
+  id: serial("id").primaryKey(),
+  moduleKey: varchar("module_key").unique().notNull(),
+  name: text("name").notNull(),
+  subtitle: text("subtitle").notNull(),
+  certPrefix: varchar("cert_prefix", { length: 10 }).notNull(),
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertTrainingModuleSchema = createInsertSchema(trainingModules).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertTrainingModule = z.infer<typeof insertTrainingModuleSchema>;
+export type TrainingModuleRecord = typeof trainingModules.$inferSelect;
+
+export const trainingLessons = pgTable("training_lessons", {
+  id: serial("id").primaryKey(),
+  moduleId: integer("module_id").references(() => trainingModules.id, { onDelete: "cascade" }).notNull(),
+  lessonKey: varchar("lesson_key").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  videoTitle: text("video_title").notNull(),
+  videoDescription: text("video_description").notNull(),
+  keyConcepts: jsonb("key_concepts").$type<string[]>().notNull(),
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("training_lessons_module_idx").on(table.moduleId),
+  uniqueIndex("training_lessons_module_key_idx").on(table.moduleId, table.lessonKey),
+]);
+
+export const insertTrainingLessonSchema = createInsertSchema(trainingLessons).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertTrainingLesson = z.infer<typeof insertTrainingLessonSchema>;
+export type TrainingLessonRecord = typeof trainingLessons.$inferSelect;
+
+export const trainingQuizQuestions = pgTable("training_quiz_questions", {
+  id: serial("id").primaryKey(),
+  lessonId: integer("lesson_id").references(() => trainingLessons.id, { onDelete: "cascade" }).notNull(),
+  questionKey: varchar("question_key").notNull(),
+  scenario: text("scenario").notNull(),
+  options: jsonb("options").$type<string[]>().notNull(),
+  correctIndex: integer("correct_index").notNull(),
+  explanation: text("explanation").notNull(),
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("training_questions_lesson_idx").on(table.lessonId),
+  uniqueIndex("training_questions_lesson_key_idx").on(table.lessonId, table.questionKey),
+]);
+
+export const insertTrainingQuizQuestionSchema = createInsertSchema(trainingQuizQuestions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertTrainingQuizQuestion = z.infer<typeof insertTrainingQuizQuestionSchema>;
+export type TrainingQuizQuestionRecord = typeof trainingQuizQuestions.$inferSelect;

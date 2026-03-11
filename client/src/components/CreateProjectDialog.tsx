@@ -62,9 +62,10 @@ interface CreateProjectDialogProps {
   onOpenChange: (o: boolean) => void;
   organizationId?: number;
   portfolios?: any[];
+  onProjectCreated?: (projectId: number) => void;
 }
 
-export function CreateProjectDialog({ open, onOpenChange, organizationId, portfolios: portfoliosProp }: CreateProjectDialogProps) {
+export function CreateProjectDialog({ open, onOpenChange, organizationId, portfolios: portfoliosProp, onProjectCreated }: CreateProjectDialogProps) {
   const { toast } = useToast();
   const createMutation = useCreateProject();
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
@@ -259,10 +260,13 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
       budget: data.budget || "0",
     };
     createMutation.mutate(cleanedData, {
-      onSuccess: () => {
+      onSuccess: (newProject: any) => {
         toast({ title: "Success", description: "Project created successfully" });
         onOpenChange(false);
         form.reset();
+        if (newProject?.id && onProjectCreated) {
+          onProjectCreated(newProject.id);
+        }
       },
       onError: (err: any) => {
         if (err.limitExceeded) {

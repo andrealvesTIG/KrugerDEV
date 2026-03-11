@@ -39,9 +39,26 @@ const inputRes = { ...e400, ...e401 };
 const createRes = { ...e400, ...e401, ...e403 };
 const updateRes = { ...e400, ...e401, ...e403, ...e404 };
 
-const op = (tag: string, summary: string, extras: any = {}) => ({
-  tags: [tag], summary, ...extras,
-});
+const toOperationId = (summary: string): string => {
+  return summary
+    .replace(/[^a-zA-Z0-9\s]/g, '')
+    .trim()
+    .split(/\s+/)
+    .map((w, i) => i === 0 ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join('');
+};
+
+const _usedOperationIds = new Set<string>();
+const op = (tag: string, summary: string, extras: any = {}) => {
+  let id = toOperationId(summary);
+  if (_usedOperationIds.has(id)) {
+    let n = 2;
+    while (_usedOperationIds.has(`${id}${n}`)) n++;
+    id = `${id}${n}`;
+  }
+  _usedOperationIds.add(id);
+  return { operationId: id, tags: [tag], summary, ...extras };
+};
 
 const spec = {
   openapi: '3.0.0',
@@ -119,6 +136,7 @@ const spec = {
       Error: {
         type: 'object',
         properties: { message: { type: 'string' } },
+        required: ['message'],
       },
       Organization: {
         type: 'object',
@@ -141,6 +159,7 @@ const spec = {
           deactivatedBy: { type: 'string', nullable: true, description: 'User ID who deactivated' },
           createdAt: { type: 'string', format: 'date-time' },
         },
+        required: ['id', 'name', 'slug', 'createdAt'],
       },
       Portfolio: {
         type: 'object',
@@ -171,6 +190,7 @@ const spec = {
           isDemo: { type: 'boolean' },
           isCustom: { type: 'boolean', description: 'Custom portfolios can include projects from any portfolio' },
         },
+        required: ['id', 'organizationId', 'name', 'status', 'healthScore', 'isDemo', 'isCustom'],
       },
       Project: {
         type: 'object',
@@ -239,6 +259,7 @@ const spec = {
           isDemo: { type: 'boolean' },
           timesheetBlocked: { type: 'boolean' },
         },
+        required: ['id', 'organizationId', 'name', 'status', 'priority', 'budget', 'health', 'isDemo', 'timesheetBlocked'],
       },
       Task: {
         type: 'object',
@@ -288,7 +309,7 @@ const spec = {
           deletedBy: { type: 'string', nullable: true },
           isDemo: { type: 'boolean' },
         },
-        required: ['projectId', 'name', 'startDate', 'endDate'],
+        required: ['id', 'projectId', 'name', 'startDate', 'endDate'],
       },
       Milestone: {
         type: 'object',
@@ -319,6 +340,7 @@ const spec = {
           deletedBy: { type: 'string', nullable: true },
           isDemo: { type: 'boolean' },
         },
+        required: ['id', 'projectId', 'title', 'dueDate', 'completed', 'status', 'priority', 'isDemo'],
       },
       Risk: {
         type: 'object',
@@ -358,6 +380,7 @@ const spec = {
           deletedBy: { type: 'string', nullable: true },
           isDemo: { type: 'boolean' },
         },
+        required: ['id', 'projectId', 'itemType', 'title', 'priority', 'status', 'escalatedToPortfolio', 'isDemo'],
       },
       Issue: {
         type: 'object',
@@ -401,6 +424,7 @@ const spec = {
           deletedBy: { type: 'string', nullable: true },
           isDemo: { type: 'boolean' },
         },
+        required: ['id', 'projectId', 'itemType', 'title', 'priority', 'status', 'escalatedToPortfolio', 'isDemo'],
       },
       Resource: {
         type: 'object',
@@ -444,6 +468,7 @@ const spec = {
           deletedBy: { type: 'string', nullable: true },
           isDemo: { type: 'boolean' },
         },
+        required: ['id', 'organizationId', 'displayName', 'weeklyCapacity', 'availability', 'isActive', 'isApprover', 'isIntakeApprover', 'isBillable', 'timesheetHidden', 'isDemo'],
       },
       TimesheetEntry: {
         type: 'object',
@@ -465,6 +490,7 @@ const spec = {
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' },
         },
+        required: ['id', 'organizationId', 'userId', 'resourceId', 'taskId', 'projectId', 'entryDate', 'hours', 'status'],
       },
       Invoice: {
         type: 'object',
@@ -498,6 +524,7 @@ const spec = {
           deletedBy: { type: 'string', nullable: true },
           isDemo: { type: 'boolean' },
         },
+        required: ['id', 'projectId', 'title'],
       },
       ProjectIntake: {
         type: 'object',
@@ -550,6 +577,7 @@ const spec = {
           deletedBy: { type: 'string', nullable: true },
           isDemo: { type: 'boolean' },
         },
+        required: ['id', 'organizationId', 'projectName'],
       },
       TaskDependency: {
         type: 'object',
@@ -591,6 +619,7 @@ const spec = {
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' },
         },
+        required: ['id', 'email'],
       },
       Document: {
         type: 'object',
@@ -622,6 +651,7 @@ const spec = {
           deletedBy: { type: 'string', nullable: true },
           isDemo: { type: 'boolean' },
         },
+        required: ['id', 'projectId', 'title'],
       },
       Comment: {
         type: 'object',
@@ -637,6 +667,7 @@ const spec = {
           updatedAt: { type: 'string', format: 'date-time', nullable: true },
           isDemo: { type: 'boolean' },
         },
+        required: ['id', 'projectId', 'content'],
       },
       ChangeRequest: {
         type: 'object',
@@ -665,6 +696,7 @@ const spec = {
           deletedBy: { type: 'string', nullable: true },
           isDemo: { type: 'boolean' },
         },
+        required: ['id', 'projectId', 'title'],
       },
       Notification: {
         type: 'object',
@@ -689,6 +721,7 @@ const spec = {
           isRead: { type: 'boolean' },
           createdAt: { type: 'string', format: 'date-time' },
         },
+        required: ['id', 'userId', 'type', 'title', 'message', 'severity', 'isRead', 'createdAt'],
       },
       CustomDashboard: {
         type: 'object',
@@ -728,6 +761,7 @@ const spec = {
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' },
         },
+        required: ['id', 'organizationId', 'userId', 'name', 'config'],
       },
       Plan: {
         type: 'object',
@@ -762,6 +796,7 @@ const spec = {
             },
           },
         },
+        required: ['id', 'code', 'name'],
       },
       HelpTicket: {
         type: 'object',
@@ -785,6 +820,7 @@ const spec = {
           updatedAt: { type: 'string', format: 'date-time' },
           resolvedAt: { type: 'string', format: 'date-time', nullable: true },
         },
+        required: ['id', 'userId', 'userEmail', 'subject', 'description', 'status'],
       },
       MppImport: {
         type: 'object',
@@ -801,6 +837,7 @@ const spec = {
           status: { type: 'string', enum: ['active', 'archived'] },
           createdAt: { type: 'string', format: 'date-time' },
         },
+        required: ['id', 'organizationId', 'fileName', 'fileType'],
       },
       ProjectFinancial: {
         type: 'object',
@@ -821,6 +858,7 @@ const spec = {
           updatedAt: { type: 'string', format: 'date-time' },
           isDemo: { type: 'boolean' },
         },
+        required: ['id', 'projectId', 'category', 'lineItem', 'fiscalYear'],
       },
       CostItem: {
         type: 'object',
@@ -850,6 +888,7 @@ const spec = {
           updatedAt: { type: 'string', format: 'date-time' },
           isDemo: { type: 'boolean' },
         },
+        required: ['id', 'projectId', 'name', 'fiscalYear'],
       },
       RiskAssessment: {
         type: 'object',
@@ -860,6 +899,7 @@ const spec = {
           recommendations: { type: 'array', items: { type: 'string' } },
           createdAt: { type: 'string', format: 'date-time' },
         },
+        required: ['id', 'score', 'summary', 'recommendations'],
       },
       CustomField: {
         type: 'object',
@@ -870,6 +910,7 @@ const spec = {
           fieldType: { type: 'string' },
           options: { type: 'object', nullable: true },
         },
+        required: ['id', 'organizationId', 'name', 'fieldType'],
       },
       CustomTab: {
         type: 'object',
@@ -879,6 +920,7 @@ const spec = {
           name: { type: 'string' },
           sortOrder: { type: 'integer' },
         },
+        required: ['id', 'organizationId', 'name'],
       },
       ScoringCriterion: {
         type: 'object',
@@ -888,6 +930,7 @@ const spec = {
           name: { type: 'string' },
           weight: { type: 'number' },
         },
+        required: ['id', 'organizationId', 'name'],
       },
       ReportSubscription: {
         type: 'object',
@@ -898,16 +941,19 @@ const spec = {
           schedule: { type: 'string' },
           recipients: { type: 'array', items: { type: 'string' } },
         },
+        required: ['id', 'organizationId', 'dashboardType', 'schedule'],
       },
       TimesheetPeriod: {
         type: 'object',
         properties: {
           id: { type: 'integer' },
           organizationId: { type: 'integer' },
+          name: { type: 'string', description: 'Period name (e.g. "January 2024", "Week 1 - 2024")' },
           startDate: { type: 'string', format: 'date' },
           endDate: { type: 'string', format: 'date' },
-          status: { type: 'string' },
+          status: { type: 'string', enum: ['open', 'closed'] },
         },
+        required: ['id', 'organizationId', 'name', 'startDate', 'endDate', 'status'],
       },
       ProjectView: {
         type: 'object',
@@ -918,6 +964,7 @@ const spec = {
           filters: { type: 'object' },
           isDefault: { type: 'boolean' },
         },
+        required: ['id', 'organizationId', 'name'],
       },
     },
   },

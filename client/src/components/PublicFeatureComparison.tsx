@@ -176,7 +176,7 @@ export function PublicFeatureComparison({ variant = "default" }: PublicFeatureCo
         <table className="w-full text-sm" data-testid="table-public-comparison">
           <thead>
             <tr className={`border-b ${isSlate ? "border-slate-600" : ""} ${theadBg}`}>
-              <th className={`text-left px-4 py-4 font-semibold ${thTextClass} min-w-[220px] sticky left-0 ${theadStickyBg} z-[9999]`}>Feature</th>
+              <th className={`text-left px-4 py-4 font-semibold ${thTextClass} min-w-[220px] sticky left-0 ${theadStickyBg} z-10`}>Feature</th>
               {TOOLS.map((tool) => (
                 <th key={tool} className="text-center px-2 py-4 min-w-[56px]">
                   <Tooltip>
@@ -198,7 +198,7 @@ export function PublicFeatureComparison({ variant = "default" }: PublicFeatureCo
                 className={`border-b ${isSlate ? "border-slate-700" : ""} transition-colors ${idx % 2 === 0 ? evenRowBg : oddRowBg}`}
                 data-testid={`row-feature-${idx}`}
               >
-                <td className={`px-4 py-3 font-medium ${featureTextClass} sticky left-0 z-[9999] ${stickyTdBg}`} data-testid={`text-feature-name-${idx}`}>{feat.name}</td>
+                <td className={`px-4 py-3 font-medium ${featureTextClass} sticky left-0 z-10 ${stickyTdBg}`} data-testid={`text-feature-name-${idx}`}>{feat.name}</td>
                 {feat.values.map((v, i) => (
                   <td key={TOOLS[i]} className={`text-center px-2 py-3 ${i === 0 ? fridayColBg : ""}`} data-testid={`cell-status-${idx}-${i}`}>
                     <StatusCell status={v} />
