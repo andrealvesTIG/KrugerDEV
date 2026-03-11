@@ -5,7 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Loader2, Briefcase, ListChecks, CheckCircle2, AlertTriangle, Shield, Flag, Layers, Activity, Trophy, Award, Star, Crown, Flame, Zap, Rocket, Bug, ShieldCheck, Building2, Share2, Link2, Download } from "lucide-react";
+import { Loader2, Briefcase, ListChecks, CheckCircle2, AlertTriangle, Shield, Flag, Layers, Activity, Trophy, Award, Star, Crown, Flame, Zap, Rocket, Bug, ShieldCheck, Building2, Share2, Link2, Download, GraduationCap } from "lucide-react";
+import { getTrainingBadges, setTrainingUserId } from "@/lib/trainingData";
+import type { TrainingModule } from "@/lib/trainingData";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -499,6 +501,87 @@ export default function ProfileAnalytics() {
           )}
         </CardContent>
       </Card>
+
+      <TrainingCertificationsCard />
     </div>
+  );
+}
+
+function TrainingCertificationsCard() {
+  const { user } = useAuth();
+  setTrainingUserId(user?.id ?? null);
+
+  const { data: apiModules } = useQuery<TrainingModule[]>({
+    queryKey: ['/api/training/modules'],
+    staleTime: 60000,
+  });
+
+  const modules = apiModules || [];
+  if (modules.length === 0) return null;
+
+  const badges = getTrainingBadges(modules);
+  const earned = badges.filter((b) => b.earned);
+  const locked = badges.filter((b) => !b.earned);
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Award className="h-5 w-5 text-primary" />
+              Training Certifications ({earned.length}/{badges.length})
+            </CardTitle>
+            <CardDescription className="text-xs">Earn certifications by completing Friday Academy training modules</CardDescription>
+          </div>
+          <FridayReportBranding size="md" />
+        </div>
+      </CardHeader>
+      <CardContent>
+        {earned.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Certified</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {earned.map((badge) => (
+                <div
+                  key={badge.moduleId}
+                  className="flex flex-col items-center text-center p-3 rounded-lg border-2 border-primary/30 bg-primary/5"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold mb-1">
+                    {badge.certPrefix}
+                  </div>
+                  <p className="text-xs font-semibold">{badge.moduleName}</p>
+                  <Badge variant="secondary" className="mt-1.5 text-[10px] px-1.5 py-0 bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/30">
+                    <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" /> Certified
+                  </Badge>
+                  <div className="mt-1.5">
+                    <FridayReportBranding size="sm" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {locked.length > 0 && (
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">In Progress</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {locked.map((badge) => (
+                <div
+                  key={badge.moduleId}
+                  className="flex flex-col items-center text-center p-3 rounded-lg border border-dashed border-muted-foreground/20 opacity-60"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground text-sm font-bold mb-1">
+                    {badge.certPrefix}
+                  </div>
+                  <p className="text-xs font-medium text-muted-foreground">{badge.moduleName}</p>
+                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">Complete all lessons to earn</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

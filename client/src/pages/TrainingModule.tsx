@@ -14,6 +14,7 @@ import {
   Video,
   Lock,
   Download,
+  AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,10 +26,17 @@ import {
   getStoredModuleProgress,
   setStoredModuleProgress,
   markModuleStarted,
+  canAttemptQuiz,
+  recordQuizAttempt,
+  getQuizAttempts,
+  setTrainingUserId,
+  PASSING_GRADE,
+  MAX_ATTEMPTS,
   type QuizQuestion,
   type TrainingModule as TModule,
 } from "@/lib/trainingData";
 import type { TrainingModule as APIModule } from "@/lib/trainingData";
+import { useAuth } from "@/hooks/use-auth";
 
 const LOGO_BASE64 = "data:image/png;base64,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";
 
@@ -174,29 +182,164 @@ function VideoPlaceholder({ title, description }: { title: string; description: 
   );
 }
 
-function QuizSection({ questions, onComplete, isCompleted }: { questions: QuizQuestion[]; onComplete: () => void; isCompleted: boolean }) {
+function QuizSection({ questions, onComplete, isCompleted, lessonId }: { questions: QuizQuestion[]; onComplete: () => void; isCompleted: boolean; lessonId: string }) {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
-  const [quizFinished, setQuizFinished] = useState(isCompleted);
-  const question = questions[currentQuestion];
-  const handleSelect = (index: number) => { if (showFeedback) return; setSelectedAnswer(index); setShowFeedback(true); if (index === question.correctIndex) setCorrectCount((c) => c + 1); };
-  const handleNext = () => { if (currentQuestion < questions.length - 1) { setCurrentQuestion((c) => c + 1); setSelectedAnswer(null); setShowFeedback(false); } else { setQuizFinished(true); onComplete(); } };
+  const [quizFinished, setQuizFinished] = useState(false);
+  const [quizPassed, setQuizPassed] = useState(false);
+  const [attemptData, setAttemptData] = useState(() => getQuizAttempts(lessonId));
+  const [cooldownEnd, setCooldownEnd] = useState<number | null>(null);
 
-  if (quizFinished) {
+  useEffect(() => {
+    const check = canAttemptQuiz(lessonId);
+    if (!check.allowed && check.cooldownEnds) {
+      setCooldownEnd(check.cooldownEnds);
+    } else {
+      setCooldownEnd(null);
+      setAttemptData(getQuizAttempts(lessonId));
+    }
+  }, [lessonId]);
+
+  useEffect(() => {
+    if (!cooldownEnd) return;
+    const remaining = cooldownEnd - Date.now();
+    if (remaining <= 0) {
+      setCooldownEnd(null);
+      setAttemptData(getQuizAttempts(lessonId));
+      return;
+    }
+    const timer = setTimeout(() => {
+      setCooldownEnd(null);
+      setAttemptData(getQuizAttempts(lessonId));
+    }, remaining);
+    return () => clearTimeout(timer);
+  }, [cooldownEnd, lessonId]);
+
+  const question = questions[currentQuestion];
+  const requiredCorrect = Math.ceil(questions.length * PASSING_GRADE);
+
+  const handleSelect = (index: number) => {
+    if (showFeedback) return;
+    setSelectedAnswer(index);
+    setShowFeedback(true);
+    if (index === question.correctIndex) setCorrectCount((c) => c + 1);
+  };
+
+  const handleNext = () => {
+    if (currentQuestion < questions.length - 1) {
+      setCurrentQuestion((c) => c + 1);
+      setSelectedAnswer(null);
+      setShowFeedback(false);
+    } else {
+      const passed = correctCount >= requiredCorrect;
+      setQuizFinished(true);
+      setQuizPassed(passed);
+      const updated = recordQuizAttempt(lessonId, passed);
+      setAttemptData(updated);
+      if (passed) {
+        onComplete();
+      } else if (updated.attempts >= MAX_ATTEMPTS) {
+        setCooldownEnd(updated.lastAttemptTime + 24 * 60 * 60 * 1000);
+      }
+    }
+  };
+
+  const handleRetry = () => {
+    const check = canAttemptQuiz(lessonId);
+    if (!check.allowed) {
+      if (check.cooldownEnds) setCooldownEnd(check.cooldownEnds);
+      return;
+    }
+    setAttemptData(getQuizAttempts(lessonId));
+    setCurrentQuestion(0);
+    setSelectedAnswer(null);
+    setShowFeedback(false);
+    setCorrectCount(0);
+    setQuizFinished(false);
+    setQuizPassed(false);
+  };
+
+  if (isCompleted) {
     return (
       <Card className="border-green-500/30 bg-green-500/5">
         <CardContent className="pt-6 text-center">
           <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
-          <h3 className="text-lg font-semibold text-green-700 dark:text-green-400">Quiz Complete!</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            {isCompleted ? "You have already completed this lesson's quiz." : `You answered ${correctCount} out of ${questions.length} questions correctly.`}
-          </p>
+          <h3 className="text-lg font-semibold text-green-700 dark:text-green-400">Quiz Passed!</h3>
+          <p className="text-sm text-muted-foreground mt-1">You have already passed this lesson's quiz.</p>
         </CardContent>
       </Card>
     );
   }
+
+  if (cooldownEnd && !quizFinished) {
+    const remaining = cooldownEnd - Date.now();
+    if (remaining > 0) {
+      const hours = Math.ceil(remaining / (1000 * 60 * 60));
+      return (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardContent className="pt-6 text-center">
+            <Lock className="h-12 w-12 text-amber-500 mx-auto mb-3" />
+            <h3 className="text-lg font-semibold text-amber-700 dark:text-amber-400">Quiz Temporarily Locked</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              You've used all {MAX_ATTEMPTS} attempts. Please wait approximately {hours} hour{hours !== 1 ? 's' : ''} before trying again.
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Available again: {new Date(cooldownEnd).toLocaleString()}
+            </p>
+          </CardContent>
+        </Card>
+      );
+    }
+  }
+
+  if (quizFinished) {
+    const scorePercent = Math.round((correctCount / questions.length) * 100);
+    if (quizPassed) {
+      return (
+        <Card className="border-green-500/30 bg-green-500/5">
+          <CardContent className="pt-6 text-center">
+            <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
+            <h3 className="text-lg font-semibold text-green-700 dark:text-green-400">Quiz Passed!</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              You scored {correctCount}/{questions.length} ({scorePercent}%). Passing grade is {Math.round(PASSING_GRADE * 100)}%.
+            </p>
+          </CardContent>
+        </Card>
+      );
+    }
+    const attemptsLeft = MAX_ATTEMPTS - attemptData.attempts;
+    return (
+      <Card className="border-red-500/30 bg-red-500/5">
+        <CardContent className="pt-6 text-center">
+          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-3" />
+          <h3 className="text-lg font-semibold text-red-700 dark:text-red-400">Quiz Not Passed</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            You scored {correctCount}/{questions.length} ({scorePercent}%). You need at least {Math.round(PASSING_GRADE * 100)}% to pass.
+          </p>
+          {attemptsLeft > 0 ? (
+            <div className="mt-4">
+              <p className="text-xs text-muted-foreground mb-2">
+                {attemptsLeft} attempt{attemptsLeft !== 1 ? 's' : ''} remaining
+              </p>
+              <Button onClick={handleRetry} size="sm" variant="outline">
+                Try Again
+              </Button>
+            </div>
+          ) : (
+            <div className="mt-4">
+              <p className="text-xs text-muted-foreground">
+                No attempts remaining. You can try again in 24 hours.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const attemptsUsed = attemptData.attempts;
 
   return (
     <div className="space-y-4">
@@ -205,7 +348,15 @@ function QuizSection({ questions, onComplete, isCompleted }: { questions: QuizQu
           <HelpCircle className="h-5 w-5 text-primary" />
           Question {currentQuestion + 1} of {questions.length}
         </h3>
-        <Badge variant="outline">{correctCount}/{currentQuestion + (showFeedback ? 1 : 0)} correct</Badge>
+        <div className="flex items-center gap-2">
+          {attemptsUsed > 0 && (
+            <Badge variant="secondary" className="text-xs">Attempt {attemptsUsed + 1}/{MAX_ATTEMPTS}</Badge>
+          )}
+          <Badge variant="outline">{correctCount}/{currentQuestion + (showFeedback ? 1 : 0)} correct</Badge>
+        </div>
+      </div>
+      <div className="text-xs text-muted-foreground">
+        Passing grade: {Math.round(PASSING_GRADE * 100)}% ({requiredCorrect}/{questions.length} correct answers required)
       </div>
       <Card>
         <CardContent className="pt-6">
@@ -238,7 +389,7 @@ function QuizSection({ questions, onComplete, isCompleted }: { questions: QuizQu
                   <p className="text-muted-foreground">{question.explanation}</p>
                 </div>
                 <Button onClick={handleNext} className="mt-3 w-full" size="sm">
-                  {currentQuestion < questions.length - 1 ? "Next Question" : "Complete Quiz"}
+                  {currentQuestion < questions.length - 1 ? "Next Question" : "Finish Quiz"}
                   <ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
               </motion.div>
@@ -251,6 +402,9 @@ function QuizSection({ questions, onComplete, isCompleted }: { questions: QuizQu
 }
 
 export default function TrainingModulePage() {
+  const { user } = useAuth();
+  setTrainingUserId(user?.id ?? null);
+
   const [, setLocation] = useLocation();
   const [, params] = useRoute("/training/:moduleId");
   const moduleId = params?.moduleId || "";
@@ -406,7 +560,7 @@ export default function TrainingModulePage() {
                     <HelpCircle className="h-4 w-4 text-primary" />
                     <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Knowledge Check</h3>
                   </div>
-                  <QuizSection key={activeLesson.id} questions={activeLesson.questions} onComplete={handleLessonComplete} isCompleted={completedLessons[activeLesson.id] || false} />
+                  <QuizSection key={activeLesson.id} questions={activeLesson.questions} onComplete={handleLessonComplete} isCompleted={completedLessons[activeLesson.id] || false} lessonId={activeLesson.id} />
                 </div>
                 {completedLessons[activeLesson.id] && activeLessonIndex < lessons.length - 1 && (
                   <Button onClick={() => setActiveLessonIndex(activeLessonIndex + 1)} className="w-full">

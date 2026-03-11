@@ -26,9 +26,20 @@ export interface TrainingModule {
 
 const STORAGE_PREFIX = "friday-training-";
 
+let _currentUserId: string | null = null;
+
+export function setTrainingUserId(userId: string | null) {
+  _currentUserId = userId;
+}
+
+function getUserPrefix(): string {
+  return _currentUserId ? `u-${_currentUserId}-` : "";
+}
+
 export function getModuleStorageKey(moduleId: string) {
-  if (moduleId === "schedule-management") return "friday-schedule-mgmt-progress";
-  return `${STORAGE_PREFIX}${moduleId}-progress`;
+  const up = getUserPrefix();
+  if (moduleId === "schedule-management" && !up) return "friday-schedule-mgmt-progress";
+  return `${up}${STORAGE_PREFIX}${moduleId}-progress`;
 }
 
 export function getModuleProgress(moduleId: string, modulesSource?: TrainingModule[]): {
@@ -73,6 +84,81 @@ export function setStoredModuleProgress(moduleId: string, progress: Record<strin
 
 export function markModuleStarted(moduleId: string) {
   localStorage.setItem(getModuleStorageKey(moduleId) + "-started", "true");
+}
+
+function getQuizAttemptsKey(lessonId: string): string {
+  return `${getUserPrefix()}friday-training-quiz-attempts-${lessonId}`;
+}
+const PASSING_GRADE = 0.8;
+const MAX_ATTEMPTS = 3;
+const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+export { PASSING_GRADE, MAX_ATTEMPTS, COOLDOWN_MS };
+
+export interface QuizAttemptData {
+  attempts: number;
+  lastAttemptTime: number;
+  passed: boolean;
+}
+
+export function getQuizAttempts(lessonId: string): QuizAttemptData {
+  try {
+    const stored = localStorage.getItem(getQuizAttemptsKey(lessonId));
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return { attempts: 0, lastAttemptTime: 0, passed: false };
+}
+
+export function recordQuizAttempt(lessonId: string, passed: boolean): QuizAttemptData {
+  const current = getQuizAttempts(lessonId);
+  const updated = {
+    attempts: current.attempts + 1,
+    lastAttemptTime: Date.now(),
+    passed,
+  };
+  localStorage.setItem(getQuizAttemptsKey(lessonId), JSON.stringify(updated));
+  return updated;
+}
+
+export function resetQuizAttempts(lessonId: string) {
+  localStorage.removeItem(getQuizAttemptsKey(lessonId));
+}
+
+export function canAttemptQuiz(lessonId: string): { allowed: boolean; reason?: string; cooldownEnds?: number } {
+  const data = getQuizAttempts(lessonId);
+  if (data.passed) return { allowed: true };
+  if (data.attempts < MAX_ATTEMPTS) return { allowed: true };
+  const elapsed = Date.now() - data.lastAttemptTime;
+  if (elapsed >= COOLDOWN_MS) {
+    resetQuizAttempts(lessonId);
+    return { allowed: true };
+  }
+  const cooldownEnds = data.lastAttemptTime + COOLDOWN_MS;
+  return { allowed: false, reason: "cooldown", cooldownEnds };
+}
+
+export function getCompletedModules(modulesSource?: TrainingModule[]): string[] {
+  const source = modulesSource || allModules;
+  return source.filter((mod) => {
+    const progress = getModuleProgress(mod.id, modulesSource);
+    return progress.percentage === 100;
+  }).map((mod) => mod.id);
+}
+
+export function getTrainingBadges(modulesSource?: TrainingModule[]): Array<{
+  moduleId: string;
+  moduleName: string;
+  certPrefix: string;
+  earned: boolean;
+}> {
+  const source = modulesSource || allModules;
+  const completed = getCompletedModules(modulesSource);
+  return source.map((mod) => ({
+    moduleId: mod.id,
+    moduleName: mod.name,
+    certPrefix: mod.certPrefix,
+    earned: completed.includes(mod.id),
+  }));
 }
 
 const scheduleManagement: TrainingModule = {

@@ -19,13 +19,15 @@ import {
   Award,
   Trophy,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getModuleProgress } from "@/lib/trainingData";
+import { cn } from "@/lib/utils";
+import { getModuleProgress, getTrainingBadges, setTrainingUserId } from "@/lib/trainingData";
 import type { TrainingModule } from "@/lib/trainingData";
-import { Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 interface SubjectArea {
   id: string;
@@ -218,7 +220,64 @@ function RoleHeader({ role }: { role: Role }) {
   );
 }
 
+function TrainingBadgesBar({ modules }: { modules: TrainingModule[] }) {
+  const badges = getTrainingBadges(modules);
+  const earnedCount = badges.filter((b) => b.earned).length;
+
+  if (badges.length === 0) return null;
+
+  return (
+    <Card className="mb-6">
+      <CardContent className="py-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Award className="h-5 w-5 text-primary" />
+            <h3 className="text-sm font-semibold">Your Certifications</h3>
+          </div>
+          <Badge variant={earnedCount > 0 ? "default" : "secondary"} className="text-xs">
+            {earnedCount}/{badges.length} Earned
+          </Badge>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          {badges.map((badge) => (
+            <div
+              key={badge.moduleId}
+              className={cn(
+                "flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-all",
+                badge.earned
+                  ? "border-primary/30 bg-primary/5 text-primary"
+                  : "border-border/50 bg-muted/30 text-muted-foreground opacity-60"
+              )}
+              title={badge.earned ? `${badge.moduleName} - Certified` : `${badge.moduleName} - Not yet earned`}
+            >
+              <div className={cn(
+                "flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold",
+                badge.earned
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
+              )}>
+                {badge.certPrefix}
+              </div>
+              <div className="flex flex-col">
+                <span className="font-medium leading-tight">{badge.moduleName}</span>
+                {badge.earned && (
+                  <span className="text-[10px] text-green-600 dark:text-green-400 flex items-center gap-0.5">
+                    <Trophy className="h-2.5 w-2.5" /> Certified
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Training() {
+  const { user } = useAuth();
+  setTrainingUserId(user?.id ?? null);
+
   const { data: apiModules, isLoading } = useQuery<TrainingModule[]>({
     queryKey: ['/api/training/modules'],
     staleTime: 60000,
@@ -254,6 +313,8 @@ export default function Training() {
             across key subject areas. Complete the training and earn your certification.
           </p>
         </div>
+
+        <TrainingBadgesBar modules={modules} />
 
         <Tabs defaultValue={roles[0].id} className="w-full">
           <TabsList className="mb-6 w-full justify-start">
