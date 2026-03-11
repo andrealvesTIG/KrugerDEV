@@ -1671,12 +1671,12 @@ export async function registerRoutes(
 
       const tasksAssigned = await db.select({ count: sql<number>`count(*)::int` })
         .from(tasks)
-        .where(and(eq(tasks.assignedTo, targetUserId), sql`${tasks.deletedAt} IS NULL`));
+        .where(and(eq(tasks.assignee, targetUserId), sql`${tasks.deletedAt} IS NULL`));
 
       const tasksCompleted = await db.select({ count: sql<number>`count(*)::int` })
         .from(tasks)
         .where(and(
-          sql`(${tasks.ownerId} = ${targetUserId} OR ${tasks.assignedTo} = ${targetUserId})`,
+          sql`(${tasks.ownerId} = ${targetUserId} OR ${tasks.assignee} = ${targetUserId})`,
           eq(tasks.status, 'Completed'),
           sql`${tasks.deletedAt} IS NULL`
         ));

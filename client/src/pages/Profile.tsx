@@ -380,9 +380,9 @@ export default function Profile() {
       firstName: user?.firstName || "",
       lastName: user?.lastName || "",
       email: user?.email || "",
-      jobTitle: (user as any)?.jobTitle || "",
-      pmiId: (user as any)?.pmiId || "",
-      linkedinUrl: (user as any)?.linkedinUrl || "",
+      jobTitle: user?.jobTitle || "",
+      pmiId: user?.pmiId || "",
+      linkedinUrl: user?.linkedinUrl || "",
     });
     setIsEditing(true);
   };
@@ -551,7 +551,7 @@ export default function Profile() {
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs">Job Title</Label>
-                      <p className="font-medium" data-testid="text-job-title">{(user as any)?.jobTitle || '-'}</p>
+                      <p className="font-medium" data-testid="text-job-title">{user?.jobTitle || '-'}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs">Member Since</Label>
@@ -614,12 +614,12 @@ export default function Profile() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <Label className="text-muted-foreground text-xs">PMI ID</Label>
-                      <p className="font-medium" data-testid="text-pmi-id">{(user as any)?.pmiId || '-'}</p>
+                      <p className="font-medium" data-testid="text-pmi-id">{user?.pmiId || '-'}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs">LinkedIn Profile</Label>
-                      {(user as any)?.linkedinUrl ? (
-                        <a href={(user as any).linkedinUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline flex items-center gap-1" data-testid="link-linkedin">
+                      {user?.linkedinUrl ? (
+                        <a href={user.linkedinUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline flex items-center gap-1" data-testid="link-linkedin">
                           <Linkedin className="h-3.5 w-3.5" />
                           View Profile
                         </a>
