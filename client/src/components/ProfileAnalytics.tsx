@@ -163,9 +163,15 @@ export default function ProfileAnalytics() {
       logoRow.innerHTML = `<div style="width:20px;height:20px;background:#3b82f6;border-radius:4px;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:11px;">F</div><span style="font-size:12px;color:#6b7280;">FridayReport.AI</span>`;
       container.appendChild(logoRow);
 
+      const badgeEmojiMap: Record<string, string> = {
+        rocket: '\u{1F680}', briefcase: '\u{1F4BC}', building: '\u{1F3E2}',
+        'list-checks': '\u2705', 'check-circle': '\u2714\uFE0F', zap: '\u26A1',
+        shield: '\u{1F6E1}\uFE0F', 'shield-check': '\u{1F6E1}\uFE0F', bug: '\u{1F41B}',
+        flag: '\u{1F3C1}', activity: '\u{1F4C8}', flame: '\u{1F525}', layers: '\u{1F4DA}',
+      };
       const iconDiv = document.createElement('div');
-      iconDiv.style.cssText = 'text-align:center;margin-bottom:12px;font-size:40px;color:#f59e0b;';
-      iconDiv.textContent = '\u2B50';
+      iconDiv.style.cssText = 'text-align:center;margin-bottom:12px;font-size:40px;';
+      iconDiv.textContent = badgeEmojiMap[badgeIcon] || '\u{1F3C6}';
       container.appendChild(iconDiv);
 
       const nameDiv = document.createElement('div');
