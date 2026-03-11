@@ -1,3 +1,4 @@
+import type { ComponentType } from "react";
 import { motion } from "framer-motion";
 import {
   GraduationCap,
@@ -22,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 interface SubjectArea {
   id: string;
   name: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
   description: string;
 }
 
@@ -80,7 +81,7 @@ const subjectAreas: SubjectArea[] = [
 interface Role {
   id: string;
   name: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
   description: string;
 }
 
