@@ -54,3 +54,7 @@ RESEND_FROM_EMAIL = "FridayReport.AI <info@fridayreport.ai>"
 
 [userenv.production]
 APP_URL = "https://fridayreport.ai"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 120000
