@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type { ComponentType } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   GraduationCap,
@@ -22,7 +23,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getModuleProgress } from "@/lib/trainingData";
+import { getModuleProgress, allModules as staticModules } from "@/lib/trainingData";
+import type { TrainingModule } from "@/lib/trainingData";
 
 interface SubjectArea {
   id: string;
@@ -110,9 +112,11 @@ const roles: Role[] = [
   },
 ];
 
-function ModuleCard({ subject }: { subject: SubjectArea }) {
+function ModuleCard({ subject, apiModule }: { subject: SubjectArea; apiModule?: TrainingModule }) {
   const [, setLocation] = useLocation();
-  const [progress, setProgress] = useState({ completed: 0, total: 5, percentage: 0, started: false });
+  const lessonCount = apiModule ? apiModule.lessons.length : 5;
+  const questionCount = apiModule ? apiModule.lessons.reduce((s, l) => s + l.questions.length, 0) : 15;
+  const [progress, setProgress] = useState({ completed: 0, total: lessonCount, percentage: 0, started: false });
   const Icon = subject.icon;
 
   useEffect(() => {
@@ -168,11 +172,11 @@ function ModuleCard({ subject }: { subject: SubjectArea }) {
           <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
             <div className="flex items-center gap-1.5">
               <BookOpen className="h-3.5 w-3.5" />
-              <span>Lessons: {progress.total}</span>
+              <span>Lessons: {lessonCount}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <BookOpen className="h-3.5 w-3.5" />
-              <span>Questions: {progress.total * 3}</span>
+              <span>Questions: {questionCount}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Award className="h-3.5 w-3.5" />
@@ -214,6 +218,15 @@ function RoleHeader({ role }: { role: Role }) {
 }
 
 export default function Training() {
+  const { data: apiModules } = useQuery<TrainingModule[]>({
+    queryKey: ['/api/training/modules'],
+    staleTime: 60000,
+  });
+
+  const moduleMap = new Map<string, TrainingModule>();
+  const modules = (apiModules && apiModules.length > 0) ? apiModules : staticModules;
+  modules.forEach((m) => moduleMap.set(m.id, m));
+
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -251,7 +264,7 @@ export default function Training() {
               <RoleHeader role={role} />
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {subjectAreas.map((subject) => (
-                  <ModuleCard key={subject.id} subject={subject} />
+                  <ModuleCard key={subject.id} subject={subject} apiModule={moduleMap.get(subject.id)} />
                 ))}
               </div>
             </TabsContent>

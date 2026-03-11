@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocation, useRoute } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -28,6 +29,7 @@ import {
   type QuizQuestion,
   type TrainingModule as TModule,
 } from "@/lib/trainingData";
+import type { TrainingModule as APIModule } from "@/lib/trainingData";
 
 const LOGO_BASE64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABQCAYAAACOEfKtAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGYktHRAD/AP8A/6C9p5MAAAAHdElNRQfqAwsRAiIRGIW0AAAH5ElEQVR42u2ceWxUVRTGfzPt0FKKYBERCcUAgiXKGq1BBVwDKCTKYqLBxC1oFHEjaKImKka0CTEQjQvuChHELWBM3FhErBClgAZFlMUWLGkFKYWu4x/nTvv6eG/mLffNlPZ9CQGmcO6535x7zr3nu+dBiBCZRMSvgfi8AakHKdnr+f86moSN/UE9s/njzn7a7GkhsCA3StWc/nY/zla/moAGu4eyIC4LiLl8lAY1jtMxYmocKzQre3G3ZEZ8elsv4AJgNDAU6AvkAceBn4AVwC/GhzHZ6AtMA8YDBS4JrAY2AB8CFUnGKAJmAmOAbja26oF/gDJlc5v6LCWJEY/EFQE3AlMUcXYPtgeYr4g0YzSwBBjrcwX/AMwBtlj87AagBBjowl4V8BWwGPg+lTdGXJJ3JnAXcDtQ6PCBDgDTTQ9zFrBKA3kJlCqyKgyfXQR8BPTzaLMSWAi8BNTZERh1Qd7FypOedEFeYpnONsWfaRrJAyhWy9Q4r9k+yEs4y3PAY0AXu6QXdUjeFGC5ilVeJ9jbkDDGBbCjGKcSWCI2F2uwGQPmAbfZhbOoA/ImA68A5/h4kHyVXBKZuiAAAgsMmbwb0F2T3RzgUZUs3S1hYCTwglqGuvacEYJBxGRb5ziFwB2OCDR4Xw9gAXDuKXpIiGu2dy0wwI0H3gRMDA9rbbxwpDnERW28r6/armSFvLVJKOc59cBJwPchZyehtxMCuwBTHSSYEDYk9VfHrBAn45AtgYb4NwToE3JlWf3Z6cQDByaOLiHaYB+w1XwmjtqcATsCdG/Y1ygSU3pgbsAb23iA9uMBbaT3AUutbFoRWB3A5GqAWvXnxoDGqKa1Cn4MOKrJbh3wLLDdaRbepHHwBH40ZLAmYH0ABK5XXw5IUbRUU+IoAd5oiQummmDU4gelWFeQveIg8DJt9YtVwEaNY5QCKw1/bwZeBcp92KwIHlH1gHor8uw8sA54AvjA8I16xR5gLqbSuCL1PovPvZI3x4KsUjX2nx5CwQqkwr1I8eEsU5nqgPlIIXUScLbLrGYUlXYYvdxCVJqOFEPd1gj/RQSglSQXlYbRKirlJVmqCVFpPX5EJYuydQQpKrrBqSZrxhVhemRNXYJ3sofQOYZu4d6XsG4x6OlIcdXNEq5TmbAlfvRasp/qE81WY0SBM7CXRpvVtuSI2asHv1bO7sONZBLJYuBARNm6Sk3QTXXmBPAr8BawOjFxi/hUrMYoRjSMiE04+E8lg3XA58BvXj0mXQSOVDvvMT7t1yLa6kKz96gstxj30uM+9cW8qLYaGSWxxasG9UwogvRA9NAxGuznqb3UFNPnRcDzeNNtC9U2azmGoq/uuO2aQMMtpnHABI1j5AG3mjL5DGCQT7tXKE8symQMtIprowIoZw2jtRyercm7UXZKgJ6Z8kIrAvMDGCfH4IHZSTa0XjAZuKU9eeCphghy9aJPJrywowhHw4BLQg/0jhh6b3t1OgIBBtN6Oysk0ANO81CQCAk0oFGdm0MCPeIghhpeSKB7bCM4xa/DE1iNVGrCLOwRXyPl+LRXZawIDCIQxw1245qX2iGkLFbfXjywPIBxqpCiKGqiFZrsNiC1xu/a01l4ncpoupdYlcEDv+DkAqtb1CF1yxdbDsUZKKpaCevb1UPpWspliLBuxGpEXPeKvcD9wNMk6SJKB7Jt4tUi9ed78X5XsAHRbecDu0w/qwEeQkr+M3DW09GgiFuDyA072kP2SqbKRYARSHdSf5cZuwb4GViLCOAtXm4qN+UgLWRjEeEqYnPCOIRcbizDdMUsk4KSJYEp+oG9D5Rc9PZt0ylyZpUlD6zvjvBHoM4JJrC1sp5Rbx/A71hevS0JaVHFQZNXMlMJ692QTqU+LpdwLbAb+DvTy81EXhZyB7wYGI7czYnRqjtvRvqOq5wSmZ2EvCuBh5G+W7c6SaMibxnSVF2dYeIALkSahyYq4qxW3wmVnN4B3k88d86sMlsS7YT1qcj9Oh239d8D7klspNPlhQYCc4G7kbZVp02TceAbpEtzczJPtGpz6Ac8hb5Wh5tJs2pmIC8PeAYR8d10nEbUClyG6M+2sdQqrk3ApjfWR6afSTByaTLyomqvORfvpf7BSMv/CDdHuaIAqjSFSBd5OnE18CD+GyaHqhXZ3coL7XrlgjjxZKfR+/KBB1A3FjRgksoLjjywI2AscJlGezFgFtC1sxB4DXqvj4DcwxnSGQjsilyQ0o1eqOt0xjjYEQnsjrzYJ4i6wYDO4IExguv3y+sMBDYSnD5yvDMQeBRpmtGNuLk40lEJrEVJnJpxGPUqP+OZuKNuY74kRY+bB5ThsOW/I2AD8l5BXWhGyls1TghsCGBCTdhUfXXCsLSOIO/8OqbJ9LfYqIhWBO5C/yWdctJfVF2NVFL8Yh/wOEocM9cErQhci6mVSgM+pvVmQrq8sBGpBb7uwyEqkL7mTXb/wEpY34MI1oc1zekz4M0MxcIjSFVmgYf5bFEFhE8tvpw2x5PWjU5bTfh6pAw+3KoK4SDmVSJv2F2IvEc1raKSqW4XBS5HLgqMRzpQ7Z57N9JGttS473OkiZhIBOkiH67OllkOl0JEBe+dwO8YroikW5WzKMHnItXlSw3ziqnN91/IawI2YhLvk6lyadGFM0FeCiITc++ifm/E4v0Q9Z9cR/zo/pTe0qmQ6mZCKo8LEaJ94X8D9iMq8MVkfAAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyNi0wMi0wNVQwOToyNDo1NSswMDowMLxK1QUAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjYtMDItMDVUMDk6MjQ6NTUrMDA6MDDNF225AAAAKHRFWHRkYXRlOnRpbWVzdGFtcAAyMDI2LTAzLTExVDE3OjAyOjMzKzAwOjAwiVNTBwAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAAASUVORK5CYII=";
 
@@ -253,7 +255,19 @@ export default function TrainingModulePage() {
   const [, setLocation] = useLocation();
   const [, params] = useRoute("/training/:moduleId");
   const moduleId = params?.moduleId || "";
-  const mod = getModuleById(moduleId);
+
+  const { data: apiModules } = useQuery<TModule[]>({
+    queryKey: ['/api/training/modules'],
+    staleTime: 60000,
+  });
+
+  const mod = useMemo(() => {
+    if (apiModules && apiModules.length > 0) {
+      const apiMod = apiModules.find((m) => m.id === moduleId);
+      if (apiMod) return apiMod;
+    }
+    return getModuleById(moduleId);
+  }, [apiModules, moduleId]);
 
   const [completedLessons, setCompletedLessons] = useState<Record<string, boolean>>({});
   const [activeLessonIndex, setActiveLessonIndex] = useState(0);

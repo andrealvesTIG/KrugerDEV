@@ -880,3 +880,15 @@ export const allModules: TrainingModule[] = [
 export function getModuleById(id: string): TrainingModule | undefined {
   return allModules.find((m) => m.id === id);
 }
+
+export async function fetchModulesFromAPI(): Promise<TrainingModule[] | null> {
+  try {
+    const res = await fetch('/api/training/modules', { credentials: 'include' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return null;
+    return data as TrainingModule[];
+  } catch {
+    return null;
+  }
+}

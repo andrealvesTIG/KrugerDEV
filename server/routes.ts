@@ -15,7 +15,7 @@ import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNoti
 import { createTaskAssignmentNotification, createRiskAssignmentNotification, createProjectAssignmentNotification } from "./services/notificationEngine";
 import { AVAILABLE_DASHBOARDS, sendScheduledReport, checkAndSendDueReports, initializeSubscriptionSchedule, calculateNextScheduledTime } from "./services/scheduledReports";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, milestones, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, billingCycles, usageRollups, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries, taskChangeLogs, taskDependencies, notifications, reportSubscriptions, insertReportSubscriptionSchema, type Task } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, milestones, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, billingCycles, usageRollups, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries, taskChangeLogs, taskDependencies, notifications, reportSubscriptions, insertReportSubscriptionSchema, trainingModules, trainingLessons, trainingQuizQuestions, type Task } from "@shared/schema";
 import { magicLinkTokens, type User } from "@shared/models/auth";
 import { eq, and, desc, asc, sql, isNotNull } from "drizzle-orm";
 import multer from "multer";
@@ -23698,6 +23698,355 @@ Return ONLY valid JSON.`;
       console.error("Contact sales error:", error);
       const classified = classifyError(error);
       res.status(classified.status).json({ message: classified.status === 500 ? "Failed to send contact request" : classified.message });
+    }
+  });
+
+  // === TRAINING CONTENT MANAGEMENT (SuperAdmin) ===
+
+  app.get('/api/admin/training/modules', async (req, res) => {
+    try {
+      const user = req.user as User | undefined;
+      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      const modules = await db.select().from(trainingModules).orderBy(asc(trainingModules.sortOrder), asc(trainingModules.id));
+      res.json(modules);
+    } catch (error) {
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.post('/api/admin/training/modules', async (req, res) => {
+    try {
+      const user = req.user as User | undefined;
+      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      const body = z.object({
+        moduleKey: z.string().min(1),
+        name: z.string().min(1),
+        subtitle: z.string().min(1),
+        certPrefix: z.string().min(1).max(10),
+        sortOrder: z.number().optional(),
+        isActive: z.boolean().optional(),
+      }).parse(req.body);
+      const [created] = await db.insert(trainingModules).values(body).returning();
+      res.status(201).json(created);
+    } catch (error) {
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.put('/api/admin/training/modules/:id', async (req, res) => {
+    try {
+      const user = req.user as User | undefined;
+      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      const id = parseInt(req.params.id);
+      const body = z.object({
+        moduleKey: z.string().min(1).optional(),
+        name: z.string().min(1).optional(),
+        subtitle: z.string().min(1).optional(),
+        certPrefix: z.string().min(1).max(10).optional(),
+        sortOrder: z.number().optional(),
+        isActive: z.boolean().optional(),
+      }).parse(req.body);
+      const [updated] = await db.update(trainingModules).set({ ...body, updatedAt: new Date() }).where(eq(trainingModules.id, id)).returning();
+      if (!updated) return res.status(404).json({ message: "Module not found" });
+      res.json(updated);
+    } catch (error) {
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.delete('/api/admin/training/modules/:id', async (req, res) => {
+    try {
+      const user = req.user as User | undefined;
+      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      const id = parseInt(req.params.id);
+      await db.delete(trainingModules).where(eq(trainingModules.id, id));
+      res.json({ success: true });
+    } catch (error) {
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.get('/api/admin/training/modules/:moduleId/lessons', async (req, res) => {
+    try {
+      const user = req.user as User | undefined;
+      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      const moduleId = parseInt(req.params.moduleId);
+      const lessons = await db.select().from(trainingLessons).where(eq(trainingLessons.moduleId, moduleId)).orderBy(asc(trainingLessons.sortOrder), asc(trainingLessons.id));
+      res.json(lessons);
+    } catch (error) {
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.post('/api/admin/training/lessons', async (req, res) => {
+    try {
+      const user = req.user as User | undefined;
+      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      const body = z.object({
+        moduleId: z.number(),
+        lessonKey: z.string().min(1),
+        title: z.string().min(1),
+        description: z.string().min(1),
+        videoTitle: z.string().min(1),
+        videoDescription: z.string().min(1),
+        keyConcepts: z.array(z.string()),
+        sortOrder: z.number().optional(),
+        isActive: z.boolean().optional(),
+      }).parse(req.body);
+      const [created] = await db.insert(trainingLessons).values(body).returning();
+      res.status(201).json(created);
+    } catch (error) {
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.put('/api/admin/training/lessons/:id', async (req, res) => {
+    try {
+      const user = req.user as User | undefined;
+      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      const id = parseInt(req.params.id);
+      const body = z.object({
+        moduleId: z.number().optional(),
+        lessonKey: z.string().min(1).optional(),
+        title: z.string().min(1).optional(),
+        description: z.string().min(1).optional(),
+        videoTitle: z.string().min(1).optional(),
+        videoDescription: z.string().min(1).optional(),
+        keyConcepts: z.array(z.string()).optional(),
+        sortOrder: z.number().optional(),
+        isActive: z.boolean().optional(),
+      }).parse(req.body);
+      const [updated] = await db.update(trainingLessons).set({ ...body, updatedAt: new Date() }).where(eq(trainingLessons.id, id)).returning();
+      if (!updated) return res.status(404).json({ message: "Lesson not found" });
+      res.json(updated);
+    } catch (error) {
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.delete('/api/admin/training/lessons/:id', async (req, res) => {
+    try {
+      const user = req.user as User | undefined;
+      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      const id = parseInt(req.params.id);
+      await db.delete(trainingLessons).where(eq(trainingLessons.id, id));
+      res.json({ success: true });
+    } catch (error) {
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.get('/api/admin/training/lessons/:lessonId/questions', async (req, res) => {
+    try {
+      const user = req.user as User | undefined;
+      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      const lessonId = parseInt(req.params.lessonId);
+      const questions = await db.select().from(trainingQuizQuestions).where(eq(trainingQuizQuestions.lessonId, lessonId)).orderBy(asc(trainingQuizQuestions.sortOrder), asc(trainingQuizQuestions.id));
+      res.json(questions);
+    } catch (error) {
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.post('/api/admin/training/questions', async (req, res) => {
+    try {
+      const user = req.user as User | undefined;
+      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      const body = z.object({
+        lessonId: z.number(),
+        questionKey: z.string().min(1),
+        scenario: z.string().min(1),
+        options: z.array(z.string()).min(2),
+        correctIndex: z.number().min(0),
+        explanation: z.string().min(1),
+        sortOrder: z.number().optional(),
+        isActive: z.boolean().optional(),
+      }).parse(req.body);
+      if (body.correctIndex >= body.options.length) {
+        return res.status(400).json({ message: `correctIndex (${body.correctIndex}) must be less than number of options (${body.options.length})` });
+      }
+      const [created] = await db.insert(trainingQuizQuestions).values(body).returning();
+      res.status(201).json(created);
+    } catch (error) {
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.put('/api/admin/training/questions/:id', async (req, res) => {
+    try {
+      const user = req.user as User | undefined;
+      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      const id = parseInt(req.params.id);
+      const body = z.object({
+        lessonId: z.number().optional(),
+        questionKey: z.string().min(1).optional(),
+        scenario: z.string().min(1).optional(),
+        options: z.array(z.string()).min(2).optional(),
+        correctIndex: z.number().min(0).optional(),
+        explanation: z.string().min(1).optional(),
+        sortOrder: z.number().optional(),
+        isActive: z.boolean().optional(),
+      }).parse(req.body);
+      if (body.options && body.correctIndex !== undefined && body.correctIndex >= body.options.length) {
+        return res.status(400).json({ message: `correctIndex (${body.correctIndex}) must be less than number of options (${body.options.length})` });
+      }
+      const [updated] = await db.update(trainingQuizQuestions).set({ ...body, updatedAt: new Date() }).where(eq(trainingQuizQuestions.id, id)).returning();
+      if (!updated) return res.status(404).json({ message: "Question not found" });
+      res.json(updated);
+    } catch (error) {
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.delete('/api/admin/training/questions/:id', async (req, res) => {
+    try {
+      const user = req.user as User | undefined;
+      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      const id = parseInt(req.params.id);
+      await db.delete(trainingQuizQuestions).where(eq(trainingQuizQuestions.id, id));
+      res.json({ success: true });
+    } catch (error) {
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.post('/api/admin/training/seed', async (req, res) => {
+    try {
+      const user = req.user as User | undefined;
+      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      const existing = await db.select().from(trainingModules);
+      if (existing.length > 0) {
+        return res.status(400).json({ message: "Training data already exists. Delete all modules first to re-seed." });
+      }
+      res.json({ message: "Use the client-side seed function to populate training data from the static content." });
+    } catch (error) {
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.post('/api/admin/training/seed-from-static', async (req, res) => {
+    try {
+      const user = req.user as User | undefined;
+      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      const body = z.object({
+        modules: z.array(z.object({
+          moduleKey: z.string(),
+          name: z.string(),
+          subtitle: z.string(),
+          certPrefix: z.string(),
+          sortOrder: z.number(),
+          lessons: z.array(z.object({
+            lessonKey: z.string(),
+            title: z.string(),
+            description: z.string(),
+            videoTitle: z.string(),
+            videoDescription: z.string(),
+            keyConcepts: z.array(z.string()),
+            sortOrder: z.number(),
+            questions: z.array(z.object({
+              questionKey: z.string(),
+              scenario: z.string(),
+              options: z.array(z.string()),
+              correctIndex: z.number(),
+              explanation: z.string(),
+              sortOrder: z.number(),
+            })),
+          })),
+        })),
+      }).parse(req.body);
+
+      let moduleCount = 0, lessonCount = 0, questionCount = 0;
+      await db.transaction(async (tx) => {
+        for (const mod of body.modules) {
+          const [createdModule] = await tx.insert(trainingModules).values({
+            moduleKey: mod.moduleKey,
+            name: mod.name,
+            subtitle: mod.subtitle,
+            certPrefix: mod.certPrefix,
+            sortOrder: mod.sortOrder,
+          }).returning();
+          moduleCount++;
+          for (const lesson of mod.lessons) {
+            const [createdLesson] = await tx.insert(trainingLessons).values({
+              moduleId: createdModule.id,
+              lessonKey: lesson.lessonKey,
+              title: lesson.title,
+              description: lesson.description,
+              videoTitle: lesson.videoTitle,
+              videoDescription: lesson.videoDescription,
+              keyConcepts: lesson.keyConcepts,
+              sortOrder: lesson.sortOrder,
+            }).returning();
+            lessonCount++;
+            for (const q of lesson.questions) {
+              if (q.correctIndex >= q.options.length) {
+                throw new Error(`Invalid correctIndex ${q.correctIndex} for question ${q.questionKey} with ${q.options.length} options`);
+              }
+              await tx.insert(trainingQuizQuestions).values({
+                lessonId: createdLesson.id,
+                questionKey: q.questionKey,
+                scenario: q.scenario,
+                options: q.options,
+                correctIndex: q.correctIndex,
+                explanation: q.explanation,
+                sortOrder: q.sortOrder,
+              });
+              questionCount++;
+            }
+          }
+        }
+      });
+      res.json({ success: true, stats: { modules: moduleCount, lessons: lessonCount, questions: questionCount } });
+    } catch (error) {
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.get('/api/training/modules', async (req, res) => {
+    try {
+      const modules = await db.select().from(trainingModules).where(eq(trainingModules.isActive, true)).orderBy(asc(trainingModules.sortOrder), asc(trainingModules.id));
+      const allLessons = await db.select().from(trainingLessons).where(eq(trainingLessons.isActive, true)).orderBy(asc(trainingLessons.sortOrder), asc(trainingLessons.id));
+      const allQuestions = await db.select().from(trainingQuizQuestions).where(eq(trainingQuizQuestions.isActive, true)).orderBy(asc(trainingQuizQuestions.sortOrder), asc(trainingQuizQuestions.id));
+
+      const result = modules.map(mod => ({
+        id: mod.moduleKey,
+        name: mod.name,
+        subtitle: mod.subtitle,
+        certPrefix: mod.certPrefix,
+        lessons: allLessons.filter(l => l.moduleId === mod.id).map(lesson => ({
+          id: lesson.lessonKey,
+          title: lesson.title,
+          description: lesson.description,
+          videoTitle: lesson.videoTitle,
+          videoDescription: lesson.videoDescription,
+          keyConcepts: lesson.keyConcepts,
+          questions: allQuestions.filter(q => q.lessonId === lesson.id).map(q => ({
+            id: q.questionKey,
+            scenario: q.scenario,
+            options: q.options,
+            correctIndex: q.correctIndex,
+            explanation: q.explanation,
+          })),
+        })),
+      }));
+      res.json(result);
+    } catch (error) {
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.message });
     }
   });
 

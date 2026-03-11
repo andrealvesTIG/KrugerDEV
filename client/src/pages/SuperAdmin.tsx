@@ -15,11 +15,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck, Activity, BarChart3, AlertTriangle, Clock, Globe, Zap, HardDrive, TrendingUp, RefreshCw, HelpCircle, MessageSquare, CheckCircle, XCircle, Eye, EyeOff, Download, Mail, Copy, Send, MoreHorizontal, Wrench, X } from "lucide-react";
+import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck, Activity, BarChart3, AlertTriangle, Clock, Globe, Zap, HardDrive, TrendingUp, RefreshCw, HelpCircle, MessageSquare, CheckCircle, XCircle, Eye, EyeOff, Download, Mail, Copy, Send, MoreHorizontal, Wrench, X, GraduationCap } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { FeatureComparisonTab } from "@/components/FeatureComparisonTab";
+import { TrainingManagementTab } from "@/components/TrainingManagementTab";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import type { Organization, User } from "@shared/schema";
@@ -120,6 +121,10 @@ export default function SuperAdmin() {
             <BarChart3 className="h-4 w-4" />
             Feature Comparison
           </TabsTrigger>
+          <TabsTrigger value="training" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2" data-testid="tab-training">
+            <GraduationCap className="h-4 w-4" />
+            Training
+          </TabsTrigger>
         </TabsList>
         <div className="mt-6">
           <TabsContent value="monitoring">
@@ -145,6 +150,9 @@ export default function SuperAdmin() {
           </TabsContent>
           <TabsContent value="feature-comparison">
             <FeatureComparisonTab />
+          </TabsContent>
+          <TabsContent value="training">
+            <TrainingManagementTab />
           </TabsContent>
         </div>
       </Tabs>
