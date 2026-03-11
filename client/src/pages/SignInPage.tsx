@@ -373,24 +373,55 @@ export default function SignInPage() {
             </div>
           </div>
           {mobileMenuOpen && (
-            <div className="bg-slate-800/95 backdrop-blur-md border-t border-slate-700 px-4 py-3 flex flex-col gap-1">
-              <IndustrySolutionsMobileLinks onNavigate={() => setMobileMenuOpen(false)} variant="dark" />
-              <EventsMobileLinks onNavigate={() => setMobileMenuOpen(false)} variant="dark" />
-              <button onClick={() => { scrollToSection('features-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors py-2">
-                Features
-              </button>
-              <button onClick={() => { scrollToSection('integrations-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors py-2">
-                Integrations
-              </button>
-              <button onClick={() => { scrollToSection('pricing-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors py-2">
-                Pricing
-              </button>
-              <button onClick={() => { scrollToSection('faq-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors py-2">
-                FAQ
-              </button>
-              <Link href="/guide" className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors py-2" onClick={() => setMobileMenuOpen(false)}>
-                User Guide
-              </Link>
+            <div className="border-t border-slate-700 bg-slate-900/98 backdrop-blur-xl shadow-2xl shadow-black/40">
+              <div className="max-w-7xl mx-auto max-h-[70vh] overflow-y-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="p-5 sm:border-r sm:border-slate-700/50">
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-3 px-1">Navigate</p>
+                    <div className="space-y-0.5">
+                      {[
+                        { label: 'Features', section: 'features-section' },
+                        { label: 'Integrations', section: 'integrations-section' },
+                        { label: 'Pricing', section: 'pricing-section' },
+                        { label: 'FAQ', section: 'faq-section' },
+                      ].map((item) => (
+                        <button
+                          key={item.section}
+                          onClick={() => { scrollToSection(item.section); setMobileMenuOpen(false); }}
+                          className="w-full text-left text-sm font-medium text-slate-200 hover:text-orange-400 hover:bg-slate-700/40 rounded-md px-3 py-2.5 transition-colors"
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                      <Link
+                        href="/guide"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="block text-sm font-medium text-slate-200 hover:text-orange-400 hover:bg-slate-700/40 rounded-md px-3 py-2.5 transition-colors"
+                      >
+                        User Guide
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="p-5 border-t sm:border-t-0 sm:border-r border-slate-700/50">
+                    <IndustrySolutionsMobileLinks onNavigate={() => setMobileMenuOpen(false)} variant="dark" />
+                  </div>
+
+                  <div className="p-5 border-t lg:border-t-0 border-slate-700/50">
+                    <EventsMobileLinks onNavigate={() => setMobileMenuOpen(false)} variant="dark" />
+                  </div>
+                </div>
+              </div>
+              <div className="border-t border-slate-700/50 bg-slate-900/80 px-5 py-3 flex items-center justify-between">
+                <span className="text-xs text-slate-500">FridayReport.AI</span>
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-xs text-slate-400 hover:text-white font-medium transition-colors flex items-center gap-1"
+                >
+                  Close
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           )}
         </nav>
