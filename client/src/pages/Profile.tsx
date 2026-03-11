@@ -646,7 +646,7 @@ export default function Profile() {
                     checked={!!user?.publicProfileEnabled}
                     onCheckedChange={async (checked) => {
                       try {
-                        await apiRequest("PATCH", `/api/users/${user?.id}`, { publicProfileEnabled: checked });
+                        await apiRequest("PATCH", `/api/users/${user?.id}/profile`, { publicProfileEnabled: checked });
                         queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
                         toast({
                           title: checked ? "Public profile enabled" : "Public profile disabled",
