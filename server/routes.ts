@@ -1669,14 +1669,18 @@ export async function registerRoutes(
         .from(tasks)
         .where(and(eq(tasks.ownerId, targetUserId), sql`${tasks.deletedAt} IS NULL`));
 
-      const tasksAssigned = await db.select({ count: sql<number>`count(*)::int` })
+      const tasksAssigned = await db.select({ count: sql<number>`count(DISTINCT ${tasks.id})::int` })
         .from(tasks)
-        .where(and(eq(tasks.assignee, targetUserId), sql`${tasks.deletedAt} IS NULL`));
+        .innerJoin(taskResourceAssignments, eq(taskResourceAssignments.taskId, tasks.id))
+        .innerJoin(resources, eq(resources.id, taskResourceAssignments.resourceId))
+        .where(and(eq(resources.userId, targetUserId), sql`${tasks.deletedAt} IS NULL`));
 
-      const tasksCompleted = await db.select({ count: sql<number>`count(*)::int` })
+      const tasksCompleted = await db.select({ count: sql<number>`count(DISTINCT ${tasks.id})::int` })
         .from(tasks)
+        .leftJoin(taskResourceAssignments, eq(taskResourceAssignments.taskId, tasks.id))
+        .leftJoin(resources, eq(resources.id, taskResourceAssignments.resourceId))
         .where(and(
-          sql`(${tasks.ownerId} = ${targetUserId} OR ${tasks.assignee} = ${targetUserId})`,
+          sql`(${tasks.ownerId} = ${targetUserId} OR ${resources.userId} = ${targetUserId})`,
           eq(tasks.status, 'Completed'),
           sql`${tasks.deletedAt} IS NULL`
         ));

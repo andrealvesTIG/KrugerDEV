@@ -8,6 +8,13 @@
       "when": 1768943372030,
       "tag": "0000_add_bonus_seats",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1773240855801,
+      "tag": "0001_omniscient_sinister_six",
+      "breakpoints": true
     }
   ]
 }
