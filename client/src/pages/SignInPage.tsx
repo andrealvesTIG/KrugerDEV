@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { IndustrySolutionsMenu, IndustrySolutionsMobileLinks } from "@/components/IndustrySolutionsMenu";
-import { EventsMenu, EventsMobileLinks } from "@/components/EventsMenu";
+import { IndustrySolutionsMobileLinks } from "@/components/IndustrySolutionsMenu";
+import { EventsMobileLinks } from "@/components/EventsMenu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -354,25 +354,6 @@ export default function SignInPage() {
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 <img src={logoWhite} alt="FridayReport.AI" className="h-6 sm:h-7 flex-shrink-0" />
               </div>
-              <div className="hidden md:flex items-center gap-6">
-                <IndustrySolutionsMenu currentPath="/" variant="dark" />
-                <EventsMenu currentPath="/" variant="dark" />
-                <button onClick={() => scrollToSection('features-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-features">
-                  Features
-                </button>
-                <button onClick={() => scrollToSection('integrations-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-integrations">
-                  Integrations
-                </button>
-                <button onClick={() => scrollToSection('pricing-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-pricing">
-                  Pricing
-                </button>
-                <button onClick={() => scrollToSection('faq-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-faq">
-                  FAQ
-                </button>
-                <Link href="/guide" className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-guide">
-                  User Guide
-                </Link>
-              </div>
               <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
                 <Link href="/auth?source=signin" className="text-slate-200 hover:text-white text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-login">
                   Login
@@ -383,7 +364,7 @@ export default function SignInPage() {
                 </Button>
                 <button
                   onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                  className="md:hidden text-slate-200 hover:text-white p-1"
+                  className="text-slate-200 hover:text-white p-1"
                   aria-label="Toggle menu"
                 >
                   {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -392,7 +373,7 @@ export default function SignInPage() {
             </div>
           </div>
           {mobileMenuOpen && (
-            <div className="md:hidden bg-slate-800/95 backdrop-blur-md border-t border-slate-700 px-4 py-3 flex flex-col gap-1">
+            <div className="bg-slate-800/95 backdrop-blur-md border-t border-slate-700 px-4 py-3 flex flex-col gap-1">
               <IndustrySolutionsMobileLinks onNavigate={() => setMobileMenuOpen(false)} variant="dark" />
               <EventsMobileLinks onNavigate={() => setMobileMenuOpen(false)} variant="dark" />
               <button onClick={() => { scrollToSection('features-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors py-2">
@@ -407,7 +388,7 @@ export default function SignInPage() {
               <button onClick={() => { scrollToSection('faq-section'); setMobileMenuOpen(false); }} className="text-slate-200 hover:text-orange-400 text-sm font-medium text-left transition-colors py-2">
                 FAQ
               </button>
-              <Link href="/guide" className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors py-2">
+              <Link href="/guide" className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors py-2" onClick={() => setMobileMenuOpen(false)}>
                 User Guide
               </Link>
             </div>
