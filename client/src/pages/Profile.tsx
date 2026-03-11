@@ -662,9 +662,9 @@ export default function Profile() {
               {user?.publicProfileEnabled && (
                 <CardContent>
                   <div className="flex items-center gap-2">
-                    <Input readOnly value={`${window.location.origin}/badges/${user?.id}`} className="font-mono text-sm" />
+                    <Input readOnly value={`https://fridayreport.ai/badges/${user?.id}`} className="font-mono text-sm" />
                     <Button variant="outline" size="sm" onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin}/badges/${user?.id}`);
+                      navigator.clipboard.writeText(`https://fridayreport.ai/badges/${user?.id}`);
                       toast({ title: "Link copied!" });
                     }}>
                       <Copy className="h-4 w-4" />
