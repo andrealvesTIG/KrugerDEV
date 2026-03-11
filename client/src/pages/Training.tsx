@@ -112,7 +112,7 @@ const roles: Role[] = [
   },
 ];
 
-function ModuleCard({ subject, apiModule }: { subject: SubjectArea; apiModule?: TrainingModule }) {
+function ModuleCard({ subject, apiModule, allModulesSource }: { subject: SubjectArea; apiModule?: TrainingModule; allModulesSource?: TrainingModule[] }) {
   const [, setLocation] = useLocation();
   const lessonCount = apiModule ? apiModule.lessons.length : 5;
   const questionCount = apiModule ? apiModule.lessons.reduce((s, l) => s + l.questions.length, 0) : 15;
@@ -120,8 +120,8 @@ function ModuleCard({ subject, apiModule }: { subject: SubjectArea; apiModule?: 
   const Icon = subject.icon;
 
   useEffect(() => {
-    setProgress(getModuleProgress(subject.id));
-  }, [subject.id]);
+    setProgress(getModuleProgress(subject.id, allModulesSource));
+  }, [subject.id, allModulesSource]);
 
   const isComplete = progress.percentage === 100;
   const isStarted = progress.started;
@@ -264,7 +264,7 @@ export default function Training() {
               <RoleHeader role={role} />
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {subjectAreas.map((subject) => (
-                  <ModuleCard key={subject.id} subject={subject} apiModule={moduleMap.get(subject.id)} />
+                  <ModuleCard key={subject.id} subject={subject} apiModule={moduleMap.get(subject.id)} allModulesSource={modules} />
                 ))}
               </div>
             </TabsContent>

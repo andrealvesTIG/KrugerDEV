@@ -31,13 +31,14 @@ export function getModuleStorageKey(moduleId: string) {
   return `${STORAGE_PREFIX}${moduleId}-progress`;
 }
 
-export function getModuleProgress(moduleId: string): {
+export function getModuleProgress(moduleId: string, modulesSource?: TrainingModule[]): {
   completed: number;
   total: number;
   percentage: number;
   started: boolean;
 } {
-  const mod = allModules.find((m) => m.id === moduleId);
+  const source = modulesSource || allModules;
+  const mod = source.find((m) => m.id === moduleId);
   if (!mod) return { completed: 0, total: 0, percentage: 0, started: false };
 
   const key = getModuleStorageKey(moduleId);
@@ -877,8 +878,9 @@ export const allModules: TrainingModule[] = [
   pmoGovernance,
 ];
 
-export function getModuleById(id: string): TrainingModule | undefined {
-  return allModules.find((m) => m.id === id);
+export function getModuleById(id: string, modulesSource?: TrainingModule[]): TrainingModule | undefined {
+  const source = modulesSource || allModules;
+  return source.find((m) => m.id === id);
 }
 
 export async function fetchModulesFromAPI(): Promise<TrainingModule[] | null> {

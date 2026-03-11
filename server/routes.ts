@@ -24050,5 +24050,64 @@ Return ONLY valid JSON.`;
     }
   });
 
+  seedTrainingDataIfEmpty().catch(err => {
+    console.error('[training] Failed to seed training data:', err.message);
+  });
+
   return httpServer;
+}
+
+async function seedTrainingDataIfEmpty() {
+  const existing = await db.select({ id: trainingModules.id }).from(trainingModules).limit(1);
+  if (existing.length > 0) return;
+
+  console.log('[training] No training data found, auto-seeding from static content...');
+
+  try {
+    const { allModules: staticModules } = await import('../client/src/lib/trainingData');
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < staticModules.length; i++) {
+        const mod = staticModules[i];
+        const [createdModule] = await tx.insert(trainingModules).values({
+          moduleKey: mod.id,
+          name: mod.name,
+          subtitle: mod.subtitle,
+          certPrefix: mod.certPrefix,
+          sortOrder: i,
+        }).returning();
+
+        for (let j = 0; j < mod.lessons.length; j++) {
+          const lesson = mod.lessons[j];
+          const [createdLesson] = await tx.insert(trainingLessons).values({
+            moduleId: createdModule.id,
+            lessonKey: lesson.id,
+            title: lesson.title,
+            description: lesson.description,
+            videoTitle: lesson.videoTitle,
+            videoDescription: lesson.videoDescription,
+            keyConcepts: lesson.keyConcepts,
+            sortOrder: j,
+          }).returning();
+
+          for (let k = 0; k < lesson.questions.length; k++) {
+            const q = lesson.questions[k];
+            await tx.insert(trainingQuizQuestions).values({
+              lessonId: createdLesson.id,
+              questionKey: q.id,
+              scenario: q.scenario,
+              options: q.options,
+              correctIndex: q.correctIndex,
+              explanation: q.explanation,
+              sortOrder: k,
+            });
+          }
+        }
+      }
+    });
+    const totalLessons = staticModules.reduce((s, m) => s + m.lessons.length, 0);
+    const totalQuestions = staticModules.reduce((s, m) => s + m.lessons.reduce((ls, l) => ls + l.questions.length, 0), 0);
+    console.log(`[training] Auto-seeded ${staticModules.length} modules, ${totalLessons} lessons, ${totalQuestions} questions`);
+  } catch (err: any) {
+    console.error('[training] Auto-seed failed, will use static fallback:', err.message);
+  }
 }
