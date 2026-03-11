@@ -23706,7 +23706,7 @@ Return ONLY valid JSON.`;
   app.get('/api/admin/training/modules', async (req, res) => {
     try {
       const user = req.user as User | undefined;
-      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
       const modules = await db.select().from(trainingModules).orderBy(asc(trainingModules.sortOrder), asc(trainingModules.id));
       res.json(modules);
     } catch (error) {
@@ -23718,7 +23718,7 @@ Return ONLY valid JSON.`;
   app.post('/api/admin/training/modules', async (req, res) => {
     try {
       const user = req.user as User | undefined;
-      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
       const body = z.object({
         moduleKey: z.string().min(1),
         name: z.string().min(1),
@@ -23738,7 +23738,7 @@ Return ONLY valid JSON.`;
   app.put('/api/admin/training/modules/:id', async (req, res) => {
     try {
       const user = req.user as User | undefined;
-      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
       const id = parseInt(req.params.id);
       const body = z.object({
         moduleKey: z.string().min(1).optional(),
@@ -23760,7 +23760,7 @@ Return ONLY valid JSON.`;
   app.delete('/api/admin/training/modules/:id', async (req, res) => {
     try {
       const user = req.user as User | undefined;
-      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
       const id = parseInt(req.params.id);
       await db.delete(trainingModules).where(eq(trainingModules.id, id));
       res.json({ success: true });
@@ -23773,7 +23773,7 @@ Return ONLY valid JSON.`;
   app.get('/api/admin/training/modules/:moduleId/lessons', async (req, res) => {
     try {
       const user = req.user as User | undefined;
-      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
       const moduleId = parseInt(req.params.moduleId);
       const lessons = await db.select().from(trainingLessons).where(eq(trainingLessons.moduleId, moduleId)).orderBy(asc(trainingLessons.sortOrder), asc(trainingLessons.id));
       res.json(lessons);
@@ -23786,7 +23786,7 @@ Return ONLY valid JSON.`;
   app.post('/api/admin/training/lessons', async (req, res) => {
     try {
       const user = req.user as User | undefined;
-      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
       const body = z.object({
         moduleId: z.number(),
         lessonKey: z.string().min(1),
@@ -23809,7 +23809,7 @@ Return ONLY valid JSON.`;
   app.put('/api/admin/training/lessons/:id', async (req, res) => {
     try {
       const user = req.user as User | undefined;
-      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
       const id = parseInt(req.params.id);
       const body = z.object({
         moduleId: z.number().optional(),
@@ -23834,7 +23834,7 @@ Return ONLY valid JSON.`;
   app.delete('/api/admin/training/lessons/:id', async (req, res) => {
     try {
       const user = req.user as User | undefined;
-      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
       const id = parseInt(req.params.id);
       await db.delete(trainingLessons).where(eq(trainingLessons.id, id));
       res.json({ success: true });
@@ -23847,7 +23847,7 @@ Return ONLY valid JSON.`;
   app.get('/api/admin/training/lessons/:lessonId/questions', async (req, res) => {
     try {
       const user = req.user as User | undefined;
-      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
       const lessonId = parseInt(req.params.lessonId);
       const questions = await db.select().from(trainingQuizQuestions).where(eq(trainingQuizQuestions.lessonId, lessonId)).orderBy(asc(trainingQuizQuestions.sortOrder), asc(trainingQuizQuestions.id));
       res.json(questions);
@@ -23860,7 +23860,7 @@ Return ONLY valid JSON.`;
   app.post('/api/admin/training/questions', async (req, res) => {
     try {
       const user = req.user as User | undefined;
-      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
       const body = z.object({
         lessonId: z.number(),
         questionKey: z.string().min(1),
@@ -23885,7 +23885,7 @@ Return ONLY valid JSON.`;
   app.put('/api/admin/training/questions/:id', async (req, res) => {
     try {
       const user = req.user as User | undefined;
-      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
       const id = parseInt(req.params.id);
       const body = z.object({
         lessonId: z.number().optional(),
@@ -23912,9 +23912,36 @@ Return ONLY valid JSON.`;
   app.delete('/api/admin/training/questions/:id', async (req, res) => {
     try {
       const user = req.user as User | undefined;
-      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
       const id = parseInt(req.params.id);
       await db.delete(trainingQuizQuestions).where(eq(trainingQuizQuestions.id, id));
+      res.json({ success: true });
+    } catch (error) {
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.put('/api/admin/training/reorder', async (req, res) => {
+    try {
+      const user = req.user as User | undefined;
+      if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
+      const body = z.object({
+        type: z.enum(['modules', 'lessons', 'questions']),
+        items: z.array(z.object({ id: z.number(), sortOrder: z.number() })),
+      }).parse(req.body);
+
+      await db.transaction(async (tx) => {
+        for (const item of body.items) {
+          if (body.type === 'modules') {
+            await tx.update(trainingModules).set({ sortOrder: item.sortOrder, updatedAt: new Date() }).where(eq(trainingModules.id, item.id));
+          } else if (body.type === 'lessons') {
+            await tx.update(trainingLessons).set({ sortOrder: item.sortOrder, updatedAt: new Date() }).where(eq(trainingLessons.id, item.id));
+          } else {
+            await tx.update(trainingQuizQuestions).set({ sortOrder: item.sortOrder, updatedAt: new Date() }).where(eq(trainingQuizQuestions.id, item.id));
+          }
+        }
+      });
       res.json({ success: true });
     } catch (error) {
       const classified = classifyError(error);
@@ -23925,7 +23952,7 @@ Return ONLY valid JSON.`;
   app.post('/api/admin/training/seed', async (req, res) => {
     try {
       const user = req.user as User | undefined;
-      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
       const existing = await db.select().from(trainingModules);
       if (existing.length > 0) {
         return res.status(400).json({ message: "Training data already exists. Delete all modules first to re-seed." });
@@ -23940,7 +23967,7 @@ Return ONLY valid JSON.`;
   app.post('/api/admin/training/seed-from-static', async (req, res) => {
     try {
       const user = req.user as User | undefined;
-      if (!hasAdminAccess(user)) return res.status(403).json({ message: "Forbidden" });
+      if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
       const body = z.object({
         modules: z.array(z.object({
           moduleKey: z.string(),

@@ -262,6 +262,51 @@ async function migrate() {
     `ALTER TABLE organization_integrations ADD COLUMN IF NOT EXISTS access_token_encrypted TEXT`,
     `ALTER TABLE organization_integrations ADD COLUMN IF NOT EXISTS refresh_token_encrypted TEXT`,
     `ALTER TABLE organization_integrations ADD COLUMN IF NOT EXISTS tokens_encrypted BOOLEAN DEFAULT false`,
+
+    `CREATE TABLE IF NOT EXISTS training_modules (
+      id SERIAL PRIMARY KEY,
+      module_key VARCHAR(100) NOT NULL UNIQUE,
+      name VARCHAR(255) NOT NULL,
+      subtitle TEXT NOT NULL DEFAULT '',
+      cert_prefix VARCHAR(20) NOT NULL DEFAULT '',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS training_lessons (
+      id SERIAL PRIMARY KEY,
+      module_id INTEGER NOT NULL REFERENCES training_modules(id) ON DELETE CASCADE,
+      lesson_key VARCHAR(100) NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      video_title VARCHAR(255) NOT NULL DEFAULT '',
+      video_description TEXT NOT NULL DEFAULT '',
+      key_concepts JSONB NOT NULL DEFAULT '[]',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`,
+
+    `CREATE UNIQUE INDEX IF NOT EXISTS training_lessons_module_key ON training_lessons (module_id, lesson_key)`,
+
+    `CREATE TABLE IF NOT EXISTS training_quiz_questions (
+      id SERIAL PRIMARY KEY,
+      lesson_id INTEGER NOT NULL REFERENCES training_lessons(id) ON DELETE CASCADE,
+      question_key VARCHAR(100) NOT NULL,
+      scenario TEXT NOT NULL,
+      options JSONB NOT NULL DEFAULT '[]',
+      correct_index INTEGER NOT NULL DEFAULT 0,
+      explanation TEXT NOT NULL DEFAULT '',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )`,
+
+    `CREATE UNIQUE INDEX IF NOT EXISTS training_questions_lesson_key ON training_quiz_questions (lesson_id, question_key)`,
   ];
 
   for (const sql of migrations) {

@@ -22,7 +22,6 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { jsPDF } from "jspdf";
 import {
-  getModuleById,
   getStoredModuleProgress,
   setStoredModuleProgress,
   markModuleStarted,
@@ -256,17 +255,16 @@ export default function TrainingModulePage() {
   const [, params] = useRoute("/training/:moduleId");
   const moduleId = params?.moduleId || "";
 
-  const { data: apiModules } = useQuery<TModule[]>({
+  const { data: apiModules, isLoading: modulesLoading } = useQuery<TModule[]>({
     queryKey: ['/api/training/modules'],
     staleTime: 60000,
   });
 
   const mod = useMemo(() => {
     if (apiModules && apiModules.length > 0) {
-      const apiMod = apiModules.find((m) => m.id === moduleId);
-      if (apiMod) return apiMod;
+      return apiModules.find((m) => m.id === moduleId) || null;
     }
-    return getModuleById(moduleId);
+    return null;
   }, [apiModules, moduleId]);
 
   const [completedLessons, setCompletedLessons] = useState<Record<string, boolean>>({});
@@ -280,6 +278,14 @@ export default function TrainingModulePage() {
     const firstIncomplete = mod.lessons.findIndex((l) => !progress[l.id]);
     if (firstIncomplete >= 0) setActiveLessonIndex(firstIncomplete);
   }, [moduleId, mod]);
+
+  if (modulesLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   if (!mod) {
     return (

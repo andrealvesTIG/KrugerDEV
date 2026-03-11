@@ -23,8 +23,9 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getModuleProgress, allModules as staticModules } from "@/lib/trainingData";
+import { getModuleProgress } from "@/lib/trainingData";
 import type { TrainingModule } from "@/lib/trainingData";
+import { Loader2 } from "lucide-react";
 
 interface SubjectArea {
   id: string;
@@ -218,14 +219,22 @@ function RoleHeader({ role }: { role: Role }) {
 }
 
 export default function Training() {
-  const { data: apiModules } = useQuery<TrainingModule[]>({
+  const { data: apiModules, isLoading } = useQuery<TrainingModule[]>({
     queryKey: ['/api/training/modules'],
     staleTime: 60000,
   });
 
+  const modules = apiModules || [];
   const moduleMap = new Map<string, TrainingModule>();
-  const modules = (apiModules && apiModules.length > 0) ? apiModules : staticModules;
   modules.forEach((m) => moduleMap.set(m.id, m));
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
