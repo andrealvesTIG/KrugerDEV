@@ -273,7 +273,7 @@ export default function ProfileAnalytics() {
               Share on X (Twitter)
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleShareTeams}>
-              <svg className="h-4 w-4 mr-2 flex-shrink-0" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4" fill="#5059C9"/><circle cx="17" cy="7.5" r="2" fill="#7B83EB"/><path d="M19.5 10.5h-4a.5.5 0 00-.5.5v5a2.5 2.5 0 005 0v-5a.5.5 0 00-.5-.5z" fill="#7B83EB"/><circle cx="11" cy="7" r="2.5" fill="#fff"/><path d="M14.5 10.5h-7a.5.5 0 00-.5.5v5.5a3 3 0 006 0V11a.5.5 0 00-.5-.5z" fill="#fff"/><rect x="2" y="5" width="10" height="10" rx="1.5" fill="#5059C9"/><path d="M4.5 8.5h5M7 8.5V14" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/></svg>
+              <img src="/teams-logo.png" alt="Teams" className="h-4 w-4 mr-2 flex-shrink-0" />
               Share on Teams
             </DropdownMenuItem>
           </DropdownMenuContent>
