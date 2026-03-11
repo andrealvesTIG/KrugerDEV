@@ -27,7 +27,8 @@ export function serveStatic(app: Express) {
         const ogData = await getBadgeOgData(badgeMatch[1]);
         if (ogData) {
           let html = fs.readFileSync(path.resolve(distPath, "index.html"), "utf-8");
-          html = injectBadgeOgTags(html, ogData, badgeMatch[1]);
+          const baseUrl = `${req.protocol}://${req.get("host")}`;
+          html = injectBadgeOgTags(html, ogData, badgeMatch[1], baseUrl);
           return res.status(200).set({ "Content-Type": "text/html" }).end(html);
         }
       } catch {}

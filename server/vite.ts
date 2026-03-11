@@ -49,7 +49,8 @@ export async function setupVite(server: Server, app: Express) {
       if (badgeMatch) {
         const ogData = await getBadgeOgData(badgeMatch[1]);
         if (ogData) {
-          template = injectBadgeOgTags(template, ogData, badgeMatch[1]);
+          const baseUrl = `${req.protocol}://${req.get("host")}`;
+          template = injectBadgeOgTags(template, ogData, badgeMatch[1], baseUrl);
         }
       }
 

@@ -2055,6 +2055,26 @@ export async function registerRoutes(
     }
   });
 
+  app.get('/api/users/:userId/badge-card.png', async (req, res) => {
+    try {
+      const { getBadgeOgData, generateBadgeOgImage } = await import("./badge-og");
+      const ogData = await getBadgeOgData(req.params.userId);
+      if (!ogData) {
+        return res.status(404).json({ message: 'Profile not found' });
+      }
+      const pngBuffer = await generateBadgeOgImage(ogData);
+      res.set({
+        'Content-Type': 'image/png',
+        'Cache-Control': 'public, max-age=3600',
+        'Content-Length': pngBuffer.length.toString(),
+      });
+      res.send(pngBuffer);
+    } catch (err) {
+      console.error('Badge card image generation error:', err);
+      res.status(500).json({ message: 'Failed to generate badge card image' });
+    }
+  });
+
   // Update user avatar (image URL or emoji)
   app.patch('/api/users/:userId/avatar', async (req, res) => {
     try {
