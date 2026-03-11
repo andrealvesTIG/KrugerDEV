@@ -192,13 +192,18 @@ export default function Home() {
     enabled: !!organizationId,
   });
 
+  const CLOSED_PROJECT_STATUSES = useMemo(() => ["Closing", "Closed", "Billing"], []);
+
   const assignedTasks = useMemo(() => {
     if (!assignedTasksData) return [];
     return assignedTasksData.filter((item) => {
       const status = item.task.status?.toLowerCase();
-      return status !== "completed" && status !== "done" && status !== "closed";
+      if (status === "completed" || status === "done" || status === "closed") return false;
+      const projectStatus = item.project?.status || "";
+      if (CLOSED_PROJECT_STATUSES.includes(projectStatus)) return false;
+      return true;
     });
-  }, [assignedTasksData]);
+  }, [assignedTasksData, CLOSED_PROJECT_STATUSES]);
 
   const completedTasksCount = useMemo(() => {
     if (!assignedTasksData) return 0;
