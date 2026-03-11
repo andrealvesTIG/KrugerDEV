@@ -53,14 +53,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     enabled: !!user?.id
   });
 
-  const { data: allOrganizations = [], isLoading: orgsLoading } = useQuery<Organization[]>({
+  const { data: organizations = [], isLoading: orgsLoading } = useQuery<Organization[]>({
     queryKey: ['/api/organizations']
   });
-
-  // Super admins see all orgs, others see only their memberships
-  const organizations = user?.role === 'super_admin' 
-    ? allOrganizations 
-    : allOrganizations.filter(org => memberships.some(m => m.organizationId === org.id));
 
   // Auto-select first org if none selected
   useEffect(() => {

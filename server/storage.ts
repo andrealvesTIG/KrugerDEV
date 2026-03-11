@@ -124,6 +124,7 @@ export interface IStorage {
   // Organization Members
   getOrganizationMembers(organizationId: number): Promise<OrganizationMember[]>;
   getUserOrganizations(userId: string): Promise<OrganizationMember[]>;
+  getUserOrganizationsWithDetails(userId: string): Promise<Organization[]>;
   addOrganizationMember(member: InsertOrganizationMember): Promise<OrganizationMember>;
   updateOrganizationMemberRole(organizationId: number, userId: string, role: string): Promise<OrganizationMember>;
   removeOrganizationMember(organizationId: number, userId: string): Promise<void>;
@@ -914,6 +915,18 @@ export class DatabaseStorage implements IStorage {
   async getUserOrganizations(userId: string): Promise<OrganizationMember[]> {
     return await db.select().from(organizationMembers)
       .where(eq(organizationMembers.userId, userId));
+  }
+
+  async getUserOrganizationsWithDetails(userId: string): Promise<Organization[]> {
+    const rows = await db.select({ org: organizations })
+      .from(organizationMembers)
+      .innerJoin(organizations, eq(organizationMembers.organizationId, organizations.id))
+      .where(and(
+        eq(organizationMembers.userId, userId),
+        isNull(organizations.deactivatedAt)
+      ))
+      .orderBy(organizations.name);
+    return rows.map(r => r.org);
   }
 
   async addOrganizationMember(member: InsertOrganizationMember): Promise<OrganizationMember> {

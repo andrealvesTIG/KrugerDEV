@@ -1797,13 +1797,12 @@ export async function registerRoutes(
       if (!user) {
         return res.status(401).json({ message: 'Authentication required' });
       }
-      const orgs = await storage.getOrganizations();
       if (hasAdminAccess(user)) {
+        const orgs = await storage.getOrganizations();
         return res.json(orgs);
       }
-      const memberships = await storage.getUserOrganizations(userId);
-      const memberOrgIds = new Set(memberships.map(m => m.organizationId));
-      res.json(orgs.filter(o => memberOrgIds.has(o.id)));
+      const orgs = await storage.getUserOrganizationsWithDetails(userId);
+      res.json(orgs);
     } catch (err) {
       console.error('Error fetching organizations:', err);
       res.status(500).json({ message: 'Failed to fetch organizations' });
