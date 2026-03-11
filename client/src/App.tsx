@@ -70,6 +70,7 @@ const EnergyLandingPage = lazy(() => import("@/pages/EnergyLandingPage"));
 const GovernmentLandingPage = lazy(() => import("@/pages/GovernmentLandingPage"));
 const UnCon2026LandingPage = lazy(() => import("@/pages/UnCon2026LandingPage"));
 const Training = lazy(() => import("@/pages/Training"));
+const TrainingModule = lazy(() => import("@/pages/TrainingModule"));
 
 function PageLoader() {
   return (
@@ -216,6 +217,8 @@ function Router() {
           <Route path="/org-settings" component={OrgSettings} />
           <Route path="/profile" component={Profile} />
           <Route path="/user-guide" component={UserGuide} />
+          <GuardedRoute path="/training/schedule-management" component={TrainingModule} moduleKey="training" />
+          <GuardedRoute path="/training/:moduleId" component={TrainingModule} moduleKey="training" />
           <GuardedRoute path="/training" component={Training} moduleKey="training" />
           <Route path="/scheduled-reports" component={ReportSubscriptions} />
           <Route path="/risk-assessment/share/:token" component={SharedRiskAssessment} />

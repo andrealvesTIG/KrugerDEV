@@ -1,4 +1,6 @@
+import { useState, useEffect } from "react";
 import type { ComponentType } from "react";
+import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import {
   GraduationCap,
@@ -13,12 +15,14 @@ import {
   BarChart3,
   Shield,
   BookOpen,
-  Lock,
   Award,
+  Trophy,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getModuleProgress } from "@/lib/trainingData";
 
 interface SubjectArea {
   id: string;
@@ -106,8 +110,19 @@ const roles: Role[] = [
   },
 ];
 
-function SubjectCard({ subject }: { subject: SubjectArea }) {
+function ModuleCard({ subject }: { subject: SubjectArea }) {
+  const [, setLocation] = useLocation();
+  const [progress, setProgress] = useState({ completed: 0, total: 5, percentage: 0, started: false });
   const Icon = subject.icon;
+
+  useEffect(() => {
+    setProgress(getModuleProgress(subject.id));
+  }, [subject.id]);
+
+  const isComplete = progress.percentage === 100;
+  const isStarted = progress.started;
+
+  const route = `/training/${subject.id}`;
 
   return (
     <motion.div
@@ -115,7 +130,10 @@ function SubjectCard({ subject }: { subject: SubjectArea }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <Card className="group relative overflow-hidden border border-border/50 hover:border-primary/30 hover:shadow-md transition-all duration-200">
+      <Card
+        className="group relative overflow-hidden border border-border/50 hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer"
+        onClick={() => setLocation(route)}
+      >
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
@@ -126,10 +144,21 @@ function SubjectCard({ subject }: { subject: SubjectArea }) {
                 <CardTitle className="text-base font-semibold">{subject.name}</CardTitle>
               </div>
             </div>
-            <Badge variant="outline" className="text-xs text-muted-foreground border-muted-foreground/30">
-              <Lock className="h-3 w-3 mr-1" />
-              Coming Soon
-            </Badge>
+            {isComplete ? (
+              <Badge className="bg-green-500 text-white border-green-500 text-xs">
+                <Trophy className="h-3 w-3 mr-1" />
+                Completed
+              </Badge>
+            ) : isStarted ? (
+              <Badge variant="default" className="text-xs">
+                In Progress
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-xs text-primary border-primary/30">
+                <ChevronRight className="h-3 w-3 mr-1" />
+                Start Learning
+              </Badge>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -139,11 +168,11 @@ function SubjectCard({ subject }: { subject: SubjectArea }) {
           <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
             <div className="flex items-center gap-1.5">
               <BookOpen className="h-3.5 w-3.5" />
-              <span>Lessons: --</span>
+              <span>Lessons: {progress.total}</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <Lock className="h-3.5 w-3.5" />
-              <span>Questions: --</span>
+              <BookOpen className="h-3.5 w-3.5" />
+              <span>Questions: {progress.total * 3}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Award className="h-3.5 w-3.5" />
@@ -151,9 +180,18 @@ function SubjectCard({ subject }: { subject: SubjectArea }) {
             </div>
           </div>
           <div className="mt-3 h-1.5 w-full rounded-full bg-muted">
-            <div className="h-full w-0 rounded-full bg-primary transition-all" />
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${progress.percentage}%` }}
+            />
           </div>
-          <p className="mt-1.5 text-xs text-muted-foreground">No progress yet</p>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {isComplete
+              ? "All lessons completed"
+              : isStarted
+                ? `${progress.completed}/${progress.total} lessons completed (${progress.percentage}%)`
+                : "No progress yet"}
+          </p>
         </CardContent>
       </Card>
     </motion.div>
@@ -162,7 +200,6 @@ function SubjectCard({ subject }: { subject: SubjectArea }) {
 
 function RoleHeader({ role }: { role: Role }) {
   const Icon = role.icon;
-
   return (
     <div className="mb-6 flex items-start gap-4">
       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -214,7 +251,7 @@ export default function Training() {
               <RoleHeader role={role} />
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {subjectAreas.map((subject) => (
-                  <SubjectCard key={subject.id} subject={subject} />
+                  <ModuleCard key={subject.id} subject={subject} />
                 ))}
               </div>
             </TabsContent>
