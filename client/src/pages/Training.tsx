@@ -135,10 +135,14 @@ function SubjectCard({ subject }: { subject: SubjectArea }) {
           <CardDescription className="text-sm leading-relaxed">
             {subject.description}
           </CardDescription>
-          <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
+          <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
             <div className="flex items-center gap-1.5">
               <BookOpen className="h-3.5 w-3.5" />
               <span>Lessons: --</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Lock className="h-3.5 w-3.5" />
+              <span>Questions: --</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Award className="h-3.5 w-3.5" />
