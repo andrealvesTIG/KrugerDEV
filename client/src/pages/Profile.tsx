@@ -858,13 +858,6 @@ export default function Profile() {
                   </div>
                   <Badge variant="secondary">Active</Badge>
                 </div>
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div>
-                    <p className="font-medium">Two-Factor Authentication</p>
-                    <p className="text-sm text-muted-foreground">Managed through Replit account</p>
-                  </div>
-                  <Badge variant="outline">Via Replit</Badge>
-                </div>
               </CardContent>
             </Card>
 
