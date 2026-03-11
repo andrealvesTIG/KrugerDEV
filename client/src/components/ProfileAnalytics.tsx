@@ -129,7 +129,7 @@ export default function ProfileAnalytics() {
     enabled: !!user?.id,
   });
 
-  const profileUrl = `${window.location.origin}/badges/${user?.id}`;
+  const profileUrl = `https://fridayreport.ai/badges/${user?.id}`;
 
   const handleCopyLink = useCallback(() => {
     navigator.clipboard.writeText(profileUrl);
