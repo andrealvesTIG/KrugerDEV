@@ -113,12 +113,9 @@ function getBadgeIcon(icon: string, className?: string) {
 function FridayReportBranding({ size = "sm" }: { size?: "sm" | "md" }) {
   const iconSize = size === "md" ? "h-6 w-6" : "h-4 w-4";
   const textSize = size === "md" ? "text-sm" : "text-[10px]";
-  const fontBoldSize = size === "md" ? "text-xs" : "text-[8px]";
   return (
     <div className="flex items-center gap-1">
-      <div className={cn(iconSize, "bg-primary rounded flex items-center justify-center shrink-0")}>
-        <span className={cn("text-primary-foreground font-bold", fontBoldSize)}>F</span>
-      </div>
+      <img src="/logo-icon.png" alt="FridayReport.AI" className={cn(iconSize, "shrink-0")} />
       <span className={cn("font-semibold text-muted-foreground", textSize)}>FridayReport.AI</span>
     </div>
   );
@@ -158,7 +155,7 @@ export default function ProfileAnalytics() {
 
       const logoRow = document.createElement('div');
       logoRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:20px;';
-      logoRow.innerHTML = `<div style="width:20px;height:20px;background:#3b82f6;border-radius:4px;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:11px;">F</div><span style="font-size:12px;color:#6b7280;">FridayReport.AI</span>`;
+      logoRow.innerHTML = `<img src="/logo-icon.png" style="width:20px;height:20px;" /><span style="font-size:12px;color:#6b7280;">FridayReport.AI</span>`;
       container.appendChild(logoRow);
 
       const badgeEmojiMap: Record<string, string> = {

@@ -148,9 +148,7 @@ export default function PublicBadgeProfile() {
         <div className="flex items-center justify-between mb-8">
           <a href="/" className="flex items-center gap-2 text-primary hover:opacity-80 transition-opacity">
             <div className="flex items-center gap-1.5">
-              <div className="h-7 w-7 bg-primary rounded-md flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-sm">F</span>
-              </div>
+              <img src="/logo-icon.png" alt="FridayReport.AI" className="h-7 w-7" />
               <span className="font-bold text-lg">FridayReport.AI</span>
             </div>
           </a>
@@ -174,9 +172,7 @@ export default function PublicBadgeProfile() {
                   {ranking.tier.name} Rank
                 </Badge>
                 <div className="flex items-center gap-1 mt-2">
-                  <div className="h-4 w-4 bg-primary rounded flex items-center justify-center shrink-0">
-                    <span className="text-primary-foreground font-bold text-[8px]">F</span>
-                  </div>
+                  <img src="/logo-icon.png" alt="FridayReport.AI" className="h-4 w-4 shrink-0" />
                   <span className="text-[10px] font-semibold text-muted-foreground">FridayReport.AI</span>
                 </div>
               </div>
@@ -239,9 +235,7 @@ export default function PublicBadgeProfile() {
               <h2 className="text-lg font-semibold">Badges Earned ({badges.length}/{totalBadges})</h2>
               <div className="ml-auto">
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <div className="h-5 w-5 bg-primary rounded-md flex items-center justify-center">
-                    <span className="text-primary-foreground font-bold text-[9px]">F</span>
-                  </div>
+                  <img src="/logo-icon.png" alt="FridayReport.AI" className="h-5 w-5" />
                   <span>FridayReport.AI</span>
                 </div>
               </div>
@@ -262,9 +256,7 @@ export default function PublicBadgeProfile() {
                       {badge.category}
                     </Badge>
                     <div className="flex items-center gap-0.5 mt-1.5">
-                      <div className="h-3 w-3 bg-primary rounded flex items-center justify-center shrink-0">
-                        <span className="text-primary-foreground font-bold text-[6px]">F</span>
-                      </div>
+                      <img src="/logo-icon.png" alt="FridayReport.AI" className="h-3 w-3 shrink-0" />
                       <span className="text-[8px] text-muted-foreground">FridayReport.AI</span>
                     </div>
                   </div>
