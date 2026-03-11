@@ -69,6 +69,20 @@ export const riskAssessmentConfigSchema = z.object({
 
 export type RiskAssessmentConfig = z.infer<typeof riskAssessmentConfigSchema>;
 
+export const schedulingDefaultsSchema = z.object({
+  defaultDependencyType: z.enum(['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish']).default('finish-to-start'),
+  defaultLagDays: z.number().int().min(-30).max(90).default(0),
+  enforceDefaults: z.boolean().default(false),
+});
+
+export type SchedulingDefaults = z.infer<typeof schedulingDefaultsSchema>;
+
+export const DEFAULT_SCHEDULING_DEFAULTS: SchedulingDefaults = {
+  defaultDependencyType: 'finish-to-start',
+  defaultLagDays: 0,
+  enforceDefaults: false,
+};
+
 export const DEFAULT_RISK_ASSESSMENT_CONFIG: RiskAssessmentConfig = {
   model: "gpt-4o",
   temperature: 0.3,
@@ -104,6 +118,7 @@ export const organizations = pgTable("organizations", {
   dashboardHiddenTabs: text("dashboard_hidden_tabs").array(), // Array of tab IDs hidden in overflow menu
   billingHidden: boolean("billing_hidden").default(false),
   riskAssessmentConfig: jsonb("risk_assessment_config").$type<RiskAssessmentConfig>(),
+  schedulingDefaults: jsonb("scheduling_defaults").$type<SchedulingDefaults>(),
   deactivatedAt: timestamp("deactivated_at"), // Soft delete timestamp
   deactivatedBy: varchar("deactivated_by").references(() => users.id), // Who deactivated
 });

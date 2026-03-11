@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { DndContext, DragEndEvent, closestCorners, useSensor, useSensors, PointerSensor, DragOverlay } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -12,7 +13,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Task, TaskResourceAssignment, Resource } from "@shared/schema";
+import type { Task, TaskResourceAssignment, Resource, SchedulingDefaults } from "@shared/schema";
 import { computeWbsValues } from "@/lib/taskWbs";
 import { ResourceAssignment, ResourceAllocation } from "@/components/ResourceAssignment";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
@@ -1803,6 +1804,10 @@ function ProjectGanttView({
   const addDependency = useAddTaskDependency();
   const removeDependency = useRemoveTaskDependency();
   const { toast } = useToast();
+  const { data: schedulingDefaults } = useQuery<SchedulingDefaults>({
+    queryKey: ['/api/organizations', organizationId, 'scheduling-defaults'],
+    enabled: !!organizationId,
+  });
   const today = new Date();
   const { data: projectTaskAssignments } = useProjectTaskAssignments(projectId);
   const taskAssignmentsMap = useMemo(() => {
@@ -2768,20 +2773,22 @@ function ProjectGanttView({
         continue;
       }
       
+      const depType = schedulingDefaults?.defaultDependencyType || 'finish-to-start';
+      const depLag = schedulingDefaults?.defaultLagDays || 0;
       try {
         await addDependency.mutateAsync({
           taskId: successorTask.id,
           dependsOnTaskId: predecessorTask.id,
           projectId,
-          dependencyType: 'finish-to-start',
-          lagDays: 0,
+          dependencyType: depType,
+          lagDays: depLag,
         });
         workingDeps.push({
           id: 0,
           taskId: successorTask.id,
           dependsOnTaskId: predecessorTask.id,
-          dependencyType: 'finish-to-start',
-          lagDays: 0,
+          dependencyType: depType,
+          lagDays: depLag,
           createdAt: new Date(),
         });
         existingDepSet.add(depKey);

@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTaskDependencies, useAddTaskDependency, useRemoveTaskDependency, useUpdateTaskDependency } from "@/hooks/use-tasks";
+import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -8,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Link2, ArrowRight, X, Plus, Search } from "lucide-react";
 import { cn, normalizeSearch } from "@/lib/utils";
-import type { Task } from "@shared/schema";
+import type { Task, SchedulingDefaults } from "@shared/schema";
 
 const DEPENDENCY_TYPES = [
   { value: "finish-to-start", label: "FS", description: "Finish-to-Start" },
@@ -16,11 +18,6 @@ const DEPENDENCY_TYPES = [
   { value: "finish-to-finish", label: "FF", description: "Finish-to-Finish" },
   { value: "start-to-finish", label: "SF", description: "Start-to-Finish" },
 ] as const;
-
-function getDependencyLabel(type: string | null | undefined): string {
-  const found = DEPENDENCY_TYPES.find(t => t.value === type);
-  return found ? found.label : "FS";
-}
 
 function getDependencyDescription(type: string | null | undefined): string {
   const found = DEPENDENCY_TYPES.find(t => t.value === type);
@@ -41,11 +38,29 @@ export function TaskDependenciesSection({
   const removeDependency = useRemoveTaskDependency();
   const updateDependency = useUpdateTaskDependency();
   const { toast } = useToast();
+  const { currentOrganization } = useOrganization();
+
+  const { data: schedulingDefaults } = useQuery<SchedulingDefaults>({
+    queryKey: ['/api/organizations', currentOrganization?.id, 'scheduling-defaults'],
+    enabled: !!currentOrganization?.id,
+  });
+
+  const orgDefaults = schedulingDefaults || { defaultDependencyType: 'finish-to-start' as const, defaultLagDays: 0, enforceDefaults: false };
+
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [selectedType, setSelectedType] = useState<string>("finish-to-start");
-  const [lagDays, setLagDays] = useState<number>(0);
+  const [selectedType, setSelectedType] = useState<string>(orgDefaults.defaultDependencyType);
+  const [lagDays, setLagDays] = useState<number>(orgDefaults.defaultLagDays);
+  const [defaultsApplied, setDefaultsApplied] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const predecessorItemRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (schedulingDefaults && !defaultsApplied) {
+      setSelectedType(schedulingDefaults.defaultDependencyType);
+      setLagDays(schedulingDefaults.defaultLagDays);
+      setDefaultsApplied(true);
+    }
+  }, [schedulingDefaults, defaultsApplied]);
 
   const currentTaskIndex = allTasks.findIndex(t => t.id === taskId);
 
@@ -263,8 +278,8 @@ export function TaskDependenciesSection({
               data-testid="dependency-search-input"
             />
           </div>
-          <Select value={selectedType} onValueChange={setSelectedType}>
-            <SelectTrigger className="w-[72px] h-9 text-xs">
+          <Select value={selectedType} onValueChange={setSelectedType} disabled={orgDefaults.enforceDefaults}>
+            <SelectTrigger className="w-[72px] h-9 text-xs" title={orgDefaults.enforceDefaults ? "Locked by organization settings" : undefined}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -279,10 +294,11 @@ export function TaskDependenciesSection({
           <Input
             type="number"
             className="w-[52px] h-9 text-xs text-center px-1"
-            title="Lag days for new dependency"
+            title={orgDefaults.enforceDefaults ? "Locked by organization settings" : "Lag days for new dependency"}
             placeholder="Lag"
             value={lagDays}
             onChange={(e) => setLagDays(parseInt(e.target.value) || 0)}
+            disabled={orgDefaults.enforceDefaults}
           />
           <span className="text-xs text-muted-foreground">d</span>
         </div>

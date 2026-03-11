@@ -1948,6 +1948,51 @@ export async function registerRoutes(
     }
   });
 
+  app.get('/api/organizations/:id/scheduling-defaults', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const org = await storage.getOrganization(orgId);
+      if (!org) return res.status(404).json({ message: 'Organization not found' });
+      const { DEFAULT_SCHEDULING_DEFAULTS } = await import('@shared/schema');
+      res.json({ ...DEFAULT_SCHEDULING_DEFAULTS, ...(org.schedulingDefaults || {}) });
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get scheduling defaults' : classified.message });
+    }
+  });
+
+  app.put('/api/organizations/:id/scheduling-defaults', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const memberships = await storage.getUserOrganizations(userId!);
+      const membership = memberships.find(m => m.organizationId === orgId);
+      if (!membership || !['owner', 'org_admin'].includes(membership.role)) {
+        const [user] = await db.select().from(users).where(eq(users.id, userId!));
+        if (!hasAdminAccess(user)) {
+          return res.status(403).json({ message: 'Only admins can update scheduling defaults' });
+        }
+      }
+      const { schedulingDefaultsSchema } = await import('@shared/schema');
+      const parsed = schedulingDefaultsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Invalid config', errors: parsed.error.flatten() });
+      }
+      const updated = await storage.updateOrganization(orgId, { schedulingDefaults: parsed.data });
+      res.json(updated?.schedulingDefaults || parsed.data);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update scheduling defaults' : classified.message });
+    }
+  });
+
   // Get all organization integrations with status
   app.get('/api/organizations/:id/integrations', async (req, res) => {
     try {
