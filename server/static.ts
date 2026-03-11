@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
+import { getBadgeOgData, injectBadgeOgTags } from "./badge-og";
 
 export function serveStatic(app: Express) {
   const distPath = path.resolve(__dirname, "public");
@@ -18,8 +19,19 @@ export function serveStatic(app: Express) {
 
   app.use(express.static(distPath));
 
-  // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
+  app.use("*", async (req, res) => {
+    const url = req.originalUrl;
+    const badgeMatch = url.match(/^\/badges\/([^/?#]+)/);
+    if (badgeMatch) {
+      try {
+        const ogData = await getBadgeOgData(badgeMatch[1]);
+        if (ogData) {
+          let html = fs.readFileSync(path.resolve(distPath, "index.html"), "utf-8");
+          html = injectBadgeOgTags(html, ogData, badgeMatch[1]);
+          return res.status(200).set({ "Content-Type": "text/html" }).end(html);
+        }
+      } catch {}
+    }
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

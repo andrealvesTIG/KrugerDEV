@@ -107,38 +107,6 @@ export default function PublicBadgeProfile() {
   useEffect(() => {
     if (data) {
       document.title = `${data.displayName} - PM Profile | FridayReport.AI`;
-      const metaDesc = document.querySelector('meta[name="description"]');
-      const desc = `${data.displayName} is a ${data.ranking.tier.name}-ranked PM professional with ${data.badges.length}/${data.totalBadges} badges earned on FridayReport.AI`;
-      if (metaDesc) {
-        metaDesc.setAttribute('content', desc);
-      } else {
-        const meta = document.createElement('meta');
-        meta.name = 'description';
-        meta.content = desc;
-        document.head.appendChild(meta);
-      }
-
-      const setOgTag = (property: string, content: string) => {
-        let tag = document.querySelector(`meta[property="${property}"]`);
-        if (!tag) {
-          tag = document.createElement('meta');
-          tag.setAttribute('property', property);
-          document.head.appendChild(tag);
-        }
-        tag.setAttribute('content', content);
-      };
-      setOgTag('og:title', `${data.displayName} - PM Profile | FridayReport.AI`);
-      setOgTag('og:description', desc);
-      setOgTag('og:type', 'profile');
-      setOgTag('og:url', window.location.href);
-
-      let twitterCard = document.querySelector('meta[name="twitter:card"]');
-      if (!twitterCard) {
-        twitterCard = document.createElement('meta');
-        twitterCard.setAttribute('name', 'twitter:card');
-        document.head.appendChild(twitterCard);
-      }
-      twitterCard.setAttribute('content', 'summary');
     }
   }, [data]);
 
