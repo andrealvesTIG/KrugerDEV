@@ -322,9 +322,8 @@ export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonPro
             <Sparkles className="h-5 w-5" />
           </Button>
         ) : (
-          <Button size="sm" className="gap-1.5" data-testid="button-ai-create">
-            <Sparkles className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">AI Create</span>
+          <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground" data-testid="button-ai-create">
+            <Sparkles className="h-4 w-4" />
           </Button>
         )}
       </DialogTrigger>
