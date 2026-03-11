@@ -84,7 +84,9 @@ import {
   MoreVertical,
   BarChart3,
   FileText,
-  ArrowUpDown
+  ArrowUpDown,
+  EyeOff,
+  Eye
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -3177,21 +3179,50 @@ export default function Timesheets() {
   const isLoading = entriesLoading || tasksLoading;
 
   const [filterProjectId, setFilterProjectId] = useState<number | null>(null);
+  const [hideClosedProjects, setHideClosedProjects] = useState(false);
+
+  const CLOSED_PROJECT_STATUSES = useMemo(() => ["Closing", "Closed", "Billing"], []);
+
+  useEffect(() => {
+    if (hideClosedProjects && filterProjectId) {
+      const selectedProject = assignedTasks.find(({ project }) => project.id === filterProjectId);
+      if (selectedProject && CLOSED_PROJECT_STATUSES.includes(selectedProject.project.status || "")) {
+        setFilterProjectId(null);
+      }
+    }
+  }, [hideClosedProjects, filterProjectId, assignedTasks, CLOSED_PROJECT_STATUSES]);
+
+  const closedProjectCount = useMemo(() => {
+    const seen = new Set<number>();
+    assignedTasks.forEach(({ project }) => {
+      if (!seen.has(project.id) && CLOSED_PROJECT_STATUSES.includes(project.status || "")) {
+        seen.add(project.id);
+      }
+    });
+    return seen.size;
+  }, [assignedTasks]);
 
   const uniqueProjects = useMemo(() => {
-    const projectMap = new Map<number, { id: number; name: string }>();
+    const projectMap = new Map<number, { id: number; name: string; status: string | null }>();
     assignedTasks.forEach(({ project }) => {
       if (!projectMap.has(project.id)) {
-        projectMap.set(project.id, { id: project.id, name: project.name });
+        if (hideClosedProjects && CLOSED_PROJECT_STATUSES.includes(project.status || "")) return;
+        projectMap.set(project.id, { id: project.id, name: project.name, status: project.status });
       }
     });
     return Array.from(projectMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [assignedTasks]);
+  }, [assignedTasks, hideClosedProjects]);
 
   const filteredAssignedTasks = useMemo(() => {
-    if (!filterProjectId) return assignedTasks;
-    return assignedTasks.filter(({ project }) => project.id === filterProjectId);
-  }, [assignedTasks, filterProjectId]);
+    let tasks = assignedTasks;
+    if (hideClosedProjects) {
+      tasks = tasks.filter(({ project }) => !CLOSED_PROJECT_STATUSES.includes(project.status || ""));
+    }
+    if (filterProjectId) {
+      tasks = tasks.filter(({ project }) => project.id === filterProjectId);
+    }
+    return tasks;
+  }, [assignedTasks, filterProjectId, hideClosedProjects]);
 
   if (isFullscreen) {
     return (
@@ -3225,6 +3256,30 @@ export default function Timesheets() {
                   ))}
                 </SelectContent>
               </Select>
+            )}
+            {closedProjectCount > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={hideClosedProjects ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setHideClosedProjects(!hideClosedProjects)}
+                    data-testid="button-toggle-closed-projects-fullscreen"
+                  >
+                    {hideClosedProjects ? (
+                      <EyeOff className="h-4 w-4 mr-2" />
+                    ) : (
+                      <Eye className="h-4 w-4 mr-2" />
+                    )}
+                    {hideClosedProjects ? `${closedProjectCount} Hidden` : "Hide Closed"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {hideClosedProjects 
+                    ? `${closedProjectCount} closed/closing project${closedProjectCount !== 1 ? 's' : ''} hidden — click to show` 
+                    : `Hide projects with Closing, Closed, or Billing status`}
+                </TooltipContent>
+              </Tooltip>
             )}
             <Button
               variant="ghost"
@@ -3720,6 +3775,31 @@ export default function Timesheets() {
                           ))}
                         </SelectContent>
                       </Select>
+                    )}
+
+                    {closedProjectCount > 0 && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant={hideClosedProjects ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setHideClosedProjects(!hideClosedProjects)}
+                            data-testid="button-toggle-closed-projects"
+                          >
+                            {hideClosedProjects ? (
+                              <EyeOff className="h-4 w-4 mr-2" />
+                            ) : (
+                              <Eye className="h-4 w-4 mr-2" />
+                            )}
+                            {hideClosedProjects ? `${closedProjectCount} Hidden` : "Hide Closed"}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {hideClosedProjects 
+                            ? `${closedProjectCount} closed/closing project${closedProjectCount !== 1 ? 's' : ''} hidden — click to show` 
+                            : `Hide projects with Closing, Closed, or Billing status`}
+                        </TooltipContent>
+                      </Tooltip>
                     )}
 
                     <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
