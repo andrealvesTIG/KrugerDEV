@@ -152,12 +152,46 @@ export default function ProfileAnalytics() {
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank', 'width=600,height=500');
   }, [profileUrl]);
 
-  const handleDownloadBadge = useCallback(async (badgeId: string, badgeName: string) => {
-    const el = badgeRefs.current[badgeId];
-    if (!el) return;
+  const handleDownloadBadge = useCallback(async (badgeId: string, badgeName: string, badgeIcon: string, badgeDescription: string) => {
+    const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Project Manager";
     try {
+      const container = document.createElement('div');
+      container.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:400px;padding:32px;background:#ffffff;font-family:system-ui,-apple-system,sans-serif;border-radius:16px;border:2px solid #f59e0b30;';
+
+      const logoRow = document.createElement('div');
+      logoRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:20px;';
+      logoRow.innerHTML = `<div style="width:20px;height:20px;background:#3b82f6;border-radius:4px;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:11px;">F</div><span style="font-size:12px;color:#6b7280;">FridayReport.AI</span>`;
+      container.appendChild(logoRow);
+
+      const iconDiv = document.createElement('div');
+      iconDiv.style.cssText = 'text-align:center;margin-bottom:12px;font-size:40px;color:#f59e0b;';
+      iconDiv.textContent = '\u2B50';
+      container.appendChild(iconDiv);
+
+      const nameDiv = document.createElement('div');
+      nameDiv.style.cssText = 'text-align:center;font-size:18px;font-weight:700;color:#1f2937;margin-bottom:4px;';
+      nameDiv.textContent = badgeName;
+      container.appendChild(nameDiv);
+
+      const descDiv = document.createElement('div');
+      descDiv.style.cssText = 'text-align:center;font-size:13px;color:#6b7280;margin-bottom:16px;';
+      descDiv.textContent = badgeDescription;
+      container.appendChild(descDiv);
+
+      const separator = document.createElement('div');
+      separator.style.cssText = 'height:1px;background:#e5e7eb;margin-bottom:12px;';
+      container.appendChild(separator);
+
+      const userDiv = document.createElement('div');
+      userDiv.style.cssText = 'text-align:center;font-size:14px;color:#374151;';
+      userDiv.innerHTML = `Earned by <strong>${displayName}</strong>`;
+      container.appendChild(userDiv);
+
+      document.body.appendChild(container);
       const { toPng } = await import('html-to-image');
-      const dataUrl = await toPng(el, { pixelRatio: 2, backgroundColor: '#ffffff' });
+      const dataUrl = await toPng(container, { pixelRatio: 2, backgroundColor: '#ffffff' });
+      document.body.removeChild(container);
+
       const link = document.createElement('a');
       link.download = `FridayReport-Badge-${badgeName.replace(/\s+/g, '-')}.png`;
       link.href = dataUrl;
@@ -166,7 +200,7 @@ export default function ProfileAnalytics() {
     } catch {
       toast({ title: "Error", description: "Failed to download badge image.", variant: "destructive" });
     }
-  }, [toast]);
+  }, [toast, user]);
 
   if (isLoading) {
     return (
@@ -407,7 +441,7 @@ export default function ProfileAnalytics() {
                   >
                     <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
                       <button
-                        onClick={() => handleDownloadBadge(badge.id, badge.name)}
+                        onClick={() => handleDownloadBadge(badge.id, badge.name, badge.icon, badge.description)}
                         className="p-1 rounded hover:bg-amber-500/10 text-muted-foreground hover:text-amber-600"
                         title="Download badge as PNG"
                       >
