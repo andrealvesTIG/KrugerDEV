@@ -956,6 +956,7 @@ export default function Projects() {
             onOpenChange={setIsDialogOpen}
             portfolios={portfolios || []}
             organizationId={currentOrganization?.id}
+            onProjectCreated={(projectId) => navigate(`/projects/${projectId}`)}
           />
         </div>
       </FadeIn>
