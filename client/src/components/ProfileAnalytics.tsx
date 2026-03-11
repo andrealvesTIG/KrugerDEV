@@ -273,7 +273,7 @@ export default function ProfileAnalytics() {
               Share on X (Twitter)
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleShareTeams}>
-              <img src="/teams-logo.png" alt="Teams" className="h-4 w-auto mr-2 flex-shrink-0" />
+              <span className="h-4 w-4 mr-2 flex-shrink-0 inline-flex items-center justify-center"><img src="/teams-logo.png" alt="Teams" className="h-4 w-auto max-w-none" /></span>
               Share on Teams
             </DropdownMenuItem>
           </DropdownMenuContent>
