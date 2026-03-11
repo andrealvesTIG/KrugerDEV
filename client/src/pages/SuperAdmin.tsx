@@ -6595,6 +6595,7 @@ function AnalyticsTab() {
   const { toast } = useToast();
   const [chartView, setChartView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [userFilter, setUserFilter] = useState<UserFilter>(null);
+  const [userSearch, setUserSearch] = useState('');
   const [sortColumn, setSortColumn] = useState<'name' | 'email' | 'role' | 'source' | 'verified' | 'signedUp'>('signedUp');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
@@ -6605,7 +6606,6 @@ function AnalyticsTab() {
 
   const { data: allUsers = [], isLoading: isLoadingUsers } = useQuery<AnalyticsUser[]>({
     queryKey: ['/api/users'],
-    enabled: userFilter !== null,
   });
 
   const handleRefresh = () => {
@@ -6627,7 +6627,7 @@ function AnalyticsTab() {
   };
 
   const filteredUsers = useMemo(() => {
-    if (!userFilter || allUsers.length === 0) return [];
+    if (allUsers.length === 0) return [];
     let filtered = [...allUsers];
 
     const toNYDate = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
@@ -6647,6 +6647,16 @@ function AnalyticsTab() {
     } else if (userFilter === 'month') {
       const cutoff = subtractDays(todayNY, 30);
       filtered = filtered.filter(u => toNYDate(new Date(u.createdAt)) >= cutoff);
+    }
+
+    if (userSearch.trim()) {
+      const q = normalizeSearch(userSearch);
+      filtered = filtered.filter(u =>
+        normalizeSearch([u.firstName, u.lastName].filter(Boolean).join(' ')).includes(q) ||
+        normalizeSearch(u.email).includes(q) ||
+        normalizeSearch(u.role).includes(q) ||
+        normalizeSearch(u.signupSource || '').includes(q)
+      );
     }
 
     const dir = sortDirection === 'asc' ? 1 : -1;
@@ -6678,9 +6688,9 @@ function AnalyticsTab() {
       }
     });
     return filtered;
-  }, [userFilter, allUsers, sortColumn, sortDirection]);
+  }, [userFilter, allUsers, sortColumn, sortDirection, userSearch]);
 
-  const filterLabel = userFilter === 'total' ? 'All Users' : userFilter === 'today' ? 'New Users Today' : userFilter === 'week' ? 'New Users This Week' : userFilter === 'month' ? 'New Users This Month' : '';
+  const filterLabel = userFilter === 'total' ? 'All Users' : userFilter === 'today' ? 'New Users Today' : userFilter === 'week' ? 'New Users This Week' : userFilter === 'month' ? 'New Users This Month' : 'All Users';
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -6824,142 +6834,165 @@ function AnalyticsTab() {
         </Card>
       </div>
 
-      {/* Filtered Users Table */}
-      {userFilter && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              {filterLabel} ({filteredUsers.length})
-            </CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => setUserFilter(null)}>
-              <X className="h-4 w-4 mr-1" />
-              Close
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {isLoadingUsers ? (
-              <div className="flex items-center justify-center py-8 text-muted-foreground">
-                <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                Loading users...
-              </div>
-            ) : filteredUsers.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No users found for this filter</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      {([
-                        ['name', 'Name'],
-                        ['email', 'Email'],
-                        ['role', 'Role'],
-                        ['source', 'Source'],
-                        ['verified', 'Verified'],
-                        ['signedUp', 'Signed Up'],
-                      ] as const).map(([key, label]) => (
-                        <TableHead
-                          key={key}
-                          className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
-                          onClick={() => handleSort(key)}
-                        >
-                          <div className="flex items-center gap-1">
-                            {label}
-                            {sortColumn === key ? (
-                              sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                            ) : (
-                              <ArrowDown className="h-3 w-3 opacity-0 group-hover:opacity-30" />
-                            )}
-                          </div>
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredUsers.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium">
-                          {[user.firstName, user.lastName].filter(Boolean).join(' ') || '-'}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{user.email}</TableCell>
-                        <TableCell>
-                          <Badge variant={user.role === 'super_admin' ? 'default' : 'outline'} className="text-xs">
-                            {user.role}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {user.signupSource ? (() => {
-                            const sourceLabels: Record<string, string> = {
-                              'signin': 'Sign In',
-                              'signup': 'Signup Page',
-                              'auth-page': 'Auth Page',
-                              'uncon2026': 'UnCon 2026',
-                              'construction': 'Construction',
-                              'healthcare': 'Healthcare',
-                              'energy': 'Energy',
-                              'government': 'Government',
-                              'financial-services': 'Financial Services',
-                              'manufacturing': 'Manufacturing',
-                              'industrial-automation': 'Industrial Automation',
-                              'google': 'Google',
-                              'microsoft': 'Microsoft',
-                              'resource-invite': 'Resource Invite',
-                            };
-                            const sourceLinks: Record<string, string> = {
-                              'uncon2026': '/uncon2026',
-                              'construction': '/construction',
-                              'healthcare': '/healthcare',
-                              'energy': '/energy',
-                              'government': '/government',
-                              'financial-services': '/financial-services',
-                              'manufacturing': '/manufacturing',
-                              'industrial-automation': '/industrial-automation',
-                              'signin': '/signin',
-                              'signup': '/signup',
-                              'auth-page': '/auth',
-                            };
-                            const label = sourceLabels[user.signupSource] || user.signupSource;
-                            const link = sourceLinks[user.signupSource];
-                            return link ? (
-                              <a href={link} target="_blank" rel="noopener noreferrer">
-                                <Badge variant="outline" className="text-xs cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors">
-                                  {label}
-                                </Badge>
-                              </a>
-                            ) : (
-                              <Badge variant="outline" className="text-xs">
+      {/* Users Table */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            {filterLabel} ({filteredUsers.length})
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search users..."
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                className="pl-9 w-[250px] h-9"
+              />
+            </div>
+            {userFilter && (
+              <Button variant="ghost" size="sm" onClick={() => setUserFilter(null)}>
+                <X className="h-4 w-4 mr-1" />
+                Clear Filter
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoadingUsers ? (
+            <div className="flex items-center justify-center py-8 text-muted-foreground">
+              <Loader2 className="h-6 w-6 animate-spin mr-2" />
+              Loading users...
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No users found</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {([
+                      ['name', 'Name'],
+                      ['email', 'Email'],
+                      ['role', 'Role'],
+                      ['source', 'Source'],
+                      ['verified', 'Verified'],
+                      ['signedUp', 'Signed Up'],
+                    ] as const).map(([key, label]) => (
+                      <TableHead
+                        key={key}
+                        className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
+                        onClick={() => handleSort(key)}
+                      >
+                        <div className="flex items-center gap-1">
+                          {label}
+                          {sortColumn === key ? (
+                            sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                          ) : (
+                            <ArrowDown className="h-3 w-3 opacity-0 group-hover:opacity-30" />
+                          )}
+                        </div>
+                      </TableHead>
+                    ))}
+                    <TableHead>Profile</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium">
+                        {[user.firstName, user.lastName].filter(Boolean).join(' ') || '-'}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{user.email}</TableCell>
+                      <TableCell>
+                        <Badge variant={user.role === 'super_admin' ? 'default' : 'outline'} className="text-xs">
+                          {user.role}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {user.signupSource ? (() => {
+                          const sourceLabels: Record<string, string> = {
+                            'signin': 'Sign In',
+                            'signup': 'Signup Page',
+                            'auth-page': 'Auth Page',
+                            'uncon2026': 'UnCon 2026',
+                            'construction': 'Construction',
+                            'healthcare': 'Healthcare',
+                            'energy': 'Energy',
+                            'government': 'Government',
+                            'financial-services': 'Financial Services',
+                            'manufacturing': 'Manufacturing',
+                            'industrial-automation': 'Industrial Automation',
+                            'google': 'Google',
+                            'microsoft': 'Microsoft',
+                            'resource-invite': 'Resource Invite',
+                          };
+                          const sourceLinks: Record<string, string> = {
+                            'uncon2026': '/uncon2026',
+                            'construction': '/construction',
+                            'healthcare': '/healthcare',
+                            'energy': '/energy',
+                            'government': '/government',
+                            'financial-services': '/financial-services',
+                            'manufacturing': '/manufacturing',
+                            'industrial-automation': '/industrial-automation',
+                            'signin': '/signin',
+                            'signup': '/signup',
+                            'auth-page': '/auth',
+                          };
+                          const label = sourceLabels[user.signupSource] || user.signupSource;
+                          const link = sourceLinks[user.signupSource];
+                          return link ? (
+                            <a href={link} target="_blank" rel="noopener noreferrer">
+                              <Badge variant="outline" className="text-xs cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors">
                                 {label}
                               </Badge>
-                            );
-                          })() : (
-                            <span className="text-muted-foreground text-xs">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {user.emailVerified ? (
-                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Yes
-                            </Badge>
+                            </a>
                           ) : (
-                            <Badge variant="outline" className="text-muted-foreground">No</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
-                          {user.createdAt ? format(new Date(user.createdAt), 'MMM d, yyyy h:mm a') : '-'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                            <Badge variant="outline" className="text-xs">
+                              {label}
+                            </Badge>
+                          );
+                        })() : (
+                          <span className="text-muted-foreground text-xs">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {user.emailVerified ? (
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Yes
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground">No</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {user.createdAt ? format(new Date(user.createdAt), 'MMM d, yyyy h:mm a') : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <a
+                          href={`https://fridayreport.ai/badges/${user.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                        >
+                          <Globe className="h-3 w-3" />
+                          View
+                        </a>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Active Users */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
