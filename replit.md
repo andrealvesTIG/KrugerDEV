@@ -47,6 +47,8 @@ The application features a professional, enterprise-grade UI inspired by Linear 
     -   Microsoft Dynamics 365 Sales Hub for importing invoices via OAuth 2.0 (MSAL)
     -   Analytics API for external analytics tools (e.g., Power BI) with API key and Bearer token authentication
 
+**Professional Profile & Analytics**: The Profile page includes professional credentials (PMI ID, LinkedIn URL, Job Title stored on the `users` table), and a dedicated "Analytics" sidebar section (`ProfileAnalytics` component). The analytics dashboard shows engagement stats (projects managed, tasks owned/completed, issues/risks assigned, milestones, portfolios, login sessions), weekly activity chart, feature usage pie chart, a tiered professional ranking system (Beginner → Master, scored by weighted engagement metrics), and an achievement badge gallery (13 badges across Projects, Tasks, Risks, Issues, Milestones, Portfolios, and Engagement categories). API endpoint: `GET /api/users/:id/profile-analytics` (auth + self-only + super_admin bypass).
+
 ## AI Create Features
 **Smart Project Matching**: AI Create finds existing projects by name before creating new ones — uses server-side fuzzy name matching and passes existing project context (description, status, tasks, risks, issues, milestones, budget, dates) to OpenAI so generated items are project-specific and non-duplicate.
 **Change Log Tracking**: AI Create actions (tasks, risks, issues, milestones) are logged to `projectChangeLogs` with `changeType: 'ai_create'`, recording what was created and by whom.

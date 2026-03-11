@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, User, Mail, Shield, Calendar, Building2, Pencil, X, Check, Camera, Upload, Smile, Sun, Moon, Monitor, Bell, AlertTriangle, Key, Copy, Trash2, Gift, Share2, UserPlus, Users, TrendingUp, DollarSign, Clock, CheckCircle2 } from "lucide-react";
+import { Loader2, User, Mail, Shield, Calendar, Building2, Pencil, X, Check, Camera, Upload, Smile, Sun, Moon, Monitor, Bell, AlertTriangle, Key, Copy, Trash2, Gift, Share2, UserPlus, Users, TrendingUp, DollarSign, Clock, CheckCircle2, BarChart3, Linkedin, Award } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { OrganizationMember, Organization } from "@shared/schema";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import ProfileAnalytics from "@/components/ProfileAnalytics";
 
 const AVATAR_EMOJIS = [
   "smile", "grin", "laugh", "wink", "cool", "heart-eyes", "star-struck", "thinking",
@@ -86,10 +87,11 @@ interface ReferralStats {
   payouts: ReferralPayout[];
 }
 
-type Section = "profile" | "organizations" | "display" | "notifications" | "security" | "referrals";
+type Section = "profile" | "analytics" | "organizations" | "display" | "notifications" | "security" | "referrals";
 
 const menuItems = [
   { id: "profile" as Section, label: "Profile", icon: User },
+  { id: "analytics" as Section, label: "Analytics", icon: BarChart3 },
   { id: "organizations" as Section, label: "Organizations", icon: Building2 },
   { id: "display" as Section, label: "Display", icon: Monitor },
   { id: "notifications" as Section, label: "Notifications", icon: Bell },
@@ -116,7 +118,10 @@ export default function Profile() {
   const [editForm, setEditForm] = useState({
     firstName: "",
     lastName: "",
-    email: ""
+    email: "",
+    jobTitle: "",
+    pmiId: "",
+    linkedinUrl: "",
   });
 
   const [newlyGeneratedApiKey, setNewlyGeneratedApiKey] = useState<string | null>(null);
@@ -263,7 +268,7 @@ export default function Profile() {
   });
 
   const updateProfileMutation = useMutation({
-    mutationFn: async (data: { firstName: string; lastName: string; email: string }) => {
+    mutationFn: async (data: { firstName: string; lastName: string; email: string; jobTitle?: string; pmiId?: string; linkedinUrl?: string }) => {
       const res = await apiRequest("PATCH", `/api/users/${user?.id}/profile`, data);
       return res.json();
     },
@@ -374,14 +379,17 @@ export default function Profile() {
     setEditForm({
       firstName: user?.firstName || "",
       lastName: user?.lastName || "",
-      email: user?.email || ""
+      email: user?.email || "",
+      jobTitle: (user as any)?.jobTitle || "",
+      pmiId: (user as any)?.pmiId || "",
+      linkedinUrl: (user as any)?.linkedinUrl || "",
     });
     setIsEditing(true);
   };
 
   const handleCancel = () => {
     setIsEditing(false);
-    setEditForm({ firstName: "", lastName: "", email: "" });
+    setEditForm({ firstName: "", lastName: "", email: "", jobTitle: "", pmiId: "", linkedinUrl: "" });
   };
 
   const handleSave = () => {
@@ -518,6 +526,10 @@ export default function Profile() {
                       <Label htmlFor="email">Email</Label>
                       <Input id="email" type="email" value={editForm.email} onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))} data-testid="input-email" />
                     </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="jobTitle">Job Title</Label>
+                      <Input id="jobTitle" value={editForm.jobTitle} onChange={(e) => setEditForm(prev => ({ ...prev, jobTitle: e.target.value }))} placeholder="e.g. Senior Project Manager" data-testid="input-job-title" />
+                    </div>
                   </div>
                 ) : (
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -536,6 +548,10 @@ export default function Profile() {
                     <div>
                       <Label className="text-muted-foreground text-xs">Role</Label>
                       <p className="font-medium" data-testid="text-role">{formatRole(user?.role || 'member')}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Job Title</Label>
+                      <p className="font-medium" data-testid="text-job-title">{(user as any)?.jobTitle || '-'}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs">Member Since</Label>
@@ -569,8 +585,56 @@ export default function Profile() {
                 </div>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Award className="h-5 w-5" />
+                      Professional Credentials
+                    </CardTitle>
+                    <CardDescription>Your project management certifications and links</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {isEditing ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="pmiId">PMI ID</Label>
+                      <Input id="pmiId" value={editForm.pmiId} onChange={(e) => setEditForm(prev => ({ ...prev, pmiId: e.target.value }))} placeholder="e.g. 1234567" data-testid="input-pmi-id" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="linkedinUrl">LinkedIn Profile</Label>
+                      <Input id="linkedinUrl" value={editForm.linkedinUrl} onChange={(e) => setEditForm(prev => ({ ...prev, linkedinUrl: e.target.value }))} placeholder="https://linkedin.com/in/yourname" data-testid="input-linkedin-url" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <Label className="text-muted-foreground text-xs">PMI ID</Label>
+                      <p className="font-medium" data-testid="text-pmi-id">{(user as any)?.pmiId || '-'}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-xs">LinkedIn Profile</Label>
+                      {(user as any)?.linkedinUrl ? (
+                        <a href={(user as any).linkedinUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline flex items-center gap-1" data-testid="link-linkedin">
+                          <Linkedin className="h-3.5 w-3.5" />
+                          View Profile
+                        </a>
+                      ) : (
+                        <p className="font-medium text-muted-foreground" data-testid="text-linkedin-url">-</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         )}
+
+        {activeSection === "analytics" && <ProfileAnalytics />}
 
         {activeSection === "organizations" && (
           <div className="space-y-6">

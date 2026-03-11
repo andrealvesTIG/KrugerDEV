@@ -1,0 +1,363 @@
+import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Loader2, Briefcase, ListChecks, CheckCircle2, AlertTriangle, Shield, Flag, Layers, Activity, Trophy, Award, Star, Crown, Flame, Zap, Rocket, Bug, ShieldCheck, Building2 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { cn } from "@/lib/utils";
+
+interface ProfileAnalyticsData {
+  stats: {
+    projectsManaged: number;
+    tasksOwned: number;
+    tasksAssigned: number;
+    tasksCompleted: number;
+    issuesAssigned: number;
+    risksAssigned: number;
+    risksResolved: number;
+    milestonesOwned: number;
+    portfoliosManaged: number;
+    totalLogins: number;
+    totalApiRequests: number;
+  };
+  ranking: {
+    score: number;
+    tier: { name: string; minScore: number; icon: string };
+    nextTier: { name: string; minScore: number; icon: string } | null;
+    progressToNext: number;
+    tiers: Array<{ name: string; minScore: number; icon: string }>;
+  };
+  badges: Array<{
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    earned: boolean;
+    threshold: number;
+    current: number;
+    category: string;
+  }>;
+  weeklyActivity: Array<{ week: string; count: number }>;
+  featureUsage: Array<{ name: string; count: number }>;
+  recentActions: Array<{ action: string; entityType: string | null; createdAt: string }>;
+  memberSince: string;
+}
+
+const TIER_COLORS: Record<string, string> = {
+  Beginner: "text-slate-500",
+  Associate: "text-green-500",
+  Professional: "text-blue-500",
+  Senior: "text-purple-500",
+  Expert: "text-amber-500",
+  Master: "text-red-500",
+};
+
+const TIER_BG: Record<string, string> = {
+  Beginner: "bg-slate-500/10 border-slate-500/30",
+  Associate: "bg-green-500/10 border-green-500/30",
+  Professional: "bg-blue-500/10 border-blue-500/30",
+  Senior: "bg-purple-500/10 border-purple-500/30",
+  Expert: "bg-amber-500/10 border-amber-500/30",
+  Master: "bg-red-500/10 border-red-500/30",
+};
+
+const TIER_PROGRESS_COLOR: Record<string, string> = {
+  Beginner: "[&>div]:bg-slate-500",
+  Associate: "[&>div]:bg-green-500",
+  Professional: "[&>div]:bg-blue-500",
+  Senior: "[&>div]:bg-purple-500",
+  Expert: "[&>div]:bg-amber-500",
+  Master: "[&>div]:bg-red-500",
+};
+
+const PIE_COLORS = ["#3b82f6", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444", "#06b6d4", "#f97316", "#ec4899", "#6366f1"];
+
+function getTierIcon(icon: string, className?: string) {
+  const cls = className || "h-5 w-5";
+  switch (icon) {
+    case "seedling": return <span className={cls}>🌱</span>;
+    case "leaf": return <span className={cls}>🌿</span>;
+    case "star": return <Star className={cls} />;
+    case "award": return <Award className={cls} />;
+    case "trophy": return <Trophy className={cls} />;
+    case "crown": return <Crown className={cls} />;
+    default: return <Star className={cls} />;
+  }
+}
+
+function getBadgeIcon(icon: string, className?: string) {
+  const cls = className || "h-5 w-5";
+  switch (icon) {
+    case "rocket": return <Rocket className={cls} />;
+    case "briefcase": return <Briefcase className={cls} />;
+    case "building": return <Building2 className={cls} />;
+    case "list-checks": return <ListChecks className={cls} />;
+    case "check-circle": return <CheckCircle2 className={cls} />;
+    case "zap": return <Zap className={cls} />;
+    case "shield": return <Shield className={cls} />;
+    case "shield-check": return <ShieldCheck className={cls} />;
+    case "bug": return <Bug className={cls} />;
+    case "flag": return <Flag className={cls} />;
+    case "activity": return <Activity className={cls} />;
+    case "flame": return <Flame className={cls} />;
+    case "layers": return <Layers className={cls} />;
+    default: return <Award className={cls} />;
+  }
+}
+
+export default function ProfileAnalytics() {
+  const { user } = useAuth();
+
+  const { data, isLoading, error } = useQuery<ProfileAnalyticsData>({
+    queryKey: [`/api/users/${user?.id}/profile-analytics`],
+    enabled: !!user?.id,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="text-center py-16 text-muted-foreground">
+        Failed to load analytics data.
+      </div>
+    );
+  }
+
+  const { stats, ranking, badges, weeklyActivity, featureUsage } = data;
+  const earnedBadges = badges.filter(b => b.earned);
+  const lockedBadges = badges.filter(b => !b.earned);
+
+  const statCards = [
+    { label: "Projects Managed", value: stats.projectsManaged, icon: Briefcase, color: "text-blue-500", bg: "bg-blue-500/10" },
+    { label: "Tasks Owned", value: stats.tasksOwned, icon: ListChecks, color: "text-purple-500", bg: "bg-purple-500/10" },
+    { label: "Tasks Completed", value: stats.tasksCompleted, icon: CheckCircle2, color: "text-green-500", bg: "bg-green-500/10" },
+    { label: "Issues Assigned", value: stats.issuesAssigned, icon: AlertTriangle, color: "text-amber-500", bg: "bg-amber-500/10" },
+    { label: "Risks Managed", value: stats.risksAssigned, icon: Shield, color: "text-red-500", bg: "bg-red-500/10" },
+    { label: "Milestones Owned", value: stats.milestonesOwned, icon: Flag, color: "text-cyan-500", bg: "bg-cyan-500/10" },
+    { label: "Portfolios", value: stats.portfoliosManaged, icon: Layers, color: "text-indigo-500", bg: "bg-indigo-500/10" },
+    { label: "Sessions", value: stats.totalLogins, icon: Activity, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+  ];
+
+  const chartData = weeklyActivity.map(w => ({
+    week: new Date(w.week).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    actions: w.count,
+  }));
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold">Analytics</h2>
+        <p className="text-muted-foreground">Your professional engagement and performance overview</p>
+      </div>
+
+      <Card className={cn("border-2", TIER_BG[ranking.tier.name] || "")}>
+        <CardContent className="pt-6">
+          <div className="flex flex-col sm:flex-row items-center gap-6">
+            <div className="flex flex-col items-center text-center">
+              <div className={cn("text-5xl mb-2", TIER_COLORS[ranking.tier.name])}>
+                {getTierIcon(ranking.tier.icon, "h-12 w-12")}
+              </div>
+              <h3 className={cn("text-2xl font-bold", TIER_COLORS[ranking.tier.name])}>
+                {ranking.tier.name}
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">Professional Rank</p>
+            </div>
+            <div className="flex-1 w-full space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Engagement Score</span>
+                <span className={cn("text-2xl font-bold", TIER_COLORS[ranking.tier.name])}>{ranking.score}</span>
+              </div>
+              {ranking.nextTier ? (
+                <div className="space-y-2">
+                  <Progress value={ranking.progressToNext} className={cn("h-3", TIER_PROGRESS_COLOR[ranking.tier.name])} />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{ranking.tier.name} ({ranking.tier.minScore})</span>
+                    <span>{ranking.nextTier.name} ({ranking.nextTier.minScore})</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Progress value={100} className={cn("h-3", TIER_PROGRESS_COLOR[ranking.tier.name])} />
+                  <p className="text-xs text-muted-foreground text-center">Maximum rank achieved!</p>
+                </div>
+              )}
+              <div className="flex gap-1 justify-center">
+                {ranking.tiers.map((tier, i) => (
+                  <div
+                    key={tier.name}
+                    className={cn(
+                      "flex items-center gap-1 px-2 py-1 rounded-full text-xs border",
+                      ranking.score >= tier.minScore
+                        ? cn(TIER_BG[tier.name], TIER_COLORS[tier.name], "font-medium")
+                        : "bg-muted/30 text-muted-foreground/50 border-transparent"
+                    )}
+                    title={`${tier.name}: ${tier.minScore}+ points`}
+                  >
+                    {getTierIcon(tier.icon, "h-3 w-3")}
+                    <span className="hidden lg:inline">{tier.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {statCards.map(card => (
+          <Card key={card.label}>
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center gap-3">
+                <div className={cn("p-2 rounded-lg", card.bg)}>
+                  <card.icon className={cn("h-4 w-4", card.color)} />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold leading-none">{card.value}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{card.label}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Activity Over Time</CardTitle>
+            <CardDescription className="text-xs">Weekly actions (last 12 weeks)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="week" tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                  <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                  <Tooltip
+                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
+                  />
+                  <Bar dataKey="actions" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[220px] text-muted-foreground text-sm">
+                No activity data yet
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Feature Usage</CardTitle>
+            <CardDescription className="text-xs">Most used features (last 30 days)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {featureUsage.length > 0 ? (
+              <div className="flex items-center gap-4">
+                <ResponsiveContainer width="50%" height={220}>
+                  <PieChart>
+                    <Pie
+                      data={featureUsage.slice(0, 8)}
+                      dataKey="count"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      innerRadius={40}
+                    >
+                      {featureUsage.slice(0, 8).map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex-1 space-y-1.5">
+                  {featureUsage.slice(0, 8).map((f, i) => (
+                    <div key={f.name} className="flex items-center gap-2 text-xs">
+                      <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                      <span className="truncate text-muted-foreground">{f.name}</span>
+                      <span className="ml-auto font-medium">{f.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-[220px] text-muted-foreground text-sm">
+                No feature usage data yet
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Trophy className="h-5 w-5 text-amber-500" />
+            Badges ({earnedBadges.length}/{badges.length})
+          </CardTitle>
+          <CardDescription className="text-xs">Earn badges by reaching professional milestones</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {earnedBadges.length > 0 && (
+            <div className="mb-4">
+              <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Earned</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {earnedBadges.map(badge => (
+                  <div
+                    key={badge.id}
+                    className="flex flex-col items-center text-center p-3 rounded-lg border-2 border-amber-500/30 bg-amber-500/5"
+                  >
+                    <div className="text-amber-500 mb-1">
+                      {getBadgeIcon(badge.icon, "h-7 w-7")}
+                    </div>
+                    <p className="text-xs font-semibold">{badge.name}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{badge.description}</p>
+                    <Badge variant="secondary" className="mt-1.5 text-[10px] px-1.5 py-0">
+                      {badge.current}/{badge.threshold}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {lockedBadges.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Locked</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {lockedBadges.map(badge => (
+                  <div
+                    key={badge.id}
+                    className="flex flex-col items-center text-center p-3 rounded-lg border border-dashed border-muted-foreground/20 opacity-60"
+                  >
+                    <div className="text-muted-foreground/40 mb-1">
+                      {getBadgeIcon(badge.icon, "h-7 w-7")}
+                    </div>
+                    <p className="text-xs font-medium text-muted-foreground">{badge.name}</p>
+                    <p className="text-[10px] text-muted-foreground/60 mt-0.5">{badge.description}</p>
+                    <div className="mt-1.5 w-full">
+                      <Progress value={(badge.current / badge.threshold) * 100} className="h-1.5" />
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{badge.current}/{badge.threshold}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

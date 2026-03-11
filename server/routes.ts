@@ -15,7 +15,7 @@ import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNoti
 import { createTaskAssignmentNotification, createRiskAssignmentNotification, createProjectAssignmentNotification } from "./services/notificationEngine";
 import { AVAILABLE_DASHBOARDS, sendScheduledReport, checkAndSendDueReports, initializeSubscriptionSchedule, calculateNextScheduledTime } from "./services/scheduledReports";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, billingCycles, usageRollups, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries, taskChangeLogs, taskDependencies, notifications, reportSubscriptions, insertReportSubscriptionSchema, type Task } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, milestones, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, billingCycles, usageRollups, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries, taskChangeLogs, taskDependencies, notifications, reportSubscriptions, insertReportSubscriptionSchema, type Task } from "@shared/schema";
 import { magicLinkTokens, type User } from "@shared/models/auth";
 import { eq, and, desc, asc, sql, isNotNull } from "drizzle-orm";
 import multer from "multer";
@@ -1601,20 +1601,270 @@ export async function registerRoutes(
           return res.status(403).json({ message: 'You can only update your own profile' });
         }
       }
-      const { firstName, lastName, email } = req.body;
+      const { firstName, lastName, email, jobTitle, pmiId, linkedinUrl } = req.body;
+      const updateData: Record<string, any> = { updatedAt: new Date() };
+      if (firstName !== undefined) updateData.firstName = firstName;
+      if (lastName !== undefined) updateData.lastName = lastName;
+      if (email !== undefined) {
+        if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return res.status(400).json({ message: 'Invalid email format' });
+        }
+        updateData.email = email;
+      }
+      if (jobTitle !== undefined) updateData.jobTitle = typeof jobTitle === 'string' ? jobTitle.slice(0, 200) : null;
+      if (pmiId !== undefined) {
+        if (pmiId && (typeof pmiId !== 'string' || !/^[A-Za-z0-9\-]{1,20}$/.test(pmiId))) {
+          return res.status(400).json({ message: 'PMI ID must be alphanumeric, up to 20 characters' });
+        }
+        updateData.pmiId = pmiId || null;
+      }
+      if (linkedinUrl !== undefined) {
+        if (linkedinUrl && (typeof linkedinUrl !== 'string' || !/^https?:\/\/(www\.)?linkedin\.com\//i.test(linkedinUrl))) {
+          return res.status(400).json({ message: 'LinkedIn URL must be a valid linkedin.com URL' });
+        }
+        updateData.linkedinUrl = linkedinUrl || null;
+      }
       const [updated] = await db.update(users)
-        .set({ 
-          firstName, 
-          lastName, 
-          email,
-          updatedAt: new Date()
-        })
+        .set(updateData)
         .where(eq(users.id, targetUserId))
         .returning();
       res.json(sanitizeUser(updated));
     } catch (err) {
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update user profile' : classified.message });
+    }
+  });
+
+  // Profile analytics - engagement stats, ranking, and badges
+  app.get('/api/users/:userId/profile-analytics', async (req, res) => {
+    try {
+      const currentUserId = getUserIdFromRequest(req);
+      if (!currentUserId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      const targetUserId = req.params.userId;
+      if (currentUserId !== targetUserId) {
+        const currentUser = await storage.getUser(currentUserId);
+        if (!currentUser || currentUser.role !== 'super_admin') {
+          return res.status(403).json({ message: 'You can only view your own analytics' });
+        }
+      }
+
+      const targetUser = await storage.getUser(targetUserId);
+      if (!targetUser) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      const { apiRequestLogs, userActivityLogs, featureUsageLogs } = await import("@shared/schema");
+      const { count, sum } = await import("drizzle-orm");
+
+      const projectsManaged = await db.select({ count: sql<number>`count(*)::int` })
+        .from(projects)
+        .where(and(
+          sql`(${projects.managerId} = ${targetUserId} OR ${projects.businessOwnerId} = ${targetUserId} OR ${projects.businessSponsorId} = ${targetUserId} OR ${projects.technicalLeadId} = ${targetUserId})`,
+          sql`${projects.deletedAt} IS NULL`
+        ));
+
+      const tasksOwned = await db.select({ count: sql<number>`count(*)::int` })
+        .from(tasks)
+        .where(and(eq(tasks.ownerId, targetUserId), sql`${tasks.deletedAt} IS NULL`));
+
+      const tasksAssigned = await db.select({ count: sql<number>`count(*)::int` })
+        .from(tasks)
+        .where(and(eq(tasks.assignedTo, targetUserId), sql`${tasks.deletedAt} IS NULL`));
+
+      const tasksCompleted = await db.select({ count: sql<number>`count(*)::int` })
+        .from(tasks)
+        .where(and(
+          sql`(${tasks.ownerId} = ${targetUserId} OR ${tasks.assignedTo} = ${targetUserId})`,
+          eq(tasks.status, 'Completed'),
+          sql`${tasks.deletedAt} IS NULL`
+        ));
+
+      const issuesAssigned = await db.select({ count: sql<number>`count(*)::int` })
+        .from(issues)
+        .where(and(
+          sql`(${issues.assigneeId} = ${targetUserId} OR ${issues.ownerId} = ${targetUserId})`,
+          eq(issues.itemType, 'issue'),
+          sql`${issues.deletedAt} IS NULL`
+        ));
+
+      const risksAssigned = await db.select({ count: sql<number>`count(*)::int` })
+        .from(issues)
+        .where(and(
+          sql`(${issues.assigneeId} = ${targetUserId} OR ${issues.ownerId} = ${targetUserId})`,
+          eq(issues.itemType, 'risk'),
+          sql`${issues.deletedAt} IS NULL`
+        ));
+
+      const risksResolved = await db.select({ count: sql<number>`count(*)::int` })
+        .from(issues)
+        .where(and(
+          sql`(${issues.assigneeId} = ${targetUserId} OR ${issues.ownerId} = ${targetUserId})`,
+          eq(issues.itemType, 'risk'),
+          sql`${issues.status} IN ('Mitigated', 'Closed')`,
+          sql`${issues.deletedAt} IS NULL`
+        ));
+
+      const milestonesOwned = await db.select({ count: sql<number>`count(*)::int` })
+        .from(milestones)
+        .where(and(eq(milestones.ownerId, targetUserId), sql`${milestones.deletedAt} IS NULL`));
+
+      const portfoliosManaged = await db.select({ count: sql<number>`count(*)::int` })
+        .from(portfolios)
+        .where(and(
+          sql`(${portfolios.managerId} = ${targetUserId} OR ${portfolios.businessOwnerId} = ${targetUserId})`,
+          sql`${portfolios.deletedAt} IS NULL`
+        ));
+
+      const totalLogins = await db.select({ count: sql<number>`count(*)::int` })
+        .from(apiRequestLogs)
+        .where(and(
+          eq(apiRequestLogs.userId, targetUserId),
+          sql`${apiRequestLogs.path} = '/api/auth/user'`,
+          sql`${apiRequestLogs.method} = 'GET'`
+        ));
+
+      const totalApiRequests = await db.select({ count: sql<number>`count(*)::int` })
+        .from(apiRequestLogs)
+        .where(eq(apiRequestLogs.userId, targetUserId));
+
+      const weeklyActivity = await db.select({
+        week: sql<string>`to_char(date_trunc('week', ${apiRequestLogs.createdAt}), 'YYYY-MM-DD')`,
+        count: sql<number>`count(*)::int`
+      })
+        .from(apiRequestLogs)
+        .where(and(
+          eq(apiRequestLogs.userId, targetUserId),
+          sql`${apiRequestLogs.createdAt} >= NOW() - INTERVAL '12 weeks'`
+        ))
+        .groupBy(sql`date_trunc('week', ${apiRequestLogs.createdAt})`)
+        .orderBy(sql`date_trunc('week', ${apiRequestLogs.createdAt})`);
+
+      const featureBreakdown = await db.select({
+        feature: apiRequestLogs.path,
+        count: sql<number>`count(*)::int`
+      })
+        .from(apiRequestLogs)
+        .where(and(
+          eq(apiRequestLogs.userId, targetUserId),
+          sql`${apiRequestLogs.method} != 'OPTIONS'`,
+          sql`${apiRequestLogs.createdAt} >= NOW() - INTERVAL '30 days'`
+        ))
+        .groupBy(apiRequestLogs.path)
+        .orderBy(sql`count(*) DESC`)
+        .limit(15);
+
+      const featureCategories: Record<string, number> = {};
+      for (const f of featureBreakdown) {
+        let category = 'Other';
+        const p = f.feature;
+        if (p.includes('/projects')) category = 'Projects';
+        else if (p.includes('/tasks')) category = 'Tasks';
+        else if (p.includes('/issues') || p.includes('/risks')) category = 'Issues & Risks';
+        else if (p.includes('/milestones')) category = 'Milestones';
+        else if (p.includes('/portfolios')) category = 'Portfolios';
+        else if (p.includes('/resources')) category = 'Resources';
+        else if (p.includes('/timesheets') || p.includes('/timesheet')) category = 'Timesheets';
+        else if (p.includes('/dashboard') || p.includes('/reports')) category = 'Reports & Dashboards';
+        else if (p.includes('/auth')) category = 'Authentication';
+        featureCategories[category] = (featureCategories[category] || 0) + f.count;
+      }
+
+      const recentActions = await db.select({
+        action: userActivityLogs.action,
+        entityType: userActivityLogs.entityType,
+        createdAt: userActivityLogs.createdAt,
+      })
+        .from(userActivityLogs)
+        .where(eq(userActivityLogs.userId, targetUserId))
+        .orderBy(desc(userActivityLogs.createdAt))
+        .limit(20);
+
+      const stats = {
+        projectsManaged: projectsManaged[0]?.count || 0,
+        tasksOwned: tasksOwned[0]?.count || 0,
+        tasksAssigned: tasksAssigned[0]?.count || 0,
+        tasksCompleted: tasksCompleted[0]?.count || 0,
+        issuesAssigned: issuesAssigned[0]?.count || 0,
+        risksAssigned: risksAssigned[0]?.count || 0,
+        risksResolved: risksResolved[0]?.count || 0,
+        milestonesOwned: milestonesOwned[0]?.count || 0,
+        portfoliosManaged: portfoliosManaged[0]?.count || 0,
+        totalLogins: totalLogins[0]?.count || 0,
+        totalApiRequests: totalApiRequests[0]?.count || 0,
+      };
+
+      const score =
+        stats.projectsManaged * 15 +
+        stats.portfoliosManaged * 20 +
+        stats.tasksOwned * 3 +
+        stats.tasksAssigned * 2 +
+        stats.tasksCompleted * 5 +
+        stats.issuesAssigned * 4 +
+        stats.risksAssigned * 4 +
+        stats.risksResolved * 8 +
+        stats.milestonesOwned * 6 +
+        Math.min(stats.totalLogins, 500) * 0.5 +
+        Math.min(stats.totalApiRequests, 5000) * 0.02;
+
+      const tiers = [
+        { name: 'Beginner', minScore: 0, icon: 'seedling' },
+        { name: 'Associate', minScore: 50, icon: 'leaf' },
+        { name: 'Professional', minScore: 150, icon: 'star' },
+        { name: 'Senior', minScore: 400, icon: 'award' },
+        { name: 'Expert', minScore: 800, icon: 'trophy' },
+        { name: 'Master', minScore: 1500, icon: 'crown' },
+      ];
+
+      let currentTier = tiers[0];
+      let nextTier: typeof tiers[0] | null = tiers[1];
+      for (let i = tiers.length - 1; i >= 0; i--) {
+        if (score >= tiers[i].minScore) {
+          currentTier = tiers[i];
+          nextTier = tiers[i + 1] || null;
+          break;
+        }
+      }
+
+      const progressToNext = nextTier
+        ? Math.min(100, Math.round(((score - currentTier.minScore) / (nextTier.minScore - currentTier.minScore)) * 100))
+        : 100;
+
+      const achievementBadges = [
+        { id: 'first-project', name: 'Project Starter', description: 'Manage your first project', icon: 'rocket', earned: stats.projectsManaged >= 1, threshold: 1, current: stats.projectsManaged, category: 'Projects' },
+        { id: 'portfolio-leader', name: 'Portfolio Leader', description: 'Manage 5+ projects', icon: 'briefcase', earned: stats.projectsManaged >= 5, threshold: 5, current: stats.projectsManaged, category: 'Projects' },
+        { id: 'project-master', name: 'Project Master', description: 'Manage 15+ projects', icon: 'building', earned: stats.projectsManaged >= 15, threshold: 15, current: stats.projectsManaged, category: 'Projects' },
+        { id: 'task-starter', name: 'Task Tracker', description: 'Own 10+ tasks', icon: 'list-checks', earned: stats.tasksOwned >= 10, threshold: 10, current: stats.tasksOwned, category: 'Tasks' },
+        { id: 'task-champion', name: 'Task Champion', description: 'Complete 25+ tasks', icon: 'check-circle', earned: stats.tasksCompleted >= 25, threshold: 25, current: stats.tasksCompleted, category: 'Tasks' },
+        { id: 'task-legend', name: 'Task Legend', description: 'Complete 100+ tasks', icon: 'zap', earned: stats.tasksCompleted >= 100, threshold: 100, current: stats.tasksCompleted, category: 'Tasks' },
+        { id: 'risk-manager', name: 'Risk Manager', description: 'Resolve 10+ risks', icon: 'shield', earned: stats.risksResolved >= 10, threshold: 10, current: stats.risksResolved, category: 'Risks' },
+        { id: 'risk-master', name: 'Risk Master', description: 'Handle 25+ risks', icon: 'shield-check', earned: stats.risksAssigned >= 25, threshold: 25, current: stats.risksAssigned, category: 'Risks' },
+        { id: 'issue-resolver', name: 'Issue Resolver', description: 'Handle 20+ issues', icon: 'bug', earned: stats.issuesAssigned >= 20, threshold: 20, current: stats.issuesAssigned, category: 'Issues' },
+        { id: 'milestone-tracker', name: 'Milestone Tracker', description: 'Own 10+ milestones', icon: 'flag', earned: stats.milestonesOwned >= 10, threshold: 10, current: stats.milestonesOwned, category: 'Milestones' },
+        { id: 'power-user', name: 'Power User', description: '100+ sessions', icon: 'activity', earned: stats.totalLogins >= 100, threshold: 100, current: stats.totalLogins, category: 'Engagement' },
+        { id: 'dedicated', name: 'Dedicated PM', description: '500+ sessions', icon: 'flame', earned: stats.totalLogins >= 500, threshold: 500, current: stats.totalLogins, category: 'Engagement' },
+        { id: 'portfolio-strategist', name: 'Portfolio Strategist', description: 'Manage 3+ portfolios', icon: 'layers', earned: stats.portfoliosManaged >= 3, threshold: 3, current: stats.portfoliosManaged, category: 'Portfolios' },
+      ];
+
+      res.json({
+        stats,
+        ranking: {
+          score: Math.round(score),
+          tier: currentTier,
+          nextTier,
+          progressToNext,
+          tiers,
+        },
+        badges: achievementBadges,
+        weeklyActivity,
+        featureUsage: Object.entries(featureCategories).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
+        recentActions,
+        memberSince: targetUser.createdAt,
+      });
+    } catch (err) {
+      console.error('Profile analytics error:', err);
+      res.status(500).json({ message: 'Failed to fetch profile analytics' });
     }
   });
 
