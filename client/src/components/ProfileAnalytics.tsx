@@ -9,7 +9,7 @@ import { Loader2, Briefcase, ListChecks, CheckCircle2, AlertTriangle, Shield, Fl
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { useCallback, useRef } from "react";
+import { useCallback } from "react";
 
 interface ProfileAnalyticsData {
   stats: {
@@ -127,8 +127,6 @@ function FridayReportBranding({ size = "sm" }: { size?: "sm" | "md" }) {
 export default function ProfileAnalytics() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const badgeRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
   const { data, isLoading, error } = useQuery<ProfileAnalyticsData>({
     queryKey: [`/api/users/${user?.id}/profile-analytics`],
     enabled: !!user?.id,
@@ -442,7 +440,6 @@ export default function ProfileAnalytics() {
                 {earnedBadges.map(badge => (
                   <div
                     key={badge.id}
-                    ref={el => { badgeRefs.current[badge.id] = el; }}
                     className="flex flex-col items-center text-center p-3 rounded-lg border-2 border-amber-500/30 bg-amber-500/5 relative group"
                   >
                     <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
