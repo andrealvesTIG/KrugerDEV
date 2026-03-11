@@ -173,6 +173,12 @@ export default function PublicBadgeProfile() {
                 <Badge className={cn("mt-2", TIER_BG[ranking.tier.name], TIER_COLORS[ranking.tier.name])} variant="outline">
                   {ranking.tier.name} Rank
                 </Badge>
+                <div className="flex items-center gap-1 mt-2">
+                  <div className="h-4 w-4 bg-primary rounded flex items-center justify-center shrink-0">
+                    <span className="text-primary-foreground font-bold text-[8px]">F</span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-muted-foreground">FridayReport.AI</span>
+                </div>
               </div>
               <div className="flex-1 w-full space-y-4">
                 <div className="flex items-center justify-between">
@@ -255,6 +261,12 @@ export default function PublicBadgeProfile() {
                     <Badge variant="secondary" className="mt-1 text-[9px] px-1 py-0">
                       {badge.category}
                     </Badge>
+                    <div className="flex items-center gap-0.5 mt-1.5">
+                      <div className="h-3 w-3 bg-primary rounded flex items-center justify-center shrink-0">
+                        <span className="text-primary-foreground font-bold text-[6px]">F</span>
+                      </div>
+                      <span className="text-[8px] text-muted-foreground">FridayReport.AI</span>
+                    </div>
                   </div>
                 ))}
               </div>
