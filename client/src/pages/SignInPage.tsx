@@ -348,7 +348,7 @@ export default function SignInPage() {
         </div>
         
         {/* Navigation */}
-        <nav className="bg-slate-800/90 backdrop-blur-md border-b border-slate-600">
+        <nav className="relative bg-slate-800/90 backdrop-blur-md border-b border-slate-600 z-50">
           <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -373,7 +373,7 @@ export default function SignInPage() {
             </div>
           </div>
           {mobileMenuOpen && (
-            <div className="border-t border-slate-700 bg-slate-900/98 backdrop-blur-xl shadow-2xl shadow-black/40">
+            <div className="absolute left-0 right-0 top-full z-50 border-t border-slate-700 bg-slate-900 shadow-2xl shadow-black/60">
               <div className="max-w-7xl mx-auto max-h-[70vh] overflow-y-auto">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                   <div className="p-5 sm:border-r sm:border-slate-700/50">
@@ -412,7 +412,7 @@ export default function SignInPage() {
                   </div>
                 </div>
               </div>
-              <div className="border-t border-slate-700/50 bg-slate-900/80 px-5 py-3 flex items-center justify-between">
+              <div className="border-t border-slate-700/50 bg-slate-950 px-5 py-3 flex items-center justify-between">
                 <span className="text-xs text-slate-500">FridayReport.AI</span>
                 <button
                   onClick={() => setMobileMenuOpen(false)}
