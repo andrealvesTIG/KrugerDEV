@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   GraduationCap,
@@ -14,13 +13,11 @@ import {
   Shield,
   BookOpen,
   Lock,
-  ChevronRight,
   Award,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
 
 interface SubjectArea {
   id: string;
@@ -175,8 +172,6 @@ function RoleHeader({ role }: { role: Role }) {
 }
 
 export default function Training() {
-  const [activeRole, setActiveRole] = useState(roles[0].id);
-
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -196,60 +191,30 @@ export default function Training() {
           </p>
         </div>
 
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {roles.map((role) => {
-            const Icon = role.icon;
-            return (
-              <Card
-                key={role.id}
-                className={cn(
-                  "cursor-pointer transition-all duration-200 hover:shadow-md",
-                  activeRole === role.id
-                    ? "border-primary bg-primary/5 shadow-sm"
-                    : "border-border/50 hover:border-primary/30"
-                )}
-                onClick={() => setActiveRole(role.id)}
-              >
-                <CardContent className="flex items-center gap-3 p-4">
-                  <div className={cn(
-                    "flex h-9 w-9 items-center justify-center rounded-lg",
-                    activeRole === role.id
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
-                  )}>
-                    <Icon className="h-4.5 w-4.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className={cn(
-                      "text-sm font-semibold truncate",
-                      activeRole === role.id ? "text-primary" : "text-foreground"
-                    )}>
-                      {role.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {subjectAreas.length} subjects
-                    </p>
-                  </div>
-                  <ChevronRight className={cn(
-                    "ml-auto h-4 w-4 flex-shrink-0 transition-colors",
-                    activeRole === role.id ? "text-primary" : "text-muted-foreground/50"
-                  )} />
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+        <Tabs defaultValue={roles[0].id} className="w-full">
+          <TabsList className="mb-6 w-full justify-start">
+            {roles.map((role) => {
+              const Icon = role.icon;
+              return (
+                <TabsTrigger key={role.id} value={role.id} className="flex items-center gap-2">
+                  <Icon className="h-4 w-4" />
+                  {role.name}
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
 
-        {roles.map((role) => (
-          <div key={role.id} className={cn(activeRole === role.id ? "block" : "hidden")}>
-            <RoleHeader role={role} />
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {subjectAreas.map((subject) => (
-                <SubjectCard key={subject.id} subject={subject} />
-              ))}
-            </div>
-          </div>
-        ))}
+          {roles.map((role) => (
+            <TabsContent key={role.id} value={role.id}>
+              <RoleHeader role={role} />
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {subjectAreas.map((subject) => (
+                  <SubjectCard key={subject.id} subject={subject} />
+                ))}
+              </div>
+            </TabsContent>
+          ))}
+        </Tabs>
       </div>
     </div>
   );
