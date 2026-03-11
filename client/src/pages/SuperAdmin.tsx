@@ -6047,7 +6047,7 @@ function MonitoringTab() {
             data-testid="btn-subtab-analytics"
           >
             <TrendingUp className="h-4 w-4 mr-1" />
-            Analytics
+            Reports
           </Button>
           <Button
             variant={subTab === 'overview' ? 'default' : 'outline'}
