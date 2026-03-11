@@ -3213,16 +3213,34 @@ export default function Timesheets() {
     return Array.from(projectMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [assignedTasks, hideClosedProjects]);
 
+  const CLOSED_TASK_STATUSES = useMemo(() => ["Done", "Completed", "Cancelled"], []);
+
+  const taskIdsWithHours = useMemo(() => {
+    const ids = new Set<number>();
+    for (const entry of entries) {
+      if (entry.taskId && Number(entry.hours || 0) > 0) {
+        ids.add(entry.taskId);
+      }
+    }
+    return ids;
+  }, [entries]);
+
   const filteredAssignedTasks = useMemo(() => {
     let tasks = assignedTasks;
     if (hideClosedProjects) {
       tasks = tasks.filter(({ project }) => !CLOSED_PROJECT_STATUSES.includes(project.status || ""));
     }
+    tasks = tasks.filter(({ task }) => {
+      if (CLOSED_TASK_STATUSES.includes(task.status || "") && !taskIdsWithHours.has(task.id)) {
+        return false;
+      }
+      return true;
+    });
     if (filterProjectId) {
       tasks = tasks.filter(({ project }) => project.id === filterProjectId);
     }
     return tasks;
-  }, [assignedTasks, filterProjectId, hideClosedProjects]);
+  }, [assignedTasks, filterProjectId, hideClosedProjects, CLOSED_PROJECT_STATUSES, CLOSED_TASK_STATUSES, taskIdsWithHours]);
 
   if (isFullscreen) {
     return (
