@@ -846,20 +846,6 @@ export default function Profile() {
               <p className="text-muted-foreground">Manage your account security</p>
             </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Connected Accounts</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div>
-                    <p className="font-medium">Connected Account</p>
-                    <p className="text-sm text-muted-foreground">Signed in via Replit</p>
-                  </div>
-                  <Badge variant="secondary">Active</Badge>
-                </div>
-              </CardContent>
-            </Card>
 
             <Card>
               <CardHeader>
