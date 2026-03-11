@@ -8,10 +8,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Loader2, Briefcase, ListChecks, CheckCircle2, AlertTriangle, Shield, Flag, Layers, Activity, Trophy, Award, Star, Crown, Flame, Zap, Rocket, Bug, ShieldCheck, Building2, Share2, Link2, Download, GraduationCap } from "lucide-react";
 import { getTrainingBadges, setTrainingUserId } from "@/lib/trainingData";
 import type { TrainingModule } from "@/lib/trainingData";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ProfileAnalyticsData {
   stats: {
@@ -367,7 +368,7 @@ export default function ProfileAnalytics() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="week" tick={{ fontSize: 11 }} className="text-muted-foreground" />
                   <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" />
-                  <Tooltip
+                  <RechartsTooltip
                     contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
                   />
                   <Bar dataKey="actions" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
@@ -404,7 +405,7 @@ export default function ProfileAnalytics() {
                         <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip
+                    <RechartsTooltip
                       contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
                     />
                   </PieChart>
@@ -507,6 +508,73 @@ export default function ProfileAnalytics() {
   );
 }
 
+function CertShareButtons({ badgeName, userName }: { badgeName: string; userName: string }) {
+  const { toast } = useToast();
+  const shareText = `I just earned my ${badgeName} certification from Friday Academy on FridayReport.AI! #FridayAcademy #ProjectManagement #PPM`;
+  const shareUrl = typeof window !== "undefined" ? window.location.origin + "/training" : "";
+
+  const handleLinkedIn = () => {
+    const url = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent(`${badgeName} Certification - Friday Academy`)}&summary=${encodeURIComponent(shareText)}`;
+    window.open(url, "_blank", "noopener,noreferrer,width=600,height=500");
+  };
+
+  const handleTwitter = () => {
+    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
+    window.open(url, "_blank", "noopener,noreferrer,width=600,height=500");
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+    toast({ title: "Copied to clipboard", description: "Certification details copied — ready to share!" });
+  };
+
+  return (
+    <div className="flex items-center gap-1 mt-2">
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 rounded-full hover:bg-[#0A66C2]/10 hover:text-[#0A66C2]"
+              onClick={handleLinkedIn}
+            >
+              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom"><p className="text-xs">Share on LinkedIn</p></TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 rounded-full hover:bg-black/10 hover:text-black dark:hover:bg-white/10 dark:hover:text-white"
+              onClick={handleTwitter}
+            >
+              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom"><p className="text-xs">Share on X</p></TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 rounded-full hover:bg-primary/10"
+              onClick={handleCopyLink}
+            >
+              <Link2 className="h-3 w-3" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom"><p className="text-xs">Copy to clipboard</p></TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
+  );
+}
+
 function TrainingCertificationsCard() {
   const { user } = useAuth();
   setTrainingUserId(user?.id ?? null);
@@ -522,6 +590,7 @@ function TrainingCertificationsCard() {
   const badges = getTrainingBadges(modules);
   const earned = badges.filter((b) => b.earned);
   const locked = badges.filter((b) => !b.earned);
+  const userName = user?.username || user?.email || "User";
 
   return (
     <Card>
@@ -554,7 +623,8 @@ function TrainingCertificationsCard() {
                   <Badge variant="secondary" className="mt-1.5 text-[10px] px-1.5 py-0 bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/30">
                     <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" /> Certified
                   </Badge>
-                  <div className="mt-1.5">
+                  <CertShareButtons badgeName={badge.moduleName} userName={userName} />
+                  <div className="mt-1">
                     <FridayReportBranding size="sm" />
                   </div>
                 </div>
