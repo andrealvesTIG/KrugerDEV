@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
@@ -96,6 +96,7 @@ const moduleDefinitions: Record<string, { name: string; href: string; icon: Reac
   resources: { name: "Resources", href: "/resources", icon: Users },
   calendar: { name: "Calendar", href: "/calendar", icon: Calendar },
   "user-guide": { name: "User Guide", href: "/user-guide", icon: BookOpen },
+  training: { name: "Training", href: "/training", icon: GraduationCap },
 };
 
 const navigation = [
@@ -145,6 +146,7 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
       { type: "module" as const, key: "calendar", hidden: false },
       { type: "module" as const, key: "lessons-learned", hidden: false },
       { type: "module" as const, key: "user-guide", hidden: false },
+      { type: "module" as const, key: "training", hidden: false },
     ]},
   ];
 }
@@ -188,6 +190,7 @@ function migrateOldFlatStructure(structure: SidebarStructure): SidebarStructure 
       { type: "module" as const, key: "calendar", hidden: getItemHidden("calendar") },
       { type: "module" as const, key: "lessons-learned", hidden: getItemHidden("lessons-learned") },
       { type: "module" as const, key: "user-guide", hidden: helpGroup?.items.find(i => i.type === "module" && i.key === "user-guide")?.hidden ?? false },
+      { type: "module" as const, key: "training", hidden: helpGroup?.items.find(i => i.type === "module" && i.key === "training")?.hidden ?? false },
       ...customLinks,
     ]},
   ];
@@ -245,6 +248,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   ensureModule("lessons-learned", "help");
   ensureModule("invoices", "finance", "pmo-radar");
   ensureModule("user-guide", "help");
+  ensureModule("training", "help", "user-guide");
   
   const helpGroup = updatedStructure.find(g => g.id === "help");
   if (!helpGroup) {
@@ -254,7 +258,10 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
       isDefault: true, 
       hidden: false, 
       collapsedByDefault: true,
-      items: [{ type: "module" as const, key: "user-guide", hidden: false }] 
+      items: [
+        { type: "module" as const, key: "user-guide", hidden: false },
+        { type: "module" as const, key: "training", hidden: false },
+      ] 
     }];
   }
   

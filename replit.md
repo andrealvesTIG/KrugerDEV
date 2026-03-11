@@ -20,6 +20,7 @@ The application features a professional, enterprise-grade UI inspired by Linear 
 **Signup Source Tracking**: Records the origin of user signups for analytics purposes, preserving source information across authentication flows.
 **Notification Engine**: Supports various notification types with severity levels and deduplication. Includes welcome emails for all new user registrations.
 **Help & Feedback**: Provides a system for users to submit support tickets with text and screenshots.
+**Friday Academy Training & Certification**: A training section (`/training`) under the Help sidebar group where users can explore training modules organized by role (Project Manager, Portfolio Manager, Functional Administrator) across eight subject areas: Portfolio Management, Project Portfolio Management, Optimization, Resource Management, Schedule Management, Risks and Issues Management, Predictive Analytics, and PMO Governance. Section content and quiz questions are placeholder, ready for future content additions.
 **Integration Settings**: Stores organization-scoped integration credentials and connection statuses, with encrypted OAuth tokens.
 **API Design**: Follows a consistent API error convention and maintains a comprehensive OpenAPI 3.0 specification.
 **Performance Optimizations**: Includes extensive database indexing, N+1 query fixes, `React.memo` and `useCallback` for UI components, batch queries, virtual scrolling for large data sets, and memoized date parsing. Server-side date filtering is supported.
