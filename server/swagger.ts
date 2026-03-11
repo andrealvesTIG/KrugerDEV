@@ -39,9 +39,26 @@ const inputRes = { ...e400, ...e401 };
 const createRes = { ...e400, ...e401, ...e403 };
 const updateRes = { ...e400, ...e401, ...e403, ...e404 };
 
-const op = (tag: string, summary: string, extras: any = {}) => ({
-  tags: [tag], summary, ...extras,
-});
+const toOperationId = (summary: string): string => {
+  return summary
+    .replace(/[^a-zA-Z0-9\s]/g, '')
+    .trim()
+    .split(/\s+/)
+    .map((w, i) => i === 0 ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join('');
+};
+
+const _usedOperationIds = new Set<string>();
+const op = (tag: string, summary: string, extras: any = {}) => {
+  let id = toOperationId(summary);
+  if (_usedOperationIds.has(id)) {
+    let n = 2;
+    while (_usedOperationIds.has(`${id}${n}`)) n++;
+    id = `${id}${n}`;
+  }
+  _usedOperationIds.add(id);
+  return { operationId: id, tags: [tag], summary, ...extras };
+};
 
 const spec = {
   openapi: '3.0.0',
