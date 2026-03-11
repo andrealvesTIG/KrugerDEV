@@ -4676,7 +4676,6 @@ function SchedulingDefaultsSection({ organizationId }: { organizationId: number 
   const { toast } = useToast();
   const [config, setConfig] = useState<SchedulingDefaults>(DEFAULT_SCHEDULING_DEFAULTS);
   const [isSaving, setIsSaving] = useState(false);
-  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery<SchedulingDefaults>({
     queryKey: ['/api/organizations', organizationId, 'scheduling-defaults'],
