@@ -54,7 +54,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   });
 
   const { data: organizations = [], isLoading: orgsLoading } = useQuery<Organization[]>({
-    queryKey: ['/api/organizations']
+    queryKey: ['/api/organizations'],
+    enabled: !!user?.id
   });
 
   // Auto-select first org if none selected
