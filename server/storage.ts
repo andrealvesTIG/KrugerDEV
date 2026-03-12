@@ -4352,11 +4352,11 @@ export class DatabaseStorage implements IStorage {
 
   async submitTimesheetWeek(userId: string, organizationId: number, startDate: string, endDate: string): Promise<void> {
     await db.update(timesheetEntries)
-      .set({ status: "Submitted", submittedAt: new Date(), updatedAt: new Date() })
+      .set({ status: "Submitted", submittedAt: new Date(), rejectedAt: null, rejectionReason: null, updatedAt: new Date() })
       .where(and(
         eq(timesheetEntries.userId, userId),
         eq(timesheetEntries.organizationId, organizationId),
-        eq(timesheetEntries.status, "Draft"),
+        sql`${timesheetEntries.status} IN ('Draft', 'Rejected')`,
         sql`${timesheetEntries.entryDate} >= ${startDate}`,
         sql`${timesheetEntries.entryDate} <= ${endDate}`
       ));
@@ -4387,7 +4387,7 @@ export class DatabaseStorage implements IStorage {
 
   async rejectTimesheetEntry(id: number, rejectionReason: string): Promise<TimesheetEntry> {
     const [updated] = await db.update(timesheetEntries)
-      .set({ status: "Rejected", rejectionReason, updatedAt: new Date() })
+      .set({ status: "Rejected", rejectionReason, rejectedAt: new Date(), updatedAt: new Date() })
       .where(eq(timesheetEntries.id, id))
       .returning();
     return updated;
