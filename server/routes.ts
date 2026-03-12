@@ -21442,8 +21442,19 @@ Return ONLY valid JSON.`;
         return res.status(403).json({ message: 'Not authorized' });
       }
 
-      const allEntries = await storage.getAllTimesheetEntriesWithDetails(organizationId, startDate, endDate);
+      const allEntriesRaw = await storage.getAllTimesheetEntriesWithDetails(organizationId, startDate, endDate);
       const slaThresholdDays = 3;
+
+      let filteredEntries = allEntriesRaw;
+      if (!isAdmin && !isApprover && activeDelegations.length > 0) {
+        const delegatorIds = activeDelegations.map(d => d.delegatorId);
+        filteredEntries = allEntriesRaw.filter(({ entry }) => {
+          const entryResource = resources.find(r => r.id === entry.resourceId);
+          return entryResource?.managerId && delegatorIds.includes(entryResource.managerId);
+        });
+      }
+
+      const allEntries = filteredEntries;
 
       let totalTurnaroundMs = 0;
       let resolvedCount = 0;

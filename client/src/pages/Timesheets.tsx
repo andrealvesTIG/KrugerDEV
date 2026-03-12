@@ -1171,9 +1171,9 @@ function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void 
     return map;
   }, [delegations, isActiveDelegate, user?.id]);
 
-  const isDelegatedEntry = useCallback((entry: any) => {
+  const isDelegatedEntry = useCallback((entry: TimesheetEntryWithDetails) => {
     if (!isActiveDelegate || delegatorMap.size === 0) return null;
-    const managerId = entry.resource?.managerId;
+    const managerId = (entry as TimesheetEntryWithDetails & { resource?: { managerId?: string } }).resource?.managerId;
     if (managerId && delegatorMap.has(managerId)) {
       return delegatorMap.get(managerId) || 'Manager';
     }
@@ -1184,8 +1184,8 @@ function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void 
     try {
       await approveEntry.mutateAsync(id);
       toast({ title: "Approved", description: "Timesheet entry has been approved" });
-    } catch (err: any) {
-      const message = err?.message || "Failed to approve entry";
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to approve entry";
       toast({ title: "Error", description: message, variant: "destructive" });
     }
   };
@@ -1199,8 +1199,8 @@ function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void 
         title: "Approval Complete", 
         description: `${result.approved} of ${ids.length} entries approved` 
       });
-    } catch (err: any) {
-      toast({ title: "Error", description: err?.message || "Failed to approve entries", variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to approve entries", variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }
