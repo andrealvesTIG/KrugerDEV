@@ -1136,7 +1136,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   );
 }
 
-function ApprovalTab() {
+function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void }) {
   const { currentOrganization } = useOrganization();
   const [statusFilter, setStatusFilter] = useState<"Submitted" | "Approved" | "Rejected">("Submitted");
   const { data: entries, isLoading } = useTimesheetEntriesForApproval(currentOrganization?.id || null, statusFilter);
@@ -1502,6 +1502,21 @@ function ApprovalTab() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="font-mono font-medium text-lg">{Number(entry.hours).toFixed(1)}h</span>
+                      {onViewAudit && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              className="text-muted-foreground hover:text-foreground"
+                              onClick={() => onViewAudit(entry.id)}
+                            >
+                              <History className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>View audit history</TooltipContent>
+                        </Tooltip>
+                      )}
                       {isPending && (
                         <div className="flex gap-1">
                           <Button 
@@ -4356,7 +4371,7 @@ export default function Timesheets() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <ApprovalTab />
+            <ApprovalTab onViewAudit={(entryId) => { setAuditEntryId(entryId); setShowAuditDialog(true); }} />
           </motion.div>
         )}
 

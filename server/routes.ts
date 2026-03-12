@@ -19777,7 +19777,7 @@ Return ONLY valid JSON.`;
           continue;
         }
 
-        if (settings?.mandatoryNotes && hoursNum > 0 && (!entry.notes || !String(entry.notes).trim())) {
+        if (settings?.mandatoryNotes && (!entry.notes || !String(entry.notes).trim())) {
           errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: 'Notes are required for all timesheet entries' });
           continue;
         }
@@ -19955,7 +19955,7 @@ Return ONLY valid JSON.`;
       const settings = await storage.getTimesheetSettings(entry.organizationId);
       const effectiveNotes = notes !== undefined ? notes : entry.notes;
       const effectiveHours = hours !== undefined ? parseFloat(hours) : Number(entry.hours || 0);
-      if (settings?.mandatoryNotes && effectiveHours > 0 && (!effectiveNotes || !effectiveNotes.trim())) {
+      if (settings?.mandatoryNotes && (!effectiveNotes || !effectiveNotes.trim())) {
         return res.status(400).json({ message: 'Notes are required for all timesheet entries' });
       }
 
