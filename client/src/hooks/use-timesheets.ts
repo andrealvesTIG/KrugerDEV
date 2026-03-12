@@ -577,7 +577,7 @@ export function useCreateRejectionTemplate() {
 export function useUpdateRejectionTemplate() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...updates }: { id: number; name?: string; text?: string; category?: string; sortOrder?: number }) => {
+    mutationFn: async ({ id, ...updates }: { id: number; organizationId: number; name?: string; text?: string; category?: string; sortOrder?: number }) => {
       const response = await apiRequest("PUT", `/api/rejection-templates/${id}`, updates);
       return response.json();
     },
@@ -590,8 +590,8 @@ export function useUpdateRejectionTemplate() {
 export function useDeleteRejectionTemplate() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/rejection-templates/${id}`);
+    mutationFn: async ({ id, organizationId }: { id: number; organizationId: number }) => {
+      await apiRequest("DELETE", `/api/rejection-templates/${id}`, { organizationId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/rejection-templates"] });

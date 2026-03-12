@@ -159,10 +159,10 @@ export function TimesheetCommentsThread({ entryId, open, onOpenChange, entryInfo
                       <div className="py-1">
                         <div className="text-sm">
                           <span className="font-medium">{getActionLabel(item.action)}</span>
-                          {item.action === "reject" && item.details && (item.details as Record<string, unknown>).rejectionReason && (
+                          {item.action === "reject" && item.details && Boolean((item.details as Record<string, unknown>).rejectionReason) && (
                             <span className="text-muted-foreground"> — {String((item.details as Record<string, unknown>).rejectionReason)}</span>
                           )}
-                          {item.action === "update" && item.details && (item.details as Record<string, unknown>).hours && (
+                          {item.action === "update" && item.details && Boolean((item.details as Record<string, unknown>).hours) && (
                             <span className="text-muted-foreground"> — {String((item.details as Record<string, unknown>).hours)}h</span>
                           )}
                         </div>

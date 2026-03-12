@@ -19395,14 +19395,24 @@ Return ONLY valid JSON.`;
       const resources = await storage.getResources(organizationId);
       const userResource = resources.find(r => r.userId === userId);
       const activeDelegations = await storage.getActiveDelegationsForDelegate(userId, organizationId);
+      const isApprover = userResource?.isApprover === true;
       
-      if (!userResource?.isApprover && activeDelegations.length === 0) {
+      if (!isApprover && activeDelegations.length === 0) {
         return res.status(403).json({ message: 'You are not authorized to approve timesheets' });
       }
 
       const entries = await storage.getTimesheetEntriesForApproval(organizationId, status);
       
-      const enrichedEntries = await Promise.all(entries.map(async (entry) => {
+      let scopedEntries = entries;
+      if (!isApprover && activeDelegations.length > 0) {
+        const delegatorIds = activeDelegations.map(d => d.delegatorId);
+        scopedEntries = entries.filter(entry => {
+          const entryResource = resources.find(r => r.id === entry.resourceId);
+          return entryResource?.managerId && delegatorIds.includes(entryResource.managerId);
+        });
+      }
+
+      const enrichedEntries = await Promise.all(scopedEntries.map(async (entry) => {
         const task = await storage.getTask(entry.taskId);
         const project = task ? await storage.getProject(task.projectId) : null;
         const resource = await storage.getResource(entry.resourceId);
@@ -20193,8 +20203,22 @@ Return ONLY valid JSON.`;
       const resources = await storage.getResources(organizationId);
       const userResource = resources.find(r => r.userId === userId);
       const activeDelegations = await storage.getActiveDelegationsForDelegate(userId, organizationId);
-      if (!userResource?.isApprover && activeDelegations.length === 0) {
+      const isApprover = userResource?.isApprover === true;
+      if (!isApprover && activeDelegations.length === 0) {
         return res.status(403).json({ message: 'You are not authorized to approve timesheets' });
+      }
+
+      if (!isApprover && activeDelegations.length > 0) {
+        const delegatorIds = activeDelegations.map(d => d.delegatorId);
+        for (const entryId of ids) {
+          const entry = await storage.getTimesheetEntry(entryId);
+          if (entry) {
+            const entryResource = resources.find(r => r.id === entry.resourceId);
+            if (!entryResource?.managerId || !delegatorIds.includes(entryResource.managerId)) {
+              return res.status(403).json({ message: `Entry ${entryId} is outside your delegated approval scope` });
+            }
+          }
+        }
       }
 
       const approved = await storage.bulkApproveTimesheetEntries(ids, userId, organizationId);
@@ -20236,9 +20260,18 @@ Return ONLY valid JSON.`;
       const resources = await storage.getResources(entry.organizationId);
       const userResource = resources.find(r => r.userId === userId);
       const activeDelegations = await storage.getActiveDelegationsForDelegate(userId, entry.organizationId);
+      const isApprover = userResource?.isApprover === true;
       
-      if (!userResource?.isApprover && activeDelegations.length === 0) {
+      if (!isApprover && activeDelegations.length === 0) {
         return res.status(403).json({ message: 'You are not authorized to approve timesheets' });
+      }
+
+      if (!isApprover && activeDelegations.length > 0) {
+        const entryResource = resources.find(r => r.id === entry.resourceId);
+        const delegatorIds = activeDelegations.map(d => d.delegatorId);
+        if (!entryResource?.managerId || !delegatorIds.includes(entryResource.managerId)) {
+          return res.status(403).json({ message: 'This entry is outside your delegated approval scope' });
+        }
       }
 
       if (entry.status !== 'Submitted') {
@@ -20290,9 +20323,18 @@ Return ONLY valid JSON.`;
       const resources = await storage.getResources(entry.organizationId);
       const userResource = resources.find(r => r.userId === userId);
       const activeDelegations = await storage.getActiveDelegationsForDelegate(userId, entry.organizationId);
+      const isApprover = userResource?.isApprover === true;
       
-      if (!userResource?.isApprover && activeDelegations.length === 0) {
+      if (!isApprover && activeDelegations.length === 0) {
         return res.status(403).json({ message: 'You are not authorized to reject timesheets' });
+      }
+
+      if (!isApprover && activeDelegations.length > 0) {
+        const entryResource = resources.find(r => r.id === entry.resourceId);
+        const delegatorIds = activeDelegations.map(d => d.delegatorId);
+        if (!entryResource?.managerId || !delegatorIds.includes(entryResource.managerId)) {
+          return res.status(403).json({ message: 'This entry is outside your delegated approval scope' });
+        }
       }
 
       if (entry.status !== 'Submitted') {
@@ -21037,6 +21079,10 @@ Return ONLY valid JSON.`;
         return res.status(403).json({ message: 'Only approvers can create delegations' });
       }
 
+      if (new Date(startDate) > new Date(endDate)) {
+        return res.status(400).json({ message: 'Start date must be before or equal to end date' });
+      }
+
       if (delegateId === userId) {
         return res.status(400).json({ message: 'Cannot delegate to yourself' });
       }
@@ -21117,7 +21163,21 @@ Return ONLY valid JSON.`;
         return res.status(403).json({ message: 'Not authorized' });
       }
 
-      const templates = await storage.getRejectionTemplates(organizationId);
+      let templates = await storage.getRejectionTemplates(organizationId);
+      if (templates.length === 0) {
+        const defaults = [
+          { name: "Missing Details", text: "Please provide more details about the work performed, including specific tasks and deliverables.", category: "general" },
+          { name: "Incorrect Hours", text: "The hours reported do not match the expected effort. Please review and correct.", category: "hours" },
+          { name: "Wrong Project", text: "Time was logged against the wrong project or task. Please reassign to the correct project.", category: "assignment" },
+          { name: "Missing Notes", text: "Notes are required for this entry. Please add a description of the work completed.", category: "general" },
+          { name: "Exceeds Estimate", text: "Hours exceed the task estimate. Please provide justification or split across appropriate tasks.", category: "hours" },
+          { name: "Duplicate Entry", text: "This appears to be a duplicate of another timesheet entry. Please review and remove if confirmed.", category: "general" },
+        ];
+        for (const d of defaults) {
+          await storage.createRejectionTemplate({ organizationId, ...d });
+        }
+        templates = await storage.getRejectionTemplates(organizationId);
+      }
       res.json(templates);
     } catch (error) {
       console.error('Error getting rejection templates:', error);

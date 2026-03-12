@@ -87,8 +87,11 @@ export function ApprovalDelegationDialog({ open, onOpenChange }: ApprovalDelegat
     }
   };
 
-  const activeDelegations = delegations.filter(d => d.isActive);
-  const expiredDelegations = delegations.filter(d => !d.isActive);
+  const now = new Date();
+  const nowStr = format(now, "yyyy-MM-dd");
+  const activeDelegations = delegations.filter(d => d.isActive && d.startDate <= nowStr && d.endDate >= nowStr);
+  const scheduledDelegations = delegations.filter(d => d.isActive && d.startDate > nowStr);
+  const expiredDelegations = delegations.filter(d => !d.isActive || d.endDate < nowStr);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -141,7 +144,7 @@ export function ApprovalDelegationDialog({ open, onOpenChange }: ApprovalDelegat
             <div className="space-y-2">
               <Label className="text-sm font-medium flex items-center gap-1">
                 <CalendarRange className="h-4 w-4" />
-                Active Delegations
+                Active Now
               </Label>
               {activeDelegations.map(d => (
                 <Card key={d.id} className="p-3 flex items-center justify-between gap-2">
@@ -167,9 +170,39 @@ export function ApprovalDelegationDialog({ open, onOpenChange }: ApprovalDelegat
             </div>
           )}
 
+          {scheduledDelegations.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium flex items-center gap-1">
+                <CalendarRange className="h-4 w-4" />
+                Scheduled
+              </Label>
+              {scheduledDelegations.map(d => (
+                <Card key={d.id} className="p-3 flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium truncate">{d.delegatorName} → {d.delegateName}</div>
+                    <div className="text-xs text-muted-foreground">{d.startDate} to {d.endDate}</div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge className="bg-blue-500/10 text-blue-600 text-[10px]">Scheduled</Badge>
+                    {(d.delegatorId === user?.id) && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-destructive"
+                        onClick={() => handleRevoke(d.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+
           {expiredDelegations.length > 0 && (
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-muted-foreground">Past Delegations</Label>
+              <Label className="text-sm font-medium text-muted-foreground">Past / Expired</Label>
               {expiredDelegations.slice(0, 5).map(d => (
                 <Card key={d.id} className="p-2 opacity-60">
                   <div className="text-xs">{d.delegatorName} → {d.delegateName}</div>
