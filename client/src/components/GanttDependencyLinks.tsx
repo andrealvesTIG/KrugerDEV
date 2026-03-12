@@ -39,7 +39,7 @@ interface GanttDependencyLinksProps {
 
 // Constants for link rendering
 const STUB_LENGTH = 12; // horizontal stub out of anchor
-const ARROW_SIZE = 6; // arrowhead size
+const ARROW_SIZE = 5; // arrowhead size
 const BACK_LINK_OFFSET = 24; // extra offset for back-links
 const ROW_OVERLAP_OFFSET = 4; // vertical offset for overlapping links
 const MIN_BAR_WIDTH = 24; // must match minWidth on the rendered task bar div
@@ -374,7 +374,7 @@ export function GanttDependencyLinks({
           <path
             d="M 0 0 L 10 5 L 0 10 z"
             fill="currentColor"
-            className="text-muted-foreground"
+            className="text-muted-foreground/40"
           />
         </marker>
         <marker
@@ -429,7 +429,7 @@ export function GanttDependencyLinks({
               d={link.path}
               fill="none"
               stroke="currentColor"
-              strokeWidth={isHovered || isSelected ? 2 : 1.5}
+              strokeWidth={isHovered || isSelected ? 1.5 : 1}
               strokeLinecap="round"
               strokeLinejoin="round"
               markerEnd={
@@ -446,7 +446,7 @@ export function GanttDependencyLinks({
                   ? "text-primary" 
                   : isCritical 
                     ? "text-destructive"
-                    : "text-muted-foreground/60"
+                    : "text-muted-foreground/40"
               )}
               data-testid={`dependency-link-${link.id}`}
             />
