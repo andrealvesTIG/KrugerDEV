@@ -711,3 +711,50 @@ export function useSlaMetrics(organizationId: number | null, startDate: string, 
     },
   });
 }
+
+export interface TimesheetReminderSettingsData {
+  id?: number;
+  organizationId: number;
+  enabled: boolean;
+  submissionReminderDays: number[];
+  approvalReminderDays: number;
+  escalationThresholdDays: number;
+  frequencyCap: number;
+  digestEnabled: boolean;
+  digestDay: number;
+}
+
+export function useTimesheetReminderSettings(organizationId: number | null) {
+  return useQuery<TimesheetReminderSettingsData>({
+    queryKey: ["/api/timesheet-reminder-settings", organizationId],
+    enabled: !!organizationId,
+    staleTime: 1000 * 60 * 5,
+    queryFn: async () => {
+      const response = await fetch(`/api/timesheet-reminder-settings?organizationId=${organizationId}`);
+      if (!response.ok) throw new Error("Failed to fetch reminder settings");
+      return response.json();
+    },
+  });
+}
+
+export function useUpdateTimesheetReminderSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: Partial<TimesheetReminderSettingsData> & { organizationId: number }) => {
+      const response = await apiRequest("PUT", "/api/timesheet-reminder-settings", data);
+      return response.json();
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timesheet-reminder-settings", variables.organizationId] });
+    },
+  });
+}
+
+export function useSnoozeTimesheetReminder() {
+  return useMutation({
+    mutationFn: async (data: { organizationId: number; weekStart: string; durationHours: number }) => {
+      const response = await apiRequest("POST", "/api/timesheet-reminder-snooze", data);
+      return response.json();
+    },
+  });
+}

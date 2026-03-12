@@ -10,6 +10,7 @@ import { db } from "./db";
 import { sql } from "drizzle-orm";
 import cron from "node-cron";
 import { checkAndSendDueReports } from "./services/scheduledReports";
+import { runTimesheetReminders } from "./services/timesheetReminderEngine";
 
 const app = express();
 
@@ -211,6 +212,22 @@ app.use((req, res, next) => {
         }
       });
       log("Scheduled reports cron job started (every 15 minutes)", "cron");
+
+      cron.schedule('0 9 * * 1-5', async () => {
+        try {
+          const result = await runTimesheetReminders();
+          const total = result.submissionReminders + result.approvalReminders + result.escalations + result.digestsSent;
+          if (total > 0) {
+            log(`Timesheet reminders: ${result.submissionReminders} submission, ${result.approvalReminders} approval, ${result.escalations} escalations, ${result.digestsSent} digests`, "cron");
+          }
+          if (result.errors.length > 0) {
+            console.error("Timesheet reminder errors:", result.errors);
+          }
+        } catch (error) {
+          console.error("Error in timesheet reminder cron job:", error);
+        }
+      });
+      log("Timesheet reminder cron job started (weekdays at 9am)", "cron");
     },
   );
 })();

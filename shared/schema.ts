@@ -609,6 +609,8 @@ export const timesheetEntries = pgTable("timesheet_entries", {
   approvedBy: varchar("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at"),
   rejectionReason: text("rejection_reason"),
+  rejectedAt: timestamp("rejected_at"),
+  rejectedBy: varchar("rejected_by").references(() => users.id),
   proxyUserId: varchar("proxy_user_id").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -819,6 +821,77 @@ export const insertTimesheetCommentSchema = createInsertSchema(timesheetComments
 });
 export type InsertTimesheetComment = z.infer<typeof insertTimesheetCommentSchema>;
 export type TimesheetComment = typeof timesheetComments.$inferSelect;
+
+export const timesheetReminderSettings = pgTable("timesheet_reminder_settings", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  enabled: boolean("enabled").default(true),
+  submissionReminderDays: jsonb("submission_reminder_days").$type<number[]>().default([4, 5, 8]),
+  approvalReminderDays: integer("approval_reminder_days").default(2),
+  escalationThresholdDays: integer("escalation_threshold_days").default(5),
+  frequencyCap: integer("frequency_cap").default(3),
+  digestEnabled: boolean("digest_enabled").default(true),
+  digestDay: integer("digest_day").default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("trs_org_idx").on(table.organizationId),
+]);
+
+export const insertTimesheetReminderSettingsSchema = createInsertSchema(timesheetReminderSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertTimesheetReminderSettings = z.infer<typeof insertTimesheetReminderSettingsSchema>;
+export type TimesheetReminderSettings = typeof timesheetReminderSettings.$inferSelect;
+
+export const timesheetReminderLog = pgTable("timesheet_reminder_log", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  reminderType: text("reminder_type").notNull(),
+  weekStart: date("week_start").notNull(),
+  urgencyLevel: text("urgency_level").default("friendly"),
+  emailSent: boolean("email_sent").default(false),
+  notificationCreated: boolean("notification_created").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("trl_org_idx").on(table.organizationId),
+  index("trl_user_week_idx").on(table.userId, table.weekStart),
+]);
+
+export type TimesheetReminderLog = typeof timesheetReminderLog.$inferSelect;
+
+export const timesheetReminderSnooze = pgTable("timesheet_reminder_snooze", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  weekStart: date("week_start").notNull(),
+  snoozedUntil: timestamp("snoozed_until").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("trsnz_user_week_idx").on(table.userId, table.weekStart),
+]);
+
+export type TimesheetReminderSnooze = typeof timesheetReminderSnooze.$inferSelect;
+
+export const timesheetEscalationLog = pgTable("timesheet_escalation_log", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  entryUserId: varchar("entry_user_id").references(() => users.id).notNull(),
+  managerId: varchar("manager_id").references(() => users.id),
+  escalatedToId: varchar("escalated_to_id").references(() => users.id),
+  weekStart: date("week_start").notNull(),
+  reason: text("reason"),
+  emailSent: boolean("email_sent").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("tel_org_idx").on(table.organizationId),
+  index("tel_user_week_idx").on(table.entryUserId, table.weekStart),
+]);
+
+export type TimesheetEscalationLog = typeof timesheetEscalationLog.$inferSelect;
 
 // Change Requests (Project change control)
 export const changeRequests = pgTable("change_requests", {

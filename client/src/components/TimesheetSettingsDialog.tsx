@@ -22,9 +22,13 @@ import {
   useCreateRejectionTemplate,
   useUpdateRejectionTemplate,
   useDeleteRejectionTemplate,
+  useTimesheetReminderSettings,
+  useUpdateTimesheetReminderSettings,
 } from "@/hooks/use-timesheets";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, Loader2, Plus, Pencil, Trash2, X, Check } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Settings, Loader2, Plus, Pencil, Trash2, X, Check, Bell } from "lucide-react";
 
 interface TimesheetSettingsDialogProps {
   organizationId: number | null;
@@ -74,7 +78,7 @@ export function TimesheetSettingsDialog({ organizationId, open, onOpenChange }: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
@@ -86,9 +90,10 @@ export function TimesheetSettingsDialog({ organizationId, open, onOpenChange }: 
         </DialogHeader>
 
         <Tabs defaultValue="policies" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="policies">Policies</TabsTrigger>
-            <TabsTrigger value="templates">Rejection Templates</TabsTrigger>
+            <TabsTrigger value="reminders">Reminders</TabsTrigger>
+            <TabsTrigger value="templates">Templates</TabsTrigger>
           </TabsList>
 
           <TabsContent value="policies">
@@ -177,12 +182,202 @@ export function TimesheetSettingsDialog({ organizationId, open, onOpenChange }: 
             )}
           </TabsContent>
 
+          <TabsContent value="reminders">
+            <ReminderSettingsManager organizationId={organizationId} />
+          </TabsContent>
+
           <TabsContent value="templates">
             <RejectionTemplateManager organizationId={organizationId} />
           </TabsContent>
         </Tabs>
       </DialogContent>
     </Dialog>
+  );
+}
+
+const SUBMISSION_DAY_OPTIONS = [
+  { value: 4, label: "Thursday (pre-reminder)" },
+  { value: 5, label: "Friday (due day)" },
+  { value: 8, label: "Monday (overdue)" },
+];
+
+const DIGEST_DAY_OPTIONS = [
+  { value: 1, label: "Monday" },
+  { value: 2, label: "Tuesday" },
+  { value: 3, label: "Wednesday" },
+  { value: 4, label: "Thursday" },
+  { value: 5, label: "Friday" },
+];
+
+function ReminderSettingsManager({ organizationId }: { organizationId: number | null }) {
+  const { data: settings, isLoading } = useTimesheetReminderSettings(organizationId);
+  const updateSettings = useUpdateTimesheetReminderSettings();
+  const { toast } = useToast();
+
+  const [enabled, setEnabled] = useState(true);
+  const [submissionDays, setSubmissionDays] = useState<number[]>([4, 5, 8]);
+  const [approvalDays, setApprovalDays] = useState("2");
+  const [escalationDays, setEscalationDays] = useState("5");
+  const [frequencyCap, setFrequencyCap] = useState("3");
+  const [digestEnabled, setDigestEnabled] = useState(true);
+  const [digestDay, setDigestDay] = useState("1");
+
+  useEffect(() => {
+    if (settings) {
+      setEnabled(settings.enabled ?? true);
+      setSubmissionDays(settings.submissionReminderDays ?? [4, 5, 8]);
+      setApprovalDays(String(settings.approvalReminderDays ?? 2));
+      setEscalationDays(String(settings.escalationThresholdDays ?? 5));
+      setFrequencyCap(String(settings.frequencyCap ?? 3));
+      setDigestEnabled(settings.digestEnabled ?? true);
+      setDigestDay(String(settings.digestDay ?? 1));
+    }
+  }, [settings]);
+
+  const toggleDay = (day: number) => {
+    setSubmissionDays(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day].sort((a, b) => a - b)
+    );
+  };
+
+  const handleSave = async () => {
+    if (!organizationId) return;
+    try {
+      await updateSettings.mutateAsync({
+        organizationId,
+        enabled,
+        submissionReminderDays: submissionDays,
+        approvalReminderDays: parseInt(approvalDays) || 2,
+        escalationThresholdDays: parseInt(escalationDays) || 5,
+        frequencyCap: parseInt(frequencyCap) || 3,
+        digestEnabled,
+        digestDay: parseInt(digestDay) || 1,
+      });
+      toast({ title: "Reminder settings saved", description: "Reminder & escalation rules have been updated." });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to save reminder settings.", variant: "destructive" });
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 pt-2">
+      <div className="flex items-center justify-between rounded-lg border p-3">
+        <div>
+          <Label className="font-medium">Enable Reminders</Label>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Send automated timesheet submission and approval reminders
+          </p>
+        </div>
+        <Switch checked={enabled} onCheckedChange={setEnabled} />
+      </div>
+
+      {enabled && (
+        <>
+          <Card className="p-3 space-y-3">
+            <div className="flex items-center gap-2">
+              <Bell className="h-4 w-4 text-muted-foreground" />
+              <Label className="font-medium text-sm">Submission Reminders</Label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Select which days to remind team members to submit their timesheets
+            </p>
+            <div className="space-y-2">
+              {SUBMISSION_DAY_OPTIONS.map(opt => (
+                <div key={opt.value} className="flex items-center gap-2">
+                  <Checkbox
+                    checked={submissionDays.includes(opt.value)}
+                    onCheckedChange={() => toggleDay(opt.value)}
+                  />
+                  <span className="text-sm">{opt.label}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="approvalDays">Approval reminder after (days)</Label>
+              <Input
+                id="approvalDays"
+                type="number"
+                min="1"
+                max="14"
+                value={approvalDays}
+                onChange={(e) => setApprovalDays(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">Days after submission to remind manager</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="escalationDays">Escalation after (days)</Label>
+              <Input
+                id="escalationDays"
+                type="number"
+                min="1"
+                max="30"
+                value={escalationDays}
+                onChange={(e) => setEscalationDays(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">Days before auto-escalation to skip-level</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="frequencyCap">Max reminders per week per person</Label>
+            <Input
+              id="frequencyCap"
+              type="number"
+              min="1"
+              max="10"
+              value={frequencyCap}
+              onChange={(e) => setFrequencyCap(e.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div>
+              <Label className="font-medium">Weekly Manager Digest</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Send managers a summary of pending approvals
+              </p>
+            </div>
+            <Switch checked={digestEnabled} onCheckedChange={setDigestEnabled} />
+          </div>
+
+          {digestEnabled && (
+            <div className="space-y-2">
+              <Label>Digest Day</Label>
+              <Select value={digestDay} onValueChange={setDigestDay}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DIGEST_DAY_OPTIONS.map(opt => (
+                    <SelectItem key={opt.value} value={String(opt.value)}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </>
+      )}
+
+      <div className="flex justify-end gap-2 pt-2">
+        <Button onClick={handleSave} disabled={updateSettings.isPending}>
+          {updateSettings.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Save Reminder Settings
+        </Button>
+      </div>
+    </div>
   );
 }
 

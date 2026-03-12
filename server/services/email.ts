@@ -994,3 +994,264 @@ FridayReport.AI Team
 
   return sendEmail({ to, subject, text, html });
 }
+
+export async function sendTimesheetSubmissionReminder(
+  to: string,
+  userName: string,
+  urgency: 'friendly' | 'nudge' | 'firm',
+  weekStart: string,
+  weekEnd: string,
+  hoursLogged: number,
+  appUrl: string
+): Promise<boolean> {
+  const urgencyConfig = {
+    friendly: {
+      emoji: '🕐',
+      subject: `Friendly Reminder: Submit your timesheet for ${weekStart}`,
+      heading: 'Timesheet Reminder',
+      tone: `Just a friendly reminder to submit your timesheet for the week of ${weekStart} to ${weekEnd}.`,
+      color: '#3b82f6',
+    },
+    nudge: {
+      emoji: '⏰',
+      subject: `Action Needed: Timesheet due for ${weekStart}`,
+      heading: 'Timesheet Due Today',
+      tone: `Your timesheet for the week of ${weekStart} to ${weekEnd} is due today. Please submit it before end of day.`,
+      color: '#f59e0b',
+    },
+    firm: {
+      emoji: '🚨',
+      subject: `Overdue: Timesheet for ${weekStart} not submitted`,
+      heading: 'Timesheet Overdue',
+      tone: `Your timesheet for the week of ${weekStart} to ${weekEnd} is overdue. Please submit it immediately to avoid escalation.`,
+      color: '#ef4444',
+    },
+  };
+
+  const config = urgencyConfig[urgency];
+
+  const text = `Hi ${userName},\n\n${config.tone}\n\nHours logged so far: ${hoursLogged}\n\nSubmit now: ${appUrl}/timesheets\n\n- FridayReport.AI`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background-color: #f1f5f9;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;">
+      <div style="background: ${config.color}; padding: 30px; text-align: center;">
+        <h1 style="margin: 0; color: white; font-size: 24px;">${config.emoji} ${config.heading}</h1>
+      </div>
+      <div style="padding: 30px;">
+        <p style="color: #475569;">Hi ${userName},</p>
+        <p style="color: #475569;">${config.tone}</p>
+        <div style="background: #f8fafc; border-radius: 8px; padding: 16px; margin: 20px 0;">
+          <p style="margin: 0; color: #64748b; font-size: 14px;">Hours logged so far</p>
+          <p style="margin: 4px 0 0; color: #0f172a; font-size: 24px; font-weight: 700;">${hoursLogged}h</p>
+        </div>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${appUrl}/timesheets" style="display: inline-block; background: ${config.color}; color: white; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: 600; font-size: 16px;">Submit Now</a>
+        </div>
+      </div>
+      <div style="background: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
+        <p style="margin: 0; color: #94a3b8; font-size: 12px;">Automated reminder from FridayReport.AI</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  return sendEmail({ to, subject: config.subject, text, html });
+}
+
+export async function sendManagerApprovalReminder(
+  to: string,
+  managerName: string,
+  pendingEntries: Array<{ name: string; hours: number; date: string }>,
+  daysOld: number,
+  appUrl: string
+): Promise<boolean> {
+  const isUrgent = daysOld >= 4;
+  const subject = isUrgent
+    ? `🚨 Urgent: ${pendingEntries.length} timesheets awaiting your approval`
+    : `⏳ ${pendingEntries.length} timesheets pending your approval`;
+
+  const entriesHtml = pendingEntries.slice(0, 10).map(e => `
+    <tr>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #0f172a;">${e.name}</td>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #475569; text-align: right;">${e.hours}h</td>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #475569; text-align: right;">${e.date}</td>
+    </tr>
+  `).join('');
+
+  const text = `Hi ${managerName},\n\nYou have ${pendingEntries.length} timesheet entries pending approval (oldest: ${daysOld} days).\n\nReview now: ${appUrl}/timesheets\n\n- FridayReport.AI`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background-color: #f1f5f9;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;">
+      <div style="background: ${isUrgent ? '#ef4444' : '#f59e0b'}; padding: 30px; text-align: center;">
+        <h1 style="margin: 0; color: white; font-size: 24px;">Pending Approvals</h1>
+        <p style="margin: 8px 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">${pendingEntries.length} entries waiting (${daysOld} days oldest)</p>
+      </div>
+      <div style="padding: 30px;">
+        <p style="color: #475569;">Hi ${managerName},</p>
+        <p style="color: #475569;">The following timesheet entries are awaiting your approval:</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <thead>
+            <tr style="background: #f8fafc;">
+              <th style="padding: 8px 12px; text-align: left; color: #64748b; font-size: 12px; text-transform: uppercase;">Team Member</th>
+              <th style="padding: 8px 12px; text-align: right; color: #64748b; font-size: 12px; text-transform: uppercase;">Hours</th>
+              <th style="padding: 8px 12px; text-align: right; color: #64748b; font-size: 12px; text-transform: uppercase;">Date</th>
+            </tr>
+          </thead>
+          <tbody>${entriesHtml}</tbody>
+        </table>
+        ${pendingEntries.length > 10 ? `<p style="color: #94a3b8; font-size: 13px;">... and ${pendingEntries.length - 10} more</p>` : ''}
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${appUrl}/timesheets" style="display: inline-block; background: ${isUrgent ? '#ef4444' : '#f59e0b'}; color: white; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: 600; font-size: 16px;">Review Now</a>
+        </div>
+      </div>
+      <div style="background: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
+        <p style="margin: 0; color: #94a3b8; font-size: 12px;">Automated reminder from FridayReport.AI</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  return sendEmail({ to, subject, text, html });
+}
+
+export async function sendTimesheetEscalationEmail(
+  to: string,
+  recipientName: string,
+  managerName: string,
+  pendingNames: string[],
+  thresholdDays: number,
+  appUrl: string
+): Promise<boolean> {
+  const subject = `🔺 Escalation: Timesheets unapproved for ${thresholdDays}+ days (Manager: ${managerName})`;
+
+  const namesList = pendingNames.map(n => `• ${n}`).join('\n');
+  const text = `Hi ${recipientName},\n\nTimesheets for the following team members managed by ${managerName} have exceeded the ${thresholdDays}-day SLA:\n${namesList}\n\nPlease follow up to ensure timely approval.\n\nView: ${appUrl}/timesheets\n\n- FridayReport.AI`;
+
+  const namesHtml = pendingNames.map(n => `<li style="padding: 4px 0; color: #0f172a;">${n}</li>`).join('');
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background-color: #f1f5f9;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;">
+      <div style="background: #dc2626; padding: 30px; text-align: center;">
+        <h1 style="margin: 0; color: white; font-size: 24px;">🔺 SLA Breach Escalation</h1>
+        <p style="margin: 8px 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Timesheets unapproved for ${thresholdDays}+ business days</p>
+      </div>
+      <div style="padding: 30px;">
+        <p style="color: #475569;">Hi ${recipientName},</p>
+        <p style="color: #475569;">The following timesheets managed by <strong>${managerName}</strong> have exceeded the ${thresholdDays}-day approval SLA:</p>
+        <div style="background: #fef2f2; border-left: 4px solid #dc2626; border-radius: 4px; padding: 16px; margin: 20px 0;">
+          <ul style="margin: 0; padding-left: 20px;">${namesHtml}</ul>
+        </div>
+        <p style="color: #475569;">Please follow up with the manager to ensure timely approval of these timesheets.</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${appUrl}/timesheets" style="display: inline-block; background: #dc2626; color: white; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: 600; font-size: 16px;">View Timesheets</a>
+        </div>
+      </div>
+      <div style="background: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
+        <p style="margin: 0; color: #94a3b8; font-size: 12px;">Automated escalation from FridayReport.AI</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  return sendEmail({ to, subject, text, html });
+}
+
+export async function sendManagerWeeklyDigestEmail(
+  to: string,
+  managerName: string,
+  weekStart: string,
+  weekEnd: string,
+  summary: {
+    submitted: string[];
+    notSubmitted: string[];
+    pendingApproval: string[];
+    overdue: string[];
+    totalDirectReports: number;
+  },
+  appUrl: string
+): Promise<boolean> {
+  const subject = `📋 Weekly Timesheet Digest - ${weekStart}`;
+
+  const text = `Hi ${managerName},\n\nWeekly Timesheet Digest for ${weekStart} to ${weekEnd}\n\nSubmitted: ${summary.submitted.length}/${summary.totalDirectReports}\nNot Submitted: ${summary.notSubmitted.join(', ') || 'None'}\nPending Approval: ${summary.pendingApproval.length}\nOverdue: ${summary.overdue.length}\n\nView: ${appUrl}/timesheets\n\n- FridayReport.AI`;
+
+  const submittedHtml = summary.submitted.length > 0
+    ? summary.submitted.map(n => `<span style="display: inline-block; background: #ecfdf5; color: #065f46; padding: 4px 10px; border-radius: 12px; font-size: 13px; margin: 2px;">${n} ✓</span>`).join(' ')
+    : '<span style="color: #94a3b8;">None</span>';
+
+  const notSubmittedHtml = summary.notSubmitted.length > 0
+    ? summary.notSubmitted.map(n => `<span style="display: inline-block; background: #fef2f2; color: #991b1b; padding: 4px 10px; border-radius: 12px; font-size: 13px; margin: 2px;">${n} ✗</span>`).join(' ')
+    : '<span style="color: #94a3b8;">None</span>';
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background-color: #f1f5f9;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;">
+      <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 30px; text-align: center;">
+        <h1 style="margin: 0; color: white; font-size: 24px;">📋 Weekly Timesheet Digest</h1>
+        <p style="margin: 8px 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Week of ${weekStart} to ${weekEnd}</p>
+      </div>
+      <div style="padding: 30px;">
+        <p style="color: #475569;">Hi ${managerName},</p>
+        <p style="color: #475569;">Here's a summary of your team's timesheet status for last week:</p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0;">
+          <div style="background: #f0fdf4; border-radius: 8px; padding: 16px; text-align: center;">
+            <p style="margin: 0; color: #065f46; font-size: 28px; font-weight: 700;">${summary.submitted.length}</p>
+            <p style="margin: 4px 0 0; color: #059669; font-size: 13px;">Submitted</p>
+          </div>
+          <div style="background: ${summary.notSubmitted.length > 0 ? '#fef2f2' : '#f8fafc'}; border-radius: 8px; padding: 16px; text-align: center;">
+            <p style="margin: 0; color: ${summary.notSubmitted.length > 0 ? '#991b1b' : '#64748b'}; font-size: 28px; font-weight: 700;">${summary.notSubmitted.length}</p>
+            <p style="margin: 4px 0 0; color: ${summary.notSubmitted.length > 0 ? '#dc2626' : '#94a3b8'}; font-size: 13px;">Not Submitted</p>
+          </div>
+          <div style="background: ${summary.pendingApproval.length > 0 ? '#fffbeb' : '#f8fafc'}; border-radius: 8px; padding: 16px; text-align: center;">
+            <p style="margin: 0; color: ${summary.pendingApproval.length > 0 ? '#92400e' : '#64748b'}; font-size: 28px; font-weight: 700;">${summary.pendingApproval.length}</p>
+            <p style="margin: 4px 0 0; color: ${summary.pendingApproval.length > 0 ? '#d97706' : '#94a3b8'}; font-size: 13px;">Pending Approval</p>
+          </div>
+          <div style="background: ${summary.overdue.length > 0 ? '#fef2f2' : '#f8fafc'}; border-radius: 8px; padding: 16px; text-align: center;">
+            <p style="margin: 0; color: ${summary.overdue.length > 0 ? '#991b1b' : '#64748b'}; font-size: 28px; font-weight: 700;">${summary.overdue.length}</p>
+            <p style="margin: 4px 0 0; color: ${summary.overdue.length > 0 ? '#dc2626' : '#94a3b8'}; font-size: 13px;">Overdue</p>
+          </div>
+        </div>
+
+        <div style="margin: 20px 0;">
+          <h3 style="margin: 0 0 8px; color: #1e293b; font-size: 14px;">Submitted</h3>
+          <div style="margin-bottom: 16px;">${submittedHtml}</div>
+          <h3 style="margin: 0 0 8px; color: #1e293b; font-size: 14px;">Not Submitted</h3>
+          <div>${notSubmittedHtml}</div>
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${appUrl}/timesheets" style="display: inline-block; background: #3b82f6; color: white; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: 600; font-size: 16px;">View Team Timesheets</a>
+        </div>
+      </div>
+      <div style="background: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
+        <p style="margin: 0; color: #94a3b8; font-size: 12px;">Weekly digest from FridayReport.AI</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  return sendEmail({ to, subject, text, html });
+}

@@ -15,7 +15,7 @@ import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNoti
 import { createTaskAssignmentNotification, createRiskAssignmentNotification, createProjectAssignmentNotification } from "./services/notificationEngine";
 import { AVAILABLE_DASHBOARDS, sendScheduledReport, checkAndSendDueReports, initializeSubscriptionSchedule, calculateNextScheduledTime } from "./services/scheduledReports";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, milestones, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, billingCycles, usageRollups, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries, taskChangeLogs, taskDependencies, notifications, reportSubscriptions, insertReportSubscriptionSchema, trainingModules, trainingLessons, trainingQuizQuestions, type Task } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, milestones, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, billingCycles, usageRollups, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries, taskChangeLogs, taskDependencies, notifications, reportSubscriptions, insertReportSubscriptionSchema, trainingModules, trainingLessons, trainingQuizQuestions, timesheetReminderSettings, type Task } from "@shared/schema";
 import { magicLinkTokens, type User } from "@shared/models/auth";
 import { eq, and, desc, asc, sql, isNotNull } from "drizzle-orm";
 import multer from "multer";
@@ -20712,6 +20712,139 @@ Return ONLY valid JSON.`;
       console.error('Error updating timesheet settings:', error);
       const classified = classifyError(error);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update timesheet settings' : classified.message });
+    }
+  });
+
+  // ===== Timesheet Reminder Settings =====
+
+  app.get('/api/timesheet-reminder-settings', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      if (!organizationId) return res.status(400).json({ message: 'organizationId is required' });
+
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const [settings] = await db.select()
+        .from(timesheetReminderSettings)
+        .where(eq(timesheetReminderSettings.organizationId, organizationId));
+
+      res.json(settings || {
+        organizationId,
+        enabled: true,
+        submissionReminderDays: [4, 5, 8],
+        approvalReminderDays: 2,
+        escalationThresholdDays: 5,
+        frequencyCap: 3,
+        digestEnabled: true,
+        digestDay: 1,
+      });
+    } catch (error) {
+      console.error('Error getting reminder settings:', error);
+      res.status(500).json({ message: 'Failed to get reminder settings' });
+    }
+  });
+
+  app.put('/api/timesheet-reminder-settings', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const { organizationId, enabled, submissionReminderDays, approvalReminderDays, escalationThresholdDays, frequencyCap, digestEnabled, digestDay } = req.body;
+      if (!organizationId) return res.status(400).json({ message: 'organizationId is required' });
+
+      if (!(await hasTimesheetAdminAccess(userId, organizationId))) {
+        return res.status(403).json({ message: 'Only admins can manage reminder settings' });
+      }
+
+      const validDays = [4, 5, 8];
+      const sanitized: Record<string, any> = {};
+      if (enabled !== undefined) sanitized.enabled = Boolean(enabled);
+      if (submissionReminderDays !== undefined) {
+        if (!Array.isArray(submissionReminderDays) || !submissionReminderDays.every((d: number) => validDays.includes(d))) {
+          return res.status(400).json({ message: 'submissionReminderDays must be array of 4, 5, or 8' });
+        }
+        sanitized.submissionReminderDays = submissionReminderDays;
+      }
+      if (approvalReminderDays !== undefined) {
+        const v = Number(approvalReminderDays);
+        if (!Number.isInteger(v) || v < 1 || v > 14) return res.status(400).json({ message: 'approvalReminderDays must be 1-14' });
+        sanitized.approvalReminderDays = v;
+      }
+      if (escalationThresholdDays !== undefined) {
+        const v = Number(escalationThresholdDays);
+        if (!Number.isInteger(v) || v < 1 || v > 30) return res.status(400).json({ message: 'escalationThresholdDays must be 1-30' });
+        sanitized.escalationThresholdDays = v;
+      }
+      if (frequencyCap !== undefined) {
+        const v = Number(frequencyCap);
+        if (!Number.isInteger(v) || v < 1 || v > 10) return res.status(400).json({ message: 'frequencyCap must be 1-10' });
+        sanitized.frequencyCap = v;
+      }
+      if (digestEnabled !== undefined) sanitized.digestEnabled = Boolean(digestEnabled);
+      if (digestDay !== undefined) {
+        const v = Number(digestDay);
+        if (!Number.isInteger(v) || v < 1 || v > 5) return res.status(400).json({ message: 'digestDay must be 1-5 (Mon-Fri)' });
+        sanitized.digestDay = v;
+      }
+
+      const [existing] = await db.select()
+        .from(timesheetReminderSettings)
+        .where(eq(timesheetReminderSettings.organizationId, organizationId));
+
+      let result;
+      if (existing) {
+        [result] = await db.update(timesheetReminderSettings)
+          .set({ ...sanitized, updatedAt: new Date() })
+          .where(eq(timesheetReminderSettings.organizationId, organizationId))
+          .returning();
+      } else {
+        [result] = await db.insert(timesheetReminderSettings)
+          .values({ organizationId, ...sanitized })
+          .returning();
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error('Error updating reminder settings:', error);
+      res.status(500).json({ message: 'Failed to update reminder settings' });
+    }
+  });
+
+  app.post('/api/timesheet-reminder-snooze', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const { organizationId, weekStart, durationHours } = req.body;
+      if (!organizationId || !weekStart || !durationHours) {
+        return res.status(400).json({ message: 'organizationId, weekStart, and durationHours are required' });
+      }
+
+      const hours = Number(durationHours);
+      if (!Number.isFinite(hours) || hours < 1 || hours > 168) {
+        return res.status(400).json({ message: 'durationHours must be between 1 and 168' });
+      }
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
+        return res.status(400).json({ message: 'weekStart must be a valid date (YYYY-MM-DD)' });
+      }
+
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const { snoozeReminder } = await import('./services/timesheetReminderEngine');
+      await snoozeReminder(userId, organizationId, weekStart, hours);
+
+      res.json({ success: true, snoozedUntil: new Date(Date.now() + Number(durationHours) * 60 * 60 * 1000) });
+    } catch (error) {
+      console.error('Error snoozing reminder:', error);
+      res.status(500).json({ message: 'Failed to snooze reminder' });
     }
   });
 
