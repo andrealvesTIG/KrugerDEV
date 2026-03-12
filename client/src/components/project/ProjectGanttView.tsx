@@ -1643,10 +1643,10 @@ const ProjectGanttTaskRowTimeline = memo(function ProjectGanttTaskRowTimeline({
           {showBar && (
             <div
               className={cn(
-                "absolute rounded-sm overflow-hidden cursor-pointer",
-                isCritical ? "bg-red-200 dark:bg-red-900 ring-1 ring-red-500" :
-                task.status === "Completed" ? "bg-emerald-200 dark:bg-emerald-900" :
-                task.status === "In Progress" ? "bg-blue-200 dark:bg-blue-900" : "bg-slate-200 dark:bg-slate-700"
+                "absolute rounded-sm overflow-hidden cursor-pointer border",
+                isCritical ? "bg-red-200 dark:bg-red-900 border-red-400 dark:border-red-600" :
+                task.status === "Completed" ? "bg-emerald-200 dark:bg-emerald-900 border-emerald-400 dark:border-emerald-600" :
+                task.status === "In Progress" ? "bg-blue-200 dark:bg-blue-900 border-blue-400 dark:border-blue-600" : "bg-slate-200 dark:bg-slate-700 border-slate-300 dark:border-slate-600"
               )}
               style={{
                 left: `${Math.max(0, leftPercent)}%`,
