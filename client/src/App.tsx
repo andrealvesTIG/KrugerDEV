@@ -319,6 +319,9 @@ function App() {
                 <Route path="/uncon2026">
                   <Suspense fallback={<PageLoader />}><UnCon2026LandingPage /></Suspense>
                 </Route>
+                <Route path="/badges/:userId/:badgeId">
+                  <Suspense fallback={<PageLoader />}><PublicBadgeProfile /></Suspense>
+                </Route>
                 <Route path="/badges/:userId">
                   <Suspense fallback={<PageLoader />}><PublicBadgeProfile /></Suspense>
                 </Route>

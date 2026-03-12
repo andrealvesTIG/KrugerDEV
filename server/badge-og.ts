@@ -210,6 +210,199 @@ export function injectBadgeOgTags(html: string, data: BadgeOgData, userId: strin
   return html;
 }
 
+const BADGE_META: Record<string, { name: string; description: string; icon: string }> = {
+  'first-project': { name: 'Project Starter', description: 'Manage your first project', icon: 'rocket' },
+  'portfolio-leader': { name: 'Portfolio Leader', description: 'Manage 5+ projects', icon: 'briefcase' },
+  'project-master': { name: 'Project Master', description: 'Manage 15+ projects', icon: 'building' },
+  'task-starter': { name: 'Task Tracker', description: 'Own 10+ tasks', icon: 'list-checks' },
+  'task-champion': { name: 'Task Champion', description: 'Complete 25+ tasks', icon: 'check-circle' },
+  'task-legend': { name: 'Task Legend', description: 'Complete 100+ tasks', icon: 'zap' },
+  'risk-manager': { name: 'Risk Manager', description: 'Resolve 10+ risks', icon: 'shield' },
+  'risk-master': { name: 'Risk Master', description: 'Handle 25+ risks', icon: 'shield-check' },
+  'issue-resolver': { name: 'Issue Resolver', description: 'Handle 20+ issues', icon: 'bug' },
+  'milestone-tracker': { name: 'Milestone Tracker', description: 'Own 10+ milestones', icon: 'flag' },
+  'power-user': { name: 'Power User', description: '100+ sessions', icon: 'activity' },
+  'dedicated': { name: 'Dedicated PM', description: '500+ sessions', icon: 'flame' },
+  'portfolio-strategist': { name: 'Portfolio Strategist', description: 'Manage 3+ portfolios', icon: 'layers' },
+};
+
+const BADGE_EMOJI: Record<string, string> = {
+  rocket: '\u{1F680}', briefcase: '\u{1F4BC}', building: '\u{1F3E2}',
+  'list-checks': '\u2705', 'check-circle': '\u2714\uFE0F', zap: '\u26A1',
+  shield: '\u{1F6E1}\uFE0F', 'shield-check': '\u{1F6E1}\uFE0F', bug: '\u{1F41B}',
+  flag: '\u{1F3C1}', activity: '\u{1F4C8}', flame: '\u{1F525}', layers: '\u{1F4DA}',
+};
+
+export interface SingleBadgeOgData {
+  displayName: string;
+  badgeId: string;
+  badgeName: string;
+  badgeDescription: string;
+  badgeIcon: string;
+  current: number;
+  threshold: number;
+  earned: boolean;
+}
+
+export async function getSingleBadgeOgData(userId: string, badgeId: string): Promise<SingleBadgeOgData | null> {
+  const meta = BADGE_META[badgeId];
+  if (!meta) return null;
+
+  const [user] = await db
+    .select({
+      firstName: users.firstName,
+      lastName: users.lastName,
+      publicProfileEnabled: users.publicProfileEnabled,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (!user || !user.publicProfileEnabled) return null;
+
+  const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ") || "Project Manager";
+
+  const { apiRequestLogs } = await import("@shared/schema");
+  const [pm] = await db.select({ count: sql<number>`count(*)::int` }).from(projects)
+    .where(and(sql`(${projects.managerId} = ${userId} OR ${projects.businessOwnerId} = ${userId} OR ${projects.businessSponsorId} = ${userId} OR ${projects.technicalLeadId} = ${userId})`, sql`${projects.deletedAt} IS NULL`));
+  const [to] = await db.select({ count: sql<number>`count(*)::int` }).from(tasks)
+    .where(and(eq(tasks.ownerId, userId), sql`${tasks.deletedAt} IS NULL`));
+  const [tc] = await db.select({ count: sql<number>`count(DISTINCT ${tasks.id})::int` }).from(tasks)
+    .leftJoin(taskResourceAssignments, eq(taskResourceAssignments.taskId, tasks.id))
+    .leftJoin(resources, eq(resources.id, taskResourceAssignments.resourceId))
+    .where(and(sql`(${tasks.ownerId} = ${userId} OR ${resources.userId} = ${userId})`, eq(tasks.status, 'Completed'), sql`${tasks.deletedAt} IS NULL`));
+  const [ia] = await db.select({ count: sql<number>`count(*)::int` }).from(issues)
+    .where(and(sql`(${issues.assigneeId} = ${userId} OR ${issues.ownerId} = ${userId})`, eq(issues.itemType, 'issue'), sql`${issues.deletedAt} IS NULL`));
+  const [ra] = await db.select({ count: sql<number>`count(*)::int` }).from(issues)
+    .where(and(sql`(${issues.assigneeId} = ${userId} OR ${issues.ownerId} = ${userId})`, eq(issues.itemType, 'risk'), sql`${issues.deletedAt} IS NULL`));
+  const [rr] = await db.select({ count: sql<number>`count(*)::int` }).from(issues)
+    .where(and(sql`(${issues.assigneeId} = ${userId} OR ${issues.ownerId} = ${userId})`, eq(issues.itemType, 'risk'), sql`${issues.status} IN ('Mitigated', 'Closed')`, sql`${issues.deletedAt} IS NULL`));
+  const [mo] = await db.select({ count: sql<number>`count(*)::int` }).from(milestones)
+    .where(and(eq(milestones.ownerId, userId), sql`${milestones.deletedAt} IS NULL`));
+  const [po] = await db.select({ count: sql<number>`count(*)::int` }).from(portfolios)
+    .where(and(sql`(${portfolios.managerId} = ${userId} OR ${portfolios.businessOwnerId} = ${userId})`, sql`${portfolios.deletedAt} IS NULL`));
+  const [tl] = await db.select({ count: sql<number>`count(*)::int` }).from(apiRequestLogs)
+    .where(and(eq(apiRequestLogs.userId, userId), sql`${apiRequestLogs.path} = '/api/auth/user'`, sql`${apiRequestLogs.method} = 'GET'`));
+
+  const statsMap: Record<string, number> = {
+    projectsManaged: pm.count, tasksOwned: to.count, tasksCompleted: tc.count,
+    risksResolved: rr.count, risksAssigned: ra.count, issuesAssigned: ia.count,
+    milestonesOwned: mo.count, totalLogins: tl.count, portfoliosManaged: po.count,
+  };
+
+  const badgeStatMap: Record<string, { stat: string; threshold: number }> = {
+    'first-project': { stat: 'projectsManaged', threshold: 1 },
+    'portfolio-leader': { stat: 'projectsManaged', threshold: 5 },
+    'project-master': { stat: 'projectsManaged', threshold: 15 },
+    'task-starter': { stat: 'tasksOwned', threshold: 10 },
+    'task-champion': { stat: 'tasksCompleted', threshold: 25 },
+    'task-legend': { stat: 'tasksCompleted', threshold: 100 },
+    'risk-manager': { stat: 'risksResolved', threshold: 10 },
+    'risk-master': { stat: 'risksAssigned', threshold: 25 },
+    'issue-resolver': { stat: 'issuesAssigned', threshold: 20 },
+    'milestone-tracker': { stat: 'milestonesOwned', threshold: 10 },
+    'power-user': { stat: 'totalLogins', threshold: 100 },
+    'dedicated': { stat: 'totalLogins', threshold: 500 },
+    'portfolio-strategist': { stat: 'portfoliosManaged', threshold: 3 },
+  };
+
+  const badgeStat = badgeStatMap[badgeId];
+  if (!badgeStat) return null;
+
+  const current = statsMap[badgeStat.stat] || 0;
+
+  return {
+    displayName,
+    badgeId,
+    badgeName: meta.name,
+    badgeDescription: meta.description,
+    badgeIcon: meta.icon,
+    current,
+    threshold: badgeStat.threshold,
+    earned: current >= badgeStat.threshold,
+  };
+}
+
+export async function generateSingleBadgeImage(data: SingleBadgeOgData): Promise<Buffer> {
+  let logoB64 = "";
+  try {
+    const logoPath = path.resolve(process.cwd(), "client", "public", "logo-icon.png");
+    if (fs.existsSync(logoPath)) {
+      const resizedLogo = await sharp(logoPath).resize(56, 56).png().toBuffer();
+      logoB64 = `data:image/png;base64,${resizedLogo.toString("base64")}`;
+    }
+  } catch {}
+
+  const logoImg = logoB64
+    ? `<image href="${logoB64}" x="50" y="30" width="44" height="44" />`
+    : `<rect x="50" y="30" width="44" height="44" rx="8" fill="#f59e0b" /><text x="72" y="60" text-anchor="middle" font-size="24" font-weight="bold" fill="white" font-family="system-ui,sans-serif">F</text>`;
+
+  const emoji = BADGE_EMOJI[data.badgeIcon] || '\u{1F3C6}';
+  const name = escapeXml(data.badgeName);
+  const desc = escapeXml(data.badgeDescription);
+  const userName = escapeXml(data.displayName);
+  const statusText = data.earned ? 'EARNED' : 'IN PROGRESS';
+  const statusColor = data.earned ? '#f59e0b' : '#64748b';
+
+  const svg = `<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a1f36" />
+      <stop offset="100%" stop-color="#0f1628" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" rx="0" fill="url(#bg)" />
+
+  <circle cx="1050" cy="120" r="250" fill="rgba(245,158,11,0.03)" />
+  <circle cx="150" cy="500" r="220" fill="rgba(59,130,246,0.03)" />
+
+  ${logoImg}
+  <text x="106" y="60" font-size="18" font-weight="600" fill="#94a3b8" font-family="system-ui,sans-serif">FridayReport.AI</text>
+
+  <circle cx="600" cy="210" r="72" fill="rgba(245,158,11,0.1)" stroke="rgba(245,158,11,0.4)" stroke-width="3" />
+  <text x="600" y="225" text-anchor="middle" font-size="58" font-family="system-ui,sans-serif" fill="white">${emoji}</text>
+
+  <text x="600" y="330" text-anchor="middle" font-size="42" font-weight="800" fill="#f8fafc" font-family="system-ui,sans-serif">${name}</text>
+  <text x="600" y="368" text-anchor="middle" font-size="22" fill="#94a3b8" font-family="system-ui,sans-serif">${desc}</text>
+
+  <rect x="500" y="390" width="200" height="44" rx="22" fill="${statusColor}20" stroke="${statusColor}" stroke-width="2" />
+  <text x="600" y="420" text-anchor="middle" font-size="20" font-weight="700" fill="${statusColor}" font-family="system-ui,sans-serif">${data.current}/${data.threshold} \u2022 ${statusText}</text>
+
+  <line x1="200" y1="470" x2="1000" y2="470" stroke="rgba(148,163,184,0.15)" stroke-width="1" />
+
+  <text x="600" y="510" text-anchor="middle" font-size="20" fill="#64748b" font-family="system-ui,sans-serif">Earned by</text>
+  <text x="600" y="545" text-anchor="middle" font-size="30" font-weight="700" fill="#f8fafc" font-family="system-ui,sans-serif">${userName}</text>
+
+  <text x="600" y="608" text-anchor="middle" font-size="16" fill="#475569" font-family="system-ui,sans-serif">fridayreport.ai/badges \u2022 Project Portfolio Management</text>
+</svg>`;
+
+  return await sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+export function injectSingleBadgeOgTags(html: string, data: SingleBadgeOgData, userId: string, baseUrl?: string): string {
+  const title = data.earned
+    ? `${data.displayName} earned ${data.badgeName} | FridayReport.AI`
+    : `${data.displayName} is progressing toward ${data.badgeName} | FridayReport.AI`;
+  const description = data.earned
+    ? `${data.displayName} earned the "${data.badgeName}" badge on FridayReport.AI! ${data.badgeDescription}. Progress: ${data.current}/${data.threshold}.`
+    : `${data.displayName} is working toward the "${data.badgeName}" badge on FridayReport.AI. ${data.badgeDescription}. Progress: ${data.current}/${data.threshold}.`;
+  const url = `https://fridayreport.ai/badges/${encodeURIComponent(userId)}/${encodeURIComponent(data.badgeId)}`;
+  const imageUrl = baseUrl
+    ? `${baseUrl}/api/users/${encodeURIComponent(userId)}/badges/${encodeURIComponent(data.badgeId)}/image.png`
+    : `https://fridayreport.ai/api/users/${encodeURIComponent(userId)}/badges/${encodeURIComponent(data.badgeId)}/image.png`;
+
+  html = html.replace(/<meta property="og:title" content="[^"]*" \/>/, `<meta property="og:title" content="${escapeAttr(title)}" />`);
+  html = html.replace(/<meta property="og:description" content="[^"]*" \/>/, `<meta property="og:description" content="${escapeAttr(description)}" />`);
+  html = html.replace(/<meta property="og:image" content="[^"]*" \/>/, `<meta property="og:image" content="${imageUrl}" />`);
+  html = html.replace(/<meta property="og:image:width" content="[^"]*" \/>/, `<meta property="og:image:width" content="1200" />`);
+  html = html.replace(/<meta property="og:image:height" content="[^"]*" \/>/, `<meta property="og:image:height" content="630" />`);
+  html = html.replace(/<meta property="og:url" content="[^"]*" \/>/, `<meta property="og:url" content="${url}" />`);
+  html = html.replace(/<meta name="twitter:title" content="[^"]*" \/>/, `<meta name="twitter:title" content="${escapeAttr(title)}" />`);
+  html = html.replace(/<meta name="twitter:description" content="[^"]*" \/>/, `<meta name="twitter:description" content="${escapeAttr(description)}" />`);
+  html = html.replace(/<meta name="twitter:image" content="[^"]*" \/>/, `<meta name="twitter:image" content="${imageUrl}" />`);
+  return html;
+}
+
 function escapeAttr(str: string): string {
   return str.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }

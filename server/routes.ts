@@ -2100,6 +2100,26 @@ export async function registerRoutes(
     }
   });
 
+  app.get('/api/users/:userId/badges/:badgeId/image.png', async (req, res) => {
+    try {
+      const { getSingleBadgeOgData, generateSingleBadgeImage } = await import("./badge-og");
+      const badgeData = await getSingleBadgeOgData(req.params.userId, req.params.badgeId);
+      if (!badgeData) {
+        return res.status(404).json({ message: 'Badge not found' });
+      }
+      const pngBuffer = await generateSingleBadgeImage(badgeData);
+      res.set({
+        'Content-Type': 'image/png',
+        'Cache-Control': 'public, max-age=3600',
+        'Content-Length': pngBuffer.length.toString(),
+      });
+      res.send(pngBuffer);
+    } catch (err) {
+      console.error('Single badge image generation error:', err);
+      res.status(500).json({ message: 'Failed to generate badge image' });
+    }
+  });
+
   // Update user avatar (image URL or emoji)
   app.patch('/api/users/:userId/avatar', async (req, res) => {
     try {
