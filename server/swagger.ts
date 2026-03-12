@@ -3384,5 +3384,8 @@ export function setupSwagger(app: Express): void {
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(spec, {
     customCss: '.swagger-ui .topbar { display: none }',
     customSiteTitle: 'FridayReport.AI API Documentation',
+    swaggerOptions: {
+      docExpansion: 'none',
+    },
   }));
 }
