@@ -402,20 +402,20 @@ export default function Home() {
           </h1>
           <p className="text-sm text-muted-foreground">{format(today, "EEEE, MMMM d, yyyy")}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
           <Link href="/timesheets">
-            <Button variant="outline" size="sm" data-testid="button-quick-log-time">
-              <Timer className="h-4 w-4 mr-1" />
-              Log Time
+            <Button variant="outline" size="sm" className="whitespace-nowrap" data-testid="button-quick-log-time">
+              <Timer className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">Log Time</span>
             </Button>
           </Link>
-          <Button variant="outline" size="sm" onClick={() => setShowCreateTask(true)} data-testid="button-quick-create-task">
-            <Plus className="h-4 w-4 mr-1" />
-            Create Task
+          <Button variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setShowCreateTask(true)} data-testid="button-quick-create-task">
+            <Plus className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline">Create Task</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowCreateIssue(true)} data-testid="button-quick-create-issue">
-            <Bug className="h-4 w-4 mr-1" />
-            Report Issue
+          <Button variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setShowCreateIssue(true)} data-testid="button-quick-create-issue">
+            <Bug className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline">Report Issue</span>
           </Button>
         </div>
       </FadeIn>

@@ -136,7 +136,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
             </Button>
           </div>
         )}
-        <header className="flex h-14 items-center gap-2 sm:gap-4 border-b border-slate-200 bg-white px-3 md:px-6 dark:border-slate-800 dark:bg-slate-900">
+        <header className="flex h-14 items-center gap-2 sm:gap-4 border-b border-slate-200 bg-white px-3 md:px-6 dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
           <div className="flex items-center gap-3 flex-shrink-0">
             {/* Mobile hamburger menu */}
             <button
@@ -280,7 +280,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
               </div>
             )}
           </div>
-          <div className="flex-1 flex justify-center">
+          <div className="flex-1 flex justify-center min-w-0">
             <SearchCommand />
           </div>
           <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
@@ -295,7 +295,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
             >
               <Mic className="h-4 w-4" />
             </Button>
-            <AICreateButton ref={aiCreateRef} />
+            <span className="hidden sm:inline-flex"><AICreateButton ref={aiCreateRef} /></span>
             <QuickAddMenu />
             <Button
               variant="ghost"
