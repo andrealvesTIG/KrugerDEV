@@ -441,29 +441,31 @@ export async function processManagerDigests(organizationId: number, force = fals
   const weekStartStr = format(weekStart, 'yyyy-MM-dd');
   const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
 
-  const approvers = await db.select()
+  const allResources = await db.select()
     .from(resources)
     .where(and(
       eq(resources.organizationId, organizationId),
-      eq(resources.isApprover, true),
       eq(resources.isActive, true),
       not(isNull(resources.userId))
     ));
 
+  const managerIds = new Set(
+    allResources.map(r => r.managerId).filter((id): id is string => !!id)
+  );
+
+  const managers = allResources.filter(
+    r => r.userId && (r.isApprover || managerIds.has(r.userId))
+  );
+
   const appUrl = getAppUrl();
 
-  for (const approver of approvers) {
+  for (const approver of managers) {
     if (!approver.userId) continue;
 
     try {
-      const directReports = await db.select()
-        .from(resources)
-        .where(and(
-          eq(resources.organizationId, organizationId),
-          eq(resources.managerId, approver.userId),
-          eq(resources.isActive, true),
-          not(isNull(resources.userId))
-        ));
+      const directReports = allResources.filter(
+        r => r.managerId === approver.userId && r.userId !== approver.userId
+      );
 
       if (directReports.length === 0) continue;
 
