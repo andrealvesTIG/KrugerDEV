@@ -158,8 +158,8 @@ export default function ProfileAnalytics() {
 
   const generateBadgeCanvas = useCallback(async (badgeName: string, badgeIcon: string, badgeDescription: string, current: number, threshold: number): Promise<string> => {
     const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Project Manager";
-    const w = 800;
-    const h = 500;
+    const w = 480;
+    const h = 560;
     const dpr = 2;
     const canvas = document.createElement('canvas');
     canvas.width = w * dpr;
@@ -190,36 +190,28 @@ export default function ProfileAnalytics() {
       return truncated + '...';
     };
 
-    const grad = ctx.createLinearGradient(0, 0, w, h);
-    grad.addColorStop(0, '#1a1f36');
-    grad.addColorStop(1, '#0f1628');
-    ctx.fillStyle = grad;
-    drawRoundRect(0, 0, w, h, 24);
+    ctx.fillStyle = '#f8f9fb';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.08)';
+    ctx.shadowBlur = 24;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 4;
+    ctx.fillStyle = '#ffffff';
+    drawRoundRect(24, 20, w - 48, h - 40, 20);
     ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 1;
+    drawRoundRect(24, 20, w - 48, h - 40, 20);
+    ctx.stroke();
+
     ctx.save();
+    drawRoundRect(24, 20, w - 48, h - 40, 20);
     ctx.clip();
-
-    ctx.fillStyle = 'rgba(245, 158, 11, 0.03)';
-    ctx.beginPath(); ctx.arc(w - 80, 100, 200, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(59, 130, 246, 0.03)';
-    ctx.beginPath(); ctx.arc(80, h - 60, 180, 0, Math.PI * 2); ctx.fill();
-
-    try {
-      const logoImg = new Image();
-      logoImg.crossOrigin = 'anonymous';
-      await new Promise<void>((resolve) => {
-        logoImg.onload = () => resolve();
-        logoImg.onerror = () => resolve();
-        logoImg.src = '/logo-icon.png';
-      });
-      if (logoImg.complete && logoImg.naturalWidth > 0) {
-        ctx.drawImage(logoImg, 32, 24, 28, 28);
-      }
-    } catch {}
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '600 15px system-ui, -apple-system, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('FridayReport.AI', 68, 44);
 
     const badgeEmojiMap: Record<string, string> = {
       rocket: '\u{1F680}', briefcase: '\u{1F4BC}', building: '\u{1F3E2}',
@@ -229,56 +221,70 @@ export default function ProfileAnalytics() {
     };
 
     const cx = w / 2;
-    ctx.fillStyle = 'rgba(245, 158, 11, 0.1)';
-    ctx.beginPath(); ctx.arc(cx, 150, 52, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(245, 158, 11, 0.4)';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(cx, 150, 52, 0, Math.PI * 2); ctx.stroke();
-    ctx.font = '42px system-ui, -apple-system, sans-serif';
+
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.08)';
+    ctx.beginPath(); ctx.arc(cx, 130, 52, 0, Math.PI * 2); ctx.fill();
+    ctx.font = '48px system-ui, -apple-system, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(badgeEmojiMap[badgeIcon] || '\u{1F3C6}', cx, 150);
+    ctx.fillStyle = '#000000';
+    ctx.fillText(badgeEmojiMap[badgeIcon] || '\u{1F3C6}', cx, 130);
 
     ctx.textBaseline = 'alphabetic';
-    ctx.font = 'bold 28px system-ui, -apple-system, sans-serif';
-    ctx.fillStyle = '#f8fafc';
-    ctx.fillText(truncateText(badgeName, w - 120), cx, 236);
-
-    ctx.font = '16px system-ui, -apple-system, sans-serif';
-    ctx.fillStyle = '#94a3b8';
-    ctx.fillText(truncateText(badgeDescription, w - 120), cx, 264);
-
-    const pillW = 120;
-    const pillH = 36;
-    const pillX = cx - pillW / 2;
-    const pillY = 284;
-    ctx.fillStyle = 'rgba(245, 158, 11, 0.15)';
-    drawRoundRect(pillX, pillY, pillW, pillH, pillH / 2);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(245, 158, 11, 0.5)';
-    ctx.lineWidth = 1.5;
-    drawRoundRect(pillX, pillY, pillW, pillH, pillH / 2);
-    ctx.stroke();
-    ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
-    ctx.fillStyle = '#f59e0b';
-    ctx.fillText(`${current}/${threshold}`, cx, pillY + 24);
-
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(120, 345); ctx.lineTo(w - 120, 345); ctx.stroke();
+    ctx.font = 'bold 26px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#111827';
+    ctx.fillText(truncateText(badgeName, w - 100), cx, 214);
 
     ctx.font = '15px system-ui, -apple-system, sans-serif';
-    ctx.fillStyle = '#64748b';
-    ctx.fillText('Earned by', cx, 378);
+    ctx.fillStyle = '#6b7280';
+    ctx.fillText(truncateText(badgeDescription, w - 100), cx, 244);
 
-    ctx.font = 'bold 22px system-ui, -apple-system, sans-serif';
-    ctx.fillStyle = '#f8fafc';
-    ctx.fillText(truncateText(displayName, w - 120), cx, 408);
+    ctx.font = 'bold 24px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillText(`${current}/${threshold}`, cx, 290);
 
-    ctx.font = '13px system-ui, -apple-system, sans-serif';
-    ctx.fillStyle = '#475569';
-    ctx.fillText('fridayreport.ai/badges  \u2022  Project Portfolio Management', cx, h - 28);
+    ctx.strokeStyle = '#f0f0f0';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(80, 316); ctx.lineTo(w - 80, 316); ctx.stroke();
+
+    ctx.font = '14px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillText('Earned by', cx, 346);
+
+    ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#111827';
+    ctx.fillText(truncateText(displayName, w - 100), cx, 376);
+
+    ctx.strokeStyle = '#f0f0f0';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(80, 410); ctx.lineTo(w - 80, 410); ctx.stroke();
+
+    let logoLoaded = false;
+    try {
+      const logoImg = new Image();
+      logoImg.crossOrigin = 'anonymous';
+      await new Promise<void>((resolve) => {
+        logoImg.onload = () => { logoLoaded = true; resolve(); };
+        logoImg.onerror = () => resolve();
+        logoImg.src = '/logo-icon.png';
+      });
+      if (logoLoaded && logoImg.complete && logoImg.naturalWidth > 0) {
+        ctx.drawImage(logoImg, cx - 68, 430, 24, 24);
+        ctx.font = '600 14px system-ui, -apple-system, sans-serif';
+        ctx.fillStyle = '#6b7280';
+        ctx.textAlign = 'left';
+        ctx.fillText('FridayReport.AI', cx - 38, 448);
+        ctx.textAlign = 'center';
+      } else {
+        ctx.font = '600 14px system-ui, -apple-system, sans-serif';
+        ctx.fillStyle = '#6b7280';
+        ctx.fillText('FridayReport.AI', cx, 448);
+      }
+    } catch {
+      ctx.font = '600 14px system-ui, -apple-system, sans-serif';
+      ctx.fillStyle = '#6b7280';
+      ctx.fillText('FridayReport.AI', cx, 448);
+    }
 
     ctx.restore();
     return canvas.toDataURL('image/png');

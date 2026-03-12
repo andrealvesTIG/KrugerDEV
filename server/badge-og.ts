@@ -328,52 +328,56 @@ export async function generateSingleBadgeImage(data: SingleBadgeOgData): Promise
   try {
     const logoPath = path.resolve(process.cwd(), "client", "public", "logo-icon.png");
     if (fs.existsSync(logoPath)) {
-      const resizedLogo = await sharp(logoPath).resize(56, 56).png().toBuffer();
+      const resizedLogo = await sharp(logoPath).resize(40, 40).png().toBuffer();
       logoB64 = `data:image/png;base64,${resizedLogo.toString("base64")}`;
     }
   } catch {}
 
   const logoImg = logoB64
-    ? `<image href="${logoB64}" x="50" y="30" width="44" height="44" />`
-    : `<rect x="50" y="30" width="44" height="44" rx="8" fill="#f59e0b" /><text x="72" y="60" text-anchor="middle" font-size="24" font-weight="bold" fill="white" font-family="system-ui,sans-serif">F</text>`;
+    ? `<image href="${logoB64}" x="526" y="490" width="32" height="32" />`
+    : `<rect x="526" y="490" width="32" height="32" rx="6" fill="#f59e0b" /><text x="542" y="513" text-anchor="middle" font-size="18" font-weight="bold" fill="white" font-family="system-ui,sans-serif">F</text>`;
 
   const emoji = BADGE_EMOJI[data.badgeIcon] || '\u{1F3C6}';
-  const name = escapeXml(data.badgeName);
-  const desc = escapeXml(data.badgeDescription);
-  const userName = escapeXml(data.displayName);
-  const statusText = data.earned ? 'EARNED' : 'IN PROGRESS';
-  const statusColor = data.earned ? '#f59e0b' : '#64748b';
+  const truncSvg = (str: string, maxLen: number) => {
+    const escaped = escapeXml(str);
+    return escaped.length > maxLen ? escaped.slice(0, maxLen - 3) + '...' : escaped;
+  };
+  const name = truncSvg(data.badgeName, 40);
+  const desc = truncSvg(data.badgeDescription, 60);
+  const userName = truncSvg(data.displayName, 35);
 
   const svg = `<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1a1f36" />
-      <stop offset="100%" stop-color="#0f1628" />
-    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="4" stdDeviation="12" flood-color="rgba(0,0,0,0.08)" />
+    </filter>
+    <clipPath id="cardClip">
+      <rect x="300" y="25" width="600" height="580" rx="24" />
+    </clipPath>
   </defs>
-  <rect width="1200" height="630" rx="0" fill="url(#bg)" />
+  <rect width="1200" height="630" fill="#f8f9fb" />
 
-  <circle cx="1050" cy="120" r="250" fill="rgba(245,158,11,0.03)" />
-  <circle cx="150" cy="500" r="220" fill="rgba(59,130,246,0.03)" />
+  <rect x="300" y="25" width="600" height="580" rx="24" fill="white" stroke="#e5e7eb" stroke-width="1" filter="url(#shadow)" />
 
-  ${logoImg}
-  <text x="106" y="60" font-size="18" font-weight="600" fill="#94a3b8" font-family="system-ui,sans-serif">FridayReport.AI</text>
+  <g clip-path="url(#cardClip)">
+    <circle cx="600" cy="155" r="65" fill="rgba(245,158,11,0.08)" />
+    <text x="600" y="172" text-anchor="middle" font-size="60" font-family="system-ui,sans-serif">${emoji}</text>
 
-  <circle cx="600" cy="210" r="72" fill="rgba(245,158,11,0.1)" stroke="rgba(245,158,11,0.4)" stroke-width="3" />
-  <text x="600" y="225" text-anchor="middle" font-size="58" font-family="system-ui,sans-serif" fill="white">${emoji}</text>
+    <text x="600" y="270" text-anchor="middle" font-size="34" font-weight="800" fill="#111827" font-family="system-ui,sans-serif">${name}</text>
+    <text x="600" y="302" text-anchor="middle" font-size="19" fill="#6b7280" font-family="system-ui,sans-serif">${desc}</text>
 
-  <text x="600" y="330" text-anchor="middle" font-size="42" font-weight="800" fill="#f8fafc" font-family="system-ui,sans-serif">${name}</text>
-  <text x="600" y="368" text-anchor="middle" font-size="22" fill="#94a3b8" font-family="system-ui,sans-serif">${desc}</text>
+    <text x="600" y="355" text-anchor="middle" font-size="32" font-weight="700" fill="#f59e0b" font-family="system-ui,sans-serif">${data.current}/${data.threshold}</text>
 
-  <rect x="500" y="390" width="200" height="44" rx="22" fill="${statusColor}20" stroke="${statusColor}" stroke-width="2" />
-  <text x="600" y="420" text-anchor="middle" font-size="20" font-weight="700" fill="${statusColor}" font-family="system-ui,sans-serif">${data.current}/${data.threshold} \u2022 ${statusText}</text>
+    <line x1="420" y1="385" x2="780" y2="385" stroke="#f0f0f0" stroke-width="1" />
 
-  <line x1="200" y1="470" x2="1000" y2="470" stroke="rgba(148,163,184,0.15)" stroke-width="1" />
+    <text x="600" y="418" text-anchor="middle" font-size="17" fill="#9ca3af" font-family="system-ui,sans-serif">Earned by</text>
+    <text x="600" y="450" text-anchor="middle" font-size="26" font-weight="700" fill="#111827" font-family="system-ui,sans-serif">${userName}</text>
 
-  <text x="600" y="510" text-anchor="middle" font-size="20" fill="#64748b" font-family="system-ui,sans-serif">Earned by</text>
-  <text x="600" y="545" text-anchor="middle" font-size="30" font-weight="700" fill="#f8fafc" font-family="system-ui,sans-serif">${userName}</text>
+    <line x1="420" y1="475" x2="780" y2="475" stroke="#f0f0f0" stroke-width="1" />
 
-  <text x="600" y="608" text-anchor="middle" font-size="16" fill="#475569" font-family="system-ui,sans-serif">fridayreport.ai/badges \u2022 Project Portfolio Management</text>
+    ${logoImg}
+    <text x="566" y="510" text-anchor="start" font-size="18" font-weight="600" fill="#6b7280" font-family="system-ui,sans-serif">FridayReport.AI</text>
+  </g>
 </svg>`;
 
   return await sharp(Buffer.from(svg)).png().toBuffer();
