@@ -297,35 +297,35 @@ export default function ProfileAnalytics() {
     }
   }, [toast, generateBadgeCanvas]);
 
-  const handleShareBadge = useCallback(async (badgeName: string, badgeIcon: string, badgeDescription: string, current: number, threshold: number, platform: 'linkedin' | 'twitter' | 'teams') => {
-    try {
-      const dataUrl = await generateBadgeCanvas(badgeName, badgeIcon, badgeDescription, current, threshold);
-      const blob = await (await fetch(dataUrl)).blob();
-      const file = new File([blob], `FridayReport-Badge-${badgeName.replace(/\s+/g, '-')}.png`, { type: 'image/png' });
-      const shareText = `I just earned the "${badgeName}" badge on FridayReport.AI! ${badgeDescription} #ProjectManagement #PMO #FridayReportAI`;
-      const shareUrl = profileUrl;
+  const handleShareBadge = useCallback((badgeName: string, badgeIcon: string, badgeDescription: string, current: number, threshold: number, platform: 'linkedin' | 'twitter' | 'teams') => {
+    const shareText = `I just earned the "${badgeName}" badge on FridayReport.AI! ${badgeDescription} #ProjectManagement #PMO #FridayReportAI`;
+    const shareUrl = profileUrl;
 
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ title: `${badgeName} Badge - FridayReport.AI`, text: shareText, files: [file] });
-        return;
-      }
-
-      const link = document.createElement('a');
-      link.download = `FridayReport-Badge-${badgeName.replace(/\s+/g, '-')}.png`;
-      link.href = dataUrl;
-      link.click();
-
-      if (platform === 'linkedin') {
-        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, '_blank', 'noopener,noreferrer,width=600,height=500');
-      } else if (platform === 'twitter') {
-        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank', 'noopener,noreferrer,width=600,height=500');
-      } else {
-        window.open(`https://teams.microsoft.com/share?href=${encodeURIComponent(shareUrl)}&msgText=${encodeURIComponent(shareText)}`, '_blank', 'noopener,noreferrer,width=600,height=500');
-      }
-      toast({ title: "Badge image downloaded!", description: "Attach it to your post for maximum impact." });
-    } catch {
-      toast({ title: "Error", description: "Failed to share badge.", variant: "destructive" });
+    let shareWindow: Window | null = null;
+    if (platform === 'linkedin') {
+      shareWindow = window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, '_blank', 'noopener,noreferrer,width=600,height=500');
+    } else if (platform === 'twitter') {
+      shareWindow = window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank', 'noopener,noreferrer,width=600,height=500');
+    } else {
+      shareWindow = window.open(`https://teams.microsoft.com/share?href=${encodeURIComponent(shareUrl)}&msgText=${encodeURIComponent(shareText)}`, '_blank', 'noopener,noreferrer,width=600,height=500');
     }
+
+    if (!shareWindow) {
+      toast({ title: "Popup blocked", description: "Please allow popups for this site and try again.", variant: "destructive" });
+      return;
+    }
+
+    generateBadgeCanvas(badgeName, badgeIcon, badgeDescription, current, threshold)
+      .then((dataUrl) => {
+        const link = document.createElement('a');
+        link.download = `FridayReport-Badge-${badgeName.replace(/\s+/g, '-')}.png`;
+        link.href = dataUrl;
+        link.click();
+        toast({ title: "Badge image downloaded!", description: "Attach it to your post for maximum impact." });
+      })
+      .catch(() => {
+        toast({ title: "Share opened", description: "Badge image could not be generated, but share window is open." });
+      });
   }, [toast, generateBadgeCanvas, profileUrl]);
 
   if (isLoading) {
