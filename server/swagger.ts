@@ -261,7 +261,7 @@ const spec = {
         },
         required: ['id', 'organizationId', 'name', 'status', 'priority', 'budget', 'health', 'isDemo', 'timesheetBlocked'],
       },
-      ProjectInput: {
+      ProjectRequest: {
         type: 'object',
         description: 'Input schema for creating or updating a project. Same fields as Project but without server-generated fields (id, createdAt, updatedAt, etc.) being required.',
         properties: {
@@ -1696,7 +1696,7 @@ const spec = {
         responses: { ...r200('List of projects', arrOf('Project')), ...authRes },
       }),
       post: op('Projects', 'Create a new project', {
-        requestBody: body(ref('ProjectInput')),
+        requestBody: body(ref('ProjectRequest')),
         responses: { ...r201('Project created', ref('Project')), ...inputRes },
       }),
     },
@@ -1707,7 +1707,7 @@ const spec = {
       }),
       put: op('Projects', 'Update project', {
         parameters: [pathId()],
-        requestBody: body(ref('ProjectInput'), false),
+        requestBody: body(ref('ProjectRequest'), false),
         responses: { ...r200('Project updated'), ...updateRes },
       }),
       delete: op('Projects', 'Delete project', {
