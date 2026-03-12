@@ -39,9 +39,17 @@ export function TimesheetComplianceDashboard({ organizationId }: TimesheetCompli
   const [statusFilter, setStatusFilter] = useState<"all" | "overtime" | "no-entries">("all");
   const [projectFilter, setProjectFilter] = useState<string>("all");
   const [resourceFilter, setResourceFilter] = useState<string>("all");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
 
   const { data: projects } = useProjects(organizationId);
   const { data: resources } = useResources(organizationId);
+
+  const departments = useMemo(() => {
+    if (!resources) return [];
+    const depts = new Set<string>();
+    resources.forEach((r: any) => { if (r.department) depts.add(r.department); });
+    return Array.from(depts).sort();
+  }, [resources]);
 
   const { startDate, endDate } = useMemo(() => {
     const now = new Date();
@@ -69,7 +77,8 @@ export function TimesheetComplianceDashboard({ organizationId }: TimesheetCompli
   const complianceFilters = useMemo(() => ({
     projectId: projectFilter !== "all" ? Number(projectFilter) : undefined,
     resourceId: resourceFilter !== "all" ? Number(resourceFilter) : undefined,
-  }), [projectFilter, resourceFilter]);
+    department: departmentFilter !== "all" ? departmentFilter : undefined,
+  }), [projectFilter, resourceFilter, departmentFilter]);
 
   const { data, isLoading } = useTimesheetCompliance(organizationId, startDate, endDate, complianceFilters);
 
@@ -132,15 +141,29 @@ export function TimesheetComplianceDashboard({ organizationId }: TimesheetCompli
           <Select value={resourceFilter} onValueChange={setResourceFilter}>
             <SelectTrigger className="w-44 h-9">
               <UserCircle className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
-              <SelectValue placeholder="All Team Members" />
+              <SelectValue placeholder="All Members" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Team Members</SelectItem>
+              <SelectItem value="all">All Members</SelectItem>
               {resources?.filter((r: any) => r.userId).map((r: any) => (
                 <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {departments.length > 0 && (
+            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+              <SelectTrigger className="w-44 h-9">
+                <Users className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+                <SelectValue placeholder="All Teams" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Teams</SelectItem>
+                {departments.map((dept) => (
+                  <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Select value={dateRange} onValueChange={(v: "week" | "month" | "last-month") => setDateRange(v)}>
             <SelectTrigger className="w-40 h-9">
               <SelectValue />

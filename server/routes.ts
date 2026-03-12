@@ -20761,6 +20761,7 @@ Return ONLY valid JSON.`;
       const endDate = req.query.endDate as string;
       const projectId = req.query.projectId ? Number(req.query.projectId) : null;
       const resourceId = req.query.resourceId ? Number(req.query.resourceId) : null;
+      const department = req.query.department ? String(req.query.department) : null;
 
       if (!organizationId || !startDate || !endDate) {
         return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
@@ -20782,13 +20783,18 @@ Return ONLY valid JSON.`;
         allEntries = allEntries.filter(({ entry }) => entry.resourceId === resourceId);
       }
 
-      const settings = await storage.getTimesheetSettings(organizationId);
-      const overtimeThreshold = Number(settings?.overtimeThreshold || 40);
-
       let activeResources = resources.filter(r => r.userId);
       if (resourceId) {
         activeResources = activeResources.filter(r => r.id === resourceId);
       }
+      if (department) {
+        const deptResourceIds = new Set(activeResources.filter(r => r.department === department).map(r => r.id));
+        activeResources = activeResources.filter(r => deptResourceIds.has(r.id));
+        allEntries = allEntries.filter(({ entry }) => deptResourceIds.has(entry.resourceId));
+      }
+
+      const settings = await storage.getTimesheetSettings(organizationId);
+      const overtimeThreshold = Number(settings?.overtimeThreshold || 40);
       const totalResources = activeResources.length;
 
       const byUser: Record<string, { userId: string; resourceName: string; totalHours: number; entries: number; submitted: number; approved: number; rejected: number; draft: number; overtime: boolean }> = {};

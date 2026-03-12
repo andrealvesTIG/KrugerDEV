@@ -115,11 +115,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { TimerWidget } from "@/components/TimerWidget";
 import { TimesheetReminder } from "@/components/TimesheetReminder";
 import { exportTimesheetToExcel } from "@/lib/excelExport";
-import { FileSpreadsheet, Shield, Settings } from "lucide-react";
+import { FileSpreadsheet, Shield, Settings, UserPlus } from "lucide-react";
 import type { Task, Project, InsertTimesheetEntry, TimesheetPeriod } from "@shared/schema";
 import { TimesheetSettingsDialog } from "@/components/TimesheetSettingsDialog";
 import { TimesheetAuditDialog } from "@/components/TimesheetAuditDialog";
 import { TimesheetComplianceDashboard } from "@/components/TimesheetComplianceDashboard";
+import { ProxyTimesheetEntryDialog } from "@/components/ProxyTimesheetEntryDialog";
 import { useTimesheetSettings } from "@/hooks/use-timesheets";
 
 type ViewMode = "workweek" | "week" | "day";
@@ -2765,6 +2766,7 @@ export default function Timesheets() {
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   const [showReminder, setShowReminder] = useState(true);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [showProxyEntryDialog, setShowProxyEntryDialog] = useState(false);
   const [auditEntryId, setAuditEntryId] = useState<number | null>(null);
   const [showAuditDialog, setShowAuditDialog] = useState(false);
   const { toast } = useToast();
@@ -3819,6 +3821,17 @@ export default function Timesheets() {
             )}
             {currentResource?.isApprover && (
               <button
+                onClick={() => setShowProxyEntryDialog(true)}
+                className="pb-3 text-sm font-medium transition-colors text-muted-foreground hover:text-foreground"
+              >
+                <div className="flex items-center gap-2">
+                  <UserPlus className="h-4 w-4" />
+                  Proxy Entry
+                </div>
+              </button>
+            )}
+            {currentResource?.isApprover && (
+              <button
                 onClick={() => setShowSettingsDialog(true)}
                 className="pb-3 text-sm font-medium transition-colors text-muted-foreground hover:text-foreground"
                 data-testid="button-timesheet-settings"
@@ -4379,6 +4392,12 @@ export default function Timesheets() {
           setShowAuditDialog(open);
           if (!open) setAuditEntryId(null);
         }}
+      />
+
+      <ProxyTimesheetEntryDialog
+        organizationId={currentOrganization?.id || null}
+        open={showProxyEntryDialog}
+        onOpenChange={setShowProxyEntryDialog}
       />
     </div>
   );
