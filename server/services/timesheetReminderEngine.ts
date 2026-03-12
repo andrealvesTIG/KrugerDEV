@@ -79,7 +79,7 @@ function getUrgencyLevel(dayOfWeek: number): 'friendly' | 'nudge' | 'firm' {
   return 'firm';
 }
 
-export async function processSubmissionReminders(organizationId: number): Promise<number> {
+export async function processSubmissionReminders(organizationId: number, force = false): Promise<number> {
   let sent = 0;
   const settings = await getReminderSettings(organizationId);
   if (!settings?.enabled) return 0;
@@ -110,6 +110,14 @@ export async function processSubmissionReminders(organizationId: number): Promis
     targetWeekStart = prevWeekStartStr;
     targetWeekEnd = prevWeekEndStr;
     urgency = 'firm';
+  } else if (force) {
+    if (dayOfWeek === 1) {
+      targetWeekStart = prevWeekStartStr;
+      targetWeekEnd = prevWeekEndStr;
+      urgency = 'firm';
+    } else {
+      urgency = getUrgencyLevel(dayOfWeek);
+    }
   } else {
     return 0;
   }
@@ -419,14 +427,14 @@ export async function processEscalations(organizationId: number): Promise<number
   return escalated;
 }
 
-export async function processManagerDigests(organizationId: number): Promise<number> {
+export async function processManagerDigests(organizationId: number, force = false): Promise<number> {
   let sent = 0;
   const settings = await getReminderSettings(organizationId);
   if (!settings?.enabled || !settings?.digestEnabled) return 0;
 
   const today = new Date();
   const digestDay = settings.digestDay ?? 1;
-  if (today.getDay() !== digestDay) return 0;
+  if (!force && today.getDay() !== digestDay) return 0;
 
   const weekStart = startOfWeek(subDays(today, 7), { weekStartsOn: 1 });
   const weekEnd = endOfWeek(subDays(today, 7), { weekStartsOn: 1 });
@@ -547,6 +555,96 @@ export async function runTimesheetReminders(): Promise<ReminderResult> {
         result.digestsSent += await processManagerDigests(org.id);
       } catch (err: any) {
         result.errors.push(`Org ${org.id}: ${err.message}`);
+      }
+    }
+  } catch (err: any) {
+    result.errors.push(`Fatal: ${err.message}`);
+  }
+
+  return result;
+}
+
+export async function runTimesheetRemindersForOrg(organizationId: number, force = true): Promise<ReminderResult> {
+  const result: ReminderResult = {
+    submissionReminders: 0,
+    approvalReminders: 0,
+    escalations: 0,
+    digestsSent: 0,
+    errors: [],
+  };
+
+  try {
+    result.submissionReminders += await processSubmissionReminders(organizationId, force);
+    result.approvalReminders += await processApprovalReminders(organizationId);
+    result.escalations += await processEscalations(organizationId);
+    result.digestsSent += await processManagerDigests(organizationId, force);
+  } catch (err: any) {
+    result.errors.push(`Org ${organizationId}: ${err.message}`);
+  }
+
+  return result;
+}
+
+export async function getOrgsForScheduledTime(hour: number, minute: number): Promise<number[]> {
+  const orgs = await db.select({ id: organizations.id })
+    .from(organizations)
+    .where(isNull(organizations.deactivatedAt));
+
+  const orgIds: number[] = [];
+
+  for (const org of orgs) {
+    const [settings] = await db.select()
+      .from(timesheetReminderSettings)
+      .where(eq(timesheetReminderSettings.organizationId, org.id));
+
+    const scheduledHour = settings?.scheduledHour ?? 9;
+    const scheduledMinute = settings?.scheduledMinute ?? 0;
+
+    if (scheduledHour === hour && scheduledMinute === minute) {
+      orgIds.push(org.id);
+    }
+  }
+
+  return orgIds;
+}
+
+export async function runScheduledReminders(): Promise<ReminderResult> {
+  const now = new Date();
+  const currentHour = now.getUTCHours();
+  const currentMinute = now.getUTCMinutes();
+
+  const roundedMinute = Math.floor(currentMinute / 15) * 15;
+
+  const result: ReminderResult = {
+    submissionReminders: 0,
+    approvalReminders: 0,
+    escalations: 0,
+    digestsSent: 0,
+    errors: [],
+  };
+
+  try {
+    const orgs = await db.select({ id: organizations.id })
+      .from(organizations)
+      .where(isNull(organizations.deactivatedAt));
+
+    for (const org of orgs) {
+      const [settings] = await db.select()
+        .from(timesheetReminderSettings)
+        .where(eq(timesheetReminderSettings.organizationId, org.id));
+
+      const scheduledHour = settings?.scheduledHour ?? 9;
+      const scheduledMinute = settings?.scheduledMinute ?? 0;
+
+      if (scheduledHour === currentHour && scheduledMinute === roundedMinute) {
+        try {
+          result.submissionReminders += await processSubmissionReminders(org.id);
+          result.approvalReminders += await processApprovalReminders(org.id);
+          result.escalations += await processEscalations(org.id);
+          result.digestsSent += await processManagerDigests(org.id);
+        } catch (err: any) {
+          result.errors.push(`Org ${org.id}: ${err.message}`);
+        }
       }
     }
   } catch (err: any) {

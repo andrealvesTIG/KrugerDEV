@@ -724,6 +724,8 @@ export interface TimesheetReminderSettingsData {
   frequencyCap: number;
   digestEnabled: boolean;
   digestDay: number;
+  scheduledHour: number;
+  scheduledMinute: number;
 }
 
 export function useTimesheetReminderSettings(organizationId: number | null) {
@@ -756,6 +758,27 @@ export function useSnoozeTimesheetReminder() {
   return useMutation({
     mutationFn: async (data: { organizationId: number; weekStart: string; durationHours: number }) => {
       const response = await apiRequest("POST", "/api/timesheet-reminder-snooze", data);
+      return response.json();
+    },
+  });
+}
+
+export interface SendNowResult {
+  success: boolean;
+  sent: number;
+  breakdown: {
+    submissionReminders: number;
+    approvalReminders: number;
+    escalations: number;
+    digestsSent: number;
+  };
+  errors: string[];
+}
+
+export function useSendRemindersNow() {
+  return useMutation<SendNowResult, Error, { organizationId: number }>({
+    mutationFn: async (data) => {
+      const response = await apiRequest("POST", "/api/timesheet-reminder-send-now", data);
       return response.json();
     },
   });

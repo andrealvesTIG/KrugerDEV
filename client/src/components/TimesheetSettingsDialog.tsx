@@ -24,11 +24,13 @@ import {
   useDeleteRejectionTemplate,
   useTimesheetReminderSettings,
   useUpdateTimesheetReminderSettings,
+  useSendRemindersNow,
 } from "@/hooks/use-timesheets";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Settings, Loader2, Plus, Pencil, Trash2, X, Check, Bell } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Settings, Loader2, Plus, Pencil, Trash2, X, Check, Bell, Clock, Zap } from "lucide-react";
 
 interface TimesheetSettingsDialogProps {
   organizationId: number | null;
@@ -209,9 +211,23 @@ const DIGEST_DAY_OPTIONS = [
   { value: 5, label: "Friday" },
 ];
 
+const DIALOG_TIME_SLOTS = (() => {
+  const slots: { value: string; label: string }[] = [];
+  for (let h = 0; h < 24; h++) {
+    for (const m of [0, 15, 30, 45]) {
+      const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      const ampm = h < 12 ? "AM" : "PM";
+      const minuteStr = m.toString().padStart(2, "0");
+      slots.push({ value: `${h}:${m}`, label: `${hour12}:${minuteStr} ${ampm}` });
+    }
+  }
+  return slots;
+})();
+
 function ReminderSettingsManager({ organizationId }: { organizationId: number | null }) {
   const { data: settings, isLoading } = useTimesheetReminderSettings(organizationId);
   const updateSettings = useUpdateTimesheetReminderSettings();
+  const sendNow = useSendRemindersNow();
   const { toast } = useToast();
 
   const [enabled, setEnabled] = useState(true);
@@ -223,6 +239,8 @@ function ReminderSettingsManager({ organizationId }: { organizationId: number | 
   const [frequencyCap, setFrequencyCap] = useState("3");
   const [digestEnabled, setDigestEnabled] = useState(true);
   const [digestDay, setDigestDay] = useState("1");
+  const [scheduledTime, setScheduledTime] = useState("9:0");
+  const [showSendNowConfirm, setShowSendNowConfirm] = useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -235,6 +253,7 @@ function ReminderSettingsManager({ organizationId }: { organizationId: number | 
       setFrequencyCap(String(settings.frequencyCap ?? 3));
       setDigestEnabled(settings.digestEnabled ?? true);
       setDigestDay(String(settings.digestDay ?? 1));
+      setScheduledTime(`${settings.scheduledHour ?? 9}:${settings.scheduledMinute ?? 0}`);
     }
   }, [settings]);
 
@@ -244,9 +263,15 @@ function ReminderSettingsManager({ organizationId }: { organizationId: number | 
     );
   };
 
+  const parseScheduledTime = () => {
+    const [h, m] = scheduledTime.split(":").map(Number);
+    return { scheduledHour: h, scheduledMinute: m };
+  };
+
   const handleSave = async () => {
     if (!organizationId) return;
     try {
+      const { scheduledHour, scheduledMinute } = parseScheduledTime();
       await updateSettings.mutateAsync({
         organizationId,
         enabled,
@@ -258,10 +283,32 @@ function ReminderSettingsManager({ organizationId }: { organizationId: number | 
         frequencyCap: parseInt(frequencyCap) || 3,
         digestEnabled,
         digestDay: parseInt(digestDay) || 1,
+        scheduledHour,
+        scheduledMinute,
       });
       toast({ title: "Reminder settings saved", description: "Reminder & escalation rules have been updated." });
     } catch (error) {
       toast({ title: "Error", description: "Failed to save reminder settings.", variant: "destructive" });
+    }
+  };
+
+  const handleSendNow = async () => {
+    if (!organizationId) return;
+    setShowSendNowConfirm(false);
+    try {
+      const result = await sendNow.mutateAsync({ organizationId });
+      if (result.sent > 0) {
+        const parts = [];
+        if (result.breakdown.submissionReminders > 0) parts.push(`${result.breakdown.submissionReminders} submission`);
+        if (result.breakdown.approvalReminders > 0) parts.push(`${result.breakdown.approvalReminders} approval`);
+        if (result.breakdown.escalations > 0) parts.push(`${result.breakdown.escalations} escalation`);
+        if (result.breakdown.digestsSent > 0) parts.push(`${result.breakdown.digestsSent} digest`);
+        toast({ title: "Reminders sent", description: `Sent ${result.sent}: ${parts.join(", ")}.` });
+      } else {
+        toast({ title: "No reminders needed", description: "All timesheets are up to date." });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to send reminders.", variant: "destructive" });
     }
   };
 
@@ -287,6 +334,46 @@ function ReminderSettingsManager({ organizationId }: { organizationId: number | 
 
       {enabled && (
         <>
+          <Card className="p-3 space-y-3 border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/30">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="font-medium text-sm flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5" />
+                  Scheduled Time (UTC)
+                </Label>
+                <p className="text-[11px] text-muted-foreground mt-0.5">When reminders are sent on configured days</p>
+              </div>
+              <Select value={scheduledTime} onValueChange={setScheduledTime}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {DIALOG_TIME_SLOTS.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between border-t pt-2">
+              <div>
+                <Label className="font-medium text-sm flex items-center gap-1.5">
+                  <Zap className="h-3.5 w-3.5" />
+                  Send Now
+                </Label>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Send all pending reminders immediately</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSendNowConfirm(true)}
+                disabled={sendNow.isPending}
+              >
+                {sendNow.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1.5 h-3.5 w-3.5" />}
+                Send Now
+              </Button>
+            </div>
+          </Card>
+
           <Card className="p-3 space-y-3">
             <Label className="font-medium text-sm">Notification Channels</Label>
             <p className="text-xs text-muted-foreground">
@@ -400,6 +487,24 @@ function ReminderSettingsManager({ organizationId }: { organizationId: number | 
           Save Reminder Settings
         </Button>
       </div>
+
+      <AlertDialog open={showSendNowConfirm} onOpenChange={setShowSendNowConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send Reminders Now?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will immediately send all pending reminders based on current timesheet status, including submission reminders, approval reminders, and escalations.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSendNow}>
+              <Zap className="mr-2 h-4 w-4" />
+              Send Now
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

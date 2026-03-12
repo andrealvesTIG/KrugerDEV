@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS "timesheet_reminder_settings" (
   "frequency_cap" integer DEFAULT 3,
   "digest_enabled" boolean DEFAULT true,
   "digest_day" integer DEFAULT 1,
+  "scheduled_hour" integer DEFAULT 9,
+  "scheduled_minute" integer DEFAULT 0,
   "created_at" timestamp DEFAULT now(),
   "updated_at" timestamp DEFAULT now()
 );

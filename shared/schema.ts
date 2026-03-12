@@ -834,6 +834,8 @@ export const timesheetReminderSettings = pgTable("timesheet_reminder_settings", 
   frequencyCap: integer("frequency_cap").default(3),
   digestEnabled: boolean("digest_enabled").default(true),
   digestDay: integer("digest_day").default(1),
+  scheduledHour: integer("scheduled_hour").default(9),
+  scheduledMinute: integer("scheduled_minute").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [

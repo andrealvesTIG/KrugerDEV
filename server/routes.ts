@@ -20795,6 +20795,16 @@ Return ONLY valid JSON.`;
         if (!Number.isInteger(v) || v < 1 || v > 5) return res.status(400).json({ message: 'digestDay must be 1-5 (Mon-Fri)' });
         sanitized.digestDay = v;
       }
+      if (req.body.scheduledHour !== undefined) {
+        const v = Number(req.body.scheduledHour);
+        if (!Number.isInteger(v) || v < 0 || v > 23) return res.status(400).json({ message: 'scheduledHour must be 0-23' });
+        sanitized.scheduledHour = v;
+      }
+      if (req.body.scheduledMinute !== undefined) {
+        const v = Number(req.body.scheduledMinute);
+        if (!Number.isInteger(v) || ![0, 15, 30, 45].includes(v)) return res.status(400).json({ message: 'scheduledMinute must be 0, 15, 30, or 45' });
+        sanitized.scheduledMinute = v;
+      }
 
       const [existing] = await db.select()
         .from(timesheetReminderSettings)
@@ -20849,6 +20859,39 @@ Return ONLY valid JSON.`;
     } catch (error) {
       console.error('Error snoozing reminder:', error);
       res.status(500).json({ message: 'Failed to snooze reminder' });
+    }
+  });
+
+  app.post('/api/timesheet-reminder-send-now', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const { organizationId } = req.body;
+      if (!organizationId) return res.status(400).json({ message: 'organizationId is required' });
+
+      if (!(await hasTimesheetAdminAccess(userId, organizationId))) {
+        return res.status(403).json({ message: 'Only admins can trigger reminders' });
+      }
+
+      const { runTimesheetRemindersForOrg } = await import('./services/timesheetReminderEngine');
+      const result = await runTimesheetRemindersForOrg(organizationId);
+
+      const total = result.submissionReminders + result.approvalReminders + result.escalations + result.digestsSent;
+      res.json({
+        success: true,
+        sent: total,
+        breakdown: {
+          submissionReminders: result.submissionReminders,
+          approvalReminders: result.approvalReminders,
+          escalations: result.escalations,
+          digestsSent: result.digestsSent,
+        },
+        errors: result.errors,
+      });
+    } catch (error) {
+      console.error('Error sending reminders now:', error);
+      res.status(500).json({ message: 'Failed to send reminders' });
     }
   });
 
