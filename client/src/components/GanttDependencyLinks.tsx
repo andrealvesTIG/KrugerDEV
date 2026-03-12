@@ -66,16 +66,19 @@ function getBarRect(
   const startOffset = differenceInDays(start, minDate);
   const endOffset = differenceInDays(end, minDate) + 1;
   
-  const xStart = (startOffset / totalDays) * containerWidth;
-  const xEnd = (endOffset / totalDays) * containerWidth;
+  const rawXStart = (startOffset / totalDays) * containerWidth;
+  const rawXEnd = (endOffset / totalDays) * containerWidth;
+  
+  const xStart = Math.max(0, rawXStart);
+  const xEnd = Math.max(xStart + 8, rawXEnd);
   
   const barTop = 4;
   const barHeight = showBaseline && task.baselineStartDate && task.baselineEndDate ? 16 : 20;
   const yCenter = headerHeight + cumulativeYOffset + barTop + (barHeight / 2);
   
   return {
-    xStart: Math.max(0, xStart),
-    xEnd: Math.min(containerWidth, xEnd),
+    xStart,
+    xEnd,
     yCenter,
     rowIndex: taskIndex
   };
