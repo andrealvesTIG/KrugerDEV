@@ -42,3 +42,6 @@ CREATE TABLE IF NOT EXISTS "timesheet_comments" (
 
 CREATE INDEX IF NOT EXISTS "tc_entry_idx" ON "timesheet_comments" ("entry_id");
 CREATE INDEX IF NOT EXISTS "tc_org_idx" ON "timesheet_comments" ("organization_id");
+
+ALTER TABLE "timesheet_entries" ADD COLUMN IF NOT EXISTS "rejected_at" timestamp;
+ALTER TABLE "timesheet_entries" ADD COLUMN IF NOT EXISTS "rejected_by" varchar REFERENCES "users"("id");
