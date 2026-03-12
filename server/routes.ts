@@ -1189,48 +1189,53 @@ async function isTeamMemberInOrg(userId: string | undefined, orgId: number): Pro
   return role === 'team_member';
 }
 
-// Helper to get user's resource IDs in an organization
 async function getUserResourceIds(userId: string, orgId: number): Promise<number[]> {
-  const orgResources = await storage.getResources(orgId);
-  return orgResources.filter(r => r.userId === userId).map(r => r.id);
+  const userResources = await storage.getResourcesByUserId(userId, orgId);
+  return userResources.map(r => r.id);
 }
 
-// Cached result type for team member access data
 interface TeamMemberAccessData {
   resourceIds: number[];
   projectIds: Set<number>;
-  invitedProjectIds: Set<number>;  // Projects explicitly invited to (see all items)
+  invitedProjectIds: Set<number>;
   taskIds: Set<number>;
 }
 
-// Helper to get all access data for a team_member in one pass (more efficient)
 async function getTeamMemberAccessData(userId: string, orgId: number): Promise<TeamMemberAccessData> {
-  const orgResources = await storage.getResources(orgId);
-  const userResources = orgResources.filter(r => r.userId === userId);
+  const userResources = await storage.getResourcesByUserId(userId, orgId);
   const resourceIds = userResources.map(r => r.id);
   
   if (resourceIds.length === 0) {
     return { resourceIds: [], projectIds: new Set(), invitedProjectIds: new Set(), taskIds: new Set() };
   }
   
-  // Get all projects in org to filter tasks
-  const allProjects = await storage.getProjects();
-  const orgProjectIds = new Set(allProjects.filter(p => p.organizationId === orgId).map(p => p.id));
+  const resourceIdSet = new Set(resourceIds);
   
-  // Get all tasks (without org filter - the function doesn't support it)
-  const allTasks = await storage.getAllTasks();
-  const orgTasks = allTasks.filter(t => orgProjectIds.has(t.projectId));
+  const [orgTasks, allAssignments] = await Promise.all([
+    storage.getTasksByOrganization(orgId),
+    storage.getTaskResourceAssignmentsByOrgId(orgId)
+  ]);
   
-  // Batch get all task resource assignments
+  const orgTaskProjectIds = new Set(orgTasks.map(t => t.projectId));
+  
+  const assignmentsByTaskId = new Map<number, number[]>();
+  for (const a of allAssignments) {
+    const existing = assignmentsByTaskId.get(a.taskId);
+    if (existing) {
+      existing.push(a.resourceId);
+    } else {
+      assignmentsByTaskId.set(a.taskId, [a.resourceId]);
+    }
+  }
+  
   const projectIdSet = new Set<number>();
   const taskIdSet = new Set<number>();
-  
-  // Include projects the resource was explicitly invited to
   const invitedProjectIdSet = new Set<number>();
+  
   for (const resource of userResources) {
     if (resource.invitedProjectIds && Array.isArray(resource.invitedProjectIds)) {
       for (const projectId of resource.invitedProjectIds) {
-        if (orgProjectIds.has(projectId)) {
+        if (orgTaskProjectIds.has(projectId)) {
           projectIdSet.add(projectId);
           invitedProjectIdSet.add(projectId);
         }
@@ -1238,15 +1243,12 @@ async function getTeamMemberAccessData(userId: string, orgId: number): Promise<T
     }
   }
   
-  // Check assignments for each task, and include ALL tasks from invited projects
   for (const task of orgTasks) {
-    // If task is in an invited project, include it
     if (invitedProjectIdSet.has(task.projectId)) {
       taskIdSet.add(task.id);
     } else {
-      // Otherwise, check if user is assigned to this task
-      const assignments = await storage.getTaskResourceAssignments(task.id);
-      if (assignments.some(a => resourceIds.includes(a.resourceId))) {
+      const taskAssignmentResourceIds = assignmentsByTaskId.get(task.id);
+      if (taskAssignmentResourceIds && taskAssignmentResourceIds.some(rid => resourceIdSet.has(rid))) {
         projectIdSet.add(task.projectId);
         taskIdSet.add(task.id);
       }
@@ -1273,20 +1275,32 @@ async function getTeamMemberRiskIds(userId: string, orgId: number): Promise<numb
   const accessData = await getTeamMemberAccessData(userId, orgId);
   if (accessData.resourceIds.length === 0) return [];
   
+  const resourceIdSet = new Set(accessData.resourceIds);
   const riskIdSet = new Set<number>();
+  const projectIds = Array.from(accessData.projectIds);
   
-  for (const projectId of accessData.projectIds) {
-    const risks = await storage.getRisks(projectId);
+  const risksByProject = await Promise.all(projectIds.map(pid => storage.getRisks(pid)));
+  const risksNeedingAssignmentCheck: number[] = [];
+  
+  for (let i = 0; i < projectIds.length; i++) {
+    const projectId = projectIds[i];
+    const risks = risksByProject[i];
     for (const risk of risks) {
-      // If project is in invited projects, include all risks
       if (accessData.invitedProjectIds.has(projectId)) {
         riskIdSet.add(risk.id);
       } else {
-        // Otherwise, check if user is assigned to this risk
-        const assignments = await storage.getRiskResourceAssignments(risk.id);
-        if (assignments.some(a => accessData.resourceIds.includes(a.resourceId))) {
-          riskIdSet.add(risk.id);
-        }
+        risksNeedingAssignmentCheck.push(risk.id);
+      }
+    }
+  }
+  
+  if (risksNeedingAssignmentCheck.length > 0) {
+    const assignmentResults = await Promise.all(
+      risksNeedingAssignmentCheck.map(riskId => storage.getRiskResourceAssignments(riskId))
+    );
+    for (let i = 0; i < risksNeedingAssignmentCheck.length; i++) {
+      if (assignmentResults[i].some(a => resourceIdSet.has(a.resourceId))) {
+        riskIdSet.add(risksNeedingAssignmentCheck[i]);
       }
     }
   }
@@ -1294,25 +1308,36 @@ async function getTeamMemberRiskIds(userId: string, orgId: number): Promise<numb
   return Array.from(riskIdSet);
 }
 
-// Helper to get issue IDs that a team_member has access to (assigned or in invited projects)
 async function getTeamMemberIssueIds(userId: string, orgId: number): Promise<number[]> {
   const accessData = await getTeamMemberAccessData(userId, orgId);
   if (accessData.resourceIds.length === 0) return [];
   
+  const resourceIdSet = new Set(accessData.resourceIds);
   const issueIdSet = new Set<number>();
+  const projectIds = Array.from(accessData.projectIds);
   
-  for (const projectId of accessData.projectIds) {
-    const issues = await storage.getIssues(projectId);
+  const issuesByProject = await Promise.all(projectIds.map(pid => storage.getIssues(pid)));
+  const issuesNeedingAssignmentCheck: number[] = [];
+  
+  for (let i = 0; i < projectIds.length; i++) {
+    const projectId = projectIds[i];
+    const issues = issuesByProject[i];
     for (const issue of issues) {
-      // If project is in invited projects, include all issues
       if (accessData.invitedProjectIds.has(projectId)) {
         issueIdSet.add(issue.id);
       } else {
-        // Otherwise, check if user is assigned to this issue
-        const assignments = await storage.getIssueResourceAssignments(issue.id);
-        if (assignments.some(a => accessData.resourceIds.includes(a.resourceId))) {
-          issueIdSet.add(issue.id);
-        }
+        issuesNeedingAssignmentCheck.push(issue.id);
+      }
+    }
+  }
+  
+  if (issuesNeedingAssignmentCheck.length > 0) {
+    const assignmentResults = await Promise.all(
+      issuesNeedingAssignmentCheck.map(issueId => storage.getIssueResourceAssignments(issueId))
+    );
+    for (let i = 0; i < issuesNeedingAssignmentCheck.length; i++) {
+      if (assignmentResults[i].some(a => resourceIdSet.has(a.resourceId))) {
+        issueIdSet.add(issuesNeedingAssignmentCheck[i]);
       }
     }
   }
@@ -4257,24 +4282,30 @@ export async function registerRoutes(
       const shares = await storage.getExternalSharesForUser(userId);
       const projectShares = shares.filter(s => s.objectType === 'project');
       
-      // Fetch full project details for each share
-      const projects = await Promise.all(
-        projectShares.map(async (share) => {
-          const project = await storage.getProject(share.objectId);
-          if (project) {
-            const org = await storage.getOrganization(share.sourceOrganizationId);
-            return {
-              ...project,
-              isExternal: true,
-              sourceOrganizationId: share.sourceOrganizationId,
-              sourceOrganizationName: org?.name || 'External Organization',
-              externalShareId: share.id,
-              accessRole: share.accessRole
-            };
-          }
-          return null;
-        })
-      );
+      if (projectShares.length === 0) return res.json([]);
+
+      const projectIds = projectShares.map(s => s.objectId);
+      const orgIds = [...new Set(projectShares.map(s => s.sourceOrganizationId))];
+      const [allProjects, allOrgs] = await Promise.all([
+        Promise.all(projectIds.map(id => storage.getProject(id))),
+        Promise.all(orgIds.map(id => storage.getOrganization(id)))
+      ]);
+      const projectMap = new Map(allProjects.filter(Boolean).map(p => [p!.id, p!]));
+      const orgMap = new Map(allOrgs.filter(Boolean).map(o => [o!.id, o!]));
+      
+      const projects = projectShares.map(share => {
+        const project = projectMap.get(share.objectId);
+        if (!project) return null;
+        const org = orgMap.get(share.sourceOrganizationId);
+        return {
+          ...project,
+          isExternal: true,
+          sourceOrganizationId: share.sourceOrganizationId,
+          sourceOrganizationName: org?.name || 'External Organization',
+          externalShareId: share.id,
+          accessRole: share.accessRole
+        };
+      });
       
       res.json(projects.filter(Boolean));
     } catch (err) {
@@ -4284,7 +4315,6 @@ export async function registerRoutes(
     }
   });
   
-  // Get external tasks for the current user (with full task details)
   app.get('/api/external-tasks', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -4295,31 +4325,35 @@ export async function registerRoutes(
       const shares = await storage.getExternalSharesForUser(userId);
       const taskShares = shares.filter(s => s.objectType === 'task');
       
-      // Fetch full task details for each share
-      const tasks = await Promise.all(
-        taskShares.map(async (share) => {
-          const task = await storage.getTask(share.objectId);
-          if (task) {
-            const org = await storage.getOrganization(share.sourceOrganizationId);
-            // Get project info for context
-            let projectName = null;
-            if (task.projectId) {
-              const project = await storage.getProject(task.projectId);
-              projectName = project?.name || null;
-            }
-            return {
-              ...task,
-              isExternal: true,
-              sourceOrganizationId: share.sourceOrganizationId,
-              sourceOrganizationName: org?.name || 'External Organization',
-              projectName,
-              externalShareId: share.id,
-              accessRole: share.accessRole
-            };
-          }
-          return null;
-        })
-      );
+      if (taskShares.length === 0) return res.json([]);
+
+      const taskIds = taskShares.map(s => s.objectId);
+      const orgIds = [...new Set(taskShares.map(s => s.sourceOrganizationId))];
+      const [allTasks, allOrgs] = await Promise.all([
+        Promise.all(taskIds.map(id => storage.getTask(id))),
+        Promise.all(orgIds.map(id => storage.getOrganization(id)))
+      ]);
+      const taskMap = new Map(allTasks.filter(Boolean).map(t => [t!.id, t!]));
+      const orgMap = new Map(allOrgs.filter(Boolean).map(o => [o!.id, o!]));
+      const projectIds = [...new Set(Array.from(taskMap.values()).map(t => t.projectId).filter(Boolean))];
+      const allProjects = await Promise.all(projectIds.map(id => storage.getProject(id)));
+      const projectMap = new Map(allProjects.filter(Boolean).map(p => [p!.id, p!]));
+      
+      const tasks = taskShares.map(share => {
+        const task = taskMap.get(share.objectId);
+        if (!task) return null;
+        const org = orgMap.get(share.sourceOrganizationId);
+        const project = task.projectId ? projectMap.get(task.projectId) : null;
+        return {
+          ...task,
+          isExternal: true,
+          sourceOrganizationId: share.sourceOrganizationId,
+          sourceOrganizationName: org?.name || 'External Organization',
+          projectName: project?.name || null,
+          externalShareId: share.id,
+          accessRole: share.accessRole
+        };
+      });
       
       res.json(tasks.filter(Boolean));
     } catch (err) {
@@ -4329,7 +4363,6 @@ export async function registerRoutes(
     }
   });
   
-  // Get external risks for the current user (with full risk details)
   app.get('/api/external-risks', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -4340,31 +4373,35 @@ export async function registerRoutes(
       const shares = await storage.getExternalSharesForUser(userId);
       const riskShares = shares.filter(s => s.objectType === 'risk');
       
-      // Fetch full risk details for each share
-      const risks = await Promise.all(
-        riskShares.map(async (share) => {
-          const risk = await storage.getRisk(share.objectId);
-          if (risk) {
-            const org = await storage.getOrganization(share.sourceOrganizationId);
-            // Get project info for context
-            let projectName = null;
-            if (risk.projectId) {
-              const project = await storage.getProject(risk.projectId);
-              projectName = project?.name || null;
-            }
-            return {
-              ...risk,
-              isExternal: true,
-              sourceOrganizationId: share.sourceOrganizationId,
-              sourceOrganizationName: org?.name || 'External Organization',
-              projectName,
-              externalShareId: share.id,
-              accessRole: share.accessRole
-            };
-          }
-          return null;
-        })
-      );
+      if (riskShares.length === 0) return res.json([]);
+
+      const riskIds = riskShares.map(s => s.objectId);
+      const orgIds = [...new Set(riskShares.map(s => s.sourceOrganizationId))];
+      const [allRisks, allOrgs] = await Promise.all([
+        Promise.all(riskIds.map(id => storage.getRisk(id))),
+        Promise.all(orgIds.map(id => storage.getOrganization(id)))
+      ]);
+      const riskMap = new Map(allRisks.filter(Boolean).map(r => [r!.id, r!]));
+      const orgMap = new Map(allOrgs.filter(Boolean).map(o => [o!.id, o!]));
+      const projectIds = [...new Set(Array.from(riskMap.values()).map(r => r.projectId).filter(Boolean))];
+      const allProjects = await Promise.all(projectIds.map(id => storage.getProject(id)));
+      const projectMap = new Map(allProjects.filter(Boolean).map(p => [p!.id, p!]));
+      
+      const risks = riskShares.map(share => {
+        const risk = riskMap.get(share.objectId);
+        if (!risk) return null;
+        const org = orgMap.get(share.sourceOrganizationId);
+        const project = risk.projectId ? projectMap.get(risk.projectId) : null;
+        return {
+          ...risk,
+          isExternal: true,
+          sourceOrganizationId: share.sourceOrganizationId,
+          sourceOrganizationName: org?.name || 'External Organization',
+          projectName: project?.name || null,
+          externalShareId: share.id,
+          accessRole: share.accessRole
+        };
+      });
       
       res.json(risks.filter(Boolean));
     } catch (err) {
@@ -4374,7 +4411,6 @@ export async function registerRoutes(
     }
   });
   
-  // Get external issues for the current user (with full issue details)
   app.get('/api/external-issues', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -4385,31 +4421,35 @@ export async function registerRoutes(
       const shares = await storage.getExternalSharesForUser(userId);
       const issueShares = shares.filter(s => s.objectType === 'issue');
       
-      // Fetch full issue details for each share
-      const issues = await Promise.all(
-        issueShares.map(async (share) => {
-          const issue = await storage.getIssue(share.objectId);
-          if (issue) {
-            const org = await storage.getOrganization(share.sourceOrganizationId);
-            // Get project info for context
-            let projectName = null;
-            if (issue.projectId) {
-              const project = await storage.getProject(issue.projectId);
-              projectName = project?.name || null;
-            }
-            return {
-              ...issue,
-              isExternal: true,
-              sourceOrganizationId: share.sourceOrganizationId,
-              sourceOrganizationName: org?.name || 'External Organization',
-              projectName,
-              externalShareId: share.id,
-              accessRole: share.accessRole
-            };
-          }
-          return null;
-        })
-      );
+      if (issueShares.length === 0) return res.json([]);
+
+      const issueIds = issueShares.map(s => s.objectId);
+      const orgIds = [...new Set(issueShares.map(s => s.sourceOrganizationId))];
+      const [allIssues, allOrgs] = await Promise.all([
+        Promise.all(issueIds.map(id => storage.getIssue(id))),
+        Promise.all(orgIds.map(id => storage.getOrganization(id)))
+      ]);
+      const issueMap = new Map(allIssues.filter(Boolean).map(i => [i!.id, i!]));
+      const orgMap = new Map(allOrgs.filter(Boolean).map(o => [o!.id, o!]));
+      const projectIds = [...new Set(Array.from(issueMap.values()).map(i => i.projectId).filter(Boolean))];
+      const allProjects = await Promise.all(projectIds.map(id => storage.getProject(id)));
+      const projectMap = new Map(allProjects.filter(Boolean).map(p => [p!.id, p!]));
+      
+      const issues = issueShares.map(share => {
+        const issue = issueMap.get(share.objectId);
+        if (!issue) return null;
+        const org = orgMap.get(share.sourceOrganizationId);
+        const project = issue.projectId ? projectMap.get(issue.projectId) : null;
+        return {
+          ...issue,
+          isExternal: true,
+          sourceOrganizationId: share.sourceOrganizationId,
+          sourceOrganizationName: org?.name || 'External Organization',
+          projectName: project?.name || null,
+          externalShareId: share.id,
+          accessRole: share.accessRole
+        };
+      });
       
       res.json(issues.filter(Boolean));
     } catch (err) {
@@ -10059,10 +10099,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       lastLevel = level;
     }
     
-    // Apply all updates
-    for (const update of updates) {
-      await storage.updateTask(update.id, { wbs: update.wbs });
-    }
+    await storage.batchUpdateTaskWbs(updates);
   }
   
   // Helper function to recalculate parentId for all tasks based on outline levels (MS Project style)
@@ -10101,10 +10138,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
     }
     
-    // Apply all updates
-    for (const update of updates) {
-      await storage.updateTask(update.id, { parentId: update.parentId });
-    }
+    await storage.batchUpdateTaskParentIds(updates);
   }
   
   async function recalculateTaskEstimatedHours(taskId: number) {

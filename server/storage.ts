@@ -192,11 +192,16 @@ export interface IStorage {
   getTasks(projectId: number): Promise<Task[]>;
   getTasksByProject(projectId: number): Promise<Task[]>;
   getAllTasks(): Promise<Task[]>;
+  getTasksByOrganization(organizationId: number): Promise<Task[]>;
   getTasksByOrganizationPaginated(organizationId: number, limit: number, offset: number, onlyTaskIds?: number[], dateFilters?: TaskDateFilterOptions): Promise<{ tasks: Task[]; total: number }>;
   getTasksByMultipleOrganizationsPaginated(orgIds: number[], limit: number, offset: number, restrictedTaskIds?: number[], unrestrictedOrgIds?: number[], dateFilters?: TaskDateFilterOptions): Promise<{ tasks: Task[]; total: number }>;
   getTask(id: number): Promise<Task | undefined>;
   createTask(task: InsertTask): Promise<Task>;
   updateTask(id: number, updates: UpdateTaskRequest): Promise<Task>;
+  batchUpdateTaskWbs(updates: Array<{ id: number; wbs: string }>): Promise<void>;
+  batchUpdateTaskParentIds(updates: Array<{ id: number; parentId: number | null }>): Promise<void>;
+  getResourcesByUserId(userId: string, organizationId: number): Promise<Resource[]>;
+  getTaskResourceAssignmentsByOrgId(organizationId: number): Promise<(TaskResourceAssignment & { resource: Resource })[]>;
   deleteTask(id: number): Promise<void>;
 
   // Task Change Logs
@@ -1515,6 +1520,16 @@ export class DatabaseStorage implements IStorage {
     return filters.sortOrder === 'asc' ? asc(col) : desc(col);
   }
 
+  async getTasksByOrganization(organizationId: number): Promise<Task[]> {
+    const orgProjectIds = await db.select({ id: projects.id }).from(projects)
+      .where(and(eq(projects.organizationId, organizationId), isNull(projects.deletedAt)));
+    if (orgProjectIds.length === 0) return [];
+    const pIds = orgProjectIds.map(p => p.id);
+    return await db.select().from(tasks).where(
+      and(this.chunkedInArray(tasks.projectId, pIds), isNull(tasks.deletedAt))
+    );
+  }
+
   async getTasksByOrganizationPaginated(organizationId: number, limit: number, offset: number, onlyTaskIds?: number[], dateFilters?: TaskDateFilterOptions): Promise<{ tasks: Task[]; total: number }> {
     const orgProjectIds = await db.select({ id: projects.id }).from(projects)
       .where(and(eq(projects.organizationId, organizationId), isNull(projects.deletedAt)));
@@ -1633,6 +1648,53 @@ export class DatabaseStorage implements IStorage {
       .where(eq(tasks.id, id))
       .returning();
     return updated;
+  }
+
+  async batchUpdateTaskWbs(updates: Array<{ id: number; wbs: string }>): Promise<void> {
+    if (updates.length === 0) return;
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+      const batch = updates.slice(i, i + BATCH_SIZE);
+      const ids = batch.map(u => u.id);
+      let caseSql = sql`CASE`;
+      for (const u of batch) {
+        caseSql = sql`${caseSql} WHEN ${tasks.id} = ${u.id} THEN ${u.wbs}`;
+      }
+      caseSql = sql`${caseSql} ELSE ${tasks.wbs} END`;
+      await db.update(tasks).set({ wbs: caseSql } as any).where(inArray(tasks.id, ids));
+    }
+  }
+
+  async batchUpdateTaskParentIds(updates: Array<{ id: number; parentId: number | null }>): Promise<void> {
+    if (updates.length === 0) return;
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+      const batch = updates.slice(i, i + BATCH_SIZE);
+      const ids = batch.map(u => u.id);
+      let caseSql = sql`CASE`;
+      for (const u of batch) {
+        caseSql = sql`${caseSql} WHEN ${tasks.id} = ${u.id} THEN ${u.parentId !== null ? sql`${u.parentId}` : sql`NULL`}`;
+      }
+      caseSql = sql`${caseSql} ELSE ${tasks.parentId} END`;
+      await db.update(tasks).set({ parentId: caseSql } as any).where(inArray(tasks.id, ids));
+    }
+  }
+
+  async getResourcesByUserId(userId: string, organizationId: number): Promise<Resource[]> {
+    return await db.select().from(resources).where(
+      and(eq(resources.userId, userId), eq(resources.organizationId, organizationId), isNull(resources.deletedAt))
+    );
+  }
+
+  async getTaskResourceAssignmentsByOrgId(organizationId: number): Promise<(TaskResourceAssignment & { resource: Resource })[]> {
+    const assignments = await db.select()
+      .from(taskResourceAssignments)
+      .innerJoin(resources, eq(taskResourceAssignments.resourceId, resources.id))
+      .where(eq(resources.organizationId, organizationId));
+    return assignments.map(a => ({
+      ...a.task_resource_assignments,
+      resource: a.resources
+    }));
   }
 
   async deleteTask(id: number): Promise<void> {
