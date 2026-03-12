@@ -19768,19 +19768,24 @@ Return ONLY valid JSON.`;
       };
 
       const results = [];
-      for (const entry of entries) {
+      const errors: { index: number; taskId: number; entryDate: string; message: string }[] = [];
+      for (let idx = 0; idx < entries.length; idx++) {
+        const entry = entries[idx];
         const hoursNum = parseFloat(entry.hours);
         if (isNaN(hoursNum) || hoursNum < 0 || hoursNum > 24) {
+          errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: 'Hours must be between 0 and 24' });
           continue;
         }
 
         if (settings?.mandatoryNotes && hoursNum > 0 && (!entry.notes || !String(entry.notes).trim())) {
+          errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: 'Notes are required for all timesheet entries' });
           continue;
         }
 
         if (hoursNum > 0 && settings?.maxWeeklyHours) {
           const weekCheck = await checkWeeklyHourLimits(userId, organizationId, entry.entryDate, hoursNum, entry.id || undefined);
           if (!weekCheck.ok) {
+            errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: weekCheck.message! });
             continue;
           }
         }
@@ -19888,7 +19893,11 @@ Return ONLY valid JSON.`;
         }
       }
 
-      res.status(201).json(results);
+      if (errors.length > 0 && results.length === 0) {
+        return res.status(400).json({ message: 'All entries failed validation', errors, entries: [] });
+      }
+
+      res.status(201).json({ entries: results, errors });
     } catch (error) {
       console.error('Error bulk upserting timesheet entries:', error);
       const classified = classifyError(error);
@@ -20383,7 +20392,22 @@ Return ONLY valid JSON.`;
       }
 
       const periods = await storage.getClosedPeriodsForDateRange(organizationId, startDate, endDate);
-      res.json(periods);
+      const settings = await storage.getTimesheetSettings(organizationId);
+      const graceDays = settings?.gracePeriodDays || 0;
+
+      const periodsWithGrace = periods.map(p => {
+        let inGracePeriod = false;
+        let graceEndDate: string | null = null;
+        if (graceDays > 0 && p.closedAt) {
+          const graceEnd = new Date(p.closedAt);
+          graceEnd.setDate(graceEnd.getDate() + graceDays);
+          graceEndDate = graceEnd.toISOString();
+          inGracePeriod = new Date() <= graceEnd;
+        }
+        return { ...p, inGracePeriod, graceEndDate, gracePeriodDays: graceDays };
+      });
+
+      res.json(periodsWithGrace);
     } catch (error) {
       console.error('Error getting closed periods:', error);
       const classified = classifyError(error);
@@ -20786,6 +20810,11 @@ Return ONLY valid JSON.`;
       }
 
       let totalSubmitted = 0, totalApproved = 0, totalRejected = 0, totalDraft = 0;
+      let lateSubmissions = 0;
+      let overdueApprovals = 0;
+      const endDateObj = new Date(endDate + 'T23:59:59Z');
+      const now = new Date();
+      const approvalThresholdDays = 3;
 
       for (const { entry } of allEntries) {
         const u = byUser[entry.userId];
@@ -20793,10 +20822,27 @@ Return ONLY valid JSON.`;
           const hrs = Number(entry.hours || 0);
           u.totalHours += hrs;
           u.entries += 1;
-          if (entry.status === 'Submitted') { u.submitted++; totalSubmitted++; }
+          if (entry.status === 'Submitted') {
+            u.submitted++; totalSubmitted++;
+            if (entry.submittedAt && new Date(entry.submittedAt) > endDateObj) {
+              lateSubmissions++;
+            }
+            const submittedDate = entry.submittedAt ? new Date(entry.submittedAt) : null;
+            if (submittedDate) {
+              const daysSinceSubmit = Math.floor((now.getTime() - submittedDate.getTime()) / (1000 * 60 * 60 * 24));
+              if (daysSinceSubmit > approvalThresholdDays) {
+                overdueApprovals++;
+              }
+            }
+          }
           else if (entry.status === 'Approved') { u.approved++; totalApproved++; }
           else if (entry.status === 'Rejected') { u.rejected++; totalRejected++; }
-          else { u.draft++; totalDraft++; }
+          else {
+            u.draft++; totalDraft++;
+            if (now > endDateObj) {
+              lateSubmissions++;
+            }
+          }
         }
       }
 
@@ -20833,6 +20879,8 @@ Return ONLY valid JSON.`;
           rejectionRate,
           overtimeUsers,
           overtimeThreshold,
+          lateSubmissions,
+          overdueApprovals,
         },
         byUser: Object.values(byUser).sort((a, b) => b.totalHours - a.totalHours),
       });

@@ -211,7 +211,7 @@ export function TimesheetComplianceDashboard({ organizationId }: TimesheetCompli
         </Card>
       </div>
 
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
         <Card className="col-span-1">
           <CardContent className="p-3 text-center">
             <div className="text-xs text-muted-foreground">Total Entries</div>
@@ -238,6 +238,22 @@ export function TimesheetComplianceDashboard({ organizationId }: TimesheetCompli
               <TrendingUp className="h-3 w-3" /> No Entries
             </div>
             <div className="text-xl font-bold text-red-500">{summary.usersWithNoEntries}</div>
+          </CardContent>
+        </Card>
+        <Card className="col-span-1">
+          <CardContent className="p-3 text-center">
+            <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+              <AlertTriangle className="h-3 w-3 text-orange-500" /> Late
+            </div>
+            <div className="text-xl font-bold text-orange-600">{summary.lateSubmissions}</div>
+          </CardContent>
+        </Card>
+        <Card className="col-span-1">
+          <CardContent className="p-3 text-center">
+            <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+              <Clock className="h-3 w-3 text-red-500" /> Overdue
+            </div>
+            <div className="text-xl font-bold text-red-600">{summary.overdueApprovals}</div>
           </CardContent>
         </Card>
       </div>

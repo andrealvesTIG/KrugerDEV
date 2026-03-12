@@ -2859,11 +2859,12 @@ export default function Timesheets() {
     endDate
   );
 
-  // Helper function to check if a date falls within a closed period
   const isDateInClosedPeriod = useCallback((date: Date): boolean => {
     const dateStr = formatDateKey(date);
     return closedPeriods.some(period => {
-      return dateStr >= period.startDate && dateStr <= period.endDate;
+      if (dateStr < period.startDate || dateStr > period.endDate) return false;
+      if ((period as any).inGracePeriod) return false;
+      return true;
     });
   }, [closedPeriods]);
 
@@ -3060,14 +3061,16 @@ export default function Timesheets() {
     }
 
     try {
-      const results = await bulkUpsert.mutateAsync(entriesToUpsert);
+      const response = await bulkUpsert.mutateAsync(entriesToUpsert);
 
-      // Sync server-assigned IDs back into gridData
-      if (Array.isArray(results)) {
+      const savedEntries = Array.isArray(response) ? response : (response?.entries || []);
+      const validationErrors = Array.isArray(response) ? [] : (response?.errors || []);
+
+      if (savedEntries.length > 0) {
         setGridData(prev => {
           const updated = { ...prev };
           let changed = false;
-          for (const saved of results) {
+          for (const saved of savedEntries) {
             const taskId = saved.taskId;
             const dateKey = saved.entryDate;
             if (updated[taskId]?.[dateKey] && updated[taskId][dateKey].id !== saved.id) {
@@ -3078,25 +3081,45 @@ export default function Timesheets() {
           }
           return changed ? updated : prev;
         });
+      }
 
-        // Warn if some entries were skipped
-        const skipped = entriesToUpsert.length - results.length;
-        if (skipped > 0) {
-          toast({ 
-            title: "Partially Saved", 
-            description: `${results.length} entries saved, ${skipped} could not be saved (may be locked, in a closed period, or already submitted)`,
-            variant: "destructive"
-          });
-        } else {
-          toast({ title: "Saved", description: "Your timesheet has been saved" });
-        }
+      if (validationErrors.length > 0) {
+        const noteErrors = validationErrors.filter((e: any) => e.message?.includes('Notes'));
+        const hourErrors = validationErrors.filter((e: any) => e.message?.includes('hour') || e.message?.includes('Hours'));
+        const otherSkipped = validationErrors.length - noteErrors.length - hourErrors.length;
+        
+        let desc = `${savedEntries.length} entries saved.`;
+        if (noteErrors.length > 0) desc += ` ${noteErrors.length} rejected: notes required.`;
+        if (hourErrors.length > 0) desc += ` ${hourErrors.length} rejected: weekly hour limit exceeded.`;
+        if (otherSkipped > 0) desc += ` ${otherSkipped} skipped due to other validation errors.`;
+        
+        toast({ title: "Partially Saved", description: desc, variant: "destructive" });
+      } else if (savedEntries.length < entriesToUpsert.length) {
+        const skipped = entriesToUpsert.length - savedEntries.length;
+        toast({ 
+          title: "Partially Saved", 
+          description: `${savedEntries.length} entries saved, ${skipped} could not be saved (may be locked, in a closed period, or already submitted)`,
+          variant: "destructive"
+        });
       } else {
         toast({ title: "Saved", description: "Your timesheet has been saved" });
       }
 
       setHasChanges(false);
-    } catch (err) {
-      toast({ title: "Error", description: "Failed to save timesheet", variant: "destructive" });
+    } catch (err: any) {
+      const errorData = err?.data || err;
+      if (errorData?.errors?.length > 0) {
+        const noteErrors = errorData.errors.filter((e: any) => e.message?.includes('Notes'));
+        toast({ 
+          title: "Validation Failed", 
+          description: noteErrors.length > 0 
+            ? "Notes are required for all timesheet entries with hours" 
+            : errorData.message || "Failed to save timesheet",
+          variant: "destructive" 
+        });
+      } else {
+        toast({ title: "Error", description: "Failed to save timesheet", variant: "destructive" });
+      }
     }
   };
 

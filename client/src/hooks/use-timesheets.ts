@@ -427,6 +427,8 @@ export interface ComplianceReportData {
     rejectionRate: number;
     overtimeUsers: number;
     overtimeThreshold: number;
+    lateSubmissions: number;
+    overdueApprovals: number;
   };
   byUser: {
     userId: string;
