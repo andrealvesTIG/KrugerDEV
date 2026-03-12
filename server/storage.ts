@@ -1635,6 +1635,25 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async bulkUpdateTasks(taskIds: number[], updates: UpdateTaskRequest): Promise<Task[]> {
+    if (taskIds.length === 0) return [];
+    const updated = await db.update(tasks)
+      .set(updates)
+      .where(inArray(tasks.id, taskIds))
+      .returning();
+    return updated;
+  }
+
+  async bulkSoftDeleteTasks(taskIds: number[], userId: string): Promise<number> {
+    if (taskIds.length === 0) return 0;
+    const now = new Date();
+    const updated = await db.update(tasks)
+      .set({ deletedAt: now, deletedBy: userId })
+      .where(inArray(tasks.id, taskIds))
+      .returning();
+    return updated.length;
+  }
+
   async deleteTask(id: number): Promise<void> {
     await db.delete(taskDependencies).where(eq(taskDependencies.taskId, id));
     await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, id));

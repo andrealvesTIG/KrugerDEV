@@ -348,6 +348,22 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
+    bulkUpdate: {
+      method: 'POST' as const,
+      path: '/api/tasks/bulk-update',
+      responses: {
+        200: z.object({ updatedCount: z.number() }),
+        400: errorSchemas.validation,
+      },
+    },
+    bulkDelete: {
+      method: 'POST' as const,
+      path: '/api/tasks/bulk-delete',
+      responses: {
+        200: z.object({ deletedCount: z.number() }),
+        400: errorSchemas.validation,
+      },
+    },
     getHistory: {
       method: 'GET' as const,
       path: '/api/tasks/:id/history',

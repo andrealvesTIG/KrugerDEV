@@ -133,6 +133,39 @@ export function useUpdateTask() {
   });
 }
 
+export function useBulkUpdateTasks() {
+  return useMutation({
+    mutationFn: async (data: {
+      taskIds?: number[];
+      updates?: Record<string, any>;
+      taskUpdates?: Array<{ taskId: number; updates: Record<string, any> }>;
+      projectId: number;
+    }) => {
+      const { projectId, ...body } = data;
+      const res = await apiRequest('POST', '/api/tasks/bulk-update', body);
+      return res.json() as Promise<{ updatedCount: number }>;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+      queryClient.refetchQueries({ queryKey: ['/api/tasks'], exact: false });
+    },
+  });
+}
+
+export function useBulkDeleteTasks() {
+  return useMutation({
+    mutationFn: async (data: { taskIds: number[]; projectId: number }) => {
+      const { projectId, ...body } = data;
+      const res = await apiRequest('POST', '/api/tasks/bulk-delete', body);
+      return res.json() as Promise<{ deletedCount: number }>;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+      queryClient.refetchQueries({ queryKey: ['/api/tasks'], exact: false });
+    },
+  });
+}
+
 export function useDeleteTask() {
   return useMutation({
     mutationFn: ({ id }: { id: number; projectId: number }) =>

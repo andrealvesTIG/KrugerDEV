@@ -7,7 +7,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { format, addDays, differenceInDays, parseISO, isAfter, isBefore, startOfDay, eachDayOfInterval, startOfMonth, endOfMonth } from "date-fns";
 import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, calculateStartDateFromEndAndDuration } from "@/lib/workingDays";
 import { calculateCPM, type CPMResult } from "@/lib/cpm";
-import { useUpdateTask, useCreateTask, useDeleteTask, useAddTaskDependency, useRemoveTaskDependency, useReorderTask, useProjectDependencies } from "@/hooks/use-tasks";
+import { useUpdateTask, useCreateTask, useDeleteTask, useAddTaskDependency, useRemoveTaskDependency, useReorderTask, useProjectDependencies, useBulkUpdateTasks, useBulkDeleteTasks } from "@/hooks/use-tasks";
 import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useProjectTaskAssignments } from "@/hooks/use-resources";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -1801,6 +1801,8 @@ function ProjectGanttView({
   const reorderTask = useReorderTask();
   const createTask = useCreateTask();
   const deleteTask = useDeleteTask();
+  const bulkUpdate = useBulkUpdateTasks();
+  const bulkDelete = useBulkDeleteTasks();
   const addDependency = useAddTaskDependency();
   const removeDependency = useRemoveTaskDependency();
   const { toast } = useToast();
@@ -1956,31 +1958,15 @@ function ProjectGanttView({
     if (selectedTaskIds.size === 0) return;
     
     setBulkDeletePending(true);
-    const tasksToDelete = Array.from(selectedTaskIds);
-    let successCount = 0;
-    let errorCount = 0;
-    
-    for (const taskId of tasksToDelete) {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          deleteTask.mutate({ id: taskId, projectId }, {
-            onSuccess: () => { successCount++; resolve(); },
-            onError: () => { errorCount++; resolve(); }
-          });
-        });
-      } catch {
-        errorCount++;
-      }
+    try {
+      const taskIds = Array.from(selectedTaskIds);
+      const result = await bulkDelete.mutateAsync({ taskIds, projectId });
+      clearTaskSelection();
+      toast({ title: "Deleted", description: `${result.deletedCount} task${result.deletedCount !== 1 ? 's' : ''} deleted successfully` });
+    } catch {
+      toast({ title: "Delete failed", description: "Failed to delete tasks", variant: "destructive" });
     }
-    
     setBulkDeletePending(false);
-    clearTaskSelection();
-    
-    if (errorCount === 0) {
-      toast({ title: "Deleted", description: `${successCount} task${successCount !== 1 ? 's' : ''} deleted successfully` });
-    } else {
-      toast({ title: "Partial success", description: `${successCount} deleted, ${errorCount} failed`, variant: "destructive" });
-    }
   };
   
   const handleBulkTimesheetBlock = async () => {
@@ -1990,29 +1976,19 @@ function ProjectGanttView({
     const selectedTasks = tasks.filter(t => selectedTaskIds.has(t.id));
     const allAlreadyBlocked = selectedTasks.every(t => t.timesheetBlocked);
     const newBlockedValue = !allAlreadyBlocked;
-    let successCount = 0;
-    let errorCount = 0;
     
-    for (const task of selectedTasks) {
-      try {
-        await updateTask.mutateAsync({
-          id: task.id,
-          projectId: task.projectId,
-          timesheetBlocked: newBlockedValue,
-        });
-        successCount++;
-      } catch {
-        errorCount++;
-      }
+    try {
+      const taskIds = selectedTasks.map(t => t.id);
+      const result = await bulkUpdate.mutateAsync({
+        taskIds,
+        updates: { timesheetBlocked: newBlockedValue },
+        projectId,
+      });
+      toast({ title: newBlockedValue ? "Timesheet entries blocked" : "Timesheet entries unblocked", description: `${result.updatedCount} task${result.updatedCount !== 1 ? 's' : ''} updated successfully` });
+    } catch {
+      toast({ title: "Update failed", description: "Failed to update tasks", variant: "destructive" });
     }
-    
     setBulkTimesheetBlockPending(false);
-    
-    if (errorCount === 0) {
-      toast({ title: newBlockedValue ? "Timesheet entries blocked" : "Timesheet entries unblocked", description: `${successCount} task${successCount !== 1 ? 's' : ''} updated successfully` });
-    } else {
-      toast({ title: "Partial success", description: `${successCount} updated, ${errorCount} failed`, variant: "destructive" });
-    }
   };
 
   type GanttAction = 
@@ -2628,26 +2604,16 @@ function ProjectGanttView({
     if (selectedTaskIds.size < 1) return;
     
     const selectedTasks = tasks.filter(t => selectedTaskIds.has(t.id));
-    let successCount = 0;
-    let errorCount = 0;
-    
-    for (const task of selectedTasks) {
-      try {
-        await updateTask.mutateAsync({
-          id: task.id,
-          projectId: task.projectId,
-          progress: progressValue,
-        });
-        successCount++;
-      } catch {
-        errorCount++;
-      }
-    }
-    
-    if (errorCount === 0) {
-      toast({ title: "Progress updated", description: `${successCount} task${successCount !== 1 ? 's' : ''} set to ${progressValue}%` });
-    } else {
-      toast({ title: "Partial success", description: `${successCount} updated, ${errorCount} failed`, variant: "destructive" });
+    try {
+      const taskIds = selectedTasks.map(t => t.id);
+      const result = await bulkUpdate.mutateAsync({
+        taskIds,
+        updates: { progress: progressValue },
+        projectId,
+      });
+      toast({ title: "Progress updated", description: `${result.updatedCount} task${result.updatedCount !== 1 ? 's' : ''} set to ${progressValue}%` });
+    } catch {
+      toast({ title: "Update failed", description: "Failed to update progress", variant: "destructive" });
     }
   };
 
@@ -2655,32 +2621,23 @@ function ProjectGanttView({
     if (selectedTaskIds.size === 0) return;
     
     const selectedTasks = tasks.filter(t => selectedTaskIds.has(t.id));
-    let successCount = 0;
-    let errorCount = 0;
+    const tasksWithDates = selectedTasks.filter(t => t.startDate && t.endDate);
+    const skippedCount = selectedTasks.length - tasksWithDates.length;
     
-    for (const task of selectedTasks) {
-      if (!task.startDate || !task.endDate) {
-        errorCount++;
-        continue;
-      }
-      
-      try {
-        await updateTask.mutateAsync({
-          id: task.id,
-          projectId: task.projectId,
-          baselineStartDate: task.startDate,
-          baselineEndDate: task.endDate,
-        });
-        successCount++;
-      } catch {
-        errorCount++;
-      }
+    if (tasksWithDates.length === 0) {
+      toast({ title: "Cannot set baseline", description: "Selected tasks have no start/end dates", variant: "destructive" });
+      return;
     }
     
-    if (successCount > 0) {
-      toast({ title: "Baseline set", description: `${successCount} task${successCount !== 1 ? 's' : ''} baselined${errorCount > 0 ? `, ${errorCount} skipped (no dates)` : ''}` });
-    } else if (errorCount > 0) {
-      toast({ title: "Cannot set baseline", description: "Selected tasks have no start/end dates", variant: "destructive" });
+    try {
+      const taskUpdates = tasksWithDates.map(t => ({
+        taskId: t.id,
+        updates: { baselineStartDate: t.startDate!, baselineEndDate: t.endDate! },
+      }));
+      const result = await bulkUpdate.mutateAsync({ taskUpdates, projectId });
+      toast({ title: "Baseline set", description: `${result.updatedCount} task${result.updatedCount !== 1 ? 's' : ''} baselined${skippedCount > 0 ? `, ${skippedCount} skipped (no dates)` : ''}` });
+    } catch {
+      toast({ title: "Baseline failed", description: "Failed to set baseline", variant: "destructive" });
     }
   };
 

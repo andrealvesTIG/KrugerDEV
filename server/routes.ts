@@ -10578,6 +10578,182 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
+  const bulkUpdateSchema = z.object({
+    taskIds: z.array(z.number()).optional(),
+    updates: z.object({
+      progress: z.number().min(0).max(100).optional(),
+      status: z.string().optional(),
+      timesheetBlocked: z.boolean().optional(),
+    }).optional(),
+    taskUpdates: z.array(z.object({
+      taskId: z.number(),
+      updates: z.object({
+        baselineStartDate: z.string().optional(),
+        baselineEndDate: z.string().optional(),
+      }),
+    })).optional(),
+  }).refine(
+    data => (data.taskIds?.length && data.updates) || data.taskUpdates?.length,
+    { message: 'taskIds with updates, or taskUpdates array required' }
+  );
+
+  app.post(api.tasks.bulkUpdate.path, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+      const parsed = bulkUpdateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: formatZodErrors(parsed.error) });
+      }
+      const { taskIds, updates, taskUpdates } = parsed.data;
+
+      let updatedCount = 0;
+      const user = await storage.getUser(userId);
+      const changedByName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System';
+
+      if (taskIds?.length && updates) {
+        const previousTasks = await Promise.all(taskIds.map(id => storage.getTask(id)));
+        const validTasks = previousTasks.filter((t): t is NonNullable<typeof t> => t !== null && t !== undefined);
+
+        if (validTasks.length === 0) {
+          return res.status(400).json({ message: 'No valid tasks found' });
+        }
+
+        const finalUpdates: Record<string, any> = { ...updates };
+        if (finalUpdates.progress !== undefined) {
+          if (finalUpdates.progress === 100) {
+            finalUpdates.status = 'Completed';
+          } else if (finalUpdates.progress === 0) {
+            finalUpdates.status = 'Not Started';
+          } else if (finalUpdates.progress > 0) {
+            finalUpdates.status = 'In Progress';
+          }
+        }
+
+        const validIds = validTasks.map(t => t.id);
+        await storage.bulkUpdateTasks(validIds, finalUpdates);
+        updatedCount = validIds.length;
+
+        const projectIds = new Set(validTasks.map(t => t.projectId));
+
+        const changeLogs = validTasks.map(prev => {
+          const changes: string[] = [];
+          const prevValues: Record<string, any> = {};
+          const newValues: Record<string, any> = {};
+          const fieldsToTrack = ['progress', 'status', 'timesheetBlocked'];
+          for (const field of fieldsToTrack) {
+            if (finalUpdates[field] !== undefined && (prev as any)[field] !== finalUpdates[field]) {
+              changes.push(`${field}: "${(prev as any)[field] ?? '(empty)'}" → "${finalUpdates[field] ?? '(empty)'}"`);
+              prevValues[field] = (prev as any)[field];
+              newValues[field] = finalUpdates[field];
+            }
+          }
+          if (changes.length === 0) return null;
+          return {
+            taskId: prev.id,
+            changedBy: userId,
+            changedByName,
+            changeType: 'updated' as const,
+            changeSummary: changes.join('; '),
+            previousValues: JSON.stringify(prevValues),
+            newValues: JSON.stringify(newValues),
+          };
+        }).filter((c): c is NonNullable<typeof c> => c !== null);
+
+        if (changeLogs.length > 0) {
+          await Promise.all(changeLogs.map(log => storage.createTaskChangeLog(log)));
+        }
+
+        for (const pid of projectIds) {
+          await rollUpParentTasks(pid);
+        }
+      }
+
+      if (taskUpdates?.length) {
+        const allTaskIds = taskUpdates.map(t => t.taskId);
+        const previousTasks = await Promise.all(allTaskIds.map(id => storage.getTask(id)));
+        const taskMap = new Map(previousTasks.filter((t): t is NonNullable<typeof t> => t !== null).map(t => [t.id, t]));
+        const projectIds = new Set<number>();
+
+        for (const { taskId, updates: perTaskUpdates } of taskUpdates) {
+          const prev = taskMap.get(taskId);
+          if (!prev) continue;
+
+          await storage.updateTask(taskId, perTaskUpdates);
+          updatedCount++;
+          projectIds.add(prev.projectId);
+
+          const changes: string[] = [];
+          const prevValues: Record<string, any> = {};
+          const newValues: Record<string, any> = {};
+          for (const field of ['baselineStartDate', 'baselineEndDate']) {
+            if ((perTaskUpdates as any)[field] !== undefined && (prev as any)[field] !== (perTaskUpdates as any)[field]) {
+              changes.push(`${field}: "${(prev as any)[field] ?? '(empty)'}" → "${(perTaskUpdates as any)[field] ?? '(empty)'}"`);
+              prevValues[field] = (prev as any)[field];
+              newValues[field] = (perTaskUpdates as any)[field];
+            }
+          }
+          if (changes.length > 0) {
+            await storage.createTaskChangeLog({
+              taskId,
+              changedBy: userId,
+              changedByName,
+              changeType: 'updated',
+              changeSummary: changes.join('; '),
+              previousValues: JSON.stringify(prevValues),
+              newValues: JSON.stringify(newValues),
+            });
+          }
+        }
+
+        for (const pid of projectIds) {
+          await rollUpParentTasks(pid);
+        }
+      }
+
+      return res.json({ updatedCount });
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
+      throw err;
+    }
+  });
+
+  app.post(api.tasks.bulkDelete.path, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+      const bodySchema = z.object({ taskIds: z.array(z.number()).min(1) });
+      const parsed = bodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'taskIds array with at least one ID required' });
+      }
+      const { taskIds } = parsed.data;
+
+      const tasksToDelete = await Promise.all(taskIds.map(id => storage.getTask(id)));
+      const validTasks = tasksToDelete.filter((t): t is NonNullable<typeof t> => t !== null && t !== undefined);
+      if (validTasks.length === 0) {
+        return res.status(400).json({ message: 'No valid tasks found' });
+      }
+
+      const validIds = validTasks.map(t => t.id);
+      const projectIds = new Set(validTasks.map(t => t.projectId));
+
+      const deletedCount = await storage.bulkSoftDeleteTasks(validIds, userId);
+
+      for (const pid of projectIds) {
+        await rollUpParentTasks(pid);
+        await recalculateProjectWBS(pid);
+      }
+
+      return res.json({ deletedCount });
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
+      throw err;
+    }
+  });
+
   app.put(api.tasks.update.path, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
