@@ -34,7 +34,7 @@ Command.displayName = CommandPrimitive.displayName
 const CommandDialog = ({ children, ...props }: DialogProps) => {
   return (
     <Dialog {...props}>
-      <DialogContent className="overflow-hidden p-0 shadow-lg">
+      <DialogContent className="overflow-hidden p-0 shadow-lg top-[20%] translate-y-0 sm:top-[50%] sm:translate-y-[-50%]">
         <VisuallyHidden.Root>
           <DialogTitle>Search</DialogTitle>
           <DialogDescription>Search across all data</DialogDescription>
