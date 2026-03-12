@@ -14,12 +14,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle, LayoutGrid, Columns, Lightbulb, Mic, Receipt, Code2, PlayCircle, UserCheck, Home, Radar, GraduationCap } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle, LayoutGrid, Columns, Lightbulb, Mic, Receipt, Code2, PlayCircle, UserCheck, Home, Radar, GraduationCap, Bell, BellOff } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useTimesheetReminderSettings, useUpdateTimesheetReminderSettings } from "@/hooks/use-timesheets";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
 import type { Organization, OrganizationMember, User, RecycleBinItem, RecycleBinItemType, IntakeWorkflowStep, SidebarStructure, SidebarGroup, SidebarItem, RiskAssessmentConfig, SchedulingDefaults } from "@shared/schema";
@@ -114,6 +115,7 @@ const settingsTabs = [
   { value: "members", label: "Team Members", icon: Users },
   { value: "recycle", label: "Recycle Bin", icon: Trash2 },
   { value: "demo", label: "Demo Data", icon: Sparkles },
+  { value: "reminders", label: "Reminders & Escalation", icon: Bell },
   { value: "integrations", label: "Integrations", icon: Plug },
   { value: "risk-assessment", label: "Risk Assessment", icon: ShieldAlert },
   { value: "developer", label: "Developer", icon: Code2 },
@@ -251,6 +253,9 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         </TabsContent>
         <TabsContent value="demo" className="mt-0">
           <DemoDataSection organizationId={currentOrganization.id} orgName={currentOrganization.name} />
+        </TabsContent>
+        <TabsContent value="reminders" className="mt-0">
+          <ReminderSettingsSection organizationId={currentOrganization.id} />
         </TabsContent>
         <TabsContent value="integrations" className="mt-0">
           <IntegrationsSection organizationId={currentOrganization.id} />
@@ -5644,6 +5649,233 @@ function DeveloperSection() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+const SUBMISSION_DAY_OPTIONS = [
+  { value: 4, label: "Thursday (pre-reminder)" },
+  { value: 5, label: "Friday (due day)" },
+  { value: 8, label: "Monday (overdue)" },
+];
+
+const DIGEST_DAY_OPTIONS = [
+  { value: 1, label: "Monday" },
+  { value: 2, label: "Tuesday" },
+  { value: 3, label: "Wednesday" },
+  { value: 4, label: "Thursday" },
+  { value: 5, label: "Friday" },
+];
+
+function ReminderSettingsSection({ organizationId }: { organizationId: number }) {
+  const { data: settings, isLoading } = useTimesheetReminderSettings(organizationId);
+  const updateSettings = useUpdateTimesheetReminderSettings();
+  const { toast } = useToast();
+
+  const [enabled, setEnabled] = useState(true);
+  const [emailEnabled, setEmailEnabled] = useState(true);
+  const [notificationEnabled, setNotificationEnabled] = useState(true);
+  const [submissionDays, setSubmissionDays] = useState<number[]>([4, 5, 8]);
+  const [approvalDays, setApprovalDays] = useState("2");
+  const [escalationDays, setEscalationDays] = useState("5");
+  const [frequencyCap, setFrequencyCap] = useState("3");
+  const [digestEnabled, setDigestEnabled] = useState(true);
+  const [digestDay, setDigestDay] = useState("1");
+
+  useEffect(() => {
+    if (settings) {
+      setEnabled(settings.enabled ?? true);
+      setEmailEnabled(settings.emailEnabled ?? true);
+      setNotificationEnabled(settings.notificationEnabled ?? true);
+      setSubmissionDays(settings.submissionReminderDays ?? [4, 5, 8]);
+      setApprovalDays(String(settings.approvalReminderDays ?? 2));
+      setEscalationDays(String(settings.escalationThresholdDays ?? 5));
+      setFrequencyCap(String(settings.frequencyCap ?? 3));
+      setDigestEnabled(settings.digestEnabled ?? true);
+      setDigestDay(String(settings.digestDay ?? 1));
+    }
+  }, [settings]);
+
+  const toggleDay = (day: number) => {
+    setSubmissionDays(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day].sort((a, b) => a - b)
+    );
+  };
+
+  const handleSave = async () => {
+    try {
+      await updateSettings.mutateAsync({
+        organizationId,
+        enabled,
+        emailEnabled,
+        notificationEnabled,
+        submissionReminderDays: submissionDays,
+        approvalReminderDays: parseInt(approvalDays) || 2,
+        escalationThresholdDays: parseInt(escalationDays) || 5,
+        frequencyCap: parseInt(frequencyCap) || 3,
+        digestEnabled,
+        digestDay: parseInt(digestDay) || 1,
+      });
+      toast({ title: "Reminder settings saved", description: "Reminder & escalation rules updated." });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to save reminder settings.", variant: "destructive" });
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bell className="h-5 w-5" />
+            Timesheet Reminders & Escalation
+          </CardTitle>
+          <CardDescription>
+            Configure automated reminders for timesheet submission, manager approval, and escalation rules.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div>
+              <Label className="font-medium">Enable Reminders</Label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Send automated timesheet submission and approval reminders
+              </p>
+            </div>
+            <Switch checked={enabled} onCheckedChange={setEnabled} />
+          </div>
+
+          {enabled && (
+            <>
+              <Separator />
+
+              <div>
+                <h4 className="text-sm font-medium mb-3">Notification Channels</h4>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between rounded-lg border p-3">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">Email notifications</span>
+                    </div>
+                    <Switch checked={emailEnabled} onCheckedChange={setEmailEnabled} />
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border p-3">
+                    <div className="flex items-center gap-2">
+                      <Bell className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">In-app notifications</span>
+                    </div>
+                    <Switch checked={notificationEnabled} onCheckedChange={setNotificationEnabled} />
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div>
+                <h4 className="text-sm font-medium mb-3">Submission Reminders</h4>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Select which days to remind team members to submit their timesheets
+                </p>
+                <div className="space-y-2">
+                  {SUBMISSION_DAY_OPTIONS.map(opt => (
+                    <div key={opt.value} className="flex items-center gap-2">
+                      <Checkbox
+                        checked={submissionDays.includes(opt.value)}
+                        onCheckedChange={() => toggleDay(opt.value)}
+                      />
+                      <span className="text-sm">{opt.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Approval reminder after (days)</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="14"
+                    value={approvalDays}
+                    onChange={(e) => setApprovalDays(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">Days after submission to remind manager</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Escalation after (business days)</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="30"
+                    value={escalationDays}
+                    onChange={(e) => setEscalationDays(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">Business days before auto-escalation</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Max reminders per week</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={frequencyCap}
+                    onChange={(e) => setFrequencyCap(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">Per person per week</p>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div>
+                  <Label className="font-medium">Weekly Manager Digest</Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Send managers a weekly summary of pending approvals
+                  </p>
+                </div>
+                <Switch checked={digestEnabled} onCheckedChange={setDigestEnabled} />
+              </div>
+
+              {digestEnabled && (
+                <div className="space-y-2">
+                  <Label>Digest Day</Label>
+                  <Select value={digestDay} onValueChange={setDigestDay}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DIGEST_DAY_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={String(opt.value)}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="flex justify-end pt-2">
+            <Button onClick={handleSave} disabled={updateSettings.isPending}>
+              {updateSettings.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Save className="mr-2 h-4 w-4" />
+              Save Reminder Settings
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

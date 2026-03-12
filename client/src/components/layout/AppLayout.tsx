@@ -400,14 +400,22 @@ function NotificationBell() {
   const isTimesheetReminder = (type: string) =>
     type === 'timesheet_submission_reminder' || type === 'timesheet_approval_reminder';
 
-  const handleSnooze = (notificationId: number, durationHours: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!currentOrganization?.id) return;
-
+  const getWeekStartFromNotification = (notification: NonNullable<typeof notifications>[0]): string => {
+    if (notification.actionUrl) {
+      const match = notification.actionUrl.match(/reminderWeek=(\d{4}-\d{2}-\d{2})/);
+      if (match) return match[1];
+    }
     const now = new Date();
     const monday = new Date(now);
     monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-    const weekStart = monday.toISOString().slice(0, 10);
+    return monday.toISOString().slice(0, 10);
+  };
+
+  const handleSnooze = (notification: NonNullable<typeof notifications>[0], durationHours: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentOrganization?.id) return;
+
+    const weekStart = getWeekStartFromNotification(notification);
 
     snoozeReminder.mutate({
       organizationId: currentOrganization.id,
@@ -415,7 +423,7 @@ function NotificationBell() {
       durationHours,
     }, {
       onSuccess: () => {
-        markRead.mutate(notificationId);
+        markRead.mutate(notification.id);
         toast({ title: "Snoozed", description: `Reminders snoozed for ${durationHours === 24 ? 'until tomorrow' : `${durationHours} hours`}.` });
       },
       onError: () => {
@@ -516,7 +524,7 @@ function NotificationBell() {
                               size="sm"
                               variant="outline"
                               className="h-6 text-[10px] px-2"
-                              onClick={(e) => handleSnooze(notification.id, 4, e)}
+                              onClick={(e) => handleSnooze(notification, 4, e)}
                             >
                               <BellOff className="h-3 w-3 mr-1" />
                               4h
@@ -525,7 +533,7 @@ function NotificationBell() {
                               size="sm"
                               variant="outline"
                               className="h-6 text-[10px] px-2"
-                              onClick={(e) => handleSnooze(notification.id, 8, e)}
+                              onClick={(e) => handleSnooze(notification, 8, e)}
                             >
                               <BellOff className="h-3 w-3 mr-1" />
                               8h
@@ -534,7 +542,7 @@ function NotificationBell() {
                               size="sm"
                               variant="outline"
                               className="h-6 text-[10px] px-2"
-                              onClick={(e) => handleSnooze(notification.id, 24, e)}
+                              onClick={(e) => handleSnooze(notification, 24, e)}
                             >
                               <BellOff className="h-3 w-3 mr-1" />
                               Tomorrow

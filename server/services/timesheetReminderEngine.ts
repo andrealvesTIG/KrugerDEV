@@ -178,7 +178,7 @@ export async function processSubmissionReminders(organizationId: number): Promis
             ? `Your timesheet for the week of ${targetWeekStart} is overdue. Please submit as soon as possible.`
             : `Reminder: Please submit your timesheet for the week of ${targetWeekStart}.`,
           severity: urgency === 'firm' ? 'critical' : urgency === 'nudge' ? 'warning' : 'info',
-          actionUrl: '/timesheets',
+          actionUrl: `/timesheets?reminderWeek=${targetWeekStart}`,
         });
       }
 
