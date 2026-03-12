@@ -162,6 +162,15 @@ function getLinkPath(
               L ${toX} ${adjustedToY}`;
     }
 
+    const successorIsAfterPredecessor = toRect.xStart >= fromRect.xStart;
+    if (successorIsAfterPredecessor) {
+      const dropX = Math.max(stubX1, toRect.xEnd + STUB_LENGTH);
+      return `M ${fromX} ${adjustedFromY}
+              L ${dropX} ${adjustedFromY}
+              L ${dropX} ${adjustedToY}
+              L ${toX} ${adjustedToY}`;
+    }
+
     const loopLeft = Math.min(fromRect.xStart, toRect.xStart) - BACK_LINK_OFFSET;
     const midY = isGoingDown
       ? adjustedFromY + ((adjustedToY - adjustedFromY) / 2)
