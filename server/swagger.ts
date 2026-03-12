@@ -192,6 +192,30 @@ const spec = {
         },
         required: ['id', 'organizationId', 'name', 'status', 'healthScore', 'isDemo', 'isCustom'],
       },
+      PortfolioRequest: {
+        type: 'object',
+        description: 'Input schema for creating or updating a portfolio. Excludes server-generated fields (id, timestamps, calculated metrics, etc.).',
+        properties: {
+          organizationId: { type: 'integer' },
+          name: { type: 'string' },
+          description: { type: 'string', nullable: true },
+          strategy: { type: 'string', nullable: true, description: 'Strategic alignment description' },
+          managerId: { type: 'string', nullable: true, description: 'Portfolio Manager user ID' },
+          businessOwnerId: { type: 'string', nullable: true, description: 'Business Owner/Executive Sponsor user ID' },
+          strategicObjective: { type: 'string', nullable: true, description: 'Key business objective this portfolio supports' },
+          budgetAllocated: { type: 'number', nullable: true, description: 'Total budget allocated to portfolio' },
+          targetStartDate: { type: 'string', format: 'date', nullable: true },
+          targetEndDate: { type: 'string', format: 'date', nullable: true },
+          riskTolerance: { type: 'string', nullable: true, enum: ['Low', 'Medium', 'High'], description: 'Acceptable risk level' },
+          performanceMetrics: { type: 'string', nullable: true, description: 'KPIs for portfolio success' },
+          status: { type: 'string', enum: ['Active', 'On Hold', 'Closed', 'Archived'] },
+          healthScore: { type: 'string', enum: ['Green', 'Yellow', 'Red'] },
+          department: { type: 'string', nullable: true, description: 'Primary department/business unit' },
+          notes: { type: 'string', nullable: true },
+          teamMemberResourceIds: { type: 'array', items: { type: 'integer' }, nullable: true, description: 'Resource IDs with team member access' },
+        },
+        required: ['organizationId', 'name'],
+      },
       Project: {
         type: 'object',
         properties: {
@@ -1572,7 +1596,7 @@ const spec = {
         responses: { ...r200('List of portfolios', arrOf('Portfolio')), ...authRes },
       }),
       post: op('Portfolios', 'Create a new portfolio', {
-        requestBody: body(ref('Portfolio')),
+        requestBody: body(ref('PortfolioRequest')),
         responses: { ...r201('Portfolio created', ref('Portfolio')), ...inputRes },
       }),
     },
@@ -1583,7 +1607,7 @@ const spec = {
       }),
       put: op('Portfolios', 'Update portfolio', {
         parameters: [pathId()],
-        requestBody: body(ref('Portfolio')),
+        requestBody: body(ref('PortfolioRequest'), false),
         responses: { ...r200('Portfolio updated'), ...updateRes },
       }),
       delete: op('Portfolios', 'Delete portfolio', {
