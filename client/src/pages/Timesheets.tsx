@@ -3334,13 +3334,26 @@ export default function Timesheets() {
     return ids;
   }, [entries]);
 
+  const projectIdsWithHours = useMemo(() => {
+    const ids = new Set<number>();
+    for (const entry of entries) {
+      if (entry.projectId && Number(entry.hours || 0) > 0) {
+        ids.add(entry.projectId);
+      }
+    }
+    return ids;
+  }, [entries]);
+
   const filteredAssignedTasks = useMemo(() => {
     let tasks = assignedTasks;
     if (hideClosedProjects) {
       tasks = tasks.filter(({ project }) => !CLOSED_PROJECT_STATUSES.includes(project.status || ""));
     }
-    tasks = tasks.filter(({ task }) => {
+    tasks = tasks.filter(({ task, project }) => {
       if (CLOSED_TASK_STATUSES.includes(task.status || "") && !taskIdsWithHours.has(task.id)) {
+        return false;
+      }
+      if (CLOSED_PROJECT_STATUSES.includes(project.status || "") && !projectIdsWithHours.has(project.id)) {
         return false;
       }
       return true;
@@ -3349,7 +3362,7 @@ export default function Timesheets() {
       tasks = tasks.filter(({ project }) => project.id === filterProjectId);
     }
     return tasks;
-  }, [assignedTasks, filterProjectId, hideClosedProjects, CLOSED_PROJECT_STATUSES, CLOSED_TASK_STATUSES, taskIdsWithHours]);
+  }, [assignedTasks, filterProjectId, hideClosedProjects, CLOSED_PROJECT_STATUSES, CLOSED_TASK_STATUSES, taskIdsWithHours, projectIdsWithHours]);
 
   if (isFullscreen) {
     return (
@@ -3847,7 +3860,7 @@ export default function Timesheets() {
               >
                 <div className="flex items-center gap-2">
                   <UserPlus className="h-4 w-4" />
-                  Proxy Entry
+                  Fill in on Behalf
                 </div>
               </button>
             )}

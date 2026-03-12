@@ -84,7 +84,7 @@ export function ProxyTimesheetEntryDialog({ organizationId, open, onOpenChange }
       });
 
       const resource = teamMembers.find((r: any) => r.id === Number(targetResourceId));
-      toast({ title: "Proxy entry created", description: `Time entry created on behalf of ${resource?.name || "team member"}` });
+      toast({ title: "Entry created", description: `Time entry filled in on behalf of ${resource?.name || "team member"}` });
       resetForm();
       onOpenChange(false);
     } catch (err: any) {
