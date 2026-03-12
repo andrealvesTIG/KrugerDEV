@@ -215,6 +215,8 @@ function ReminderSettingsManager({ organizationId }: { organizationId: number | 
   const { toast } = useToast();
 
   const [enabled, setEnabled] = useState(true);
+  const [emailEnabled, setEmailEnabled] = useState(true);
+  const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [submissionDays, setSubmissionDays] = useState<number[]>([4, 5, 8]);
   const [approvalDays, setApprovalDays] = useState("2");
   const [escalationDays, setEscalationDays] = useState("5");
@@ -225,6 +227,8 @@ function ReminderSettingsManager({ organizationId }: { organizationId: number | 
   useEffect(() => {
     if (settings) {
       setEnabled(settings.enabled ?? true);
+      setEmailEnabled(settings.emailEnabled ?? true);
+      setNotificationEnabled(settings.notificationEnabled ?? true);
       setSubmissionDays(settings.submissionReminderDays ?? [4, 5, 8]);
       setApprovalDays(String(settings.approvalReminderDays ?? 2));
       setEscalationDays(String(settings.escalationThresholdDays ?? 5));
@@ -246,6 +250,8 @@ function ReminderSettingsManager({ organizationId }: { organizationId: number | 
       await updateSettings.mutateAsync({
         organizationId,
         enabled,
+        emailEnabled,
+        notificationEnabled,
         submissionReminderDays: submissionDays,
         approvalReminderDays: parseInt(approvalDays) || 2,
         escalationThresholdDays: parseInt(escalationDays) || 5,
@@ -281,6 +287,23 @@ function ReminderSettingsManager({ organizationId }: { organizationId: number | 
 
       {enabled && (
         <>
+          <Card className="p-3 space-y-3">
+            <Label className="font-medium text-sm">Notification Channels</Label>
+            <p className="text-xs text-muted-foreground">
+              Choose how reminders are delivered
+            </p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Email</span>
+                <Switch checked={emailEnabled} onCheckedChange={setEmailEnabled} />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">In-app notifications</span>
+                <Switch checked={notificationEnabled} onCheckedChange={setNotificationEnabled} />
+              </div>
+            </div>
+          </Card>
+
           <Card className="p-3 space-y-3">
             <div className="flex items-center gap-2">
               <Bell className="h-4 w-4 text-muted-foreground" />

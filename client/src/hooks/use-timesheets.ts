@@ -716,6 +716,8 @@ export interface TimesheetReminderSettingsData {
   id?: number;
   organizationId: number;
   enabled: boolean;
+  emailEnabled: boolean;
+  notificationEnabled: boolean;
   submissionReminderDays: number[];
   approvalReminderDays: number;
   escalationThresholdDays: number;

@@ -2,6 +2,8 @@ CREATE TABLE IF NOT EXISTS "timesheet_reminder_settings" (
   "id" serial PRIMARY KEY NOT NULL,
   "organization_id" integer NOT NULL REFERENCES "organizations"("id"),
   "enabled" boolean DEFAULT true,
+  "email_enabled" boolean DEFAULT true,
+  "notification_enabled" boolean DEFAULT true,
   "submission_reminder_days" jsonb DEFAULT '[4, 5, 8]',
   "approval_reminder_days" integer DEFAULT 2,
   "escalation_threshold_days" integer DEFAULT 5,

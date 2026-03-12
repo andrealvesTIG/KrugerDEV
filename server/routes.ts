@@ -20736,6 +20736,8 @@ Return ONLY valid JSON.`;
       res.json(settings || {
         organizationId,
         enabled: true,
+        emailEnabled: true,
+        notificationEnabled: true,
         submissionReminderDays: [4, 5, 8],
         approvalReminderDays: 2,
         escalationThresholdDays: 5,
@@ -20754,7 +20756,7 @@ Return ONLY valid JSON.`;
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
-      const { organizationId, enabled, submissionReminderDays, approvalReminderDays, escalationThresholdDays, frequencyCap, digestEnabled, digestDay } = req.body;
+      const { organizationId, enabled, emailEnabled, notificationEnabled, submissionReminderDays, approvalReminderDays, escalationThresholdDays, frequencyCap, digestEnabled, digestDay } = req.body;
       if (!organizationId) return res.status(400).json({ message: 'organizationId is required' });
 
       if (!(await hasTimesheetAdminAccess(userId, organizationId))) {
@@ -20764,6 +20766,8 @@ Return ONLY valid JSON.`;
       const validDays = [4, 5, 8];
       const sanitized: Record<string, any> = {};
       if (enabled !== undefined) sanitized.enabled = Boolean(enabled);
+      if (emailEnabled !== undefined) sanitized.emailEnabled = Boolean(emailEnabled);
+      if (notificationEnabled !== undefined) sanitized.notificationEnabled = Boolean(notificationEnabled);
       if (submissionReminderDays !== undefined) {
         if (!Array.isArray(submissionReminderDays) || !submissionReminderDays.every((d: number) => validDays.includes(d))) {
           return res.status(400).json({ message: 'submissionReminderDays must be array of 4, 5, or 8' });

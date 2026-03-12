@@ -153,27 +153,34 @@ export async function processSubmissionReminders(organizationId: number): Promis
 
       const appUrl = getAppUrl();
 
-      await sendTimesheetSubmissionReminder(
-        user.email,
-        resource.displayName || user.email,
-        urgency,
-        targetWeekStart,
-        targetWeekEnd,
-        totalHours,
-        appUrl
-      );
+      const emailEnabled = settings.emailEnabled !== false;
+      const notifEnabled = settings.notificationEnabled !== false;
 
-      await storage.createNotification({
-        userId: resource.userId,
-        organizationId,
-        type: 'timesheet_submission_reminder',
-        title: urgency === 'firm' ? 'Timesheet Overdue' : 'Timesheet Reminder',
-        message: urgency === 'firm'
-          ? `Your timesheet for the week of ${targetWeekStart} is overdue. Please submit as soon as possible.`
-          : `Reminder: Please submit your timesheet for the week of ${targetWeekStart}.`,
-        severity: urgency === 'firm' ? 'critical' : urgency === 'nudge' ? 'warning' : 'info',
-        actionUrl: '/timesheets',
-      });
+      if (emailEnabled) {
+        await sendTimesheetSubmissionReminder(
+          user.email,
+          resource.displayName || user.email,
+          urgency,
+          targetWeekStart,
+          targetWeekEnd,
+          totalHours,
+          appUrl
+        );
+      }
+
+      if (notifEnabled) {
+        await storage.createNotification({
+          userId: resource.userId,
+          organizationId,
+          type: 'timesheet_submission_reminder',
+          title: urgency === 'firm' ? 'Timesheet Overdue' : 'Timesheet Reminder',
+          message: urgency === 'firm'
+            ? `Your timesheet for the week of ${targetWeekStart} is overdue. Please submit as soon as possible.`
+            : `Reminder: Please submit your timesheet for the week of ${targetWeekStart}.`,
+          severity: urgency === 'firm' ? 'critical' : urgency === 'nudge' ? 'warning' : 'info',
+          actionUrl: '/timesheets',
+        });
+      }
 
       await db.insert(timesheetReminderLog).values({
         organizationId,
@@ -181,8 +188,8 @@ export async function processSubmissionReminders(organizationId: number): Promis
         reminderType: 'submission',
         weekStart: targetWeekStart,
         urgencyLevel: urgency,
-        emailSent: true,
-        notificationCreated: true,
+        emailSent: emailEnabled,
+        notificationCreated: notifEnabled,
       });
 
       sent++;
@@ -249,23 +256,30 @@ export async function processApprovalReminders(organizationId: number): Promise<
       ));
       const urgency: 'warning' | 'critical' = daysOld >= 4 ? 'critical' : 'warning';
 
-      await sendManagerApprovalReminder(
-        manager.email,
-        manager.firstName || manager.email,
-        pendingList,
-        daysOld,
-        appUrl
-      );
+      const emailOn = settings.emailEnabled !== false;
+      const notifOn = settings.notificationEnabled !== false;
 
-      await storage.createNotification({
-        userId: managerId,
-        organizationId,
-        type: 'timesheet_approval_reminder',
-        title: `${items.length} Timesheet${items.length > 1 ? 's' : ''} Pending Approval`,
-        message: `You have ${items.length} timesheet entries pending approval for ${daysOld}+ business days.`,
-        severity: urgency,
-        actionUrl: '/timesheets',
-      });
+      if (emailOn) {
+        await sendManagerApprovalReminder(
+          manager.email,
+          manager.firstName || manager.email,
+          pendingList,
+          daysOld,
+          appUrl
+        );
+      }
+
+      if (notifOn) {
+        await storage.createNotification({
+          userId: managerId,
+          organizationId,
+          type: 'timesheet_approval_reminder',
+          title: `${items.length} Timesheet${items.length > 1 ? 's' : ''} Pending Approval`,
+          message: `You have ${items.length} timesheet entries pending approval for ${daysOld}+ business days.`,
+          severity: urgency,
+          actionUrl: '/timesheets',
+        });
+      }
 
       await db.insert(timesheetReminderLog).values({
         organizationId,
@@ -273,8 +287,8 @@ export async function processApprovalReminders(organizationId: number): Promise<
         reminderType: 'approval',
         weekStart,
         urgencyLevel: urgency,
-        emailSent: true,
-        notificationCreated: true,
+        emailSent: emailOn,
+        notificationCreated: notifOn,
       });
 
       sent++;
