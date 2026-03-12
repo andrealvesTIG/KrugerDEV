@@ -19524,7 +19524,7 @@ Return ONLY valid JSON.`;
     const closedPeriods = await storage.getClosedPeriodsForDateRange(orgId, entryDate, entryDate);
     if (closedPeriods.length === 0) return { closed: false };
 
-    const settings = await storage.getTimesheetSettings(orgId);
+    const settings = await getEffectiveTimesheetSettings(orgId);
     const graceDays = settings?.gracePeriodDays || 0;
 
     if (graceDays > 0) {
@@ -19544,6 +19544,25 @@ Return ONLY valid JSON.`;
   }
 
   // Helper: log timesheet audit event
+  const DEFAULT_TIMESHEET_SETTINGS = {
+    mandatoryNotes: true,
+    maxWeeklyHours: '50',
+    minWeeklyHours: '0',
+    overtimeThreshold: '40',
+    gracePeriodDays: 0,
+  };
+
+  async function getEffectiveTimesheetSettings(organizationId: number) {
+    const settings = await storage.getTimesheetSettings(organizationId);
+    return {
+      mandatoryNotes: settings?.mandatoryNotes ?? DEFAULT_TIMESHEET_SETTINGS.mandatoryNotes,
+      maxWeeklyHours: settings?.maxWeeklyHours ?? DEFAULT_TIMESHEET_SETTINGS.maxWeeklyHours,
+      minWeeklyHours: settings?.minWeeklyHours ?? DEFAULT_TIMESHEET_SETTINGS.minWeeklyHours,
+      overtimeThreshold: settings?.overtimeThreshold ?? DEFAULT_TIMESHEET_SETTINGS.overtimeThreshold,
+      gracePeriodDays: settings?.gracePeriodDays ?? DEFAULT_TIMESHEET_SETTINGS.gracePeriodDays,
+    };
+  }
+
   function getWeekBounds(entryDate: string): { startDate: string; endDate: string } {
     const d = new Date(entryDate + 'T00:00:00Z');
     const day = d.getUTCDay();
@@ -19563,10 +19582,9 @@ Return ONLY valid JSON.`;
     newHours: number,
     existingEntryId?: number,
   ): Promise<{ ok: boolean; message?: string }> {
-    const settings = await storage.getTimesheetSettings(organizationId);
-    if (!settings?.maxWeeklyHours) return { ok: true };
-
+    const settings = await getEffectiveTimesheetSettings(organizationId);
     const maxHours = Number(settings.maxWeeklyHours);
+    if (!maxHours) return { ok: true };
     const { startDate, endDate } = getWeekBounds(entryDate);
     const entries = await storage.getTimesheetEntries(userId, organizationId, startDate, endDate);
     let weekTotal = entries.reduce((sum, e) => sum + Number(e.hours || 0), 0);
@@ -19632,7 +19650,7 @@ Return ONLY valid JSON.`;
       }
 
       // Enforce mandatory notes
-      const settings = await storage.getTimesheetSettings(organizationId);
+      const settings = await getEffectiveTimesheetSettings(organizationId);
       if (settings?.mandatoryNotes && (!notes || !notes.trim())) {
         return res.status(400).json({ message: 'Notes are required for all timesheet entries' });
       }
@@ -19728,7 +19746,7 @@ Return ONLY valid JSON.`;
         return res.status(403).json({ message: 'You are not a resource in this organization' });
       }
 
-      const settings = await storage.getTimesheetSettings(organizationId);
+      const settings = await getEffectiveTimesheetSettings(organizationId);
 
       const taskAssignmentCache: Record<number, boolean> = {};
       const validateTaskAssignment = async (taskId: number): Promise<boolean> => {
@@ -19952,7 +19970,7 @@ Return ONLY valid JSON.`;
         }
       }
 
-      const settings = await storage.getTimesheetSettings(entry.organizationId);
+      const settings = await getEffectiveTimesheetSettings(entry.organizationId);
       const effectiveNotes = notes !== undefined ? notes : entry.notes;
       const effectiveHours = hours !== undefined ? parseFloat(hours) : Number(entry.hours || 0);
       if (settings?.mandatoryNotes && (!effectiveNotes || !effectiveNotes.trim())) {
@@ -20051,7 +20069,7 @@ Return ONLY valid JSON.`;
 
       const closedPeriods = await storage.getClosedPeriodsForDateRange(organizationId, startDate, endDate);
       if (closedPeriods.length > 0) {
-        const settings = await storage.getTimesheetSettings(organizationId);
+        const settings = await getEffectiveTimesheetSettings(organizationId);
         const graceDays = settings?.gracePeriodDays || 0;
         let allInGrace = true;
         if (graceDays > 0) {
@@ -20072,7 +20090,7 @@ Return ONLY valid JSON.`;
         }
       }
 
-      const settings = await storage.getTimesheetSettings(organizationId);
+      const settings = await getEffectiveTimesheetSettings(organizationId);
 
       if (settings?.mandatoryNotes) {
         const draftEntries = await storage.getTimesheetEntries(userId, organizationId, startDate, endDate);
@@ -20392,7 +20410,7 @@ Return ONLY valid JSON.`;
       }
 
       const periods = await storage.getClosedPeriodsForDateRange(organizationId, startDate, endDate);
-      const settings = await storage.getTimesheetSettings(organizationId);
+      const settings = await getEffectiveTimesheetSettings(organizationId);
       const graceDays = settings?.gracePeriodDays || 0;
 
       const periodsWithGrace = periods.map(p => {
@@ -20703,7 +20721,7 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'Hours must be between 0 and 24' });
       }
 
-      const settings = await storage.getTimesheetSettings(organizationId);
+      const settings = await getEffectiveTimesheetSettings(organizationId);
       if (settings?.mandatoryNotes && (!notes || !notes.trim())) {
         return res.status(400).json({ message: 'Notes are required for all timesheet entries' });
       }
@@ -20793,7 +20811,7 @@ Return ONLY valid JSON.`;
         allEntries = allEntries.filter(({ entry }) => deptResourceIds.has(entry.resourceId));
       }
 
-      const settings = await storage.getTimesheetSettings(organizationId);
+      const settings = await getEffectiveTimesheetSettings(organizationId);
       const overtimeThreshold = Number(settings?.overtimeThreshold || 40);
       const totalResources = activeResources.length;
 
