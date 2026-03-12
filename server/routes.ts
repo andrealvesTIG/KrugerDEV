@@ -21289,7 +21289,19 @@ Return ONLY valid JSON.`;
       }
 
       const allEntries = await storage.getAllTimesheetEntriesWithDetails(organizationId, startDate, endDate);
-      const activeResources = resources.filter(r => r.isActive && !r.timesheetHidden && r.userId);
+
+      const managerUserIds = new Set<string>();
+      managerUserIds.add(userId);
+      if (isDelegateApprover) {
+        for (const delegation of activeDelegations) {
+          managerUserIds.add(delegation.delegatorId);
+        }
+      }
+
+      let activeResources = resources.filter(r => r.isActive && !r.timesheetHidden && r.userId);
+      if (!isAdmin) {
+        activeResources = activeResources.filter(r => r.managerId && managerUserIds.has(r.managerId));
+      }
 
       const teamData = activeResources.map(resource => {
         const userEntries = allEntries.filter(({ entry }) => entry.resourceId === resource.id);
@@ -21345,12 +21357,16 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
       }
 
-      if (!(await hasTimesheetAdminAccess(userId, organizationId))) {
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      const isAdmin = await hasTimesheetAdminAccess(userId, organizationId);
+      const isApprover = userResource?.isApprover === true;
+      const activeDelegations = await storage.getActiveDelegationsForDelegate(userId, organizationId);
+      if (!isAdmin && !isApprover && activeDelegations.length === 0) {
         return res.status(403).json({ message: 'Not authorized' });
       }
 
       const allEntries = await storage.getAllTimesheetEntriesWithDetails(organizationId, startDate, endDate);
-      const settings = await getEffectiveTimesheetSettings(organizationId);
       const slaThresholdDays = 3;
 
       let totalTurnaroundMs = 0;
@@ -21361,8 +21377,9 @@ Return ONLY valid JSON.`;
 
       for (const { entry } of allEntries) {
         if (entry.submittedAt) {
-          if (entry.approvedAt) {
-            const turnaround = new Date(entry.approvedAt).getTime() - new Date(entry.submittedAt).getTime();
+          const resolvedAt = entry.approvedAt || entry.rejectedAt;
+          if (resolvedAt) {
+            const turnaround = new Date(resolvedAt).getTime() - new Date(entry.submittedAt).getTime();
             totalTurnaroundMs += turnaround;
             resolvedCount++;
             if (turnaround > slaThresholdDays * 24 * 60 * 60 * 1000) {
@@ -21389,6 +21406,7 @@ Return ONLY valid JSON.`;
         slaThresholdDays,
         totalSubmitted: allEntries.filter(({ entry }) => entry.submittedAt).length,
         totalApproved: allEntries.filter(({ entry }) => entry.status === 'Approved').length,
+        totalRejected: allEntries.filter(({ entry }) => entry.status === 'Rejected').length,
         totalPending: allEntries.filter(({ entry }) => entry.status === 'Submitted').length,
       });
     } catch (error) {
