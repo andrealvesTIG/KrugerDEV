@@ -1847,6 +1847,20 @@ function ProjectGanttView({
   // Scroll sync refs for left/right panes
   const leftPaneRef = useRef<HTMLDivElement>(null);
   const rightPaneRef = useRef<HTMLDivElement>(null);
+  const timelineContentRef = useRef<HTMLDivElement>(null);
+  const [timelineContentWidth, setTimelineContentWidth] = useState(0);
+
+  useEffect(() => {
+    const el = timelineContentRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setTimelineContentWidth(entry.contentRect.width);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   
   // Right pane is the sole vertical scroll driver. On scroll, sync left pane.
   const handleRightScroll = useCallback(() => {
@@ -4338,6 +4352,7 @@ function ProjectGanttView({
             <ResizablePanel defaultSize={100 - leftPanelSize} minSize={20}>
               <div ref={rightPaneRef} onScroll={handleRightScroll} className="h-full overflow-x-auto overflow-y-auto scrollbar-thin">
                 <div 
+                  ref={timelineContentRef}
                   className="relative"
                   style={{ minWidth: `${filteredDates.length * 60}px` }}
                 >
@@ -4423,6 +4438,21 @@ function ProjectGanttView({
                   )}
                   {/* Empty row for add task alignment - must match left pane condition */}
                   {!isReadOnly && <div data-add-task-row="true" className="h-[28px] border-t bg-muted/20" />}
+
+                  {/* Dependency links overlay */}
+                  {projectDependencies.length > 0 && visibleTasks.length > 0 && timelineContentWidth > 0 && (
+                    <GanttDependencyLinks
+                      tasks={visibleTasks}
+                      dependencies={projectDependencies}
+                      minDate={adjustedMinDate}
+                      maxDate={adjustedMaxDate}
+                      containerWidth={timelineContentWidth}
+                      rowHeight={28}
+                      headerHeight={28 + (showProjectSummary && projectSummaryTask?.startDate && projectSummaryTask?.endDate ? 28 : 0)}
+                      showBaseline={showBaseline}
+                      highlightedTaskIds={showCriticalPath ? criticalTaskIds : undefined}
+                    />
+                  )}
                   
                   {/* TODAY vertical indicator line */}
                   {(() => {

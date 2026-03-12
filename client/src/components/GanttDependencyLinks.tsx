@@ -54,7 +54,8 @@ function getBarRect(
   containerWidth: number,
   rowHeight: number,
   headerHeight: number,
-  showBaseline: boolean = false
+  showBaseline: boolean = false,
+  cumulativeYOffset: number = 0
 ): BarRect | null {
   if (!task.startDate || !task.endDate) return null;
   
@@ -68,14 +69,9 @@ function getBarRect(
   const xStart = (startOffset / totalDays) * containerWidth;
   const xEnd = (endOffset / totalDays) * containerWidth;
   
-  // Calculate row height based on baseline visibility
-  const effectiveRowHeight = showBaseline && task.baselineStartDate && task.baselineEndDate 
-    ? 36 : rowHeight;
-  
-  // Y center is at the middle of the task bar (top: 4px, height: varies)
   const barTop = 4;
   const barHeight = showBaseline && task.baselineStartDate && task.baselineEndDate ? 16 : 20;
-  const yCenter = headerHeight + (taskIndex * effectiveRowHeight) + barTop + (barHeight / 2);
+  const yCenter = headerHeight + cumulativeYOffset + barTop + (barHeight / 2);
   
   return {
     xStart: Math.max(0, xStart),
@@ -267,12 +263,22 @@ export function GanttDependencyLinks({
     });
     return map;
   }, [tasks]);
+
+  const cumulativeYOffsets = useMemo(() => {
+    const map = new Map<number, number>();
+    let cumY = 0;
+    tasks.forEach((task) => {
+      map.set(task.id, cumY);
+      const effectiveRowHeight = showBaseline && task.baselineStartDate && task.baselineEndDate ? 36 : rowHeight;
+      cumY += effectiveRowHeight;
+    });
+    return map;
+  }, [tasks, rowHeight, showBaseline]);
   
   // Calculate all dependency links
   const links = useMemo(() => {
     const result: DependencyLink[] = [];
     
-    // Track link indices for row pairs to offset overlapping links
     const rowPairCounts = new Map<string, number>();
     
     dependencies.forEach(dep => {
@@ -285,13 +291,15 @@ export function GanttDependencyLinks({
       const toIndex = taskIndexMap.get(dep.taskId);
       
       if (fromIndex === undefined || toIndex === undefined) return;
+
+      const fromYOffset = cumulativeYOffsets.get(dep.dependsOnTaskId) ?? 0;
+      const toYOffset = cumulativeYOffsets.get(dep.taskId) ?? 0;
       
-      const fromRect = getBarRect(fromTask, fromIndex, minDate, maxDate, containerWidth, rowHeight, headerHeight, showBaseline);
-      const toRect = getBarRect(toTask, toIndex, minDate, maxDate, containerWidth, rowHeight, headerHeight, showBaseline);
+      const fromRect = getBarRect(fromTask, fromIndex, minDate, maxDate, containerWidth, rowHeight, headerHeight, showBaseline, fromYOffset);
+      const toRect = getBarRect(toTask, toIndex, minDate, maxDate, containerWidth, rowHeight, headerHeight, showBaseline, toYOffset);
       
       if (!fromRect || !toRect) return;
       
-      // Get link index for this row pair
       const rowPairKey = `${Math.min(fromIndex, toIndex)}-${Math.max(fromIndex, toIndex)}`;
       const linkIndex = rowPairCounts.get(rowPairKey) || 0;
       rowPairCounts.set(rowPairKey, linkIndex + 1);
@@ -318,7 +326,7 @@ export function GanttDependencyLinks({
     });
     
     return result;
-  }, [dependencies, taskMap, taskIndexMap, minDate, maxDate, containerWidth, rowHeight, headerHeight, showBaseline]);
+  }, [dependencies, taskMap, taskIndexMap, cumulativeYOffsets, minDate, maxDate, containerWidth, rowHeight, headerHeight, showBaseline]);
   
   // Calculate SVG height based on tasks
   const svgHeight = useMemo(() => {
