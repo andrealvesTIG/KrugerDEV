@@ -5,7 +5,8 @@ import { useTheme } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { useNotifications, useUnreadNotificationCount, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/use-notifications";
-import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle, AlertTriangle, Clock, UserPlus, Flag, Target, AlertCircle, CheckCircle2, UserCheck, X, Search, ArrowDownAZ, ArrowUpZA, CalendarDays, ArrowUp, ArrowDown } from "lucide-react";
+import { useSnoozeTimesheetReminder } from "@/hooks/use-timesheets";
+import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle, AlertTriangle, Clock, UserPlus, Flag, Target, AlertCircle, CheckCircle2, UserCheck, X, Search, ArrowDownAZ, ArrowUpZA, CalendarDays, ArrowUp, ArrowDown, AlarmClock, BellOff } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Link, useLocation } from "wouter";
 import { SearchCommand } from "./SearchCommand";
@@ -372,6 +373,12 @@ function getNotificationIcon(type: string, severity?: string | null) {
       return { icon: <Target className={`${iconClass} text-destructive`} />, bg: 'bg-destructive/10' };
     case 'status_change':
       return { icon: <CheckCircle2 className={`${iconClass} text-primary`} />, bg: 'bg-primary/10' };
+    case 'timesheet_submission_reminder':
+      return { icon: <AlarmClock className={`${iconClass} text-amber-600 dark:text-amber-400`} />, bg: 'bg-amber-100 dark:bg-amber-900/30' };
+    case 'timesheet_approval_reminder':
+      return { icon: <Clock className={`${iconClass} text-blue-600 dark:text-blue-400`} />, bg: 'bg-blue-100 dark:bg-blue-900/30' };
+    case 'timesheet_escalation':
+      return { icon: <AlertTriangle className={`${iconClass} text-destructive`} />, bg: 'bg-destructive/10' };
     default:
       return { icon: <Bell className={`${iconClass} text-primary`} />, bg: 'bg-primary/10' };
   }
@@ -384,8 +391,44 @@ function NotificationBell() {
   const { data: countData } = useUnreadNotificationCount();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
+  const snoozeReminder = useSnoozeTimesheetReminder();
+  const { toast } = useToast();
+  const { currentOrganization } = useOrganization();
 
   const unreadCount = countData?.count || 0;
+
+  const isTimesheetReminder = (type: string) =>
+    type === 'timesheet_submission_reminder' || type === 'timesheet_approval_reminder';
+
+  const handleSnooze = (notificationId: number, durationHours: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentOrganization?.id) return;
+
+    const now = new Date();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    const weekStart = monday.toISOString().slice(0, 10);
+
+    snoozeReminder.mutate({
+      organizationId: currentOrganization.id,
+      weekStart,
+      durationHours,
+    }, {
+      onSuccess: () => {
+        markRead.mutate(notificationId);
+        toast({ title: "Snoozed", description: `Reminders snoozed for ${durationHours === 24 ? 'until tomorrow' : `${durationHours} hours`}.` });
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to snooze reminder.", variant: "destructive" });
+      },
+    });
+  };
+
+  const handleAcknowledge = (notificationId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    markRead.mutate(notificationId);
+    toast({ title: "Acknowledged", description: "Reminder acknowledged." });
+  };
 
   const handleNotificationClick = (notification: NonNullable<typeof notifications>[0]) => {
     if (!notification.isRead) {
@@ -467,6 +510,46 @@ function NotificationBell() {
                         <p className="text-xs text-muted-foreground mt-1">
                           {notification.createdAt && formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
                         </p>
+                        {isTimesheetReminder(notification.type) && !notification.isRead && (
+                          <div className="flex items-center gap-1 mt-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-[10px] px-2"
+                              onClick={(e) => handleSnooze(notification.id, 4, e)}
+                            >
+                              <BellOff className="h-3 w-3 mr-1" />
+                              4h
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-[10px] px-2"
+                              onClick={(e) => handleSnooze(notification.id, 8, e)}
+                            >
+                              <BellOff className="h-3 w-3 mr-1" />
+                              8h
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-[10px] px-2"
+                              onClick={(e) => handleSnooze(notification.id, 24, e)}
+                            >
+                              <BellOff className="h-3 w-3 mr-1" />
+                              Tomorrow
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 text-[10px] px-2"
+                              onClick={(e) => handleAcknowledge(notification.id, e)}
+                            >
+                              <Check className="h-3 w-3 mr-1" />
+                              Ack
+                            </Button>
+                          </div>
+                        )}
                       </div>
                       {!notification.isRead && (
                         <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-1.5" />

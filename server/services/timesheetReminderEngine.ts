@@ -7,6 +7,7 @@ import {
 } from '@shared/schema';
 import { eq, and, gte, lte, lt, isNull, inArray, sql, not, or, count } from 'drizzle-orm';
 import { format, startOfWeek, endOfWeek, addDays, subDays, differenceInBusinessDays } from 'date-fns';
+import { addWorkingDays } from '../lib/workingDays';
 import {
   sendTimesheetSubmissionReminder,
   sendManagerApprovalReminder,
@@ -291,7 +292,7 @@ export async function processEscalations(organizationId: number): Promise<number
   if (!settings?.enabled) return 0;
 
   const thresholdDays = settings.escalationThresholdDays || 5;
-  const cutoffDate = subDays(new Date(), thresholdDays);
+  const cutoffDate = addWorkingDays(new Date(), -thresholdDays);
 
   const breachedEntries = await db.select({
     entry: timesheetEntries,
