@@ -213,6 +213,7 @@ const spec = {
           department: { type: 'string', nullable: true, description: 'Primary department/business unit' },
           notes: { type: 'string', nullable: true },
           teamMemberResourceIds: { type: 'array', items: { type: 'integer' }, nullable: true, description: 'Resource IDs with team member access' },
+          isCustom: { type: 'boolean', default: false, description: 'Custom portfolios can include projects from any portfolio. Defaults to false.' },
         },
         required: ['organizationId', 'name'],
       },
