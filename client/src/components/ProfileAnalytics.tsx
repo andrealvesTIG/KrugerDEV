@@ -297,36 +297,14 @@ export default function ProfileAnalytics() {
     }
   }, [toast, generateBadgeCanvas]);
 
-  const handleShareBadge = useCallback((badgeName: string, badgeIcon: string, badgeDescription: string, current: number, threshold: number, platform: 'linkedin' | 'twitter' | 'teams') => {
+  const getBadgeShareUrls = useCallback((badgeName: string, badgeDescription: string) => {
     const shareText = `I just earned the "${badgeName}" badge on FridayReport.AI! ${badgeDescription} #ProjectManagement #PMO #FridayReportAI`;
-    const shareUrl = profileUrl;
-
-    let shareWindow: Window | null = null;
-    if (platform === 'linkedin') {
-      shareWindow = window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, '_blank', 'noopener,noreferrer,width=600,height=500');
-    } else if (platform === 'twitter') {
-      shareWindow = window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank', 'noopener,noreferrer,width=600,height=500');
-    } else {
-      shareWindow = window.open(`https://teams.microsoft.com/share?href=${encodeURIComponent(shareUrl)}&msgText=${encodeURIComponent(shareText)}`, '_blank', 'noopener,noreferrer,width=600,height=500');
-    }
-
-    if (!shareWindow) {
-      toast({ title: "Popup blocked", description: "Please allow popups for this site and try again.", variant: "destructive" });
-      return;
-    }
-
-    generateBadgeCanvas(badgeName, badgeIcon, badgeDescription, current, threshold)
-      .then((dataUrl) => {
-        const link = document.createElement('a');
-        link.download = `FridayReport-Badge-${badgeName.replace(/\s+/g, '-')}.png`;
-        link.href = dataUrl;
-        link.click();
-        toast({ title: "Badge image downloaded!", description: "Attach it to your post for maximum impact." });
-      })
-      .catch(() => {
-        toast({ title: "Share opened", description: "Badge image could not be generated, but share window is open." });
-      });
-  }, [toast, generateBadgeCanvas, profileUrl]);
+    return {
+      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(profileUrl)}`,
+      twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(profileUrl)}`,
+      teams: `https://teams.microsoft.com/share?href=${encodeURIComponent(profileUrl)}&msgText=${encodeURIComponent(shareText)}`,
+    };
+  }, [profileUrl]);
 
   if (isLoading) {
     return (
@@ -583,17 +561,23 @@ export default function ProfileAnalytics() {
                             <Download className="h-3.5 w-3.5 mr-2" />
                             Download PNG
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleShareBadge(badge.name, badge.icon, badge.description, badge.current, badge.threshold, 'linkedin')}>
-                            <svg className="h-3.5 w-3.5 mr-2 flex-shrink-0" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4" fill="#0A66C2"/><path d="M7.5 10v7M7.5 7v.01M10.5 17v-4a2 2 0 014 0v4M10.5 10v7" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                            LinkedIn
+                          <DropdownMenuItem asChild>
+                            <a href={getBadgeShareUrls(badge.name, badge.description).linkedin} target="_blank" rel="noopener noreferrer" className="flex items-center">
+                              <svg className="h-3.5 w-3.5 mr-2 flex-shrink-0" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4" fill="#0A66C2"/><path d="M7.5 10v7M7.5 7v.01M10.5 17v-4a2 2 0 014 0v4M10.5 10v7" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                              LinkedIn
+                            </a>
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleShareBadge(badge.name, badge.icon, badge.description, badge.current, badge.threshold, 'twitter')}>
-                            <svg className="h-3.5 w-3.5 mr-2 flex-shrink-0" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4" fill="#000"/><path d="M16.99 3.75h2.7l-5.9 6.74 6.94 9.18h-5.44l-4.26-5.57-4.87 5.57H3.35l6.31-7.21L3.08 3.75h5.58l3.85 5.09zm-.95 14.31h1.5L8.14 5.29H6.52z" fill="#fff"/></svg>
-                            X (Twitter)
+                          <DropdownMenuItem asChild>
+                            <a href={getBadgeShareUrls(badge.name, badge.description).twitter} target="_blank" rel="noopener noreferrer" className="flex items-center">
+                              <svg className="h-3.5 w-3.5 mr-2 flex-shrink-0" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4" fill="#000"/><path d="M16.99 3.75h2.7l-5.9 6.74 6.94 9.18h-5.44l-4.26-5.57-4.87 5.57H3.35l6.31-7.21L3.08 3.75h5.58l3.85 5.09zm-.95 14.31h1.5L8.14 5.29H6.52z" fill="#fff"/></svg>
+                              X (Twitter)
+                            </a>
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleShareBadge(badge.name, badge.icon, badge.description, badge.current, badge.threshold, 'teams')}>
-                            <svg className="h-3.5 w-3.5 mr-2 flex-shrink-0" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4" fill="#5059C9"/><circle cx="18" cy="6.5" r="2" fill="#7B83EB"/><path d="M20 9.5h-3.5a.5.5 0 00-.5.5v4.5a2.25 2.25 0 004.5 0V10a.5.5 0 00-.5-.5z" fill="#7B83EB"/><circle cx="12.5" cy="6" r="2.5" fill="#fff"/><path d="M16 9.5H9a.5.5 0 00-.5.5v5a3.25 3.25 0 006.5 0v-5a1 1 0 00-1-1H16z" fill="#fff"/></svg>
-                            Teams
+                          <DropdownMenuItem asChild>
+                            <a href={getBadgeShareUrls(badge.name, badge.description).teams} target="_blank" rel="noopener noreferrer" className="flex items-center">
+                              <svg className="h-3.5 w-3.5 mr-2 flex-shrink-0" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4" fill="#5059C9"/><circle cx="18" cy="6.5" r="2" fill="#7B83EB"/><path d="M20 9.5h-3.5a.5.5 0 00-.5.5v4.5a2.25 2.25 0 004.5 0V10a.5.5 0 00-.5-.5z" fill="#7B83EB"/><circle cx="12.5" cy="6" r="2.5" fill="#fff"/><path d="M16 9.5H9a.5.5 0 00-.5.5v5a3.25 3.25 0 006.5 0v-5a1 1 0 00-1-1H16z" fill="#fff"/></svg>
+                              Teams
+                            </a>
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
