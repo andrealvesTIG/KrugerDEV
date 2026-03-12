@@ -3155,6 +3155,15 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
                   );
                 })}
               </div>
+              <button
+                type="button"
+                onClick={handleAddStatusNote}
+                className="text-[10px] text-primary hover:underline flex items-center gap-1 mt-1"
+                data-testid="button-add-status-note"
+              >
+                <Pencil className="w-3 h-3" />
+                {project.healthReason ? "Update note" : "Add status note"}
+              </button>
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Billable Status</Label>
@@ -3184,20 +3193,9 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 mt-1">
-          {project.healthReason && (
-            <p className="text-xs text-muted-foreground italic">"{project.healthReason}"</p>
-          )}
-          <button
-            type="button"
-            onClick={handleAddStatusNote}
-            className="text-xs text-primary hover:underline flex items-center gap-1 shrink-0"
-            data-testid="button-add-status-note"
-          >
-            <Pencil className="w-3 h-3" />
-            {project.healthReason ? "Update note" : "Add status note"}
-          </button>
-        </div>
+        {project.healthReason && (
+          <p className="text-xs text-muted-foreground italic mt-1">"{project.healthReason}"</p>
+        )}
       </CardHeader>
       <CardContent className="pt-0">
         <div className="space-y-3">
