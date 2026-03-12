@@ -21266,10 +21266,18 @@ Return ONLY valid JSON.`;
       const userResource = resources.find(r => r.userId === userId);
       const isOwner = entry.userId === userId;
       const isAdmin = await hasTimesheetAdminAccess(userId, orgId);
-      const isApprover = userResource?.isApprover;
+      const isApprover = userResource?.isApprover === true;
       const activeDelegations = await storage.getActiveDelegationsForDelegate(userId, orgId);
       if (!isOwner && !isAdmin && !isApprover && activeDelegations.length === 0) {
         return res.status(403).json({ message: 'Not authorized to view comments for this entry' });
+      }
+
+      if (!isOwner && !isAdmin && !isApprover && activeDelegations.length > 0) {
+        const entryResource = resources.find(r => r.id === entry.resourceId);
+        const delegatorIds = activeDelegations.map(d => d.delegatorId);
+        if (!entryResource?.managerId || !delegatorIds.includes(entryResource.managerId)) {
+          return res.status(403).json({ message: 'This entry is outside your delegated scope' });
+        }
       }
 
       const comments = await storage.getTimesheetComments(entryId);
@@ -21301,10 +21309,18 @@ Return ONLY valid JSON.`;
       const userResource = resources.find(r => r.userId === userId);
       const isOwner = entry.userId === userId;
       const isAdmin = await hasTimesheetAdminAccess(userId, organizationId);
-      const isApprover = userResource?.isApprover;
+      const isApprover = userResource?.isApprover === true;
       const activeDelegations = await storage.getActiveDelegationsForDelegate(userId, organizationId);
       if (!isOwner && !isAdmin && !isApprover && activeDelegations.length === 0) {
         return res.status(403).json({ message: 'Not authorized to comment on this entry' });
+      }
+
+      if (!isOwner && !isAdmin && !isApprover && activeDelegations.length > 0) {
+        const entryResource = resources.find(r => r.id === entry.resourceId);
+        const delegatorIds = activeDelegations.map(d => d.delegatorId);
+        if (!entryResource?.managerId || !delegatorIds.includes(entryResource.managerId)) {
+          return res.status(403).json({ message: 'This entry is outside your delegated scope' });
+        }
       }
 
       const comment = await storage.createTimesheetComment({
