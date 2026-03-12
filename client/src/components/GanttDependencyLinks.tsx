@@ -151,7 +151,7 @@ function getLinkPath(
     const stubX1 = fromX + STUB_LENGTH;
 
     if (toX >= stubX1 + STUB_LENGTH) {
-      const dropX = stubX1;
+      const dropX = (fromX + toX) / 2;
       return `M ${fromX} ${adjustedFromY}
               L ${dropX} ${adjustedFromY}
               L ${dropX} ${adjustedToY}
