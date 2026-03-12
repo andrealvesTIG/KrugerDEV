@@ -20,6 +20,7 @@ const actionLabels: Record<string, { label: string; color: string }> = {
   create: { label: "Created", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
   update: { label: "Updated", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
   delete: { label: "Deleted", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
+  submit: { label: "Submitted", color: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" },
   submit_week: { label: "Submitted", color: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" },
   approve: { label: "Approved", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
   reject: { label: "Rejected", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
