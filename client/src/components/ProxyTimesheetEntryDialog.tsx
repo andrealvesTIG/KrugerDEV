@@ -84,7 +84,7 @@ export function ProxyTimesheetEntryDialog({ organizationId, open, onOpenChange }
       });
 
       const resource = teamMembers.find((r: any) => r.id === Number(targetResourceId));
-      toast({ title: "Entry created", description: `Time entry filled in on behalf of ${resource?.name || "team member"}` });
+      toast({ title: "Entry created", description: `Time entry filled in on behalf of ${resource?.displayName || "team member"}` });
       resetForm();
       onOpenChange(false);
     } catch (err: any) {
@@ -112,7 +112,7 @@ export function ProxyTimesheetEntryDialog({ organizationId, open, onOpenChange }
               </SelectTrigger>
               <SelectContent>
                 {teamMembers.map((r: any) => (
-                  <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>
+                  <SelectItem key={r.id} value={String(r.id)}>{r.displayName || r.email || `Resource ${r.id}`}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -140,7 +140,7 @@ export function ProxyTimesheetEntryDialog({ organizationId, open, onOpenChange }
               </SelectTrigger>
               <SelectContent>
                 {tasks.map((t: any) => (
-                  <SelectItem key={t.id} value={String(t.id)}>{t.title}</SelectItem>
+                  <SelectItem key={t.id} value={String(t.id)}>{t.name || t.title || `Task ${t.id}`}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
