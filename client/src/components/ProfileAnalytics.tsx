@@ -259,31 +259,48 @@ export default function ProfileAnalytics() {
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(80, 410); ctx.lineTo(w - 80, 410); ctx.stroke();
 
-    let logoLoaded = false;
+    let fullLogoLoaded = false;
+    const fullLogoImg = new Image();
+    fullLogoImg.crossOrigin = 'anonymous';
     try {
-      const logoImg = new Image();
-      logoImg.crossOrigin = 'anonymous';
       await new Promise<void>((resolve) => {
-        logoImg.onload = () => { logoLoaded = true; resolve(); };
-        logoImg.onerror = () => resolve();
-        logoImg.src = '/logo-icon.png';
+        fullLogoImg.onload = () => { fullLogoLoaded = true; resolve(); };
+        fullLogoImg.onerror = () => resolve();
+        fullLogoImg.src = '/logo-full.png';
       });
-      if (logoLoaded && logoImg.complete && logoImg.naturalWidth > 0) {
-        ctx.drawImage(logoImg, cx - 68, 430, 24, 24);
-        ctx.font = '600 14px system-ui, -apple-system, sans-serif';
-        ctx.fillStyle = '#6b7280';
-        ctx.textAlign = 'left';
-        ctx.fillText('FridayReport.AI', cx - 38, 448);
-        ctx.textAlign = 'center';
-      } else {
-        ctx.font = '600 14px system-ui, -apple-system, sans-serif';
-        ctx.fillStyle = '#6b7280';
+    } catch {}
+
+    if (fullLogoLoaded && fullLogoImg.complete && fullLogoImg.naturalWidth > 0) {
+      const logoH = 22;
+      const logoW = (fullLogoImg.naturalWidth / fullLogoImg.naturalHeight) * logoH;
+      ctx.drawImage(fullLogoImg, cx - logoW / 2, 434, logoW, logoH);
+    } else {
+      let iconLoaded = false;
+      try {
+        const iconImg = new Image();
+        iconImg.crossOrigin = 'anonymous';
+        await new Promise<void>((resolve) => {
+          iconImg.onload = () => { iconLoaded = true; resolve(); };
+          iconImg.onerror = () => resolve();
+          iconImg.src = '/logo-icon.png';
+        });
+        if (iconLoaded && iconImg.complete && iconImg.naturalWidth > 0) {
+          ctx.drawImage(iconImg, cx - 68, 430, 24, 24);
+          ctx.font = '700 14px system-ui, -apple-system, sans-serif';
+          ctx.fillStyle = '#17255A';
+          ctx.textAlign = 'left';
+          ctx.fillText('FridayReport.AI', cx - 38, 448);
+          ctx.textAlign = 'center';
+        } else {
+          ctx.font = '700 14px system-ui, -apple-system, sans-serif';
+          ctx.fillStyle = '#17255A';
+          ctx.fillText('FridayReport.AI', cx, 448);
+        }
+      } catch {
+        ctx.font = '700 14px system-ui, -apple-system, sans-serif';
+        ctx.fillStyle = '#17255A';
         ctx.fillText('FridayReport.AI', cx, 448);
       }
-    } catch {
-      ctx.font = '600 14px system-ui, -apple-system, sans-serif';
-      ctx.fillStyle = '#6b7280';
-      ctx.fillText('FridayReport.AI', cx, 448);
     }
 
     ctx.restore();

@@ -98,62 +98,69 @@ export async function generateBadgeOgImage(data: BadgeOgData): Promise<Buffer> {
 
   let logoB64 = "";
   try {
-    const logoPath = path.resolve(process.cwd(), "client", "public", "logo-icon.png");
+    const logoPath = path.resolve(process.cwd(), "client", "public", "logo-full.png");
     if (fs.existsSync(logoPath)) {
-      const resizedLogo = await sharp(logoPath).resize(80, 80).png().toBuffer();
+      const resizedLogo = await sharp(logoPath).resize(400, null, { fit: 'inside' }).png().toBuffer();
       logoB64 = `data:image/png;base64,${resizedLogo.toString("base64")}`;
     }
   } catch {}
 
-  const logoImg = logoB64
-    ? `<image href="${logoB64}" x="40" y="35" width="60" height="60" />`
-    : `<rect x="40" y="35" width="60" height="60" rx="10" fill="#3b82f6" /><text x="70" y="75" text-anchor="middle" font-size="32" font-weight="bold" fill="white" font-family="system-ui,sans-serif">F</text>`;
+  let iconB64 = "";
+  try {
+    const iconPath = path.resolve(process.cwd(), "client", "public", "logo-icon.png");
+    if (fs.existsSync(iconPath)) {
+      const resizedIcon = await sharp(iconPath).resize(80, 80).png().toBuffer();
+      iconB64 = `data:image/png;base64,${resizedIcon.toString("base64")}`;
+    }
+  } catch {}
 
   const name = escapeXml(data.displayName);
   const subtitle = data.jobTitle ? escapeXml(data.jobTitle) : "";
   const tier = escapeXml(data.tierName);
 
+  const tierEmoji: Record<string, string> = {
+    Beginner: '\u{1F331}', Associate: '\u{1F4BC}', Professional: '\u{1F4AA}',
+    Senior: '\u{1F3AF}', Expert: '\u2B50', Master: '\u{1F451}',
+  };
+  const emoji = tierEmoji[data.tierName] || '\u2B50';
+
+  const logoElement = logoB64
+    ? `<image href="${logoB64}" x="450" y="42" width="300" height="52" preserveAspectRatio="xMidYMid meet" />`
+    : (iconB64
+      ? `<image href="${iconB64}" x="540" y="38" width="44" height="44" /><text x="596" y="70" font-size="24" font-weight="800" fill="#17255A" font-family="system-ui,sans-serif">FridayReport.AI</text>`
+      : `<text x="600" y="70" text-anchor="middle" font-size="24" font-weight="800" fill="#17255A" font-family="system-ui,sans-serif">FridayReport.AI</text>`);
+
   const svg = `<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#f0f4ff" />
-      <stop offset="100%" stop-color="#e0e7ff" />
-    </linearGradient>
-    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#ffffff" />
-      <stop offset="100%" stop-color="#fafbff" />
-    </linearGradient>
+    <filter id="cardShadow" x="-3%" y="-3%" width="106%" height="110%">
+      <feDropShadow dx="0" dy="6" stdDeviation="16" flood-color="rgba(23,37,90,0.06)" />
+    </filter>
   </defs>
-  <rect width="1200" height="630" fill="url(#bg)" />
-  <rect x="40" y="20" width="1120" height="590" rx="24" fill="url(#card)" stroke="#e2e8f0" stroke-width="2" />
+  <rect width="1200" height="630" fill="#f5f6fa" />
 
-  ${logoImg}
-  <text x="115" y="72" font-size="22" font-weight="700" fill="#1e293b" font-family="system-ui,sans-serif">FridayReport.AI</text>
+  <rect x="80" y="24" width="1040" height="582" rx="28" fill="white" filter="url(#cardShadow)" />
+  <rect x="80" y="24" width="1040" height="582" rx="28" fill="none" stroke="#e8eaf0" stroke-width="1" />
 
-  <line x1="40" y1="110" x2="1160" y2="110" stroke="#e2e8f0" stroke-width="1" />
+  ${logoElement}
 
-  <text x="600" y="190" text-anchor="middle" font-size="48" font-weight="800" fill="#0f172a" font-family="system-ui,sans-serif">${name}</text>
-  ${subtitle ? `<text x="600" y="230" text-anchor="middle" font-size="24" fill="#64748b" font-family="system-ui,sans-serif">${subtitle}</text>` : ""}
+  <line x1="160" y1="108" x2="1040" y2="108" stroke="#f0f1f5" stroke-width="1" />
 
-  <rect x="420" y="${subtitle ? 250 : 210}" width="360" height="50" rx="25" fill="${tierColor}15" stroke="${tierColor}" stroke-width="2" />
-  <text x="600" y="${subtitle ? 283 : 243}" text-anchor="middle" font-size="22" font-weight="700" fill="${tierColor}" font-family="system-ui,sans-serif">\u2B50 ${tier} Rank</text>
+  <text x="600" y="185" text-anchor="middle" font-size="52" font-weight="800" fill="#17255A" font-family="system-ui,-apple-system,sans-serif" letter-spacing="-0.5">${name}</text>
+  ${subtitle ? `<text x="600" y="222" text-anchor="middle" font-size="22" fill="#6b7280" font-family="system-ui,sans-serif">${subtitle}</text>` : ""}
 
-  <rect x="200" y="${subtitle ? 330 : 290}" width="250" height="120" rx="16" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5" />
-  <text x="325" y="${subtitle ? 380 : 340}" text-anchor="middle" font-size="42" font-weight="800" fill="${tierColor}" font-family="system-ui,sans-serif">${data.score}</text>
-  <text x="325" y="${subtitle ? 410 : 370}" text-anchor="middle" font-size="16" fill="#94a3b8" font-family="system-ui,sans-serif">Engagement Score</text>
+  <rect x="400" y="${subtitle ? 244 : 210}" width="400" height="56" rx="28" fill="${tierColor}" />
+  <text x="600" y="${subtitle ? 280 : 246}" text-anchor="middle" font-size="24" font-weight="700" fill="white" font-family="system-ui,sans-serif">${emoji}  ${tier} Rank</text>
 
-  <rect x="500" y="${subtitle ? 330 : 290}" width="250" height="120" rx="16" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5" />
-  <text x="625" y="${subtitle ? 380 : 340}" text-anchor="middle" font-size="42" font-weight="800" fill="#f59e0b" font-family="system-ui,sans-serif">${data.badgeCount}</text>
-  <text x="625" y="${subtitle ? 410 : 370}" text-anchor="middle" font-size="16" fill="#94a3b8" font-family="system-ui,sans-serif">Badges Earned</text>
+  <line x1="300" y1="${subtitle ? 340 : 306}" x2="900" y2="${subtitle ? 340 : 306}" stroke="#f0f1f5" stroke-width="1" />
 
-  <rect x="800" y="${subtitle ? 330 : 290}" width="250" height="120" rx="16" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5" />
-  <text x="925" y="${subtitle ? 380 : 340}" text-anchor="middle" font-size="42" font-weight="800" fill="#64748b" font-family="system-ui,sans-serif">${data.totalBadges}</text>
-  <text x="925" y="${subtitle ? 410 : 370}" text-anchor="middle" font-size="16" fill="#94a3b8" font-family="system-ui,sans-serif">Total Badges</text>
+  <text x="600" y="${subtitle ? 388 : 354}" text-anchor="middle" font-size="19" fill="#9ca3af" font-family="system-ui,sans-serif">Verified Project Management Professional</text>
+  <text x="600" y="${subtitle ? 420 : 386}" text-anchor="middle" font-size="17" fill="#b0b5c0" font-family="system-ui,sans-serif">View full profile and badges at fridayreport.ai</text>
 
-  <text x="600" y="${subtitle ? 530 : 490}" text-anchor="middle" font-size="18" fill="#94a3b8" font-family="system-ui,sans-serif">View full profile and badges at FridayReport.AI</text>
+  <line x1="160" y1="${subtitle ? 450 : 416}" x2="1040" y2="${subtitle ? 450 : 416}" stroke="#f0f1f5" stroke-width="1" />
 
-  <rect x="40" y="570" width="1120" height="40" rx="0" fill="#f1f5f9" />
-  <text x="600" y="596" text-anchor="middle" font-size="14" fill="#94a3b8" font-family="system-ui,sans-serif">fridayreport.ai/badges \u2022 Project Portfolio Management</text>
+  <text x="600" y="${subtitle ? 490 : 456}" text-anchor="middle" font-size="28" font-weight="700" fill="${tierColor}" font-family="system-ui,sans-serif">${data.badgeCount} of ${data.totalBadges} badges earned</text>
+
+  <text x="600" y="580" text-anchor="middle" font-size="15" fill="#b0b5c0" font-family="system-ui,sans-serif">fridayreport.ai  \u2022  Project Portfolio Management</text>
 </svg>`;
 
   const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
@@ -163,8 +170,8 @@ export async function generateBadgeOgImage(data: BadgeOgData): Promise<Buffer> {
 export function injectBadgeOgTags(html: string, data: BadgeOgData, userId: string, baseUrl?: string): string {
   const title = `${data.displayName} - ${data.tierName} Rank | FridayReport.AI`;
   const description = data.jobTitle
-    ? `${data.displayName} (${data.jobTitle}) is a ${data.tierName}-ranked professional with ${data.badgeCount}/${data.totalBadges} badges on FridayReport.AI`
-    : `${data.displayName} is a ${data.tierName}-ranked professional with ${data.badgeCount}/${data.totalBadges} badges on FridayReport.AI`;
+    ? `${data.displayName} (${data.jobTitle}) is a ${data.tierName}-ranked Project Management Professional on FridayReport.AI`
+    : `${data.displayName} is a ${data.tierName}-ranked Project Management Professional on FridayReport.AI`;
   const url = `https://fridayreport.ai/badges/${encodeURIComponent(userId)}`;
   const imageUrl = baseUrl
     ? `${baseUrl}/api/users/${encodeURIComponent(userId)}/badge-card.png`
@@ -326,16 +333,27 @@ export async function getSingleBadgeOgData(userId: string, badgeId: string): Pro
 export async function generateSingleBadgeImage(data: SingleBadgeOgData): Promise<Buffer> {
   let logoB64 = "";
   try {
-    const logoPath = path.resolve(process.cwd(), "client", "public", "logo-icon.png");
+    const logoPath = path.resolve(process.cwd(), "client", "public", "logo-full.png");
     if (fs.existsSync(logoPath)) {
-      const resizedLogo = await sharp(logoPath).resize(40, 40).png().toBuffer();
+      const resizedLogo = await sharp(logoPath).resize(240, null, { fit: 'inside' }).png().toBuffer();
       logoB64 = `data:image/png;base64,${resizedLogo.toString("base64")}`;
     }
   } catch {}
 
+  let iconB64 = "";
+  try {
+    const iconPath = path.resolve(process.cwd(), "client", "public", "logo-icon.png");
+    if (fs.existsSync(iconPath)) {
+      const resizedIcon = await sharp(iconPath).resize(40, 40).png().toBuffer();
+      iconB64 = `data:image/png;base64,${resizedIcon.toString("base64")}`;
+    }
+  } catch {}
+
   const logoImg = logoB64
-    ? `<image href="${logoB64}" x="526" y="490" width="32" height="32" />`
-    : `<rect x="526" y="490" width="32" height="32" rx="6" fill="#f59e0b" /><text x="542" y="513" text-anchor="middle" font-size="18" font-weight="bold" fill="white" font-family="system-ui,sans-serif">F</text>`;
+    ? `<image href="${logoB64}" x="490" y="488" width="220" height="38" preserveAspectRatio="xMidYMid meet" />`
+    : (iconB64
+      ? `<image href="${iconB64}" x="540" y="490" width="28" height="28" /><text x="576" y="512" font-size="16" font-weight="700" fill="#17255A" font-family="system-ui,sans-serif">FridayReport.AI</text>`
+      : `<text x="600" y="512" text-anchor="middle" font-size="16" font-weight="700" fill="#17255A" font-family="system-ui,sans-serif">FridayReport.AI</text>`);
 
   const emoji = BADGE_EMOJI[data.badgeIcon] || '\u{1F3C6}';
   const truncSvg = (str: string, maxLen: number) => {
@@ -376,7 +394,6 @@ export async function generateSingleBadgeImage(data: SingleBadgeOgData): Promise
     <line x1="420" y1="475" x2="780" y2="475" stroke="#f0f0f0" stroke-width="1" />
 
     ${logoImg}
-    <text x="566" y="510" text-anchor="start" font-size="18" font-weight="600" fill="#6b7280" font-family="system-ui,sans-serif">FridayReport.AI</text>
   </g>
 </svg>`;
 
