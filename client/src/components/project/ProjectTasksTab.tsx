@@ -250,6 +250,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [activeDialogTab, setActiveDialogTab] = useState<string>("details");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPlannerEditDialog, setShowPlannerEditDialog] = useState(false);
   const [durationInput, setDurationInput] = useState<string>("1");
@@ -390,8 +391,9 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     }
   };
 
-  const openEditDialog = (task: Task) => {
+  const openEditDialog = (task: Task, tab: string = "details") => {
     setEditingTask(task);
+    setActiveDialogTab(tab);
     const taskDuration = task.durationDays ?? (task.startDate && task.endDate 
       ? calculateDurationInWorkingDays(task.startDate, task.endDate) 
       : 1);
@@ -903,7 +905,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               </div>
               
               {/* Tabbed content */}
-              <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
+              <Tabs value={activeDialogTab} onValueChange={setActiveDialogTab} className="flex-1 flex flex-col min-h-0">
                 <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="details" className="text-xs">Details</TabsTrigger>
                   <TabsTrigger value="schedule" className="text-xs">Schedule</TabsTrigger>
@@ -1326,6 +1328,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
         <ProjectGanttView 
           tasks={filteredTasks} 
           onTaskClick={openEditDialog}
+          onDependencyLineClick={(task) => openEditDialog(task, "dependencies")}
           projectId={projectId}
           organizationId={currentOrganization?.id || null}
           projectName={projectName}

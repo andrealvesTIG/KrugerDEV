@@ -1774,6 +1774,7 @@ function SortableColumnItem({
 function ProjectGanttView({ 
   tasks, 
   onTaskClick, 
+  onDependencyLineClick,
   projectId, 
   organizationId,
   onCreateTask,
@@ -1786,6 +1787,7 @@ function ProjectGanttView({
 }: { 
   tasks: Task[]; 
   onTaskClick: (task: Task) => void;
+  onDependencyLineClick?: (task: Task) => void;
   projectId: number;
   organizationId: number | null;
   onCreateTask: (name: string) => void;
@@ -4451,6 +4453,12 @@ function ProjectGanttView({
                       headerHeight={28 + (showProjectSummary && projectSummaryTask?.startDate && projectSummaryTask?.endDate ? 28 : 0)}
                       showBaseline={showBaseline}
                       highlightedTaskIds={showCriticalPath ? criticalTaskIds : undefined}
+                      onDependencyClick={onDependencyLineClick ? (dep) => {
+                        const successorTask = visibleTasks.find(t => t.id === dep.taskId);
+                        if (successorTask) {
+                          onDependencyLineClick(successorTask);
+                        }
+                      } : undefined}
                     />
                   )}
                   
