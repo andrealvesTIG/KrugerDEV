@@ -164,12 +164,11 @@ function getLinkPath(
 
     const successorIsAfterPredecessor = toRect.xStart >= fromRect.xStart;
     if (successorIsAfterPredecessor) {
-      const approachX = toX - STUB_LENGTH;
-      const midY = (adjustedFromY + adjustedToY) / 2;
+      const approachX = toRect.xStart - STUB_LENGTH;
       return `M ${fromX} ${adjustedFromY}
               L ${stubX1} ${adjustedFromY}
-              L ${stubX1} ${midY}
-              L ${approachX} ${midY}
+              L ${stubX1} ${adjustedFromY + STUB_LENGTH}
+              L ${approachX} ${adjustedFromY + STUB_LENGTH}
               L ${approachX} ${adjustedToY}
               L ${toX} ${adjustedToY}`;
     }
