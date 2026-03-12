@@ -20526,7 +20526,7 @@ Return ONLY valid JSON.`;
       const resources = await storage.getResources(period.organizationId);
       const userResource = resources.find(r => r.userId === userId);
       
-      if (!(await hasTimesheetAdminAccess(userId, organizationId))) {
+      if (!(await hasTimesheetAdminAccess(userId, period.organizationId))) {
         return res.status(403).json({ message: 'You must be an admin or approver to close timesheet periods' });
       }
 
@@ -20558,7 +20558,7 @@ Return ONLY valid JSON.`;
       const resources = await storage.getResources(period.organizationId);
       const userResource = resources.find(r => r.userId === userId);
       
-      if (!(await hasTimesheetAdminAccess(userId, organizationId))) {
+      if (!(await hasTimesheetAdminAccess(userId, period.organizationId))) {
         return res.status(403).json({ message: 'You must be an admin or approver to reopen timesheet periods' });
       }
 
@@ -20590,7 +20590,7 @@ Return ONLY valid JSON.`;
       const resources = await storage.getResources(period.organizationId);
       const userResource = resources.find(r => r.userId === userId);
       
-      if (!(await hasTimesheetAdminAccess(userId, organizationId))) {
+      if (!(await hasTimesheetAdminAccess(userId, period.organizationId))) {
         return res.status(403).json({ message: 'You must be an admin or approver to delete timesheet periods' });
       }
 
@@ -20713,7 +20713,7 @@ Return ONLY valid JSON.`;
 
       const resources = await storage.getResources(entry.organizationId);
       const userResource = resources.find(r => r.userId === userId);
-      if (!(await hasTimesheetAdminAccess(userId, organizationId)) && entry.userId !== userId) {
+      if (!(await hasTimesheetAdminAccess(userId, entry.organizationId)) && entry.userId !== userId) {
         return res.status(403).json({ message: 'Access denied' });
       }
 
