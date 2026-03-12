@@ -184,6 +184,7 @@ doc.text(`Classification: Confidential`, { align: 'center' });
 doc.addPage();
 drawHeader('Executive Summary', 22);
 
+
 drawBody(
   'FridayReport.AI has a solid foundation for SOC 2 compliance with strong audit logging, role-based access control, and multi-provider authentication already in place. However, several critical gaps remain across all five criteria — most notably the absence of MFA, weak password policies, no session idle timeout, missing security headers, no health check endpoints, and no formal data retention enforcement.'
 );
@@ -194,7 +195,7 @@ drawBody(
 
 // ============ 1. SECURITY ============
 
-doc.addPage();
+checkPageBreak(80);
 drawHeader('1. SECURITY (CC — Common Criteria)', 20);
 
 drawSubHeader('CC6.1 — Logical Access Controls');
@@ -262,7 +263,7 @@ drawSimpleTable([
 
 // ============ 2. AVAILABILITY ============
 
-doc.addPage();
+checkPageBreak(80);
 drawHeader('2. AVAILABILITY (A1)', 20);
 
 drawSubHeader('A1.1 — System Monitoring');
@@ -297,7 +298,7 @@ drawSimpleTable([
 
 // ============ 3. PROCESSING INTEGRITY ============
 
-doc.addPage();
+checkPageBreak(80);
 drawHeader('3. PROCESSING INTEGRITY (PI1)', 20);
 
 drawSubHeader('PI1.1 — Input Validation');
@@ -330,7 +331,7 @@ drawSimpleTable([
 
 // ============ 4. CONFIDENTIALITY ============
 
-doc.addPage();
+checkPageBreak(80);
 drawHeader('4. CONFIDENTIALITY (C1)', 20);
 
 drawSubHeader('C1.1 — Data Classification');
@@ -358,7 +359,7 @@ drawSimpleTable([
 
 // ============ 5. PRIVACY ============
 
-doc.addPage();
+checkPageBreak(80);
 drawHeader('5. PRIVACY (P1)', 20);
 
 drawSubHeader('P1.1 — Privacy Notice & Consent');
@@ -390,7 +391,7 @@ drawSimpleTable([
 
 // ============ PRIORITY SUMMARY ============
 
-doc.addPage();
+checkPageBreak(80);
 drawHeader('Priority Summary', 22);
 
 drawSubHeader('Critical Gaps (Must Fix for SOC 2)');
@@ -436,7 +437,7 @@ enhancements.forEach((gap, i) => drawBullet(`${i + 18}. ${gap}`));
 
 // ============ EXISTING STRENGTHS ============
 
-doc.addPage();
+checkPageBreak(80);
 drawHeader('Existing Strengths', 22);
 
 drawBody(
