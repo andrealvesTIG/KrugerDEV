@@ -42,6 +42,7 @@ const STUB_LENGTH = 12; // horizontal stub out of anchor
 const ARROW_SIZE = 6; // arrowhead size
 const BACK_LINK_OFFSET = 24; // extra offset for back-links
 const ROW_OVERLAP_OFFSET = 4; // vertical offset for overlapping links
+const MIN_BAR_WIDTH = 24; // must match minWidth on the rendered task bar div
 
 /**
  * Calculate the bar rectangle for a task in viewport coordinates
@@ -70,7 +71,7 @@ function getBarRect(
   const rawXEnd = (endOffset / totalDays) * containerWidth;
   
   const xStart = Math.max(0, rawXStart);
-  const xEnd = Math.max(xStart + 8, rawXEnd);
+  const xEnd = Math.max(xStart + MIN_BAR_WIDTH, rawXEnd);
   
   const barTop = 4;
   const barHeight = showBaseline && task.baselineStartDate && task.baselineEndDate ? 16 : 20;
