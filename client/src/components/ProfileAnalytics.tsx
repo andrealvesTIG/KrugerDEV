@@ -345,10 +345,10 @@ export default function ProfileAnalytics() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold">Analytics</h2>
-          <p className="text-muted-foreground">Your professional engagement and performance overview</p>
+          <p className="text-sm text-muted-foreground">Your professional engagement and performance overview</p>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -484,28 +484,30 @@ export default function ProfileAnalytics() {
           </CardHeader>
           <CardContent>
             {featureUsage.length > 0 ? (
-              <div className="flex items-center gap-4">
-                <ResponsiveContainer width="50%" height={220}>
-                  <PieChart>
-                    <Pie
-                      data={featureUsage.slice(0, 8)}
-                      dataKey="count"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      innerRadius={40}
-                    >
-                      {featureUsage.slice(0, 8).map((_, i) => (
-                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip
-                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="flex-1 space-y-1.5">
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="w-full sm:w-1/2 h-[180px] sm:h-[220px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={featureUsage.slice(0, 8)}
+                        dataKey="count"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={70}
+                        innerRadius={35}
+                      >
+                        {featureUsage.slice(0, 8).map((_, i) => (
+                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip
+                        contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="w-full sm:flex-1 space-y-1.5">
                   {featureUsage.slice(0, 8).map((f, i) => (
                     <div key={f.name} className="flex items-center gap-2 text-xs">
                       <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
