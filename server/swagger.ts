@@ -263,7 +263,7 @@ const spec = {
       },
       ProjectRequest: {
         type: 'object',
-        description: 'Input schema for creating or updating a project. Same fields as Project but without server-generated fields (id, createdAt, updatedAt, etc.) being required.',
+        description: 'Input schema for creating or updating a project. Excludes server-generated fields (id, timestamps, calculated metrics, etc.).',
         properties: {
           organizationId: { type: 'integer' },
           portfolioId: { type: 'integer', nullable: true },
@@ -281,7 +281,6 @@ const spec = {
           actualStartDate: { type: 'string', format: 'date', nullable: true },
           actualEndDate: { type: 'string', format: 'date', nullable: true },
           budget: { type: 'number' },
-          actualCost: { type: 'number' },
           forecastCost: { type: 'number', nullable: true },
           contractTotal: { type: 'number' },
           managerId: { type: 'string', nullable: true },
@@ -292,11 +291,8 @@ const spec = {
           ownerResourceId: { type: 'integer', nullable: true },
           technicalLeadId: { type: 'string', nullable: true },
           technicalLeadResourceId: { type: 'integer', nullable: true },
-          completionPercentage: { type: 'integer', minimum: 0, maximum: 100 },
           health: { type: 'string', enum: ['Green', 'Yellow', 'Red'] },
           healthReason: { type: 'string', nullable: true },
-          scheduleVariance: { type: 'integer', nullable: true },
-          costVariance: { type: 'number', nullable: true },
           scope: { type: 'string', nullable: true },
           objectives: { type: 'string', nullable: true },
           successCriteria: { type: 'string', nullable: true },
