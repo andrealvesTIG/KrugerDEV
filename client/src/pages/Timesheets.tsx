@@ -163,11 +163,12 @@ interface TaskRowProps {
   taskColumnWidth?: number;
   timesheetLocked?: boolean;
   onViewAudit?: (entryId: number) => void;
+  overtimeThreshold?: number;
 }
 
-function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, clearRow, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName, taskColumnWidth = 360, timesheetLocked = false, onViewAudit }: TaskRowProps) {
+function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, clearRow, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName, taskColumnWidth = 360, timesheetLocked = false, onViewAudit, overtimeThreshold = 40 }: TaskRowProps) {
   const rowTotal = getRowTotal(task.id);
-  const isRowOvertime = rowTotal > 40;
+  const isRowOvertime = rowTotal > overtimeThreshold;
   
   return (
     <motion.tr
@@ -209,7 +210,8 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
         const isTodayDate = isToday(date);
         const isWeekendDay = isWeekend(date);
         const cellHours = parseFloat(gridData[task.id]?.[dateKey]?.hours || "0");
-        const isCellOvertime = cellHours > 8;
+        const dailyOvertimeThreshold = overtimeThreshold / 5;
+        const isCellOvertime = cellHours > dailyOvertimeThreshold;
         
         return (
           <td key={dateKey} className={`px-1.5 py-1 ${
@@ -349,6 +351,7 @@ interface TimesheetGridProps {
   isFullscreen?: boolean;
   mandatoryNotes?: boolean;
   onViewAudit?: (entryId: number) => void;
+  overtimeThreshold?: number;
 }
 
 const QUICK_TIME_PRESETS = [
@@ -360,7 +363,7 @@ const QUICK_TIME_PRESETS = [
 
 const MAX_UNDO_HISTORY = 20;
 
-function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMode, groupByProject, gridData, setGridData, hasChanges, setHasChanges, onAutoSave, isDateInClosedPeriod, getClosedPeriodName, isFullscreen = false, mandatoryNotes = false, onViewAudit }: TimesheetGridProps) {
+function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMode, groupByProject, gridData, setGridData, hasChanges, setHasChanges, onAutoSave, isDateInClosedPeriod, getClosedPeriodName, isFullscreen = false, mandatoryNotes = false, onViewAudit, overtimeThreshold = 40 }: TimesheetGridProps) {
   const [editingNote, setEditingNote] = useState<{ taskId: number; dateKey: string } | null>(null);
   const [noteText, setNoteText] = useState("");
   const [collapsedProjects, setCollapsedProjects] = useState<Set<number> | null>(null);
@@ -968,6 +971,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                             taskColumnWidth={taskColumnWidth}
                             timesheetLocked={timesheetLocked}
                             onViewAudit={onViewAudit}
+                            overtimeThreshold={overtimeThreshold}
                           />
                         );
                       })}
@@ -998,6 +1002,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                   taskColumnWidth={taskColumnWidth}
                   timesheetLocked={timesheetLocked}
                   onViewAudit={onViewAudit}
+                  overtimeThreshold={overtimeThreshold}
                 />
               ))
             )}
@@ -3623,6 +3628,7 @@ export default function Timesheets() {
                 isFullscreen
                 mandatoryNotes={timesheetSettings?.mandatoryNotes ?? false}
                 onViewAudit={(entryId) => { setAuditEntryId(entryId); setShowAuditDialog(true); }}
+                overtimeThreshold={weeklyTarget}
               />
             </div>
           )}
@@ -4281,6 +4287,7 @@ export default function Timesheets() {
                   getClosedPeriodName={getClosedPeriodName}
                   mandatoryNotes={timesheetSettings?.mandatoryNotes ?? false}
                   onViewAudit={(entryId) => { setAuditEntryId(entryId); setShowAuditDialog(true); }}
+                  overtimeThreshold={weeklyTarget}
                 />
               </motion.div>
             )}

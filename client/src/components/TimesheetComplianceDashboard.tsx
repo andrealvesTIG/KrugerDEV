@@ -12,6 +12,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useTimesheetCompliance } from "@/hooks/use-timesheets";
+import { useProjects } from "@/hooks/use-projects";
+import { useResources } from "@/hooks/use-resources";
 import {
   Loader2,
   Users,
@@ -22,6 +24,8 @@ import {
   TrendingUp,
   Search,
   BarChart3,
+  FolderOpen,
+  UserCircle,
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek } from "date-fns";
 
@@ -33,6 +37,11 @@ export function TimesheetComplianceDashboard({ organizationId }: TimesheetCompli
   const [dateRange, setDateRange] = useState<"week" | "month" | "last-month">("week");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "overtime" | "no-entries">("all");
+  const [projectFilter, setProjectFilter] = useState<string>("all");
+  const [resourceFilter, setResourceFilter] = useState<string>("all");
+
+  const { data: projects } = useProjects(organizationId);
+  const { data: resources } = useResources(organizationId);
 
   const { startDate, endDate } = useMemo(() => {
     const now = new Date();
@@ -57,7 +66,12 @@ export function TimesheetComplianceDashboard({ organizationId }: TimesheetCompli
     }
   }, [dateRange]);
 
-  const { data, isLoading } = useTimesheetCompliance(organizationId, startDate, endDate);
+  const complianceFilters = useMemo(() => ({
+    projectId: projectFilter !== "all" ? Number(projectFilter) : undefined,
+    resourceId: resourceFilter !== "all" ? Number(resourceFilter) : undefined,
+  }), [projectFilter, resourceFilter]);
+
+  const { data, isLoading } = useTimesheetCompliance(organizationId, startDate, endDate, complianceFilters);
 
   const filteredUsers = useMemo(() => {
     if (!data?.byUser) return [];
@@ -97,21 +111,47 @@ export function TimesheetComplianceDashboard({ organizationId }: TimesheetCompli
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2">
           <BarChart3 className="h-5 w-5 text-primary" />
           <h3 className="text-lg font-semibold">Compliance Dashboard</h3>
         </div>
-        <Select value={dateRange} onValueChange={(v: "week" | "month" | "last-month") => setDateRange(v)}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="week">This Week</SelectItem>
-            <SelectItem value="month">This Month</SelectItem>
-            <SelectItem value="last-month">Last Month</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={projectFilter} onValueChange={setProjectFilter}>
+            <SelectTrigger className="w-44 h-9">
+              <FolderOpen className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+              <SelectValue placeholder="All Projects" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Projects</SelectItem>
+              {projects?.map((p: any) => (
+                <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={resourceFilter} onValueChange={setResourceFilter}>
+            <SelectTrigger className="w-44 h-9">
+              <UserCircle className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+              <SelectValue placeholder="All Team Members" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Team Members</SelectItem>
+              {resources?.filter((r: any) => r.userId).map((r: any) => (
+                <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={dateRange} onValueChange={(v: "week" | "month" | "last-month") => setDateRange(v)}>
+            <SelectTrigger className="w-40 h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="week">This Week</SelectItem>
+              <SelectItem value="month">This Month</SelectItem>
+              <SelectItem value="last-month">Last Month</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

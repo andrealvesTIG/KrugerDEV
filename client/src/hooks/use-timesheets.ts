@@ -441,13 +441,20 @@ export interface ComplianceReportData {
   }[];
 }
 
-export function useTimesheetCompliance(organizationId: number | null, startDate: string, endDate: string) {
+export function useTimesheetCompliance(organizationId: number | null, startDate: string, endDate: string, filters?: { projectId?: number; resourceId?: number }) {
   return useQuery<ComplianceReportData>({
-    queryKey: ["/api/timesheet-compliance", organizationId, startDate, endDate],
+    queryKey: ["/api/timesheet-compliance", organizationId, startDate, endDate, filters],
     enabled: !!organizationId && !!startDate && !!endDate,
     staleTime: 1000 * 60,
     queryFn: async () => {
-      const response = await fetch(`/api/timesheet-compliance?organizationId=${organizationId}&startDate=${startDate}&endDate=${endDate}`);
+      const params = new URLSearchParams({
+        organizationId: String(organizationId),
+        startDate,
+        endDate,
+      });
+      if (filters?.projectId) params.append("projectId", String(filters.projectId));
+      if (filters?.resourceId) params.append("resourceId", String(filters.resourceId));
+      const response = await fetch(`/api/timesheet-compliance?${params}`);
       if (!response.ok) throw new Error("Failed to fetch compliance report");
       return response.json();
     },

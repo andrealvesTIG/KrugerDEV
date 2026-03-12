@@ -19727,6 +19727,10 @@ Return ONLY valid JSON.`;
           continue;
         }
 
+        if (settings?.mandatoryNotes && hoursNum > 0 && (!entry.notes || !String(entry.notes).trim())) {
+          continue;
+        }
+
         if (entry.id) {
           const existing = await storage.getTimesheetEntry(entry.id);
           if (!existing) continue;
@@ -19885,6 +19889,13 @@ Return ONLY valid JSON.`;
         }
       }
 
+      const settings = await storage.getTimesheetSettings(entry.organizationId);
+      const effectiveNotes = notes !== undefined ? notes : entry.notes;
+      const effectiveHours = hours !== undefined ? parseFloat(hours) : Number(entry.hours || 0);
+      if (settings?.mandatoryNotes && effectiveHours > 0 && (!effectiveNotes || !effectiveNotes.trim())) {
+        return res.status(400).json({ message: 'Notes are required for all timesheet entries' });
+      }
+
       const beforeSnapshot = { hours: entry.hours, notes: entry.notes };
       const updated = await storage.updateTimesheetEntry(id, {
         hours: hours !== undefined ? String(parseFloat(hours)) : undefined,
@@ -20002,12 +20013,20 @@ Return ONLY valid JSON.`;
         }
       }
 
+      const allEntriesForHourCheck = await storage.getTimesheetEntries(userId, organizationId, startDate, endDate);
+      const totalHours = allEntriesForHourCheck.reduce((sum, e) => sum + Number(e.hours || 0), 0);
+
       if (settings?.maxWeeklyHours) {
-        const allEntries = await storage.getTimesheetEntries(userId, organizationId, startDate, endDate);
-        const totalHours = allEntries.reduce((sum, e) => sum + Number(e.hours || 0), 0);
         const maxHours = Number(settings.maxWeeklyHours);
         if (totalHours > maxHours) {
           return res.status(400).json({ message: `Weekly hours (${totalHours}) exceed maximum allowed (${maxHours})` });
+        }
+      }
+
+      if (settings?.minWeeklyHours) {
+        const minHours = Number(settings.minWeeklyHours);
+        if (totalHours < minHours) {
+          return res.status(400).json({ message: `Weekly hours (${totalHours}) are below minimum required (${minHours})` });
         }
       }
 
@@ -20642,6 +20661,8 @@ Return ONLY valid JSON.`;
       const organizationId = Number(req.query.organizationId);
       const startDate = req.query.startDate as string;
       const endDate = req.query.endDate as string;
+      const projectId = req.query.projectId ? Number(req.query.projectId) : null;
+      const resourceId = req.query.resourceId ? Number(req.query.resourceId) : null;
 
       if (!organizationId || !startDate || !endDate) {
         return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
@@ -20653,11 +20674,23 @@ Return ONLY valid JSON.`;
         return res.status(403).json({ message: 'Only approvers can view compliance reports' });
       }
 
-      const allEntries = await storage.getAllTimesheetEntriesWithDetails(organizationId, startDate, endDate);
+      let allEntries = await storage.getAllTimesheetEntriesWithDetails(organizationId, startDate, endDate);
+
+      if (projectId) {
+        allEntries = allEntries.filter(({ entry }) => entry.projectId === projectId);
+      }
+
+      if (resourceId) {
+        allEntries = allEntries.filter(({ entry }) => entry.resourceId === resourceId);
+      }
+
       const settings = await storage.getTimesheetSettings(organizationId);
       const overtimeThreshold = Number(settings?.overtimeThreshold || 40);
 
-      const activeResources = resources.filter(r => r.userId);
+      let activeResources = resources.filter(r => r.userId);
+      if (resourceId) {
+        activeResources = activeResources.filter(r => r.id === resourceId);
+      }
       const totalResources = activeResources.length;
 
       const byUser: Record<string, { userId: string; resourceName: string; totalHours: number; entries: number; submitted: number; approved: number; rejected: number; draft: number; overtime: boolean }> = {};
