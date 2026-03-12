@@ -3965,38 +3965,34 @@ export default function Timesheets() {
               </button>
             )}
             {isTimesheetAdmin && (
-              <button
-                onClick={() => setShowProxyEntryDialog(true)}
-                className="pb-3 text-sm font-medium transition-colors text-muted-foreground hover:text-foreground"
-              >
-                <div className="flex items-center gap-2">
-                  <UserPlus className="h-4 w-4" />
-                  Fill in on Behalf
-                </div>
-              </button>
-            )}
-            {isTimesheetAdmin && (
-              <button
-                onClick={() => setShowDelegationDialog(true)}
-                className="pb-3 text-sm font-medium transition-colors text-muted-foreground hover:text-foreground"
-              >
-                <div className="flex items-center gap-2">
-                  <UserCog className="h-4 w-4" />
-                  Delegation
-                </div>
-              </button>
-            )}
-            {isTimesheetAdmin && (
-              <button
-                onClick={() => setShowSettingsDialog(true)}
-                className="pb-3 text-sm font-medium transition-colors text-muted-foreground hover:text-foreground"
-                data-testid="button-timesheet-settings"
-              >
-                <div className="flex items-center gap-2">
-                  <Settings className="h-4 w-4" />
-                  Settings
-                </div>
-              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="pb-3 text-sm font-medium transition-colors text-muted-foreground hover:text-foreground"
+                    data-testid="button-admin-more"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <MoreVertical className="h-4 w-4" />
+                      More
+                    </div>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setShowProxyEntryDialog(true)}>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Fill in on Behalf
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowDelegationDialog(true)}>
+                    <UserCog className="h-4 w-4 mr-2" />
+                    Delegation
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setShowSettingsDialog(true)} data-testid="button-timesheet-settings">
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </nav>
         </div>
