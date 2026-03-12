@@ -21473,6 +21473,51 @@ Return ONLY valid JSON.`;
       const avgTurnaroundHours = resolvedCount > 0 ? Math.round(totalTurnaroundMs / resolvedCount / (1000 * 60 * 60) * 10) / 10 : 0;
       const avgTurnaroundDays = resolvedCount > 0 ? Math.round(avgTurnaroundHours / 24 * 10) / 10 : 0;
 
+      const managerMetrics: Record<string, { managerId: string; managerName: string; resolvedCount: number; totalTurnaroundMs: number; exceedingSla: number; pendingExceedingSla: number; totalSubmitted: number; totalApproved: number; totalRejected: number; totalPending: number }> = {};
+
+      for (const { entry } of allEntries) {
+        const entryResource = resources.find(r => r.id === entry.resourceId);
+        const managerId = entryResource?.managerId || 'unassigned';
+        const managerResource = resources.find(r => r.userId === managerId);
+        const managerName = managerResource?.displayName || managerResource?.name || (managerId === 'unassigned' ? 'Unassigned' : 'Unknown');
+
+        if (!managerMetrics[managerId]) {
+          managerMetrics[managerId] = { managerId, managerName, resolvedCount: 0, totalTurnaroundMs: 0, exceedingSla: 0, pendingExceedingSla: 0, totalSubmitted: 0, totalApproved: 0, totalRejected: 0, totalPending: 0 };
+        }
+        const m = managerMetrics[managerId];
+
+        if (entry.submittedAt) {
+          m.totalSubmitted++;
+          const resolvedAt = entry.approvedAt || entry.rejectedAt;
+          if (resolvedAt) {
+            const turnaround = new Date(resolvedAt).getTime() - new Date(entry.submittedAt).getTime();
+            m.totalTurnaroundMs += turnaround;
+            m.resolvedCount++;
+            if (turnaround > slaThresholdDays * 24 * 60 * 60 * 1000) m.exceedingSla++;
+          } else if (entry.status === 'Submitted') {
+            m.totalPending++;
+            const waitTime = now.getTime() - new Date(entry.submittedAt).getTime();
+            if (waitTime > slaThresholdDays * 24 * 60 * 60 * 1000) m.pendingExceedingSla++;
+          }
+        }
+        if (entry.status === 'Approved') m.totalApproved++;
+        if (entry.status === 'Rejected') m.totalRejected++;
+      }
+
+      const byManager = Object.values(managerMetrics).map(m => ({
+        managerId: m.managerId,
+        managerName: m.managerName,
+        avgTurnaroundHours: m.resolvedCount > 0 ? Math.round(m.totalTurnaroundMs / m.resolvedCount / (1000 * 60 * 60) * 10) / 10 : 0,
+        avgTurnaroundDays: m.resolvedCount > 0 ? Math.round(m.totalTurnaroundMs / m.resolvedCount / (1000 * 60 * 60 * 24) * 10) / 10 : 0,
+        resolvedCount: m.resolvedCount,
+        exceedingSla: m.exceedingSla,
+        pendingExceedingSla: m.pendingExceedingSla,
+        totalSubmitted: m.totalSubmitted,
+        totalApproved: m.totalApproved,
+        totalRejected: m.totalRejected,
+        totalPending: m.totalPending,
+      })).sort((a, b) => b.totalSubmitted - a.totalSubmitted);
+
       res.json({
         avgTurnaroundHours,
         avgTurnaroundDays,
@@ -21484,6 +21529,7 @@ Return ONLY valid JSON.`;
         totalApproved: allEntries.filter(({ entry }) => entry.status === 'Approved').length,
         totalRejected: allEntries.filter(({ entry }) => entry.status === 'Rejected').length,
         totalPending: allEntries.filter(({ entry }) => entry.status === 'Submitted').length,
+        byManager,
       });
     } catch (error) {
       console.error('Error getting SLA metrics:', error);

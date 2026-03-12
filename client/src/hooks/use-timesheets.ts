@@ -671,6 +671,20 @@ export function useTeamReview(organizationId: number | null, startDate: string, 
   });
 }
 
+export interface ManagerSlaMetrics {
+  managerId: string;
+  managerName: string;
+  avgTurnaroundHours: number;
+  avgTurnaroundDays: number;
+  resolvedCount: number;
+  exceedingSla: number;
+  pendingExceedingSla: number;
+  totalSubmitted: number;
+  totalApproved: number;
+  totalRejected: number;
+  totalPending: number;
+}
+
 export interface SlaMetricsData {
   avgTurnaroundHours: number;
   avgTurnaroundDays: number;
@@ -680,7 +694,9 @@ export interface SlaMetricsData {
   slaThresholdDays: number;
   totalSubmitted: number;
   totalApproved: number;
+  totalRejected: number;
   totalPending: number;
+  byManager: ManagerSlaMetrics[];
 }
 
 export function useSlaMetrics(organizationId: number | null, startDate: string, endDate: string) {

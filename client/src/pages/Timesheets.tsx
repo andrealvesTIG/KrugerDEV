@@ -124,7 +124,7 @@ import { ProxyTimesheetEntryDialog } from "@/components/ProxyTimesheetEntryDialo
 import { TeamReviewDashboard } from "@/components/TeamReviewDashboard";
 import { ApprovalDelegationDialog } from "@/components/ApprovalDelegationDialog";
 import { TimesheetCommentsThread } from "@/components/TimesheetCommentsThread";
-import { useTimesheetSettings, useRejectionTemplates, useIsActiveDelegate } from "@/hooks/use-timesheets";
+import { useTimesheetSettings, useRejectionTemplates, useIsActiveDelegate, useApprovalDelegations } from "@/hooks/use-timesheets";
 
 type ViewMode = "workweek" | "week" | "day";
 
@@ -1155,6 +1155,30 @@ function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void 
   const { data: rejectionTemplates = [] } = useRejectionTemplates(currentOrganization?.id || null);
   const [commentsEntryId, setCommentsEntryId] = useState<number | null>(null);
   const [commentsEntryInfo, setCommentsEntryInfo] = useState<{ taskName?: string; projectName?: string; date?: string; hours?: string; status?: string }>({});
+  const { data: delegations = [] } = useApprovalDelegations(currentOrganization?.id || null);
+  const { data: isActiveDelegate } = useIsActiveDelegate(currentOrganization?.id || null);
+  const { user } = useAuth();
+
+  const delegatorMap = useMemo(() => {
+    if (!isActiveDelegate || !user?.id || !delegations.length) return new Map<string, string>();
+    const map = new Map<string, string>();
+    const today = new Date().toISOString().split('T')[0];
+    for (const d of delegations) {
+      if (d.delegatorId !== user.id && d.delegateId === user.id && d.isActive && d.startDate <= today && d.endDate >= today) {
+        map.set(d.delegatorId, d.delegatorName || 'Manager');
+      }
+    }
+    return map;
+  }, [delegations, isActiveDelegate, user?.id]);
+
+  const isDelegatedEntry = useCallback((entry: any) => {
+    if (!isActiveDelegate || delegatorMap.size === 0) return null;
+    const managerId = entry.resource?.managerId;
+    if (managerId && delegatorMap.has(managerId)) {
+      return delegatorMap.get(managerId) || 'Manager';
+    }
+    return null;
+  }, [isActiveDelegate, delegatorMap]);
 
   const handleApprove = async (id: number) => {
     try {
@@ -1444,7 +1468,15 @@ function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void 
                     </div>
                   </MicrosoftContactCard>
                   <div>
-                    <CardTitle className="text-lg">{resource?.displayName || "Unknown"}</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-lg">{resource?.displayName || "Unknown"}</CardTitle>
+                      {isDelegatedEntry(userEntries[0]) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                          <Users2 className="h-3 w-3" />
+                          Delegated from {isDelegatedEntry(userEntries[0])}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground">{totalHours.toFixed(1)} hours {isPending ? "pending" : statusFilter.toLowerCase()}</p>
                   </div>
                 </div>

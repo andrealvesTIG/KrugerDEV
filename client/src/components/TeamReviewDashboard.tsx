@@ -6,6 +6,7 @@ import {
   useSlaMetrics,
   useCurrentUserResource,
   type TeamReviewData,
+  type ManagerSlaMetrics,
 } from "@/hooks/use-timesheets";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -295,28 +296,72 @@ export function TeamReviewDashboard() {
       </Card>
 
       {slaMetrics && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <Card className="p-3">
-            <div className="text-xs text-muted-foreground mb-1">Resolved Entries</div>
-            <div className="text-xl font-bold text-emerald-600">{slaMetrics.resolvedCount}</div>
-            <div className="text-xs text-muted-foreground">of {slaMetrics.totalSubmitted} submitted</div>
-          </Card>
-          <Card className="p-3">
-            <div className="text-xs text-muted-foreground mb-1">Exceeding SLA ({slaMetrics.slaThresholdDays}d)</div>
-            <div className={`text-xl font-bold ${slaMetrics.exceedingSla > 0 ? "text-destructive" : "text-emerald-600"}`}>
-              {slaMetrics.exceedingSla + slaMetrics.pendingExceedingSla}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {slaMetrics.exceedingSla} resolved + {slaMetrics.pendingExceedingSla} pending
-            </div>
-          </Card>
-          <Card className="p-3">
-            <div className="text-xs text-muted-foreground mb-1">Avg Response Time</div>
-            <div className={`text-xl font-bold ${slaMetrics.avgTurnaroundHours > 72 ? "text-amber-600" : "text-emerald-600"}`}>
-              {slaMetrics.avgTurnaroundHours}h
-            </div>
-            <div className="text-xs text-muted-foreground">{slaMetrics.avgTurnaroundDays} days average</div>
-          </Card>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Card className="p-3">
+              <div className="text-xs text-muted-foreground mb-1">Resolved Entries</div>
+              <div className="text-xl font-bold text-emerald-600">{slaMetrics.resolvedCount}</div>
+              <div className="text-xs text-muted-foreground">of {slaMetrics.totalSubmitted} submitted</div>
+            </Card>
+            <Card className="p-3">
+              <div className="text-xs text-muted-foreground mb-1">Exceeding SLA ({slaMetrics.slaThresholdDays}d)</div>
+              <div className={`text-xl font-bold ${slaMetrics.exceedingSla > 0 ? "text-destructive" : "text-emerald-600"}`}>
+                {slaMetrics.exceedingSla + slaMetrics.pendingExceedingSla}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {slaMetrics.exceedingSla} resolved + {slaMetrics.pendingExceedingSla} pending
+              </div>
+            </Card>
+            <Card className="p-3">
+              <div className="text-xs text-muted-foreground mb-1">Avg Response Time</div>
+              <div className={`text-xl font-bold ${slaMetrics.avgTurnaroundHours > 72 ? "text-amber-600" : "text-emerald-600"}`}>
+                {slaMetrics.avgTurnaroundHours}h
+              </div>
+              <div className="text-xs text-muted-foreground">{slaMetrics.avgTurnaroundDays} days average</div>
+            </Card>
+          </div>
+
+          {slaMetrics.byManager && slaMetrics.byManager.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">SLA by Manager</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left">
+                        <th className="pb-2 font-medium text-muted-foreground">Manager</th>
+                        <th className="pb-2 font-medium text-muted-foreground text-center">Submitted</th>
+                        <th className="pb-2 font-medium text-muted-foreground text-center">Resolved</th>
+                        <th className="pb-2 font-medium text-muted-foreground text-center">Avg Time</th>
+                        <th className="pb-2 font-medium text-muted-foreground text-center">SLA Breaches</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {slaMetrics.byManager.map((m: ManagerSlaMetrics) => (
+                        <tr key={m.managerId} className="border-b last:border-0">
+                          <td className="py-2 font-medium">{m.managerName}</td>
+                          <td className="py-2 text-center">{m.totalSubmitted}</td>
+                          <td className="py-2 text-center">{m.resolvedCount}</td>
+                          <td className="py-2 text-center">
+                            <span className={m.avgTurnaroundHours > 72 ? "text-amber-600" : "text-emerald-600"}>
+                              {m.avgTurnaroundDays}d
+                            </span>
+                          </td>
+                          <td className="py-2 text-center">
+                            <span className={m.exceedingSla + m.pendingExceedingSla > 0 ? "text-destructive font-medium" : "text-emerald-600"}>
+                              {m.exceedingSla + m.pendingExceedingSla}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
     </div>
