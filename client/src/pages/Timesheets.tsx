@@ -1972,6 +1972,8 @@ function PeriodManagementTab() {
 function MyReportTab() {
   const { user } = useAuth();
   const { currentOrganization } = useOrganization();
+  const { data: reportTimesheetSettings } = useTimesheetSettings(currentOrganization?.id || null);
+  const targetHours = Number(reportTimesheetSettings?.overtimeThreshold ?? 40);
   const [reportRange, setReportRange] = useState<"this_month" | "last_month" | "last_3_months" | "last_6_months" | "this_year" | "custom">("this_month");
   const [customStartDate, setCustomStartDate] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [customEndDate, setCustomEndDate] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
@@ -2096,9 +2098,9 @@ function MyReportTab() {
   }, [filteredReport?.byWeek]);
 
   const maxWeeklyHours = useMemo(() => {
-    if (!weeklyData.length) return 40;
-    return Math.max(...weeklyData.map(w => w.hours), 40);
-  }, [weeklyData]);
+    if (!weeklyData.length) return targetHours;
+    return Math.max(...weeklyData.map(w => w.hours), targetHours);
+  }, [weeklyData, targetHours]);
 
   const handleSort = (field: typeof sortField) => {
     if (sortField === field) {
@@ -2360,7 +2362,7 @@ function MyReportTab() {
               <div className="space-y-2">
                 {weeklyData.map((week) => {
                   const barWidth = (week.hours / maxWeeklyHours) * 100;
-                  const isOverTarget = week.hours > 40;
+                  const isOverTarget = week.hours > targetHours;
                   return (
                     <div key={week.weekStart} className="flex items-center gap-3" data-testid={`row-week-${week.weekStart}`}>
                       <span className="text-xs text-muted-foreground w-16 shrink-0">{week.weekLabel}</span>
@@ -2371,7 +2373,7 @@ function MyReportTab() {
                         />
                         <div
                           className="absolute top-0 bottom-0 w-px bg-muted-foreground/30"
-                          style={{ left: `${(40 / maxWeeklyHours) * 100}%` }}
+                          style={{ left: `${(targetHours / maxWeeklyHours) * 100}%` }}
                         />
                       </div>
                       <span className="text-sm font-medium text-foreground w-14 text-right tabular-nums shrink-0">
@@ -2382,7 +2384,7 @@ function MyReportTab() {
                 })}
                 <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
                   <div className="w-3 h-px bg-muted-foreground/30" />
-                  <span>40h target</span>
+                  <span>{targetHours}h target</span>
                 </div>
               </div>
             )}
