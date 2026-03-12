@@ -2756,7 +2756,7 @@ function TimesheetHistoryTab({ userId, organizationId }: { userId: string | unde
 
 export default function Timesheets() {
   const { user } = useAuth();
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, memberships } = useOrganization();
   const [viewMode, setViewMode] = useState<ViewMode>("workweek");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [activeTab, setActiveTab] = useState("entry");
@@ -2854,6 +2854,10 @@ export default function Timesheets() {
   );
 
   const { data: currentResource } = useCurrentUserResource(currentOrganization?.id || null, user?.id);
+
+  const currentMembership = memberships.find(m => m.organizationId === currentOrganization?.id);
+  const isOrgAdmin = currentMembership?.role === 'org_admin' || currentMembership?.role === 'owner';
+  const isTimesheetAdmin = currentResource?.isApprover || isOrgAdmin;
 
   const bulkUpsert = useBulkUpsertTimesheetEntries();
   const submitWeek = useSubmitTimesheetWeek();
@@ -3768,7 +3772,7 @@ export default function Timesheets() {
                 />
               )}
             </button>
-            {currentResource?.isApprover && (
+            {isTimesheetAdmin && (
               <button
                 onClick={() => setActiveTab("approve")}
                 className={`pb-3 text-sm font-medium transition-colors relative ${
@@ -3790,7 +3794,7 @@ export default function Timesheets() {
                 )}
               </button>
             )}
-            {currentResource?.isApprover && (
+            {isTimesheetAdmin && (
               <button
                 onClick={() => setActiveTab("periods")}
                 className={`pb-3 text-sm font-medium transition-colors relative ${
@@ -3812,7 +3816,7 @@ export default function Timesheets() {
                 )}
               </button>
             )}
-            {currentResource?.isApprover && (
+            {isTimesheetAdmin && (
               <button
                 onClick={() => setActiveTab("compliance")}
                 className={`pb-3 text-sm font-medium transition-colors relative ${
@@ -3834,7 +3838,7 @@ export default function Timesheets() {
                 )}
               </button>
             )}
-            {currentResource?.isApprover && (
+            {isTimesheetAdmin && (
               <button
                 onClick={() => setShowProxyEntryDialog(true)}
                 className="pb-3 text-sm font-medium transition-colors text-muted-foreground hover:text-foreground"
@@ -3845,7 +3849,7 @@ export default function Timesheets() {
                 </div>
               </button>
             )}
-            {currentResource?.isApprover && (
+            {isTimesheetAdmin && (
               <button
                 onClick={() => setShowSettingsDialog(true)}
                 className="pb-3 text-sm font-medium transition-colors text-muted-foreground hover:text-foreground"
@@ -4366,7 +4370,7 @@ export default function Timesheets() {
           </motion.div>
         )}
 
-        {activeTab === "approve" && currentResource?.isApprover && (
+        {activeTab === "approve" && isTimesheetAdmin && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -4375,7 +4379,7 @@ export default function Timesheets() {
           </motion.div>
         )}
 
-        {activeTab === "periods" && currentResource?.isApprover && (
+        {activeTab === "periods" && isTimesheetAdmin && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -4384,7 +4388,7 @@ export default function Timesheets() {
           </motion.div>
         )}
 
-        {activeTab === "compliance" && currentResource?.isApprover && (
+        {activeTab === "compliance" && isTimesheetAdmin && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}

@@ -19563,6 +19563,19 @@ Return ONLY valid JSON.`;
     };
   }
 
+
+    async function hasTimesheetAdminAccess(userId: string, organizationId: number): Promise<boolean> {
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      if (userResource?.isApprover) return true;
+      const user = await storage.getUser(userId);
+      if (hasAdminAccess(user)) return true;
+      const members = await storage.getOrganizationMembers(organizationId);
+      const membership = members.find(m => m.userId === userId);
+      if (membership?.role === 'org_admin' || membership?.role === 'owner') return true;
+      return false;
+    }
+  
   function getWeekBounds(entryDate: string): { startDate: string; endDate: string } {
     const d = new Date(entryDate + 'T00:00:00Z');
     const day = d.getUTCDay();
@@ -20472,8 +20485,8 @@ Return ONLY valid JSON.`;
       const resources = await storage.getResources(organizationId);
       const userResource = resources.find(r => r.userId === userId);
       
-      if (!userResource?.isApprover) {
-        return res.status(403).json({ message: 'You must be an approver to manage timesheet periods' });
+      if (!(await hasTimesheetAdminAccess(userId, organizationId))) {
+        return res.status(403).json({ message: 'You must be an admin or approver to manage timesheet periods' });
       }
 
       const period = await storage.createTimesheetPeriod({
@@ -20513,8 +20526,8 @@ Return ONLY valid JSON.`;
       const resources = await storage.getResources(period.organizationId);
       const userResource = resources.find(r => r.userId === userId);
       
-      if (!userResource?.isApprover) {
-        return res.status(403).json({ message: 'You must be an approver to close timesheet periods' });
+      if (!(await hasTimesheetAdminAccess(userId, organizationId))) {
+        return res.status(403).json({ message: 'You must be an admin or approver to close timesheet periods' });
       }
 
       const updated = await storage.closeTimesheetPeriod(id, userId);
@@ -20545,8 +20558,8 @@ Return ONLY valid JSON.`;
       const resources = await storage.getResources(period.organizationId);
       const userResource = resources.find(r => r.userId === userId);
       
-      if (!userResource?.isApprover) {
-        return res.status(403).json({ message: 'You must be an approver to reopen timesheet periods' });
+      if (!(await hasTimesheetAdminAccess(userId, organizationId))) {
+        return res.status(403).json({ message: 'You must be an admin or approver to reopen timesheet periods' });
       }
 
       const updated = await storage.reopenTimesheetPeriod(id, userId);
@@ -20577,8 +20590,8 @@ Return ONLY valid JSON.`;
       const resources = await storage.getResources(period.organizationId);
       const userResource = resources.find(r => r.userId === userId);
       
-      if (!userResource?.isApprover) {
-        return res.status(403).json({ message: 'You must be an approver to delete timesheet periods' });
+      if (!(await hasTimesheetAdminAccess(userId, organizationId))) {
+        return res.status(403).json({ message: 'You must be an admin or approver to delete timesheet periods' });
       }
 
       await storage.deleteTimesheetPeriod(id);
@@ -20630,8 +20643,8 @@ Return ONLY valid JSON.`;
 
       const resources = await storage.getResources(organizationId);
       const userResource = resources.find(r => r.userId === userId);
-      if (!userResource?.isApprover) {
-        return res.status(403).json({ message: 'Only approvers can manage timesheet settings' });
+      if (!(await hasTimesheetAdminAccess(userId, organizationId))) {
+        return res.status(403).json({ message: 'Only admins and approvers can manage timesheet settings' });
       }
 
       const settings = await storage.upsertTimesheetSettings({
@@ -20670,8 +20683,8 @@ Return ONLY valid JSON.`;
 
       const resources = await storage.getResources(organizationId);
       const userResource = resources.find(r => r.userId === userId);
-      if (!userResource?.isApprover) {
-        return res.status(403).json({ message: 'Only approvers can view audit logs' });
+      if (!(await hasTimesheetAdminAccess(userId, organizationId))) {
+        return res.status(403).json({ message: 'Only admins and approvers can view audit logs' });
       }
 
       const entryId = req.query.entryId ? Number(req.query.entryId) : undefined;
@@ -20700,7 +20713,7 @@ Return ONLY valid JSON.`;
 
       const resources = await storage.getResources(entry.organizationId);
       const userResource = resources.find(r => r.userId === userId);
-      if (!userResource?.isApprover && entry.userId !== userId) {
+      if (!(await hasTimesheetAdminAccess(userId, organizationId)) && entry.userId !== userId) {
         return res.status(403).json({ message: 'Access denied' });
       }
 
@@ -20728,13 +20741,34 @@ Return ONLY valid JSON.`;
 
       const resources = await storage.getResources(organizationId);
       const actorResource = resources.find(r => r.userId === userId);
-      if (!actorResource?.isApprover) {
-        return res.status(403).json({ message: 'Only approvers can create proxy entries' });
+      if (!(await hasTimesheetAdminAccess(userId, organizationId))) {
+        return res.status(403).json({ message: 'Only admins and approvers can create proxy entries' });
       }
 
       const targetResource = resources.find(r => r.id === targetResourceId);
       if (!targetResource) {
         return res.status(404).json({ message: 'Target resource not found' });
+      }
+
+      if (!targetResource.userId) {
+        return res.status(400).json({ message: 'Target resource does not have an associated user account' });
+      }
+
+      const task = await storage.getTask(taskId);
+      if (!task) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ message: 'Project not found' });
+      }
+
+      if (task.timesheetBlocked) {
+        return res.status(403).json({ message: 'This task is blocked for timesheet entries' });
+      }
+      if (project.timesheetBlocked) {
+        return res.status(403).json({ message: 'This project is blocked for timesheet entries' });
       }
 
       const hoursNum = parseFloat(hours);
@@ -20743,11 +20777,11 @@ Return ONLY valid JSON.`;
       }
 
       const settings = await getEffectiveTimesheetSettings(organizationId);
-      if (settings?.mandatoryNotes && (!notes || !notes.trim())) {
+      if (settings.mandatoryNotes && (!notes || !notes.trim())) {
         return res.status(400).json({ message: 'Notes are required for all timesheet entries' });
       }
 
-      const weekLimitCheck = await checkWeeklyHourLimits(targetResource.userId!, organizationId, entryDate, hoursNum);
+      const weekLimitCheck = await checkWeeklyHourLimits(targetResource.userId, organizationId, entryDate, hoursNum);
       if (!weekLimitCheck.ok) {
         return res.status(400).json({ message: weekLimitCheck.message });
       }
@@ -20808,8 +20842,8 @@ Return ONLY valid JSON.`;
 
       const resources = await storage.getResources(organizationId);
       const actorResource = resources.find(r => r.userId === userId);
-      if (!actorResource?.isApprover) {
-        return res.status(403).json({ message: 'Only approvers can view compliance reports' });
+      if (!(await hasTimesheetAdminAccess(userId, organizationId))) {
+        return res.status(403).json({ message: 'Only admins and approvers can view compliance reports' });
       }
 
       let allEntries = await storage.getAllTimesheetEntriesWithDetails(organizationId, startDate, endDate);
