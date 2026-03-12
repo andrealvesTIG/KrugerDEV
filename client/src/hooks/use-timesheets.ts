@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { TimesheetEntry, InsertTimesheetEntry, Task, Resource, Project, TimeCategory, NonProjectTimeEntry, InsertNonProjectTimeEntry, TimesheetPeriod, InsertTimesheetPeriod } from "@shared/schema";
+import type { TimesheetEntry, InsertTimesheetEntry, Task, Resource, Project, TimeCategory, NonProjectTimeEntry, InsertNonProjectTimeEntry, TimesheetPeriod, InsertTimesheetPeriod, TimesheetSettings, TimesheetAuditLog } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 
 export interface TimesheetEntryWithDetails extends TimesheetEntry {
@@ -339,6 +339,117 @@ export function useDeleteTimesheetPeriod() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/timesheet-periods"] });
+    },
+  });
+}
+
+export function useTimesheetSettings(organizationId: number | null) {
+  return useQuery<TimesheetSettings>({
+    queryKey: ["/api/timesheet-settings", organizationId],
+    enabled: !!organizationId,
+    staleTime: 1000 * 60 * 5,
+    queryFn: async () => {
+      const response = await fetch(`/api/timesheet-settings?organizationId=${organizationId}`);
+      if (!response.ok) throw new Error("Failed to fetch timesheet settings");
+      return response.json();
+    },
+  });
+}
+
+export function useUpdateTimesheetSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (settings: Partial<TimesheetSettings> & { organizationId: number }) => {
+      const response = await apiRequest("PUT", "/api/timesheet-settings", settings);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timesheet-settings"] });
+    },
+  });
+}
+
+export function useTimesheetAuditLog(organizationId: number | null, filters?: { entryId?: number; action?: string; limit?: number }) {
+  return useQuery<TimesheetAuditLog[]>({
+    queryKey: ["/api/timesheet-audit-log", organizationId, filters],
+    enabled: !!organizationId,
+    staleTime: 1000 * 30,
+    queryFn: async () => {
+      const params = new URLSearchParams({ organizationId: String(organizationId) });
+      if (filters?.entryId) params.append("entryId", String(filters.entryId));
+      if (filters?.action) params.append("action", filters.action);
+      if (filters?.limit) params.append("limit", String(filters.limit));
+      const response = await fetch(`/api/timesheet-audit-log?${params}`);
+      if (!response.ok) throw new Error("Failed to fetch audit log");
+      return response.json();
+    },
+  });
+}
+
+export function useTimesheetEntryAuditLog(entryId: number | null) {
+  return useQuery<TimesheetAuditLog[]>({
+    queryKey: ["/api/timesheet-audit-log/entry", entryId],
+    enabled: !!entryId,
+    staleTime: 1000 * 30,
+    queryFn: async () => {
+      const response = await fetch(`/api/timesheet-audit-log/entry/${entryId}`);
+      if (!response.ok) throw new Error("Failed to fetch entry audit log");
+      return response.json();
+    },
+  });
+}
+
+export function useCreateProxyTimesheetEntry() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { organizationId: number; targetResourceId: number; taskId: number; projectId: number; entryDate: string; hours: number; notes?: string }) => {
+      const response = await apiRequest("POST", "/api/timesheets/proxy", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timesheets"] });
+    },
+  });
+}
+
+export interface ComplianceReportData {
+  summary: {
+    totalResources: number;
+    usersWithEntries: number;
+    usersWithNoEntries: number;
+    submissionRate: number;
+    totalEntries: number;
+    totalSubmitted: number;
+    totalApproved: number;
+    totalRejected: number;
+    totalDraft: number;
+    approvalRate: number;
+    rejectionRate: number;
+    overtimeUsers: number;
+    overtimeThreshold: number;
+  };
+  byUser: {
+    userId: string;
+    resourceName: string;
+    totalHours: number;
+    entries: number;
+    submitted: number;
+    approved: number;
+    rejected: number;
+    draft: number;
+    overtime: boolean;
+  }[];
+}
+
+export function useTimesheetCompliance(organizationId: number | null, startDate: string, endDate: string) {
+  return useQuery<ComplianceReportData>({
+    queryKey: ["/api/timesheet-compliance", organizationId, startDate, endDate],
+    enabled: !!organizationId && !!startDate && !!endDate,
+    staleTime: 1000 * 60,
+    queryFn: async () => {
+      const response = await fetch(`/api/timesheet-compliance?organizationId=${organizationId}&startDate=${startDate}&endDate=${endDate}`);
+      if (!response.ok) throw new Error("Failed to fetch compliance report");
+      return response.json();
     },
   });
 }

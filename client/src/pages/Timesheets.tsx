@@ -115,8 +115,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { TimerWidget } from "@/components/TimerWidget";
 import { TimesheetReminder } from "@/components/TimesheetReminder";
 import { exportTimesheetToExcel } from "@/lib/excelExport";
-import { FileSpreadsheet } from "lucide-react";
+import { FileSpreadsheet, Shield, Settings } from "lucide-react";
 import type { Task, Project, InsertTimesheetEntry, TimesheetPeriod } from "@shared/schema";
+import { TimesheetSettingsDialog } from "@/components/TimesheetSettingsDialog";
+import { TimesheetAuditDialog } from "@/components/TimesheetAuditDialog";
+import { TimesheetComplianceDashboard } from "@/components/TimesheetComplianceDashboard";
+import { useTimesheetSettings } from "@/hooks/use-timesheets";
 
 type ViewMode = "workweek" | "week" | "day";
 
@@ -158,9 +162,10 @@ interface TaskRowProps {
   getClosedPeriodName: (date: Date) => string | null;
   taskColumnWidth?: number;
   timesheetLocked?: boolean;
+  onViewAudit?: (entryId: number) => void;
 }
 
-function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, clearRow, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName, taskColumnWidth = 360, timesheetLocked = false }: TaskRowProps) {
+function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, clearRow, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName, taskColumnWidth = 360, timesheetLocked = false, onViewAudit }: TaskRowProps) {
   const rowTotal = getRowTotal(task.id);
   const isRowOvertime = rowTotal > 40;
   
@@ -342,6 +347,8 @@ interface TimesheetGridProps {
   isDateInClosedPeriod: (date: Date) => boolean;
   getClosedPeriodName: (date: Date) => string | null;
   isFullscreen?: boolean;
+  mandatoryNotes?: boolean;
+  onViewAudit?: (entryId: number) => void;
 }
 
 const QUICK_TIME_PRESETS = [
@@ -353,7 +360,7 @@ const QUICK_TIME_PRESETS = [
 
 const MAX_UNDO_HISTORY = 20;
 
-function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMode, groupByProject, gridData, setGridData, hasChanges, setHasChanges, onAutoSave, isDateInClosedPeriod, getClosedPeriodName, isFullscreen = false }: TimesheetGridProps) {
+function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMode, groupByProject, gridData, setGridData, hasChanges, setHasChanges, onAutoSave, isDateInClosedPeriod, getClosedPeriodName, isFullscreen = false, mandatoryNotes = false, onViewAudit }: TimesheetGridProps) {
   const [editingNote, setEditingNote] = useState<{ taskId: number; dateKey: string } | null>(null);
   const [noteText, setNoteText] = useState("");
   const [collapsedProjects, setCollapsedProjects] = useState<Set<number> | null>(null);
@@ -960,6 +967,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                             getClosedPeriodName={getClosedPeriodName}
                             taskColumnWidth={taskColumnWidth}
                             timesheetLocked={timesheetLocked}
+                            onViewAudit={onViewAudit}
                           />
                         );
                       })}
@@ -989,6 +997,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                   getClosedPeriodName={getClosedPeriodName}
                   taskColumnWidth={taskColumnWidth}
                   timesheetLocked={timesheetLocked}
+                  onViewAudit={onViewAudit}
                 />
               ))
             )}
@@ -1060,10 +1069,12 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <StickyNote className="h-5 w-5 text-primary" />
-              Add Note
+              {mandatoryNotes ? "Add Note (Required)" : "Add Note"}
             </DialogTitle>
             <DialogDescription>
-              Add a note to describe what you worked on
+              {mandatoryNotes 
+                ? "Notes are required on all timesheet entries per organization policy."
+                : "Add a note to describe what you worked on"}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -1071,20 +1082,47 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
               placeholder="What did you work on?"
-              className="min-h-[100px]"
+              className={`min-h-[100px] ${mandatoryNotes && !noteText.trim() ? "border-amber-400" : ""}`}
               data-testid="input-entry-note"
             />
+            {mandatoryNotes && !noteText.trim() && (
+              <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                Notes are mandatory per organization policy
+              </p>
+            )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingNote(null)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={() => editingNote && handleNoteSave(editingNote.taskId, editingNote.dateKey)}
-              data-testid="button-save-note"
-            >
-              Save Note
-            </Button>
+          <DialogFooter className="flex justify-between sm:justify-between">
+            <div>
+              {editingNote && gridData[editingNote.taskId]?.[editingNote.dateKey]?.id && onViewAudit && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const entryId = gridData[editingNote.taskId]?.[editingNote.dateKey]?.id;
+                    if (entryId) {
+                      setEditingNote(null);
+                      onViewAudit(entryId);
+                    }
+                  }}
+                >
+                  <History className="h-4 w-4 mr-1" />
+                  Audit History
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setEditingNote(null)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => editingNote && handleNoteSave(editingNote.taskId, editingNote.dateKey)}
+                disabled={mandatoryNotes && !noteText.trim()}
+                data-testid="button-save-note"
+              >
+                Save Note
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2721,8 +2759,12 @@ export default function Timesheets() {
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   const [showReminder, setShowReminder] = useState(true);
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [auditEntryId, setAuditEntryId] = useState<number | null>(null);
+  const [showAuditDialog, setShowAuditDialog] = useState(false);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const { data: timesheetSettings } = useTimesheetSettings(currentOrganization?.id || null);
 
   const handleExportMyTimesheet = () => {
     if (!entries || entries.length === 0) {
@@ -3055,6 +3097,21 @@ export default function Timesheets() {
 
   const handleSubmitWeek = async () => {
     if (!currentOrganization) return;
+
+    if (timesheetSettings?.mandatoryNotes) {
+      const entriesWithoutNotes = entries.filter(e => 
+        e.status === "Draft" && (!e.notes || !e.notes.trim())
+      );
+      if (entriesWithoutNotes.length > 0) {
+        toast({ 
+          title: "Notes Required", 
+          description: `${entriesWithoutNotes.length} entries are missing required notes. Add notes before submitting.`, 
+          variant: "destructive" 
+        });
+        return;
+      }
+    }
+
     try {
       await submitWeek.mutateAsync({
         organizationId: currentOrganization.id,
@@ -3173,7 +3230,8 @@ export default function Timesheets() {
     return total;
   }, [gridData, dates]);
   
-  const weeklyTarget = 40;
+  const weeklyTarget = Number(timesheetSettings?.overtimeThreshold ?? 40);
+  const isOvertime = totalHoursThisWeek > weeklyTarget;
   const progressPercent = Math.min((totalHoursThisWeek / weeklyTarget) * 100, 100);
   const hasDraftEntries = entries.some(e => e.status === "Draft");
   const isLoading = entriesLoading || tasksLoading;
@@ -3563,6 +3621,8 @@ export default function Timesheets() {
                 isDateInClosedPeriod={isDateInClosedPeriod}
                 getClosedPeriodName={getClosedPeriodName}
                 isFullscreen
+                mandatoryNotes={timesheetSettings?.mandatoryNotes ?? false}
+                onViewAudit={(entryId) => { setAuditEntryId(entryId); setShowAuditDialog(true); }}
               />
             </div>
           )}
@@ -3704,6 +3764,40 @@ export default function Timesheets() {
                     className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
                   />
                 )}
+              </button>
+            )}
+            {currentResource?.isApprover && (
+              <button
+                onClick={() => setActiveTab("compliance")}
+                className={`pb-3 text-sm font-medium transition-colors relative ${
+                  activeTab === "compliance" 
+                    ? "text-foreground" 
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                data-testid="tab-compliance"
+              >
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Compliance
+                </div>
+                {activeTab === "compliance" && (
+                  <motion.div 
+                    layoutId="activeTab"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
+                  />
+                )}
+              </button>
+            )}
+            {currentResource?.isApprover && (
+              <button
+                onClick={() => setShowSettingsDialog(true)}
+                className="pb-3 text-sm font-medium transition-colors text-muted-foreground hover:text-foreground"
+                data-testid="button-timesheet-settings"
+              >
+                <div className="flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  Settings
+                </div>
               </button>
             )}
           </nav>
@@ -4063,12 +4157,14 @@ export default function Timesheets() {
               <Card className="border-0 shadow-sm">
                 <CardContent className="p-3">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10">
-                      <Clock className="h-4 w-4 text-blue-600" />
+                    <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${isOvertime ? "bg-amber-500/10" : "bg-blue-500/10"}`}>
+                      {isOvertime ? <AlertTriangle className="h-4 w-4 text-amber-600" /> : <Clock className="h-4 w-4 text-blue-600" />}
                     </div>
                     <div>
-                      <div className="text-2xl font-bold text-foreground">{totalHoursThisWeek}h</div>
-                      <div className="text-xs text-muted-foreground">Total Hours</div>
+                      <div className={`text-2xl font-bold ${isOvertime ? "text-amber-600" : "text-foreground"}`}>{totalHoursThisWeek}h</div>
+                      <div className="text-xs text-muted-foreground">
+                        {isOvertime ? `Overtime (>${weeklyTarget}h)` : "Total Hours"}
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -4183,6 +4279,8 @@ export default function Timesheets() {
                   onAutoSave={handleAutoSave}
                   isDateInClosedPeriod={isDateInClosedPeriod}
                   getClosedPeriodName={getClosedPeriodName}
+                  mandatoryNotes={timesheetSettings?.mandatoryNotes ?? false}
+                  onViewAudit={(entryId) => { setAuditEntryId(entryId); setShowAuditDialog(true); }}
                 />
               </motion.div>
             )}
@@ -4227,7 +4325,31 @@ export default function Timesheets() {
             <PeriodManagementTab />
           </motion.div>
         )}
+
+        {activeTab === "compliance" && currentResource?.isApprover && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <TimesheetComplianceDashboard organizationId={currentOrganization?.id || null} />
+          </motion.div>
+        )}
       </div>
+
+      <TimesheetSettingsDialog
+        organizationId={currentOrganization?.id || null}
+        open={showSettingsDialog}
+        onOpenChange={setShowSettingsDialog}
+      />
+
+      <TimesheetAuditDialog
+        entryId={auditEntryId}
+        open={showAuditDialog}
+        onOpenChange={(open) => {
+          setShowAuditDialog(open);
+          if (!open) setAuditEntryId(null);
+        }}
+      />
     </div>
   );
 }

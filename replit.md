@@ -40,6 +40,7 @@ The application features an enterprise-grade UI inspired by Linear and Asana, bu
 **Professional Profile & Analytics**: Features a user profile with credentials, an analytics dashboard displaying engagement statistics, a weekly activity chart, feature usage, a tiered professional ranking system, and an achievement badge gallery.
 **Shareable Branded Badges**: Allows users to share their profile and earned badges externally via branded images and a public profile page.
 **AI Create Features**: Incorporates AI for smart project matching to prevent duplication and facilitate context-aware generation of tasks, risks, issues, and milestones. All AI Create actions are logged.
+**Timesheet Control & Audit Engine**: Organization-level timesheet policies (mandatory notes, overtime threshold, min/max weekly hours, grace period for closed periods). Full audit logging of all timesheet mutations (create, update, delete, submit, approve, reject, proxy). Proxy entry support for admins. Compliance reporting dashboard with submission rates, approval/rejection stats, overtime tracking, and per-resource breakdowns. Settings managed via `timesheetSettings` table, audit trail via `timesheetAuditLog` table. UI includes policy settings dialog, compliance tab (approver-only), overtime visual indicators, and mandatory notes enforcement on submit.
 
 ## External Dependencies
 

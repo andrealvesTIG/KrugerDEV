@@ -19519,6 +19519,57 @@ Return ONLY valid JSON.`;
     }
   });
 
+  // Helper: check if date is in a closed period respecting grace period
+  async function isDateInClosedPeriodWithGrace(orgId: number, entryDate: string): Promise<{ closed: boolean; periodName?: string }> {
+    const closedPeriods = await storage.getClosedPeriodsForDateRange(orgId, entryDate, entryDate);
+    if (closedPeriods.length === 0) return { closed: false };
+
+    const settings = await storage.getTimesheetSettings(orgId);
+    const graceDays = settings?.gracePeriodDays || 0;
+
+    if (graceDays > 0) {
+      const now = new Date();
+      for (const period of closedPeriods) {
+        if (period.closedAt) {
+          const graceEnd = new Date(period.closedAt);
+          graceEnd.setDate(graceEnd.getDate() + graceDays);
+          if (now <= graceEnd) {
+            return { closed: false };
+          }
+        }
+      }
+    }
+
+    return { closed: true, periodName: closedPeriods[0]?.name };
+  }
+
+  // Helper: log timesheet audit event
+  async function logTimesheetAudit(params: {
+    organizationId: number;
+    entryId?: number;
+    action: string;
+    actorId: string;
+    targetUserId?: string;
+    before?: Record<string, unknown>;
+    after?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  }) {
+    try {
+      await storage.createTimesheetAuditLog({
+        organizationId: params.organizationId,
+        entryId: params.entryId ?? null,
+        action: params.action,
+        actorId: params.actorId,
+        targetUserId: params.targetUserId ?? null,
+        before: params.before ?? null,
+        after: params.after ?? null,
+        metadata: params.metadata ?? null,
+      });
+    } catch (e) {
+      console.error('Failed to write timesheet audit log:', e);
+    }
+  }
+
   // Create timesheet entry
   app.post('/api/timesheets', async (req, res) => {
     const userId = getUserIdFromRequest(req);
@@ -19537,6 +19588,12 @@ Return ONLY valid JSON.`;
       const hoursNum = parseFloat(hours);
       if (isNaN(hoursNum) || hoursNum < 0 || hoursNum > 24) {
         return res.status(400).json({ message: 'Hours must be between 0 and 24' });
+      }
+
+      // Enforce mandatory notes
+      const settings = await storage.getTimesheetSettings(organizationId);
+      if (settings?.mandatoryNotes && (!notes || !notes.trim())) {
+        return res.status(400).json({ message: 'Notes are required for all timesheet entries' });
       }
 
       // Verify user is assigned to this task
@@ -19565,9 +19622,9 @@ Return ONLY valid JSON.`;
         return res.status(403).json({ message: 'Timesheet entries are blocked for this project' });
       }
 
-      // Check if entry date is in a closed period
-      const closedPeriods = await storage.getClosedPeriodsForDateRange(organizationId, entryDate, entryDate);
-      if (closedPeriods.length > 0) {
+      // Check if entry date is in a closed period (with grace period)
+      const periodCheck = await isDateInClosedPeriodWithGrace(organizationId, entryDate);
+      if (periodCheck.closed) {
         return res.status(403).json({ message: 'Cannot create entries in a closed period' });
       }
 
@@ -19581,6 +19638,14 @@ Return ONLY valid JSON.`;
         hours: String(hours),
         notes,
         status: 'Draft',
+      });
+
+      await logTimesheetAudit({
+        organizationId,
+        entryId: entry.id,
+        action: 'create',
+        actorId: userId,
+        after: { hours: String(hours), notes, taskId, projectId, entryDate },
       });
 
       res.status(201).json(entry);
@@ -19604,7 +19669,6 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'entries array is required' });
       }
 
-      // Get user's resource to validate assignments
       const organizationId = entries[0]?.organizationId;
       if (!organizationId) {
         return res.status(400).json({ message: 'organizationId is required' });
@@ -19617,7 +19681,8 @@ Return ONLY valid JSON.`;
         return res.status(403).json({ message: 'You are not a resource in this organization' });
       }
 
-      // Cache task assignments for validation
+      const settings = await storage.getTimesheetSettings(organizationId);
+
       const taskAssignmentCache: Record<number, boolean> = {};
       const validateTaskAssignment = async (taskId: number): Promise<boolean> => {
         if (taskAssignmentCache[taskId] !== undefined) {
@@ -19628,19 +19693,16 @@ Return ONLY valid JSON.`;
         return taskAssignmentCache[taskId];
       };
 
-      // Cache for checking if tasks/projects are blocked
       const taskBlockedCache: Record<number, boolean> = {};
       const projectBlockedCache: Record<number, boolean> = {};
       
       const isTaskOrProjectBlocked = async (taskId: number, projectId: number): Promise<boolean> => {
-        // Check task cache first
         if (taskBlockedCache[taskId] === undefined) {
           const task = await storage.getTask(taskId);
           taskBlockedCache[taskId] = task?.timesheetBlocked || false;
         }
         if (taskBlockedCache[taskId]) return true;
         
-        // Check project cache
         if (projectBlockedCache[projectId] === undefined) {
           const project = await storage.getProject(projectId);
           projectBlockedCache[projectId] = project?.timesheetBlocked || false;
@@ -19648,75 +19710,76 @@ Return ONLY valid JSON.`;
         return projectBlockedCache[projectId];
       };
 
-      // Cache for checking if date is in a closed period
       const closedPeriodCache: Record<string, boolean> = {};
-      const isDateInClosedPeriod = async (entryDate: string): Promise<boolean> => {
+      const isDateClosed = async (entryDate: string): Promise<boolean> => {
         if (closedPeriodCache[entryDate] !== undefined) {
           return closedPeriodCache[entryDate];
         }
-        const closedPeriods = await storage.getClosedPeriodsForDateRange(organizationId, entryDate, entryDate);
-        closedPeriodCache[entryDate] = closedPeriods.length > 0;
-        return closedPeriodCache[entryDate];
+        const check = await isDateInClosedPeriodWithGrace(organizationId, entryDate);
+        closedPeriodCache[entryDate] = check.closed;
+        return check.closed;
       };
 
       const results = [];
       for (const entry of entries) {
-        // Validate hours for all entries
         const hoursNum = parseFloat(entry.hours);
         if (isNaN(hoursNum) || hoursNum < 0 || hoursNum > 24) {
-          continue; // Skip entries with invalid hours
+          continue;
         }
 
         if (entry.id) {
-          // Update existing - verify ownership and draft status
           const existing = await storage.getTimesheetEntry(entry.id);
           if (!existing) continue;
           
           if (existing.userId !== userId) {
-            continue; // Skip entries not owned by user
+            continue;
           }
           
           if (existing.status !== 'Draft' && existing.status !== 'Rejected') {
-            continue; // Skip non-editable entries
+            continue;
           }
           
-          // Check if task or project is blocked for updates too
           const isBlocked = await isTaskOrProjectBlocked(existing.taskId, existing.projectId);
           if (isBlocked) {
-            continue; // Skip blocked tasks/projects
+            continue;
           }
 
-          // Check if entry date is in a closed period
-          const isPeriodClosed = await isDateInClosedPeriod(existing.entryDate);
+          const isPeriodClosed = await isDateClosed(existing.entryDate);
           if (isPeriodClosed) {
-            continue; // Skip entries in closed periods
+            continue;
           }
           
+          const beforeSnapshot = { hours: existing.hours, notes: existing.notes };
           const updated = await storage.updateTimesheetEntry(entry.id, {
             hours: String(hoursNum),
             notes: entry.notes,
           });
           results.push(updated);
+
+          await logTimesheetAudit({
+            organizationId,
+            entryId: entry.id,
+            action: 'update',
+            actorId: userId,
+            before: beforeSnapshot,
+            after: { hours: String(hoursNum), notes: entry.notes },
+          });
         } else if (hoursNum > 0) {
-          // Create new - verify task assignment
           const isAssigned = await validateTaskAssignment(entry.taskId);
           if (!isAssigned) {
-            continue; // Skip tasks user isn't assigned to
+            continue;
           }
           
-          // Check if task or project is blocked
           const isBlocked = await isTaskOrProjectBlocked(entry.taskId, entry.projectId);
           if (isBlocked) {
-            continue; // Skip blocked tasks/projects
+            continue;
           }
 
-          // Check if entry date is in a closed period
-          const isPeriodClosed = await isDateInClosedPeriod(entry.entryDate);
+          const isPeriodClosed = await isDateClosed(entry.entryDate);
           if (isPeriodClosed) {
-            continue; // Skip entries in closed periods
+            continue;
           }
           
-          // DUPLICATE PREVENTION: Check if entry already exists for this resource/task/date
           const existingEntry = await storage.findTimesheetEntry(
             userResource.id, 
             entry.taskId, 
@@ -19724,15 +19787,23 @@ Return ONLY valid JSON.`;
           );
           
           if (existingEntry) {
-            // Update existing entry instead of creating duplicate
             if (existingEntry.status === 'Draft' || existingEntry.status === 'Rejected') {
+              const beforeSnapshot = { hours: existingEntry.hours, notes: existingEntry.notes };
               const updated = await storage.updateTimesheetEntry(existingEntry.id, {
                 hours: String(hoursNum),
                 notes: entry.notes,
               });
               results.push(updated);
+
+              await logTimesheetAudit({
+                organizationId,
+                entryId: existingEntry.id,
+                action: 'update',
+                actorId: userId,
+                before: beforeSnapshot,
+                after: { hours: String(hoursNum), notes: entry.notes },
+              });
             }
-            // Skip if entry is submitted/approved (can't modify)
             continue;
           }
           
@@ -19748,6 +19819,14 @@ Return ONLY valid JSON.`;
             status: 'Draft',
           });
           results.push(created);
+
+          await logTimesheetAudit({
+            organizationId,
+            entryId: created.id,
+            action: 'create',
+            actorId: userId,
+            after: { hours: String(entry.hours), notes: entry.notes, taskId: entry.taskId, entryDate: entry.entryDate },
+          });
         }
       }
 
@@ -19782,7 +19861,6 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'Only draft entries can be edited' });
       }
 
-      // Check if task or project is blocked for timesheet entries
       const task = await storage.getTask(entry.taskId);
       if (task?.timesheetBlocked) {
         return res.status(403).json({ message: 'Timesheet entries are blocked for this task' });
@@ -19793,15 +19871,13 @@ Return ONLY valid JSON.`;
         return res.status(403).json({ message: 'Timesheet entries are blocked for this project' });
       }
 
-      // Check if entry date is in a closed period
-      const closedPeriods = await storage.getClosedPeriodsForDateRange(entry.organizationId, entry.entryDate, entry.entryDate);
-      if (closedPeriods.length > 0) {
+      const periodCheck = await isDateInClosedPeriodWithGrace(entry.organizationId, entry.entryDate);
+      if (periodCheck.closed) {
         return res.status(403).json({ message: 'Cannot edit entries in a closed period' });
       }
 
       const { hours, notes } = req.body;
       
-      // Validate hours if provided
       if (hours !== undefined) {
         const hoursNum = parseFloat(hours);
         if (isNaN(hoursNum) || hoursNum < 0 || hoursNum > 24) {
@@ -19809,9 +19885,19 @@ Return ONLY valid JSON.`;
         }
       }
 
+      const beforeSnapshot = { hours: entry.hours, notes: entry.notes };
       const updated = await storage.updateTimesheetEntry(id, {
         hours: hours !== undefined ? String(parseFloat(hours)) : undefined,
         notes,
+      });
+
+      await logTimesheetAudit({
+        organizationId: entry.organizationId,
+        entryId: id,
+        action: 'update',
+        actorId: userId,
+        before: beforeSnapshot,
+        after: { hours: hours !== undefined ? String(parseFloat(hours)) : entry.hours, notes: notes ?? entry.notes },
       });
 
       res.json(updated);
@@ -19845,13 +19931,21 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'Only draft entries can be deleted' });
       }
 
-      // Check if entry date is in a closed period
-      const closedPeriods = await storage.getClosedPeriodsForDateRange(entry.organizationId, entry.entryDate, entry.entryDate);
-      if (closedPeriods.length > 0) {
+      const periodCheck = await isDateInClosedPeriodWithGrace(entry.organizationId, entry.entryDate);
+      if (periodCheck.closed) {
         return res.status(403).json({ message: 'Cannot delete entries in a closed period' });
       }
 
       await storage.deleteTimesheetEntry(id);
+
+      await logTimesheetAudit({
+        organizationId: entry.organizationId,
+        entryId: id,
+        action: 'delete',
+        actorId: userId,
+        before: { hours: entry.hours, notes: entry.notes, taskId: entry.taskId, entryDate: entry.entryDate },
+      });
+
       res.json({ success: true });
     } catch (error) {
       console.error('Error deleting timesheet entry:', error);
@@ -19874,16 +19968,58 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
       }
 
-      // Check if any dates in the week fall within a closed period
       const closedPeriods = await storage.getClosedPeriodsForDateRange(organizationId, startDate, endDate);
       if (closedPeriods.length > 0) {
-        return res.status(403).json({ 
-          message: 'Cannot submit entries in a closed period. Some dates in this week are locked.',
-          closedPeriods: closedPeriods.map(p => p.name)
-        });
+        const settings = await storage.getTimesheetSettings(organizationId);
+        const graceDays = settings?.gracePeriodDays || 0;
+        let allInGrace = true;
+        if (graceDays > 0) {
+          const now = new Date();
+          for (const period of closedPeriods) {
+            if (period.closedAt) {
+              const graceEnd = new Date(period.closedAt);
+              graceEnd.setDate(graceEnd.getDate() + graceDays);
+              if (now > graceEnd) { allInGrace = false; break; }
+            } else { allInGrace = false; break; }
+          }
+        } else { allInGrace = false; }
+        if (!allInGrace) {
+          return res.status(403).json({ 
+            message: 'Cannot submit entries in a closed period. Some dates in this week are locked.',
+            closedPeriods: closedPeriods.map(p => p.name)
+          });
+        }
+      }
+
+      const settings = await storage.getTimesheetSettings(organizationId);
+
+      if (settings?.mandatoryNotes) {
+        const draftEntries = await storage.getTimesheetEntries(userId, organizationId, startDate, endDate);
+        const drafts = draftEntries.filter(e => e.status === 'Draft');
+        const missingNotes = drafts.filter(e => !e.notes || !e.notes.trim());
+        if (missingNotes.length > 0) {
+          return res.status(400).json({ message: 'All timesheet entries must have notes before submission' });
+        }
+      }
+
+      if (settings?.maxWeeklyHours) {
+        const allEntries = await storage.getTimesheetEntries(userId, organizationId, startDate, endDate);
+        const totalHours = allEntries.reduce((sum, e) => sum + Number(e.hours || 0), 0);
+        const maxHours = Number(settings.maxWeeklyHours);
+        if (totalHours > maxHours) {
+          return res.status(400).json({ message: `Weekly hours (${totalHours}) exceed maximum allowed (${maxHours})` });
+        }
       }
 
       await storage.submitTimesheetWeek(userId, organizationId, startDate, endDate);
+
+      await logTimesheetAudit({
+        organizationId,
+        action: 'submit_week',
+        actorId: userId,
+        metadata: { startDate, endDate },
+      });
+
       res.json({ success: true });
     } catch (error) {
       console.error('Error submitting timesheet week:', error);
@@ -19906,7 +20042,6 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'organizationId is required' });
       }
 
-      // Check approver permission once for the whole batch
       const resources = await storage.getResources(organizationId);
       const userResource = resources.find(r => r.userId === userId);
       if (!userResource?.isApprover) {
@@ -19914,6 +20049,19 @@ Return ONLY valid JSON.`;
       }
 
       const approved = await storage.bulkApproveTimesheetEntries(ids, userId, organizationId);
+
+      for (const entry of approved) {
+        await logTimesheetAudit({
+          organizationId,
+          entryId: entry.id,
+          action: 'approve',
+          actorId: userId,
+          targetUserId: entry.userId,
+          before: { status: 'Submitted' },
+          after: { status: 'Approved' },
+        });
+      }
+
       res.json({ approved: approved.length, entries: approved });
     } catch (error) {
       console.error('Error bulk approving timesheet entries:', error);
@@ -19936,7 +20084,6 @@ Return ONLY valid JSON.`;
         return res.status(404).json({ message: 'Timesheet entry not found' });
       }
 
-      // Check if user is an approver
       const resources = await storage.getResources(entry.organizationId);
       const userResource = resources.find(r => r.userId === userId);
       
@@ -19944,18 +20091,27 @@ Return ONLY valid JSON.`;
         return res.status(403).json({ message: 'You are not authorized to approve timesheets' });
       }
 
-      // Only allow approving entries that are in "Submitted" status
       if (entry.status !== 'Submitted') {
         return res.status(400).json({ message: `Cannot approve entry with status "${entry.status}". Only submitted entries can be approved.` });
       }
 
-      // Check if entry date is in a closed period
-      const closedPeriods = await storage.getClosedPeriodsForDateRange(entry.organizationId, entry.entryDate, entry.entryDate);
-      if (closedPeriods.length > 0) {
+      const periodCheck = await isDateInClosedPeriodWithGrace(entry.organizationId, entry.entryDate);
+      if (periodCheck.closed) {
         return res.status(403).json({ message: 'Cannot approve entries in a closed period' });
       }
 
       const updated = await storage.approveTimesheetEntry(id, userId);
+
+      await logTimesheetAudit({
+        organizationId: entry.organizationId,
+        entryId: id,
+        action: 'approve',
+        actorId: userId,
+        targetUserId: entry.userId,
+        before: { status: 'Submitted' },
+        after: { status: 'Approved' },
+      });
+
       res.json(updated);
     } catch (error) {
       console.error('Error approving timesheet entry:', error);
@@ -19981,7 +20137,6 @@ Return ONLY valid JSON.`;
         return res.status(404).json({ message: 'Timesheet entry not found' });
       }
 
-      // Check if user is an approver
       const resources = await storage.getResources(entry.organizationId);
       const userResource = resources.find(r => r.userId === userId);
       
@@ -19989,18 +20144,27 @@ Return ONLY valid JSON.`;
         return res.status(403).json({ message: 'You are not authorized to reject timesheets' });
       }
 
-      // Only allow rejecting entries that are in "Submitted" status
       if (entry.status !== 'Submitted') {
         return res.status(400).json({ message: `Cannot reject entry with status "${entry.status}". Only submitted entries can be rejected.` });
       }
 
-      // Check if entry date is in a closed period
-      const closedPeriods = await storage.getClosedPeriodsForDateRange(entry.organizationId, entry.entryDate, entry.entryDate);
-      if (closedPeriods.length > 0) {
+      const periodCheck = await isDateInClosedPeriodWithGrace(entry.organizationId, entry.entryDate);
+      if (periodCheck.closed) {
         return res.status(403).json({ message: 'Cannot reject entries in a closed period' });
       }
 
       const updated = await storage.rejectTimesheetEntry(id, rejectionReason || '');
+
+      await logTimesheetAudit({
+        organizationId: entry.organizationId,
+        entryId: id,
+        action: 'reject',
+        actorId: userId,
+        targetUserId: entry.userId,
+        before: { status: 'Submitted' },
+        after: { status: 'Rejected', rejectionReason: rejectionReason || '' },
+      });
+
       res.json(updated);
     } catch (error) {
       console.error('Error rejecting timesheet entry:', error);
@@ -20272,6 +20436,303 @@ Return ONLY valid JSON.`;
       console.error('Error deleting timesheet period:', error);
       const classified = classifyError(error);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete timesheet period' : classified.message });
+    }
+  });
+
+  // ===== Timesheet Settings (Org-level Policies) =====
+
+  app.get('/api/timesheet-settings', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      if (!organizationId) return res.status(400).json({ message: 'organizationId is required' });
+
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const settings = await storage.getTimesheetSettings(organizationId);
+      res.json(settings || {
+        organizationId,
+        minWeeklyHours: "0",
+        maxWeeklyHours: "50",
+        overtimeThreshold: "40",
+        gracePeriodDays: 0,
+        mandatoryNotes: true,
+      });
+    } catch (error) {
+      console.error('Error getting timesheet settings:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get timesheet settings' : classified.message });
+    }
+  });
+
+  app.put('/api/timesheet-settings', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const { organizationId, minWeeklyHours, maxWeeklyHours, overtimeThreshold, gracePeriodDays, mandatoryNotes } = req.body;
+      if (!organizationId) return res.status(400).json({ message: 'organizationId is required' });
+
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      if (!userResource?.isApprover) {
+        return res.status(403).json({ message: 'Only approvers can manage timesheet settings' });
+      }
+
+      const settings = await storage.upsertTimesheetSettings({
+        organizationId,
+        minWeeklyHours: minWeeklyHours !== undefined ? String(minWeeklyHours) : undefined,
+        maxWeeklyHours: maxWeeklyHours !== undefined ? String(maxWeeklyHours) : undefined,
+        overtimeThreshold: overtimeThreshold !== undefined ? String(overtimeThreshold) : undefined,
+        gracePeriodDays: gracePeriodDays !== undefined ? Number(gracePeriodDays) : undefined,
+        mandatoryNotes: mandatoryNotes !== undefined ? Boolean(mandatoryNotes) : undefined,
+      });
+
+      await logTimesheetAudit({
+        organizationId,
+        action: 'update_settings',
+        actorId: userId,
+        after: { minWeeklyHours, maxWeeklyHours, overtimeThreshold, gracePeriodDays, mandatoryNotes },
+      });
+
+      res.json(settings);
+    } catch (error) {
+      console.error('Error updating timesheet settings:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update timesheet settings' : classified.message });
+    }
+  });
+
+  // ===== Timesheet Audit Log =====
+
+  app.get('/api/timesheet-audit-log', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      if (!organizationId) return res.status(400).json({ message: 'organizationId is required' });
+
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      if (!userResource?.isApprover) {
+        return res.status(403).json({ message: 'Only approvers can view audit logs' });
+      }
+
+      const entryId = req.query.entryId ? Number(req.query.entryId) : undefined;
+      const actorId = req.query.actorId as string | undefined;
+      const action = req.query.action as string | undefined;
+      const limit = req.query.limit ? Number(req.query.limit) : undefined;
+      const offset = req.query.offset ? Number(req.query.offset) : undefined;
+
+      const logs = await storage.getTimesheetAuditLogs(organizationId, { entryId, actorId, action, limit, offset });
+      res.json(logs);
+    } catch (error) {
+      console.error('Error getting timesheet audit log:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get audit log' : classified.message });
+    }
+  });
+
+  app.get('/api/timesheet-audit-log/entry/:entryId', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const entryId = Number(req.params.entryId);
+      const entry = await storage.getTimesheetEntry(entryId);
+      if (!entry) return res.status(404).json({ message: 'Entry not found' });
+
+      const resources = await storage.getResources(entry.organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      if (!userResource?.isApprover && entry.userId !== userId) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const logs = await storage.getTimesheetAuditLogsForEntry(entryId);
+      res.json(logs);
+    } catch (error) {
+      console.error('Error getting entry audit log:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get entry audit log' : classified.message });
+    }
+  });
+
+  // ===== Proxy Timesheet Entry =====
+
+  app.post('/api/timesheets/proxy', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const { organizationId, targetResourceId, taskId, projectId, entryDate, hours, notes } = req.body;
+
+      if (!organizationId || !targetResourceId || !taskId || !projectId || !entryDate || hours === undefined) {
+        return res.status(400).json({ message: 'Missing required fields' });
+      }
+
+      const resources = await storage.getResources(organizationId);
+      const actorResource = resources.find(r => r.userId === userId);
+      if (!actorResource?.isApprover) {
+        return res.status(403).json({ message: 'Only approvers can create proxy entries' });
+      }
+
+      const targetResource = resources.find(r => r.id === targetResourceId);
+      if (!targetResource) {
+        return res.status(404).json({ message: 'Target resource not found' });
+      }
+
+      const hoursNum = parseFloat(hours);
+      if (isNaN(hoursNum) || hoursNum < 0 || hoursNum > 24) {
+        return res.status(400).json({ message: 'Hours must be between 0 and 24' });
+      }
+
+      const settings = await storage.getTimesheetSettings(organizationId);
+      if (settings?.mandatoryNotes && (!notes || !notes.trim())) {
+        return res.status(400).json({ message: 'Notes are required for all timesheet entries' });
+      }
+
+      const periodCheck = await isDateInClosedPeriodWithGrace(organizationId, entryDate);
+      if (periodCheck.closed) {
+        return res.status(403).json({ message: 'Cannot create entries in a closed period' });
+      }
+
+      const entry = await storage.createTimesheetEntry({
+        organizationId,
+        userId: targetResource.userId!,
+        resourceId: targetResourceId,
+        taskId,
+        projectId,
+        entryDate,
+        hours: String(hoursNum),
+        notes,
+        status: 'Draft',
+        proxyUserId: userId,
+      });
+
+      await logTimesheetAudit({
+        organizationId,
+        entryId: entry.id,
+        action: 'proxy_create',
+        actorId: userId,
+        targetUserId: targetResource.userId!,
+        after: { hours: String(hoursNum), notes, taskId, projectId, entryDate },
+        metadata: { proxyUserId: userId, targetResourceId },
+      });
+
+      res.status(201).json(entry);
+    } catch (error) {
+      console.error('Error creating proxy timesheet entry:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create proxy entry' : classified.message });
+    }
+  });
+
+  // ===== Compliance Reporting =====
+
+  app.get('/api/timesheet-compliance', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+
+      if (!organizationId || !startDate || !endDate) {
+        return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
+      }
+
+      const resources = await storage.getResources(organizationId);
+      const actorResource = resources.find(r => r.userId === userId);
+      if (!actorResource?.isApprover) {
+        return res.status(403).json({ message: 'Only approvers can view compliance reports' });
+      }
+
+      const allEntries = await storage.getAllTimesheetEntriesWithDetails(organizationId, startDate, endDate);
+      const settings = await storage.getTimesheetSettings(organizationId);
+      const overtimeThreshold = Number(settings?.overtimeThreshold || 40);
+
+      const activeResources = resources.filter(r => r.userId);
+      const totalResources = activeResources.length;
+
+      const byUser: Record<string, { userId: string; resourceName: string; totalHours: number; entries: number; submitted: number; approved: number; rejected: number; draft: number; overtime: boolean }> = {};
+
+      for (const r of activeResources) {
+        if (r.userId) {
+          byUser[r.userId] = {
+            userId: r.userId,
+            resourceName: r.name,
+            totalHours: 0,
+            entries: 0,
+            submitted: 0,
+            approved: 0,
+            rejected: 0,
+            draft: 0,
+            overtime: false,
+          };
+        }
+      }
+
+      let totalSubmitted = 0, totalApproved = 0, totalRejected = 0, totalDraft = 0;
+
+      for (const { entry } of allEntries) {
+        const u = byUser[entry.userId];
+        if (u) {
+          const hrs = Number(entry.hours || 0);
+          u.totalHours += hrs;
+          u.entries += 1;
+          if (entry.status === 'Submitted') { u.submitted++; totalSubmitted++; }
+          else if (entry.status === 'Approved') { u.approved++; totalApproved++; }
+          else if (entry.status === 'Rejected') { u.rejected++; totalRejected++; }
+          else { u.draft++; totalDraft++; }
+        }
+      }
+
+      for (const u of Object.values(byUser)) {
+        u.overtime = u.totalHours > overtimeThreshold;
+      }
+
+      const usersWithEntries = Object.values(byUser).filter(u => u.entries > 0).length;
+      const usersWithNoEntries = totalResources - usersWithEntries;
+      const submissionRate = totalResources > 0 ? Math.round((usersWithEntries / totalResources) * 100) : 0;
+
+      const totalEntries = totalSubmitted + totalApproved + totalRejected + totalDraft;
+      const approvalRate = (totalSubmitted + totalApproved + totalRejected) > 0
+        ? Math.round((totalApproved / (totalSubmitted + totalApproved + totalRejected)) * 100)
+        : 0;
+      const rejectionRate = (totalSubmitted + totalApproved + totalRejected) > 0
+        ? Math.round((totalRejected / (totalSubmitted + totalApproved + totalRejected)) * 100)
+        : 0;
+
+      const overtimeUsers = Object.values(byUser).filter(u => u.overtime).length;
+
+      res.json({
+        summary: {
+          totalResources,
+          usersWithEntries,
+          usersWithNoEntries,
+          submissionRate,
+          totalEntries,
+          totalSubmitted,
+          totalApproved,
+          totalRejected,
+          totalDraft,
+          approvalRate,
+          rejectionRate,
+          overtimeUsers,
+          overtimeThreshold,
+        },
+        byUser: Object.values(byUser).sort((a, b) => b.totalHours - a.totalHours),
+      });
+    } catch (error) {
+      console.error('Error getting compliance report:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get compliance report' : classified.message });
     }
   });
 

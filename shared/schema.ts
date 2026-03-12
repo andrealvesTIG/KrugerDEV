@@ -609,6 +609,7 @@ export const timesheetEntries = pgTable("timesheet_entries", {
   approvedBy: varchar("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at"),
   rejectionReason: text("rejection_reason"),
+  proxyUserId: varchar("proxy_user_id").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -703,6 +704,53 @@ export const insertTimesheetPeriodSchema = createInsertSchema(timesheetPeriods).
 });
 export type InsertTimesheetPeriod = z.infer<typeof insertTimesheetPeriodSchema>;
 export type TimesheetPeriod = typeof timesheetPeriods.$inferSelect;
+
+export const timesheetSettings = pgTable("timesheet_settings", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  minWeeklyHours: numeric("min_weekly_hours").default("0"),
+  maxWeeklyHours: numeric("max_weekly_hours").default("50"),
+  overtimeThreshold: numeric("overtime_threshold").default("40"),
+  gracePeriodDays: integer("grace_period_days").default(0),
+  mandatoryNotes: boolean("mandatory_notes").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("ts_settings_org_idx").on(table.organizationId),
+]);
+
+export const insertTimesheetSettingsSchema = createInsertSchema(timesheetSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertTimesheetSettings = z.infer<typeof insertTimesheetSettingsSchema>;
+export type TimesheetSettings = typeof timesheetSettings.$inferSelect;
+
+export const timesheetAuditLog = pgTable("timesheet_audit_log", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  entryId: integer("entry_id"),
+  action: text("action").notNull(),
+  actorId: varchar("actor_id").references(() => users.id).notNull(),
+  targetUserId: varchar("target_user_id").references(() => users.id),
+  before: jsonb("before").$type<Record<string, unknown>>(),
+  after: jsonb("after").$type<Record<string, unknown>>(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("ts_audit_entry_idx").on(table.entryId),
+  index("ts_audit_org_idx").on(table.organizationId),
+  index("ts_audit_actor_idx").on(table.actorId),
+  index("ts_audit_created_idx").on(table.createdAt),
+]);
+
+export const insertTimesheetAuditLogSchema = createInsertSchema(timesheetAuditLog).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertTimesheetAuditLog = z.infer<typeof insertTimesheetAuditLogSchema>;
+export type TimesheetAuditLog = typeof timesheetAuditLog.$inferSelect;
 
 // Change Requests (Project change control)
 export const changeRequests = pgTable("change_requests", {

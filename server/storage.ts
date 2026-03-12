@@ -51,6 +51,8 @@ import {
   timeCategories, type TimeCategory, type InsertTimeCategory,
   nonProjectTimeEntries, type NonProjectTimeEntry, type InsertNonProjectTimeEntry,
   timesheetPeriods, type TimesheetPeriod, type InsertTimesheetPeriod,
+  timesheetSettings, type TimesheetSettings, type InsertTimesheetSettings,
+  timesheetAuditLog, type TimesheetAuditLog, type InsertTimesheetAuditLog,
   type RecycleBinItem, type RecycleBinItemType,
   type ProjectView, type InsertProjectView, type UpdateProjectViewRequest,
   type SystemProjectView, type InsertSystemProjectView, type UpdateSystemProjectViewRequest,
@@ -432,6 +434,15 @@ export interface IStorage {
   approveTimesheetEntry(id: number, approvedBy: string): Promise<TimesheetEntry>;
   bulkApproveTimesheetEntries(ids: number[], approvedBy: string, organizationId: number): Promise<TimesheetEntry[]>;
   rejectTimesheetEntry(id: number, rejectionReason: string): Promise<TimesheetEntry>;
+
+  // Timesheet Settings (org-level policies)
+  getTimesheetSettings(organizationId: number): Promise<TimesheetSettings | undefined>;
+  upsertTimesheetSettings(settings: InsertTimesheetSettings): Promise<TimesheetSettings>;
+
+  // Timesheet Audit Log
+  createTimesheetAuditLog(log: InsertTimesheetAuditLog): Promise<TimesheetAuditLog>;
+  getTimesheetAuditLogs(organizationId: number, filters?: { entryId?: number; actorId?: string; action?: string; limit?: number; offset?: number }): Promise<TimesheetAuditLog[]>;
+  getTimesheetAuditLogsForEntry(entryId: number): Promise<TimesheetAuditLog[]>;
 
   // Time Categories (non-project time types)
   getTimeCategories(organizationId: number): Promise<TimeCategory[]>;
@@ -4409,6 +4420,49 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTimesheetPeriod(id: number): Promise<void> {
     await db.delete(timesheetPeriods).where(eq(timesheetPeriods.id, id));
+  }
+
+  async getTimesheetSettings(organizationId: number): Promise<TimesheetSettings | undefined> {
+    const [settings] = await db.select().from(timesheetSettings)
+      .where(eq(timesheetSettings.organizationId, organizationId));
+    return settings;
+  }
+
+  async upsertTimesheetSettings(settings: InsertTimesheetSettings): Promise<TimesheetSettings> {
+    const existing = await this.getTimesheetSettings(settings.organizationId);
+    if (existing) {
+      const [updated] = await db.update(timesheetSettings)
+        .set({ ...settings, updatedAt: new Date() })
+        .where(eq(timesheetSettings.organizationId, settings.organizationId))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(timesheetSettings).values(settings).returning();
+    return created;
+  }
+
+  async createTimesheetAuditLog(log: InsertTimesheetAuditLog): Promise<TimesheetAuditLog> {
+    const [created] = await db.insert(timesheetAuditLog).values(log).returning();
+    return created;
+  }
+
+  async getTimesheetAuditLogs(organizationId: number, filters?: { entryId?: number; actorId?: string; action?: string; limit?: number; offset?: number }): Promise<TimesheetAuditLog[]> {
+    const conditions = [eq(timesheetAuditLog.organizationId, organizationId)];
+    if (filters?.entryId) conditions.push(eq(timesheetAuditLog.entryId, filters.entryId));
+    if (filters?.actorId) conditions.push(eq(timesheetAuditLog.actorId, filters.actorId));
+    if (filters?.action) conditions.push(eq(timesheetAuditLog.action, filters.action));
+
+    return await db.select().from(timesheetAuditLog)
+      .where(and(...conditions))
+      .orderBy(desc(timesheetAuditLog.createdAt))
+      .limit(filters?.limit || 100)
+      .offset(filters?.offset || 0);
+  }
+
+  async getTimesheetAuditLogsForEntry(entryId: number): Promise<TimesheetAuditLog[]> {
+    return await db.select().from(timesheetAuditLog)
+      .where(eq(timesheetAuditLog.entryId, entryId))
+      .orderBy(desc(timesheetAuditLog.createdAt));
   }
 
   // Time Categories
