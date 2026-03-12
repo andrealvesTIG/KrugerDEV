@@ -148,15 +148,16 @@ function getLinkPath(
   const isGoingDown = toRect.rowIndex > fromRect.rowIndex;
   
   if (type === 'FS') {
-    if (toX >= fromX) {
-      const dropX = Math.max(fromX + STUB_LENGTH, (fromX + toX) / 2);
+    const stubX1 = fromX + STUB_LENGTH;
+
+    if (toX >= stubX1 + STUB_LENGTH) {
+      const dropX = Math.max(stubX1, (fromX + toX) / 2);
       return `M ${fromX} ${adjustedFromY}
               L ${dropX} ${adjustedFromY}
               L ${dropX} ${adjustedToY}
               L ${toX} ${adjustedToY}`;
     }
 
-    const stubX1 = fromX + STUB_LENGTH;
     const loopLeft = Math.min(fromRect.xStart, toRect.xStart) - BACK_LINK_OFFSET;
     const midY = isGoingDown
       ? adjustedFromY + ((adjustedToY - adjustedFromY) / 2)
