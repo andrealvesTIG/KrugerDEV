@@ -19787,6 +19787,10 @@ Return ONLY valid JSON.`;
 
       const results = [];
       const errors: { index: number; taskId: number; entryDate: string; message: string }[] = [];
+
+      const maxHours = Number(settings.maxWeeklyHours);
+      const weeklyPayloadAccum: Record<string, number> = {};
+
       for (let idx = 0; idx < entries.length; idx++) {
         const entry = entries[idx];
         const hoursNum = parseFloat(entry.hours);
@@ -19795,17 +19799,34 @@ Return ONLY valid JSON.`;
           continue;
         }
 
-        if (settings?.mandatoryNotes && (!entry.notes || !String(entry.notes).trim())) {
+        if (settings.mandatoryNotes && (!entry.notes || !String(entry.notes).trim())) {
           errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: 'Notes are required for all timesheet entries' });
           continue;
         }
 
-        if (hoursNum > 0 && settings?.maxWeeklyHours) {
-          const weekCheck = await checkWeeklyHourLimits(userId, organizationId, entry.entryDate, hoursNum, entry.id || undefined);
-          if (!weekCheck.ok) {
-            errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: weekCheck.message! });
+        if (hoursNum > 0 && maxHours) {
+          const { startDate: weekStart, endDate: weekEnd } = getWeekBounds(entry.entryDate);
+          const weekKey = weekStart;
+
+          if (!(weekKey in weeklyPayloadAccum)) {
+            const existingEntries = await storage.getTimesheetEntries(userId, organizationId, weekStart, weekEnd);
+            const existingIds = entries.filter(e => e.id).map(e => e.id);
+            weeklyPayloadAccum[weekKey] = existingEntries
+              .filter(e => !existingIds.includes(e.id))
+              .reduce((sum, e) => sum + Number(e.hours || 0), 0);
+          }
+
+          const projectedTotal = weeklyPayloadAccum[weekKey] + hoursNum;
+          if (projectedTotal > maxHours) {
+            errors.push({
+              index: idx,
+              taskId: entry.taskId,
+              entryDate: entry.entryDate,
+              message: `Weekly hours would exceed limit of ${maxHours}h (total: ${projectedTotal.toFixed(1)}h)`,
+            });
             continue;
           }
+          weeklyPayloadAccum[weekKey] += hoursNum;
         }
 
         if (entry.id) {

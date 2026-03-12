@@ -310,7 +310,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
                   <AlertTriangle className="h-3 w-3 text-amber-500" />
                 </span>
               </TooltipTrigger>
-              <TooltipContent side="top">Over 40 hours this week</TooltipContent>
+              <TooltipContent side="top">Over {overtimeThreshold} hours this week</TooltipContent>
             </Tooltip>
           )}
           {rowTotal > 0 && (
@@ -887,15 +887,15 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                   )}
                 </div>
                 <div className={`text-lg font-bold flex items-center justify-center gap-1 ${
-                  getGrandTotal() > 40 ? "text-amber-600" : "text-emerald-600"
+                  getGrandTotal() > overtimeThreshold ? "text-amber-600" : "text-emerald-600"
                 }`}>
                   {getGrandTotal()}h
-                  {getGrandTotal() > 40 && (
+                  {getGrandTotal() > overtimeThreshold && (
                     <Tooltip>
                       <TooltipTrigger>
                         <AlertTriangle className="h-4 w-4" />
                       </TooltipTrigger>
-                      <TooltipContent>Over 40 hours this week</TooltipContent>
+                      <TooltipContent>Over {overtimeThreshold} hours this week</TooltipContent>
                     </Tooltip>
                   )}
                 </div>
@@ -3666,7 +3666,7 @@ export default function Timesheets() {
                 isDateInClosedPeriod={isDateInClosedPeriod}
                 getClosedPeriodName={getClosedPeriodName}
                 isFullscreen
-                mandatoryNotes={timesheetSettings?.mandatoryNotes ?? false}
+                mandatoryNotes={timesheetSettings?.mandatoryNotes ?? true}
                 onViewAudit={(entryId) => { setAuditEntryId(entryId); setShowAuditDialog(true); }}
                 overtimeThreshold={weeklyTarget}
               />
@@ -4336,7 +4336,7 @@ export default function Timesheets() {
                   onAutoSave={handleAutoSave}
                   isDateInClosedPeriod={isDateInClosedPeriod}
                   getClosedPeriodName={getClosedPeriodName}
-                  mandatoryNotes={timesheetSettings?.mandatoryNotes ?? false}
+                  mandatoryNotes={timesheetSettings?.mandatoryNotes ?? true}
                   onViewAudit={(entryId) => { setAuditEntryId(entryId); setShowAuditDialog(true); }}
                   overtimeThreshold={weeklyTarget}
                 />
