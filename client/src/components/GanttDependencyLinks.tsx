@@ -147,37 +147,31 @@ function getLinkPath(
   const isGoingRight = toX >= fromX;
   const isGoingDown = toRect.rowIndex > fromRect.rowIndex;
   
-  // Handle back-links for FS (target start is to the left of source end)
-  if (!isGoingRight && type === 'FS') {
-    // Route around: right from source, down/up, left around bars, then to target
-    const stubX1 = fromX + STUB_LENGTH;
-    const midY = isGoingDown 
-      ? adjustedFromY + ((adjustedToY - adjustedFromY) / 2)
-      : adjustedFromY - 15;
-    const stubX2 = Math.min(fromRect.xStart, toRect.xStart) - BACK_LINK_OFFSET;
-    
-    return `M ${fromX} ${adjustedFromY} 
-            L ${stubX1} ${adjustedFromY}
-            L ${stubX1} ${midY}
-            L ${stubX2} ${midY}
-            L ${stubX2} ${adjustedToY}
-            L ${toX} ${adjustedToY}`;
-  }
-  
-  // Standard orthogonal routing based on type
   if (type === 'FS') {
     const stubX1 = fromX + STUB_LENGTH;
-    const midX = Math.max(stubX1, toX - STUB_LENGTH);
+
+    if (toX >= stubX1 + STUB_LENGTH) {
+      const dropX = stubX1;
+      return `M ${fromX} ${adjustedFromY}
+              L ${dropX} ${adjustedFromY}
+              L ${dropX} ${adjustedToY}
+              L ${toX} ${adjustedToY}`;
+    }
+
+    const loopLeft = Math.min(fromRect.xStart, toRect.xStart) - BACK_LINK_OFFSET;
+    const midY = isGoingDown
+      ? adjustedFromY + ((adjustedToY - adjustedFromY) / 2)
+      : adjustedToY + ((adjustedFromY - adjustedToY) / 2);
     return `M ${fromX} ${adjustedFromY}
-            L ${midX} ${adjustedFromY}
-            L ${midX} ${adjustedToY}
+            L ${stubX1} ${adjustedFromY}
+            L ${stubX1} ${midY}
+            L ${loopLeft} ${midY}
+            L ${loopLeft} ${adjustedToY}
             L ${toX} ${adjustedToY}`;
   }
   
   if (type === 'SS') {
-    // Start to Start: route left of both bars
     const stubX = Math.min(fromX, toX) - STUB_LENGTH;
-    
     return `M ${fromX} ${adjustedFromY}
             L ${stubX} ${adjustedFromY}
             L ${stubX} ${adjustedToY}
@@ -185,9 +179,7 @@ function getLinkPath(
   }
   
   if (type === 'FF') {
-    // Finish to Finish: route right of both bars
     const stubX = Math.max(fromX, toX) + STUB_LENGTH;
-    
     return `M ${fromX} ${adjustedFromY}
             L ${stubX} ${adjustedFromY}
             L ${stubX} ${adjustedToY}
@@ -195,11 +187,9 @@ function getLinkPath(
   }
   
   if (type === 'SF') {
-    // Start to Finish: route left from source, then right to target end
     const stubX1 = fromX - STUB_LENGTH;
     const stubX2 = toX + STUB_LENGTH;
     const midY = (adjustedFromY + adjustedToY) / 2;
-    
     return `M ${fromX} ${adjustedFromY}
             L ${stubX1} ${adjustedFromY}
             L ${stubX1} ${midY}
