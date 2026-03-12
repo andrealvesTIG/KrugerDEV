@@ -470,3 +470,228 @@ export function useTimesheetCompliance(organizationId: number | null, startDate:
     },
   });
 }
+
+export interface ApprovalDelegationWithNames {
+  id: number;
+  organizationId: number;
+  delegatorId: string;
+  delegateId: string;
+  startDate: string;
+  endDate: string;
+  isActive: boolean | null;
+  createdAt: string | null;
+  revokedAt: string | null;
+  delegatorName: string;
+  delegateName: string;
+}
+
+export function useIsActiveDelegate(organizationId: number | null) {
+  return useQuery<boolean>({
+    queryKey: ["/api/approval-delegations/is-delegate", organizationId],
+    enabled: !!organizationId,
+    staleTime: 1000 * 60 * 5,
+    queryFn: async () => {
+      const response = await fetch(`/api/approval-delegations/is-delegate?organizationId=${organizationId}`);
+      if (!response.ok) return false;
+      const data = await response.json();
+      return data.isDelegate === true;
+    },
+  });
+}
+
+export function useApprovalDelegations(organizationId: number | null) {
+  return useQuery<ApprovalDelegationWithNames[]>({
+    queryKey: ["/api/approval-delegations", organizationId],
+    enabled: !!organizationId,
+    staleTime: 1000 * 60,
+    queryFn: async () => {
+      const response = await fetch(`/api/approval-delegations?organizationId=${organizationId}`);
+      if (!response.ok) return [];
+      return response.json();
+    },
+  });
+}
+
+export function useCreateApprovalDelegation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { organizationId: number; delegateId: string; startDate: string; endDate: string }) => {
+      const response = await apiRequest("POST", "/api/approval-delegations", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/approval-delegations"] });
+    },
+  });
+}
+
+export function useRevokeApprovalDelegation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, organizationId }: { id: number; organizationId: number }) => {
+      const response = await apiRequest("POST", `/api/approval-delegations/${id}/revoke`, { organizationId });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/approval-delegations"] });
+    },
+  });
+}
+
+export interface RejectionTemplateData {
+  id: number;
+  organizationId: number;
+  name: string;
+  text: string;
+  category: string | null;
+  isActive: boolean | null;
+  sortOrder: number | null;
+}
+
+export function useRejectionTemplates(organizationId: number | null) {
+  return useQuery<RejectionTemplateData[]>({
+    queryKey: ["/api/rejection-templates", organizationId],
+    enabled: !!organizationId,
+    staleTime: 1000 * 60 * 5,
+    queryFn: async () => {
+      const response = await fetch(`/api/rejection-templates?organizationId=${organizationId}`);
+      if (!response.ok) return [];
+      return response.json();
+    },
+  });
+}
+
+export function useCreateRejectionTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { organizationId: number; name: string; text: string; category?: string }) => {
+      const response = await apiRequest("POST", "/api/rejection-templates", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rejection-templates"] });
+    },
+  });
+}
+
+export function useUpdateRejectionTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: number; name?: string; text?: string; category?: string; sortOrder?: number }) => {
+      const response = await apiRequest("PUT", `/api/rejection-templates/${id}`, updates);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rejection-templates"] });
+    },
+  });
+}
+
+export function useDeleteRejectionTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/rejection-templates/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rejection-templates"] });
+    },
+  });
+}
+
+export interface TimesheetCommentData {
+  id: number;
+  entryId: number;
+  organizationId: number;
+  userId: string;
+  text: string;
+  commentType: string | null;
+  statusFrom: string | null;
+  statusTo: string | null;
+  createdAt: string | null;
+}
+
+export function useTimesheetComments(entryId: number | null) {
+  return useQuery<TimesheetCommentData[]>({
+    queryKey: ["/api/timesheet-comments", entryId],
+    enabled: !!entryId,
+    staleTime: 1000 * 30,
+    queryFn: async () => {
+      const response = await fetch(`/api/timesheet-comments/${entryId}`);
+      if (!response.ok) return [];
+      return response.json();
+    },
+  });
+}
+
+export function useCreateTimesheetComment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { entryId: number; organizationId: number; text: string }) => {
+      const response = await apiRequest("POST", "/api/timesheet-comments", data);
+      return response.json();
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timesheet-comments", variables.entryId] });
+    },
+  });
+}
+
+export interface TeamReviewData {
+  team: {
+    resourceId: number;
+    userId: string;
+    displayName: string;
+    email: string | null;
+    department: string | null;
+    title: string | null;
+    photoUrl: string | null;
+    totalHours: number;
+    entryCount: number;
+    draft: number;
+    submitted: number;
+    approved: number;
+    rejected: number;
+    submissionStatus: string;
+  }[];
+  delegatedForUsers: string[];
+  period: { startDate: string; endDate: string };
+}
+
+export function useTeamReview(organizationId: number | null, startDate: string, endDate: string) {
+  return useQuery<TeamReviewData>({
+    queryKey: ["/api/timesheets/team-review", organizationId, startDate, endDate],
+    enabled: !!organizationId && !!startDate && !!endDate,
+    staleTime: 1000 * 60,
+    queryFn: async () => {
+      const response = await fetch(`/api/timesheets/team-review?organizationId=${organizationId}&startDate=${startDate}&endDate=${endDate}`);
+      if (!response.ok) return { team: [], delegatedForUsers: [], period: { startDate, endDate } };
+      return response.json();
+    },
+  });
+}
+
+export interface SlaMetricsData {
+  avgTurnaroundHours: number;
+  avgTurnaroundDays: number;
+  resolvedCount: number;
+  exceedingSla: number;
+  pendingExceedingSla: number;
+  slaThresholdDays: number;
+  totalSubmitted: number;
+  totalApproved: number;
+  totalPending: number;
+}
+
+export function useSlaMetrics(organizationId: number | null, startDate: string, endDate: string) {
+  return useQuery<SlaMetricsData>({
+    queryKey: ["/api/timesheets/sla-metrics", organizationId, startDate, endDate],
+    enabled: !!organizationId && !!startDate && !!endDate,
+    staleTime: 1000 * 60,
+    queryFn: async () => {
+      const response = await fetch(`/api/timesheets/sla-metrics?organizationId=${organizationId}&startDate=${startDate}&endDate=${endDate}`);
+      if (!response.ok) throw new Error("Failed to fetch SLA metrics");
+      return response.json();
+    },
+  });
+}

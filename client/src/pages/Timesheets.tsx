@@ -115,13 +115,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import { TimerWidget } from "@/components/TimerWidget";
 import { TimesheetReminder } from "@/components/TimesheetReminder";
 import { exportTimesheetToExcel } from "@/lib/excelExport";
-import { FileSpreadsheet, Shield, Settings, UserPlus } from "lucide-react";
+import { FileSpreadsheet, Shield, Settings, UserPlus, Users2, UserCog } from "lucide-react";
 import type { Task, Project, InsertTimesheetEntry, TimesheetPeriod } from "@shared/schema";
 import { TimesheetSettingsDialog } from "@/components/TimesheetSettingsDialog";
 import { TimesheetAuditDialog } from "@/components/TimesheetAuditDialog";
 import { TimesheetComplianceDashboard } from "@/components/TimesheetComplianceDashboard";
 import { ProxyTimesheetEntryDialog } from "@/components/ProxyTimesheetEntryDialog";
-import { useTimesheetSettings } from "@/hooks/use-timesheets";
+import { TeamReviewDashboard } from "@/components/TeamReviewDashboard";
+import { ApprovalDelegationDialog } from "@/components/ApprovalDelegationDialog";
+import { TimesheetCommentsThread } from "@/components/TimesheetCommentsThread";
+import { useTimesheetSettings, useRejectionTemplates, useIsActiveDelegate } from "@/hooks/use-timesheets";
 
 type ViewMode = "workweek" | "week" | "day";
 
@@ -1149,6 +1152,9 @@ function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void 
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
   const isPending = statusFilter === "Submitted";
+  const { data: rejectionTemplates = [] } = useRejectionTemplates(currentOrganization?.id || null);
+  const [commentsEntryId, setCommentsEntryId] = useState<number | null>(null);
+  const [commentsEntryInfo, setCommentsEntryInfo] = useState<{ taskName?: string; projectName?: string; date?: string; hours?: string; status?: string }>({});
 
   const handleApprove = async (id: number) => {
     try {
@@ -1502,6 +1508,28 @@ function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void 
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="font-mono font-medium text-lg">{Number(entry.hours).toFixed(1)}h</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              setCommentsEntryId(entry.id);
+                              setCommentsEntryInfo({
+                                taskName: entry.task?.name,
+                                projectName: entry.project?.name,
+                                date: entry.entryDate,
+                                hours: String(Number(entry.hours).toFixed(1)),
+                                status: entry.status || undefined,
+                              });
+                            }}
+                          >
+                            <MessageSquare className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Comments & History</TooltipContent>
+                      </Tooltip>
                       {onViewAudit && (
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -1566,16 +1594,36 @@ function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void 
               Provide a reason for rejecting {rejectDialog.isBulk ? "these entries" : "this timesheet entry"}. The user{rejectDialog.isBulk ? "s" : ""} will be notified and can resubmit.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Label htmlFor="reason">Rejection Reason</Label>
-            <Textarea
-              id="reason"
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder="Please provide a reason..."
-              className="mt-2"
-              data-testid="input-rejection-reason"
-            />
+          <div className="py-4 space-y-3">
+            {rejectionTemplates.length > 0 && (
+              <div>
+                <Label className="text-sm">Quick Templates</Label>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {rejectionTemplates.map(template => (
+                    <Button
+                      key={template.id}
+                      size="sm"
+                      variant={rejectionReason === template.text ? "default" : "outline"}
+                      className="text-xs h-7"
+                      onClick={() => setRejectionReason(template.text)}
+                    >
+                      {template.name}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div>
+              <Label htmlFor="reason">Rejection Reason</Label>
+              <Textarea
+                id="reason"
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="Please provide a reason..."
+                className="mt-2"
+                data-testid="input-rejection-reason"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejectDialog({ id: 0, open: false })}>
@@ -1593,6 +1641,13 @@ function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <TimesheetCommentsThread
+        entryId={commentsEntryId}
+        open={!!commentsEntryId}
+        onOpenChange={(open) => { if (!open) setCommentsEntryId(null); }}
+        entryInfo={commentsEntryInfo}
+      />
     </div>
   );
 }
@@ -2784,6 +2839,7 @@ export default function Timesheets() {
   const [showReminder, setShowReminder] = useState(true);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [showProxyEntryDialog, setShowProxyEntryDialog] = useState(false);
+  const [showDelegationDialog, setShowDelegationDialog] = useState(false);
   const [auditEntryId, setAuditEntryId] = useState<number | null>(null);
   const [showAuditDialog, setShowAuditDialog] = useState(false);
   const { toast } = useToast();
@@ -2859,7 +2915,8 @@ export default function Timesheets() {
 
   const currentMembership = memberships.find(m => m.organizationId === currentOrganization?.id);
   const isOrgAdmin = currentMembership?.role === 'org_admin' || currentMembership?.role === 'owner';
-  const isTimesheetAdmin = currentResource?.isApprover || isOrgAdmin;
+  const { data: isActiveDelegate } = useIsActiveDelegate(currentOrganization?.id ?? null);
+  const isTimesheetAdmin = currentResource?.isApprover || isOrgAdmin || isActiveDelegate;
 
   const bulkUpsert = useBulkUpsertTimesheetEntries();
   const submitWeek = useSubmitTimesheetWeek();
@@ -3855,12 +3912,45 @@ export default function Timesheets() {
             )}
             {isTimesheetAdmin && (
               <button
+                onClick={() => setActiveTab("team-review")}
+                className={`pb-3 text-sm font-medium transition-colors relative ${
+                  activeTab === "team-review" 
+                    ? "text-foreground" 
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                data-testid="tab-team-review"
+              >
+                <div className="flex items-center gap-2">
+                  <Users2 className="h-4 w-4" />
+                  Team Review
+                </div>
+                {activeTab === "team-review" && (
+                  <motion.div 
+                    layoutId="activeTab"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
+                  />
+                )}
+              </button>
+            )}
+            {isTimesheetAdmin && (
+              <button
                 onClick={() => setShowProxyEntryDialog(true)}
                 className="pb-3 text-sm font-medium transition-colors text-muted-foreground hover:text-foreground"
               >
                 <div className="flex items-center gap-2">
                   <UserPlus className="h-4 w-4" />
                   Fill in on Behalf
+                </div>
+              </button>
+            )}
+            {isTimesheetAdmin && (
+              <button
+                onClick={() => setShowDelegationDialog(true)}
+                className="pb-3 text-sm font-medium transition-colors text-muted-foreground hover:text-foreground"
+              >
+                <div className="flex items-center gap-2">
+                  <UserCog className="h-4 w-4" />
+                  Delegation
                 </div>
               </button>
             )}
@@ -4411,7 +4501,21 @@ export default function Timesheets() {
             <TimesheetComplianceDashboard organizationId={currentOrganization?.id || null} />
           </motion.div>
         )}
+
+        {activeTab === "team-review" && isTimesheetAdmin && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <TeamReviewDashboard />
+          </motion.div>
+        )}
       </div>
+
+      <ApprovalDelegationDialog
+        open={showDelegationDialog}
+        onOpenChange={setShowDelegationDialog}
+      />
 
       <TimesheetSettingsDialog
         organizationId={currentOrganization?.id || null}

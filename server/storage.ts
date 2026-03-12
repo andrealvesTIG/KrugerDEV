@@ -53,6 +53,9 @@ import {
   timesheetPeriods, type TimesheetPeriod, type InsertTimesheetPeriod,
   timesheetSettings, type TimesheetSettings, type InsertTimesheetSettings,
   timesheetAuditLog, type TimesheetAuditLog, type InsertTimesheetAuditLog,
+  approvalDelegations, type ApprovalDelegation, type InsertApprovalDelegation,
+  rejectionTemplates, type RejectionTemplate, type InsertRejectionTemplate,
+  timesheetComments, type TimesheetComment, type InsertTimesheetComment,
   type RecycleBinItem, type RecycleBinItemType,
   type ProjectView, type InsertProjectView, type UpdateProjectViewRequest,
   type SystemProjectView, type InsertSystemProjectView, type UpdateSystemProjectViewRequest,
@@ -467,6 +470,24 @@ export interface IStorage {
   closeTimesheetPeriod(id: number, closedBy: string): Promise<TimesheetPeriod>;
   reopenTimesheetPeriod(id: number, reopenedBy: string): Promise<TimesheetPeriod>;
   deleteTimesheetPeriod(id: number): Promise<void>;
+
+  // Approval Delegations
+  getApprovalDelegations(organizationId: number): Promise<ApprovalDelegation[]>;
+  getActiveDelegationsForDelegate(delegateId: string, organizationId: number): Promise<ApprovalDelegation[]>;
+  getActiveDelegationsForDelegator(delegatorId: string, organizationId: number): Promise<ApprovalDelegation[]>;
+  createApprovalDelegation(delegation: InsertApprovalDelegation): Promise<ApprovalDelegation>;
+  revokeApprovalDelegation(id: number): Promise<ApprovalDelegation>;
+
+  // Rejection Templates
+  getRejectionTemplates(organizationId: number): Promise<RejectionTemplate[]>;
+  getRejectionTemplate(id: number): Promise<RejectionTemplate | undefined>;
+  createRejectionTemplate(template: InsertRejectionTemplate): Promise<RejectionTemplate>;
+  updateRejectionTemplate(id: number, updates: Partial<InsertRejectionTemplate>): Promise<RejectionTemplate>;
+  deleteRejectionTemplate(id: number): Promise<void>;
+
+  // Timesheet Comments
+  getTimesheetComments(entryId: number): Promise<TimesheetComment[]>;
+  createTimesheetComment(comment: InsertTimesheetComment): Promise<TimesheetComment>;
 
   // User Consents
   getUserConsents(userId: string): Promise<UserConsent[]>;
@@ -4420,6 +4441,91 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTimesheetPeriod(id: number): Promise<void> {
     await db.delete(timesheetPeriods).where(eq(timesheetPeriods.id, id));
+  }
+
+  async getApprovalDelegations(organizationId: number): Promise<ApprovalDelegation[]> {
+    return await db.select().from(approvalDelegations)
+      .where(eq(approvalDelegations.organizationId, organizationId))
+      .orderBy(desc(approvalDelegations.createdAt));
+  }
+
+  async getActiveDelegationsForDelegate(delegateId: string, organizationId: number): Promise<ApprovalDelegation[]> {
+    const today = new Date().toISOString().split('T')[0];
+    return await db.select().from(approvalDelegations)
+      .where(and(
+        eq(approvalDelegations.delegateId, delegateId),
+        eq(approvalDelegations.organizationId, organizationId),
+        eq(approvalDelegations.isActive, true),
+        sql`${approvalDelegations.startDate} <= ${today}`,
+        sql`${approvalDelegations.endDate} >= ${today}`
+      ));
+  }
+
+  async getActiveDelegationsForDelegator(delegatorId: string, organizationId: number): Promise<ApprovalDelegation[]> {
+    return await db.select().from(approvalDelegations)
+      .where(and(
+        eq(approvalDelegations.delegatorId, delegatorId),
+        eq(approvalDelegations.organizationId, organizationId),
+        eq(approvalDelegations.isActive, true)
+      ));
+  }
+
+  async createApprovalDelegation(delegation: InsertApprovalDelegation): Promise<ApprovalDelegation> {
+    const [created] = await db.insert(approvalDelegations).values(delegation).returning();
+    return created;
+  }
+
+  async revokeApprovalDelegation(id: number): Promise<ApprovalDelegation> {
+    const [updated] = await db.update(approvalDelegations)
+      .set({ isActive: false, revokedAt: new Date() })
+      .where(eq(approvalDelegations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getRejectionTemplates(organizationId: number): Promise<RejectionTemplate[]> {
+    return await db.select().from(rejectionTemplates)
+      .where(and(
+        eq(rejectionTemplates.organizationId, organizationId),
+        eq(rejectionTemplates.isActive, true)
+      ))
+      .orderBy(asc(rejectionTemplates.sortOrder), asc(rejectionTemplates.name));
+  }
+
+  async getRejectionTemplate(id: number): Promise<RejectionTemplate | undefined> {
+    const [template] = await db.select().from(rejectionTemplates)
+      .where(eq(rejectionTemplates.id, id));
+    return template;
+  }
+
+  async createRejectionTemplate(template: InsertRejectionTemplate): Promise<RejectionTemplate> {
+    const [created] = await db.insert(rejectionTemplates).values(template).returning();
+    return created;
+  }
+
+  async updateRejectionTemplate(id: number, updates: Partial<InsertRejectionTemplate>): Promise<RejectionTemplate> {
+    const [updated] = await db.update(rejectionTemplates)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(rejectionTemplates.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteRejectionTemplate(id: number): Promise<void> {
+    await db.update(rejectionTemplates)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(rejectionTemplates.id, id));
+  }
+
+  async getTimesheetComments(entryId: number): Promise<TimesheetComment[]> {
+    return await db.select().from(timesheetComments)
+      .where(eq(timesheetComments.entryId, entryId))
+      .orderBy(asc(timesheetComments.createdAt));
+  }
+
+  async createTimesheetComment(comment: InsertTimesheetComment): Promise<TimesheetComment> {
+    const [created] = await db.insert(timesheetComments).values(comment).returning();
+    return created;
   }
 
   async getTimesheetSettings(organizationId: number): Promise<TimesheetSettings | undefined> {

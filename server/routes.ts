@@ -19392,17 +19392,16 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'organizationId is required' });
       }
 
-      // Check if user is an approver
       const resources = await storage.getResources(organizationId);
       const userResource = resources.find(r => r.userId === userId);
+      const activeDelegations = await storage.getActiveDelegationsForDelegate(userId, organizationId);
       
-      if (!userResource?.isApprover) {
+      if (!userResource?.isApprover && activeDelegations.length === 0) {
         return res.status(403).json({ message: 'You are not authorized to approve timesheets' });
       }
 
       const entries = await storage.getTimesheetEntriesForApproval(organizationId, status);
       
-      // Enrich with task, project and user info
       const enrichedEntries = await Promise.all(entries.map(async (entry) => {
         const task = await storage.getTask(entry.taskId);
         const project = task ? await storage.getProject(task.projectId) : null;
@@ -20193,7 +20192,8 @@ Return ONLY valid JSON.`;
 
       const resources = await storage.getResources(organizationId);
       const userResource = resources.find(r => r.userId === userId);
-      if (!userResource?.isApprover) {
+      const activeDelegations = await storage.getActiveDelegationsForDelegate(userId, organizationId);
+      if (!userResource?.isApprover && activeDelegations.length === 0) {
         return res.status(403).json({ message: 'You are not authorized to approve timesheets' });
       }
 
@@ -20235,8 +20235,9 @@ Return ONLY valid JSON.`;
 
       const resources = await storage.getResources(entry.organizationId);
       const userResource = resources.find(r => r.userId === userId);
+      const activeDelegations = await storage.getActiveDelegationsForDelegate(userId, entry.organizationId);
       
-      if (!userResource?.isApprover) {
+      if (!userResource?.isApprover && activeDelegations.length === 0) {
         return res.status(403).json({ message: 'You are not authorized to approve timesheets' });
       }
 
@@ -20288,8 +20289,9 @@ Return ONLY valid JSON.`;
 
       const resources = await storage.getResources(entry.organizationId);
       const userResource = resources.find(r => r.userId === userId);
+      const activeDelegations = await storage.getActiveDelegationsForDelegate(userId, entry.organizationId);
       
-      if (!userResource?.isApprover) {
+      if (!userResource?.isApprover && activeDelegations.length === 0) {
         return res.status(403).json({ message: 'You are not authorized to reject timesheets' });
       }
 
@@ -20967,6 +20969,431 @@ Return ONLY valid JSON.`;
       console.error('Error getting compliance report:', error);
       const classified = classifyError(error);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get compliance report' : classified.message });
+    }
+  });
+
+  // ===== Approval Delegations =====
+
+  app.get('/api/approval-delegations/is-delegate', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      if (!organizationId) return res.status(400).json({ message: 'organizationId is required' });
+
+      const activeDelegations = await storage.getActiveDelegationsForDelegate(userId, organizationId);
+      res.json({ isDelegate: activeDelegations.length > 0 });
+    } catch (error) {
+      console.error('Error checking delegate status:', error);
+      res.status(500).json({ message: 'Failed to check delegate status' });
+    }
+  });
+
+  app.get('/api/approval-delegations', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      if (!organizationId) return res.status(400).json({ message: 'organizationId is required' });
+
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      if (!userResource?.isApprover && !(await hasTimesheetAdminAccess(userId, organizationId))) {
+        return res.status(403).json({ message: 'Not authorized' });
+      }
+
+      const delegations = await storage.getApprovalDelegations(organizationId);
+      const enriched = delegations.map(d => {
+        const delegatorRes = resources.find(r => r.userId === d.delegatorId);
+        const delegateRes = resources.find(r => r.userId === d.delegateId);
+        return {
+          ...d,
+          delegatorName: delegatorRes?.displayName || delegatorRes?.name || 'Unknown',
+          delegateName: delegateRes?.displayName || delegateRes?.name || 'Unknown',
+        };
+      });
+      res.json(enriched);
+    } catch (error) {
+      console.error('Error getting delegations:', error);
+      res.status(500).json({ message: 'Failed to get delegations' });
+    }
+  });
+
+  app.post('/api/approval-delegations', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const { organizationId, delegateId, startDate, endDate } = req.body;
+      if (!organizationId || !delegateId || !startDate || !endDate) {
+        return res.status(400).json({ message: 'organizationId, delegateId, startDate, and endDate are required' });
+      }
+
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      if (!userResource?.isApprover) {
+        return res.status(403).json({ message: 'Only approvers can create delegations' });
+      }
+
+      if (delegateId === userId) {
+        return res.status(400).json({ message: 'Cannot delegate to yourself' });
+      }
+
+      const delegateResource = resources.find(r => r.userId === delegateId);
+      if (!delegateResource) {
+        return res.status(400).json({ message: 'Delegate must be a resource in the organization' });
+      }
+
+      const delegation = await storage.createApprovalDelegation({
+        organizationId,
+        delegatorId: userId,
+        delegateId,
+        startDate,
+        endDate,
+        isActive: true,
+      });
+
+      await logTimesheetAudit({
+        organizationId,
+        action: 'delegation_create',
+        actorId: userId,
+        after: { delegateId, startDate, endDate },
+      });
+
+      res.status(201).json(delegation);
+    } catch (error) {
+      console.error('Error creating delegation:', error);
+      res.status(500).json({ message: 'Failed to create delegation' });
+    }
+  });
+
+  app.post('/api/approval-delegations/:id/revoke', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const id = Number(req.params.id);
+      const delegations = await storage.getApprovalDelegations(Number(req.body.organizationId || 0));
+      const delegation = delegations.find(d => d.id === id);
+      if (!delegation) return res.status(404).json({ message: 'Delegation not found' });
+
+      if (delegation.delegatorId !== userId && !(await hasTimesheetAdminAccess(userId, delegation.organizationId))) {
+        return res.status(403).json({ message: 'Not authorized to revoke this delegation' });
+      }
+
+      const revoked = await storage.revokeApprovalDelegation(id);
+
+      await logTimesheetAudit({
+        organizationId: delegation.organizationId,
+        action: 'delegation_revoke',
+        actorId: userId,
+        before: { delegateId: delegation.delegateId, startDate: delegation.startDate, endDate: delegation.endDate },
+      });
+
+      res.json(revoked);
+    } catch (error) {
+      console.error('Error revoking delegation:', error);
+      res.status(500).json({ message: 'Failed to revoke delegation' });
+    }
+  });
+
+  // ===== Rejection Templates =====
+
+  app.get('/api/rejection-templates', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      if (!organizationId) return res.status(400).json({ message: 'organizationId is required' });
+
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      const isAdmin = await hasTimesheetAdminAccess(userId, organizationId);
+      const activeDelegations = await storage.getActiveDelegationsForDelegate(userId, organizationId);
+      if (!userResource?.isApprover && !isAdmin && activeDelegations.length === 0) {
+        return res.status(403).json({ message: 'Not authorized' });
+      }
+
+      const templates = await storage.getRejectionTemplates(organizationId);
+      res.json(templates);
+    } catch (error) {
+      console.error('Error getting rejection templates:', error);
+      res.status(500).json({ message: 'Failed to get rejection templates' });
+    }
+  });
+
+  app.post('/api/rejection-templates', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const { organizationId, name, text, category } = req.body;
+      if (!organizationId || !name || !text) {
+        return res.status(400).json({ message: 'organizationId, name, and text are required' });
+      }
+
+      if (!(await hasTimesheetAdminAccess(userId, organizationId))) {
+        return res.status(403).json({ message: 'Only admins can manage rejection templates' });
+      }
+
+      const template = await storage.createRejectionTemplate({ organizationId, name, text, category });
+      res.status(201).json(template);
+    } catch (error) {
+      console.error('Error creating rejection template:', error);
+      res.status(500).json({ message: 'Failed to create rejection template' });
+    }
+  });
+
+  app.put('/api/rejection-templates/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const id = Number(req.params.id);
+      const template = await storage.getRejectionTemplate(id);
+      if (!template) return res.status(404).json({ message: 'Template not found' });
+
+      if (!(await hasTimesheetAdminAccess(userId, template.organizationId))) {
+        return res.status(403).json({ message: 'Only admins can manage rejection templates' });
+      }
+
+      const { name, text, category, sortOrder } = req.body;
+      const updated = await storage.updateRejectionTemplate(id, { name, text, category, sortOrder });
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating rejection template:', error);
+      res.status(500).json({ message: 'Failed to update rejection template' });
+    }
+  });
+
+  app.delete('/api/rejection-templates/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const id = Number(req.params.id);
+      const template = await storage.getRejectionTemplate(id);
+      if (!template) return res.status(404).json({ message: 'Template not found' });
+
+      if (!(await hasTimesheetAdminAccess(userId, template.organizationId))) {
+        return res.status(403).json({ message: 'Only admins can manage rejection templates' });
+      }
+
+      await storage.deleteRejectionTemplate(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting rejection template:', error);
+      res.status(500).json({ message: 'Failed to delete rejection template' });
+    }
+  });
+
+  // ===== Timesheet Comments =====
+
+  app.get('/api/timesheet-comments/:entryId', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const entryId = Number(req.params.entryId);
+      const entry = await storage.getTimesheetEntry(entryId);
+      if (!entry) return res.status(404).json({ message: 'Entry not found' });
+
+      const orgId = entry.organizationId;
+      const resources = await storage.getResources(orgId);
+      const userResource = resources.find(r => r.userId === userId);
+      const isOwner = entry.userId === userId;
+      const isAdmin = await hasTimesheetAdminAccess(userId, orgId);
+      const isApprover = userResource?.isApprover;
+      const activeDelegations = await storage.getActiveDelegationsForDelegate(userId, orgId);
+      if (!isOwner && !isAdmin && !isApprover && activeDelegations.length === 0) {
+        return res.status(403).json({ message: 'Not authorized to view comments for this entry' });
+      }
+
+      const comments = await storage.getTimesheetComments(entryId);
+      res.json(comments);
+    } catch (error) {
+      console.error('Error getting comments:', error);
+      res.status(500).json({ message: 'Failed to get comments' });
+    }
+  });
+
+  app.post('/api/timesheet-comments', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const { entryId, organizationId, text } = req.body;
+      if (!entryId || !organizationId || !text?.trim()) {
+        return res.status(400).json({ message: 'entryId, organizationId, and text are required' });
+      }
+
+      const entry = await storage.getTimesheetEntry(entryId);
+      if (!entry) return res.status(404).json({ message: 'Entry not found' });
+
+      if (entry.organizationId !== organizationId) {
+        return res.status(400).json({ message: 'Organization mismatch' });
+      }
+
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      const isOwner = entry.userId === userId;
+      const isAdmin = await hasTimesheetAdminAccess(userId, organizationId);
+      const isApprover = userResource?.isApprover;
+      const activeDelegations = await storage.getActiveDelegationsForDelegate(userId, organizationId);
+      if (!isOwner && !isAdmin && !isApprover && activeDelegations.length === 0) {
+        return res.status(403).json({ message: 'Not authorized to comment on this entry' });
+      }
+
+      const comment = await storage.createTimesheetComment({
+        entryId,
+        organizationId,
+        userId,
+        text: text.trim(),
+        commentType: 'comment',
+      });
+      res.status(201).json(comment);
+    } catch (error) {
+      console.error('Error creating comment:', error);
+      res.status(500).json({ message: 'Failed to create comment' });
+    }
+  });
+
+  // ===== Team Review Dashboard =====
+
+  app.get('/api/timesheets/team-review', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+
+      if (!organizationId || !startDate || !endDate) {
+        return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
+      }
+
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      const isApprover = userResource?.isApprover === true;
+      const isAdmin = await hasTimesheetAdminAccess(userId, organizationId);
+
+      const activeDelegations = await storage.getActiveDelegationsForDelegate(userId, organizationId);
+      const isDelegateApprover = activeDelegations.length > 0;
+
+      if (!isApprover && !isAdmin && !isDelegateApprover) {
+        return res.status(403).json({ message: 'Not authorized to view team review dashboard' });
+      }
+
+      const allEntries = await storage.getAllTimesheetEntriesWithDetails(organizationId, startDate, endDate);
+      const activeResources = resources.filter(r => r.isActive && !r.timesheetHidden && r.userId);
+
+      const teamData = activeResources.map(resource => {
+        const userEntries = allEntries.filter(({ entry }) => entry.resourceId === resource.id);
+        const totalHours = userEntries.reduce((sum, { entry }) => sum + Number(entry.hours || 0), 0);
+        const draft = userEntries.filter(({ entry }) => entry.status === 'Draft').length;
+        const submitted = userEntries.filter(({ entry }) => entry.status === 'Submitted').length;
+        const approved = userEntries.filter(({ entry }) => entry.status === 'Approved').length;
+        const rejected = userEntries.filter(({ entry }) => entry.status === 'Rejected').length;
+
+        return {
+          resourceId: resource.id,
+          userId: resource.userId,
+          displayName: resource.displayName || resource.name,
+          email: resource.email,
+          department: resource.department,
+          title: resource.title,
+          photoUrl: resource.photoUrl,
+          totalHours,
+          entryCount: userEntries.length,
+          draft,
+          submitted,
+          approved,
+          rejected,
+          submissionStatus: draft > 0 ? 'partial' : submitted > 0 ? 'submitted' : approved === userEntries.length && userEntries.length > 0 ? 'approved' : userEntries.length === 0 ? 'no_entries' : 'mixed',
+        };
+      });
+
+      const delegatedForUsers = activeDelegations.map(d => d.delegatorId);
+
+      res.json({
+        team: teamData.sort((a, b) => b.submitted - a.submitted),
+        delegatedForUsers,
+        period: { startDate, endDate },
+      });
+    } catch (error) {
+      console.error('Error getting team review:', error);
+      res.status(500).json({ message: 'Failed to get team review data' });
+    }
+  });
+
+  // ===== SLA Metrics =====
+
+  app.get('/api/timesheets/sla-metrics', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+
+      if (!organizationId || !startDate || !endDate) {
+        return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
+      }
+
+      if (!(await hasTimesheetAdminAccess(userId, organizationId))) {
+        return res.status(403).json({ message: 'Not authorized' });
+      }
+
+      const allEntries = await storage.getAllTimesheetEntriesWithDetails(organizationId, startDate, endDate);
+      const settings = await getEffectiveTimesheetSettings(organizationId);
+      const slaThresholdDays = 3;
+
+      let totalTurnaroundMs = 0;
+      let resolvedCount = 0;
+      let exceedingSla = 0;
+      let pendingExceedingSla = 0;
+      const now = new Date();
+
+      for (const { entry } of allEntries) {
+        if (entry.submittedAt) {
+          if (entry.approvedAt) {
+            const turnaround = new Date(entry.approvedAt).getTime() - new Date(entry.submittedAt).getTime();
+            totalTurnaroundMs += turnaround;
+            resolvedCount++;
+            if (turnaround > slaThresholdDays * 24 * 60 * 60 * 1000) {
+              exceedingSla++;
+            }
+          } else if (entry.status === 'Submitted') {
+            const waitTime = now.getTime() - new Date(entry.submittedAt).getTime();
+            if (waitTime > slaThresholdDays * 24 * 60 * 60 * 1000) {
+              pendingExceedingSla++;
+            }
+          }
+        }
+      }
+
+      const avgTurnaroundHours = resolvedCount > 0 ? Math.round(totalTurnaroundMs / resolvedCount / (1000 * 60 * 60) * 10) / 10 : 0;
+      const avgTurnaroundDays = resolvedCount > 0 ? Math.round(avgTurnaroundHours / 24 * 10) / 10 : 0;
+
+      res.json({
+        avgTurnaroundHours,
+        avgTurnaroundDays,
+        resolvedCount,
+        exceedingSla,
+        pendingExceedingSla,
+        slaThresholdDays,
+        totalSubmitted: allEntries.filter(({ entry }) => entry.submittedAt).length,
+        totalApproved: allEntries.filter(({ entry }) => entry.status === 'Approved').length,
+        totalPending: allEntries.filter(({ entry }) => entry.status === 'Submitted').length,
+      });
+    } catch (error) {
+      console.error('Error getting SLA metrics:', error);
+      res.status(500).json({ message: 'Failed to get SLA metrics' });
     }
   });
 

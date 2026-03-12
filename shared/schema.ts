@@ -752,6 +752,74 @@ export const insertTimesheetAuditLogSchema = createInsertSchema(timesheetAuditLo
 export type InsertTimesheetAuditLog = z.infer<typeof insertTimesheetAuditLogSchema>;
 export type TimesheetAuditLog = typeof timesheetAuditLog.$inferSelect;
 
+export const approvalDelegations = pgTable("approval_delegations", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  delegatorId: varchar("delegator_id").references(() => users.id).notNull(),
+  delegateId: varchar("delegate_id").references(() => users.id).notNull(),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  revokedAt: timestamp("revoked_at"),
+}, (table) => [
+  index("ad_org_idx").on(table.organizationId),
+  index("ad_delegator_idx").on(table.delegatorId),
+  index("ad_delegate_idx").on(table.delegateId),
+]);
+
+export const insertApprovalDelegationSchema = createInsertSchema(approvalDelegations).omit({
+  id: true,
+  createdAt: true,
+  revokedAt: true,
+});
+export type InsertApprovalDelegation = z.infer<typeof insertApprovalDelegationSchema>;
+export type ApprovalDelegation = typeof approvalDelegations.$inferSelect;
+
+export const rejectionTemplates = pgTable("rejection_templates", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  text: text("text").notNull(),
+  category: text("category").default("General"),
+  isActive: boolean("is_active").default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("rt_org_idx").on(table.organizationId),
+]);
+
+export const insertRejectionTemplateSchema = createInsertSchema(rejectionTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertRejectionTemplate = z.infer<typeof insertRejectionTemplateSchema>;
+export type RejectionTemplate = typeof rejectionTemplates.$inferSelect;
+
+export const timesheetComments = pgTable("timesheet_comments", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  entryId: integer("entry_id").references(() => timesheetEntries.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  text: text("text").notNull(),
+  commentType: text("comment_type").default("comment"),
+  statusFrom: text("status_from"),
+  statusTo: text("status_to"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("tc_entry_idx").on(table.entryId),
+  index("tc_org_idx").on(table.organizationId),
+]);
+
+export const insertTimesheetCommentSchema = createInsertSchema(timesheetComments).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertTimesheetComment = z.infer<typeof insertTimesheetCommentSchema>;
+export type TimesheetComment = typeof timesheetComments.$inferSelect;
+
 // Change Requests (Project change control)
 export const changeRequests = pgTable("change_requests", {
   id: serial("id").primaryKey(),
