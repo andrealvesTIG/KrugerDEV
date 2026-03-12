@@ -2124,9 +2124,9 @@ export async function registerRoutes(
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
-      const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
       if (allowed.includes(file.mimetype)) cb(null, true);
-      else cb(new Error('Only JPEG, PNG, GIF, and WebP images are allowed'));
+      else cb(new Error('Only JPEG, PNG, GIF, WebP, and HEIC images are allowed'));
     }
   });
 
@@ -2193,6 +2193,15 @@ export async function registerRoutes(
         }
       }
 
+      if (!photoPath && req.file) {
+        try {
+          const base64 = req.file.buffer.toString('base64');
+          photoPath = `data:${req.file.mimetype};base64,${base64}`;
+        } catch (b64Err) {
+          console.error('Base64 selfie fallback error:', b64Err);
+        }
+      }
+
       if (!photoPath) {
         return res.status(500).json({ message: 'Failed to save selfie photo. Please try again.' });
       }
@@ -2228,7 +2237,12 @@ export async function registerRoutes(
       let selfieBuffer: Buffer | null = null;
       if (lead.photoPath) {
         try {
-          if (lead.photoPath.startsWith('local:')) {
+          if (lead.photoPath.startsWith('data:')) {
+            const base64Data = lead.photoPath.split(',')[1];
+            if (base64Data) {
+              selfieBuffer = Buffer.from(base64Data, 'base64');
+            }
+          } else if (lead.photoPath.startsWith('local:')) {
             const localFilename = lead.photoPath.replace('local:', '');
             const localPath = path.resolve(process.cwd(), 'server', 'selfie-uploads', localFilename);
             if (fs.existsSync(localPath)) {

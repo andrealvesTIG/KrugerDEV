@@ -44,8 +44,13 @@ export default function UnCon2026SelfiePage() {
     if (!file) return;
     setPhotoFile(file);
     const reader = new FileReader();
-    reader.onload = () => {
-      setPhotoDataUrl(reader.result as string);
+    reader.onloadend = () => {
+      if (reader.result && typeof reader.result === 'string') {
+        setPhotoDataUrl(reader.result);
+      }
+    };
+    reader.onerror = () => {
+      console.error("Failed to read photo file");
     };
     reader.readAsDataURL(file);
   }, []);
@@ -73,18 +78,29 @@ export default function UnCon2026SelfiePage() {
         body: formData,
       });
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.message || "Failed to save selfie");
+      const responseText = await response.text();
+      let data: any;
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        throw new Error("Server returned an unexpected response. Please try again.");
       }
 
-      const data = await response.json();
-      setShareToken(data.shareToken);
-      setStep("result");
+      if (!response.ok) {
+        throw new Error(data?.message || "Failed to save selfie");
+      }
+
+      if (data.shareToken) {
+        setShareToken(data.shareToken);
+        setStep("result");
+      } else {
+        throw new Error("Missing share token in response. Please try again.");
+      }
     } catch (error: any) {
+      console.error("Selfie submission error:", error);
       toast({
-        title: "Error",
-        description: error.message || "Something went wrong",
+        title: "Upload failed",
+        description: error.message || "Something went wrong. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -230,7 +246,6 @@ export default function UnCon2026SelfiePage() {
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
-                    capture="user"
                     onChange={handleCapture}
                     className="hidden"
                   />
