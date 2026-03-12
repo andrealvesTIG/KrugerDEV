@@ -477,7 +477,7 @@ export default function Projects() {
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [filterView, setFilterView] = useState<ProjectFilterView>("active");
-  const [sortBy, setSortBy] = useState<"createdAt" | "startDate" | "updatedAt">("createdAt");
+  const [sortBy, setSortBy] = useState<"createdAt" | "startDate" | "updatedAt">("updatedAt");
   const { data: projects, isLoading } = useProjects(currentOrganization?.id, selectedPortfolio !== "all" ? parseInt(selectedPortfolio) : undefined);
   const { data: externalProjects } = useExternalProjects();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
@@ -962,143 +962,148 @@ export default function Projects() {
       </FadeIn>
 
       {/* Filters Bar */}
-      <div className="flex flex-col gap-4 sm:flex-row bg-card p-4 rounded-xl border border-border shadow-sm">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input 
-            className="pl-10 border-border" 
-            placeholder="Search projects..." 
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            data-testid="input-search-projects"
-          />
+      <div className="flex flex-col gap-3 bg-card p-4 rounded-xl border border-border shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input 
+              className="pl-10 border-border" 
+              placeholder="Search projects..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              data-testid="input-search-projects"
+            />
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="w-full sm:w-[200px]">
+              <Select value={selectedPortfolio} onValueChange={setSelectedPortfolio}>
+                <SelectTrigger data-testid="select-portfolio-filter">
+                  <SelectValue placeholder="Filter by Portfolio" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Portfolios</SelectItem>
+                  {portfolios?.map(p => (
+                    <SelectItem key={p.id} value={p.id.toString()}>
+                      <div className="truncate max-w-[200px]" title={p.name}>{p.name}</div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-full sm:w-[180px]">
+              <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                <SelectTrigger data-testid="select-source-filter">
+                  <SelectValue placeholder="Filter by Source" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Projects</SelectItem>
+                  <SelectItem value="manual">
+                    <span className="flex items-center gap-2">
+                      <PenTool className="h-3 w-3" />
+                      Created in App
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="imported">
+                    <span className="flex items-center gap-2">
+                      <Upload className="h-3 w-3" />
+                      Imported
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="external">
+                    <span className="flex items-center gap-2">
+                      <ExternalLink className="h-3 w-3" />
+                      External
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-full sm:w-[180px]">
+              <Select value={sortBy} onValueChange={(v) => setSortBy(v as "createdAt" | "startDate" | "updatedAt")}>
+                <SelectTrigger data-testid="select-sort-by">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="createdAt">
+                    <span className="flex items-center gap-2">
+                      <Calendar className="h-3 w-3" />
+                      Date Created
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="startDate">
+                    <span className="flex items-center gap-2">
+                      <Calendar className="h-3 w-3" />
+                      Start Date
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="updatedAt">
+                    <span className="flex items-center gap-2">
+                      <Calendar className="h-3 w-3" />
+                      Date Updated
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
-        <div className="w-full sm:w-[200px]">
-          <Select value={selectedPortfolio} onValueChange={setSelectedPortfolio}>
-            <SelectTrigger data-testid="select-portfolio-filter">
-              <SelectValue placeholder="Filter by Portfolio" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Portfolios</SelectItem>
-              {portfolios?.map(p => (
-                <SelectItem key={p.id} value={p.id.toString()}>
-                  <div className="truncate max-w-[200px]" title={p.name}>{p.name}</div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="w-full sm:w-[180px]">
-          <Select value={sourceFilter} onValueChange={setSourceFilter}>
-            <SelectTrigger data-testid="select-source-filter">
-              <SelectValue placeholder="Filter by Source" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Projects</SelectItem>
-              <SelectItem value="manual">
-                <span className="flex items-center gap-2">
-                  <PenTool className="h-3 w-3" />
-                  Created in App
-                </span>
-              </SelectItem>
-              <SelectItem value="imported">
-                <span className="flex items-center gap-2">
-                  <Upload className="h-3 w-3" />
-                  Imported
-                </span>
-              </SelectItem>
-              <SelectItem value="external">
-                <span className="flex items-center gap-2">
-                  <ExternalLink className="h-3 w-3" />
-                  External
-                </span>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {/* Sort Dropdown */}
-        <div className="w-full sm:w-[180px]">
-          <Select value={sortBy} onValueChange={(v) => setSortBy(v as "createdAt" | "startDate" | "updatedAt")}>
-            <SelectTrigger data-testid="select-sort-by">
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="createdAt">
-                <span className="flex items-center gap-2">
-                  <Calendar className="h-3 w-3" />
-                  Date Created
-                </span>
-              </SelectItem>
-              <SelectItem value="startDate">
-                <span className="flex items-center gap-2">
-                  <Calendar className="h-3 w-3" />
-                  Start Date
-                </span>
-              </SelectItem>
-              <SelectItem value="updatedAt">
-                <span className="flex items-center gap-2">
-                  <Calendar className="h-3 w-3" />
-                  Date Updated
-                </span>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {/* View Toggle */}
-        <div className="flex rounded-lg border border-border overflow-hidden">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap sm:flex-nowrap rounded-lg border border-border overflow-hidden">
+            <Button
+              variant={view === "list" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => handleViewChange("list")}
+              className="rounded-none"
+              data-testid="button-view-list"
+            >
+              <List className="h-4 w-4 mr-2" />
+              List
+            </Button>
+            <Button
+              variant={view === "grid" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => handleViewChange("grid")}
+              className="rounded-none"
+              data-testid="button-view-grid"
+            >
+              <Table2 className="h-4 w-4 mr-2" />
+              Grid
+            </Button>
+            <Button
+              variant={view === "kanban" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => handleViewChange("kanban")}
+              className="rounded-none"
+              data-testid="button-view-kanban"
+            >
+              <LayoutGrid className="h-4 w-4 mr-2" />
+              Kanban
+            </Button>
+            <Button
+              variant={view === "gantt" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => handleViewChange("gantt")}
+              className="rounded-none"
+              data-testid="button-view-gantt"
+            >
+              <GanttChart className="h-4 w-4 mr-2" />
+              Gantt
+            </Button>
+          </div>
+          <div className="flex-1" />
           <Button
-            variant={view === "grid" ? "default" : "ghost"}
+            variant="outline"
             size="sm"
-            onClick={() => handleViewChange("grid")}
-            className="rounded-none"
-            data-testid="button-view-grid"
+            onClick={() => {
+              sidebarWasCollapsed.current = sidebarCollapsed;
+              setSidebarCollapsed(true);
+              setIsFullscreen(true);
+            }}
+            data-testid="button-fullscreen"
           >
-            <Table2 className="h-4 w-4 mr-2" />
-            Grid
-          </Button>
-          <Button
-            variant={view === "list" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => handleViewChange("list")}
-            className="rounded-none"
-            data-testid="button-view-list"
-          >
-            <List className="h-4 w-4 mr-2" />
-            List
-          </Button>
-          <Button
-            variant={view === "kanban" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => handleViewChange("kanban")}
-            className="rounded-none"
-            data-testid="button-view-kanban"
-          >
-            <LayoutGrid className="h-4 w-4 mr-2" />
-            Kanban
-          </Button>
-          <Button
-            variant={view === "gantt" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => handleViewChange("gantt")}
-            className="rounded-none"
-            data-testid="button-view-gantt"
-          >
-            <GanttChart className="h-4 w-4 mr-2" />
-            Gantt
+            <Maximize2 className="h-4 w-4" />
           </Button>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            sidebarWasCollapsed.current = sidebarCollapsed;
-            setSidebarCollapsed(true);
-            setIsFullscreen(true);
-          }}
-          data-testid="button-fullscreen"
-        >
-          <Maximize2 className="h-4 w-4" />
-        </Button>
       </div>
 
       {/* Fullscreen Container */}
@@ -1293,6 +1298,7 @@ const ALL_GRID_COLUMNS: GridColumn[] = [
   { id: "source", label: "Source", defaultVisible: false },
   { id: "owner", label: "Manager", defaultVisible: false },
   { id: "createdAt", label: "Created Date", defaultVisible: false },
+  { id: "updatedAt", label: "Updated Date", defaultVisible: false },
   { id: "description", label: "Description", defaultVisible: false },
 ];
 
@@ -1563,8 +1569,11 @@ function ProjectsGridView({
     source: 100,
     owner: 150,
     createdAt: 120,
+    updatedAt: 120,
     description: 200,
   }), []);
+
+  const defaultGridSort = useMemo(() => ({ columnId: 'updatedAt' as const, direction: 'desc' as const }), []);
 
   const {
     columnWidths,
@@ -1577,6 +1586,7 @@ function ProjectsGridView({
     viewType: 'grid',
     organizationId,
     defaultWidths,
+    defaultSort: defaultGridSort,
   });
 
   const getFieldValue = useCallback((project: Project, columnId: string): any => {
@@ -1609,6 +1619,7 @@ function ProjectsGridView({
       case 'source': return project.source;
       case 'owner': return project.managerId;
       case 'createdAt': return project.createdAt ? new Date(project.createdAt) : null;
+      case 'updatedAt': return (project as any).updatedAt ? new Date((project as any).updatedAt) : (project.createdAt ? new Date(project.createdAt) : null);
       case 'description': return project.description;
       default: return null;
     }
@@ -2097,6 +2108,8 @@ function ProjectsGridView({
         ) : <span className="text-sm">-</span>;
       case "createdAt":
         return <span className="text-sm">{project.createdAt ? format(new Date(project.createdAt), 'MMM d, yyyy') : "-"}</span>;
+      case "updatedAt":
+        return <span className="text-sm">{(project as any).updatedAt ? format(new Date((project as any).updatedAt), 'MMM d, yyyy') : "-"}</span>;
       default:
         return "-";
     }
