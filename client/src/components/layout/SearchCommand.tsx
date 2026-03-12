@@ -168,13 +168,14 @@ export function SearchCommand() {
     <>
       <Button
         variant="outline"
-        className="relative h-9 w-full justify-start text-sm text-muted-foreground sm:pr-12 md:w-64"
+        className="relative h-9 w-9 p-0 sm:w-full sm:justify-start sm:px-3 text-sm text-muted-foreground sm:pr-12 md:w-64"
         onClick={() => setOpen(true)}
+        aria-label="Search"
         data-testid="button-global-search"
       >
-        <Search className="mr-2 h-4 w-4" />
+        <Search className="h-4 w-4 sm:mr-2 flex-shrink-0" />
         <span className="hidden lg:inline-flex">Search everything...</span>
-        <span className="inline-flex lg:hidden">Search...</span>
+        <span className="hidden sm:inline-flex lg:hidden">Search...</span>
         <kbd className="pointer-events-none absolute right-1.5 top-1.5 hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
           <span className="text-xs">⌘</span>K
         </kbd>
