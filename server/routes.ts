@@ -19544,6 +19544,47 @@ Return ONLY valid JSON.`;
   }
 
   // Helper: log timesheet audit event
+  function getWeekBounds(entryDate: string): { startDate: string; endDate: string } {
+    const d = new Date(entryDate + 'T00:00:00Z');
+    const day = d.getUTCDay();
+    const diffToMonday = day === 0 ? -6 : 1 - day;
+    const monday = new Date(d);
+    monday.setUTCDate(d.getUTCDate() + diffToMonday);
+    const sunday = new Date(monday);
+    sunday.setUTCDate(monday.getUTCDate() + 6);
+    const fmt = (dt: Date) => dt.toISOString().split('T')[0];
+    return { startDate: fmt(monday), endDate: fmt(sunday) };
+  }
+
+  async function checkWeeklyHourLimits(
+    userId: string,
+    organizationId: number,
+    entryDate: string,
+    newHours: number,
+    existingEntryId?: number,
+  ): Promise<{ ok: boolean; message?: string }> {
+    const settings = await storage.getTimesheetSettings(organizationId);
+    if (!settings?.maxWeeklyHours) return { ok: true };
+
+    const maxHours = Number(settings.maxWeeklyHours);
+    const { startDate, endDate } = getWeekBounds(entryDate);
+    const entries = await storage.getTimesheetEntries(userId, organizationId, startDate, endDate);
+    let weekTotal = entries.reduce((sum, e) => sum + Number(e.hours || 0), 0);
+
+    if (existingEntryId) {
+      const existing = entries.find(e => e.id === existingEntryId);
+      if (existing) {
+        weekTotal -= Number(existing.hours || 0);
+      }
+    }
+
+    weekTotal += newHours;
+    if (weekTotal > maxHours) {
+      return { ok: false, message: `Adding ${newHours}h would bring weekly total to ${weekTotal}h, exceeding the ${maxHours}h maximum` };
+    }
+    return { ok: true };
+  }
+
   async function logTimesheetAudit(params: {
     organizationId: number;
     entryId?: number;
@@ -19594,6 +19635,12 @@ Return ONLY valid JSON.`;
       const settings = await storage.getTimesheetSettings(organizationId);
       if (settings?.mandatoryNotes && (!notes || !notes.trim())) {
         return res.status(400).json({ message: 'Notes are required for all timesheet entries' });
+      }
+
+      // Enforce weekly hour limits on create
+      const weekLimitCheck = await checkWeeklyHourLimits(userId, organizationId, entryDate, hoursNum);
+      if (!weekLimitCheck.ok) {
+        return res.status(400).json({ message: weekLimitCheck.message });
       }
 
       // Verify user is assigned to this task
@@ -19729,6 +19776,13 @@ Return ONLY valid JSON.`;
 
         if (settings?.mandatoryNotes && hoursNum > 0 && (!entry.notes || !String(entry.notes).trim())) {
           continue;
+        }
+
+        if (hoursNum > 0 && settings?.maxWeeklyHours) {
+          const weekCheck = await checkWeeklyHourLimits(userId, organizationId, entry.entryDate, hoursNum, entry.id || undefined);
+          if (!weekCheck.ok) {
+            continue;
+          }
         }
 
         if (entry.id) {
@@ -19896,6 +19950,13 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'Notes are required for all timesheet entries' });
       }
 
+      if (hours !== undefined) {
+        const weekLimitCheck = await checkWeeklyHourLimits(userId, entry.organizationId, entry.entryDate, effectiveHours, id);
+        if (!weekLimitCheck.ok) {
+          return res.status(400).json({ message: weekLimitCheck.message });
+        }
+      }
+
       const beforeSnapshot = { hours: entry.hours, notes: entry.notes };
       const updated = await storage.updateTimesheetEntry(id, {
         hours: hours !== undefined ? String(parseFloat(hours)) : undefined,
@@ -20030,14 +20091,22 @@ Return ONLY valid JSON.`;
         }
       }
 
+      const preSubmitEntries = await storage.getTimesheetEntries(userId, organizationId, startDate, endDate);
+      const draftEntries = preSubmitEntries.filter(e => e.status === 'Draft');
+
       await storage.submitTimesheetWeek(userId, organizationId, startDate, endDate);
 
-      await logTimesheetAudit({
-        organizationId,
-        action: 'submit_week',
-        actorId: userId,
-        metadata: { startDate, endDate },
-      });
+      for (const entry of draftEntries) {
+        await logTimesheetAudit({
+          organizationId,
+          entryId: entry.id,
+          action: 'submit',
+          actorId: userId,
+          before: { status: 'Draft', hours: entry.hours, notes: entry.notes },
+          after: { status: 'Submitted', hours: entry.hours, notes: entry.notes },
+          metadata: { startDate, endDate, taskId: entry.taskId, entryDate: entry.entryDate },
+        });
+      }
 
       res.json({ success: true });
     } catch (error) {
@@ -20613,6 +20682,11 @@ Return ONLY valid JSON.`;
       const settings = await storage.getTimesheetSettings(organizationId);
       if (settings?.mandatoryNotes && (!notes || !notes.trim())) {
         return res.status(400).json({ message: 'Notes are required for all timesheet entries' });
+      }
+
+      const weekLimitCheck = await checkWeeklyHourLimits(targetResource.userId!, organizationId, entryDate, hoursNum);
+      if (!weekLimitCheck.ok) {
+        return res.status(400).json({ message: weekLimitCheck.message });
       }
 
       const periodCheck = await isDateInClosedPeriodWithGrace(organizationId, entryDate);
