@@ -141,67 +141,152 @@ export default function ProfileAnalytics() {
 
   const handleShareLinkedIn = useCallback(() => {
     const url = encodeURIComponent(profileUrl);
-    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank', 'width=600,height=500');
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank', 'noopener,noreferrer,width=600,height=500');
   }, [profileUrl]);
 
   const handleShareTwitter = useCallback(() => {
     const url = encodeURIComponent(profileUrl);
     const text = encodeURIComponent(`Check out my PM profile and achievements on FridayReport.AI! #ProjectManagement #PMO`);
-    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank', 'width=600,height=500');
+    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank', 'noopener,noreferrer,width=600,height=500');
   }, [profileUrl]);
 
   const handleShareTeams = useCallback(() => {
     const url = encodeURIComponent(profileUrl);
     const text = encodeURIComponent(`Check out my PM profile and achievements on FridayReport.AI!`);
-    window.open(`https://teams.microsoft.com/share?href=${url}&msgText=${text}`, '_blank', 'width=600,height=500');
+    window.open(`https://teams.microsoft.com/share?href=${url}&msgText=${text}`, '_blank', 'noopener,noreferrer,width=600,height=500');
   }, [profileUrl]);
 
-  const handleDownloadBadge = useCallback(async (badgeId: string, badgeName: string, badgeIcon: string, badgeDescription: string) => {
+  const generateBadgeCanvas = useCallback(async (badgeName: string, badgeIcon: string, badgeDescription: string, current: number, threshold: number): Promise<string> => {
     const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Project Manager";
+    const w = 800;
+    const h = 500;
+    const dpr = 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    const ctx = canvas.getContext('2d')!;
+    ctx.scale(dpr, dpr);
+
+    const drawRoundRect = (x: number, y: number, rw: number, rh: number, r: number) => {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + rw - r, y);
+      ctx.quadraticCurveTo(x + rw, y, x + rw, y + r);
+      ctx.lineTo(x + rw, y + rh - r);
+      ctx.quadraticCurveTo(x + rw, y + rh, x + rw - r, y + rh);
+      ctx.lineTo(x + r, y + rh);
+      ctx.quadraticCurveTo(x, y + rh, x, y + rh - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    };
+
+    const truncateText = (text: string, maxWidth: number): string => {
+      if (ctx.measureText(text).width <= maxWidth) return text;
+      let truncated = text;
+      while (truncated.length > 0 && ctx.measureText(truncated + '...').width > maxWidth) {
+        truncated = truncated.slice(0, -1);
+      }
+      return truncated + '...';
+    };
+
+    const grad = ctx.createLinearGradient(0, 0, w, h);
+    grad.addColorStop(0, '#1a1f36');
+    grad.addColorStop(1, '#0f1628');
+    ctx.fillStyle = grad;
+    drawRoundRect(0, 0, w, h, 24);
+    ctx.fill();
+    ctx.save();
+    ctx.clip();
+
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.03)';
+    ctx.beginPath(); ctx.arc(w - 80, 100, 200, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(59, 130, 246, 0.03)';
+    ctx.beginPath(); ctx.arc(80, h - 60, 180, 0, Math.PI * 2); ctx.fill();
+
     try {
-      const container = document.createElement('div');
-      container.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:400px;padding:32px;background:#ffffff;font-family:system-ui,-apple-system,sans-serif;border-radius:16px;border:2px solid #f59e0b30;';
+      const logoImg = new Image();
+      logoImg.crossOrigin = 'anonymous';
+      await new Promise<void>((resolve) => {
+        logoImg.onload = () => resolve();
+        logoImg.onerror = () => resolve();
+        logoImg.src = '/logo-icon.png';
+      });
+      if (logoImg.complete && logoImg.naturalWidth > 0) {
+        ctx.drawImage(logoImg, 32, 24, 28, 28);
+      }
+    } catch {}
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '600 15px system-ui, -apple-system, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('FridayReport.AI', 68, 44);
 
-      const logoRow = document.createElement('div');
-      logoRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:20px;';
-      logoRow.innerHTML = `<img src="/logo-icon.png" style="width:20px;height:20px;" /><span style="font-size:12px;color:#6b7280;">FridayReport.AI</span>`;
-      container.appendChild(logoRow);
+    const badgeEmojiMap: Record<string, string> = {
+      rocket: '\u{1F680}', briefcase: '\u{1F4BC}', building: '\u{1F3E2}',
+      'list-checks': '\u2705', 'check-circle': '\u2714\uFE0F', zap: '\u26A1',
+      shield: '\u{1F6E1}\uFE0F', 'shield-check': '\u{1F6E1}\uFE0F', bug: '\u{1F41B}',
+      flag: '\u{1F3C1}', activity: '\u{1F4C8}', flame: '\u{1F525}', layers: '\u{1F4DA}',
+    };
 
-      const badgeEmojiMap: Record<string, string> = {
-        rocket: '\u{1F680}', briefcase: '\u{1F4BC}', building: '\u{1F3E2}',
-        'list-checks': '\u2705', 'check-circle': '\u2714\uFE0F', zap: '\u26A1',
-        shield: '\u{1F6E1}\uFE0F', 'shield-check': '\u{1F6E1}\uFE0F', bug: '\u{1F41B}',
-        flag: '\u{1F3C1}', activity: '\u{1F4C8}', flame: '\u{1F525}', layers: '\u{1F4DA}',
-      };
-      const iconDiv = document.createElement('div');
-      iconDiv.style.cssText = 'text-align:center;margin-bottom:12px;font-size:40px;';
-      iconDiv.textContent = badgeEmojiMap[badgeIcon] || '\u{1F3C6}';
-      container.appendChild(iconDiv);
+    const cx = w / 2;
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.1)';
+    ctx.beginPath(); ctx.arc(cx, 150, 52, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(245, 158, 11, 0.4)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, 150, 52, 0, Math.PI * 2); ctx.stroke();
+    ctx.font = '42px system-ui, -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(badgeEmojiMap[badgeIcon] || '\u{1F3C6}', cx, 150);
 
-      const nameDiv = document.createElement('div');
-      nameDiv.style.cssText = 'text-align:center;font-size:18px;font-weight:700;color:#1f2937;margin-bottom:4px;';
-      nameDiv.textContent = badgeName;
-      container.appendChild(nameDiv);
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = 'bold 28px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillText(truncateText(badgeName, w - 120), cx, 236);
 
-      const descDiv = document.createElement('div');
-      descDiv.style.cssText = 'text-align:center;font-size:13px;color:#6b7280;margin-bottom:16px;';
-      descDiv.textContent = badgeDescription;
-      container.appendChild(descDiv);
+    ctx.font = '16px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(truncateText(badgeDescription, w - 120), cx, 264);
 
-      const separator = document.createElement('div');
-      separator.style.cssText = 'height:1px;background:#e5e7eb;margin-bottom:12px;';
-      container.appendChild(separator);
+    const pillW = 120;
+    const pillH = 36;
+    const pillX = cx - pillW / 2;
+    const pillY = 284;
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.15)';
+    drawRoundRect(pillX, pillY, pillW, pillH, pillH / 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(245, 158, 11, 0.5)';
+    ctx.lineWidth = 1.5;
+    drawRoundRect(pillX, pillY, pillW, pillH, pillH / 2);
+    ctx.stroke();
+    ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillText(`${current}/${threshold}`, cx, pillY + 24);
 
-      const userDiv = document.createElement('div');
-      userDiv.style.cssText = 'text-align:center;font-size:14px;color:#374151;';
-      userDiv.innerHTML = `Earned by <strong>${displayName}</strong>`;
-      container.appendChild(userDiv);
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(120, 345); ctx.lineTo(w - 120, 345); ctx.stroke();
 
-      document.body.appendChild(container);
-      const { toPng } = await import('html-to-image');
-      const dataUrl = await toPng(container, { pixelRatio: 2, backgroundColor: '#ffffff' });
-      document.body.removeChild(container);
+    ctx.font = '15px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#64748b';
+    ctx.fillText('Earned by', cx, 378);
 
+    ctx.font = 'bold 22px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillText(truncateText(displayName, w - 120), cx, 408);
+
+    ctx.font = '13px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#475569';
+    ctx.fillText('fridayreport.ai/badges  \u2022  Project Portfolio Management', cx, h - 28);
+
+    ctx.restore();
+    return canvas.toDataURL('image/png');
+  }, [user]);
+
+  const handleDownloadBadge = useCallback(async (badgeId: string, badgeName: string, badgeIcon: string, badgeDescription: string, current: number, threshold: number) => {
+    try {
+      const dataUrl = await generateBadgeCanvas(badgeName, badgeIcon, badgeDescription, current, threshold);
       const link = document.createElement('a');
       link.download = `FridayReport-Badge-${badgeName.replace(/\s+/g, '-')}.png`;
       link.href = dataUrl;
@@ -210,7 +295,38 @@ export default function ProfileAnalytics() {
     } catch {
       toast({ title: "Error", description: "Failed to download badge image.", variant: "destructive" });
     }
-  }, [toast, user]);
+  }, [toast, generateBadgeCanvas]);
+
+  const handleShareBadge = useCallback(async (badgeName: string, badgeIcon: string, badgeDescription: string, current: number, threshold: number, platform: 'linkedin' | 'twitter' | 'teams') => {
+    try {
+      const dataUrl = await generateBadgeCanvas(badgeName, badgeIcon, badgeDescription, current, threshold);
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], `FridayReport-Badge-${badgeName.replace(/\s+/g, '-')}.png`, { type: 'image/png' });
+      const shareText = `I just earned the "${badgeName}" badge on FridayReport.AI! ${badgeDescription} #ProjectManagement #PMO #FridayReportAI`;
+      const shareUrl = profileUrl;
+
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ title: `${badgeName} Badge - FridayReport.AI`, text: shareText, files: [file] });
+        return;
+      }
+
+      const link = document.createElement('a');
+      link.download = `FridayReport-Badge-${badgeName.replace(/\s+/g, '-')}.png`;
+      link.href = dataUrl;
+      link.click();
+
+      if (platform === 'linkedin') {
+        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, '_blank', 'noopener,noreferrer,width=600,height=500');
+      } else if (platform === 'twitter') {
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank', 'noopener,noreferrer,width=600,height=500');
+      } else {
+        window.open(`https://teams.microsoft.com/share?href=${encodeURIComponent(shareUrl)}&msgText=${encodeURIComponent(shareText)}`, '_blank', 'noopener,noreferrer,width=600,height=500');
+      }
+      toast({ title: "Badge image downloaded!", description: "Attach it to your post for maximum impact." });
+    } catch {
+      toast({ title: "Error", description: "Failed to share badge.", variant: "destructive" });
+    }
+  }, [toast, generateBadgeCanvas, profileUrl]);
 
   if (isLoading) {
     return (
@@ -453,13 +569,34 @@ export default function ProfileAnalytics() {
                     className="flex flex-col items-center text-center p-3 rounded-lg border-2 border-amber-500/30 bg-amber-500/5 relative group"
                   >
                     <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
-                      <button
-                        onClick={() => handleDownloadBadge(badge.id, badge.name, badge.icon, badge.description)}
-                        className="p-1 rounded hover:bg-amber-500/10 text-muted-foreground hover:text-amber-600"
-                        title="Download badge as PNG"
-                      >
-                        <Download className="h-3 w-3" />
-                      </button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            className="p-1 rounded hover:bg-amber-500/10 text-muted-foreground hover:text-amber-600"
+                            title="Share badge"
+                          >
+                            <Share2 className="h-3 w-3" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuItem onClick={() => handleDownloadBadge(badge.id, badge.name, badge.icon, badge.description, badge.current, badge.threshold)}>
+                            <Download className="h-3.5 w-3.5 mr-2" />
+                            Download PNG
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleShareBadge(badge.name, badge.icon, badge.description, badge.current, badge.threshold, 'linkedin')}>
+                            <svg className="h-3.5 w-3.5 mr-2 flex-shrink-0" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4" fill="#0A66C2"/><path d="M7.5 10v7M7.5 7v.01M10.5 17v-4a2 2 0 014 0v4M10.5 10v7" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            LinkedIn
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleShareBadge(badge.name, badge.icon, badge.description, badge.current, badge.threshold, 'twitter')}>
+                            <svg className="h-3.5 w-3.5 mr-2 flex-shrink-0" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4" fill="#000"/><path d="M16.99 3.75h2.7l-5.9 6.74 6.94 9.18h-5.44l-4.26-5.57-4.87 5.57H3.35l6.31-7.21L3.08 3.75h5.58l3.85 5.09zm-.95 14.31h1.5L8.14 5.29H6.52z" fill="#fff"/></svg>
+                            X (Twitter)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleShareBadge(badge.name, badge.icon, badge.description, badge.current, badge.threshold, 'teams')}>
+                            <svg className="h-3.5 w-3.5 mr-2 flex-shrink-0" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4" fill="#5059C9"/><circle cx="18" cy="6.5" r="2" fill="#7B83EB"/><path d="M20 9.5h-3.5a.5.5 0 00-.5.5v4.5a2.25 2.25 0 004.5 0V10a.5.5 0 00-.5-.5z" fill="#7B83EB"/><circle cx="12.5" cy="6" r="2.5" fill="#fff"/><path d="M16 9.5H9a.5.5 0 00-.5.5v5a3.25 3.25 0 006.5 0v-5a1 1 0 00-1-1H16z" fill="#fff"/></svg>
+                            Teams
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                     <div className="text-amber-500 mb-1">
                       {getBadgeIcon(badge.icon, "h-7 w-7")}

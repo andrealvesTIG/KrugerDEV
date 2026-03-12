@@ -38,7 +38,7 @@ The application features an enterprise-grade UI inspired by Linear and Asana, bu
 **Dependency Type Selection**: Full-stack support for FS/SS/FF/SF dependency types with lag days, including API routes, UI selectors, and server-side date adjustments.
 **Organization Scheduling Defaults**: Allows defining and enforcing default dependency types and lag days at the organization level via API and UI settings.
 **Professional Profile & Analytics**: Features a user profile with credentials, an analytics dashboard displaying engagement statistics, a weekly activity chart, feature usage, a tiered professional ranking system, and an achievement badge gallery.
-**Shareable Branded Badges**: Allows users to share their profile and earned badges externally via branded images and a public profile page.
+**Shareable Branded Badges**: Allows users to share their profile and earned badges externally via branded images and a public profile page. Individual badge download uses Canvas API to generate high-quality branded PNG cards with dark theme, badge emoji, progress counter, and user attribution. Per-badge share dropdown supports LinkedIn, X/Twitter, and Teams with auto-download of the PNG image.
 **AI Create Features**: Incorporates AI for smart project matching to prevent duplication and facilitate context-aware generation of tasks, risks, issues, and milestones. All AI Create actions are logged.
 
 ## External Dependencies
