@@ -69,6 +69,7 @@ const ConstructionLandingPage = lazy(() => import("@/pages/ConstructionLandingPa
 const EnergyLandingPage = lazy(() => import("@/pages/EnergyLandingPage"));
 const GovernmentLandingPage = lazy(() => import("@/pages/GovernmentLandingPage"));
 const UnCon2026LandingPage = lazy(() => import("@/pages/UnCon2026LandingPage"));
+const UnCon2026SelfiePage = lazy(() => import("@/pages/UnCon2026SelfiePage"));
 const Training = lazy(() => import("@/pages/Training"));
 const TrainingModule = lazy(() => import("@/pages/TrainingModule"));
 
@@ -315,6 +316,9 @@ function App() {
                 </Route>
                 <Route path="/government">
                   <Suspense fallback={<PageLoader />}><GovernmentLandingPage /></Suspense>
+                </Route>
+                <Route path="/uncon2026/selfie">
+                  <Suspense fallback={<PageLoader />}><UnCon2026SelfiePage /></Suspense>
                 </Route>
                 <Route path="/uncon2026">
                   <Suspense fallback={<PageLoader />}><UnCon2026LandingPage /></Suspense>

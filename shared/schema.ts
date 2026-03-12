@@ -2503,3 +2503,23 @@ export const insertTrainingQuizQuestionSchema = createInsertSchema(trainingQuizQ
 });
 export type InsertTrainingQuizQuestion = z.infer<typeof insertTrainingQuizQuestionSchema>;
 export type TrainingQuizQuestionRecord = typeof trainingQuizQuestions.$inferSelect;
+
+export const unconSelfieLeads = pgTable("uncon_selfie_leads", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  interviewer: varchar("interviewer", { length: 255 }),
+  photoPath: text("photo_path"),
+  shareToken: varchar("share_token", { length: 64 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("uncon_selfie_leads_email_idx").on(table.email),
+  uniqueIndex("uncon_selfie_leads_share_token_idx").on(table.shareToken),
+]);
+
+export const insertUnconSelfieLeadSchema = createInsertSchema(unconSelfieLeads).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertUnconSelfieLead = z.infer<typeof insertUnconSelfieLeadSchema>;
+export type UnconSelfieLeadRecord = typeof unconSelfieLeads.$inferSelect;

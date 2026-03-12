@@ -307,6 +307,19 @@ async function migrate() {
     )`,
 
     `CREATE UNIQUE INDEX IF NOT EXISTS training_questions_lesson_key ON training_quiz_questions (lesson_id, question_key)`,
+
+    `CREATE TABLE IF NOT EXISTS uncon_selfie_leads (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL,
+      interviewer VARCHAR(255),
+      photo_path TEXT,
+      share_token VARCHAR(64) NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`,
+
+    `CREATE INDEX IF NOT EXISTS uncon_selfie_leads_email_idx ON uncon_selfie_leads (email)`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS uncon_selfie_leads_share_token_idx ON uncon_selfie_leads (share_token)`,
   ];
 
   for (const sql of migrations) {
