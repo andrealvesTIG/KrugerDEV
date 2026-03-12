@@ -5,6 +5,13 @@ import { apiRequest } from "@/lib/queryClient";
 export interface TimesheetEntryWithDetails extends TimesheetEntry {
   task?: Task;
   project?: Project;
+  resource?: Resource;
+}
+
+export interface TimesheetPeriodWithGrace extends TimesheetPeriod {
+  inGracePeriod?: boolean;
+  graceEndDate?: string;
+  gracePeriodDays?: number;
 }
 
 export function useTimesheetEntries(userId: string | undefined, organizationId: number | null, startDate: string, endDate: string) {
@@ -257,7 +264,7 @@ export function useTimesheetPeriods(organizationId: number | null) {
 }
 
 export function useClosedTimesheetPeriods(organizationId: number | null, startDate: string, endDate: string) {
-  return useQuery<TimesheetPeriod[]>({
+  return useQuery<TimesheetPeriodWithGrace[]>({
     queryKey: ["/api/timesheet-periods/closed", organizationId, startDate, endDate],
     enabled: !!organizationId && !!startDate && !!endDate,
     staleTime: 1000 * 30, // Cache for 30 seconds

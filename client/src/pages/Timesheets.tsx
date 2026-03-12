@@ -1247,9 +1247,9 @@ function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void 
     if (!entries || entries.length === 0) return;
     
     const exportData = entries.map(entry => ({
-      resource: (entry as any).resource?.displayName || "Unknown",
-      project: (entry as any).project?.name || "Unknown",
-      task: (entry as any).task?.name || "Unknown",
+      resource: entry.resource?.displayName || "Unknown",
+      project: entry.project?.name || "Unknown",
+      task: entry.task?.name || "Unknown",
       date: entry.entryDate,
       hours: Number(entry.hours),
       status: entry.status || "Draft",
@@ -1400,7 +1400,7 @@ function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void 
       )}
 
       {Object.entries(groupedByUser).map(([userId, userEntries]) => {
-        const resource = (userEntries[0] as any).resource;
+        const resource = userEntries[0].resource;
         const totalHours = userEntries.reduce((sum, e) => sum + Number(e.hours), 0);
         const userSelectedCount = userEntries.filter(e => selectedIds.has(e.id)).length;
         
@@ -1476,9 +1476,9 @@ function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void 
                         />
                       )}
                       <div className="overflow-hidden">
-                        <div className="font-medium truncate" title={(entry as any).task?.name || "Unknown Task"}>{(entry as any).task?.name || "Unknown Task"}</div>
-                        <div className="text-sm text-muted-foreground truncate" title={`${(entry as any).project?.name || "Unknown Project"} • ${entry.entryDate}`}>
-                          {(entry as any).project?.name || "Unknown Project"} • {entry.entryDate}
+                        <div className="font-medium truncate" title={entry.task?.name || "Unknown Task"}>{entry.task?.name || "Unknown Task"}</div>
+                        <div className="text-sm text-muted-foreground truncate" title={`${entry.project?.name || "Unknown Project"} • ${entry.entryDate}`}>
+                          {entry.project?.name || "Unknown Project"} • {entry.entryDate}
                         </div>
                         {entry.notes && (
                           <div className="text-sm text-muted-foreground mt-1 flex items-start gap-1">
@@ -2886,7 +2886,7 @@ export default function Timesheets() {
     const dateStr = formatDateKey(date);
     return closedPeriods.some(period => {
       if (dateStr < period.startDate || dateStr > period.endDate) return false;
-      if ((period as any).inGracePeriod) return false;
+      if (period.inGracePeriod) return false;
       return true;
     });
   }, [closedPeriods]);
