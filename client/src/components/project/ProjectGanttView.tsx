@@ -743,13 +743,12 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
       if (value) {
         const currentDuration = task.durationDays ?? (task.startDate && task.endDate
           ? calculateDurationInWorkingDays(task.startDate, task.endDate) : 1);
-        const effectiveDuration = currentDuration === 0 ? 0 : Math.max(1, currentDuration);
-        if (effectiveDuration === 0) {
+        if (currentDuration === 0) {
           updates.endDate = value as string;
         } else {
-          updates.endDate = calculateEndDateFromWorkingDays(value as string, effectiveDuration);
+          updates.endDate = calculateEndDateFromWorkingDays(value as string, currentDuration);
         }
-        updates.durationDays = effectiveDuration;
+        updates.durationDays = currentDuration;
       } else {
         updates.endDate = null;
         updates.durationDays = null;
@@ -760,7 +759,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
         const end = parseISO(value as string);
         if (end >= start) {
           const calculatedDuration = calculateDurationInWorkingDays(task.startDate, value as string);
-          updates.durationDays = Math.max(1, calculatedDuration);
+          updates.durationDays = calculatedDuration;
         } else {
           toast({
             title: "Invalid date",
@@ -771,13 +770,12 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
         }
       } else if (value && !task.startDate) {
         const duration = task.durationDays ?? 1;
-        const effectiveDuration = duration === 0 ? 0 : Math.max(1, duration);
-        if (effectiveDuration === 0) {
+        if (duration === 0) {
           updates.startDate = value as string;
         } else {
-          updates.startDate = calculateStartDateFromEndAndDuration(value as string, effectiveDuration);
+          updates.startDate = calculateStartDateFromEndAndDuration(value as string, duration);
         }
-        updates.durationDays = effectiveDuration;
+        updates.durationDays = duration;
       } else if (!value) {
         updates.durationDays = null;
       }

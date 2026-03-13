@@ -379,8 +379,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     if (startDate && newEndDate) {
       const newDuration = calculateDurationInWorkingDays(startDate, newEndDate);
       if (newDuration >= 0) {
-        setDurationInput(formatDuration(Math.max(1, newDuration)));
-        form.setValue("durationDays", Math.max(1, newDuration));
+        setDurationInput(formatDuration(newDuration));
+        form.setValue("durationDays", newDuration);
       }
     }
   };
