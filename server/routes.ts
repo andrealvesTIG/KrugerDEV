@@ -21072,23 +21072,30 @@ Return ONLY valid JSON.`;
 
         if (entry.id) {
           const existing = await storage.getTimesheetEntry(entry.id);
-          if (!existing) continue;
+          if (!existing) {
+            errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: 'Entry not found' });
+            continue;
+          }
           
           if (existing.userId !== userId) {
+            errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: 'You do not own this entry' });
             continue;
           }
           
           if (existing.status !== 'Draft' && existing.status !== 'Rejected') {
+            errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: `Entry is ${existing.status} and cannot be edited` });
             continue;
           }
           
           const isBlocked = await isTaskOrProjectBlocked(existing.taskId, existing.projectId);
           if (isBlocked) {
+            errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: 'Task or project is blocked for timesheet entries' });
             continue;
           }
 
           const isPeriodClosed = await isDateClosed(existing.entryDate);
           if (isPeriodClosed) {
+            errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: 'This date is in a closed period' });
             continue;
           }
           
@@ -21110,16 +21117,19 @@ Return ONLY valid JSON.`;
         } else if (hoursNum > 0) {
           const isAssigned = await validateTaskAssignment(entry.taskId);
           if (!isAssigned) {
+            errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: 'You are not assigned to this task' });
             continue;
           }
           
           const isBlocked = await isTaskOrProjectBlocked(entry.taskId, entry.projectId);
           if (isBlocked) {
+            errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: 'Task or project is blocked for timesheet entries' });
             continue;
           }
 
           const isPeriodClosed = await isDateClosed(entry.entryDate);
           if (isPeriodClosed) {
+            errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: 'This date is in a closed period' });
             continue;
           }
           
@@ -21146,6 +21156,8 @@ Return ONLY valid JSON.`;
                 before: beforeSnapshot,
                 after: { hours: String(hoursNum), notes: entry.notes },
               });
+            } else {
+              errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: `Entry is ${existingEntry.status} and cannot be edited` });
             }
             continue;
           }
