@@ -535,11 +535,11 @@ export default function UnCon2026SelfiePage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={handleRetake} className="flex-1 h-10 text-sm rounded-xl border-gray-200">
-                    <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Retake
-                  </Button>
-                  <button onClick={handleSubmitSelfie} disabled={isSubmitting} className="glow-btn flex-1 h-10 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-1.5 border-0 cursor-pointer disabled:opacity-50">
-                    {isSubmitting ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</> : <><CheckCircle className="h-3.5 w-3.5" /> Looks good!</>}
+                  <button onClick={handleRetake} className="flex-1 h-12 text-sm rounded-xl border-2 border-white/30 bg-white/10 backdrop-blur-sm text-white font-semibold flex items-center justify-center gap-2" style={{ WebkitTapHighlightColor: 'transparent' }}>
+                    <RotateCcw className="h-4 w-4" /> Retake
+                  </button>
+                  <button onClick={handleSubmitSelfie} disabled={isSubmitting} className="glow-btn flex-1 h-12 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 border-0 cursor-pointer disabled:opacity-50">
+                    {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : <><CheckCircle className="h-4 w-4" /> Looks good!</>}
                   </button>
                 </div>
               </div>
