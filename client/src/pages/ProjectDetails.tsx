@@ -3194,14 +3194,14 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
               </div>
             )}
             <div>
-              <div className="flex items-center gap-1">
-                <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Portfolio</Label>
+              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Portfolio
                 {currentPortfolio && (
-                  <Link href={`/portfolios/${currentPortfolio.id}`} className="text-[10px] text-primary hover:underline" data-testid="link-portfolio">
+                  <Link href={`/portfolios/${currentPortfolio.id}`} className="text-[10px] text-primary hover:underline ml-1" data-testid="link-portfolio">
                     (view)
                   </Link>
                 )}
-              </div>
+              </Label>
               <Select value={project.portfolioId?.toString() || "none"} onValueChange={handlePortfolioChange}>
                 <SelectTrigger className="h-8 text-sm" data-testid="select-project-portfolio">
                   <SelectValue>{currentPortfolio?.name || "None"}</SelectValue>
@@ -3234,12 +3234,12 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
               )}
             </div>
             <div>
-              <div className="flex items-center gap-1">
-                <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Completion</Label>
+              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Completion
                 {leafTaskCount > 0 && !isOverridden && (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="text-[9px] text-muted-foreground/70 cursor-help">(from tasks)</span>
+                      <span className="text-[9px] text-muted-foreground/70 cursor-help ml-1">(from tasks)</span>
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>Calculated from {leafTaskCount} task(s)</p>
@@ -3251,7 +3251,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
                     <TooltipTrigger asChild>
                       <button 
                         onClick={resetToCalculated}
-                        className="text-[9px] text-primary hover:underline cursor-pointer"
+                        className="text-[9px] text-primary hover:underline cursor-pointer ml-1"
                         data-testid="button-reset-completion"
                       >
                         (reset to {calculatedCompletion}%)
@@ -3262,7 +3262,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
                     </TooltipContent>
                   </Tooltip>
                 )}
-              </div>
+              </Label>
               {editingField === 'completionPercentage' ? (
                 <Input type="number" min="0" max="100" value={editValues.completionPercentage} onChange={(e) => setEditValues(prev => ({ ...prev, completionPercentage: Number(e.target.value) }))} onBlur={() => handleFieldBlur('completionPercentage')} onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('completionPercentage')} autoFocus className="h-8 text-sm" data-testid="input-project-completion" />
               ) : (
