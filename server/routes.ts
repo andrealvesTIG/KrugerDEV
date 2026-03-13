@@ -2346,8 +2346,8 @@ export async function registerRoutes(
   <meta property="og:title" content="${esc(title)}" />
   <meta property="og:description" content="${esc(description)}" />
   <meta property="og:image" content="${esc(ogImageUrl)}" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
+  <meta property="og:image:width" content="630" />
+  <meta property="og:image:height" content="1120" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="${esc(baseUrl)}/api/uncon2026/selfie/${lead.shareToken}/share" />
   <meta name="twitter:card" content="summary_large_image" />
@@ -2392,7 +2392,7 @@ export async function registerRoutes(
       <p class="description">Snap a selfie, share the moment. Powered by FridayReport.AI \u2014 proud <span class="gold-label">Gold Sponsor</span> of PMO unCON North America 2026.</p>
       <a href="https://fridayreport.ai" class="cta" target="_blank" rel="noopener noreferrer">Learn about FridayReport.AI</a>
       <div class="logos">
-        ${pmiPmogaLogoDataUrl ? `<img src="${pmiPmogaLogoDataUrl}" alt="PMI &middot; PMO Global Alliance" style="filter: invert(1);" />` : `<span style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5)">PMI \u00B7 PMO Global Alliance</span>`}
+        ${pmiPmogaLogoDataUrl ? `<img src="${pmiPmogaLogoDataUrl}" alt="PMI &middot; PMO Global Alliance" style="filter: brightness(0) invert(1); opacity: 0.9;" />` : `<span style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5)">PMI \u00B7 PMO Global Alliance</span>`}
         <div class="sep"></div>
         ${fridayLogoWhiteDataUrl ? `<img src="${fridayLogoWhiteDataUrl}" alt="FridayReport.AI" />` : `<span style="font-size:12px;font-weight:700;color:white">FridayReport.AI</span>`}
       </div>

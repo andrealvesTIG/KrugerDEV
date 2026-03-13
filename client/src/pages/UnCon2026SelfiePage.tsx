@@ -555,7 +555,7 @@ export default function UnCon2026SelfiePage() {
           <div className="space-y-3">
             <div className="selfie-card p-5 w-full">
               <div className="flex items-center justify-center mb-2 pb-2 border-b border-white/10">
-                <img src={pmiPmogaLogo} alt="PMI" className="h-5 object-contain invert opacity-80" />
+                <img src={pmiPmogaLogo} alt="PMI" className="h-5 object-contain" style={{ filter: "brightness(0) invert(1)", opacity: 0.9 }} />
               </div>
               <p className="text-center text-[10px] font-black uppercase tracking-[0.25em] text-amber-400/80 mb-4">PMO unCON 2026</p>
 
