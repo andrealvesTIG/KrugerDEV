@@ -125,62 +125,68 @@ export function ExecutiveDashboard() {
 
   const formatBudget = (amount: number) => formatCurrency(amount, { compact: true });
 
-  const totalProjects = projects?.length || 0;
-  const totalPortfolios = portfolios?.length || 0;
-  const healthyProjects = projects?.filter(p => p.health === "Green").length || 0;
-  const atRiskProjects = projects?.filter(p => p.health === "Yellow").length || 0;
-  const criticalProjects = projects?.filter(p => p.health === "Red").length || 0;
-  const completedProjects = projects?.filter(p => p.status === "Closing").length || 0;
-  const activeProjects = projects?.filter(p => p.status === "Execution").length || 0;
-  const planningProjects = projects?.filter(p => p.status === "Planning").length || 0;
-  const initiationProjects = projects?.filter(p => p.status === "Initiation").length || 0;
-  const totalBudget = projects?.reduce((sum, p) => sum + Number(p.budget || 0), 0) || 0;
-  const avgCompletion = projects?.length ? Math.round(projects.reduce((s, p) => s + (p.completionPercentage || 0), 0) / projects.length) : 0;
-  
-  const filteredProjectIds = new Set(projects.map(p => p.id));
-  const filteredPortfolioIds = new Set(projects.map(p => p.portfolioId).filter(Boolean));
   const hasActiveFilters = filters.portfolioId !== null || filters.projectId || filters.health || filters.dateRange.from || filters.dateRange.to;
 
-  const filteredRisks = hasActiveFilters ? allRisks.filter(r => filteredProjectIds.has(r.projectId)) : allRisks;
-  const openRisks = filteredRisks.filter(r => r.status === "Open" || r.status === "Identified").length;
-  const highRisks = filteredRisks.filter(r => r.probability === "High" || r.impact === "High").length;
-  const filteredIssues = hasActiveFilters ? allIssues.filter(i => filteredProjectIds.has(i.projectId)) : allIssues;
-  const actualIssues = filteredIssues.filter(i => i.itemType !== 'risk');
-  const openIssues = actualIssues.filter(i => i.status === "Open" || i.status === "In Progress").length;
-  const criticalIssues = actualIssues.filter(i => i.priority === "Critical" || i.priority === "High").length;
-  
-  const filteredIntakes = hasActiveFilters && filters.portfolioId
-    ? (intakes || []).filter(i => i.portfolioId === filters.portfolioId)
-    : (intakes || []);
-  const totalIntakes = filteredIntakes.length;
-  const intakesInReview = filteredIntakes.filter(i => i.status === "draft" || i.status === "in_progress").length;
-  const approvedIntakes = filteredIntakes.filter(i => i.status === "approved").length;
+  const kpiStats = useMemo(() => {
+    const totalProjects = projects?.length || 0;
+    const totalPortfolios = portfolios?.length || 0;
+    const healthyProjects = projects?.filter(p => p.health === "Green").length || 0;
+    const atRiskProjects = projects?.filter(p => p.health === "Yellow").length || 0;
+    const criticalProjects = projects?.filter(p => p.health === "Red").length || 0;
+    const completedProjects = projects?.filter(p => p.status === "Closing").length || 0;
+    const activeProjects = projects?.filter(p => p.status === "Execution").length || 0;
+    const planningProjects = projects?.filter(p => p.status === "Planning").length || 0;
+    const initiationProjects = projects?.filter(p => p.status === "Initiation").length || 0;
+    const totalBudget = projects?.reduce((sum, p) => sum + Number(p.budget || 0), 0) || 0;
+    const avgCompletion = projects?.length ? Math.round(projects.reduce((s, p) => s + (p.completionPercentage || 0), 0) / projects.length) : 0;
+    return { totalProjects, totalPortfolios, healthyProjects, atRiskProjects, criticalProjects, completedProjects, activeProjects, planningProjects, initiationProjects, totalBudget, avgCompletion };
+  }, [projects, portfolios]);
 
-  const healthData = [
+  const { totalProjects, totalPortfolios, healthyProjects, atRiskProjects, criticalProjects, completedProjects, activeProjects, planningProjects, initiationProjects, totalBudget, avgCompletion } = kpiStats;
+
+  const { filteredProjectIds, filteredRisks, openRisks, highRisks, filteredIssues, actualIssues, openIssues, criticalIssues, filteredIntakes, totalIntakes, intakesInReview, approvedIntakes } = useMemo(() => {
+    const filteredProjectIds = new Set(projects.map(p => p.id));
+    const filteredRisks = hasActiveFilters ? allRisks.filter(r => filteredProjectIds.has(r.projectId)) : allRisks;
+    const openRisks = filteredRisks.filter(r => r.status === "Open" || r.status === "Identified").length;
+    const highRisks = filteredRisks.filter(r => r.probability === "High" || r.impact === "High").length;
+    const filteredIssues = hasActiveFilters ? allIssues.filter(i => filteredProjectIds.has(i.projectId)) : allIssues;
+    const actualIssues = filteredIssues.filter(i => i.itemType !== 'risk');
+    const openIssues = actualIssues.filter(i => i.status === "Open" || i.status === "In Progress").length;
+    const criticalIssues = actualIssues.filter(i => i.priority === "Critical" || i.priority === "High").length;
+    const filteredIntakes = hasActiveFilters && filters.portfolioId
+      ? (intakes || []).filter(i => i.portfolioId === filters.portfolioId)
+      : (intakes || []);
+    const totalIntakes = filteredIntakes.length;
+    const intakesInReview = filteredIntakes.filter(i => i.status === "draft" || i.status === "in_progress").length;
+    const approvedIntakes = filteredIntakes.filter(i => i.status === "approved").length;
+    return { filteredProjectIds, filteredRisks, openRisks, highRisks, filteredIssues, actualIssues, openIssues, criticalIssues, filteredIntakes, totalIntakes, intakesInReview, approvedIntakes };
+  }, [projects, allRisks, allIssues, intakes, hasActiveFilters, filters.portfolioId]);
+
+  const healthData = useMemo(() => [
     { name: "Healthy", value: healthyProjects, color: COLORS.Green },
     { name: "At Risk", value: atRiskProjects, color: COLORS.Yellow },
     { name: "Critical", value: criticalProjects, color: COLORS.Red },
-  ].filter(d => d.value > 0);
+  ].filter(d => d.value > 0), [healthyProjects, atRiskProjects, criticalProjects]);
 
-  const statusData = [
+  const statusData = useMemo(() => [
     { name: "Initiation", count: initiationProjects, fill: COLORS.Cyan },
     { name: "Planning", count: planningProjects, fill: COLORS.Blue },
     { name: "Execution", count: activeProjects, fill: COLORS.Purple },
     { name: "Closing", count: completedProjects, fill: COLORS.Green },
-  ].filter(d => d.count > 0);
+  ].filter(d => d.count > 0), [initiationProjects, planningProjects, activeProjects, completedProjects]);
 
-  const priorityProjects = [...projects]
+  const priorityProjects = useMemo(() => [...projects]
     .filter(p => p.health === "Red" || p.health === "Yellow")
     .sort((a, b) => {
       if (a.health === "Red" && b.health !== "Red") return -1;
       if (b.health === "Red" && a.health !== "Red") return 1;
       return (b.completionPercentage || 0) - (a.completionPercentage || 0);
     })
-    .slice(0, 6);
+    .slice(0, 6), [projects]);
 
-  const topProjects = [...projects]
+  const topProjects = useMemo(() => [...projects]
     .sort((a, b) => Number(b.budget || 0) - Number(a.budget || 0))
-    .slice(0, 6);
+    .slice(0, 6), [projects]);
 
   return (
     <div className="space-y-4">

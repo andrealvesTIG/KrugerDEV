@@ -80,52 +80,54 @@ export default function SuperAdmin() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Crown className="h-8 w-8 text-amber-500" />
-        <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Super Admin Console</h1>
-          <p className="text-muted-foreground">Manage all organizations and system users</p>
+        <Crown className="h-6 w-6 sm:h-8 sm:w-8 text-amber-500 shrink-0" />
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-3xl font-display font-bold text-foreground truncate">Super Admin Console</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Manage all organizations and system users</p>
         </div>
       </div>
 
       <Tabs defaultValue="monitoring" className="w-full">
-        <TabsList className="bg-muted p-1 rounded-xl">
-          <TabsTrigger value="monitoring" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2" data-testid="tab-monitoring">
-            <Activity className="h-4 w-4" />
-            Analytics
-          </TabsTrigger>
-          <TabsTrigger value="organizations" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2">
-            <Building2 className="h-4 w-4" />
-            Organizations
-          </TabsTrigger>
-          <TabsTrigger value="users" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2">
-            <Users className="h-4 w-4" />
-            All Users
-          </TabsTrigger>
-          <TabsTrigger value="plans" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2">
-            <CreditCard className="h-4 w-4" />
-            Plans
-          </TabsTrigger>
-          <TabsTrigger value="credits" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2">
-            <Wallet className="h-4 w-4" />
-            Credit Pricing
-          </TabsTrigger>
-          <TabsTrigger value="consents" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2">
-            <FileCheck className="h-4 w-4" />
-            User Consents
-          </TabsTrigger>
-          <TabsTrigger value="help-tickets" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2" data-testid="tab-help-tickets">
-            <HelpCircle className="h-4 w-4" />
-            Help Tickets
-          </TabsTrigger>
-          <TabsTrigger value="feature-comparison" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2" data-testid="tab-feature-comparison">
-            <BarChart3 className="h-4 w-4" />
-            Feature Comparison
-          </TabsTrigger>
-          <TabsTrigger value="training" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2" data-testid="tab-training">
-            <GraduationCap className="h-4 w-4" />
-            Training
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto scrollbar-none -mx-1 px-1">
+          <TabsList className="bg-muted p-1 rounded-xl inline-flex w-auto min-w-full sm:w-full">
+            <TabsTrigger value="monitoring" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2" data-testid="tab-monitoring">
+              <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Analytics
+            </TabsTrigger>
+            <TabsTrigger value="organizations" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2">
+              <Building2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Orgs
+            </TabsTrigger>
+            <TabsTrigger value="users" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2">
+              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Users
+            </TabsTrigger>
+            <TabsTrigger value="plans" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2">
+              <CreditCard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Plans
+            </TabsTrigger>
+            <TabsTrigger value="credits" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2">
+              <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Credits
+            </TabsTrigger>
+            <TabsTrigger value="consents" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2">
+              <FileCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Consents
+            </TabsTrigger>
+            <TabsTrigger value="help-tickets" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2" data-testid="tab-help-tickets">
+              <HelpCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Tickets
+            </TabsTrigger>
+            <TabsTrigger value="feature-comparison" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2" data-testid="tab-feature-comparison">
+              <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Features
+            </TabsTrigger>
+            <TabsTrigger value="training" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2" data-testid="tab-training">
+              <GraduationCap className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Training
+            </TabsTrigger>
+          </TabsList>
+        </div>
         <div className="mt-6">
           <TabsContent value="monitoring">
             <MonitoringTab />
@@ -536,24 +538,24 @@ function OrganizationsTab() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
+      <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 flex-wrap">
         <div>
-          <CardTitle>All Organizations</CardTitle>
+          <CardTitle className="text-base sm:text-lg">All Organizations</CardTitle>
           <CardDescription>Manage organization tenants in the system</CardDescription>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search organizations..."
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              className="pl-8 w-[200px]"
+              className="pl-8 w-full sm:w-[200px]"
               data-testid="input-org-search"
             />
           </div>
           <Select value={planFilter} onValueChange={(v) => { setPlanFilter(v); setCurrentPage(1); }}>
-            <SelectTrigger className="w-[140px]" data-testid="select-plan-filter">
+            <SelectTrigger className="w-[120px] sm:w-[140px]" data-testid="select-plan-filter">
               <SelectValue placeholder="Plan..." />
             </SelectTrigger>
             <SelectContent>
@@ -613,13 +615,15 @@ function OrganizationsTab() {
           >
             <Download className="h-4 w-4" />
           </Button>
-          <Button onClick={() => setIsCreateOpen(true)} disabled={isMarketing} data-testid="button-create-org">
+          <Button onClick={() => setIsCreateOpen(true)} disabled={isMarketing} data-testid="button-create-org" className="whitespace-nowrap">
             <Plus className="h-4 w-4 mr-2" />
-            Create Organization
+            <span className="hidden sm:inline">Create Organization</span>
+            <span className="sm:hidden">Create</span>
           </Button>
         </div>
       </CardHeader>
       <CardContent>
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -826,6 +830,7 @@ function OrganizationsTab() {
             ))}
           </TableBody>
         </Table>
+        </div>
         {filteredOrganizations?.length === 0 && (
           <div className="text-center py-8 text-slate-500">
             {searchQuery ? 'No organizations match your search.' : 'No organizations yet. Create one to get started.'}
@@ -833,8 +838,8 @@ function OrganizationsTab() {
         )}
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between gap-4 pt-4 border-t mt-4">
-            <div className="text-sm text-muted-foreground">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 pt-4 border-t mt-4">
+            <div className="text-xs sm:text-sm text-muted-foreground">
               Showing {((effectiveCurrentPage - 1) * pageSize) + 1}–{Math.min(effectiveCurrentPage * pageSize, filteredOrganizations.length)} of {filteredOrganizations.length}
             </div>
             <div className="flex items-center gap-1">
@@ -891,7 +896,7 @@ function OrganizationsTab() {
               </Button>
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-4">
-              <div className="rounded-lg border bg-muted/30 p-4">
+              <div className="rounded-lg border bg-muted/30 p-4 overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1865,7 +1870,7 @@ function AllUsersTab() {
         <CardDescription>View and manage all users across organizations</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
           <div
             className={`border rounded-md p-4 cursor-pointer hover-elevate transition-colors ${activeCard === null ? 'border-primary/50 bg-primary/5' : ''}`}
             onClick={() => resetAllFilters()}
@@ -1925,7 +1930,7 @@ function AllUsersTab() {
         </div>
 
         <div className="flex items-center gap-2 mb-4 flex-wrap">
-          <div className="relative flex-1 max-w-sm">
+          <div className="relative w-full sm:flex-1 sm:max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search by name, email, or role..."
@@ -1945,7 +1950,7 @@ function AllUsersTab() {
             </Button>
           )}
           <Select value={verifiedFilter} onValueChange={(v) => { setVerifiedFilter(v); setActiveCard(null); setCurrentPage(1); }}>
-            <SelectTrigger className="w-[140px]" data-testid="select-verified-filter">
+            <SelectTrigger className="w-[120px] sm:w-[140px]" data-testid="select-verified-filter">
               <SelectValue placeholder="Verification" />
             </SelectTrigger>
             <SelectContent>
@@ -1958,7 +1963,7 @@ function AllUsersTab() {
             type="date"
             value={dateFrom}
             onChange={(e) => { setDateFrom(e.target.value); setCurrentPage(1); }}
-            className="w-[140px]"
+            className="w-[120px] sm:w-[140px]"
             placeholder="From"
             data-testid="input-date-from"
           />
@@ -1966,13 +1971,13 @@ function AllUsersTab() {
             type="date"
             value={dateTo}
             onChange={(e) => { setDateTo(e.target.value); setCurrentPage(1); }}
-            className="w-[140px]"
+            className="w-[120px] sm:w-[140px]"
             placeholder="To"
             data-testid="input-date-to"
           />
           {!isMarketing && (
             <Select value={technicianFilter} onValueChange={(v) => { setTechnicianFilter(v); setActiveCard(null); setCurrentPage(1); }}>
-              <SelectTrigger className="w-[160px]" data-testid="select-technician-filter">
+              <SelectTrigger className="w-[140px] sm:w-[160px]" data-testid="select-technician-filter">
                 <SelectValue placeholder="User Type" />
               </SelectTrigger>
               <SelectContent>
@@ -2062,6 +2067,7 @@ function AllUsersTab() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -2336,12 +2342,13 @@ function AllUsersTab() {
             ))}
           </TableBody>
         </Table>
+        </div>
         {activeUsers.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">No active users found.</div>
         )}
 
         {totalUserPages > 1 && (
-          <div className="flex items-center justify-between gap-4 mt-4 flex-wrap">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 mt-4 flex-wrap">
             <span className="text-sm text-muted-foreground">
               Page {effectiveUserPage} of {totalUserPages}
             </span>
@@ -2397,7 +2404,7 @@ function AllUsersTab() {
                 {deactivatedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               </Button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="mt-4">
+            <CollapsibleContent className="mt-4 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -2592,7 +2599,7 @@ function AllUsersTab() {
       </Dialog>
 
       <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
-        <DialogContent className="max-w-2xl" data-testid="dialog-edit-user-memberships">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" data-testid="dialog-edit-user-memberships">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5" />
@@ -2607,6 +2614,7 @@ function AllUsersTab() {
             <div>
               <Label className="text-sm font-medium mb-2 block">Current Memberships</Label>
               {userMemberships && userMemberships.length > 0 ? (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -2667,6 +2675,7 @@ function AllUsersTab() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               ) : (
                 <div className="text-center py-4 text-muted-foreground border rounded-md">
                   This user has no organization memberships.
@@ -3001,48 +3010,55 @@ function PlansTab() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <CreditCard className="h-5 w-5" />
               Subscription Plans
             </CardTitle>
             <CardDescription>Configure pricing, quotas, and features for each plan</CardDescription>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button 
               variant="outline" 
+              size="sm"
               onClick={initExtraSeatPrices} 
               disabled={isInitializingSeats}
               data-testid="button-init-seat-prices"
+              className="whitespace-nowrap"
             >
               {isInitializingSeats ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <DollarSign className="h-4 w-4 mr-2" />
               )}
-              Init Seat Prices
+              <span className="hidden sm:inline">Init Seat Prices</span>
+              <span className="sm:hidden">Init Seats</span>
             </Button>
             <Button 
               variant="outline" 
+              size="sm"
               onClick={syncPayPalPlans} 
               disabled={isSyncingPayPal}
               data-testid="button-sync-paypal"
+              className="whitespace-nowrap"
             >
               {isSyncingPayPal ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Wallet className="h-4 w-4 mr-2" />
               )}
-              Sync PayPal Plans
+              <span className="hidden sm:inline">Sync PayPal Plans</span>
+              <span className="sm:hidden">Sync PayPal</span>
             </Button>
-            <Button onClick={() => setIsCreateOpen(true)} data-testid="button-create-plan">
+            <Button size="sm" onClick={() => setIsCreateOpen(true)} data-testid="button-create-plan" className="whitespace-nowrap">
               <Plus className="h-4 w-4 mr-2" />
               Add Plan
             </Button>
           </div>
         </CardHeader>
         <CardContent>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -3144,6 +3160,7 @@ function PlansTab() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -3398,6 +3415,7 @@ function PlansTab() {
                           <span>Other Meters ({editingRules.filter(r => r.meter.code !== 'credits').length} rules)</span>
                         </CollapsibleTrigger>
                         <CollapsibleContent className="pt-3">
+                          <div className="overflow-x-auto">
                           <Table>
                             <TableHeader>
                               <TableRow>
@@ -3453,6 +3471,7 @@ function PlansTab() {
                               ))}
                             </TableBody>
                           </Table>
+                          </div>
                         </CollapsibleContent>
                       </Collapsible>
                     )}
@@ -3684,8 +3703,8 @@ function OrgMembersEditor({ orgId, allUsers }: { orgId: number; allUsers: User[]
         <Badge variant="secondary">{members?.length || 0} members</Badge>
       </div>
 
-      <div className="flex items-end gap-2">
-        <div className="flex-1 space-y-1">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2">
+        <div className="flex-1 space-y-1 min-w-0">
           <Label className="text-xs text-muted-foreground">Add User</Label>
           <Select value={selectedUserId} onValueChange={setSelectedUserId}>
             <SelectTrigger data-testid="select-add-member-user">
@@ -3706,7 +3725,7 @@ function OrgMembersEditor({ orgId, allUsers }: { orgId: number; allUsers: User[]
             </SelectContent>
           </Select>
         </div>
-        <div className="w-32 space-y-1">
+        <div className="w-full sm:w-32 space-y-1">
           <Label className="text-xs text-muted-foreground">Role</Label>
           <Select value={selectedRole} onValueChange={setSelectedRole}>
             <SelectTrigger data-testid="select-add-member-role">
@@ -3830,6 +3849,7 @@ function CreditCostsTab() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -3904,6 +3924,7 @@ function CreditCostsTab() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -4044,6 +4065,7 @@ function ConsentsTab() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -4089,6 +4111,7 @@ function ConsentsTab() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -4432,7 +4455,7 @@ function MonitoringTab() {
           <CardContent className="pt-4 pb-3">
             <div className="flex flex-wrap items-center gap-2">
               <Select value={String(ovDays)} onValueChange={(v) => setOvDays(Number(v))}>
-                <SelectTrigger className="w-[120px]" data-testid="select-ov-days">
+                <SelectTrigger className="w-[100px] sm:w-[120px]" data-testid="select-ov-days">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -4445,7 +4468,7 @@ function MonitoringTab() {
                 </SelectContent>
               </Select>
               <Select value={ovMethod || 'all'} onValueChange={(v) => setOvMethod(v === 'all' ? '' : v)}>
-                <SelectTrigger className="w-[120px]" data-testid="select-ov-method">
+                <SelectTrigger className="w-[100px] sm:w-[120px]" data-testid="select-ov-method">
                   <SelectValue placeholder="Method" />
                 </SelectTrigger>
                 <SelectContent>
@@ -4458,7 +4481,7 @@ function MonitoringTab() {
                 </SelectContent>
               </Select>
               <Select value={ovStatus || 'all'} onValueChange={(v) => setOvStatus(v === 'all' ? '' : v)}>
-                <SelectTrigger className="w-[130px]" data-testid="select-ov-status">
+                <SelectTrigger className="w-[110px] sm:w-[130px]" data-testid="select-ov-status">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -4469,7 +4492,7 @@ function MonitoringTab() {
                   <SelectItem value="5xx">5xx Server Error</SelectItem>
                 </SelectContent>
               </Select>
-              <div className="relative min-w-[180px] flex-1 max-w-[280px]">
+              <div className="relative min-w-[140px] sm:min-w-[180px] flex-1 max-w-[280px]">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Filter by path..."
@@ -4480,7 +4503,7 @@ function MonitoringTab() {
                 />
               </div>
               <Select value={ovUserId || 'all'} onValueChange={(v) => setOvUserId(v === 'all' ? '' : v)}>
-                <SelectTrigger className="w-[180px]" data-testid="select-ov-user">
+                <SelectTrigger className="w-[140px] sm:w-[180px]" data-testid="select-ov-user">
                   <SelectValue placeholder="User" />
                 </SelectTrigger>
                 <SelectContent>
@@ -4493,7 +4516,7 @@ function MonitoringTab() {
                 </SelectContent>
               </Select>
               <Select value={ovOrgId || 'all'} onValueChange={(v) => setOvOrgId(v === 'all' ? '' : v)}>
-                <SelectTrigger className="w-[180px]" data-testid="select-ov-org">
+                <SelectTrigger className="w-[140px] sm:w-[180px]" data-testid="select-ov-org">
                   <SelectValue placeholder="Organization" />
                 </SelectTrigger>
                 <SelectContent>
@@ -4678,6 +4701,7 @@ function MonitoringTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -4707,6 +4731,7 @@ function MonitoringTab() {
                   )}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
 
@@ -4718,6 +4743,7 @@ function MonitoringTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -4743,6 +4769,7 @@ function MonitoringTab() {
                   )}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -4756,6 +4783,7 @@ function MonitoringTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -4785,6 +4813,7 @@ function MonitoringTab() {
                   )}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
 
@@ -4958,7 +4987,7 @@ function MonitoringTab() {
 
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
           <Card data-testid="kpi-activity-creates">
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-1.5 text-green-600">
@@ -5125,7 +5154,7 @@ function MonitoringTab() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mt-3">
-              <div className="relative flex-1 min-w-[200px]">
+              <div className="relative w-full sm:flex-1 sm:min-w-[200px]">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search users, paths, organizations..."
@@ -5136,7 +5165,7 @@ function MonitoringTab() {
                 />
               </div>
               <Select value={ledgerActionFilter} onValueChange={(v) => { setLedgerActionFilter(v === 'all' ? '' : v); setLedgerPage(1); }}>
-                <SelectTrigger className="w-[130px]" data-testid="select-ledger-action">
+                <SelectTrigger className="w-[110px] sm:w-[130px]" data-testid="select-ledger-action">
                   <SelectValue placeholder="Action" />
                 </SelectTrigger>
                 <SelectContent>
@@ -5147,7 +5176,7 @@ function MonitoringTab() {
                 </SelectContent>
               </Select>
               <Select value={ledgerEntityFilter} onValueChange={(v) => { setLedgerEntityFilter(v === 'all' ? '' : v); setLedgerPage(1); }}>
-                <SelectTrigger className="w-[150px]" data-testid="select-ledger-entity">
+                <SelectTrigger className="w-[120px] sm:w-[150px]" data-testid="select-ledger-entity">
                   <SelectValue placeholder="Entity" />
                 </SelectTrigger>
                 <SelectContent>
@@ -5169,7 +5198,7 @@ function MonitoringTab() {
                 </SelectContent>
               </Select>
               <Select value={ledgerUserFilter} onValueChange={(v) => { setLedgerUserFilter(v === 'all' ? '' : v); setLedgerPage(1); }}>
-                <SelectTrigger className="w-[180px]" data-testid="select-ledger-user">
+                <SelectTrigger className="w-[140px] sm:w-[180px]" data-testid="select-ledger-user">
                   <SelectValue placeholder="User" />
                 </SelectTrigger>
                 <SelectContent>
@@ -5424,6 +5453,7 @@ function MonitoringTab() {
             <CardDescription>API requests grouped by feature area</CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -5453,6 +5483,7 @@ function MonitoringTab() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -5527,6 +5558,7 @@ function MonitoringTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -5556,6 +5588,7 @@ function MonitoringTab() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
 
@@ -5632,6 +5665,7 @@ function MonitoringTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -5648,6 +5682,7 @@ function MonitoringTab() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
 
@@ -5659,6 +5694,7 @@ function MonitoringTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -5675,6 +5711,7 @@ function MonitoringTab() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -5779,7 +5816,7 @@ function MonitoringTab() {
 
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
           <Card data-testid="kpi-total-orgs">
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-1.5">
@@ -6046,73 +6083,82 @@ function MonitoringTab() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant={subTab === 'analytics' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setSubTab('analytics')}
-            data-testid="btn-subtab-analytics"
-          >
-            <TrendingUp className="h-4 w-4 mr-1" />
-            Reports
-          </Button>
-          <Button
-            variant={subTab === 'overview' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setSubTab('overview')}
-            data-testid="btn-subtab-overview"
-          >
-            <Activity className="h-4 w-4 mr-1" />
-            Overview
-          </Button>
-          <Button
-            variant={subTab === 'users' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setSubTab('users')}
-            data-testid="btn-subtab-users"
-          >
-            <Users className="h-4 w-4 mr-1" />
-            User Activity
-          </Button>
-          <Button
-            variant={subTab === 'features' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setSubTab('features')}
-            data-testid="btn-subtab-features"
-          >
-            <BarChart3 className="h-4 w-4 mr-1" />
-            Features
-          </Button>
-          <Button
-            variant={subTab === 'performance' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setSubTab('performance')}
-            data-testid="btn-subtab-performance"
-          >
-            <Zap className="h-4 w-4 mr-1" />
-            Performance
-          </Button>
-          <Button
-            variant={subTab === 'database' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setSubTab('database')}
-            data-testid="btn-subtab-database"
-          >
-            <Database className="h-4 w-4 mr-1" />
-            Database
-          </Button>
-          <Button
-            variant={subTab === 'organizations' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setSubTab('organizations')}
-            data-testid="btn-subtab-organizations"
-          >
-            <Building2 className="h-4 w-4 mr-1" />
-            Organizations
-          </Button>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="overflow-x-auto scrollbar-none w-full sm:w-auto -mx-1 px-1">
+          <div className="flex items-center gap-2 w-max sm:flex-wrap sm:w-auto">
+            <Button
+              variant={subTab === 'analytics' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSubTab('analytics')}
+              data-testid="btn-subtab-analytics"
+              className="whitespace-nowrap"
+            >
+              <TrendingUp className="h-4 w-4 mr-1" />
+              Reports
+            </Button>
+            <Button
+              variant={subTab === 'overview' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSubTab('overview')}
+              data-testid="btn-subtab-overview"
+              className="whitespace-nowrap"
+            >
+              <Activity className="h-4 w-4 mr-1" />
+              Overview
+            </Button>
+            <Button
+              variant={subTab === 'users' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSubTab('users')}
+              data-testid="btn-subtab-users"
+              className="whitespace-nowrap"
+            >
+              <Users className="h-4 w-4 mr-1" />
+              Users
+            </Button>
+            <Button
+              variant={subTab === 'features' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSubTab('features')}
+              data-testid="btn-subtab-features"
+              className="whitespace-nowrap"
+            >
+              <BarChart3 className="h-4 w-4 mr-1" />
+              Features
+            </Button>
+            <Button
+              variant={subTab === 'performance' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSubTab('performance')}
+              data-testid="btn-subtab-performance"
+              className="whitespace-nowrap"
+            >
+              <Zap className="h-4 w-4 mr-1" />
+              Perf
+            </Button>
+            <Button
+              variant={subTab === 'database' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSubTab('database')}
+              data-testid="btn-subtab-database"
+              className="whitespace-nowrap"
+            >
+              <Database className="h-4 w-4 mr-1" />
+              DB
+            </Button>
+            <Button
+              variant={subTab === 'organizations' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSubTab('organizations')}
+              data-testid="btn-subtab-organizations"
+              className="whitespace-nowrap"
+            >
+              <Building2 className="h-4 w-4 mr-1" />
+              Orgs
+            </Button>
+          </div>
         </div>
-        <Button variant="outline" size="sm" onClick={handleRefresh} data-testid="btn-refresh-monitoring">
+        <Button variant="outline" size="sm" onClick={handleRefresh} data-testid="btn-refresh-monitoring" className="shrink-0">
           <RefreshCw className="h-4 w-4 mr-1" />
           Refresh
         </Button>
@@ -6275,7 +6321,7 @@ function HelpTicketsTab() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Total Tickets</CardTitle>
@@ -6311,10 +6357,10 @@ function HelpTicketsTab() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle>All Tickets</CardTitle>
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <CardTitle className="text-base sm:text-lg">All Tickets</CardTitle>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40" data-testid="select-status-filter">
+            <SelectTrigger className="w-full sm:w-40" data-testid="select-status-filter">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>
@@ -6333,6 +6379,7 @@ function HelpTicketsTab() {
               <p>No tickets found</p>
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -6409,6 +6456,7 @@ function HelpTicketsTab() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -6775,7 +6823,16 @@ function AnalyticsTab() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <Users className="h-4 w-4" />
-              Total Users
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="cursor-help border-b border-dotted border-muted-foreground/50">Total Users</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-xs">
+                    Total number of registered users
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
             <div className="text-2xl font-bold mt-1">{formatNumber(analytics.userMetrics.totalUsers)}</div>
           </CardContent>
@@ -6789,7 +6846,16 @@ function AnalyticsTab() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <UserPlus className="h-4 w-4" />
-              New Today
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="cursor-help border-b border-dotted border-muted-foreground/50">New Today</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-xs">
+                    Users who signed up today (Eastern Time)
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
             <div className="text-2xl font-bold mt-1 text-green-600">{analytics.userMetrics.newUsersToday}</div>
           </CardContent>
@@ -6803,7 +6869,16 @@ function AnalyticsTab() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <TrendingUp className="h-4 w-4" />
-              New This Week
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="cursor-help border-b border-dotted border-muted-foreground/50">New This Week</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-xs">
+                    Users who signed up in the last 7 days
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
             <div className="text-2xl font-bold mt-1">{analytics.userMetrics.newUsersThisWeek}</div>
           </CardContent>
@@ -6817,7 +6892,16 @@ function AnalyticsTab() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <BarChart3 className="h-4 w-4" />
-              New This Month
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="cursor-help border-b border-dotted border-muted-foreground/50">New This Month</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-xs">
+                    Users who signed up in the last 30 days
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
             <div className="text-2xl font-bold mt-1">{analytics.userMetrics.newUsersThisMonth}</div>
           </CardContent>
@@ -6827,7 +6911,16 @@ function AnalyticsTab() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <Activity className="h-4 w-4" />
-              7-Day Retention
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="cursor-help border-b border-dotted border-muted-foreground/50">7-Day Retention</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-xs">
+                    Percentage of users (signed up 7–37 days ago) who made at least one API request within their first week
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
             <div className="text-2xl font-bold mt-1">{analytics.userMetrics.retentionRate}</div>
           </CardContent>
@@ -6836,19 +6929,19 @@ function AnalyticsTab() {
 
       {/* Users Table */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle className="flex items-center gap-2">
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
             <Users className="h-5 w-5" />
             {filterLabel} ({filteredUsers.length})
           </CardTitle>
-          <div className="flex items-center gap-2">
-            <div className="relative">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:flex-none">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search users..."
                 value={userSearch}
                 onChange={(e) => setUserSearch(e.target.value)}
-                className="pl-9 w-[250px] h-9"
+                className="pl-9 w-full sm:w-[250px] h-9"
               />
             </div>
             {userFilter && (
@@ -7147,6 +7240,7 @@ function AnalyticsTab() {
           <CardDescription>Page views and unique visitors for public pages</CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -7173,6 +7267,7 @@ function AnalyticsTab() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -7217,6 +7312,7 @@ function AnalyticsTab() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -7248,6 +7344,7 @@ function AnalyticsTab() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

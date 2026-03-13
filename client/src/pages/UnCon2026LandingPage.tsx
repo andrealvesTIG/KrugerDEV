@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useLocation, Link } from "wouter";
-import { Menu, X, Mail, Loader2, CheckCircle, ChevronRight, Shield, Users, BarChart3, Clock, Target, ArrowRight, Zap, TrendingUp, Eye, Brain, FileText, LayoutDashboard, Lightbulb, Award, Sparkles, CalendarDays } from "lucide-react";
+import { Menu, X, Mail, Loader2, CheckCircle, ChevronRight, Shield, Users, BarChart3, Clock, Target, ArrowRight, Zap, TrendingUp, Eye, Brain, FileText, LayoutDashboard, Lightbulb, Award, Sparkles, CalendarDays, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -313,6 +313,20 @@ export default function UnCon2026LandingPage() {
                   >
                     Start Free
                   </Button>
+                </div>
+                <div className="mt-8">
+                  <Link href="/uncon2026/selfie">
+                    <div className="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-900/50 dark:to-yellow-900/50 border border-amber-200/60 dark:border-amber-700/40 hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer group">
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500 to-yellow-500 flex items-center justify-center shadow-md">
+                        <Camera className="h-4 w-4 text-white" />
+                      </div>
+                      <div className="text-left">
+                        <span className="text-sm font-semibold text-amber-800 dark:text-amber-300 block">PMO unCON Selfie Experience</span>
+                        <span className="text-xs text-amber-600 dark:text-amber-400">Take your conference selfie and share your badge</span>
+                      </div>
+                      <ArrowRight className="h-4 w-4 text-amber-600 dark:text-amber-400 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </Link>
                 </div>
               </motion.div>
             </AnimatedSection>

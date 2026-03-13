@@ -7,7 +7,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { format, addDays, differenceInDays, parseISO, isAfter, isBefore, startOfDay, eachDayOfInterval, startOfMonth, endOfMonth } from "date-fns";
 import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, calculateStartDateFromEndAndDuration } from "@/lib/workingDays";
 import { calculateCPM, type CPMResult } from "@/lib/cpm";
-import { useUpdateTask, useCreateTask, useDeleteTask, useAddTaskDependency, useRemoveTaskDependency, useReorderTask, useProjectDependencies } from "@/hooks/use-tasks";
+import { useUpdateTask, useCreateTask, useDeleteTask, useAddTaskDependency, useRemoveTaskDependency, useReorderTask, useProjectDependencies, useBulkUpdateTasks, useBulkDeleteTasks } from "@/hooks/use-tasks";
 import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useProjectTaskAssignments } from "@/hooks/use-resources";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -149,7 +149,7 @@ interface InlineEditCellProps {
   suffix?: string;
 }
 
-function InlineEditCell({ 
+const InlineEditCell = memo(function InlineEditCell({ 
   value, 
   displayValue, 
   editType, 
@@ -355,10 +355,9 @@ function InlineEditCell({
       {displayValue}
     </div>
   );
-}
+});
 
-// Task name cell with horizontal drag for indent/outdent (MS Project style)
-function TaskNameCell({
+const TaskNameCell = memo(function TaskNameCell({
   task,
   colWidth,
   currentLevel,
@@ -600,7 +599,7 @@ function TaskNameCell({
       </AlertDialog>
     </div>
   );
-}
+});
 
 // Sortable task row wrapper for drag and drop reordering
 function SortableTaskRow({ 
@@ -1644,10 +1643,10 @@ const ProjectGanttTaskRowTimeline = memo(function ProjectGanttTaskRowTimeline({
           {showBar && (
             <div
               className={cn(
-                "absolute rounded-sm overflow-hidden cursor-pointer",
-                isCritical ? "bg-red-200 dark:bg-red-900 ring-1 ring-red-500" :
-                task.status === "Completed" ? "bg-emerald-200 dark:bg-emerald-900" :
-                task.status === "In Progress" ? "bg-blue-200 dark:bg-blue-900" : "bg-slate-200 dark:bg-slate-700"
+                "absolute rounded-sm overflow-hidden cursor-pointer border",
+                isCritical ? "bg-red-200 dark:bg-red-900 border-red-400 dark:border-red-600" :
+                task.status === "Completed" ? "bg-emerald-200 dark:bg-emerald-900 border-emerald-400 dark:border-emerald-600" :
+                task.status === "In Progress" ? "bg-blue-200 dark:bg-blue-900 border-blue-400 dark:border-blue-600" : "bg-slate-200 dark:bg-slate-700 border-slate-300 dark:border-slate-600"
               )}
               style={{
                 left: `${Math.max(0, leftPercent)}%`,
@@ -1775,6 +1774,7 @@ function SortableColumnItem({
 function ProjectGanttView({ 
   tasks, 
   onTaskClick, 
+  onDependencyLineClick,
   projectId, 
   organizationId,
   onCreateTask,
@@ -1787,6 +1787,7 @@ function ProjectGanttView({
 }: { 
   tasks: Task[]; 
   onTaskClick: (task: Task) => void;
+  onDependencyLineClick?: (task: Task) => void;
   projectId: number;
   organizationId: number | null;
   onCreateTask: (name: string) => void;
@@ -1801,6 +1802,8 @@ function ProjectGanttView({
   const reorderTask = useReorderTask();
   const createTask = useCreateTask();
   const deleteTask = useDeleteTask();
+  const bulkUpdate = useBulkUpdateTasks();
+  const bulkDelete = useBulkDeleteTasks();
   const addDependency = useAddTaskDependency();
   const removeDependency = useRemoveTaskDependency();
   const { toast } = useToast();
@@ -1846,6 +1849,20 @@ function ProjectGanttView({
   // Scroll sync refs for left/right panes
   const leftPaneRef = useRef<HTMLDivElement>(null);
   const rightPaneRef = useRef<HTMLDivElement>(null);
+  const timelineContentRef = useRef<HTMLDivElement>(null);
+  const [timelineContentWidth, setTimelineContentWidth] = useState(0);
+
+  useEffect(() => {
+    const el = timelineContentRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setTimelineContentWidth(entry.contentRect.width);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   
   // Right pane is the sole vertical scroll driver. On scroll, sync left pane.
   const handleRightScroll = useCallback(() => {
@@ -1956,31 +1973,15 @@ function ProjectGanttView({
     if (selectedTaskIds.size === 0) return;
     
     setBulkDeletePending(true);
-    const tasksToDelete = Array.from(selectedTaskIds);
-    let successCount = 0;
-    let errorCount = 0;
-    
-    for (const taskId of tasksToDelete) {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          deleteTask.mutate({ id: taskId, projectId }, {
-            onSuccess: () => { successCount++; resolve(); },
-            onError: () => { errorCount++; resolve(); }
-          });
-        });
-      } catch {
-        errorCount++;
-      }
+    try {
+      const taskIds = Array.from(selectedTaskIds);
+      const result = await bulkDelete.mutateAsync({ taskIds, projectId });
+      clearTaskSelection();
+      toast({ title: "Deleted", description: `${result.deletedCount} task${result.deletedCount !== 1 ? 's' : ''} deleted successfully` });
+    } catch {
+      toast({ title: "Delete failed", description: "Failed to delete tasks", variant: "destructive" });
     }
-    
     setBulkDeletePending(false);
-    clearTaskSelection();
-    
-    if (errorCount === 0) {
-      toast({ title: "Deleted", description: `${successCount} task${successCount !== 1 ? 's' : ''} deleted successfully` });
-    } else {
-      toast({ title: "Partial success", description: `${successCount} deleted, ${errorCount} failed`, variant: "destructive" });
-    }
   };
   
   const handleBulkTimesheetBlock = async () => {
@@ -1990,29 +1991,19 @@ function ProjectGanttView({
     const selectedTasks = tasks.filter(t => selectedTaskIds.has(t.id));
     const allAlreadyBlocked = selectedTasks.every(t => t.timesheetBlocked);
     const newBlockedValue = !allAlreadyBlocked;
-    let successCount = 0;
-    let errorCount = 0;
     
-    for (const task of selectedTasks) {
-      try {
-        await updateTask.mutateAsync({
-          id: task.id,
-          projectId: task.projectId,
-          timesheetBlocked: newBlockedValue,
-        });
-        successCount++;
-      } catch {
-        errorCount++;
-      }
+    try {
+      const taskIds = selectedTasks.map(t => t.id);
+      const result = await bulkUpdate.mutateAsync({
+        taskIds,
+        updates: { timesheetBlocked: newBlockedValue },
+        projectId,
+      });
+      toast({ title: newBlockedValue ? "Timesheet entries blocked" : "Timesheet entries unblocked", description: `${result.updatedCount} task${result.updatedCount !== 1 ? 's' : ''} updated successfully` });
+    } catch {
+      toast({ title: "Update failed", description: "Failed to update tasks", variant: "destructive" });
     }
-    
     setBulkTimesheetBlockPending(false);
-    
-    if (errorCount === 0) {
-      toast({ title: newBlockedValue ? "Timesheet entries blocked" : "Timesheet entries unblocked", description: `${successCount} task${successCount !== 1 ? 's' : ''} updated successfully` });
-    } else {
-      toast({ title: "Partial success", description: `${successCount} updated, ${errorCount} failed`, variant: "destructive" });
-    }
   };
 
   type GanttAction = 
@@ -2628,26 +2619,16 @@ function ProjectGanttView({
     if (selectedTaskIds.size < 1) return;
     
     const selectedTasks = tasks.filter(t => selectedTaskIds.has(t.id));
-    let successCount = 0;
-    let errorCount = 0;
-    
-    for (const task of selectedTasks) {
-      try {
-        await updateTask.mutateAsync({
-          id: task.id,
-          projectId: task.projectId,
-          progress: progressValue,
-        });
-        successCount++;
-      } catch {
-        errorCount++;
-      }
-    }
-    
-    if (errorCount === 0) {
-      toast({ title: "Progress updated", description: `${successCount} task${successCount !== 1 ? 's' : ''} set to ${progressValue}%` });
-    } else {
-      toast({ title: "Partial success", description: `${successCount} updated, ${errorCount} failed`, variant: "destructive" });
+    try {
+      const taskIds = selectedTasks.map(t => t.id);
+      const result = await bulkUpdate.mutateAsync({
+        taskIds,
+        updates: { progress: progressValue },
+        projectId,
+      });
+      toast({ title: "Progress updated", description: `${result.updatedCount} task${result.updatedCount !== 1 ? 's' : ''} set to ${progressValue}%` });
+    } catch {
+      toast({ title: "Update failed", description: "Failed to update progress", variant: "destructive" });
     }
   };
 
@@ -2655,32 +2636,23 @@ function ProjectGanttView({
     if (selectedTaskIds.size === 0) return;
     
     const selectedTasks = tasks.filter(t => selectedTaskIds.has(t.id));
-    let successCount = 0;
-    let errorCount = 0;
+    const tasksWithDates = selectedTasks.filter(t => t.startDate && t.endDate);
+    const skippedCount = selectedTasks.length - tasksWithDates.length;
     
-    for (const task of selectedTasks) {
-      if (!task.startDate || !task.endDate) {
-        errorCount++;
-        continue;
-      }
-      
-      try {
-        await updateTask.mutateAsync({
-          id: task.id,
-          projectId: task.projectId,
-          baselineStartDate: task.startDate,
-          baselineEndDate: task.endDate,
-        });
-        successCount++;
-      } catch {
-        errorCount++;
-      }
+    if (tasksWithDates.length === 0) {
+      toast({ title: "Cannot set baseline", description: "Selected tasks have no start/end dates", variant: "destructive" });
+      return;
     }
     
-    if (successCount > 0) {
-      toast({ title: "Baseline set", description: `${successCount} task${successCount !== 1 ? 's' : ''} baselined${errorCount > 0 ? `, ${errorCount} skipped (no dates)` : ''}` });
-    } else if (errorCount > 0) {
-      toast({ title: "Cannot set baseline", description: "Selected tasks have no start/end dates", variant: "destructive" });
+    try {
+      const taskUpdates = tasksWithDates.map(t => ({
+        taskId: t.id,
+        updates: { baselineStartDate: t.startDate!, baselineEndDate: t.endDate! },
+      }));
+      const result = await bulkUpdate.mutateAsync({ taskUpdates, projectId });
+      toast({ title: "Baseline set", description: `${result.updatedCount} task${result.updatedCount !== 1 ? 's' : ''} baselined${skippedCount > 0 ? `, ${skippedCount} skipped (no dates)` : ''}` });
+    } catch {
+      toast({ title: "Baseline failed", description: "Failed to set baseline", variant: "destructive" });
     }
   };
 
@@ -4382,6 +4354,7 @@ function ProjectGanttView({
             <ResizablePanel defaultSize={100 - leftPanelSize} minSize={20}>
               <div ref={rightPaneRef} onScroll={handleRightScroll} className="h-full overflow-x-auto overflow-y-auto scrollbar-thin">
                 <div 
+                  ref={timelineContentRef}
                   className="relative"
                   style={{ minWidth: `${filteredDates.length * 60}px` }}
                 >
@@ -4467,6 +4440,27 @@ function ProjectGanttView({
                   )}
                   {/* Empty row for add task alignment - must match left pane condition */}
                   {!isReadOnly && <div data-add-task-row="true" className="h-[28px] border-t bg-muted/20" />}
+
+                  {/* Dependency links overlay */}
+                  {projectDependencies.length > 0 && visibleTasks.length > 0 && timelineContentWidth > 0 && (
+                    <GanttDependencyLinks
+                      tasks={visibleTasks}
+                      dependencies={projectDependencies}
+                      minDate={adjustedMinDate}
+                      maxDate={adjustedMaxDate}
+                      containerWidth={timelineContentWidth}
+                      rowHeight={28}
+                      headerHeight={28 + (showProjectSummary && projectSummaryTask?.startDate && projectSummaryTask?.endDate ? 28 : 0)}
+                      showBaseline={showBaseline}
+                      highlightedTaskIds={showCriticalPath ? criticalTaskIds : undefined}
+                      onDependencyClick={onDependencyLineClick ? (dep) => {
+                        const successorTask = visibleTasks.find(t => t.id === dep.taskId);
+                        if (successorTask) {
+                          onDependencyLineClick(successorTask);
+                        }
+                      } : undefined}
+                    />
+                  )}
                   
                   {/* TODAY vertical indicator line */}
                   {(() => {

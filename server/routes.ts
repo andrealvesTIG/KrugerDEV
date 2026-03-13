@@ -1189,48 +1189,53 @@ async function isTeamMemberInOrg(userId: string | undefined, orgId: number): Pro
   return role === 'team_member';
 }
 
-// Helper to get user's resource IDs in an organization
 async function getUserResourceIds(userId: string, orgId: number): Promise<number[]> {
-  const orgResources = await storage.getResources(orgId);
-  return orgResources.filter(r => r.userId === userId).map(r => r.id);
+  const userResources = await storage.getResourcesByUserId(userId, orgId);
+  return userResources.map(r => r.id);
 }
 
-// Cached result type for team member access data
 interface TeamMemberAccessData {
   resourceIds: number[];
   projectIds: Set<number>;
-  invitedProjectIds: Set<number>;  // Projects explicitly invited to (see all items)
+  invitedProjectIds: Set<number>;
   taskIds: Set<number>;
 }
 
-// Helper to get all access data for a team_member in one pass (more efficient)
 async function getTeamMemberAccessData(userId: string, orgId: number): Promise<TeamMemberAccessData> {
-  const orgResources = await storage.getResources(orgId);
-  const userResources = orgResources.filter(r => r.userId === userId);
+  const userResources = await storage.getResourcesByUserId(userId, orgId);
   const resourceIds = userResources.map(r => r.id);
   
   if (resourceIds.length === 0) {
     return { resourceIds: [], projectIds: new Set(), invitedProjectIds: new Set(), taskIds: new Set() };
   }
   
-  // Get all projects in org to filter tasks
-  const allProjects = await storage.getProjects();
-  const orgProjectIds = new Set(allProjects.filter(p => p.organizationId === orgId).map(p => p.id));
+  const resourceIdSet = new Set(resourceIds);
   
-  // Get all tasks (without org filter - the function doesn't support it)
-  const allTasks = await storage.getAllTasks();
-  const orgTasks = allTasks.filter(t => orgProjectIds.has(t.projectId));
+  const [orgTasks, allAssignments] = await Promise.all([
+    storage.getTasksByOrganization(orgId),
+    storage.getTaskResourceAssignmentsByOrgId(orgId)
+  ]);
   
-  // Batch get all task resource assignments
+  const orgTaskProjectIds = new Set(orgTasks.map(t => t.projectId));
+  
+  const assignmentsByTaskId = new Map<number, number[]>();
+  for (const a of allAssignments) {
+    const existing = assignmentsByTaskId.get(a.taskId);
+    if (existing) {
+      existing.push(a.resourceId);
+    } else {
+      assignmentsByTaskId.set(a.taskId, [a.resourceId]);
+    }
+  }
+  
   const projectIdSet = new Set<number>();
   const taskIdSet = new Set<number>();
-  
-  // Include projects the resource was explicitly invited to
   const invitedProjectIdSet = new Set<number>();
+  
   for (const resource of userResources) {
     if (resource.invitedProjectIds && Array.isArray(resource.invitedProjectIds)) {
       for (const projectId of resource.invitedProjectIds) {
-        if (orgProjectIds.has(projectId)) {
+        if (orgTaskProjectIds.has(projectId)) {
           projectIdSet.add(projectId);
           invitedProjectIdSet.add(projectId);
         }
@@ -1238,15 +1243,12 @@ async function getTeamMemberAccessData(userId: string, orgId: number): Promise<T
     }
   }
   
-  // Check assignments for each task, and include ALL tasks from invited projects
   for (const task of orgTasks) {
-    // If task is in an invited project, include it
     if (invitedProjectIdSet.has(task.projectId)) {
       taskIdSet.add(task.id);
     } else {
-      // Otherwise, check if user is assigned to this task
-      const assignments = await storage.getTaskResourceAssignments(task.id);
-      if (assignments.some(a => resourceIds.includes(a.resourceId))) {
+      const taskAssignmentResourceIds = assignmentsByTaskId.get(task.id);
+      if (taskAssignmentResourceIds && taskAssignmentResourceIds.some(rid => resourceIdSet.has(rid))) {
         projectIdSet.add(task.projectId);
         taskIdSet.add(task.id);
       }
@@ -1273,20 +1275,32 @@ async function getTeamMemberRiskIds(userId: string, orgId: number): Promise<numb
   const accessData = await getTeamMemberAccessData(userId, orgId);
   if (accessData.resourceIds.length === 0) return [];
   
+  const resourceIdSet = new Set(accessData.resourceIds);
   const riskIdSet = new Set<number>();
+  const projectIds = Array.from(accessData.projectIds);
   
-  for (const projectId of accessData.projectIds) {
-    const risks = await storage.getRisks(projectId);
+  const risksByProject = await Promise.all(projectIds.map(pid => storage.getRisks(pid)));
+  const risksNeedingAssignmentCheck: number[] = [];
+  
+  for (let i = 0; i < projectIds.length; i++) {
+    const projectId = projectIds[i];
+    const risks = risksByProject[i];
     for (const risk of risks) {
-      // If project is in invited projects, include all risks
       if (accessData.invitedProjectIds.has(projectId)) {
         riskIdSet.add(risk.id);
       } else {
-        // Otherwise, check if user is assigned to this risk
-        const assignments = await storage.getRiskResourceAssignments(risk.id);
-        if (assignments.some(a => accessData.resourceIds.includes(a.resourceId))) {
-          riskIdSet.add(risk.id);
-        }
+        risksNeedingAssignmentCheck.push(risk.id);
+      }
+    }
+  }
+  
+  if (risksNeedingAssignmentCheck.length > 0) {
+    const assignmentResults = await Promise.all(
+      risksNeedingAssignmentCheck.map(riskId => storage.getRiskResourceAssignments(riskId))
+    );
+    for (let i = 0; i < risksNeedingAssignmentCheck.length; i++) {
+      if (assignmentResults[i].some(a => resourceIdSet.has(a.resourceId))) {
+        riskIdSet.add(risksNeedingAssignmentCheck[i]);
       }
     }
   }
@@ -1294,25 +1308,36 @@ async function getTeamMemberRiskIds(userId: string, orgId: number): Promise<numb
   return Array.from(riskIdSet);
 }
 
-// Helper to get issue IDs that a team_member has access to (assigned or in invited projects)
 async function getTeamMemberIssueIds(userId: string, orgId: number): Promise<number[]> {
   const accessData = await getTeamMemberAccessData(userId, orgId);
   if (accessData.resourceIds.length === 0) return [];
   
+  const resourceIdSet = new Set(accessData.resourceIds);
   const issueIdSet = new Set<number>();
+  const projectIds = Array.from(accessData.projectIds);
   
-  for (const projectId of accessData.projectIds) {
-    const issues = await storage.getIssues(projectId);
+  const issuesByProject = await Promise.all(projectIds.map(pid => storage.getIssues(pid)));
+  const issuesNeedingAssignmentCheck: number[] = [];
+  
+  for (let i = 0; i < projectIds.length; i++) {
+    const projectId = projectIds[i];
+    const issues = issuesByProject[i];
     for (const issue of issues) {
-      // If project is in invited projects, include all issues
       if (accessData.invitedProjectIds.has(projectId)) {
         issueIdSet.add(issue.id);
       } else {
-        // Otherwise, check if user is assigned to this issue
-        const assignments = await storage.getIssueResourceAssignments(issue.id);
-        if (assignments.some(a => accessData.resourceIds.includes(a.resourceId))) {
-          issueIdSet.add(issue.id);
-        }
+        issuesNeedingAssignmentCheck.push(issue.id);
+      }
+    }
+  }
+  
+  if (issuesNeedingAssignmentCheck.length > 0) {
+    const assignmentResults = await Promise.all(
+      issuesNeedingAssignmentCheck.map(issueId => storage.getIssueResourceAssignments(issueId))
+    );
+    for (let i = 0; i < issuesNeedingAssignmentCheck.length; i++) {
+      if (assignmentResults[i].some(a => resourceIdSet.has(a.resourceId))) {
+        issueIdSet.add(issuesNeedingAssignmentCheck[i]);
       }
     }
   }
@@ -2072,6 +2097,296 @@ export async function registerRoutes(
     } catch (err) {
       console.error('Badge card image generation error:', err);
       res.status(500).json({ message: 'Failed to generate badge card image' });
+    }
+  });
+
+  app.get('/api/users/:userId/badges/:badgeId/image.png', async (req, res) => {
+    try {
+      const { getSingleBadgeOgData, generateSingleBadgeImage } = await import("./badge-og");
+      const badgeData = await getSingleBadgeOgData(req.params.userId, req.params.badgeId);
+      if (!badgeData) {
+        return res.status(404).json({ message: 'Badge not found' });
+      }
+      const pngBuffer = await generateSingleBadgeImage(badgeData);
+      res.set({
+        'Content-Type': 'image/png',
+        'Cache-Control': 'public, max-age=3600',
+        'Content-Length': pngBuffer.length.toString(),
+      });
+      res.send(pngBuffer);
+    } catch (err) {
+      console.error('Single badge image generation error:', err);
+      res.status(500).json({ message: 'Failed to generate badge image' });
+    }
+  });
+
+  const selfieUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
+      if (allowed.includes(file.mimetype)) cb(null, true);
+      else cb(new Error('Only JPEG, PNG, GIF, WebP, and HEIC images are allowed'));
+    }
+  });
+
+  app.post('/api/uncon2026/selfie', (req, res, next) => {
+    selfieUpload.single('photo')(req, res, (err: any) => {
+      if (err) {
+        return res.status(400).json({ message: err.message || 'Invalid file upload' });
+      }
+      next();
+    });
+  }, async (req, res) => {
+    try {
+      const { name: userName, email, interviewer } = req.body;
+      if (!userName || !email) {
+        return res.status(400).json({ message: 'Name and email are required' });
+      }
+      if (typeof userName !== 'string' || userName.trim().length < 1 || userName.trim().length > 255) {
+        return res.status(400).json({ message: 'Name must be between 1 and 255 characters' });
+      }
+      if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        return res.status(400).json({ message: 'A valid email address is required' });
+      }
+      if (!req.file) {
+        return res.status(400).json({ message: 'A selfie photo is required' });
+      }
+
+      const shareToken = crypto.randomBytes(16).toString('hex');
+      let photoPath: string | null = null;
+
+      try {
+        const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
+        const oss = new ObjectStorageService();
+        const uploadURL = await oss.getObjectEntityUploadURL();
+        photoPath = oss.normalizeObjectEntityPath(uploadURL);
+
+        const uploadResponse = await fetch(uploadURL, {
+          method: 'PUT',
+          body: req.file.buffer,
+          headers: { 'Content-Type': req.file.mimetype },
+        });
+
+        if (!uploadResponse.ok) {
+          console.error('Failed to upload selfie to object storage');
+          photoPath = null;
+        }
+      } catch (uploadErr) {
+        console.error('Object storage upload error:', uploadErr);
+        photoPath = null;
+      }
+
+      if (!photoPath && req.file) {
+        try {
+          const uploadsDir = path.resolve(process.cwd(), 'server', 'selfie-uploads');
+          if (!fs.existsSync(uploadsDir)) {
+            fs.mkdirSync(uploadsDir, { recursive: true });
+          }
+          const ext = req.file.mimetype === 'image/png' ? '.png' : req.file.mimetype === 'image/webp' ? '.webp' : '.jpg';
+          const localFilename = `${shareToken}${ext}`;
+          const localPath = path.join(uploadsDir, localFilename);
+          fs.writeFileSync(localPath, req.file.buffer);
+          photoPath = `local:${localFilename}`;
+        } catch (localErr) {
+          console.error('Local selfie save error:', localErr);
+        }
+      }
+
+      if (!photoPath && req.file) {
+        try {
+          const base64 = req.file.buffer.toString('base64');
+          photoPath = `data:${req.file.mimetype};base64,${base64}`;
+        } catch (b64Err) {
+          console.error('Base64 selfie fallback error:', b64Err);
+        }
+      }
+
+      if (!photoPath) {
+        return res.status(500).json({ message: 'Failed to save selfie photo. Please try again.' });
+      }
+
+      const { unconSelfieLeads } = await import("@shared/schema");
+      const [lead] = await db.insert(unconSelfieLeads).values({
+        name: userName.trim().slice(0, 255),
+        email: email.trim().slice(0, 255),
+        interviewer: interviewer?.trim()?.slice(0, 255) || null,
+        photoPath,
+        shareToken,
+      }).returning();
+
+      res.json({ success: true, shareToken: lead.shareToken });
+    } catch (err) {
+      console.error('Selfie submission error:', err);
+      const { status, message } = classifyError(err);
+      res.status(status).json({ message });
+    }
+  });
+
+  app.get('/api/uncon2026/selfie/:shareToken/og.png', async (req, res) => {
+    try {
+      const { unconSelfieLeads } = await import("@shared/schema");
+      const [lead] = await db.select().from(unconSelfieLeads)
+        .where(eq(unconSelfieLeads.shareToken, req.params.shareToken))
+        .limit(1);
+
+      if (!lead) {
+        return res.status(404).json({ message: 'Selfie not found' });
+      }
+
+      let selfieBuffer: Buffer | null = null;
+      if (lead.photoPath) {
+        try {
+          if (lead.photoPath.startsWith('data:')) {
+            const base64Data = lead.photoPath.split(',')[1];
+            if (base64Data) {
+              selfieBuffer = Buffer.from(base64Data, 'base64');
+            }
+          } else if (lead.photoPath.startsWith('local:')) {
+            const localFilename = lead.photoPath.replace('local:', '');
+            const localPath = path.resolve(process.cwd(), 'server', 'selfie-uploads', localFilename);
+            if (fs.existsSync(localPath)) {
+              selfieBuffer = fs.readFileSync(localPath);
+            }
+          } else {
+            const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
+            const oss = new ObjectStorageService();
+            const file = await oss.getObjectEntityFile(lead.photoPath);
+            const [contents] = await file.download();
+            selfieBuffer = contents;
+          }
+        } catch (dlErr) {
+          console.error('Failed to download selfie for OG image:', dlErr);
+        }
+      }
+
+      const { generateSelfieOgImage } = await import("./selfie-og");
+      const pngBuffer = await generateSelfieOgImage({
+        userName: lead.name,
+        interviewer: lead.interviewer,
+        selfieBuffer,
+      });
+
+      res.set({
+        'Content-Type': 'image/png',
+        'Cache-Control': 'public, max-age=3600',
+        'Content-Length': pngBuffer.length.toString(),
+      });
+      res.send(pngBuffer);
+    } catch (err) {
+      console.error('Selfie OG image generation error:', err);
+      res.status(500).json({ message: 'Failed to generate selfie image' });
+    }
+  });
+
+  app.get('/api/uncon2026/selfie/:shareToken/share', async (req, res) => {
+    try {
+      const { unconSelfieLeads } = await import("@shared/schema");
+      const [lead] = await db.select().from(unconSelfieLeads)
+        .where(eq(unconSelfieLeads.shareToken, req.params.shareToken))
+        .limit(1);
+
+      if (!lead) {
+        return res.status(404).send('Not found');
+      }
+
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const ogImageUrl = `${baseUrl}/api/uncon2026/selfie/${lead.shareToken}/og.png`;
+      const title = lead.interviewer
+        ? `${lead.name} met ${lead.interviewer} at PMO unCON 2026!`
+        : `${lead.name} at PMO unCON 2026!`;
+      const description = `Great meeting you at PMO unCON 2026! PMO Global Alliance \u00B7 FridayReport.AI \u2014 Gold Sponsor.`;
+
+      const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      let fridayLogoDataUrl = '';
+      let pmiPmogaLogoDataUrl = '';
+      try {
+        const sharp = (await import('sharp')).default;
+        const logoPath = path.resolve(process.cwd(), 'client', 'public', 'logo-full.png');
+        if (fs.existsSync(logoPath)) {
+          const buf = await sharp(logoPath).resize(240, null, { fit: 'inside' }).png().toBuffer();
+          fridayLogoDataUrl = `data:image/png;base64,${buf.toString('base64')}`;
+        }
+        const pmiPath = path.resolve(process.cwd(), 'client', 'public', 'pmi-pmoga-logo.png');
+        if (fs.existsSync(pmiPath)) {
+          const buf2 = await sharp(pmiPath).resize(200, null, { fit: 'inside' }).png().toBuffer();
+          pmiPmogaLogoDataUrl = `data:image/png;base64,${buf2.toString('base64')}`;
+        }
+      } catch {}
+
+      const interviewerHtml = lead.interviewer
+        ? `<p class="interviewer">Interviewed by <strong>${esc(lead.interviewer)}</strong></p>`
+        : '';
+
+      res.set('Content-Type', 'text/html');
+      res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${esc(title)}</title>
+  <meta property="og:title" content="${esc(title)}" />
+  <meta property="og:description" content="${esc(description)}" />
+  <meta property="og:image" content="${esc(ogImageUrl)}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="${esc(baseUrl)}/api/uncon2026/selfie/${lead.shareToken}/share" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${esc(title)}" />
+  <meta name="twitter:description" content="${esc(description)}" />
+  <meta name="twitter:image" content="${esc(ogImageUrl)}" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 30%, #f5f6fa 100%); display: flex; flex-direction: column; align-items: center; }
+    .header { width: 100%; background: #17255A; padding: 14px 24px; display: flex; align-items: center; justify-content: center; }
+    .header img { height: 28px; filter: invert(1); }
+    .header-text { color: white; font-size: 16px; font-weight: 700; }
+    .container { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 16px; width: 100%; max-width: 480px; }
+    .card { background: white; border-radius: 20px; box-shadow: 0 8px 40px rgba(0,0,0,0.08); padding: 32px 24px; text-align: center; width: 100%; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(90deg, #fef3c7, #fde68a); border: 1px solid #fcd34d; border-radius: 999px; padding: 6px 16px; font-size: 11px; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 20px; }
+    .og-image { width: 100%; border-radius: 12px; margin-bottom: 24px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+    h1 { font-size: 22px; color: #17255A; margin-bottom: 8px; line-height: 1.3; }
+    .subtitle { color: #FF751F; font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+    .interviewer { color: #6b7280; font-size: 14px; margin-bottom: 16px; }
+    .interviewer strong { color: #17255A; }
+    .description { color: #6b7280; font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
+    .cta { display: inline-block; background: #FF751F; color: white; text-decoration: none; font-weight: 700; font-size: 15px; padding: 12px 32px; border-radius: 10px; transition: background 0.2s; }
+    .cta:hover { background: #e86a15; }
+    .logos { display: flex; align-items: center; justify-content: center; gap: 24px; margin-top: 24px; padding-top: 20px; border-top: 1px solid #f0f1f5; }
+    .logos img { height: 24px; object-fit: contain; opacity: 0.7; }
+    .logos .sep { width: 1px; height: 20px; background: #e5e7eb; }
+    .footer { padding: 20px; text-align: center; color: #9ca3af; font-size: 12px; }
+    .gold-label { color: #d97706; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    ${fridayLogoDataUrl ? `<img src="${fridayLogoDataUrl}" alt="FridayReport.AI" />` : `<span class="header-text">FridayReport.AI</span>`}
+  </div>
+  <div class="container">
+    <div class="card">
+      <div class="badge">\u{1F4F8} PMO unCON 2026 \u00B7 Selfie Experience</div>
+      <img src="${esc(ogImageUrl)}" alt="Selfie card" class="og-image" />
+      <h1>${esc(lead.name)}</h1>
+      <p class="subtitle">Great meeting you at PMO unCON 2026!</p>
+      ${interviewerHtml}
+      <p class="description">Snap a selfie, share the moment. Powered by FridayReport.AI \u2014 proud <span class="gold-label">Gold Sponsor</span> of PMO unCON North America 2026.</p>
+      <a href="https://fridayreport.ai" class="cta" target="_blank" rel="noopener noreferrer">Learn about FridayReport.AI</a>
+      <div class="logos">
+        ${pmiPmogaLogoDataUrl ? `<img src="${pmiPmogaLogoDataUrl}" alt="PMI &middot; PMO Global Alliance" />` : `<span style="font-size:12px;font-weight:700;color:#9ca3af">PMI \u00B7 PMO Global Alliance</span>`}
+        <div class="sep"></div>
+        ${fridayLogoDataUrl ? `<img src="${fridayLogoDataUrl}" alt="FridayReport.AI" />` : `<span style="font-size:12px;font-weight:700;color:#17255A">FridayReport.AI</span>`}
+      </div>
+    </div>
+  </div>
+  <div class="footer">PMO unCON North America 2026 \u00B7 FridayReport.AI \u2014 Gold Sponsor</div>
+</body>
+</html>`);
+    } catch (err) {
+      console.error('Selfie share page error:', err);
+      res.status(500).send('Something went wrong');
     }
   });
 
@@ -4257,24 +4572,30 @@ export async function registerRoutes(
       const shares = await storage.getExternalSharesForUser(userId);
       const projectShares = shares.filter(s => s.objectType === 'project');
       
-      // Fetch full project details for each share
-      const projects = await Promise.all(
-        projectShares.map(async (share) => {
-          const project = await storage.getProject(share.objectId);
-          if (project) {
-            const org = await storage.getOrganization(share.sourceOrganizationId);
-            return {
-              ...project,
-              isExternal: true,
-              sourceOrganizationId: share.sourceOrganizationId,
-              sourceOrganizationName: org?.name || 'External Organization',
-              externalShareId: share.id,
-              accessRole: share.accessRole
-            };
-          }
-          return null;
-        })
-      );
+      if (projectShares.length === 0) return res.json([]);
+
+      const projectIds = projectShares.map(s => s.objectId);
+      const orgIds = [...new Set(projectShares.map(s => s.sourceOrganizationId))];
+      const [allProjects, allOrgs] = await Promise.all([
+        Promise.all(projectIds.map(id => storage.getProject(id))),
+        Promise.all(orgIds.map(id => storage.getOrganization(id)))
+      ]);
+      const projectMap = new Map(allProjects.filter(Boolean).map(p => [p!.id, p!]));
+      const orgMap = new Map(allOrgs.filter(Boolean).map(o => [o!.id, o!]));
+      
+      const projects = projectShares.map(share => {
+        const project = projectMap.get(share.objectId);
+        if (!project) return null;
+        const org = orgMap.get(share.sourceOrganizationId);
+        return {
+          ...project,
+          isExternal: true,
+          sourceOrganizationId: share.sourceOrganizationId,
+          sourceOrganizationName: org?.name || 'External Organization',
+          externalShareId: share.id,
+          accessRole: share.accessRole
+        };
+      });
       
       res.json(projects.filter(Boolean));
     } catch (err) {
@@ -4284,7 +4605,6 @@ export async function registerRoutes(
     }
   });
   
-  // Get external tasks for the current user (with full task details)
   app.get('/api/external-tasks', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -4295,31 +4615,35 @@ export async function registerRoutes(
       const shares = await storage.getExternalSharesForUser(userId);
       const taskShares = shares.filter(s => s.objectType === 'task');
       
-      // Fetch full task details for each share
-      const tasks = await Promise.all(
-        taskShares.map(async (share) => {
-          const task = await storage.getTask(share.objectId);
-          if (task) {
-            const org = await storage.getOrganization(share.sourceOrganizationId);
-            // Get project info for context
-            let projectName = null;
-            if (task.projectId) {
-              const project = await storage.getProject(task.projectId);
-              projectName = project?.name || null;
-            }
-            return {
-              ...task,
-              isExternal: true,
-              sourceOrganizationId: share.sourceOrganizationId,
-              sourceOrganizationName: org?.name || 'External Organization',
-              projectName,
-              externalShareId: share.id,
-              accessRole: share.accessRole
-            };
-          }
-          return null;
-        })
-      );
+      if (taskShares.length === 0) return res.json([]);
+
+      const taskIds = taskShares.map(s => s.objectId);
+      const orgIds = [...new Set(taskShares.map(s => s.sourceOrganizationId))];
+      const [allTasks, allOrgs] = await Promise.all([
+        Promise.all(taskIds.map(id => storage.getTask(id))),
+        Promise.all(orgIds.map(id => storage.getOrganization(id)))
+      ]);
+      const taskMap = new Map(allTasks.filter(Boolean).map(t => [t!.id, t!]));
+      const orgMap = new Map(allOrgs.filter(Boolean).map(o => [o!.id, o!]));
+      const projectIds = [...new Set(Array.from(taskMap.values()).map(t => t.projectId).filter(Boolean))];
+      const allProjects = await Promise.all(projectIds.map(id => storage.getProject(id)));
+      const projectMap = new Map(allProjects.filter(Boolean).map(p => [p!.id, p!]));
+      
+      const tasks = taskShares.map(share => {
+        const task = taskMap.get(share.objectId);
+        if (!task) return null;
+        const org = orgMap.get(share.sourceOrganizationId);
+        const project = task.projectId ? projectMap.get(task.projectId) : null;
+        return {
+          ...task,
+          isExternal: true,
+          sourceOrganizationId: share.sourceOrganizationId,
+          sourceOrganizationName: org?.name || 'External Organization',
+          projectName: project?.name || null,
+          externalShareId: share.id,
+          accessRole: share.accessRole
+        };
+      });
       
       res.json(tasks.filter(Boolean));
     } catch (err) {
@@ -4329,7 +4653,6 @@ export async function registerRoutes(
     }
   });
   
-  // Get external risks for the current user (with full risk details)
   app.get('/api/external-risks', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -4340,31 +4663,35 @@ export async function registerRoutes(
       const shares = await storage.getExternalSharesForUser(userId);
       const riskShares = shares.filter(s => s.objectType === 'risk');
       
-      // Fetch full risk details for each share
-      const risks = await Promise.all(
-        riskShares.map(async (share) => {
-          const risk = await storage.getRisk(share.objectId);
-          if (risk) {
-            const org = await storage.getOrganization(share.sourceOrganizationId);
-            // Get project info for context
-            let projectName = null;
-            if (risk.projectId) {
-              const project = await storage.getProject(risk.projectId);
-              projectName = project?.name || null;
-            }
-            return {
-              ...risk,
-              isExternal: true,
-              sourceOrganizationId: share.sourceOrganizationId,
-              sourceOrganizationName: org?.name || 'External Organization',
-              projectName,
-              externalShareId: share.id,
-              accessRole: share.accessRole
-            };
-          }
-          return null;
-        })
-      );
+      if (riskShares.length === 0) return res.json([]);
+
+      const riskIds = riskShares.map(s => s.objectId);
+      const orgIds = [...new Set(riskShares.map(s => s.sourceOrganizationId))];
+      const [allRisks, allOrgs] = await Promise.all([
+        Promise.all(riskIds.map(id => storage.getRisk(id))),
+        Promise.all(orgIds.map(id => storage.getOrganization(id)))
+      ]);
+      const riskMap = new Map(allRisks.filter(Boolean).map(r => [r!.id, r!]));
+      const orgMap = new Map(allOrgs.filter(Boolean).map(o => [o!.id, o!]));
+      const projectIds = [...new Set(Array.from(riskMap.values()).map(r => r.projectId).filter(Boolean))];
+      const allProjects = await Promise.all(projectIds.map(id => storage.getProject(id)));
+      const projectMap = new Map(allProjects.filter(Boolean).map(p => [p!.id, p!]));
+      
+      const risks = riskShares.map(share => {
+        const risk = riskMap.get(share.objectId);
+        if (!risk) return null;
+        const org = orgMap.get(share.sourceOrganizationId);
+        const project = risk.projectId ? projectMap.get(risk.projectId) : null;
+        return {
+          ...risk,
+          isExternal: true,
+          sourceOrganizationId: share.sourceOrganizationId,
+          sourceOrganizationName: org?.name || 'External Organization',
+          projectName: project?.name || null,
+          externalShareId: share.id,
+          accessRole: share.accessRole
+        };
+      });
       
       res.json(risks.filter(Boolean));
     } catch (err) {
@@ -4374,7 +4701,6 @@ export async function registerRoutes(
     }
   });
   
-  // Get external issues for the current user (with full issue details)
   app.get('/api/external-issues', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -4385,31 +4711,35 @@ export async function registerRoutes(
       const shares = await storage.getExternalSharesForUser(userId);
       const issueShares = shares.filter(s => s.objectType === 'issue');
       
-      // Fetch full issue details for each share
-      const issues = await Promise.all(
-        issueShares.map(async (share) => {
-          const issue = await storage.getIssue(share.objectId);
-          if (issue) {
-            const org = await storage.getOrganization(share.sourceOrganizationId);
-            // Get project info for context
-            let projectName = null;
-            if (issue.projectId) {
-              const project = await storage.getProject(issue.projectId);
-              projectName = project?.name || null;
-            }
-            return {
-              ...issue,
-              isExternal: true,
-              sourceOrganizationId: share.sourceOrganizationId,
-              sourceOrganizationName: org?.name || 'External Organization',
-              projectName,
-              externalShareId: share.id,
-              accessRole: share.accessRole
-            };
-          }
-          return null;
-        })
-      );
+      if (issueShares.length === 0) return res.json([]);
+
+      const issueIds = issueShares.map(s => s.objectId);
+      const orgIds = [...new Set(issueShares.map(s => s.sourceOrganizationId))];
+      const [allIssues, allOrgs] = await Promise.all([
+        Promise.all(issueIds.map(id => storage.getIssue(id))),
+        Promise.all(orgIds.map(id => storage.getOrganization(id)))
+      ]);
+      const issueMap = new Map(allIssues.filter(Boolean).map(i => [i!.id, i!]));
+      const orgMap = new Map(allOrgs.filter(Boolean).map(o => [o!.id, o!]));
+      const projectIds = [...new Set(Array.from(issueMap.values()).map(i => i.projectId).filter(Boolean))];
+      const allProjects = await Promise.all(projectIds.map(id => storage.getProject(id)));
+      const projectMap = new Map(allProjects.filter(Boolean).map(p => [p!.id, p!]));
+      
+      const issues = issueShares.map(share => {
+        const issue = issueMap.get(share.objectId);
+        if (!issue) return null;
+        const org = orgMap.get(share.sourceOrganizationId);
+        const project = issue.projectId ? projectMap.get(issue.projectId) : null;
+        return {
+          ...issue,
+          isExternal: true,
+          sourceOrganizationId: share.sourceOrganizationId,
+          sourceOrganizationName: org?.name || 'External Organization',
+          projectName: project?.name || null,
+          externalShareId: share.id,
+          accessRole: share.accessRole
+        };
+      });
       
       res.json(issues.filter(Boolean));
     } catch (err) {
@@ -10059,10 +10389,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       lastLevel = level;
     }
     
-    // Apply all updates
-    for (const update of updates) {
-      await storage.updateTask(update.id, { wbs: update.wbs });
-    }
+    await storage.batchUpdateTaskWbs(updates);
   }
   
   // Helper function to recalculate parentId for all tasks based on outline levels (MS Project style)
@@ -10101,10 +10428,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
     }
     
-    // Apply all updates
-    for (const update of updates) {
-      await storage.updateTask(update.id, { parentId: update.parentId });
-    }
+    await storage.batchUpdateTaskParentIds(updates);
   }
   
   async function recalculateTaskEstimatedHours(taskId: number) {
@@ -10572,6 +10896,182 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       // Re-fetch the task to return the fully updated version (with WBS, outlineLevel, etc.)
       const updatedTask = await storage.getTask(task.id);
       res.status(201).json(updatedTask || task);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
+      throw err;
+    }
+  });
+
+  const bulkUpdateSchema = z.object({
+    taskIds: z.array(z.number()).optional(),
+    updates: z.object({
+      progress: z.number().min(0).max(100).optional(),
+      status: z.string().optional(),
+      timesheetBlocked: z.boolean().optional(),
+    }).optional(),
+    taskUpdates: z.array(z.object({
+      taskId: z.number(),
+      updates: z.object({
+        baselineStartDate: z.string().optional(),
+        baselineEndDate: z.string().optional(),
+      }),
+    })).optional(),
+  }).refine(
+    data => (data.taskIds?.length && data.updates) || data.taskUpdates?.length,
+    { message: 'taskIds with updates, or taskUpdates array required' }
+  );
+
+  app.post(api.tasks.bulkUpdate.path, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+      const parsed = bulkUpdateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: formatZodErrors(parsed.error) });
+      }
+      const { taskIds, updates, taskUpdates } = parsed.data;
+
+      let updatedCount = 0;
+      const user = await storage.getUser(userId);
+      const changedByName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System';
+
+      if (taskIds?.length && updates) {
+        const previousTasks = await Promise.all(taskIds.map(id => storage.getTask(id)));
+        const validTasks = previousTasks.filter((t): t is NonNullable<typeof t> => t !== null && t !== undefined);
+
+        if (validTasks.length === 0) {
+          return res.status(400).json({ message: 'No valid tasks found' });
+        }
+
+        const finalUpdates: Record<string, any> = { ...updates };
+        if (finalUpdates.progress !== undefined) {
+          if (finalUpdates.progress === 100) {
+            finalUpdates.status = 'Completed';
+          } else if (finalUpdates.progress === 0) {
+            finalUpdates.status = 'Not Started';
+          } else if (finalUpdates.progress > 0) {
+            finalUpdates.status = 'In Progress';
+          }
+        }
+
+        const validIds = validTasks.map(t => t.id);
+        await storage.bulkUpdateTasks(validIds, finalUpdates);
+        updatedCount = validIds.length;
+
+        const projectIds = new Set(validTasks.map(t => t.projectId));
+
+        const changeLogs = validTasks.map(prev => {
+          const changes: string[] = [];
+          const prevValues: Record<string, any> = {};
+          const newValues: Record<string, any> = {};
+          const fieldsToTrack = ['progress', 'status', 'timesheetBlocked'];
+          for (const field of fieldsToTrack) {
+            if (finalUpdates[field] !== undefined && (prev as any)[field] !== finalUpdates[field]) {
+              changes.push(`${field}: "${(prev as any)[field] ?? '(empty)'}" → "${finalUpdates[field] ?? '(empty)'}"`);
+              prevValues[field] = (prev as any)[field];
+              newValues[field] = finalUpdates[field];
+            }
+          }
+          if (changes.length === 0) return null;
+          return {
+            taskId: prev.id,
+            changedBy: userId,
+            changedByName,
+            changeType: 'updated' as const,
+            changeSummary: changes.join('; '),
+            previousValues: JSON.stringify(prevValues),
+            newValues: JSON.stringify(newValues),
+          };
+        }).filter((c): c is NonNullable<typeof c> => c !== null);
+
+        if (changeLogs.length > 0) {
+          await Promise.all(changeLogs.map(log => storage.createTaskChangeLog(log)));
+        }
+
+        for (const pid of projectIds) {
+          await rollUpParentTasks(pid);
+        }
+      }
+
+      if (taskUpdates?.length) {
+        const allTaskIds = taskUpdates.map(t => t.taskId);
+        const previousTasks = await Promise.all(allTaskIds.map(id => storage.getTask(id)));
+        const taskMap = new Map(previousTasks.filter((t): t is NonNullable<typeof t> => t !== null).map(t => [t.id, t]));
+        const projectIds = new Set<number>();
+
+        for (const { taskId, updates: perTaskUpdates } of taskUpdates) {
+          const prev = taskMap.get(taskId);
+          if (!prev) continue;
+
+          await storage.updateTask(taskId, perTaskUpdates);
+          updatedCount++;
+          projectIds.add(prev.projectId);
+
+          const changes: string[] = [];
+          const prevValues: Record<string, any> = {};
+          const newValues: Record<string, any> = {};
+          for (const field of ['baselineStartDate', 'baselineEndDate']) {
+            if ((perTaskUpdates as any)[field] !== undefined && (prev as any)[field] !== (perTaskUpdates as any)[field]) {
+              changes.push(`${field}: "${(prev as any)[field] ?? '(empty)'}" → "${(perTaskUpdates as any)[field] ?? '(empty)'}"`);
+              prevValues[field] = (prev as any)[field];
+              newValues[field] = (perTaskUpdates as any)[field];
+            }
+          }
+          if (changes.length > 0) {
+            await storage.createTaskChangeLog({
+              taskId,
+              changedBy: userId,
+              changedByName,
+              changeType: 'updated',
+              changeSummary: changes.join('; '),
+              previousValues: JSON.stringify(prevValues),
+              newValues: JSON.stringify(newValues),
+            });
+          }
+        }
+
+        for (const pid of projectIds) {
+          await rollUpParentTasks(pid);
+        }
+      }
+
+      return res.json({ updatedCount });
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
+      throw err;
+    }
+  });
+
+  app.post(api.tasks.bulkDelete.path, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+      const bodySchema = z.object({ taskIds: z.array(z.number()).min(1) });
+      const parsed = bodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'taskIds array with at least one ID required' });
+      }
+      const { taskIds } = parsed.data;
+
+      const tasksToDelete = await Promise.all(taskIds.map(id => storage.getTask(id)));
+      const validTasks = tasksToDelete.filter((t): t is NonNullable<typeof t> => t !== null && t !== undefined);
+      if (validTasks.length === 0) {
+        return res.status(400).json({ message: 'No valid tasks found' });
+      }
+
+      const validIds = validTasks.map(t => t.id);
+      const projectIds = new Set(validTasks.map(t => t.projectId));
+
+      const deletedCount = await storage.bulkSoftDeleteTasks(validIds, userId);
+
+      for (const pid of projectIds) {
+        await rollUpParentTasks(pid);
+        await recalculateProjectWBS(pid);
+      }
+
+      return res.json({ deletedCount });
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
       throw err;

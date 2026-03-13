@@ -107,6 +107,14 @@
   scrollbar-width: thin;
 }
 
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* Hide vertical scrollbar but keep scroll functionality and horizontal scrollbar */
 .scrollbar-hide-y::-webkit-scrollbar:vertical {
   width: 0;

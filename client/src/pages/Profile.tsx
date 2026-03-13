@@ -433,8 +433,29 @@ export default function Profile() {
   };
 
   return (
-    <div className="flex gap-6">
-      <div className="w-56 shrink-0">
+    <div className="flex flex-col lg:flex-row gap-6">
+      <div className="lg:hidden">
+        <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-none">
+          {menuItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveSection(item.id)}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-full text-sm whitespace-nowrap transition-colors shrink-0",
+                activeSection === item.id
+                  ? "bg-primary text-primary-foreground font-medium"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              )}
+              data-testid={`nav-mobile-${item.id}`}
+            >
+              <item.icon className="h-3.5 w-3.5" />
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="hidden lg:block w-56 shrink-0">
         <Card className="sticky top-6">
           <CardContent className="p-4">
             <div className="flex flex-col items-center mb-4 pt-2">
@@ -480,13 +501,13 @@ export default function Profile() {
       <div className="flex-1 min-w-0">
         {activeSection === "profile" && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-2xl font-bold">Profile</h2>
-                <p className="text-muted-foreground">Manage your personal information</p>
+                <p className="text-sm text-muted-foreground">Manage your personal information</p>
               </div>
               {!isEditing && (
-                <Button onClick={handleEdit} variant="outline" data-testid="button-edit-profile">
+                <Button onClick={handleEdit} variant="outline" className="shrink-0" data-testid="button-edit-profile">
                   <Pencil className="h-4 w-4 mr-2" />
                   Edit
                 </Button>
@@ -568,7 +589,7 @@ export default function Profile() {
                 <CardDescription>Customize your profile picture</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col sm:flex-row items-center gap-4">
                   <Avatar className="h-20 w-20">
                     {avatarDisplay.type === 'image' ? (
                       <AvatarImage src={avatarDisplay.url} alt={user?.firstName || 'User'} />
@@ -662,8 +683,8 @@ export default function Profile() {
               {user?.publicProfileEnabled && (
                 <CardContent>
                   <div className="flex items-center gap-2">
-                    <Input readOnly value={`https://fridayreport.ai/badges/${user?.id}`} className="font-mono text-sm" />
-                    <Button variant="outline" size="sm" onClick={() => {
+                    <Input readOnly value={`https://fridayreport.ai/badges/${user?.id}`} className="font-mono text-xs sm:text-sm min-w-0" />
+                    <Button variant="outline" size="sm" className="shrink-0" onClick={() => {
                       navigator.clipboard.writeText(`https://fridayreport.ai/badges/${user?.id}`);
                       toast({ title: "Link copied!" });
                     }}>
@@ -956,7 +977,7 @@ export default function Profile() {
               </CardHeader>
               <CardContent>
                 <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div>
                       <p className="font-medium">Delete Account</p>
                       <p className="text-sm text-muted-foreground">Permanently delete your account and all data</p>
@@ -965,6 +986,7 @@ export default function Profile() {
                       variant="destructive" 
                       size="sm" 
                       onClick={() => setDeleteDialogOpen(true)}
+                      className="w-full sm:w-auto"
                       data-testid="button-delete-account"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
@@ -1000,10 +1022,10 @@ export default function Profile() {
                       <Input 
                         value={referralStats?.code ? `${window.location.origin}/auth?ref=${referralStats.code.code}` : ""} 
                         readOnly 
-                        className="font-mono text-sm"
+                        className="font-mono text-xs sm:text-sm min-w-0"
                         data-testid="input-referral-link"
                       />
-                      <Button size="icon" variant="outline" onClick={copyReferralLink} data-testid="button-copy-referral-link">
+                      <Button size="icon" variant="outline" className="shrink-0" onClick={copyReferralLink} data-testid="button-copy-referral-link">
                         <Copy className="h-4 w-4" />
                       </Button>
                     </div>
@@ -1022,7 +1044,7 @@ export default function Profile() {
               </CardContent>
             </Card>
 
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
               <Card data-testid="card-stat-referrals">
                 <CardContent className="pt-4">
                   <div className="flex items-center gap-3">

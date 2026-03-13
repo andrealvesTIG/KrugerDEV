@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, Briefcase, ListChecks, CheckCircle2, AlertTriangle, Shield, Flag, Layers, Activity, Trophy, Award, Star, Crown, Flame, Zap, Rocket, Bug, ShieldCheck, Building2, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 interface PublicProfileData {
   displayName: string;
@@ -97,7 +97,8 @@ function getBadgeIcon(icon: string, className?: string) {
 }
 
 export default function PublicBadgeProfile() {
-  const params = useParams<{ userId: string }>();
+  const params = useParams<{ userId: string; badgeId?: string }>();
+  const highlightRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading, error } = useQuery<PublicProfileData>({
     queryKey: [`/api/users/${params.userId}/public-profile`],
@@ -106,9 +107,20 @@ export default function PublicBadgeProfile() {
 
   useEffect(() => {
     if (data) {
-      document.title = `${data.displayName} - PM Profile | FridayReport.AI`;
+      const highlightedBadge = params.badgeId ? data.badges.find(b => b.id === params.badgeId) : null;
+      document.title = highlightedBadge
+        ? `${data.displayName} earned ${highlightedBadge.name} | FridayReport.AI`
+        : `${data.displayName} - PM Profile | FridayReport.AI`;
     }
-  }, [data]);
+  }, [data, params.badgeId]);
+
+  useEffect(() => {
+    if (data && params.badgeId && highlightRef.current) {
+      setTimeout(() => {
+        highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
+    }
+  }, [data, params.badgeId]);
 
   if (isLoading) {
     return (
@@ -245,7 +257,13 @@ export default function PublicBadgeProfile() {
                 {badges.map(badge => (
                   <div
                     key={badge.id}
-                    className="flex flex-col items-center text-center p-3 rounded-lg border-2 border-amber-500/30 bg-amber-500/5 relative"
+                    ref={params.badgeId === badge.id ? highlightRef : undefined}
+                    className={cn(
+                      "flex flex-col items-center text-center p-3 rounded-lg border-2 relative transition-all duration-500",
+                      params.badgeId === badge.id
+                        ? "border-amber-400 bg-amber-500/15 ring-2 ring-amber-400/40 shadow-lg shadow-amber-500/20"
+                        : "border-amber-500/30 bg-amber-500/5"
+                    )}
                   >
                     <div className="text-amber-500 mb-1">
                       {getBadgeIcon(badge.icon, "h-7 w-7")}

@@ -2403,13 +2403,24 @@ function HealthStatusHistoryLog({ projectId }: { projectId: number }) {
                     data-testid={`health-status-history-${entry.id}`}
                   >
                     <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                      <Badge className={cn("text-xs px-2 py-0.5", getHealthColor(entry.previousHealth))}>
-                        {entry.previousHealth || 'None'}
-                      </Badge>
-                      <ArrowDown className="h-3 w-3 text-muted-foreground" />
-                      <Badge className={cn("text-xs px-2 py-0.5", getHealthColor(entry.newHealth))}>
-                        {entry.newHealth}
-                      </Badge>
+                      {entry.previousHealth === entry.newHealth ? (
+                        <>
+                          <Badge className={cn("text-xs px-2 py-0.5", getHealthColor(entry.newHealth))}>
+                            {entry.newHealth}
+                          </Badge>
+                          <span className="text-[10px] text-muted-foreground">Note</span>
+                        </>
+                      ) : (
+                        <>
+                          <Badge className={cn("text-xs px-2 py-0.5", getHealthColor(entry.previousHealth))}>
+                            {entry.previousHealth || 'None'}
+                          </Badge>
+                          <ArrowDown className="h-3 w-3 text-muted-foreground" />
+                          <Badge className={cn("text-xs px-2 py-0.5", getHealthColor(entry.newHealth))}>
+                            {entry.newHealth}
+                          </Badge>
+                        </>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -2426,7 +2437,7 @@ function HealthStatusHistoryLog({ projectId }: { projectId: number }) {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-2">No health status changes recorded yet</p>
+              <p className="text-sm text-muted-foreground text-center py-2">No health status updates recorded yet</p>
             )}
           </div>
         </CollapsibleContent>
@@ -2999,26 +3010,36 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
   const handleHealthChange = (newHealth: string) => {
     if (newHealth !== project.health) {
       setPendingHealth(newHealth);
+      setHealthReason("");
       setShowHealthReasonDialog(true);
     }
   };
 
+  const handleAddStatusNote = () => {
+    setPendingHealth(null);
+    setHealthReason("");
+    setShowHealthReasonDialog(true);
+  };
+
   const saveHealthWithReason = () => {
-    if (!pendingHealth) return;
-    onUpdate({ 
-      id: project.id, 
-      health: pendingHealth,
+    const updatePayload: Record<string, any> = { 
+      id: project.id,
       healthReason: healthReason.trim() || null,
       healthReasonUpdatedAt: new Date().toISOString()
-    }, {
+    };
+    if (pendingHealth) {
+      updatePayload.health = pendingHealth;
+    }
+    onUpdate(updatePayload, {
       onSuccess: () => {
-        toast({ title: "Health status updated" });
+        toast({ title: pendingHealth ? "Health status updated" : "Status note added" });
         queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id, 'health-status-history'] });
         setShowHealthReasonDialog(false);
         setPendingHealth(null);
       },
       onError: () => {
-        toast({ title: "Error", description: "Failed to update health", variant: "destructive" });
+        toast({ title: "Error", description: pendingHealth ? "Failed to update health" : "Failed to add status note", variant: "destructive" });
       }
     });
   };
@@ -3032,6 +3053,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
       onSuccess: () => {
         toast({ title: "Health status updated" });
         queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id, 'health-status-history'] });
         setShowHealthReasonDialog(false);
         setPendingHealth(null);
       },
@@ -3133,6 +3155,15 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
                   );
                 })}
               </div>
+              <button
+                type="button"
+                onClick={handleAddStatusNote}
+                className="text-[10px] text-primary hover:underline flex items-center gap-1 mt-1"
+                data-testid="button-add-status-note"
+              >
+                <Pencil className="w-3 h-3" />
+                {project.healthReason ? "Update note" : "Add status note"}
+              </button>
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Billable Status</Label>
@@ -3397,7 +3428,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
       <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            Change Health Status
+            {pendingHealth ? "Change Health Status" : "Add Status Note"}
             {pendingHealth && (
               <Badge className={cn(
                 "text-xs",
@@ -3408,24 +3439,40 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
             )}
           </DialogTitle>
           <DialogDescription>
-            Optionally provide a reason for this health status change.
+            {pendingHealth 
+              ? "Optionally provide a reason for this health status change."
+              : "Add a status update note. This will be recorded in the health status history."
+            }
           </DialogDescription>
         </DialogHeader>
         <div className="py-4">
           <Textarea
             value={healthReason}
             onChange={(e) => setHealthReason(e.target.value)}
-            placeholder="e.g., Budget overrun by 15%, Key milestone delayed..."
+            placeholder={pendingHealth 
+              ? "e.g., Budget overrun by 15%, Key milestone delayed..."
+              : "e.g., Sprint 3 completed on schedule, awaiting client feedback..."
+            }
             className="min-h-[80px]"
             data-testid="input-health-reason"
           />
         </div>
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="ghost" onClick={skipHealthReason} data-testid="button-skip-reason">
-            Skip
-          </Button>
-          <Button onClick={saveHealthWithReason} data-testid="button-save-reason">
-            Save with Reason
+          {pendingHealth ? (
+            <Button variant="ghost" onClick={skipHealthReason} data-testid="button-skip-reason">
+              Skip
+            </Button>
+          ) : (
+            <Button variant="ghost" onClick={() => { setShowHealthReasonDialog(false); setPendingHealth(null); }}>
+              Cancel
+            </Button>
+          )}
+          <Button 
+            onClick={saveHealthWithReason} 
+            disabled={!pendingHealth && !healthReason.trim()}
+            data-testid="button-save-reason"
+          >
+            {pendingHealth ? "Save with Reason" : "Save Note"}
           </Button>
         </DialogFooter>
       </DialogContent>

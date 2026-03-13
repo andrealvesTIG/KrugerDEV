@@ -39,9 +39,10 @@ interface GanttDependencyLinksProps {
 
 // Constants for link rendering
 const STUB_LENGTH = 12; // horizontal stub out of anchor
-const ARROW_SIZE = 6; // arrowhead size
+const ARROW_SIZE = 5; // arrowhead size
 const BACK_LINK_OFFSET = 24; // extra offset for back-links
 const ROW_OVERLAP_OFFSET = 4; // vertical offset for overlapping links
+const MIN_BAR_WIDTH = 24; // must match minWidth on the rendered task bar div
 
 /**
  * Calculate the bar rectangle for a task in viewport coordinates
@@ -54,7 +55,8 @@ function getBarRect(
   containerWidth: number,
   rowHeight: number,
   headerHeight: number,
-  showBaseline: boolean = false
+  showBaseline: boolean = false,
+  cumulativeYOffset: number = 0
 ): BarRect | null {
   if (!task.startDate || !task.endDate) return null;
   
@@ -65,21 +67,19 @@ function getBarRect(
   const startOffset = differenceInDays(start, minDate);
   const endOffset = differenceInDays(end, minDate) + 1;
   
-  const xStart = (startOffset / totalDays) * containerWidth;
-  const xEnd = (endOffset / totalDays) * containerWidth;
+  const rawXStart = (startOffset / totalDays) * containerWidth;
+  const rawXEnd = (endOffset / totalDays) * containerWidth;
   
-  // Calculate row height based on baseline visibility
-  const effectiveRowHeight = showBaseline && task.baselineStartDate && task.baselineEndDate 
-    ? 36 : rowHeight;
+  const xStart = Math.max(0, rawXStart);
+  const xEnd = Math.max(xStart + MIN_BAR_WIDTH, rawXEnd);
   
-  // Y center is at the middle of the task bar (top: 4px, height: varies)
   const barTop = 4;
   const barHeight = showBaseline && task.baselineStartDate && task.baselineEndDate ? 16 : 20;
-  const yCenter = headerHeight + (taskIndex * effectiveRowHeight) + barTop + (barHeight / 2);
+  const yCenter = headerHeight + cumulativeYOffset + barTop + (barHeight / 2);
   
   return {
-    xStart: Math.max(0, xStart),
-    xEnd: Math.min(containerWidth, xEnd),
+    xStart,
+    xEnd,
     yCenter,
     rowIndex: taskIndex
   };
@@ -151,50 +151,42 @@ function getLinkPath(
   const isGoingRight = toX >= fromX;
   const isGoingDown = toRect.rowIndex > fromRect.rowIndex;
   
-  // Handle back-links for FS (target start is to the left of source end)
-  if (!isGoingRight && type === 'FS') {
-    // Route around: right from source, down/up, left around bars, then to target
-    const stubX1 = fromX + STUB_LENGTH;
-    const midY = isGoingDown 
-      ? adjustedFromY + ((adjustedToY - adjustedFromY) / 2)
-      : adjustedFromY - 15;
-    const stubX2 = Math.min(fromRect.xStart, toRect.xStart) - BACK_LINK_OFFSET;
-    
-    return `M ${fromX} ${adjustedFromY} 
-            L ${stubX1} ${adjustedFromY}
-            L ${stubX1} ${midY}
-            L ${stubX2} ${midY}
-            L ${stubX2} ${adjustedToY}
-            L ${toX} ${adjustedToY}`;
-  }
-  
-  // Standard orthogonal routing based on type
   if (type === 'FS') {
-    // Finish to Start: from right edge of predecessor bar to left edge of successor bar
-    // Route: horizontal stub right, then vertical to target row, then horizontal to target
     const stubX1 = fromX + STUB_LENGTH;
-    
-    // If predecessor is on same row or adjacent, use simple L-shaped path
-    if (Math.abs(fromRect.rowIndex - toRect.rowIndex) <= 1 && toX > stubX1) {
-      // Simple right-angle: horizontal then vertical then horizontal
-      const midX = Math.max(stubX1, (fromX + toX) / 2);
+
+    if (toX >= stubX1 + STUB_LENGTH) {
+      const dropX = Math.max(stubX1, (fromX + toX) / 2);
       return `M ${fromX} ${adjustedFromY}
-              L ${midX} ${adjustedFromY}
-              L ${midX} ${adjustedToY}
+              L ${dropX} ${adjustedFromY}
+              L ${dropX} ${adjustedToY}
               L ${toX} ${adjustedToY}`;
     }
-    
-    // Standard routing for non-adjacent rows
+
+    const successorIsAfterPredecessor = toRect.xStart >= fromRect.xStart;
+    if (successorIsAfterPredecessor) {
+      const approachX = toRect.xStart - STUB_LENGTH;
+      return `M ${fromX} ${adjustedFromY}
+              L ${stubX1} ${adjustedFromY}
+              L ${stubX1} ${adjustedFromY + STUB_LENGTH}
+              L ${approachX} ${adjustedFromY + STUB_LENGTH}
+              L ${approachX} ${adjustedToY}
+              L ${toX} ${adjustedToY}`;
+    }
+
+    const loopLeft = Math.min(fromRect.xStart, toRect.xStart) - BACK_LINK_OFFSET;
+    const midY = isGoingDown
+      ? adjustedFromY + ((adjustedToY - adjustedFromY) / 2)
+      : adjustedToY + ((adjustedFromY - adjustedToY) / 2);
     return `M ${fromX} ${adjustedFromY}
             L ${stubX1} ${adjustedFromY}
-            L ${stubX1} ${adjustedToY}
+            L ${stubX1} ${midY}
+            L ${loopLeft} ${midY}
+            L ${loopLeft} ${adjustedToY}
             L ${toX} ${adjustedToY}`;
   }
   
   if (type === 'SS') {
-    // Start to Start: route left of both bars
     const stubX = Math.min(fromX, toX) - STUB_LENGTH;
-    
     return `M ${fromX} ${adjustedFromY}
             L ${stubX} ${adjustedFromY}
             L ${stubX} ${adjustedToY}
@@ -202,9 +194,7 @@ function getLinkPath(
   }
   
   if (type === 'FF') {
-    // Finish to Finish: route right of both bars
     const stubX = Math.max(fromX, toX) + STUB_LENGTH;
-    
     return `M ${fromX} ${adjustedFromY}
             L ${stubX} ${adjustedFromY}
             L ${stubX} ${adjustedToY}
@@ -212,11 +202,9 @@ function getLinkPath(
   }
   
   if (type === 'SF') {
-    // Start to Finish: route left from source, then right to target end
     const stubX1 = fromX - STUB_LENGTH;
     const stubX2 = toX + STUB_LENGTH;
     const midY = (adjustedFromY + adjustedToY) / 2;
-    
     return `M ${fromX} ${adjustedFromY}
             L ${stubX1} ${adjustedFromY}
             L ${stubX1} ${midY}
@@ -267,12 +255,22 @@ export function GanttDependencyLinks({
     });
     return map;
   }, [tasks]);
+
+  const cumulativeYOffsets = useMemo(() => {
+    const map = new Map<number, number>();
+    let cumY = 0;
+    tasks.forEach((task) => {
+      map.set(task.id, cumY);
+      const effectiveRowHeight = showBaseline && task.baselineStartDate && task.baselineEndDate ? 36 : rowHeight;
+      cumY += effectiveRowHeight;
+    });
+    return map;
+  }, [tasks, rowHeight, showBaseline]);
   
   // Calculate all dependency links
   const links = useMemo(() => {
     const result: DependencyLink[] = [];
     
-    // Track link indices for row pairs to offset overlapping links
     const rowPairCounts = new Map<string, number>();
     
     dependencies.forEach(dep => {
@@ -285,13 +283,15 @@ export function GanttDependencyLinks({
       const toIndex = taskIndexMap.get(dep.taskId);
       
       if (fromIndex === undefined || toIndex === undefined) return;
+
+      const fromYOffset = cumulativeYOffsets.get(dep.dependsOnTaskId) ?? 0;
+      const toYOffset = cumulativeYOffsets.get(dep.taskId) ?? 0;
       
-      const fromRect = getBarRect(fromTask, fromIndex, minDate, maxDate, containerWidth, rowHeight, headerHeight, showBaseline);
-      const toRect = getBarRect(toTask, toIndex, minDate, maxDate, containerWidth, rowHeight, headerHeight, showBaseline);
+      const fromRect = getBarRect(fromTask, fromIndex, minDate, maxDate, containerWidth, rowHeight, headerHeight, showBaseline, fromYOffset);
+      const toRect = getBarRect(toTask, toIndex, minDate, maxDate, containerWidth, rowHeight, headerHeight, showBaseline, toYOffset);
       
       if (!fromRect || !toRect) return;
       
-      // Get link index for this row pair
       const rowPairKey = `${Math.min(fromIndex, toIndex)}-${Math.max(fromIndex, toIndex)}`;
       const linkIndex = rowPairCounts.get(rowPairKey) || 0;
       rowPairCounts.set(rowPairKey, linkIndex + 1);
@@ -318,7 +318,7 @@ export function GanttDependencyLinks({
     });
     
     return result;
-  }, [dependencies, taskMap, taskIndexMap, minDate, maxDate, containerWidth, rowHeight, headerHeight, showBaseline]);
+  }, [dependencies, taskMap, taskIndexMap, cumulativeYOffsets, minDate, maxDate, containerWidth, rowHeight, headerHeight, showBaseline]);
   
   // Calculate SVG height based on tasks
   const svgHeight = useMemo(() => {
@@ -374,7 +374,7 @@ export function GanttDependencyLinks({
           <path
             d="M 0 0 L 10 5 L 0 10 z"
             fill="currentColor"
-            className="text-muted-foreground"
+            className="text-muted-foreground/40"
           />
         </marker>
         <marker
@@ -429,9 +429,16 @@ export function GanttDependencyLinks({
               d={link.path}
               fill="none"
               stroke="currentColor"
-              strokeWidth={isHovered || isSelected ? 2 : 1.5}
+              strokeWidth={isHovered || isSelected ? 1.5 : 1}
               strokeLinecap="round"
               strokeLinejoin="round"
+              markerEnd={
+                isHovered || isSelected
+                  ? "url(#dependency-arrow-hover)"
+                  : isCritical
+                    ? "url(#dependency-arrow-critical)"
+                    : "url(#dependency-arrow)"
+              }
               pointerEvents="none"
               className={cn(
                 "transition-colors duration-150",
@@ -439,7 +446,7 @@ export function GanttDependencyLinks({
                   ? "text-primary" 
                   : isCritical 
                     ? "text-destructive"
-                    : "text-muted-foreground/60"
+                    : "text-muted-foreground/40"
               )}
               data-testid={`dependency-link-${link.id}`}
             />
