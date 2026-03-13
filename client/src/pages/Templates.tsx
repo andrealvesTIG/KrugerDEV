@@ -128,6 +128,7 @@ export default function Templates() {
   const [createProjectName, setCreateProjectName] = useState("");
   const [createProjectDescription, setCreateProjectDescription] = useState("");
   const [createProjectStartDate, setCreateProjectStartDate] = useState("");
+  const [createProjectPortfolioId, setCreateProjectPortfolioId] = useState("");
 
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
@@ -150,6 +151,15 @@ export default function Templates() {
       return res.json();
     },
     enabled: !!orgId && showFromProjectDialog,
+  });
+
+  const { data: portfolios = [] } = useQuery<any[]>({
+    queryKey: ["/api/portfolios", orgId],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/portfolios?organizationId=${orgId}`);
+      return res.json();
+    },
+    enabled: !!orgId && showCreateProjectDialog,
   });
 
   const uploadMutation = useMutation({
@@ -214,6 +224,7 @@ export default function Templates() {
         name: createProjectName,
         description: createProjectDescription,
         startDate: createProjectStartDate || undefined,
+        portfolioId: createProjectPortfolioId ? Number(createProjectPortfolioId) : undefined,
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -336,6 +347,7 @@ export default function Templates() {
     setCreateProjectName("");
     setCreateProjectDescription("");
     setCreateProjectStartDate("");
+    setCreateProjectPortfolioId("");
   };
 
   const handleViewDetails = useCallback(async (template: ProjectTemplate) => {
@@ -797,6 +809,21 @@ export default function Templates() {
                 placeholder="Describe this project"
                 rows={3}
               />
+            </div>
+            <div>
+              <Label htmlFor="new-project-portfolio">Portfolio (optional)</Label>
+              <Select value={createProjectPortfolioId} onValueChange={setCreateProjectPortfolioId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a portfolio" />
+                </SelectTrigger>
+                <SelectContent>
+                  {portfolios.map((p: any) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label htmlFor="new-project-start">Start Date (optional)</Label>

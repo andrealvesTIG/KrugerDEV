@@ -14568,7 +14568,11 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       if (!await userHasOrgAccess(userId, project.organizationId)) return res.status(403).json({ message: 'Access denied' });
 
       const projectTasks = await storage.getTasks(Number(projectId));
-      const milestoneCount = projectTasks.filter(t => t.taskType === 'Milestone' || (t.startDate === t.endDate && t.durationDays === 0)).length;
+      const projectMilestones = await storage.getMilestones(Number(projectId));
+
+      const taskMilestoneCount = projectTasks.filter(t => t.taskType === 'Milestone' || (t.startDate === t.endDate && t.durationDays === 0)).length;
+      const totalMilestoneCount = taskMilestoneCount + projectMilestones.length;
+      const totalItemCount = projectTasks.length + projectMilestones.length;
 
       const template = await storage.createProjectTemplate({
         organizationId: project.organizationId,
@@ -14577,11 +14581,13 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         sourceType: 'project',
         originalFileName: null,
         storedFileUrl: null,
-        itemCount: projectTasks.length,
-        milestoneCount,
+        itemCount: totalItemCount,
+        milestoneCount: totalMilestoneCount,
         createdBy: userId,
         sourceProjectId: project.id,
       });
+
+      const items: Array<any> = [];
 
       if (projectTasks.length > 0) {
         const taskDeps = await db.select().from(taskDependencies)
@@ -14594,9 +14600,9 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           depsByTaskId.set(dep.taskId, arr);
         }
 
-        const items = projectTasks.map(task => {
+        for (const task of projectTasks) {
           const deps = depsByTaskId.get(task.id);
-          return {
+          items.push({
             templateId: template.id,
             taskId: task.id,
             wbs: task.wbs,
@@ -14613,8 +14619,33 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             predecessors: deps && deps.length > 0 ? JSON.stringify(deps) : null,
             notes: task.notes,
             workHours: task.estimatedHours?.toString() || null,
-          };
+          });
+        }
+      }
+
+      for (const ms of projectMilestones) {
+        const msIdOffset = 1000000;
+        items.push({
+          templateId: template.id,
+          taskId: msIdOffset + ms.id,
+          wbs: null,
+          name: ms.title,
+          description: ms.description,
+          startDate: ms.startDate || ms.dueDate,
+          endDate: ms.dueDate,
+          duration: '0 days',
+          durationDays: 0,
+          outlineLevel: 1,
+          parentTaskId: null,
+          isSummary: false,
+          isMilestone: true,
+          predecessors: null,
+          notes: ms.notes,
+          workHours: null,
         });
+      }
+
+      if (items.length > 0) {
         await storage.createProjectTemplateItems(items);
       }
 
@@ -14991,8 +15022,6 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         const oldIdToNewId = new Map<number, number>();
 
         for (const item of templateItems) {
-          if (item.isSummary) continue;
-
           const taskStartDate = startDate || item.startDate || new Date().toISOString().split('T')[0];
           let taskEndDate = item.endDate;
           if (startDate && item.durationDays) {
@@ -15013,8 +15042,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             durationDays: item.durationDays,
             outlineLevel: item.outlineLevel,
             parentId: item.parentTaskId && oldIdToNewId.has(item.parentTaskId) ? oldIdToNewId.get(item.parentTaskId)! : null,
-            isSummary: false,
-            taskType: item.isMilestone ? 'Milestone' : 'Work',
+            isSummary: item.isSummary || false,
+            taskType: item.isMilestone ? 'Milestone' : item.isSummary ? 'Summary' : 'Work',
             status: 'Backlog',
             priority: 'Medium',
             progress: 0,
