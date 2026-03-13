@@ -36,10 +36,15 @@ async function buildAll() {
   await rm("dist", { recursive: true, force: true });
 
   console.log("syncing database schema...");
+  execSync("npx drizzle-kit push --force", { stdio: "inherit" });
+  console.log("Schema push complete.");
+
+  console.log("applying additional migrations...");
   try {
     execSync("npx tsx script/migrate.ts", { stdio: "inherit" });
+    console.log("Additional migrations applied.");
   } catch (err) {
-    console.warn("Warning: Database schema sync failed, continuing build...", err);
+    console.warn("Warning: Additional migrations failed (indexes may already exist), continuing build...", err);
   }
 
   console.log("building client...");
