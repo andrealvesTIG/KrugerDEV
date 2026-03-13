@@ -107,8 +107,7 @@ export async function generateSelfieOgImage(data: SelfieOgData): Promise<Buffer>
     : "";
   const taglineY = interviewer ? nameY + 60 : nameY + 38;
 
-  const bottomContentH = 110;
-  const dividerY = S - bottomContentH;
+  const dividerY = taglineY + 40;
   const goldSponsorY = dividerY + 35;
   const fridayLogoY = goldSponsorY + 15;
 
