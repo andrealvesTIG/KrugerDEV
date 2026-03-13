@@ -584,7 +584,13 @@ export default function IntakeDetails() {
                   <Input
                     type="number"
                     value={formData.capitalExpense ?? intake.capitalExpense ?? ""}
-                    onChange={(e) => handleFieldChange('capitalExpense', e.target.value)}
+                    onChange={(e) => {
+                      const newCapEx = parseFloat(e.target.value) || 0;
+                      const currentOpEx = parseFloat(String(formData.operatingExpense ?? intake.operatingExpense ?? 0)) || 0;
+                      const budget = parseFloat(String(formData.estimatedBudget ?? intake.estimatedBudget ?? 0)) || 0;
+                      if (budget > 0 && newCapEx + currentOpEx > budget) return;
+                      handleFieldChange('capitalExpense', e.target.value);
+                    }}
                     disabled={isLocked}
                     placeholder="0.00"
                     data-testid="input-capital-expense"
@@ -595,13 +601,33 @@ export default function IntakeDetails() {
                   <Input
                     type="number"
                     value={formData.operatingExpense ?? intake.operatingExpense ?? ""}
-                    onChange={(e) => handleFieldChange('operatingExpense', e.target.value)}
+                    onChange={(e) => {
+                      const newOpEx = parseFloat(e.target.value) || 0;
+                      const currentCapEx = parseFloat(String(formData.capitalExpense ?? intake.capitalExpense ?? 0)) || 0;
+                      const budget = parseFloat(String(formData.estimatedBudget ?? intake.estimatedBudget ?? 0)) || 0;
+                      if (budget > 0 && currentCapEx + newOpEx > budget) return;
+                      handleFieldChange('operatingExpense', e.target.value);
+                    }}
                     disabled={isLocked}
                     placeholder="0.00"
                     data-testid="input-operating-expense"
                   />
                 </div>
               </div>
+              {(() => {
+                const budget = parseFloat(String(formData.estimatedBudget ?? intake.estimatedBudget ?? 0)) || 0;
+                const capEx = parseFloat(String(formData.capitalExpense ?? intake.capitalExpense ?? 0)) || 0;
+                const opEx = parseFloat(String(formData.operatingExpense ?? intake.operatingExpense ?? 0)) || 0;
+                const remaining = budget - capEx - opEx;
+                if (budget > 0 && (capEx > 0 || opEx > 0)) {
+                  return (
+                    <p className={cn("text-xs", remaining >= 0 ? "text-muted-foreground" : "text-destructive")}>
+                      Remaining budget: {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(remaining)}
+                    </p>
+                  );
+                }
+                return null;
+              })()}
 
               <div className="space-y-2">
                 <Label>Business Justification & Expected Benefits <span className="text-destructive">*</span></Label>
