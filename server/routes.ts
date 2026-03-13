@@ -2346,8 +2346,8 @@ export async function registerRoutes(
   <meta property="og:title" content="${esc(title)}" />
   <meta property="og:description" content="${esc(description)}" />
   <meta property="og:image" content="${esc(ogImageUrl)}" />
-  <meta property="og:image:width" content="630" />
-  <meta property="og:image:height" content="1120" />
+  <meta property="og:image:width" content="1080" />
+  <meta property="og:image:height" content="1080" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="${esc(baseUrl)}/api/uncon2026/selfie/${lead.shareToken}/share" />
   <meta name="twitter:card" content="summary_large_image" />
