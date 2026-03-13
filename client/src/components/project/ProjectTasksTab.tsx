@@ -892,7 +892,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle>{editingTask ? "Edit Task" : "Add New Task"}</DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="sr-only">
                 {editingTask ? "Modify the task details below." : "Fill in the details to create a new task."}
               </DialogDescription>
             </DialogHeader>

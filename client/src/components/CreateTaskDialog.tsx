@@ -202,7 +202,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
         <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Add New Task</DialogTitle>
-            <DialogDescription>Fill in the details to create a new task.</DialogDescription>
+            <DialogDescription className="sr-only">Fill in the details to create a new task.</DialogDescription>
           </DialogHeader>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col min-h-0">
             <div className="space-y-2 pb-3">
