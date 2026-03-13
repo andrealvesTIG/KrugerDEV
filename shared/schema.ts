@@ -285,7 +285,13 @@ export const projects = pgTable("projects", {
   deletedBy: varchar("deleted_by").references(() => users.id),
   isDemo: boolean("is_demo").default(false),
   timesheetBlocked: boolean("timesheet_blocked").default(false),
-});
+}, (table) => [
+  index("projects_org_id_idx").on(table.organizationId),
+  index("projects_portfolio_id_idx").on(table.portfolioId),
+  index("projects_org_portfolio_deleted_idx").on(table.organizationId, table.portfolioId, table.deletedAt),
+  index("projects_manager_id_idx").on(table.managerId),
+  index("projects_deleted_at_idx").on(table.deletedAt),
+]);
 
 // Billable Status Comments (Comment log for billable status field)
 export const billableStatusComments = pgTable("billable_status_comments", {
@@ -563,7 +569,11 @@ export const resources = pgTable("resources", {
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
   isDemo: boolean("is_demo").default(false),
-});
+}, (table) => [
+  index("resources_org_id_idx").on(table.organizationId),
+  index("resources_user_id_idx").on(table.userId),
+  index("resources_org_user_idx").on(table.organizationId, table.userId),
+]);
 
 // Task Resource Assignments (Join table)
 export const taskResourceAssignments = pgTable("task_resource_assignments", {
@@ -619,6 +629,8 @@ export const timesheetEntries = pgTable("timesheet_entries", {
   index("te_resource_id_idx").on(table.resourceId),
   index("te_project_id_idx").on(table.projectId),
   index("te_organization_id_idx").on(table.organizationId),
+  index("te_user_org_date_idx").on(table.userId, table.organizationId, table.entryDate),
+  index("te_resource_task_date_idx").on(table.resourceId, table.taskId, table.entryDate),
 ]);
 
 // Time Categories (for non-project time like vacation, PTO, etc.)
