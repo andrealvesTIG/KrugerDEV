@@ -225,27 +225,26 @@ export function TaskDependenciesSection({
                       ))}
                     </SelectContent>
                   </Select>
-                  <div className="flex items-center h-7">
-                    <Input
-                      type="number"
-                      className="h-7 w-[40px] text-xs text-center px-1 rounded-r-none border-r-0"
-                      title="Lag days"
-                      key={`lag-${dep.id}-${dep.lagDays}`}
-                      defaultValue={dep.lagDays || 0}
-                      onBlur={(e) => {
-                        const newLag = parseInt(e.target.value) || 0;
-                        if (newLag !== (dep.lagDays || 0)) {
-                          handleUpdateLag(dep.dependsOnTaskId, newLag);
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          (e.target as HTMLInputElement).blur();
-                        }
-                      }}
-                    />
-                    <span className="h-7 flex items-center px-1.5 text-[10px] text-muted-foreground bg-muted border border-l-0 rounded-r-md">days</span>
-                  </div>
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">lag</span>
+                  <Input
+                    type="number"
+                    className="h-7 w-[44px] text-xs text-center px-1"
+                    title="Lag days"
+                    key={`lag-${dep.id}-${dep.lagDays}`}
+                    defaultValue={dep.lagDays || 0}
+                    onBlur={(e) => {
+                      const newLag = parseInt(e.target.value) || 0;
+                      if (newLag !== (dep.lagDays || 0)) {
+                        handleUpdateLag(dep.dependsOnTaskId, newLag);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                  />
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">days</span>
                   <Button
                     type="button"
                     variant="ghost"
@@ -293,18 +292,17 @@ export function TaskDependenciesSection({
               ))}
             </SelectContent>
           </Select>
-          <div className="flex items-center h-9">
-            <Input
-              type="number"
-              className="w-[44px] h-9 text-xs text-center px-1 rounded-r-none border-r-0"
-              title={orgDefaults.enforceDefaults ? "Locked by organization settings" : "Lag days for new dependency"}
-              placeholder="Lag"
-              value={lagDays}
-              onChange={(e) => setLagDays(parseInt(e.target.value) || 0)}
-              disabled={orgDefaults.enforceDefaults}
-            />
-            <span className="h-9 flex items-center px-1.5 text-[10px] text-muted-foreground bg-muted border border-l-0 rounded-r-md">days</span>
-          </div>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">lag</span>
+          <Input
+            type="number"
+            className="w-[48px] h-9 text-xs text-center px-1"
+            title={orgDefaults.enforceDefaults ? "Locked by organization settings" : "Lag days for new dependency"}
+            placeholder="0"
+            value={lagDays}
+            onChange={(e) => setLagDays(parseInt(e.target.value) || 0)}
+            disabled={orgDefaults.enforceDefaults}
+          />
+          <span className="text-xs text-muted-foreground whitespace-nowrap">days</span>
         </div>
         <div
           ref={listRef}
