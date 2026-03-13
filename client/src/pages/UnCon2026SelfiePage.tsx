@@ -16,9 +16,12 @@ export default function UnCon2026SelfiePage() {
   const interviewer = params.get("interviewer") || "";
 
   const { toast } = useToast();
-  const [step, setStep] = useState<Step>("form");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [step, setStep] = useState<Step>(() => {
+    const saved = sessionStorage.getItem("uncon_step");
+    return (saved === "camera" || saved === "result") ? saved : "form";
+  });
+  const [name, setName] = useState(() => sessionStorage.getItem("uncon_name") || "");
+  const [email, setEmail] = useState(() => sessionStorage.getItem("uncon_email") || "");
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -32,6 +35,18 @@ export default function UnCon2026SelfiePage() {
     document.title = "Selfie Experience | PMO unCON 2026 | FridayReport.AI";
     return () => { document.title = prevTitle; };
   }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem("uncon_step", step);
+  }, [step]);
+
+  useEffect(() => {
+    sessionStorage.setItem("uncon_name", name);
+  }, [name]);
+
+  useEffect(() => {
+    sessionStorage.setItem("uncon_email", email);
+  }, [email]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,6 +108,9 @@ export default function UnCon2026SelfiePage() {
       if (data.shareToken) {
         setShareToken(data.shareToken);
         setStep("result");
+        sessionStorage.removeItem("uncon_step");
+        sessionStorage.removeItem("uncon_name");
+        sessionStorage.removeItem("uncon_email");
       } else {
         throw new Error("Missing share token in response. Please try again.");
       }
