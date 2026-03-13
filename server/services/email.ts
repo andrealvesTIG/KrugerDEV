@@ -19,6 +19,7 @@ export interface EmailAttachment {
   filename: string;
   content: Buffer | string;
   contentType?: string;
+  content_id?: string;
 }
 
 export async function sendEmail({
@@ -63,7 +64,7 @@ export async function sendEmail({
       subject: string;
       text: string;
       html: string;
-      attachments?: { filename: string; content: Buffer }[];
+      attachments?: { filename: string; content: Buffer; content_id?: string }[];
     } = {
       from: fromAddress,
       to: [to],
@@ -77,10 +78,16 @@ export async function sendEmail({
     }
     
     if (attachments && attachments.length > 0) {
-      emailPayload.attachments = attachments.map(att => ({
-        filename: att.filename,
-        content: Buffer.isBuffer(att.content) ? att.content : Buffer.from(att.content, 'base64'),
-      }));
+      emailPayload.attachments = attachments.map(att => {
+        const mapped: { filename: string; content: Buffer; content_id?: string } = {
+          filename: att.filename,
+          content: Buffer.isBuffer(att.content) ? att.content : Buffer.from(att.content, 'base64'),
+        };
+        if (att.content_id) {
+          mapped.content_id = att.content_id;
+        }
+        return mapped;
+      });
     }
     
     const { data, error } = await client.emails.send(emailPayload);
@@ -1256,7 +1263,7 @@ export async function sendManagerWeeklyDigestEmail(
   return sendEmail({ to, subject, text, html });
 }
 
-export async function sendUnconSelfieThankYouEmail(email: string, userName: string): Promise<boolean> {
+export async function sendUnconSelfieThankYouEmail(email: string, userName: string, brandedImage?: Buffer): Promise<boolean> {
   const subject = `Thank you for visiting FridayReport.AI at PMO unCON 2026, ${userName}!`;
 
   const text = `Hi ${userName},
@@ -1305,6 +1312,9 @@ https://fridayreport.ai`;
     </div>
 
     <div style="padding: 0 30px 30px;">
+      ${brandedImage ? `<div style="text-align: center; margin-bottom: 20px;">
+        <img src="cid:selfie-card" alt="Your PMO unCON 2026 Selfie" style="width: 100%; max-width: 540px; border-radius: 16px; display: block; margin: 0 auto;" />
+      </div>` : ''}
       <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 30px; margin-bottom: 20px;">
         <h1 style="color: #FF751F; font-size: 22px; margin: 0 0 8px; text-align: center;">Thank You, ${userName}!</h1>
         <p style="color: #D4A84A; font-size: 13px; text-align: center; margin: 0 0 20px; letter-spacing: 2px; font-weight: 700;">PMO unCON NORTH AMERICA 2026</p>
@@ -1388,5 +1398,15 @@ https://fridayreport.ai`;
 </body>
 </html>`;
 
-  return sendEmail({ to: email, subject, text, html, cc: ["info@fridayreport.ai"] });
+  const emailAttachments: EmailAttachment[] = [];
+  if (brandedImage) {
+    emailAttachments.push({
+      filename: `PMO-unCON-2026-${userName.replace(/[^a-zA-Z0-9]/g, '-')}.png`,
+      content: brandedImage,
+      contentType: 'image/png',
+      content_id: 'selfie-card',
+    });
+  }
+
+  return sendEmail({ to: email, subject, text, html, cc: ["info@fridayreport.ai"], attachments: emailAttachments.length > 0 ? emailAttachments : undefined });
 }

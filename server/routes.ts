@@ -2230,7 +2230,13 @@ export async function registerRoutes(
 
       try {
         const { sendUnconSelfieThankYouEmail } = await import("./services/email");
-        await sendUnconSelfieThankYouEmail(email.trim(), userName.trim());
+        const { generateSelfieOgImage } = await import("./selfie-og");
+        const brandedImage = await generateSelfieOgImage({
+          userName: userName.trim(),
+          interviewer: interviewer?.trim() || null,
+          selfieBuffer: req.file ? req.file.buffer : null,
+        });
+        await sendUnconSelfieThankYouEmail(email.trim(), userName.trim(), brandedImage);
       } catch (emailErr) {
         console.error('Failed to send UnCon selfie thank-you email:', emailErr);
       }
