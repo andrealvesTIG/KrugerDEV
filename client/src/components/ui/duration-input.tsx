@@ -32,7 +32,7 @@ export function DurationInput({ value, onChange, onBlur, disabled, className, "d
   return (
     <Input
       type="text"
-      placeholder="e.g. 2d, 4h, 1d 4h"
+      placeholder="e.g. 2d, 4h, 30m, 1d 4h 30m"
       value={value}
       onChange={handleChange}
       onBlur={handleBlur}

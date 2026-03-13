@@ -1,6 +1,8 @@
 import { parseISO, addDays, differenceInCalendarDays, isWeekend, format } from "date-fns";
 
 export const HOURS_PER_DAY = 8;
+export const MINUTES_PER_HOUR = 60;
+export const MINUTES_PER_DAY = HOURS_PER_DAY * MINUTES_PER_HOUR;
 
 export function isWorkingDay(date: Date): boolean {
   return !isWeekend(date);
@@ -128,44 +130,44 @@ export function formatDuration(durationDays: number | null | undefined): string 
   if (durationDays == null || durationDays < 0) return "—";
   if (durationDays === 0) return "0d";
 
-  const wholeDays = Math.floor(durationDays);
-  const fractionalPart = durationDays - wholeDays;
-  const remainingHours = Math.round(fractionalPart * HOURS_PER_DAY);
+  const totalMinutes = Math.round(durationDays * MINUTES_PER_DAY);
+  const wholeDays = Math.floor(totalMinutes / MINUTES_PER_DAY);
+  const remainderAfterDays = totalMinutes % MINUTES_PER_DAY;
+  const wholeHours = Math.floor(remainderAfterDays / MINUTES_PER_HOUR);
+  const remainingMinutes = remainderAfterDays % MINUTES_PER_HOUR;
 
-  if (wholeDays === 0 && remainingHours > 0) {
-    return `${remainingHours}h`;
-  }
-  if (remainingHours === 0) {
-    return `${wholeDays}d`;
-  }
-  return `${wholeDays}d ${remainingHours}h`;
+  const parts: string[] = [];
+  if (wholeDays > 0) parts.push(`${wholeDays}d`);
+  if (wholeHours > 0) parts.push(`${wholeHours}h`);
+  if (remainingMinutes > 0) parts.push(`${remainingMinutes}m`);
+
+  return parts.length > 0 ? parts.join(" ") : "0d";
 }
 
 export function parseDurationInput(input: string): number | null {
   if (!input || !input.trim()) return null;
   const trimmed = input.trim().toLowerCase();
 
-  const daysHoursMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*d(?:ays?)?\s+(\d+(?:\.\d+)?)\s*h(?:ours?)?$/);
-  if (daysHoursMatch) {
-    const days = parseFloat(daysHoursMatch[1]);
-    const hours = parseFloat(daysHoursMatch[2]);
-    return days + hours / HOURS_PER_DAY;
+  let days = 0;
+  let hours = 0;
+  let minutes = 0;
+  let matched = false;
+
+  const combined = trimmed.match(/(?:(\d+(?:\.\d+)?)\s*d(?:ays?)?)?\s*(?:(\d+(?:\.\d+)?)\s*h(?:ours?)?)?\s*(?:(\d+(?:\.\d+)?)\s*m(?:in(?:ute)?s?)?)?$/);
+  if (combined && (combined[1] || combined[2] || combined[3])) {
+    if (combined[1]) days = parseFloat(combined[1]);
+    if (combined[2]) hours = parseFloat(combined[2]);
+    if (combined[3]) minutes = parseFloat(combined[3]);
+    matched = true;
   }
 
-  const hoursMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*h(?:ours?)?$/);
-  if (hoursMatch) {
-    return parseFloat(hoursMatch[1]) / HOURS_PER_DAY;
+  if (!matched) {
+    const numericMatch = trimmed.match(/^(\d+(?:\.\d+)?)$/);
+    if (numericMatch) {
+      return parseFloat(numericMatch[1]);
+    }
+    return null;
   }
 
-  const daysMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*d(?:ays?)?$/);
-  if (daysMatch) {
-    return parseFloat(daysMatch[1]);
-  }
-
-  const numericMatch = trimmed.match(/^(\d+(?:\.\d+)?)$/);
-  if (numericMatch) {
-    return parseFloat(numericMatch[1]);
-  }
-
-  return null;
+  return days + hours / HOURS_PER_DAY + minutes / MINUTES_PER_DAY;
 }
