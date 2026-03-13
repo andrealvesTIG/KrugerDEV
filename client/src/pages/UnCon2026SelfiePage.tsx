@@ -16,12 +16,23 @@ export default function UnCon2026SelfiePage() {
   const interviewer = params.get("interviewer") || "";
 
   const { toast } = useToast();
+
+  const safeGet = (key: string) => {
+    try { return localStorage.getItem(key); } catch { return null; }
+  };
+  const safeSet = (key: string, val: string) => {
+    try { localStorage.setItem(key, val); } catch {}
+  };
+  const safeRemove = (key: string) => {
+    try { localStorage.removeItem(key); } catch {}
+  };
+
   const [step, setStep] = useState<Step>(() => {
-    const saved = sessionStorage.getItem("uncon_step");
+    const saved = safeGet("uncon_step");
     return (saved === "camera" || saved === "result") ? saved : "form";
   });
-  const [name, setName] = useState(() => sessionStorage.getItem("uncon_name") || "");
-  const [email, setEmail] = useState(() => sessionStorage.getItem("uncon_email") || "");
+  const [name, setName] = useState(() => safeGet("uncon_name") || "");
+  const [email, setEmail] = useState(() => safeGet("uncon_email") || "");
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,17 +47,9 @@ export default function UnCon2026SelfiePage() {
     return () => { document.title = prevTitle; };
   }, []);
 
-  useEffect(() => {
-    sessionStorage.setItem("uncon_step", step);
-  }, [step]);
-
-  useEffect(() => {
-    sessionStorage.setItem("uncon_name", name);
-  }, [name]);
-
-  useEffect(() => {
-    sessionStorage.setItem("uncon_email", email);
-  }, [email]);
+  useEffect(() => { safeSet("uncon_step", step); }, [step]);
+  useEffect(() => { safeSet("uncon_name", name); }, [name]);
+  useEffect(() => { safeSet("uncon_email", email); }, [email]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,9 +111,9 @@ export default function UnCon2026SelfiePage() {
       if (data.shareToken) {
         setShareToken(data.shareToken);
         setStep("result");
-        sessionStorage.removeItem("uncon_step");
-        sessionStorage.removeItem("uncon_name");
-        sessionStorage.removeItem("uncon_email");
+        safeRemove("uncon_step");
+        safeRemove("uncon_name");
+        safeRemove("uncon_email");
       } else {
         throw new Error("Missing share token in response. Please try again.");
       }
@@ -264,7 +267,6 @@ export default function UnCon2026SelfiePage() {
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
-                    capture="user"
                     onChange={handleCapture}
                     style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden' }}
                   />
