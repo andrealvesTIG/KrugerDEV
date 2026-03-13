@@ -10587,12 +10587,15 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       await storage.updateTask(taskId, taskUpdates);
     }
     
-    // Also fix leaf task durationDays to match working days from their dates
     for (const task of allTasks) {
       if (task.startDate && task.endDate && !childrenByParent.has(task.id)) {
-        const correctDuration = calculateDuration(new Date(task.startDate), new Date(task.endDate));
-        // Preserve explicit milestone semantics (durationDays=0 with isMilestone flag)
         if (task.isMilestone && task.durationDays === 0) continue;
+        if (task.durationDays != null && task.durationDays > 0) {
+          const expectedEnd = calculateEndDate(new Date(task.startDate), task.durationDays);
+          const expectedEndStr = formatDateStr(expectedEnd);
+          if (expectedEndStr === task.endDate) continue;
+        }
+        const correctDuration = calculateDuration(new Date(task.startDate), new Date(task.endDate));
         if (task.durationDays !== correctDuration) {
           await storage.updateTask(task.id, { durationDays: correctDuration });
         }

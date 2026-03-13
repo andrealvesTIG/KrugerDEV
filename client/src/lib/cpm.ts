@@ -302,7 +302,8 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
   for (const node of allNodes) {
     projectFinishDays = Math.max(projectFinishDays, node.EF);
   }
-  const projectFinishDate = dateFromWorkingDayOffset(projectStartDate, projectFinishDays > 0 ? projectFinishDays - 1 : 0);
+  const projectFinishOffset = projectFinishDays > 0 ? Math.ceil(projectFinishDays) - 1 : 0;
+  const projectFinishDate = dateFromWorkingDayOffset(projectStartDate, projectFinishOffset);
 
   // Backward Pass
   for (const node of allNodes) {
