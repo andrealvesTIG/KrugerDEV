@@ -22319,7 +22319,7 @@ Return ONLY valid JSON.`;
         if (r.userId) {
           byUser[r.userId] = {
             userId: r.userId,
-            resourceName: r.name,
+            resourceName: r.displayName,
             totalHours: 0,
             entries: 0,
             submitted: 0,
@@ -22789,7 +22789,7 @@ Return ONLY valid JSON.`;
         return {
           resourceId: resource.id,
           userId: resource.userId,
-          displayName: resource.displayName || resource.name,
+          displayName: resource.displayName,
           email: resource.email,
           department: resource.department,
           title: resource.title,
