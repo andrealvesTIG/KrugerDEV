@@ -889,7 +889,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                 <Plus className="mr-2 h-4 w-4" /> Add Task
               </Button>
             </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogContent className="sm:max-w-[750px] max-h-[85vh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle>{editingTask ? "Edit Task" : "Add New Task"}</DialogTitle>
               <DialogDescription>
