@@ -493,7 +493,7 @@ export default function UnCon2026SelfiePage() {
 
                 {!cameraError && (
                   <div className="flex gap-3">
-                    <button onClick={handleFlipCamera} disabled={!cameraActive} className="h-12 w-14 flex items-center justify-center rounded-xl border-2 border-white/30 bg-white/10 backdrop-blur-sm text-white disabled:opacity-40" style={{ WebkitTapHighlightColor: 'transparent' }}>
+                    <button onClick={handleFlipCamera} disabled={!cameraActive} className="h-12 w-14 flex items-center justify-center rounded-xl border-2 border-slate-700 bg-slate-800 text-white disabled:opacity-40 shadow-lg" style={{ WebkitTapHighlightColor: 'transparent' }}>
                       <SwitchCamera className="h-6 w-6" />
                     </button>
                     <button onClick={handleSnapPhoto} disabled={!cameraActive} className="glow-btn flex-1 h-12 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 border-0 cursor-pointer disabled:opacity-50">
@@ -535,7 +535,7 @@ export default function UnCon2026SelfiePage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={handleRetake} className="flex-1 h-12 text-sm rounded-xl border-2 border-white/30 bg-white/10 backdrop-blur-sm text-white font-semibold flex items-center justify-center gap-2" style={{ WebkitTapHighlightColor: 'transparent' }}>
+                  <button onClick={handleRetake} className="flex-1 h-12 text-sm rounded-xl border-2 border-slate-700 bg-slate-800 text-white font-semibold flex items-center justify-center gap-2 shadow-lg" style={{ WebkitTapHighlightColor: 'transparent' }}>
                     <RotateCcw className="h-4 w-4" /> Retake
                   </button>
                   <button onClick={handleSubmitSelfie} disabled={isSubmitting} className="glow-btn flex-1 h-12 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 border-0 cursor-pointer disabled:opacity-50">
