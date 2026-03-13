@@ -11414,8 +11414,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
             newStartDate = newEndDate;
             await storage.updateTask(taskId, { startDate: newEndDate, endDate: newEndDate, durationDays: 0 });
           } else {
-            const wholeDays = Math.floor(duration);
-            const newStart = ensureWorkingDay(addWorkingDays(requiredEnd, -(Math.max(0, wholeDays - 1))));
+            const calendarSpan = Math.ceil(duration);
+            const newStart = ensureWorkingDay(addWorkingDays(requiredEnd, -(Math.max(0, calendarSpan - 1))));
             newStartDate = formatDateStr(newStart);
             await storage.updateTask(taskId, { startDate: newStartDate, endDate: newEndDate, durationDays: duration });
           }

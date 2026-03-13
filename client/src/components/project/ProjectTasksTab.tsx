@@ -28,6 +28,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { DurationInput } from "@/components/ui/duration-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1010,12 +1011,15 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                       </div>
                       <div className="space-y-2">
                         <Label>Duration</Label>
-                        <Input 
-                          type="text" 
-                          placeholder="e.g. 2d, 4h, 1d 4h"
+                        <DurationInput
                           value={durationInput}
-                          onChange={(e) => handleDurationInputChange(e.target.value)}
-                          onBlur={handleDurationBlur}
+                          onChange={(value, parsed) => {
+                            setDurationInput(value);
+                            if (parsed !== null && parsed >= 0) {
+                              const currentStartDate = form.getValues("startDate");
+                              recalculateEndDate(currentStartDate, parsed);
+                            }
+                          }}
                           data-testid="input-task-duration" 
                         />
                       </div>

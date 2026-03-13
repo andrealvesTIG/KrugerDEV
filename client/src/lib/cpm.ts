@@ -365,10 +365,10 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
       LF: node.LF,
       TF: node.TF,
       isCritical,
-      esDate: format(dateFromWorkingDayOffset(projectStartDate, node.ES), "yyyy-MM-dd"),
-      efDate: format(dateFromWorkingDayOffset(projectStartDate, node.duration > 0 ? node.EF - 1 : node.EF), "yyyy-MM-dd"),
-      lsDate: format(dateFromWorkingDayOffset(projectStartDate, node.LS), "yyyy-MM-dd"),
-      lfDate: format(dateFromWorkingDayOffset(projectStartDate, node.duration > 0 ? node.LF - 1 : node.LF), "yyyy-MM-dd"),
+      esDate: format(dateFromWorkingDayOffset(projectStartDate, Math.floor(node.ES)), "yyyy-MM-dd"),
+      efDate: format(dateFromWorkingDayOffset(projectStartDate, node.duration > 0 ? Math.ceil(node.EF) - 1 : Math.floor(node.EF)), "yyyy-MM-dd"),
+      lsDate: format(dateFromWorkingDayOffset(projectStartDate, Math.floor(node.LS)), "yyyy-MM-dd"),
+      lfDate: format(dateFromWorkingDayOffset(projectStartDate, node.duration > 0 ? Math.ceil(node.LF) - 1 : Math.floor(node.LF)), "yyyy-MM-dd"),
     });
   }
 

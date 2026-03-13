@@ -80,14 +80,13 @@ export function calculateEndDateFromWorkingDays(startDateStr: string, durationWo
     current = addDays(current, 1);
   }
 
-  const wholeDays = Math.floor(durationWorkingDays);
-  const effectiveDays = wholeDays > 0 ? wholeDays : 1;
+  const calendarSpan = Math.ceil(durationWorkingDays);
 
-  if (effectiveDays === 1 && durationWorkingDays <= 1) {
+  if (calendarSpan <= 1) {
     return format(current, 'yyyy-MM-dd');
   }
 
-  return format(addWorkingDays(current, effectiveDays - 1), 'yyyy-MM-dd');
+  return format(addWorkingDays(current, calendarSpan - 1), 'yyyy-MM-dd');
 }
 
 export function calculateDurationInWorkingDays(startDateStr: string, endDateStr: string): number {
@@ -108,14 +107,13 @@ export function calculateStartDateFromEndAndDuration(endDateStr: string, duratio
     current = addDays(current, -1);
   }
 
-  const wholeDays = Math.floor(durationWorkingDays);
-  const effectiveDays = wholeDays > 0 ? wholeDays : 1;
+  const calendarSpan = Math.ceil(durationWorkingDays);
 
-  if (effectiveDays === 1) {
+  if (calendarSpan <= 1) {
     return format(current, 'yyyy-MM-dd');
   }
 
-  return format(addWorkingDays(current, -(effectiveDays - 1)), 'yyyy-MM-dd');
+  return format(addWorkingDays(current, -(calendarSpan - 1)), 'yyyy-MM-dd');
 }
 
 export function hoursToFractionalDays(hours: number): number {
