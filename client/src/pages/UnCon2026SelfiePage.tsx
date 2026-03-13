@@ -254,11 +254,11 @@ export default function UnCon2026SelfiePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-yellow-50/80 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-      <header className="sticky top-0 z-50 bg-white/95 dark:bg-gray-950/95 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-yellow-50/80 to-white" data-theme="light" style={{ colorScheme: "light" }}>
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-200">
         <div className="flex items-center justify-center px-4 py-3">
           <a href="https://fridayreport.ai" target="_blank" rel="noopener noreferrer">
-            <img src={logoBlack} alt="FridayReport.AI" className="h-7 object-contain dark:invert" />
+            <img src={logoBlack} alt="FridayReport.AI" className="h-7 object-contain" />
           </a>
         </div>
       </header>
@@ -267,12 +267,12 @@ export default function UnCon2026SelfiePage() {
 
       <main className="px-4 py-6 max-w-md mx-auto">
         <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 mb-3 px-4 py-2 rounded-full bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-900/50 dark:to-yellow-900/50 border border-amber-200/60 dark:border-amber-700/40">
-            <Camera className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-            <span className="text-sm font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wide">Selfie Experience</span>
+          <div className="inline-flex items-center gap-2 mb-3 px-4 py-2 rounded-full bg-gradient-to-r from-amber-100 to-yellow-100 border border-amber-200/60">
+            <Camera className="h-4 w-4 text-amber-600" />
+            <span className="text-sm font-semibold text-amber-800 uppercase tracking-wide">Selfie Experience</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">PMO unCON 2026</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Snap a selfie and share your experience!</p>
+          <h1 className="text-2xl font-bold text-gray-900">PMO unCON 2026</h1>
+          <p className="text-sm text-gray-500 mt-1">Snap a selfie and share your experience!</p>
         </div>
 
         <div className="flex items-center justify-center gap-2 mb-6">
@@ -280,19 +280,19 @@ export default function UnCon2026SelfiePage() {
             <div key={s} className="flex items-center gap-2">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
                 step === s ? "bg-[#FF751F] text-white" :
-                (["form", "camera", "result"].indexOf(step) > i ? "bg-green-500 text-white" : "bg-gray-200 dark:bg-gray-700 text-gray-500")
+                (["form", "camera", "result"].indexOf(step) > i ? "bg-green-500 text-white" : "bg-gray-200 text-gray-500")
               }`}>
                 {["form", "camera", "result"].indexOf(step) > i ? <CheckCircle className="h-4 w-4" /> : i + 1}
               </div>
-              {i < 2 && <div className={`w-8 h-0.5 ${["form", "camera", "result"].indexOf(step) > i ? "bg-green-500" : "bg-gray-200 dark:bg-gray-700"}`} />}
+              {i < 2 && <div className={`w-8 h-0.5 ${["form", "camera", "result"].indexOf(step) > i ? "bg-green-500" : "bg-gray-200"}`} />}
             </div>
           ))}
         </div>
 
         {step === "form" && (
-          <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Tell us about yourself</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">We'll use this to personalize your selfie card.</p>
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Tell us about yourself</h2>
+            <p className="text-sm text-gray-500 mb-5">We'll use this to personalize your selfie card.</p>
             <form onSubmit={handleFormSubmit} className="space-y-4">
               <div>
                 <Label htmlFor="name" className="text-sm font-medium">Your Name</Label>
@@ -318,7 +318,7 @@ export default function UnCon2026SelfiePage() {
                 />
               </div>
               {interviewer && (
-                <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3 text-sm text-amber-800 dark:text-amber-300">
+                <div className="bg-amber-50 rounded-lg p-3 text-sm text-amber-800">
                   You're being interviewed by <strong>{interviewer}</strong>
                 </div>
               )}
@@ -331,16 +331,16 @@ export default function UnCon2026SelfiePage() {
         )}
 
         {step === "camera" && (
-          <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Take your selfie</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">Smile! This will appear on your branded card.</p>
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Take your selfie</h2>
+            <p className="text-sm text-gray-500 mb-5">Smile! This will appear on your branded card.</p>
 
             {!photoDataUrl ? (
               <div className="space-y-4">
                 {cameraError ? (
-                  <div className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl bg-gray-50 dark:bg-gray-950/20 p-4">
+                  <div className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-300 rounded-2xl bg-gray-50 p-4">
                     <VideoOff className="h-10 w-10 text-gray-400 mb-3" />
-                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-3">{cameraError}</p>
+                    <p className="text-sm text-gray-500 text-center mb-3">{cameraError}</p>
                     <Button variant="outline" size="sm" onClick={() => startCamera()}>
                       Try Again
                     </Button>
@@ -388,16 +388,16 @@ export default function UnCon2026SelfiePage() {
 
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-200 dark:border-gray-700" />
+                    <div className="w-full border-t border-gray-200" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white dark:bg-gray-900 px-2 text-gray-500">or</span>
+                    <span className="bg-white px-2 text-gray-500">or</span>
                   </div>
                 </div>
 
-                <label className="flex items-center justify-center gap-2 w-full min-h-11 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors px-4 py-2.5">
+                <label className="flex items-center justify-center gap-2 w-full min-h-11 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors px-4 py-2.5">
                   <ImagePlus className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Choose from gallery</span>
+                  <span className="text-sm font-medium text-gray-700">Choose from gallery</span>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -448,20 +448,20 @@ export default function UnCon2026SelfiePage() {
 
         {step === "result" && (
           <div className="space-y-5">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-gray-800 text-center">
-              <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="h-7 w-7 text-green-600 dark:text-green-400" />
+            <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 text-center">
+              <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="h-7 w-7 text-green-600" />
               </div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+              <h2 className="text-xl font-bold text-gray-900 mb-2">
                 Great meeting you, {name}!
               </h2>
               {interviewer && (
-                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                <p className="text-gray-600 mb-4">
                   Interviewed by <strong className="text-[#FF751F]">{interviewer}</strong> at PMO unCON 2026
                 </p>
               )}
               {!interviewer && (
-                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                <p className="text-gray-600 mb-4">
                   Thanks for stopping by the FridayReport.AI booth at PMO unCON 2026!
                 </p>
               )}
@@ -492,10 +492,10 @@ export default function UnCon2026SelfiePage() {
               )}
             </div>
 
-            <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-800">
+            <div className="bg-white rounded-2xl p-5 shadow-lg border border-gray-100">
               <div className="flex items-center gap-2 mb-4">
                 <Share2 className="h-5 w-5 text-[#FF751F]" />
-                <h3 className="font-bold text-gray-900 dark:text-white">Share your experience</h3>
+                <h3 className="font-bold text-gray-900">Share your experience</h3>
               </div>
               <div className="space-y-3">
                 <Button onClick={handleLinkedIn} className="w-full bg-[#0077b5] hover:bg-[#006399] text-white min-h-12 text-base justify-start">
