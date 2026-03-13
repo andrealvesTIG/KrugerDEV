@@ -14704,7 +14704,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
               await bucket.file(objectName).delete().catch(() => {});
             }
           } else {
-            const localPath = path.join(process.cwd(), 'public', template.storedFileUrl);
+            const normalizedUrl = template.storedFileUrl.replace(/^\/+/, '');
+            const localPath = path.join(process.cwd(), 'public', normalizedUrl);
             if (fs.existsSync(localPath)) fs.unlinkSync(localPath);
           }
         } catch (fileErr) {
@@ -14752,7 +14753,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
               newFileUrl = `/objects/project-templates/${uniqueFilename}`;
             }
           } else {
-            const srcLocalPath = path.join(process.cwd(), 'public', template.storedFileUrl);
+            const normalizedSrcUrl = template.storedFileUrl.replace(/^\/+/, '');
+            const srcLocalPath = path.join(process.cwd(), 'public', normalizedSrcUrl);
             if (fs.existsSync(srcLocalPath)) {
               const templateDir = path.join(process.cwd(), 'public', 'project-templates');
               if (!fs.existsSync(templateDir)) fs.mkdirSync(templateDir, { recursive: true });
@@ -14846,7 +14848,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         }
       }
 
-      const localPath = path.join(process.cwd(), 'public', template.storedFileUrl);
+      const normalizedUrl = template.storedFileUrl.replace(/^\/+/, '');
+      const localPath = path.join(process.cwd(), 'public', normalizedUrl);
       if (fs.existsSync(localPath)) {
         res.set({ 'Content-Disposition': `attachment; filename="${downloadName}"` });
         return res.sendFile(localPath);
@@ -14962,7 +14965,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
               await bucket.file(objectName).delete().catch(() => {});
             }
           } else {
-            const oldPath = path.join(process.cwd(), 'public', oldFileUrl);
+            const normalizedOldUrl = oldFileUrl.replace(/^\/+/, '');
+            const oldPath = path.join(process.cwd(), 'public', normalizedOldUrl);
             if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
           }
         } catch (cleanupErr) {
@@ -15021,15 +15025,44 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       if (templateItems.length > 0) {
         const oldIdToNewId = new Map<number, number>();
 
-        for (const item of templateItems) {
-          const taskStartDate = startDate || item.startDate || new Date().toISOString().split('T')[0];
-          let taskEndDate = item.endDate;
-          if (startDate && item.durationDays) {
-            const start = new Date(startDate);
-            start.setDate(start.getDate() + item.durationDays);
-            taskEndDate = start.toISOString().split('T')[0];
+        let earliestDate: Date | null = null;
+        if (startDate) {
+          for (const item of templateItems) {
+            if (item.startDate) {
+              const d = new Date(item.startDate);
+              if (!earliestDate || d < earliestDate) earliestDate = d;
+            }
           }
-          if (!taskEndDate) taskEndDate = taskStartDate;
+        }
+
+        for (const item of templateItems) {
+          let taskStartDate: string;
+          let taskEndDate: string;
+
+          if (startDate && earliestDate && item.startDate) {
+            const itemStart = new Date(item.startDate);
+            const offsetDays = Math.round((itemStart.getTime() - earliestDate.getTime()) / (1000 * 60 * 60 * 24));
+            const newStart = new Date(startDate);
+            newStart.setDate(newStart.getDate() + offsetDays);
+            taskStartDate = newStart.toISOString().split('T')[0];
+
+            if (item.durationDays != null && item.durationDays >= 0) {
+              const newEnd = new Date(newStart);
+              newEnd.setDate(newEnd.getDate() + item.durationDays);
+              taskEndDate = newEnd.toISOString().split('T')[0];
+            } else if (item.endDate) {
+              const itemEnd = new Date(item.endDate);
+              const endOffsetDays = Math.round((itemEnd.getTime() - earliestDate.getTime()) / (1000 * 60 * 60 * 24));
+              const newEnd = new Date(startDate);
+              newEnd.setDate(newEnd.getDate() + endOffsetDays);
+              taskEndDate = newEnd.toISOString().split('T')[0];
+            } else {
+              taskEndDate = taskStartDate;
+            }
+          } else {
+            taskStartDate = item.startDate || startDate || new Date().toISOString().split('T')[0];
+            taskEndDate = item.endDate || taskStartDate;
+          }
 
           const newTask = await storage.createTask({
             projectId: project.id,
