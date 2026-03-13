@@ -3103,13 +3103,11 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
     <>
     <Card>
       <CardHeader className="pb-3">
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">Project Summary</CardTitle>
-              <CardDescription className="text-xs">Click any field to edit</CardDescription>
-            </div>
-          </div>
+        <CardTitle className="text-lg">Project Summary</CardTitle>
+        <CardDescription className="text-xs">Click any field to edit</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3">
             <div className="col-span-2 overflow-hidden">
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Project Name</Label>
@@ -3190,15 +3188,11 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
                 </SelectContent>
               </Select>
             </div>
-          </div>
-        </div>
-        {project.healthReason && (
-          <p className="text-xs text-muted-foreground italic mt-1">"{project.healthReason}"</p>
-        )}
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3">
+            {project.healthReason && (
+              <div className="col-span-2 md:col-span-4">
+                <p className="text-xs text-muted-foreground italic">"{project.healthReason}"</p>
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-1">
                 <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Portfolio</Label>
