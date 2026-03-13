@@ -213,7 +213,7 @@ export function TaskDependenciesSection({
                     value={dep.dependencyType || "finish-to-start"}
                     onValueChange={(val) => handleUpdateDependencyType(dep.dependsOnTaskId, val)}
                   >
-                    <SelectTrigger className="h-7 w-[62px] text-xs px-2">
+                    <SelectTrigger className="h-7 w-[160px] text-xs px-2">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -279,7 +279,7 @@ export function TaskDependenciesSection({
             />
           </div>
           <Select value={selectedType} onValueChange={setSelectedType} disabled={orgDefaults.enforceDefaults}>
-            <SelectTrigger className="w-[72px] h-9 text-xs" title={orgDefaults.enforceDefaults ? "Locked by organization settings" : undefined}>
+            <SelectTrigger className="w-[160px] h-9 text-xs" title={orgDefaults.enforceDefaults ? "Locked by organization settings" : undefined}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

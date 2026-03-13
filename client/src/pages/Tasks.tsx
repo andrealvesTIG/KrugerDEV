@@ -689,7 +689,7 @@ export default function Tasks() {
           />
 
           <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingTask(null); }}>
-            <DialogContent className="sm:max-w-[750px] max-h-[85vh] overflow-hidden flex flex-col">
+            <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col">
               <DialogHeader>
                 <DialogTitle>{editingTask ? "Edit Task" : "Add New Task"}</DialogTitle>
                 <DialogDescription>

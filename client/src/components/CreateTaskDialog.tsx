@@ -199,7 +199,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
         message={limitError?.message}
       />
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-[750px] max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Add New Task</DialogTitle>
             <DialogDescription>Fill in the details to create a new task.</DialogDescription>
