@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
+import logoBlack from "@assets/new_logo/frai_logo_black/FridayReportAI_logo_black.png";
+import logoWhite from "@assets/new_logo/frai_logo_white/FridayReportAI_logo_white.png";
 import pmiPmogaLogo from "@assets/pmi-logo-DQ-6QQ___1773339567528.png";
 
 type Step = "form" | "camera" | "result";
@@ -254,25 +255,87 @@ export default function UnCon2026SelfiePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-yellow-50/80 to-white" data-theme="light" style={{ colorScheme: "light" }}>
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-200">
+    <div className="min-h-screen relative overflow-hidden" data-theme="light" style={{ colorScheme: "light", background: "linear-gradient(135deg, #FFF7ED 0%, #FFFBEB 30%, #FEF3C7 60%, #FFF7ED 100%)" }}>
+      <style>{`
+        @keyframes confetti-fall {
+          0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+          100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
+        @keyframes sparkle {
+          0%, 100% { opacity: 0; transform: scale(0); }
+          50% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes shimmer {
+          0% { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        .confetti-piece {
+          position: fixed;
+          width: 10px;
+          height: 10px;
+          top: -20px;
+          z-index: 1;
+          animation: confetti-fall linear infinite;
+          pointer-events: none;
+        }
+        .sparkle-dot {
+          position: absolute;
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          animation: sparkle 2s ease-in-out infinite;
+        }
+        .shimmer-text {
+          background: linear-gradient(90deg, #FF751F 0%, #FFD700 25%, #FF751F 50%, #FFD700 75%, #FF751F 100%);
+          background-size: 200% auto;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          animation: shimmer 3s linear infinite;
+        }
+        .red-carpet-border {
+          border-image: linear-gradient(180deg, #DC2626, #991B1B, #7F1D1D, #991B1B, #DC2626) 1;
+        }
+      `}</style>
+
+      {[...Array(20)].map((_, i) => (
+        <div
+          key={i}
+          className="confetti-piece"
+          style={{
+            left: `${Math.random() * 100}%`,
+            animationDuration: `${3 + Math.random() * 4}s`,
+            animationDelay: `${Math.random() * 5}s`,
+            backgroundColor: ['#FF751F', '#075DD1', '#FFD700', '#DC2626', '#10B981', '#8B5CF6', '#F59E0B'][i % 7],
+            borderRadius: i % 3 === 0 ? '50%' : i % 3 === 1 ? '0' : '2px',
+            width: `${6 + Math.random() * 8}px`,
+            height: `${6 + Math.random() * 8}px`,
+          }}
+        />
+      ))}
+
+      <header className="sticky top-0 z-50 backdrop-blur-sm border-b border-amber-200/60" style={{ background: "linear-gradient(90deg, rgba(255,255,255,0.97) 0%, rgba(255,247,237,0.97) 100%)" }}>
         <div className="flex items-center justify-center px-4 py-3">
           <a href="https://fridayreport.ai" target="_blank" rel="noopener noreferrer">
-            <img src={logoBlack} alt="FridayReport.AI" className="h-7 object-contain" />
+            <img src={logoBlack} alt="FridayReport.AI" className="h-8 object-contain" />
           </a>
         </div>
       </header>
 
       <canvas ref={canvasRef} style={{ display: "none" }} />
 
-      <main className="px-4 py-6 max-w-md mx-auto">
+      <main className="px-4 py-6 max-w-md mx-auto relative z-10">
         <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 mb-3 px-4 py-2 rounded-full bg-gradient-to-r from-amber-100 to-yellow-100 border border-amber-200/60">
-            <Camera className="h-4 w-4 text-amber-600" />
-            <span className="text-sm font-semibold text-amber-800 uppercase tracking-wide">Selfie Experience</span>
+          <div className="inline-flex items-center gap-2 mb-3 px-5 py-2.5 rounded-full border-2 border-amber-300/80 shadow-lg" style={{ background: "linear-gradient(135deg, #FEF3C7, #FDE68A, #FEF3C7)" }}>
+            <span className="text-lg">📸</span>
+            <span className="text-sm font-bold text-amber-900 uppercase tracking-widest">Selfie Experience</span>
+            <span className="text-lg">🌟</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">PMO unCON 2026</h1>
-          <p className="text-sm text-gray-500 mt-1">Snap a selfie and share your experience!</p>
+          <h1 className="text-3xl font-black text-gray-900 mt-2">PMO unCON 2026</h1>
+          <p className="text-sm text-gray-600 mt-1 font-medium">Snap a selfie and share your experience!</p>
+          <div className="flex justify-center gap-1 mt-2 text-lg">
+            <span>🎉</span><span>✨</span><span>🏆</span><span>✨</span><span>🎉</span>
+          </div>
         </div>
 
         <div className="flex items-center justify-center gap-2 mb-6">
@@ -290,7 +353,8 @@ export default function UnCon2026SelfiePage() {
         </div>
 
         {step === "form" && (
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div className="bg-white rounded-2xl p-6 shadow-xl border border-amber-200/60 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1" style={{ background: "linear-gradient(90deg, #DC2626, #FF751F, #FFD700, #FF751F, #DC2626)" }} />
             <h2 className="text-lg font-bold text-gray-900 mb-1">Tell us about yourself</h2>
             <p className="text-sm text-gray-500 mb-5">We'll use this to personalize your selfie card.</p>
             <form onSubmit={handleFormSubmit} className="space-y-4">
@@ -331,9 +395,10 @@ export default function UnCon2026SelfiePage() {
         )}
 
         {step === "camera" && (
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div className="bg-white rounded-2xl p-6 shadow-xl border border-amber-200/60 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1" style={{ background: "linear-gradient(90deg, #DC2626, #FF751F, #FFD700, #FF751F, #DC2626)" }} />
             <h2 className="text-lg font-bold text-gray-900 mb-1">Take your selfie</h2>
-            <p className="text-sm text-gray-500 mb-5">Smile! This will appear on your branded card.</p>
+            <p className="text-sm text-gray-500 mb-5">Smile! This will appear on your branded card. 📸</p>
 
             {!photoDataUrl ? (
               <div className="space-y-4">
@@ -448,11 +513,10 @@ export default function UnCon2026SelfiePage() {
 
         {step === "result" && (
           <div className="space-y-5">
-            <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 text-center">
-              <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="h-7 w-7 text-green-600" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
+            <div className="bg-white rounded-2xl p-6 shadow-xl border border-amber-200/60 text-center relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1.5" style={{ background: "linear-gradient(90deg, #DC2626, #FF751F, #FFD700, #FF751F, #DC2626)" }} />
+              <div className="text-4xl mb-3 mt-1">🎉</div>
+              <h2 className="text-xl font-black text-gray-900 mb-2">
                 Great meeting you, {name}!
               </h2>
               {interviewer && (
@@ -468,31 +532,37 @@ export default function UnCon2026SelfiePage() {
 
               {photoDataUrl && (
                 <div className="relative flex justify-center mb-5">
-                  <div className="relative bg-gradient-to-br from-[#17255A] to-[#0d1a3f] rounded-2xl p-5 pb-6 shadow-xl">
+                  <div className="relative rounded-2xl p-5 pb-6 shadow-2xl overflow-hidden" style={{ background: "linear-gradient(145deg, #17255A 0%, #0d1a3f 60%, #1a0a2e 100%)" }}>
+                    <div className="absolute top-0 left-0 right-0 h-1" style={{ background: "linear-gradient(90deg, #FFD700, #FF751F, #DC2626, #FF751F, #FFD700)" }} />
+                    <div className="sparkle-dot bg-yellow-300" style={{ top: "10%", left: "8%", animationDelay: "0s" }} />
+                    <div className="sparkle-dot bg-amber-400" style={{ top: "20%", right: "10%", animationDelay: "0.7s" }} />
+                    <div className="sparkle-dot bg-yellow-200" style={{ bottom: "25%", left: "12%", animationDelay: "1.4s" }} />
+                    <div className="sparkle-dot bg-orange-300" style={{ bottom: "15%", right: "8%", animationDelay: "0.3s" }} />
                     <div className="text-center mb-3">
-                      <span className="text-amber-400 text-xs font-bold uppercase tracking-widest">PMO unCON 2026</span>
+                      <span className="shimmer-text text-xs font-black uppercase tracking-[0.2em]">PMO unCON 2026</span>
                     </div>
                     <div className="flex justify-center mb-3">
-                      <div className="w-36 h-44 rounded-[50%] overflow-hidden border-4 border-[#FF751F] shadow-lg ring-4 ring-[#FF751F]/20">
+                      <div className="w-36 h-44 rounded-[50%] overflow-hidden border-4 border-[#FF751F] shadow-lg ring-4 ring-[#FF751F]/30 ring-offset-2 ring-offset-[#17255A]">
                         <img src={photoDataUrl} alt="Your selfie" className="w-full h-full object-cover" />
                       </div>
                     </div>
                     <div className="text-center mb-3">
-                      <p className="text-white font-bold text-sm">{name}</p>
+                      <p className="text-white font-bold text-base">{name}</p>
                       {interviewer && (
-                        <p className="text-amber-300 text-xs mt-0.5">Interviewed by {interviewer}</p>
+                        <p className="text-amber-300 text-xs mt-1 font-medium">Interviewed by {interviewer}</p>
                       )}
                     </div>
-                    <div className="flex items-center justify-between gap-3 pt-2 border-t border-white/10">
+                    <div className="flex items-center justify-between gap-3 pt-3 border-t border-white/15">
                       <img src={pmiPmogaLogo} alt="PMI · PMO Global Alliance" className="h-7 object-contain invert" />
-                      <img src={logoBlack} alt="FridayReport.AI" className="h-5 object-contain invert opacity-90" />
+                      <img src={logoWhite} alt="FridayReport.AI" className="h-6 object-contain" />
                     </div>
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="bg-white rounded-2xl p-5 shadow-lg border border-gray-100">
+            <div className="bg-white rounded-2xl p-5 shadow-xl border border-amber-200/60 relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1" style={{ background: "linear-gradient(90deg, #FFD700, #FF751F, #FFD700)" }} />
               <div className="flex items-center gap-2 mb-4">
                 <Share2 className="h-5 w-5 text-[#FF751F]" />
                 <h3 className="font-bold text-gray-900">Share your experience</h3>
