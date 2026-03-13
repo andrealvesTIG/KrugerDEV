@@ -197,7 +197,7 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
                     variant="outline"
                     role="combobox"
                     aria-expanded={portfolioOpen}
-                    className="w-full h-9 justify-between font-normal bg-background hover:bg-background active:bg-background [border-color:hsl(var(--input))] shadow-none hover:shadow-none active:shadow-none hover:translate-y-0 active:translate-y-0"
+                    className="w-full h-9 justify-between font-normal bg-background hover:bg-background active:bg-background [border-color:hsl(var(--input))] shadow-none no-default-hover-elevate no-default-active-elevate"
                     data-testid="select-portfolio"
                   >
                     <span className={cn("truncate", !portfolioId && "text-muted-foreground")}>
