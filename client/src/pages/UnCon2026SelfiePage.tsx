@@ -536,14 +536,34 @@ export default function UnCon2026SelfiePage() {
               <p className="text-xs text-gray-400 mt-3 leading-relaxed">Tip: Use "Copy Suggested Post Text" to get a ready-to-paste post that tags PMO Global Alliance and Alex Rodov on LinkedIn.</p>
             </div>
 
-            <div className="text-center pt-2">
-              <a
-                href="/uncon2026"
-                className="inline-flex items-center text-sm text-[#FF751F] hover:underline font-medium"
+            <div className="text-center pt-2 space-y-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  safeRemove("uncon_step");
+                  safeRemove("uncon_name");
+                  safeRemove("uncon_email");
+                  setStep("form");
+                  setName("");
+                  setEmail("");
+                  setPhotoDataUrl(null);
+                  setPhotoFile(null);
+                  setShareToken(null);
+                }}
+                className="w-full max-w-xs mx-auto min-h-11"
               >
-                Learn more about FridayReport.AI
-                <ArrowRight className="ml-1 h-3 w-3" />
-              </a>
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Take Another Selfie
+              </Button>
+              <div>
+                <a
+                  href="/uncon2026"
+                  className="inline-flex items-center text-sm text-[#FF751F] hover:underline font-medium"
+                >
+                  Learn more about FridayReport.AI
+                  <ArrowRight className="ml-1 h-3 w-3" />
+                </a>
+              </div>
             </div>
           </div>
         )}
