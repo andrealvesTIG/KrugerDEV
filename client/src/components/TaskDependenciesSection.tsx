@@ -225,11 +225,11 @@ export function TaskDependenciesSection({
                       ))}
                     </SelectContent>
                   </Select>
-                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">lag</span>
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">lag/lead days</span>
                   <Input
                     type="number"
                     className="h-7 w-[44px] text-xs text-center px-1"
-                    title="Lag days"
+                    title="Lag/lead days"
                     key={`lag-${dep.id}-${dep.lagDays}`}
                     defaultValue={dep.lagDays || 0}
                     onBlur={(e) => {
@@ -244,7 +244,6 @@ export function TaskDependenciesSection({
                       }
                     }}
                   />
-                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">days</span>
                   <Button
                     type="button"
                     variant="ghost"
@@ -292,17 +291,16 @@ export function TaskDependenciesSection({
               ))}
             </SelectContent>
           </Select>
-          <span className="text-xs text-muted-foreground whitespace-nowrap">lag</span>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">lag/lead days</span>
           <Input
             type="number"
             className="w-[48px] h-9 text-xs text-center px-1"
-            title={orgDefaults.enforceDefaults ? "Locked by organization settings" : "Lag days for new dependency"}
+            title={orgDefaults.enforceDefaults ? "Locked by organization settings" : "Lag/lead days for new dependency"}
             placeholder="0"
             value={lagDays}
             onChange={(e) => setLagDays(parseInt(e.target.value) || 0)}
             disabled={orgDefaults.enforceDefaults}
           />
-          <span className="text-xs text-muted-foreground whitespace-nowrap">days</span>
         </div>
         <div
           ref={listRef}
