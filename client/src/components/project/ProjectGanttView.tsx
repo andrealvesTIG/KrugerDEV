@@ -1183,9 +1183,9 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                 />
               );
             case 'durationDays':
-              const calculatedDuration = precomputedDates?.duration ?? ((task.startDate && task.endDate)
+              const calculatedDuration = task.durationDays != null ? task.durationDays : (precomputedDates?.duration ?? ((task.startDate && task.endDate)
                 ? calculateDurationInWorkingDays(task.startDate, task.endDate)
-                : (task.durationDays ?? null));
+                : null));
               return (
                 <InlineEditCell
                   value={calculatedDuration != null ? formatDuration(calculatedDuration) : ''}
@@ -3422,7 +3422,7 @@ function ProjectGanttView({
       const actualStart = t.actualStartDate ? parseISO(t.actualStartDate) : null;
       const actualEnd = t.actualEndDate ? parseISO(t.actualEndDate) : null;
       const constraintDate = t.constraintDate ? parseISO(t.constraintDate) : null;
-      const duration = (start && end) ? calculateDurationInWorkingDays(t.startDate, t.endDate) : (t.durationDays ?? null);
+      const duration = t.durationDays != null ? t.durationDays : ((start && end) ? calculateDurationInWorkingDays(t.startDate, t.endDate) : null);
       map.set(t.id, {
         start,
         end,
