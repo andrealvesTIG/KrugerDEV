@@ -225,10 +225,10 @@ export function TaskDependenciesSection({
                       ))}
                     </SelectContent>
                   </Select>
-                  <div className="relative h-7 w-[52px]">
+                  <div className="flex items-center h-7">
                     <Input
                       type="number"
-                      className="h-7 w-full text-xs text-center pl-1 pr-4"
+                      className="h-7 w-[40px] text-xs text-center px-1 rounded-r-none border-r-0"
                       title="Lag days"
                       key={`lag-${dep.id}-${dep.lagDays}`}
                       defaultValue={dep.lagDays || 0}
@@ -244,7 +244,7 @@ export function TaskDependenciesSection({
                         }
                       }}
                     />
-                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">d</span>
+                    <span className="h-7 flex items-center px-1.5 text-[10px] text-muted-foreground bg-muted border border-l-0 rounded-r-md">days</span>
                   </div>
                   <Button
                     type="button"
@@ -293,17 +293,17 @@ export function TaskDependenciesSection({
               ))}
             </SelectContent>
           </Select>
-          <div className="relative w-[52px]">
+          <div className="flex items-center h-9">
             <Input
               type="number"
-              className="w-full h-9 text-xs text-center pl-1 pr-4"
+              className="w-[44px] h-9 text-xs text-center px-1 rounded-r-none border-r-0"
               title={orgDefaults.enforceDefaults ? "Locked by organization settings" : "Lag days for new dependency"}
               placeholder="Lag"
               value={lagDays}
               onChange={(e) => setLagDays(parseInt(e.target.value) || 0)}
               disabled={orgDefaults.enforceDefaults}
             />
-            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">d</span>
+            <span className="h-9 flex items-center px-1.5 text-[10px] text-muted-foreground bg-muted border border-l-0 rounded-r-md">days</span>
           </div>
         </div>
         <div
