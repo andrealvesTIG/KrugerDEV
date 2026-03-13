@@ -516,20 +516,20 @@ export default function UnCon2026SelfiePage() {
             ) : (
               <div className="space-y-3">
                 <div className="flex justify-center">
-                  <div className="sun-container" style={{ width: 180, height: 180 }}>
+                  <div className="sun-container" style={{ width: 200, height: 200 }}>
                     <div className="sun-glow" />
                     <svg className="sun-rays" viewBox="0 0 200 200">
-                      {Array.from({ length: 16 }, (_, i) => {
-                        const angle = (i * 360) / 16;
+                      {Array.from({ length: 20 }, (_, i) => {
+                        const angle = (i * 360) / 20;
                         const rad = (angle * Math.PI) / 180;
-                        const x1 = 100 + Math.cos(rad) * 52;
-                        const y1 = 100 + Math.sin(rad) * 52;
+                        const x1 = 100 + Math.cos(rad) * 48;
+                        const y1 = 100 + Math.sin(rad) * 48;
                         const x2 = 100 + Math.cos(rad) * 90;
                         const y2 = 100 + Math.sin(rad) * 90;
-                        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={i % 2 === 0 ? "#FF751F" : "#FFD700"} strokeWidth={i % 2 === 0 ? "2.5" : "1.5"} strokeLinecap="round" opacity={i % 2 === 0 ? 0.7 : 0.4} />;
+                        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={i % 2 === 0 ? "#FF751F" : "#FFD700"} strokeWidth={i % 2 === 0 ? "3" : "1.5"} strokeLinecap="round" opacity={i % 2 === 0 ? 0.6 : 0.3} />;
                       })}
                     </svg>
-                    <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-[#FF751F] shadow-lg relative z-10">
+                    <div className="w-36 h-36 rounded-full overflow-hidden border-4 border-[#FF751F] shadow-lg shadow-orange-500/30 relative z-10">
                       <img src={photoDataUrl} alt="Your selfie" className="w-full h-full object-cover" />
                     </div>
                   </div>
@@ -552,91 +552,77 @@ export default function UnCon2026SelfiePage() {
         )}
 
         {step === "result" && (
-          <div className="space-y-4">
-            <div className="text-center py-2">
-              <div className="text-3xl mb-2" style={{ animation: "float 2s ease-in-out infinite" }}>🎉</div>
-              <h2 className="text-lg font-black text-white">
-                Great meeting you, {name}!
-              </h2>
-              {interviewer ? (
-                <p className="text-gray-400 text-sm mt-1">
-                  Interviewed by <strong className="text-[#FF751F]">{interviewer}</strong>
-                </p>
-              ) : (
-                <p className="text-gray-400 text-sm mt-1">Thanks for visiting the FridayReport.AI booth!</p>
-              )}
-            </div>
+          <div className="space-y-3">
+            <div className="selfie-card p-5 w-full">
+              <div className="flex items-center justify-center mb-2 pb-2 border-b border-white/10">
+                <img src={pmiPmogaLogo} alt="PMI" className="h-5 object-contain invert opacity-80" />
+              </div>
+              <p className="text-center text-[10px] font-black uppercase tracking-[0.25em] text-amber-400/80 mb-4">PMO unCON 2026</p>
 
-            {photoDataUrl && (
-              <div className="flex justify-center">
-                <div className="selfie-card p-4 w-full max-w-[280px]">
-                  <div className="flex items-center justify-center mb-2 pb-2 border-b border-white/10">
-                    <img src={pmiPmogaLogo} alt="PMI" className="h-5 object-contain invert opacity-80" />
-                  </div>
-                  <p className="text-center text-[10px] font-black uppercase tracking-[0.25em] text-amber-400/80 mb-3">PMO unCON 2026</p>
-                  <div className="flex justify-center mb-3">
-                    <div className="sun-container" style={{ width: 140, height: 140 }}>
-                      <div className="sun-glow" />
-                      <svg className="sun-rays" viewBox="0 0 200 200">
-                        {Array.from({ length: 16 }, (_, i) => {
-                          const angle = (i * 360) / 16;
-                          const rad = (angle * Math.PI) / 180;
-                          const x1 = 100 + Math.cos(rad) * 50;
-                          const y1 = 100 + Math.sin(rad) * 50;
-                          const x2 = 100 + Math.cos(rad) * 92;
-                          const y2 = 100 + Math.sin(rad) * 92;
-                          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={i % 2 === 0 ? "#FF751F" : "#FFD700"} strokeWidth={i % 2 === 0 ? "3" : "1.5"} strokeLinecap="round" opacity={i % 2 === 0 ? 0.6 : 0.3} />;
-                        })}
-                      </svg>
-                      <div className="w-24 h-24 rounded-full overflow-hidden border-[3px] border-[#FF751F] shadow-lg shadow-orange-500/20 relative z-10">
-                        <img src={photoDataUrl} alt="Your selfie" className="w-full h-full object-cover" />
-                      </div>
+              {photoDataUrl && (
+                <div className="flex justify-center mb-4">
+                  <div className="sun-container" style={{ width: 220, height: 220 }}>
+                    <div className="sun-glow" />
+                    <svg className="sun-rays" viewBox="0 0 200 200">
+                      {Array.from({ length: 20 }, (_, i) => {
+                        const angle = (i * 360) / 20;
+                        const rad = (angle * Math.PI) / 180;
+                        const x1 = 100 + Math.cos(rad) * 48;
+                        const y1 = 100 + Math.sin(rad) * 48;
+                        const x2 = 100 + Math.cos(rad) * 90;
+                        const y2 = 100 + Math.sin(rad) * 90;
+                        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={i % 2 === 0 ? "#FF751F" : "#FFD700"} strokeWidth={i % 2 === 0 ? "3" : "1.5"} strokeLinecap="round" opacity={i % 2 === 0 ? 0.6 : 0.3} />;
+                      })}
+                    </svg>
+                    <div className="w-40 h-40 rounded-full overflow-hidden border-4 border-[#FF751F] shadow-lg shadow-orange-500/30 relative z-10">
+                      <img src={photoDataUrl} alt="Your selfie" className="w-full h-full object-cover" />
                     </div>
                   </div>
-                  <div className="text-center mb-3">
-                    <p className="text-white font-bold text-sm">{name}</p>
-                    {interviewer && <p className="text-amber-300/70 text-[10px] mt-0.5">Interviewed by {interviewer}</p>}
-                  </div>
-                  <div className="flex items-center justify-center pt-2.5 border-t border-white/10">
-                    <img src={logoWhite} alt="FridayReport.AI" className="h-5 object-contain opacity-90" />
-                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            <div className="card p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Share2 className="h-4 w-4 text-[#FF751F]" />
-                <h3 className="font-bold text-white text-sm">Share your experience</h3>
+              <div className="text-center mb-3">
+                <p className="text-white font-bold text-lg">{name}</p>
+                {interviewer && <p className="text-amber-300/70 text-xs mt-0.5">Interviewed by {interviewer}</p>}
               </div>
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <button onClick={handleLinkedIn} className="flex-1 h-10 rounded-xl text-white font-medium text-sm flex items-center justify-start gap-3 px-4 border-0 cursor-pointer transition-all hover:brightness-110" style={{ background: "#0077B5" }}>
-                    <Linkedin className="h-4 w-4" /> Share on LinkedIn
-                  </button>
-                  <button onClick={handleDownloadCard} className="h-10 w-10 rounded-xl text-white flex items-center justify-center border-0 cursor-pointer transition-all hover:brightness-110 shrink-0" style={{ background: "#0077B5" }} title="Download selfie card">
-                    <Download className="h-4 w-4" />
-                  </button>
-                </div>
-                <button onClick={handleTwitter} className="w-full h-10 rounded-xl text-white font-medium text-sm flex items-center justify-start gap-3 px-4 border-0 cursor-pointer transition-all hover:brightness-110" style={{ background: "#1A1A1A" }}>
-                  <Twitter className="h-4 w-4" /> Share on X
-                </button>
-                <button onClick={handleCopyPostText} className="w-full h-10 rounded-xl font-medium text-sm flex items-center justify-start gap-3 px-4 border cursor-pointer transition-all hover:bg-white/5" style={{ background: "transparent", color: "#FF9F4F", borderColor: "rgba(255,117,31,0.3)" }}>
-                  {copiedText ? <><CheckCircle className="h-4 w-4 text-emerald-400" /> Copied!</> : <><FileText className="h-4 w-4" /> Copy Post Text</>}
-                </button>
-                <button onClick={handleCopyLink} className="w-full h-10 rounded-xl font-medium text-sm flex items-center justify-start gap-3 px-4 border cursor-pointer transition-all hover:bg-white/5" style={{ background: "transparent", color: "rgba(255,255,255,0.6)", borderColor: "rgba(255,255,255,0.1)" }}>
-                  {copied ? <><CheckCircle className="h-4 w-4 text-emerald-400" /> Copied!</> : <><Copy className="h-4 w-4" /> Copy Link</>}
-                </button>
+
+              <div className="text-center mb-3">
+                <p className="text-[#FF751F] text-xs font-semibold">Great meeting you at PMO unCON 2026!</p>
               </div>
-              <p className="text-[10px] text-gray-500 mt-2 leading-relaxed">Tip: "Copy Post Text" gives you a ready-to-paste post tagging PMO Global Alliance & Alex Rodov.</p>
+
+              <div className="flex items-center justify-center pt-3 border-t border-white/10">
+                <img src={logoWhite} alt="FridayReport.AI" className="h-5 object-contain opacity-90" />
+              </div>
             </div>
 
-            <div className="flex flex-col items-center gap-2 pt-1">
-              <button onClick={handleReset} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors bg-transparent border-0 cursor-pointer">
-                <RotateCcw className="h-3 w-3" /> Take Another Selfie
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={handleLinkedIn} className="h-12 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 border-0 cursor-pointer transition-all active:scale-95" style={{ background: "#0077B5" }}>
+                <Linkedin className="h-4 w-4" /> LinkedIn
+              </button>
+              <button onClick={handleDownloadCard} className="h-12 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 border-0 cursor-pointer transition-all active:scale-95" style={{ background: "linear-gradient(135deg, #FF751F, #FF8F3F)", boxShadow: "0 4px 16px rgba(255,117,31,0.3)" }}>
+                <Download className="h-4 w-4" /> Download
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={handleTwitter} className="h-11 rounded-xl text-white font-medium text-sm flex items-center justify-center gap-2 border-0 cursor-pointer transition-all active:scale-95" style={{ background: "#1A1A1A" }}>
+                <Twitter className="h-4 w-4" /> X / Twitter
+              </button>
+              <button onClick={handleCopyPostText} className="h-11 rounded-xl font-medium text-sm flex items-center justify-center gap-2 border cursor-pointer transition-all active:scale-95" style={{ background: "transparent", color: "#FF9F4F", borderColor: "rgba(255,117,31,0.3)" }}>
+                {copiedText ? <><CheckCircle className="h-4 w-4 text-emerald-400" /> Copied!</> : <><FileText className="h-4 w-4" /> Post Text</>}
+              </button>
+            </div>
+
+            <button onClick={handleCopyLink} className="w-full h-10 rounded-xl font-medium text-xs flex items-center justify-center gap-2 border cursor-pointer transition-all active:scale-95" style={{ background: "transparent", color: "rgba(255,255,255,0.5)", borderColor: "rgba(255,255,255,0.08)" }}>
+              {copied ? <><CheckCircle className="h-3.5 w-3.5 text-emerald-400" /> Copied!</> : <><Copy className="h-3.5 w-3.5" /> Copy Share Link</>}
+            </button>
+
+            <div className="flex items-center justify-center gap-4 pt-1">
+              <button onClick={handleReset} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors bg-transparent border-0 cursor-pointer active:scale-95">
+                <RotateCcw className="h-3 w-3" /> New Selfie
               </button>
               <a href="/uncon2026" className="flex items-center gap-1 text-xs text-[#FF751F] hover:text-[#FF9F4F] transition-colors font-medium">
-                Learn more about FridayReport.AI <ArrowRight className="h-3 w-3" />
+                About FridayReport.AI <ArrowRight className="h-3 w-3" />
               </a>
             </div>
           </div>
