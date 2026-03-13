@@ -73,9 +73,9 @@ export async function generateSelfieOgImage(data: SelfieOgData): Promise<Buffer>
 
   const S = 1080;
   const cx = S / 2;
-  const photoR = 160;
-  const photoCy = 420;
-  const sunRays = generateSunRays(cx, photoCy, photoR + 12, photoR + 90, 24);
+  const photoR = 200;
+  const photoCy = 410;
+  const sunRays = generateSunRays(cx, photoCy, photoR + 12, photoR + 100, 28);
 
   const selfieElement = selfieB64
     ? `<defs>
@@ -88,7 +88,7 @@ export async function generateSelfieOgImage(data: SelfieOgData): Promise<Buffer>
           <stop offset="100%" stop-color="#FF751F" stop-opacity="0" />
         </radialGradient>
       </defs>
-      <circle cx="${cx}" cy="${photoCy}" r="${photoR + 100}" fill="url(#glowGrad)" />
+      <circle cx="${cx}" cy="${photoCy}" r="${photoR + 110}" fill="url(#glowGrad)" />
       ${sunRays}
       <circle cx="${cx}" cy="${photoCy}" r="${photoR + 5}" fill="#FF751F" />
       <circle cx="${cx}" cy="${photoCy}" r="${photoR + 2}" fill="#17255A" />
@@ -97,19 +97,19 @@ export async function generateSelfieOgImage(data: SelfieOgData): Promise<Buffer>
       <circle cx="${cx}" cy="${photoCy}" r="${photoR + 2}" fill="#1e2d5a" />
       <text x="${cx}" y="${photoCy + 24}" text-anchor="middle" font-size="80" font-family="system-ui,sans-serif">📸</text>`;
 
+  const nameY = photoCy + photoR + 65;
   const interviewerLine = interviewer
-    ? `<text x="${cx}" y="710" text-anchor="middle" font-size="20" fill="#D4A84A" font-family="system-ui,sans-serif" opacity="0.8">Interviewed by ${interviewer}</text>`
+    ? `<text x="${cx}" y="${nameY + 35}" text-anchor="middle" font-size="20" fill="#D4A84A" font-family="system-ui,sans-serif" opacity="0.8">Interviewed by ${interviewer}</text>`
     : "";
+  const taglineY = interviewer ? nameY + 70 : nameY + 45;
 
   const pmiElement = pmiPmogaLogoB64
-    ? `<image href="${pmiPmogaLogoB64}" x="${cx - 110}" y="55" width="220" height="55" preserveAspectRatio="xMidYMid meet" />`
-    : `<text x="${cx}" y="90" text-anchor="middle" font-size="18" font-weight="700" fill="white" font-family="system-ui,sans-serif">Project Management Institute</text>`;
+    ? `<image href="${pmiPmogaLogoB64}" x="${cx - 110}" y="35" width="220" height="55" preserveAspectRatio="xMidYMid meet" />`
+    : `<text x="${cx}" y="70" text-anchor="middle" font-size="18" font-weight="700" fill="white" font-family="system-ui,sans-serif">Project Management Institute</text>`;
 
   const fridayElement = fridayLogoB64
-    ? `<image href="${fridayLogoB64}" x="${cx - 130}" y="985" width="260" height="55" preserveAspectRatio="xMidYMid meet" />`
-    : `<text x="${cx}" y="1020" text-anchor="middle" font-size="26" font-weight="800" fill="white" font-family="system-ui,sans-serif">FridayReport.AI</text>`;
-
-  const taglineY = interviewer ? 770 : 740;
+    ? `<image href="${fridayLogoB64}" x="${cx - 140}" y="990" width="280" height="60" preserveAspectRatio="xMidYMid meet" />`
+    : `<text x="${cx}" y="1030" text-anchor="middle" font-size="28" font-weight="800" fill="white" font-family="system-ui,sans-serif">FridayReport.AI</text>`;
 
   const svg = `<svg width="${S}" height="${S}" xmlns="http://www.w3.org/2000/svg">
   <defs>
@@ -140,18 +140,18 @@ export async function generateSelfieOgImage(data: SelfieOgData): Promise<Buffer>
 
   ${pmiElement}
 
-  <text x="${cx}" y="165" text-anchor="middle" font-size="18" font-weight="800" fill="#D4A84A" font-family="system-ui,sans-serif" letter-spacing="6" opacity="0.8">PMO unCON 2026</text>
+  <text x="${cx}" y="135" text-anchor="middle" font-size="16" font-weight="800" fill="#D4A84A" font-family="system-ui,sans-serif" letter-spacing="6" opacity="0.8">PMO unCON 2026</text>
 
   ${selfieElement}
 
-  <text x="${cx}" y="660" text-anchor="middle" font-size="40" font-weight="800" fill="white" font-family="system-ui,-apple-system,sans-serif" letter-spacing="-0.5">${userName}</text>
+  <text x="${cx}" y="${nameY}" text-anchor="middle" font-size="44" font-weight="800" fill="white" font-family="system-ui,-apple-system,sans-serif" letter-spacing="-0.5">${userName}</text>
   ${interviewerLine}
 
   <text x="${cx}" y="${taglineY}" text-anchor="middle" font-size="20" fill="#FF751F" font-weight="600" font-family="system-ui,sans-serif" opacity="0.9">Great meeting you at PMO unCON 2026!</text>
 
-  <rect x="140" y="910" width="${S - 280}" height="1" fill="url(#dividerLine)" opacity="0.3" />
+  <rect x="120" y="930" width="${S - 240}" height="1" fill="url(#dividerLine)" opacity="0.4" />
 
-  <text x="${cx}" y="950" text-anchor="middle" font-size="18" font-weight="700" fill="#D4A84A" font-family="system-ui,sans-serif" letter-spacing="3">Gold Sponsor</text>
+  <text x="${cx}" y="968" text-anchor="middle" font-size="18" font-weight="700" fill="#D4A84A" font-family="system-ui,sans-serif" letter-spacing="3">GOLD SPONSOR</text>
 
   ${fridayElement}
 </svg>`;
