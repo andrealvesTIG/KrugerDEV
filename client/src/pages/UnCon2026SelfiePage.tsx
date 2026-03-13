@@ -492,12 +492,12 @@ export default function UnCon2026SelfiePage() {
                 )}
 
                 {!cameraError && (
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={handleFlipCamera} disabled={!cameraActive} className="h-10 w-10 p-0 rounded-xl border-gray-200">
-                      <SwitchCamera className="h-4 w-4" />
-                    </Button>
-                    <button onClick={handleSnapPhoto} disabled={!cameraActive} className="glow-btn flex-1 h-10 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 border-0 cursor-pointer disabled:opacity-50">
-                      <Camera className="h-4 w-4" /> Take Photo
+                  <div className="flex gap-3">
+                    <button onClick={handleFlipCamera} disabled={!cameraActive} className="h-12 w-14 flex items-center justify-center rounded-xl border-2 border-white/30 bg-white/10 backdrop-blur-sm text-white disabled:opacity-40" style={{ WebkitTapHighlightColor: 'transparent' }}>
+                      <SwitchCamera className="h-6 w-6" />
+                    </button>
+                    <button onClick={handleSnapPhoto} disabled={!cameraActive} className="glow-btn flex-1 h-12 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 border-0 cursor-pointer disabled:opacity-50">
+                      <Camera className="h-5 w-5" /> Take Photo
                     </button>
                   </div>
                 )}
