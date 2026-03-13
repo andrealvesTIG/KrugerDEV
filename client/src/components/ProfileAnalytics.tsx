@@ -141,67 +141,175 @@ export default function ProfileAnalytics() {
 
   const handleShareLinkedIn = useCallback(() => {
     const url = encodeURIComponent(profileUrl);
-    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank', 'width=600,height=500');
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank', 'noopener,noreferrer,width=600,height=500');
   }, [profileUrl]);
 
   const handleShareTwitter = useCallback(() => {
     const url = encodeURIComponent(profileUrl);
     const text = encodeURIComponent(`Check out my PM profile and achievements on FridayReport.AI! #ProjectManagement #PMO`);
-    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank', 'width=600,height=500');
+    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank', 'noopener,noreferrer,width=600,height=500');
   }, [profileUrl]);
 
   const handleShareTeams = useCallback(() => {
     const url = encodeURIComponent(profileUrl);
     const text = encodeURIComponent(`Check out my PM profile and achievements on FridayReport.AI!`);
-    window.open(`https://teams.microsoft.com/share?href=${url}&msgText=${text}`, '_blank', 'width=600,height=500');
+    window.open(`https://teams.microsoft.com/share?href=${url}&msgText=${text}`, '_blank', 'noopener,noreferrer,width=600,height=500');
   }, [profileUrl]);
 
-  const handleDownloadBadge = useCallback(async (badgeId: string, badgeName: string, badgeIcon: string, badgeDescription: string) => {
+  const generateBadgeCanvas = useCallback(async (badgeName: string, badgeIcon: string, badgeDescription: string, current: number, threshold: number): Promise<string> => {
     const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Project Manager";
+    const w = 480;
+    const h = 560;
+    const dpr = 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    const ctx = canvas.getContext('2d')!;
+    ctx.scale(dpr, dpr);
+
+    const drawRoundRect = (x: number, y: number, rw: number, rh: number, r: number) => {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + rw - r, y);
+      ctx.quadraticCurveTo(x + rw, y, x + rw, y + r);
+      ctx.lineTo(x + rw, y + rh - r);
+      ctx.quadraticCurveTo(x + rw, y + rh, x + rw - r, y + rh);
+      ctx.lineTo(x + r, y + rh);
+      ctx.quadraticCurveTo(x, y + rh, x, y + rh - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    };
+
+    const truncateText = (text: string, maxWidth: number): string => {
+      if (ctx.measureText(text).width <= maxWidth) return text;
+      let truncated = text;
+      while (truncated.length > 0 && ctx.measureText(truncated + '...').width > maxWidth) {
+        truncated = truncated.slice(0, -1);
+      }
+      return truncated + '...';
+    };
+
+    ctx.fillStyle = '#f8f9fb';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.08)';
+    ctx.shadowBlur = 24;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 4;
+    ctx.fillStyle = '#ffffff';
+    drawRoundRect(24, 20, w - 48, h - 40, 20);
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 1;
+    drawRoundRect(24, 20, w - 48, h - 40, 20);
+    ctx.stroke();
+
+    ctx.save();
+    drawRoundRect(24, 20, w - 48, h - 40, 20);
+    ctx.clip();
+
+    const badgeEmojiMap: Record<string, string> = {
+      rocket: '\u{1F680}', briefcase: '\u{1F4BC}', building: '\u{1F3E2}',
+      'list-checks': '\u2705', 'check-circle': '\u2714\uFE0F', zap: '\u26A1',
+      shield: '\u{1F6E1}\uFE0F', 'shield-check': '\u{1F6E1}\uFE0F', bug: '\u{1F41B}',
+      flag: '\u{1F3C1}', activity: '\u{1F4C8}', flame: '\u{1F525}', layers: '\u{1F4DA}',
+    };
+
+    const cx = w / 2;
+
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.08)';
+    ctx.beginPath(); ctx.arc(cx, 130, 52, 0, Math.PI * 2); ctx.fill();
+    ctx.font = '48px system-ui, -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#000000';
+    ctx.fillText(badgeEmojiMap[badgeIcon] || '\u{1F3C6}', cx, 130);
+
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = 'bold 26px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#111827';
+    ctx.fillText(truncateText(badgeName, w - 100), cx, 214);
+
+    ctx.font = '15px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#6b7280';
+    ctx.fillText(truncateText(badgeDescription, w - 100), cx, 244);
+
+    ctx.font = 'bold 24px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillText(`${current}/${threshold}`, cx, 290);
+
+    ctx.strokeStyle = '#f0f0f0';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(80, 316); ctx.lineTo(w - 80, 316); ctx.stroke();
+
+    ctx.font = '14px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillText('Earned by', cx, 346);
+
+    ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#111827';
+    ctx.fillText(truncateText(displayName, w - 100), cx, 376);
+
+    ctx.strokeStyle = '#f0f0f0';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(80, 410); ctx.lineTo(w - 80, 410); ctx.stroke();
+
+    let fullLogoLoaded = false;
+    const fullLogoImg = new Image();
+    fullLogoImg.crossOrigin = 'anonymous';
     try {
-      const container = document.createElement('div');
-      container.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:400px;padding:32px;background:#ffffff;font-family:system-ui,-apple-system,sans-serif;border-radius:16px;border:2px solid #f59e0b30;';
+      await new Promise<void>((resolve) => {
+        fullLogoImg.onload = () => { fullLogoLoaded = true; resolve(); };
+        fullLogoImg.onerror = () => resolve();
+        fullLogoImg.src = '/logo-full.png';
+      });
+    } catch {}
 
-      const logoRow = document.createElement('div');
-      logoRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:20px;';
-      logoRow.innerHTML = `<img src="/logo-icon.png" style="width:20px;height:20px;" /><span style="font-size:12px;color:#6b7280;">FridayReport.AI</span>`;
-      container.appendChild(logoRow);
+    if (fullLogoLoaded && fullLogoImg.complete && fullLogoImg.naturalWidth > 0) {
+      const logoH = 22;
+      const logoW = (fullLogoImg.naturalWidth / fullLogoImg.naturalHeight) * logoH;
+      ctx.drawImage(fullLogoImg, cx - logoW / 2, 434, logoW, logoH);
+    } else {
+      let iconLoaded = false;
+      try {
+        const iconImg = new Image();
+        iconImg.crossOrigin = 'anonymous';
+        await new Promise<void>((resolve) => {
+          iconImg.onload = () => { iconLoaded = true; resolve(); };
+          iconImg.onerror = () => resolve();
+          iconImg.src = '/logo-icon.png';
+        });
+        if (iconLoaded && iconImg.complete && iconImg.naturalWidth > 0) {
+          ctx.drawImage(iconImg, cx - 68, 430, 24, 24);
+          ctx.font = '700 14px system-ui, -apple-system, sans-serif';
+          ctx.fillStyle = '#17255A';
+          ctx.textAlign = 'left';
+          ctx.fillText('FridayReport.AI', cx - 38, 448);
+          ctx.textAlign = 'center';
+        } else {
+          ctx.font = '700 14px system-ui, -apple-system, sans-serif';
+          ctx.fillStyle = '#17255A';
+          ctx.fillText('FridayReport.AI', cx, 448);
+        }
+      } catch {
+        ctx.font = '700 14px system-ui, -apple-system, sans-serif';
+        ctx.fillStyle = '#17255A';
+        ctx.fillText('FridayReport.AI', cx, 448);
+      }
+    }
 
-      const badgeEmojiMap: Record<string, string> = {
-        rocket: '\u{1F680}', briefcase: '\u{1F4BC}', building: '\u{1F3E2}',
-        'list-checks': '\u2705', 'check-circle': '\u2714\uFE0F', zap: '\u26A1',
-        shield: '\u{1F6E1}\uFE0F', 'shield-check': '\u{1F6E1}\uFE0F', bug: '\u{1F41B}',
-        flag: '\u{1F3C1}', activity: '\u{1F4C8}', flame: '\u{1F525}', layers: '\u{1F4DA}',
-      };
-      const iconDiv = document.createElement('div');
-      iconDiv.style.cssText = 'text-align:center;margin-bottom:12px;font-size:40px;';
-      iconDiv.textContent = badgeEmojiMap[badgeIcon] || '\u{1F3C6}';
-      container.appendChild(iconDiv);
+    ctx.restore();
+    return canvas.toDataURL('image/png');
+  }, [user]);
 
-      const nameDiv = document.createElement('div');
-      nameDiv.style.cssText = 'text-align:center;font-size:18px;font-weight:700;color:#1f2937;margin-bottom:4px;';
-      nameDiv.textContent = badgeName;
-      container.appendChild(nameDiv);
-
-      const descDiv = document.createElement('div');
-      descDiv.style.cssText = 'text-align:center;font-size:13px;color:#6b7280;margin-bottom:16px;';
-      descDiv.textContent = badgeDescription;
-      container.appendChild(descDiv);
-
-      const separator = document.createElement('div');
-      separator.style.cssText = 'height:1px;background:#e5e7eb;margin-bottom:12px;';
-      container.appendChild(separator);
-
-      const userDiv = document.createElement('div');
-      userDiv.style.cssText = 'text-align:center;font-size:14px;color:#374151;';
-      userDiv.innerHTML = `Earned by <strong>${displayName}</strong>`;
-      container.appendChild(userDiv);
-
-      document.body.appendChild(container);
-      const { toPng } = await import('html-to-image');
-      const dataUrl = await toPng(container, { pixelRatio: 2, backgroundColor: '#ffffff' });
-      document.body.removeChild(container);
-
+  const handleDownloadBadge = useCallback(async (badgeId: string, badgeName: string, badgeIcon: string, badgeDescription: string, current: number, threshold: number) => {
+    try {
+      const dataUrl = await generateBadgeCanvas(badgeName, badgeIcon, badgeDescription, current, threshold);
       const link = document.createElement('a');
       link.download = `FridayReport-Badge-${badgeName.replace(/\s+/g, '-')}.png`;
       link.href = dataUrl;
@@ -210,7 +318,17 @@ export default function ProfileAnalytics() {
     } catch {
       toast({ title: "Error", description: "Failed to download badge image.", variant: "destructive" });
     }
-  }, [toast, user]);
+  }, [toast, generateBadgeCanvas]);
+
+  const getBadgeShareUrls = useCallback((badgeId: string, badgeName: string, badgeDescription: string) => {
+    const badgeUrl = `${window.location.origin}/badges/${user?.id}/${badgeId}`;
+    const shareText = `I just earned the "${badgeName}" badge on FridayReport.AI! ${badgeDescription} #ProjectManagement #PMO #FridayReportAI`;
+    return {
+      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(badgeUrl)}`,
+      twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(badgeUrl)}`,
+      teams: `https://teams.microsoft.com/share?href=${encodeURIComponent(badgeUrl)}&msgText=${encodeURIComponent(shareText)}`,
+    };
+  }, [user?.id]);
 
   if (isLoading) {
     return (
@@ -250,10 +368,10 @@ export default function ProfileAnalytics() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold">Analytics</h2>
-          <p className="text-muted-foreground">Your professional engagement and performance overview</p>
+          <p className="text-sm text-muted-foreground">Your professional engagement and performance overview</p>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -389,28 +507,30 @@ export default function ProfileAnalytics() {
           </CardHeader>
           <CardContent>
             {featureUsage.length > 0 ? (
-              <div className="flex items-center gap-4">
-                <ResponsiveContainer width="50%" height={220}>
-                  <PieChart>
-                    <Pie
-                      data={featureUsage.slice(0, 8)}
-                      dataKey="count"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      innerRadius={40}
-                    >
-                      {featureUsage.slice(0, 8).map((_, i) => (
-                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip
-                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="flex-1 space-y-1.5">
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="w-full sm:w-1/2 h-[180px] sm:h-[220px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={featureUsage.slice(0, 8)}
+                        dataKey="count"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={70}
+                        innerRadius={35}
+                      >
+                        {featureUsage.slice(0, 8).map((_, i) => (
+                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip
+                        contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="w-full sm:flex-1 space-y-1.5">
                   {featureUsage.slice(0, 8).map((f, i) => (
                     <div key={f.name} className="flex items-center gap-2 text-xs">
                       <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
@@ -453,13 +573,40 @@ export default function ProfileAnalytics() {
                     className="flex flex-col items-center text-center p-3 rounded-lg border-2 border-amber-500/30 bg-amber-500/5 relative group"
                   >
                     <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
-                      <button
-                        onClick={() => handleDownloadBadge(badge.id, badge.name, badge.icon, badge.description)}
-                        className="p-1 rounded hover:bg-amber-500/10 text-muted-foreground hover:text-amber-600"
-                        title="Download badge as PNG"
-                      >
-                        <Download className="h-3 w-3" />
-                      </button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            className="p-1 rounded hover:bg-amber-500/10 text-muted-foreground hover:text-amber-600"
+                            title="Share badge"
+                          >
+                            <Share2 className="h-3 w-3" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuItem onClick={() => handleDownloadBadge(badge.id, badge.name, badge.icon, badge.description, badge.current, badge.threshold)}>
+                            <Download className="h-3.5 w-3.5 mr-2" />
+                            Download PNG
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <a href={getBadgeShareUrls(badge.id, badge.name, badge.description).linkedin} target="_blank" rel="noopener noreferrer" className="flex items-center">
+                              <svg className="h-3.5 w-3.5 mr-2 flex-shrink-0" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4" fill="#0A66C2"/><path d="M7.5 10v7M7.5 7v.01M10.5 17v-4a2 2 0 014 0v4M10.5 10v7" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                              LinkedIn
+                            </a>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <a href={getBadgeShareUrls(badge.id, badge.name, badge.description).twitter} target="_blank" rel="noopener noreferrer" className="flex items-center">
+                              <svg className="h-3.5 w-3.5 mr-2 flex-shrink-0" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4" fill="#000"/><path d="M16.99 3.75h2.7l-5.9 6.74 6.94 9.18h-5.44l-4.26-5.57-4.87 5.57H3.35l6.31-7.21L3.08 3.75h5.58l3.85 5.09zm-.95 14.31h1.5L8.14 5.29H6.52z" fill="#fff"/></svg>
+                              X (Twitter)
+                            </a>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <a href={getBadgeShareUrls(badge.id, badge.name, badge.description).teams} target="_blank" rel="noopener noreferrer" className="flex items-center">
+                              <svg className="h-3.5 w-3.5 mr-2 flex-shrink-0" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4" fill="#5059C9"/><circle cx="18" cy="6.5" r="2" fill="#7B83EB"/><path d="M20 9.5h-3.5a.5.5 0 00-.5.5v4.5a2.25 2.25 0 004.5 0V10a.5.5 0 00-.5-.5z" fill="#7B83EB"/><circle cx="12.5" cy="6" r="2.5" fill="#fff"/><path d="M16 9.5H9a.5.5 0 00-.5.5v5a3.25 3.25 0 006.5 0v-5a1 1 0 00-1-1H16z" fill="#fff"/></svg>
+                              Teams
+                            </a>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                     <div className="text-amber-500 mb-1">
                       {getBadgeIcon(badge.icon, "h-7 w-7")}

@@ -5,7 +5,7 @@ import viteConfig from "../vite.config";
 import fs from "fs";
 import path from "path";
 import { nanoid } from "nanoid";
-import { getBadgeOgData, injectBadgeOgTags } from "./badge-og";
+import { getBadgeOgData, injectBadgeOgTags, getSingleBadgeOgData, injectSingleBadgeOgTags } from "./badge-og";
 
 const viteLogger = createLogger();
 
@@ -45,8 +45,15 @@ export async function setupVite(server: Server, app: Express) {
 
       let template = await fs.promises.readFile(clientTemplate, "utf-8");
 
-      const badgeMatch = url.match(/^\/badges\/([^/?#]+)/);
-      if (badgeMatch) {
+      const singleBadgeMatch = url.match(/^\/badges\/([^/?#]+)\/([^/?#]+)/);
+      const badgeMatch = url.match(/^\/badges\/([^/?#]+)$/);
+      if (singleBadgeMatch) {
+        const singleData = await getSingleBadgeOgData(singleBadgeMatch[1], singleBadgeMatch[2]);
+        if (singleData) {
+          const baseUrl = `${req.protocol}://${req.get("host")}`;
+          template = injectSingleBadgeOgTags(template, singleData, singleBadgeMatch[1], baseUrl);
+        }
+      } else if (badgeMatch) {
         const ogData = await getBadgeOgData(badgeMatch[1]);
         if (ogData) {
           const baseUrl = `${req.protocol}://${req.get("host")}`;

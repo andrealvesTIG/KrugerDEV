@@ -20,6 +20,7 @@ interface UseColumnStateOptions {
   viewType: 'grid' | 'gantt';
   organizationId: number | null;
   defaultWidths?: ColumnWidths;
+  defaultSort?: ColumnSort | null;
   minWidth?: number;
   maxWidth?: number;
 }
@@ -57,6 +58,7 @@ export function useColumnState({
   viewType,
   organizationId,
   defaultWidths = {},
+  defaultSort = null,
   minWidth = MIN_COLUMN_WIDTH,
   maxWidth = MAX_COLUMN_WIDTH,
 }: UseColumnStateOptions) {
@@ -67,19 +69,19 @@ export function useColumnState({
 
   const [sortState, setSortState] = useState<ColumnSort | null>(() => {
     const stored = loadColumnState(viewType, organizationId);
-    return stored?.sort || null;
+    return stored?.sort ?? defaultSort;
   });
 
   useEffect(() => {
     const stored = loadColumnState(viewType, organizationId);
     if (stored) {
       setColumnWidths(stored.widths || defaultWidths);
-      setSortState(stored.sort || null);
+      setSortState(stored.sort ?? defaultSort);
     } else {
       setColumnWidths(defaultWidths);
-      setSortState(null);
+      setSortState(defaultSort);
     }
-  }, [viewType, organizationId, defaultWidths]);
+  }, [viewType, organizationId, defaultWidths, defaultSort]);
 
   useEffect(() => {
     saveColumnState(viewType, organizationId, {

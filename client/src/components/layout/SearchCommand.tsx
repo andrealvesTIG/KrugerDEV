@@ -1,20 +1,11 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { normalizeSearch } from "@/lib/utils";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
-import {
-  Command,
-  CommandDialog,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from "@/components/ui/command";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { 
   Search, 
   FolderKanban, 
@@ -44,11 +35,11 @@ import {
   Users,
   Settings,
   Moon,
+  X,
   type LucideIcon
 } from "lucide-react";
 import type { Portfolio, Project, Task, Issue, Risk, Milestone } from "@shared/schema";
 
-// User Guide sections for local search
 const userGuideSections: { id: string; name: string; icon: LucideIcon; keywords: string[] }[] = [
   { id: "overview", name: "Overview", icon: BookOpen, keywords: ["overview", "introduction", "getting started", "guide", "help", "documentation"] },
   { id: "dashboard", name: "Dashboard", icon: LayoutDashboard, keywords: ["dashboard", "home", "summary", "overview", "metrics", "kpi"] },
@@ -84,11 +75,25 @@ interface SearchResults {
   milestones: Milestone[];
 }
 
+interface ResultItem {
+  type: string;
+  id: string;
+  item: any;
+}
+
 export function SearchCommand() {
   const [open, setOpen] = useState(false);
+  const [mobileDialogOpen, setMobileDialogOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [highlightIndex, setHighlightIndex] = useState(0);
   const [, setLocation] = useLocation();
   const { currentOrganization } = useOrganization();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const desktopInputRef = useRef<HTMLInputElement>(null);
+  const mobileInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const mobileResultsRef = useRef<HTMLDivElement>(null);
+  const listboxId = "search-results-listbox";
 
   const { data: results, isLoading } = useQuery<SearchResults>({
     queryKey: ['/api/search', query, currentOrganization?.id],
@@ -103,19 +108,38 @@ export function SearchCommand() {
     enabled: query.length >= 2 && !!currentOrganization?.id,
   });
 
+  const isMobileViewport = useCallback(() => {
+    return window.innerWidth < 640;
+  }, []);
+
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        setOpen((open) => !open);
+        if (isMobileViewport()) {
+          setMobileDialogOpen(true);
+          setTimeout(() => mobileInputRef.current?.focus(), 100);
+        } else {
+          setOpen(true);
+          setTimeout(() => desktopInputRef.current?.focus(), 0);
+        }
       }
     };
-
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
-  }, []);
+  }, [isMobileViewport]);
 
-  // Local search for User Guide sections
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        closeDesktopSearch();
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
   const userGuideResults = useMemo(() => {
     if (query.length < 2) return [];
     const lowerQuery = normalizeSearch(query);
@@ -125,10 +149,52 @@ export function SearchCommand() {
     );
   }, [query]);
 
-  const handleSelect = useCallback((type: string, item: any) => {
+  const flatResults = useMemo((): ResultItem[] => {
+    const items: ResultItem[] = [];
+    if (results?.portfolios) {
+      results.portfolios.forEach(p => items.push({ type: "portfolio", id: `portfolio-${p.id}`, item: p }));
+    }
+    if (results?.projects) {
+      results.projects.forEach(p => items.push({ type: "project", id: `project-${p.id}`, item: p }));
+    }
+    if (results?.tasks) {
+      results.tasks.forEach(t => items.push({ type: "task", id: `task-${t.id}`, item: t }));
+    }
+    if (results?.issues) {
+      results.issues.forEach(i => items.push({ type: "issue", id: `issue-${i.id}`, item: i }));
+    }
+    if (results?.risks) {
+      results.risks.forEach(r => items.push({ type: "risk", id: `risk-${r.id}`, item: r }));
+    }
+    if (results?.milestones) {
+      results.milestones.forEach(m => items.push({ type: "milestone", id: `milestone-${m.id}`, item: m }));
+    }
+    userGuideResults.forEach(s => items.push({ type: "userGuide", id: `userguide-${s.id}`, item: s }));
+    return items;
+  }, [results, userGuideResults]);
+
+  const hasResults = flatResults.length > 0;
+
+  const closeDesktopSearch = useCallback(() => {
     setOpen(false);
     setQuery("");
-    
+    setHighlightIndex(0);
+    desktopInputRef.current?.blur();
+  }, []);
+
+  const closeMobileSearch = useCallback(() => {
+    setMobileDialogOpen(false);
+    setQuery("");
+    setHighlightIndex(0);
+  }, []);
+
+  const closeAll = useCallback(() => {
+    closeDesktopSearch();
+    closeMobileSearch();
+  }, [closeDesktopSearch, closeMobileSearch]);
+
+  const handleSelect = useCallback((type: string, item: any) => {
+    closeAll();
     switch (type) {
       case "portfolio":
         setLocation(`/portfolios/${item.id}`);
@@ -146,210 +212,311 @@ export function SearchCommand() {
         setLocation(`/projects/${item.projectId}?tab=risks&riskId=${item.id}`);
         break;
       case "milestone":
-        // Navigate to project summary - milestones are displayed in the summary/timeline view
         setLocation(`/projects/${item.projectId}`);
         break;
       case "userGuide":
         setLocation(`/user-guide#${item.id}`);
         break;
     }
-  }, [setLocation]);
+  }, [setLocation, closeAll]);
 
-  const hasResults = (results && (
-    results.portfolios.length > 0 ||
-    results.projects.length > 0 ||
-    results.tasks.length > 0 ||
-    results.issues.length > 0 ||
-    results.risks.length > 0 ||
-    results.milestones.length > 0
-  )) || userGuideResults.length > 0;
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeAll();
+      return;
+    }
+    if (query.length < 2 || !hasResults) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+      }
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightIndex(i => (i + 1) % flatResults.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightIndex(i => (i <= 0 ? flatResults.length - 1 : i - 1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const idx = highlightIndex >= 0 && highlightIndex < flatResults.length ? highlightIndex : 0;
+      if (flatResults[idx]) {
+        handleSelect(flatResults[idx].type, flatResults[idx].item);
+      }
+    }
+  }, [hasResults, query, flatResults, highlightIndex, handleSelect, closeAll]);
+
+  useEffect(() => {
+    setHighlightIndex(0);
+  }, [query]);
+
+  useEffect(() => {
+    if (highlightIndex >= 0) {
+      const scrollContainer = dropdownRef.current || mobileResultsRef.current;
+      if (scrollContainer) {
+        const el = scrollContainer.querySelector(`[data-result-index="${highlightIndex}"]`);
+        el?.scrollIntoView({ block: "nearest" });
+      }
+    }
+  }, [highlightIndex]);
+
+  const showDropdown = open && query.length >= 1;
+  const activeDescendant = hasResults && highlightIndex >= 0 && highlightIndex < flatResults.length
+    ? `search-option-${highlightIndex}`
+    : undefined;
+
+  const handleInputFocus = () => {
+    setOpen(true);
+  };
+
+  const handleMobileSearchClick = () => {
+    setMobileDialogOpen(true);
+    setTimeout(() => mobileInputRef.current?.focus(), 100);
+  };
+
+  const renderResultItem = (r: ResultItem, index: number) => {
+    const isHighlighted = index === highlightIndex;
+    const baseClass = `flex items-center gap-2 px-3 py-2 text-sm cursor-pointer rounded-sm transition-colors ${
+      isHighlighted ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
+    }`;
+
+    const commonProps = {
+      "data-result-index": index,
+      id: `search-option-${index}`,
+      role: "option" as const,
+      "aria-selected": isHighlighted,
+      className: baseClass,
+      onMouseEnter: () => setHighlightIndex(index),
+    };
+
+    switch (r.type) {
+      case "portfolio":
+        return (
+          <div key={r.id} {...commonProps} onClick={() => handleSelect("portfolio", r.item)}
+            data-testid={`search-result-portfolio-${r.item.id}`}>
+            <FolderKanban className="h-4 w-4 text-indigo-500 flex-shrink-0" />
+            <span className="flex-1 truncate">{r.item.name}</span>
+          </div>
+        );
+      case "project":
+        return (
+          <div key={r.id} {...commonProps} onClick={() => handleSelect("project", r.item)}
+            data-testid={`search-result-project-${r.item.id}`}>
+            <Briefcase className="h-4 w-4 text-blue-500 flex-shrink-0" />
+            <span className="flex-1 truncate">{r.item.name}</span>
+            <Badge variant="outline" className="text-xs flex-shrink-0">{r.item.status}</Badge>
+          </div>
+        );
+      case "task":
+        return (
+          <div key={r.id} {...commonProps} onClick={() => handleSelect("task", r.item)}
+            data-testid={`search-result-task-${r.item.id}`}>
+            <CheckSquare className="h-4 w-4 text-green-500 flex-shrink-0" />
+            <span className="flex-1 truncate">{r.item.name}</span>
+            <Badge variant="outline" className="text-xs flex-shrink-0">{r.item.status}</Badge>
+          </div>
+        );
+      case "issue":
+        return (
+          <div key={r.id} {...commonProps} onClick={() => handleSelect("issue", r.item)}
+            data-testid={`search-result-issue-${r.item.id}`}>
+            <Bug className="h-4 w-4 text-red-500 flex-shrink-0" />
+            <span className="flex-1 truncate">{r.item.title}</span>
+            <Badge variant="outline" className="text-xs flex-shrink-0">{r.item.status}</Badge>
+          </div>
+        );
+      case "risk":
+        return (
+          <div key={r.id} {...commonProps} onClick={() => handleSelect("risk", r.item)}
+            data-testid={`search-result-risk-${r.item.id}`}>
+            <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+            <span className="flex-1 truncate">{r.item.title}</span>
+            <Badge variant="outline" className="text-xs flex-shrink-0">{r.item.status}</Badge>
+          </div>
+        );
+      case "milestone":
+        return (
+          <div key={r.id} {...commonProps} onClick={() => handleSelect("milestone", r.item)}
+            data-testid={`search-result-milestone-${r.item.id}`}>
+            <Flag className="h-4 w-4 text-purple-500 flex-shrink-0" />
+            <span className="flex-1 truncate">{r.item.title}</span>
+            <Badge variant="outline" className="text-xs flex-shrink-0">
+              {r.item.completed ? "Complete" : "Pending"}
+            </Badge>
+          </div>
+        );
+      case "userGuide": {
+        const IconComponent = r.item.icon;
+        return (
+          <div key={r.id} {...commonProps} onClick={() => handleSelect("userGuide", r.item)}
+            data-testid={`search-result-userguide-${r.item.id}`}>
+            <IconComponent className="h-4 w-4 text-teal-500 flex-shrink-0" />
+            <span className="flex-1 truncate">{r.item.name}</span>
+            <Badge variant="outline" className="text-xs flex-shrink-0">Help</Badge>
+          </div>
+        );
+      }
+      default:
+        return null;
+    }
+  };
+
+  const groupedResults = useMemo(() => {
+    const groups: { label: string; items: { r: ResultItem; globalIndex: number }[] }[] = [];
+    const addGroup = (label: string, type: string) => {
+      const items = flatResults
+        .map((r, i) => ({ r, globalIndex: i }))
+        .filter(({ r }) => r.type === type);
+      if (items.length > 0) groups.push({ label, items });
+    };
+    addGroup("Portfolios", "portfolio");
+    addGroup("Projects", "project");
+    addGroup("Tasks", "task");
+    addGroup("Issues", "issue");
+    addGroup("Risks", "risk");
+    addGroup("Milestones", "milestone");
+    addGroup("User Guide", "userGuide");
+    return groups;
+  }, [flatResults]);
+
+  const renderResultsContent = () => (
+    <>
+      {query.length < 2 && (
+        <div className="py-4 text-center text-sm text-muted-foreground">
+          Type at least 2 characters to search...
+        </div>
+      )}
+      {query.length >= 2 && isLoading && (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      {query.length >= 2 && !isLoading && !hasResults && (
+        <div className="py-4 text-center text-sm text-muted-foreground">
+          No results found.
+        </div>
+      )}
+      {query.length >= 2 && !isLoading && hasResults && (
+        <div className="py-1">
+          {groupedResults.map((group, gi) => (
+            <div key={group.label}>
+              {gi > 0 && <div className="mx-2 my-1 h-px bg-border" />}
+              <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                {group.label}
+              </div>
+              {group.items.map(({ r, globalIndex }) => renderResultItem(r, globalIndex))}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
+  const desktopInputProps = {
+    type: "text" as const,
+    value: query,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => { setQuery(e.target.value); setOpen(true); },
+    onFocus: handleInputFocus,
+    onKeyDown: handleKeyDown,
+    role: "combobox" as const,
+    "aria-expanded": showDropdown,
+    "aria-controls": listboxId,
+    "aria-activedescendant": activeDescendant,
+    "aria-label": "Search",
+    "aria-autocomplete": "list" as const,
+    autoComplete: "off",
+  };
 
   return (
-    <>
-      <Button
-        variant="outline"
-        className="relative h-9 w-full justify-start text-sm text-muted-foreground sm:pr-12 md:w-64"
-        onClick={() => setOpen(true)}
-        data-testid="button-global-search"
-      >
-        <Search className="mr-2 h-4 w-4" />
-        <span className="hidden lg:inline-flex">Search everything...</span>
-        <span className="inline-flex lg:hidden">Search...</span>
-        <kbd className="pointer-events-none absolute right-1.5 top-1.5 hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
+    <div ref={containerRef} className="relative w-full max-w-md">
+      {/* Desktop: inline input with dropdown */}
+      <div className="hidden sm:flex items-center relative">
+        <Search className="absolute left-3 h-4 w-4 text-muted-foreground pointer-events-none" />
+        <input
+          ref={desktopInputRef}
+          {...desktopInputProps}
+          placeholder="Search everything..."
+          className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-16 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+          data-testid="input-global-search"
+        />
+        <kbd className="pointer-events-none absolute right-2 top-1.5 hidden h-6 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
           <span className="text-xs">⌘</span>K
         </kbd>
-      </Button>
-      <CommandDialog open={open} onOpenChange={setOpen}>
-        <Command shouldFilter={false}>
-          <CommandInput 
-            placeholder="Search portfolios, projects, tasks, help..." 
-            value={query}
-            onValueChange={setQuery}
-            data-testid="input-global-search"
-          />
-          <CommandList>
-            {query.length < 2 && (
-              <CommandEmpty>Type at least 2 characters to search...</CommandEmpty>
-            )}
-            {query.length >= 2 && isLoading && (
-              <div className="flex items-center justify-center py-6">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            )}
-            {query.length >= 2 && !isLoading && !hasResults && (
-              <CommandEmpty>No results found.</CommandEmpty>
-            )}
-            
-            {results?.portfolios && results.portfolios.length > 0 && (
-              <CommandGroup heading="Portfolios">
-                {results.portfolios.map((portfolio) => (
-                  <CommandItem
-                    key={`portfolio-${portfolio.id}`}
-                    value={`portfolio-${portfolio.id}`}
-                    onSelect={() => handleSelect("portfolio", portfolio)}
-                    className="flex items-center gap-2 cursor-pointer"
-                    data-testid={`search-result-portfolio-${portfolio.id}`}
-                  >
-                    <FolderKanban className="h-4 w-4 text-indigo-500" />
-                    <span className="flex-1">{portfolio.name}</span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
+      </div>
 
-            {results?.projects && results.projects.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Projects">
-                  {results.projects.map((project) => (
-                    <CommandItem
-                      key={`project-${project.id}`}
-                      value={`project-${project.id}`}
-                      onSelect={() => handleSelect("project", project)}
-                      className="flex items-center gap-2 cursor-pointer"
-                      data-testid={`search-result-project-${project.id}`}
-                    >
-                      <Briefcase className="h-4 w-4 text-blue-500" />
-                      <span className="flex-1">{project.name}</span>
-                      <Badge variant="outline" className="text-xs">{project.status}</Badge>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
+      {/* Desktop dropdown results */}
+      {showDropdown && (
+        <div
+          ref={dropdownRef}
+          id={listboxId}
+          role="listbox"
+          aria-label="Search results"
+          className="hidden sm:block absolute top-full left-0 right-0 mt-1 z-50 rounded-md border bg-popover text-popover-foreground shadow-lg overflow-hidden"
+          style={{ minWidth: "min(100vw - 2rem, 400px)" }}
+        >
+          <div className="max-h-[60vh] overflow-y-auto overflow-x-hidden">
+            {renderResultsContent()}
+          </div>
+        </div>
+      )}
 
-            {results?.tasks && results.tasks.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Tasks">
-                  {results.tasks.map((task) => (
-                    <CommandItem
-                      key={`task-${task.id}`}
-                      value={`task-${task.id}`}
-                      onSelect={() => handleSelect("task", task)}
-                      className="flex items-center gap-2 cursor-pointer"
-                      data-testid={`search-result-task-${task.id}`}
-                    >
-                      <CheckSquare className="h-4 w-4 text-green-500" />
-                      <span className="flex-1">{task.name}</span>
-                      <Badge variant="outline" className="text-xs">{task.status}</Badge>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
+      {/* Mobile: search icon button */}
+      <button
+        onClick={handleMobileSearchClick}
+        className="flex sm:hidden h-9 w-9 items-center justify-center rounded-md border border-input bg-background text-muted-foreground hover:bg-accent transition-colors"
+        aria-label="Search"
+        data-testid="button-global-search"
+      >
+        <Search className="h-4 w-4" />
+      </button>
 
-            {results?.issues && results.issues.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Issues">
-                  {results.issues.map((issue) => (
-                    <CommandItem
-                      key={`issue-${issue.id}`}
-                      value={`issue-${issue.id}`}
-                      onSelect={() => handleSelect("issue", issue)}
-                      className="flex items-center gap-2 cursor-pointer"
-                      data-testid={`search-result-issue-${issue.id}`}
-                    >
-                      <Bug className="h-4 w-4 text-red-500" />
-                      <span className="flex-1">{issue.title}</span>
-                      <Badge variant="outline" className="text-xs">{issue.status}</Badge>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-
-            {results?.risks && results.risks.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Risks">
-                  {results.risks.map((risk) => (
-                    <CommandItem
-                      key={`risk-${risk.id}`}
-                      value={`risk-${risk.id}`}
-                      onSelect={() => handleSelect("risk", risk)}
-                      className="flex items-center gap-2 cursor-pointer"
-                      data-testid={`search-result-risk-${risk.id}`}
-                    >
-                      <AlertTriangle className="h-4 w-4 text-amber-500" />
-                      <span className="flex-1">{risk.title}</span>
-                      <Badge variant="outline" className="text-xs">{risk.status}</Badge>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-
-            {results?.milestones && results.milestones.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Milestones">
-                  {results.milestones.map((milestone) => (
-                    <CommandItem
-                      key={`milestone-${milestone.id}`}
-                      value={`milestone-${milestone.id}`}
-                      onSelect={() => handleSelect("milestone", milestone)}
-                      className="flex items-center gap-2 cursor-pointer"
-                      data-testid={`search-result-milestone-${milestone.id}`}
-                    >
-                      <Flag className="h-4 w-4 text-purple-500" />
-                      <span className="flex-1">{milestone.title}</span>
-                      <Badge variant="outline" className="text-xs">
-                        {milestone.completed ? "Complete" : "Pending"}
-                      </Badge>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-
-            {userGuideResults.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="User Guide">
-                  {userGuideResults.map((section) => {
-                    const IconComponent = section.icon;
-                    return (
-                      <CommandItem
-                        key={`userguide-${section.id}`}
-                        value={`userguide-${section.id}`}
-                        onSelect={() => handleSelect("userGuide", section)}
-                        className="flex items-center gap-2 cursor-pointer"
-                        data-testid={`search-result-userguide-${section.id}`}
-                      >
-                        <IconComponent className="h-4 w-4 text-teal-500" />
-                        <span className="flex-1">{section.name}</span>
-                        <Badge variant="outline" className="text-xs">Help</Badge>
-                      </CommandItem>
-                    );
-                  })}
-                </CommandGroup>
-              </>
-            )}
-          </CommandList>
-        </Command>
-      </CommandDialog>
-    </>
+      {/* Mobile: search dialog aligned to top */}
+      <Dialog open={mobileDialogOpen} onOpenChange={(isOpen) => {
+        setMobileDialogOpen(isOpen);
+        if (!isOpen) {
+          setQuery("");
+          setHighlightIndex(0);
+        }
+      }}>
+        <DialogContent className="sm:hidden top-[12%] translate-y-0 left-[50%] translate-x-[-50%] w-[calc(100vw-2rem)] max-w-lg p-0 gap-0 overflow-hidden rounded-lg border shadow-lg">
+          <VisuallyHidden.Root>
+            <DialogTitle>Search</DialogTitle>
+            <DialogDescription>Search across all data</DialogDescription>
+          </VisuallyHidden.Root>
+          <div className="flex items-center border-b px-3">
+            <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+            <input
+              ref={mobileInputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Search..."
+              className="flex h-11 w-full bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
+              role="combobox"
+              aria-expanded={query.length >= 1}
+              aria-controls="mobile-search-results"
+              aria-activedescendant={activeDescendant}
+              aria-label="Search"
+              aria-autocomplete="list"
+              autoComplete="off"
+              data-testid="input-global-search-mobile"
+            />
+          </div>
+          {query.length >= 1 && (
+            <div
+              ref={mobileResultsRef}
+              id="mobile-search-results"
+              role="listbox"
+              aria-label="Search results"
+              className="max-h-[60vh] overflow-y-auto overflow-x-hidden"
+            >
+              {renderResultsContent()}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

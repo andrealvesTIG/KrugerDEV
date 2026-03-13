@@ -149,7 +149,7 @@ interface InlineEditCellProps {
   suffix?: string;
 }
 
-function InlineEditCell({ 
+const InlineEditCell = memo(function InlineEditCell({ 
   value, 
   displayValue, 
   editType, 
@@ -355,10 +355,9 @@ function InlineEditCell({
       {displayValue}
     </div>
   );
-}
+});
 
-// Task name cell with horizontal drag for indent/outdent (MS Project style)
-function TaskNameCell({
+const TaskNameCell = memo(function TaskNameCell({
   task,
   colWidth,
   currentLevel,
@@ -600,7 +599,7 @@ function TaskNameCell({
       </AlertDialog>
     </div>
   );
-}
+});
 
 // Sortable task row wrapper for drag and drop reordering
 function SortableTaskRow({ 

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, lazy, Suspense } from "react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, parseISO, differenceInDays } from "date-fns";
@@ -19,7 +19,7 @@ import { insertTaskSchema } from "@shared/schema";
 import type { Task, TaskResourceAssignment, Resource } from "@shared/schema";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { TaskDependenciesSection } from "@/components/TaskDependenciesSection";
-import ProjectGanttView from "@/components/project/ProjectGanttView";
+const ProjectGanttView = lazy(() => import("@/components/project/ProjectGanttView"));
 import ProjectKanbanView, { ProjectTaskHistoryDialog } from "@/components/project/ProjectKanbanView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -1295,6 +1295,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
         />
       </div>
       {view === "table" ? (
+        <Suspense fallback={<div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
         <ProjectGanttView 
           tasks={filteredTasks} 
           onTaskClick={openEditDialog}
@@ -1319,7 +1320,9 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             });
           }}
         />
+        </Suspense>
       ) : view === "gantt" ? (
+        <Suspense fallback={<div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
         <ProjectGanttView 
           tasks={filteredTasks} 
           onTaskClick={openEditDialog}
@@ -1343,6 +1346,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             });
           }}
         />
+        </Suspense>
       ) : (
         <ProjectKanbanView 
           tasks={filteredTasks} 
