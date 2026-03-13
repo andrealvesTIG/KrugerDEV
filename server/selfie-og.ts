@@ -73,8 +73,12 @@ export async function generateSelfieOgImage(data: SelfieOgData): Promise<Buffer>
 
   const S = 1080;
   const cx = S / 2;
-  const photoR = 200;
-  const photoCy = 410;
+  const photoR = 220;
+
+  const pmiLogoY = 25;
+  const pmiLogoH = 55;
+  const eventTitleY = pmiLogoY + pmiLogoH + 35;
+  const photoCy = eventTitleY + 30 + photoR;
   const sunRays = generateSunRays(cx, photoCy, photoR + 12, photoR + 100, 28);
 
   const selfieElement = selfieB64
@@ -97,19 +101,24 @@ export async function generateSelfieOgImage(data: SelfieOgData): Promise<Buffer>
       <circle cx="${cx}" cy="${photoCy}" r="${photoR + 2}" fill="#1e2d5a" />
       <text x="${cx}" y="${photoCy + 24}" text-anchor="middle" font-size="80" font-family="system-ui,sans-serif">📸</text>`;
 
-  const nameY = photoCy + photoR + 65;
+  const nameY = photoCy + photoR + 55;
   const interviewerLine = interviewer
-    ? `<text x="${cx}" y="${nameY + 35}" text-anchor="middle" font-size="20" fill="#D4A84A" font-family="system-ui,sans-serif" opacity="0.8">Interviewed by ${interviewer}</text>`
+    ? `<text x="${cx}" y="${nameY + 32}" text-anchor="middle" font-size="20" fill="#D4A84A" font-family="system-ui,sans-serif" opacity="0.8">Interviewed by ${interviewer}</text>`
     : "";
-  const taglineY = interviewer ? nameY + 70 : nameY + 45;
+  const taglineY = interviewer ? nameY + 60 : nameY + 38;
+
+  const bottomContentH = 110;
+  const dividerY = S - bottomContentH;
+  const goldSponsorY = dividerY + 35;
+  const fridayLogoY = goldSponsorY + 15;
 
   const pmiElement = pmiPmogaLogoB64
-    ? `<image href="${pmiPmogaLogoB64}" x="${cx - 110}" y="35" width="220" height="55" preserveAspectRatio="xMidYMid meet" />`
-    : `<text x="${cx}" y="70" text-anchor="middle" font-size="18" font-weight="700" fill="white" font-family="system-ui,sans-serif">Project Management Institute</text>`;
+    ? `<image href="${pmiPmogaLogoB64}" x="${cx - 110}" y="${pmiLogoY}" width="220" height="${pmiLogoH}" preserveAspectRatio="xMidYMid meet" />`
+    : `<text x="${cx}" y="${pmiLogoY + 40}" text-anchor="middle" font-size="18" font-weight="700" fill="white" font-family="system-ui,sans-serif">Project Management Institute</text>`;
 
   const fridayElement = fridayLogoB64
-    ? `<image href="${fridayLogoB64}" x="${cx - 140}" y="990" width="280" height="60" preserveAspectRatio="xMidYMid meet" />`
-    : `<text x="${cx}" y="1030" text-anchor="middle" font-size="28" font-weight="800" fill="white" font-family="system-ui,sans-serif">FridayReport.AI</text>`;
+    ? `<image href="${fridayLogoB64}" x="${cx - 140}" y="${fridayLogoY}" width="280" height="50" preserveAspectRatio="xMidYMid meet" />`
+    : `<text x="${cx}" y="${fridayLogoY + 35}" text-anchor="middle" font-size="28" font-weight="800" fill="white" font-family="system-ui,sans-serif">FridayReport.AI</text>`;
 
   const svg = `<svg width="${S}" height="${S}" xmlns="http://www.w3.org/2000/svg">
   <defs>
@@ -140,7 +149,7 @@ export async function generateSelfieOgImage(data: SelfieOgData): Promise<Buffer>
 
   ${pmiElement}
 
-  <text x="${cx}" y="135" text-anchor="middle" font-size="16" font-weight="800" fill="#D4A84A" font-family="system-ui,sans-serif" letter-spacing="6" opacity="0.8">PMO unCON 2026</text>
+  <text x="${cx}" y="${eventTitleY}" text-anchor="middle" font-size="16" font-weight="800" fill="#D4A84A" font-family="system-ui,sans-serif" letter-spacing="6" opacity="0.8">PMO unCON 2026</text>
 
   ${selfieElement}
 
@@ -149,9 +158,9 @@ export async function generateSelfieOgImage(data: SelfieOgData): Promise<Buffer>
 
   <text x="${cx}" y="${taglineY}" text-anchor="middle" font-size="20" fill="#FF751F" font-weight="600" font-family="system-ui,sans-serif" opacity="0.9">Great meeting you at PMO unCON 2026!</text>
 
-  <rect x="120" y="930" width="${S - 240}" height="1" fill="url(#dividerLine)" opacity="0.4" />
+  <rect x="120" y="${dividerY}" width="${S - 240}" height="1" fill="url(#dividerLine)" opacity="0.4" />
 
-  <text x="${cx}" y="968" text-anchor="middle" font-size="18" font-weight="700" fill="#D4A84A" font-family="system-ui,sans-serif" letter-spacing="3">GOLD SPONSOR</text>
+  <text x="${cx}" y="${goldSponsorY}" text-anchor="middle" font-size="18" font-weight="700" fill="#D4A84A" font-family="system-ui,sans-serif" letter-spacing="3">GOLD SPONSOR</text>
 
   ${fridayElement}
 </svg>`;
