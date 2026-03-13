@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import logoBlack from "@assets/new_logo/frai_logo_black/FridayReportAI_logo_black.png";
 import logoWhite from "@assets/new_logo/frai_logo_white/FridayReportAI_logo_white.png";
 import pmiPmogaLogo from "@assets/pmi-logo-DQ-6QQ___1773339567528.png";
 
@@ -20,6 +19,15 @@ const safeSet = (key: string, val: string) => {
 const safeRemove = (key: string) => {
   try { localStorage.removeItem(key); } catch {}
 };
+
+const CONFETTI_ITEMS = Array.from({ length: 24 }, (_, i) => ({
+  left: `${(i * 4.3 + 2) % 100}%`,
+  duration: `${3.5 + (i % 5) * 0.8}s`,
+  delay: `${(i * 0.4) % 5}s`,
+  color: ['#FF751F', '#075DD1', '#FFD700', '#DC2626', '#10B981', '#8B5CF6'][i % 6],
+  size: `${5 + (i % 4) * 2}px`,
+  shape: i % 4 === 0 ? '50%' : i % 4 === 1 ? '0' : i % 4 === 2 ? '2px' : '1px',
+}));
 
 export default function UnCon2026SelfiePage() {
   const search = useSearch();
@@ -254,386 +262,283 @@ export default function UnCon2026SelfiePage() {
     }
   };
 
+  const stepIdx = ["form", "camera", "result"].indexOf(step);
+
+  const handleReset = () => {
+    safeRemove("uncon_step");
+    safeRemove("uncon_name");
+    safeRemove("uncon_email");
+    setStep("form");
+    setName("");
+    setEmail("");
+    setPhotoDataUrl(null);
+    setPhotoFile(null);
+    setShareToken(null);
+  };
+
   return (
-    <div className="min-h-screen relative overflow-hidden" data-theme="light" style={{ colorScheme: "light", background: "linear-gradient(135deg, #FFF7ED 0%, #FFFBEB 30%, #FEF3C7 60%, #FFF7ED 100%)" }}>
+    <div className="min-h-screen relative overflow-hidden" data-theme="light" style={{ colorScheme: "light", background: "#0F172A" }}>
       <style>{`
         @keyframes confetti-fall {
-          0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
-          100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+          0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+          80% { opacity: 1; }
+          100% { transform: translateY(105vh) rotate(540deg); opacity: 0; }
         }
-        @keyframes sparkle {
-          0%, 100% { opacity: 0; transform: scale(0); }
-          50% { opacity: 1; transform: scale(1); }
+        @keyframes float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-6px); }
         }
-        @keyframes shimmer {
-          0% { background-position: -200% center; }
-          100% { background-position: 200% center; }
+        @keyframes glow-pulse {
+          0%, 100% { box-shadow: 0 0 20px rgba(255,117,31,0.3); }
+          50% { box-shadow: 0 0 40px rgba(255,117,31,0.6); }
         }
         .confetti-piece {
           position: fixed;
-          width: 10px;
-          height: 10px;
           top: -20px;
-          z-index: 1;
+          z-index: 2;
           animation: confetti-fall linear infinite;
           pointer-events: none;
         }
-        .sparkle-dot {
-          position: absolute;
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          animation: sparkle 2s ease-in-out infinite;
+        .card {
+          background: rgba(255,255,255,0.03);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 20px;
         }
-        .shimmer-text {
-          background: linear-gradient(90deg, #FF751F 0%, #FFD700 25%, #FF751F 50%, #FFD700 75%, #FF751F 100%);
-          background-size: 200% auto;
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          animation: shimmer 3s linear infinite;
+        .card-light {
+          background: rgba(255,255,255,0.95);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255,117,31,0.15);
+          border-radius: 20px;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.08);
         }
-        .red-carpet-border {
-          border-image: linear-gradient(180deg, #DC2626, #991B1B, #7F1D1D, #991B1B, #DC2626) 1;
+        .gold-line {
+          height: 2px;
+          background: linear-gradient(90deg, transparent, #FF751F, #FFD700, #FF751F, transparent);
+        }
+        .glow-btn {
+          background: linear-gradient(135deg, #FF751F, #FF8F3F);
+          box-shadow: 0 4px 20px rgba(255,117,31,0.4);
+          transition: all 0.2s;
+        }
+        .glow-btn:hover {
+          box-shadow: 0 6px 28px rgba(255,117,31,0.6);
+          transform: translateY(-1px);
+        }
+        .selfie-card {
+          background: linear-gradient(160deg, #17255A 0%, #0F1B3D 50%, #0A1128 100%);
+          border: 1px solid rgba(255,117,31,0.3);
+          border-radius: 16px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
         }
       `}</style>
 
-      {[...Array(20)].map((_, i) => (
-        <div
-          key={i}
-          className="confetti-piece"
-          style={{
-            left: `${Math.random() * 100}%`,
-            animationDuration: `${3 + Math.random() * 4}s`,
-            animationDelay: `${Math.random() * 5}s`,
-            backgroundColor: ['#FF751F', '#075DD1', '#FFD700', '#DC2626', '#10B981', '#8B5CF6', '#F59E0B'][i % 7],
-            borderRadius: i % 3 === 0 ? '50%' : i % 3 === 1 ? '0' : '2px',
-            width: `${6 + Math.random() * 8}px`,
-            height: `${6 + Math.random() * 8}px`,
-          }}
-        />
+      <div className="fixed inset-0 z-0" style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(255,117,31,0.08) 0%, transparent 60%), radial-gradient(ellipse at 80% 100%, rgba(7,93,209,0.06) 0%, transparent 50%)" }} />
+
+      {CONFETTI_ITEMS.map((c, i) => (
+        <div key={i} className="confetti-piece" style={{
+          left: c.left, animationDuration: c.duration, animationDelay: c.delay,
+          backgroundColor: c.color, width: c.size, height: c.size, borderRadius: c.shape,
+          opacity: 0.7,
+        }} />
       ))}
 
-      <header className="sticky top-0 z-50 backdrop-blur-sm border-b border-amber-200/60" style={{ background: "linear-gradient(90deg, rgba(255,255,255,0.97) 0%, rgba(255,247,237,0.97) 100%)" }}>
+      <header className="sticky top-0 z-50" style={{ background: "rgba(15,23,42,0.85)", backdropFilter: "blur(12px)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
         <div className="flex items-center justify-center px-4 py-3">
           <a href="https://fridayreport.ai" target="_blank" rel="noopener noreferrer">
-            <img src={logoBlack} alt="FridayReport.AI" className="h-8 object-contain" />
+            <img src={logoWhite} alt="FridayReport.AI" className="h-7 object-contain" />
           </a>
         </div>
       </header>
 
       <canvas ref={canvasRef} style={{ display: "none" }} />
 
-      <main className="px-4 py-6 max-w-md mx-auto relative z-10">
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 mb-3 px-5 py-2.5 rounded-full border-2 border-amber-300/80 shadow-lg" style={{ background: "linear-gradient(135deg, #FEF3C7, #FDE68A, #FEF3C7)" }}>
-            <span className="text-lg">📸</span>
-            <span className="text-sm font-bold text-amber-900 uppercase tracking-widest">Selfie Experience</span>
-            <span className="text-lg">🌟</span>
+      <main className="px-4 py-5 max-w-md mx-auto relative z-10">
+        <div className="text-center mb-5">
+          <div className="inline-flex items-center gap-1.5 mb-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest" style={{ background: "rgba(255,117,31,0.15)", color: "#FF9F4F", border: "1px solid rgba(255,117,31,0.2)" }}>
+            📸 Selfie Experience
           </div>
-          <h1 className="text-3xl font-black text-gray-900 mt-2">PMO unCON 2026</h1>
-          <p className="text-sm text-gray-600 mt-1 font-medium">Snap a selfie and share your experience!</p>
-          <div className="flex justify-center gap-1 mt-2 text-lg">
-            <span>🎉</span><span>✨</span><span>🏆</span><span>✨</span><span>🎉</span>
-          </div>
+          <h1 className="text-2xl font-black text-white tracking-tight">PMO unCON 2026</h1>
+          <p className="text-xs text-gray-400 mt-0.5">Snap a selfie & share your experience</p>
         </div>
 
-        <div className="flex items-center justify-center gap-2 mb-6">
+        <div className="flex items-center justify-center gap-0 mb-5">
           {(["form", "camera", "result"] as Step[]).map((s, i) => (
-            <div key={s} className="flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
-                step === s ? "bg-[#FF751F] text-white" :
-                (["form", "camera", "result"].indexOf(step) > i ? "bg-green-500 text-white" : "bg-gray-200 text-gray-500")
+            <div key={s} className="flex items-center">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                stepIdx === i ? "bg-[#FF751F] text-white scale-110 shadow-lg shadow-orange-500/30" :
+                stepIdx > i ? "bg-emerald-500 text-white" : "bg-white/10 text-gray-500"
               }`}>
-                {["form", "camera", "result"].indexOf(step) > i ? <CheckCircle className="h-4 w-4" /> : i + 1}
+                {stepIdx > i ? <CheckCircle className="h-3.5 w-3.5" /> : i + 1}
               </div>
-              {i < 2 && <div className={`w-8 h-0.5 ${["form", "camera", "result"].indexOf(step) > i ? "bg-green-500" : "bg-gray-200"}`} />}
+              {i < 2 && <div className={`w-10 h-0.5 transition-colors duration-300 ${stepIdx > i ? "bg-emerald-500" : "bg-white/10"}`} />}
             </div>
           ))}
         </div>
 
+        <div className="gold-line mb-5" />
+
         {step === "form" && (
-          <div className="bg-white rounded-2xl p-6 shadow-xl border border-amber-200/60 relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1" style={{ background: "linear-gradient(90deg, #DC2626, #FF751F, #FFD700, #FF751F, #DC2626)" }} />
-            <h2 className="text-lg font-bold text-gray-900 mb-1">Tell us about yourself</h2>
-            <p className="text-sm text-gray-500 mb-5">We'll use this to personalize your selfie card.</p>
-            <form onSubmit={handleFormSubmit} className="space-y-4">
+          <div className="card-light p-5">
+            <h2 className="text-base font-bold text-gray-900 mb-0.5">Tell us about yourself</h2>
+            <p className="text-xs text-gray-500 mb-4">We'll personalize your selfie card.</p>
+            <form onSubmit={handleFormSubmit} className="space-y-3">
               <div>
-                <Label htmlFor="name" className="text-sm font-medium">Your Name</Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Jane Smith"
-                  required
-                  className="mt-1"
-                />
+                <Label htmlFor="name" className="text-xs font-semibold text-gray-700">Your Name</Label>
+                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Smith" required className="mt-1 h-10 text-sm rounded-xl border-gray-200 focus:border-[#FF751F] focus:ring-[#FF751F]/20" />
               </div>
               <div>
-                <Label htmlFor="email" className="text-sm font-medium">Email Address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="jane@company.com"
-                  required
-                  className="mt-1"
-                />
+                <Label htmlFor="email" className="text-xs font-semibold text-gray-700">Email Address</Label>
+                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@company.com" required className="mt-1 h-10 text-sm rounded-xl border-gray-200 focus:border-[#FF751F] focus:ring-[#FF751F]/20" />
               </div>
               {interviewer && (
-                <div className="bg-amber-50 rounded-lg p-3 text-sm text-amber-800">
-                  You're being interviewed by <strong>{interviewer}</strong>
+                <div className="rounded-xl p-2.5 text-xs font-medium" style={{ background: "rgba(255,117,31,0.08)", color: "#92400E" }}>
+                  Interviewed by <strong>{interviewer}</strong>
                 </div>
               )}
-              <Button type="submit" className="w-full bg-[#FF751F] hover:bg-[#e86a15] text-white min-h-12 text-base">
-                Next: Take Selfie
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+              <button type="submit" className="glow-btn w-full h-11 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 border-0 cursor-pointer">
+                Next: Take Selfie <ArrowRight className="h-4 w-4" />
+              </button>
             </form>
           </div>
         )}
 
         {step === "camera" && (
-          <div className="bg-white rounded-2xl p-6 shadow-xl border border-amber-200/60 relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1" style={{ background: "linear-gradient(90deg, #DC2626, #FF751F, #FFD700, #FF751F, #DC2626)" }} />
-            <h2 className="text-lg font-bold text-gray-900 mb-1">Take your selfie</h2>
-            <p className="text-sm text-gray-500 mb-5">Smile! This will appear on your branded card. 📸</p>
+          <div className="card-light p-5">
+            <h2 className="text-base font-bold text-gray-900 mb-0.5">Take your selfie</h2>
+            <p className="text-xs text-gray-500 mb-4">Smile! This appears on your branded card.</p>
 
             {!photoDataUrl ? (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {cameraError ? (
-                  <div className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-300 rounded-2xl bg-gray-50 p-4">
-                    <VideoOff className="h-10 w-10 text-gray-400 mb-3" />
-                    <p className="text-sm text-gray-500 text-center mb-3">{cameraError}</p>
-                    <Button variant="outline" size="sm" onClick={() => startCamera()}>
-                      Try Again
-                    </Button>
+                  <div className="flex flex-col items-center justify-center w-full h-48 border border-dashed border-gray-200 rounded-xl bg-gray-50/50 p-4">
+                    <VideoOff className="h-8 w-8 text-gray-300 mb-2" />
+                    <p className="text-xs text-gray-400 text-center mb-2">{cameraError}</p>
+                    <Button variant="outline" size="sm" onClick={() => startCamera()} className="text-xs h-8 rounded-lg">Try Again</Button>
                   </div>
                 ) : (
-                  <div className="relative w-full rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: "4/3" }}>
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover"
-                      style={facingMode === "user" ? { transform: "scaleX(-1)" } : undefined}
-                    />
+                  <div className="relative w-full rounded-xl overflow-hidden bg-black" style={{ aspectRatio: "4/3" }}>
+                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" style={facingMode === "user" ? { transform: "scaleX(-1)" } : undefined} />
                     {!cameraActive && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-                        <Loader2 className="h-8 w-8 text-white animate-spin" />
+                        <Loader2 className="h-6 w-6 text-white animate-spin" />
                       </div>
                     )}
                   </div>
                 )}
 
-                <div className="flex gap-3">
-                  {!cameraError && (
-                    <>
-                      <Button
-                        variant="outline"
-                        onClick={handleFlipCamera}
-                        disabled={!cameraActive}
-                        className="min-h-11"
-                      >
-                        <SwitchCamera className="h-5 w-5" />
-                      </Button>
-                      <Button
-                        onClick={handleSnapPhoto}
-                        disabled={!cameraActive}
-                        className="flex-1 bg-[#FF751F] hover:bg-[#e86a15] text-white min-h-11 text-base"
-                      >
-                        <Camera className="mr-2 h-5 w-5" />
-                        Take Photo
-                      </Button>
-                    </>
-                  )}
+                {!cameraError && (
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleFlipCamera} disabled={!cameraActive} className="h-10 w-10 p-0 rounded-xl border-gray-200">
+                      <SwitchCamera className="h-4 w-4" />
+                    </Button>
+                    <button onClick={handleSnapPhoto} disabled={!cameraActive} className="glow-btn flex-1 h-10 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 border-0 cursor-pointer disabled:opacity-50">
+                      <Camera className="h-4 w-4" /> Take Photo
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-gray-200" />
+                  <span className="text-[10px] uppercase text-gray-400 font-semibold tracking-wider">or</span>
+                  <div className="flex-1 h-px bg-gray-200" />
                 </div>
 
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-200" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white px-2 text-gray-500">or</span>
-                  </div>
-                </div>
-
-                <label className="flex items-center justify-center gap-2 w-full min-h-11 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors px-4 py-2.5">
-                  <ImagePlus className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm font-medium text-gray-700">Choose from gallery</span>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileCapture}
-                    style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden" }}
-                  />
+                <label className="flex items-center justify-center gap-2 w-full h-10 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors text-sm text-gray-600 font-medium">
+                  <ImagePlus className="h-3.5 w-3.5" /> Choose from gallery
+                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileCapture} style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden" }} />
                 </label>
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="relative flex justify-center">
-                  <div className="w-48 h-60 rounded-[50%] overflow-hidden border-4 border-[#FF751F] shadow-lg">
+              <div className="space-y-3">
+                <div className="flex justify-center">
+                  <div className="w-40 h-48 rounded-[50%] overflow-hidden border-4 border-[#FF751F] shadow-lg" style={{ animation: "glow-pulse 2s ease-in-out infinite" }}>
                     <img src={photoDataUrl} alt="Your selfie" className="w-full h-full object-cover" />
                   </div>
                 </div>
-                <div className="flex gap-3">
-                  <Button variant="outline" onClick={handleRetake} className="flex-1 min-h-11">
-                    <RotateCcw className="mr-2 h-4 w-4" />
-                    Retake
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleRetake} className="flex-1 h-10 text-sm rounded-xl border-gray-200">
+                    <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Retake
                   </Button>
-                  <Button
-                    onClick={handleSubmitSelfie}
-                    disabled={isSubmitting}
-                    className="flex-1 bg-[#FF751F] hover:bg-[#e86a15] text-white min-h-11"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="mr-2 h-4 w-4" />
-                        Looks good!
-                      </>
-                    )}
-                  </Button>
+                  <button onClick={handleSubmitSelfie} disabled={isSubmitting} className="glow-btn flex-1 h-10 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-1.5 border-0 cursor-pointer disabled:opacity-50">
+                    {isSubmitting ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</> : <><CheckCircle className="h-3.5 w-3.5" /> Looks good!</>}
+                  </button>
                 </div>
               </div>
             )}
 
-            <Button variant="ghost" onClick={() => { stopCamera(); setStep("form"); }} className="w-full mt-3 text-gray-500">
-              Back to info
-            </Button>
+            <button onClick={() => { stopCamera(); setStep("form"); }} className="w-full mt-3 text-xs text-gray-400 hover:text-gray-600 transition-colors bg-transparent border-0 cursor-pointer py-1">
+              ← Back to info
+            </button>
           </div>
         )}
 
         {step === "result" && (
-          <div className="space-y-5">
-            <div className="bg-white rounded-2xl p-6 shadow-xl border border-amber-200/60 text-center relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1.5" style={{ background: "linear-gradient(90deg, #DC2626, #FF751F, #FFD700, #FF751F, #DC2626)" }} />
-              <div className="text-4xl mb-3 mt-1">🎉</div>
-              <h2 className="text-xl font-black text-gray-900 mb-2">
+          <div className="space-y-4">
+            <div className="text-center py-2">
+              <div className="text-3xl mb-2" style={{ animation: "float 2s ease-in-out infinite" }}>🎉</div>
+              <h2 className="text-lg font-black text-white">
                 Great meeting you, {name}!
               </h2>
-              {interviewer && (
-                <p className="text-gray-600 mb-4">
-                  Interviewed by <strong className="text-[#FF751F]">{interviewer}</strong> at PMO unCON 2026
+              {interviewer ? (
+                <p className="text-gray-400 text-sm mt-1">
+                  Interviewed by <strong className="text-[#FF751F]">{interviewer}</strong>
                 </p>
+              ) : (
+                <p className="text-gray-400 text-sm mt-1">Thanks for visiting the FridayReport.AI booth!</p>
               )}
-              {!interviewer && (
-                <p className="text-gray-600 mb-4">
-                  Thanks for stopping by the FridayReport.AI booth at PMO unCON 2026!
-                </p>
-              )}
+            </div>
 
-              {photoDataUrl && (
-                <div className="relative flex justify-center mb-5">
-                  <div className="relative rounded-2xl p-5 pb-6 shadow-2xl overflow-hidden" style={{ background: "linear-gradient(145deg, #17255A 0%, #0d1a3f 60%, #1a0a2e 100%)" }}>
-                    <div className="absolute top-0 left-0 right-0 h-1" style={{ background: "linear-gradient(90deg, #FFD700, #FF751F, #DC2626, #FF751F, #FFD700)" }} />
-                    <div className="sparkle-dot bg-yellow-300" style={{ top: "10%", left: "8%", animationDelay: "0s" }} />
-                    <div className="sparkle-dot bg-amber-400" style={{ top: "20%", right: "10%", animationDelay: "0.7s" }} />
-                    <div className="sparkle-dot bg-yellow-200" style={{ bottom: "25%", left: "12%", animationDelay: "1.4s" }} />
-                    <div className="sparkle-dot bg-orange-300" style={{ bottom: "15%", right: "8%", animationDelay: "0.3s" }} />
-                    <div className="text-center mb-3">
-                      <span className="shimmer-text text-xs font-black uppercase tracking-[0.2em]">PMO unCON 2026</span>
-                    </div>
-                    <div className="flex justify-center mb-3">
-                      <div className="w-36 h-44 rounded-[50%] overflow-hidden border-4 border-[#FF751F] shadow-lg ring-4 ring-[#FF751F]/30 ring-offset-2 ring-offset-[#17255A]">
-                        <img src={photoDataUrl} alt="Your selfie" className="w-full h-full object-cover" />
-                      </div>
-                    </div>
-                    <div className="text-center mb-3">
-                      <p className="text-white font-bold text-base">{name}</p>
-                      {interviewer && (
-                        <p className="text-amber-300 text-xs mt-1 font-medium">Interviewed by {interviewer}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between gap-3 pt-3 border-t border-white/15">
-                      <img src={pmiPmogaLogo} alt="PMI · PMO Global Alliance" className="h-7 object-contain invert" />
-                      <img src={logoWhite} alt="FridayReport.AI" className="h-6 object-contain" />
+            {photoDataUrl && (
+              <div className="flex justify-center">
+                <div className="selfie-card p-4 w-full max-w-[280px]">
+                  <p className="text-center text-[10px] font-black uppercase tracking-[0.25em] text-amber-400/80 mb-3">PMO unCON 2026</p>
+                  <div className="flex justify-center mb-3">
+                    <div className="w-28 h-32 rounded-[50%] overflow-hidden border-[3px] border-[#FF751F] shadow-lg shadow-orange-500/20">
+                      <img src={photoDataUrl} alt="Your selfie" className="w-full h-full object-cover" />
                     </div>
                   </div>
+                  <div className="text-center mb-3">
+                    <p className="text-white font-bold text-sm">{name}</p>
+                    {interviewer && <p className="text-amber-300/70 text-[10px] mt-0.5">Interviewed by {interviewer}</p>}
+                  </div>
+                  <div className="flex items-center justify-between pt-2.5 border-t border-white/10">
+                    <img src={pmiPmogaLogo} alt="PMI" className="h-5 object-contain invert opacity-80" />
+                    <img src={logoWhite} alt="FridayReport.AI" className="h-4.5 object-contain opacity-90" />
+                  </div>
                 </div>
-              )}
+              </div>
+            )}
+
+            <div className="card p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Share2 className="h-4 w-4 text-[#FF751F]" />
+                <h3 className="font-bold text-white text-sm">Share your experience</h3>
+              </div>
+              <div className="space-y-2">
+                <button onClick={handleLinkedIn} className="w-full h-10 rounded-xl text-white font-medium text-sm flex items-center justify-start gap-3 px-4 border-0 cursor-pointer transition-all hover:brightness-110" style={{ background: "#0077B5" }}>
+                  <Linkedin className="h-4 w-4" /> Share on LinkedIn
+                </button>
+                <button onClick={handleTwitter} className="w-full h-10 rounded-xl text-white font-medium text-sm flex items-center justify-start gap-3 px-4 border-0 cursor-pointer transition-all hover:brightness-110" style={{ background: "#1A1A1A" }}>
+                  <Twitter className="h-4 w-4" /> Share on X
+                </button>
+                <button onClick={handleCopyPostText} className="w-full h-10 rounded-xl font-medium text-sm flex items-center justify-start gap-3 px-4 border cursor-pointer transition-all hover:bg-white/5" style={{ background: "transparent", color: "#FF9F4F", borderColor: "rgba(255,117,31,0.3)" }}>
+                  {copiedText ? <><CheckCircle className="h-4 w-4 text-emerald-400" /> Copied!</> : <><FileText className="h-4 w-4" /> Copy Post Text</>}
+                </button>
+                <button onClick={handleCopyLink} className="w-full h-10 rounded-xl font-medium text-sm flex items-center justify-start gap-3 px-4 border cursor-pointer transition-all hover:bg-white/5" style={{ background: "transparent", color: "rgba(255,255,255,0.6)", borderColor: "rgba(255,255,255,0.1)" }}>
+                  {copied ? <><CheckCircle className="h-4 w-4 text-emerald-400" /> Copied!</> : <><Copy className="h-4 w-4" /> Copy Link</>}
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-2 leading-relaxed">Tip: "Copy Post Text" gives you a ready-to-paste post tagging PMO Global Alliance & Alex Rodov.</p>
             </div>
 
-            <div className="bg-white rounded-2xl p-5 shadow-xl border border-amber-200/60 relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1" style={{ background: "linear-gradient(90deg, #FFD700, #FF751F, #FFD700)" }} />
-              <div className="flex items-center gap-2 mb-4">
-                <Share2 className="h-5 w-5 text-[#FF751F]" />
-                <h3 className="font-bold text-gray-900">Share your experience</h3>
-              </div>
-              <div className="space-y-3">
-                <Button onClick={handleLinkedIn} className="w-full bg-[#0077b5] hover:bg-[#006399] text-white min-h-12 text-base justify-start">
-                  <Linkedin className="mr-3 h-5 w-5" />
-                  Share on LinkedIn
-                </Button>
-                <Button onClick={handleTwitter} className="w-full bg-black hover:bg-gray-800 text-white min-h-12 text-base justify-start">
-                  <Twitter className="mr-3 h-5 w-5" />
-                  Share on X (Twitter)
-                </Button>
-                <Button onClick={handleCopyPostText} variant="outline" className="w-full min-h-12 text-base justify-start border-[#FF751F]/30 text-[#FF751F] hover:bg-[#FF751F]/5">
-                  {copiedText ? (
-                    <>
-                      <CheckCircle className="mr-3 h-5 w-5 text-green-500" />
-                      Copied! Paste into your post
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="mr-3 h-5 w-5" />
-                      Copy Suggested Post Text
-                    </>
-                  )}
-                </Button>
-                <Button onClick={handleCopyLink} variant="outline" className="w-full min-h-12 text-base justify-start">
-                  {copied ? (
-                    <>
-                      <CheckCircle className="mr-3 h-5 w-5 text-green-500" />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="mr-3 h-5 w-5" />
-                      Copy Share Link
-                    </>
-                  )}
-                </Button>
-              </div>
-              <p className="text-xs text-gray-400 mt-3 leading-relaxed">Tip: Use "Copy Suggested Post Text" to get a ready-to-paste post that tags PMO Global Alliance and Alex Rodov on LinkedIn.</p>
-            </div>
-
-            <div className="text-center pt-2 space-y-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  safeRemove("uncon_step");
-                  safeRemove("uncon_name");
-                  safeRemove("uncon_email");
-                  setStep("form");
-                  setName("");
-                  setEmail("");
-                  setPhotoDataUrl(null);
-                  setPhotoFile(null);
-                  setShareToken(null);
-                }}
-                className="w-full max-w-xs mx-auto min-h-11"
-              >
-                <RotateCcw className="mr-2 h-4 w-4" />
-                Take Another Selfie
-              </Button>
-              <div>
-                <a
-                  href="/uncon2026"
-                  className="inline-flex items-center text-sm text-[#FF751F] hover:underline font-medium"
-                >
-                  Learn more about FridayReport.AI
-                  <ArrowRight className="ml-1 h-3 w-3" />
-                </a>
-              </div>
+            <div className="flex flex-col items-center gap-2 pt-1">
+              <button onClick={handleReset} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors bg-transparent border-0 cursor-pointer">
+                <RotateCcw className="h-3 w-3" /> Take Another Selfie
+              </button>
+              <a href="/uncon2026" className="flex items-center gap-1 text-xs text-[#FF751F] hover:text-[#FF9F4F] transition-colors font-medium">
+                Learn more about FridayReport.AI <ArrowRight className="h-3 w-3" />
+              </a>
             </div>
           </div>
         )}
