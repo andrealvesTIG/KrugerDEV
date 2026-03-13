@@ -3818,7 +3818,7 @@ export default function Timesheets() {
                 isDateInClosedPeriod={isDateInClosedPeriod}
                 getClosedPeriodName={getClosedPeriodName}
                 isFullscreen
-                mandatoryNotes={timesheetSettings?.mandatoryNotes ?? true}
+                mandatoryNotes={timesheetSettings?.mandatoryNotes ?? false}
                 onViewAudit={(entryId) => { setAuditEntryId(entryId); setShowAuditDialog(true); }}
                 overtimeThreshold={weeklyTarget}
               />
@@ -4517,7 +4517,7 @@ export default function Timesheets() {
                   onAutoSave={handleAutoSave}
                   isDateInClosedPeriod={isDateInClosedPeriod}
                   getClosedPeriodName={getClosedPeriodName}
-                  mandatoryNotes={timesheetSettings?.mandatoryNotes ?? true}
+                  mandatoryNotes={timesheetSettings?.mandatoryNotes ?? false}
                   onViewAudit={(entryId) => { setAuditEntryId(entryId); setShowAuditDialog(true); }}
                   overtimeThreshold={weeklyTarget}
                 />

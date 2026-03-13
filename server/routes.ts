@@ -20773,7 +20773,7 @@ Return ONLY valid JSON.`;
 
   // Helper: log timesheet audit event
   const DEFAULT_TIMESHEET_SETTINGS = {
-    mandatoryNotes: true,
+    mandatoryNotes: false,
     maxWeeklyHours: '50',
     minWeeklyHours: '0',
     overtimeThreshold: '40',
@@ -21899,7 +21899,7 @@ Return ONLY valid JSON.`;
         maxWeeklyHours: "50",
         overtimeThreshold: "40",
         gracePeriodDays: 0,
-        mandatoryNotes: true,
+        mandatoryNotes: false,
       });
     } catch (error) {
       console.error('Error getting timesheet settings:', error);
