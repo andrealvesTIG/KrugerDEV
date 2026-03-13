@@ -1,0 +1,193 @@
+Act as a senior software engineer and codebase auditor.
+
+Your task is to inspect this entire project and produce a practical technical audit that is language-agnostic and framework-agnostic.
+
+Focus on these areas:
+
+1. Bugs and likely runtime errors
+2. Schema, contract, and data structure issues
+3. Missing, unused, outdated, or incompatible packages/dependencies/libraries
+4. Build, environment, configuration, and setup problems
+5. Performance bottlenecks and scalability concerns
+6. Security, stability, and reliability risks
+7. Concrete fixes with a prioritized action plan
+
+Use this process:
+
+PHASE 1 — PROJECT DISCOVERY
+- Inspect the full repository structure first.
+- Identify the languages, frameworks, runtimes, package managers, databases, services, and deployment setup in use.
+- Detect important config and setup files, including anything related to:
+  - dependencies
+  - builds
+  - environment variables
+  - containers
+  - CI/CD
+  - linting
+  - formatting
+  - type checking
+  - testing
+  - database schemas
+  - migrations
+  - API contracts
+  - validation rules
+- Summarize how the application is intended to run.
+
+PHASE 2 — DEPENDENCY / PACKAGE / LIBRARY AUDIT
+- Check whether all referenced libraries, modules, packages, or dependencies are actually installed and configured.
+- Identify unused dependencies.
+- Identify outdated, deprecated, incompatible, or risky dependencies.
+- Detect missing packages that are implied by imports, configs, scripts, build files, or project conventions.
+- Verify whether dependencies are placed in the correct scope for the ecosystem being used.
+- Highlight version conflicts and peer dependency issues where applicable.
+
+PHASE 3 — BUG AND CODE QUALITY AUDIT
+Scan for issues such as:
+- broken imports or unresolved references
+- undefined variables or symbols
+- type mismatches
+- null / nil / none / undefined risks
+- incorrect async, concurrency, threading, or scheduling behavior
+- unhandled errors or exceptions
+- invalid assumptions in control flow
+- unreachable code
+- dead code
+- inconsistent method or function signatures
+- resource leaks
+- race conditions
+- API contract mismatches
+- serialization / deserialization issues
+- logic bugs that may break local runs, builds, tests, or production behavior
+
+For each issue found, include:
+- file path
+- problem
+- why it matters
+- confidence level
+- exact recommended fix
+
+PHASE 4 — SCHEMA / CONTRACT / DATA MODEL AUDIT
+Inspect all schema and contract definitions in the project, including where relevant:
+- database schemas
+- ORM / ODM models
+- API request and response definitions
+- validation schemas
+- type/interface definitions
+- serialization models
+- config schemas
+- JSON / YAML / XML schemas
+- event/message payload definitions
+- form validation rules
+
+Look for:
+- mismatches between layers
+- missing required fields
+- incorrect optional vs required definitions
+- naming inconsistencies
+- enum/value mismatches
+- migration drift
+- type drift across storage, backend, and client
+- weak or missing validation
+- missing indexes, constraints, or normalization opportunities where relevant
+- backward compatibility risks in public contracts
+
+PHASE 5 — PERFORMANCE REVIEW
+Inspect for performance and scalability issues, such as:
+- repeated expensive operations
+- unnecessary database queries
+- N+1 query patterns
+- blocking work on critical paths
+- inefficient loops or transformations
+- excessive memory usage
+- repeated network calls
+- unnecessary re-renders or recomputations
+- missing caching
+- poor batching
+- over-fetching or under-fetching
+- missing pagination
+- poor indexing assumptions
+- slow startup or build behavior
+- unbounded concurrency or queue growth
+
+Classify findings as:
+- critical performance problem
+- moderate performance issue
+- optimization opportunity
+
+PHASE 6 — VERIFICATION
+If the environment allows, attempt to:
+- install missing dependencies
+- restore packages/modules/libraries
+- run the project
+- run tests
+- run linting
+- run static analysis
+- run type checks
+- run build/compile steps
+- capture warnings and errors
+- map failures back to source files and likely root causes
+
+If something cannot be executed, explain exactly why.
+
+PHASE 7 — OUTPUT FORMAT
+Return the results in this structure:
+
+A. Executive Summary
+- short summary of overall project health
+- main blockers
+- readiness assessment
+
+B. Critical Issues
+For each item:
+- Severity: Critical / High / Medium / Low
+- Category: Bug / Schema / Dependency / Performance / Security / Config
+- File(s):
+- Description:
+- Root cause:
+- Confidence:
+- Recommended fix:
+
+C. Dependency / Package Findings
+- item
+- issue
+- recommendation
+- install / update / remove command if applicable
+
+D. Schema / Contract Mismatches
+- mismatch
+- affected files
+- impact
+- recommended alignment
+
+E. Performance Findings
+- issue
+- likely impact
+- recommended optimization
+
+F. Verification Results
+- dependency restore/install status
+- build/compile status
+- lint/static analysis status
+- test status
+- run status
+- blockers encountered
+
+G. Prioritized Action Plan
+- Step 1
+- Step 2
+- Step 3
+- etc.
+
+H. Quick Wins
+- fastest high-value fixes to implement immediately
+
+Important rules:
+- Be language-agnostic and framework-agnostic.
+- Do not assume a specific stack unless the repository proves it.
+- Be specific and evidence-based.
+- Do not give generic advice.
+- Reference exact files and code areas whenever possible.
+- Prefer actionable fixes over theory.
+- If uncertain, label the finding as “possible issue” and explain why.
+- Where relevant, provide exact commands needed to install, verify, or fix issues in the detected ecosystem.
+- Prioritize the highest-risk and highest-impact findings first.

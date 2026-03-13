@@ -6,3 +6,9 @@ id = "0QWLdNRdz7Yf3f_OotVMD"
 uri = "file://FridayReportAI_SOC2_Gap_Analysis.pdf"
 type = "pdf"
 title = "SOC 2 Type 2 Gap Analysis — FridayReport.AI (Updated)"
+
+[[outputs]]
+id = "MxM-ZTt3KnufpAIRT2NS1"
+uri = "file://AUDIT_REPORT.md"
+type = "text"
+title = "FridayReport.AI - Technical Audit Report"
