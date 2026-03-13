@@ -1567,7 +1567,7 @@ function GanttTaskRow({
       )}
       {visibleColumns.includes('duration') && (
         <div className="w-20 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
-          {task.durationDays ? formatDuration(task.durationDays) : '—'}
+          {task.durationDays != null ? formatDuration(task.durationDays) : '—'}
         </div>
       )}
       {visibleColumns.includes('progress') && (

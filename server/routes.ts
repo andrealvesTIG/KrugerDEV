@@ -11403,9 +11403,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
             newEndDate = newStartDate;
             await storage.updateTask(taskId, { startDate: newStartDate, endDate: newStartDate, durationDays: 0 });
           } else {
-            const newEnd = calculateEndDate(requiredStart, Math.max(1, duration));
+            const newEnd = calculateEndDate(requiredStart, duration);
             newEndDate = formatDateStr(newEnd);
-            await storage.updateTask(taskId, { startDate: newStartDate, endDate: newEndDate, durationDays: Math.max(1, duration) });
+            await storage.updateTask(taskId, { startDate: newStartDate, endDate: newEndDate, durationDays: duration });
           }
           dateAdjusted = true;
         } else if (requiredEnd && (!currentEnd || currentEnd < requiredEnd)) {
@@ -11414,9 +11414,10 @@ Format your response as a numbered list with clear, concise strategies. Do not i
             newStartDate = newEndDate;
             await storage.updateTask(taskId, { startDate: newEndDate, endDate: newEndDate, durationDays: 0 });
           } else {
-            const newStart = ensureWorkingDay(addWorkingDays(requiredEnd, -(duration - 1)));
+            const wholeDays = Math.floor(duration);
+            const newStart = ensureWorkingDay(addWorkingDays(requiredEnd, -(Math.max(0, wholeDays - 1))));
             newStartDate = formatDateStr(newStart);
-            await storage.updateTask(taskId, { startDate: newStartDate, endDate: newEndDate, durationDays: Math.max(1, duration) });
+            await storage.updateTask(taskId, { startDate: newStartDate, endDate: newEndDate, durationDays: duration });
           }
           dateAdjusted = true;
         }
