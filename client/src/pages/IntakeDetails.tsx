@@ -586,9 +586,10 @@ export default function IntakeDetails() {
                     value={formData.capitalExpense ?? intake.capitalExpense ?? ""}
                     onChange={(e) => {
                       const newCapEx = parseFloat(e.target.value) || 0;
+                      const currentCapEx = parseFloat(String(formData.capitalExpense ?? intake.capitalExpense ?? 0)) || 0;
                       const currentOpEx = parseFloat(String(formData.operatingExpense ?? intake.operatingExpense ?? 0)) || 0;
                       const budget = parseFloat(String(formData.estimatedBudget ?? intake.estimatedBudget ?? 0)) || 0;
-                      if (budget > 0 && newCapEx + currentOpEx > budget) return;
+                      if (budget > 0 && newCapEx + currentOpEx > budget && newCapEx > currentCapEx) return;
                       handleFieldChange('capitalExpense', e.target.value);
                     }}
                     disabled={isLocked}
@@ -603,9 +604,10 @@ export default function IntakeDetails() {
                     value={formData.operatingExpense ?? intake.operatingExpense ?? ""}
                     onChange={(e) => {
                       const newOpEx = parseFloat(e.target.value) || 0;
+                      const currentOpEx = parseFloat(String(formData.operatingExpense ?? intake.operatingExpense ?? 0)) || 0;
                       const currentCapEx = parseFloat(String(formData.capitalExpense ?? intake.capitalExpense ?? 0)) || 0;
                       const budget = parseFloat(String(formData.estimatedBudget ?? intake.estimatedBudget ?? 0)) || 0;
-                      if (budget > 0 && currentCapEx + newOpEx > budget) return;
+                      if (budget > 0 && currentCapEx + newOpEx > budget && newOpEx > currentOpEx) return;
                       handleFieldChange('operatingExpense', e.target.value);
                     }}
                     disabled={isLocked}
