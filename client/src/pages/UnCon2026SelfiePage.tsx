@@ -551,6 +551,9 @@ export default function UnCon2026SelfiePage() {
             {photoDataUrl && (
               <div className="flex justify-center">
                 <div className="selfie-card p-4 w-full max-w-[280px]">
+                  <div className="flex items-center justify-center mb-2 pb-2 border-b border-white/10">
+                    <img src={pmiPmogaLogo} alt="PMI" className="h-5 object-contain invert opacity-80" />
+                  </div>
                   <p className="text-center text-[10px] font-black uppercase tracking-[0.25em] text-amber-400/80 mb-3">PMO unCON 2026</p>
                   <div className="flex justify-center mb-3">
                     <div className="sun-container" style={{ width: 140, height: 140 }}>
@@ -575,9 +578,8 @@ export default function UnCon2026SelfiePage() {
                     <p className="text-white font-bold text-sm">{name}</p>
                     {interviewer && <p className="text-amber-300/70 text-[10px] mt-0.5">Interviewed by {interviewer}</p>}
                   </div>
-                  <div className="flex items-center justify-between pt-2.5 border-t border-white/10">
-                    <img src={pmiPmogaLogo} alt="PMI" className="h-5 object-contain invert opacity-80" />
-                    <img src={logoWhite} alt="FridayReport.AI" className="h-4.5 object-contain opacity-90" />
+                  <div className="flex items-center justify-center pt-2.5 border-t border-white/10">
+                    <img src={logoWhite} alt="FridayReport.AI" className="h-5 object-contain opacity-90" />
                   </div>
                 </div>
               </div>
