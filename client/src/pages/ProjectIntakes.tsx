@@ -197,10 +197,10 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
                     variant="outline"
                     role="combobox"
                     aria-expanded={portfolioOpen}
-                    className="w-full justify-between font-normal"
+                    className="w-full h-9 justify-between font-normal border-input bg-background hover:bg-background"
                     data-testid="select-portfolio"
                   >
-                    <span className="truncate">
+                    <span className={cn("truncate", !portfolioId && "text-muted-foreground")}>
                       {portfolioId
                         ? portfolios?.find((p: Portfolio) => p.id.toString() === portfolioId)?.name ?? "Assign to portfolio"
                         : "Assign to portfolio"}

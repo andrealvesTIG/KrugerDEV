@@ -441,11 +441,11 @@ export default function IntakeDetails() {
                         variant="outline"
                         role="combobox"
                         aria-expanded={portfolioOpen}
-                        className="w-full justify-between font-normal"
+                        className="w-full h-9 justify-between font-normal border-input bg-background hover:bg-background"
                         disabled={isLocked}
                         data-testid="select-portfolio"
                       >
-                        <span className="truncate">
+                        <span className={cn("truncate", !(formData.portfolioId ?? intake.portfolioId) && "text-muted-foreground")}>
                           {(formData.portfolioId ?? intake.portfolioId)
                             ? portfolios?.find((p: Portfolio) => p.id === (formData.portfolioId ?? intake.portfolioId))?.name ?? "Assign to portfolio"
                             : "Assign to portfolio"}
