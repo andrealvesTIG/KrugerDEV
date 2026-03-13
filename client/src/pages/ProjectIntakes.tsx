@@ -9,7 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "wouter";
-import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen } from "lucide-react";
+import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen, ChevronsUpDown } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -99,6 +101,7 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
   const [intakeName, setIntakeName] = useState("");
   const [description, setDescription] = useState("");
   const [portfolioId, setPortfolioId] = useState<string>("");
+  const [portfolioOpen, setPortfolioOpen] = useState(false);
   const [fundingSource, setFundingSource] = useState("");
   const [businessUnit, setBu] = useState("");
   const [limitError, setLimitError] = useState<{ resourceType: string } | null>(null);
@@ -188,18 +191,58 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Target Portfolio</Label>
-              <Select value={portfolioId} onValueChange={setPortfolioId}>
-                <SelectTrigger data-testid="select-portfolio">
-                  <SelectValue placeholder="Assign to portfolio" />
-                </SelectTrigger>
-                <SelectContent>
-                  {portfolios?.map(p => (
-                    <SelectItem key={p.id} value={p.id.toString()}>
-                      <div className="truncate max-w-[300px]" title={p.name}>{p.name}</div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={portfolioOpen} onOpenChange={setPortfolioOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={portfolioOpen}
+                    className="w-full justify-between font-normal"
+                    data-testid="select-portfolio"
+                  >
+                    <span className="truncate">
+                      {portfolioId
+                        ? portfolios?.find((p: Portfolio) => p.id.toString() === portfolioId)?.name ?? "Assign to portfolio"
+                        : "Assign to portfolio"}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-[300px] p-0"
+                  align="start"
+                  onOpenAutoFocus={(e) => e.preventDefault()}
+                >
+                  <Command shouldFilter={true}>
+                    <CommandInput placeholder="Search portfolios..." />
+                    <CommandList>
+                      <CommandEmpty>No portfolio found.</CommandEmpty>
+                      <CommandGroup>
+                        {portfolios?.map((p: Portfolio) => (
+                          <CommandItem
+                            key={p.id}
+                            value={p.name ?? String(p.id)}
+                            onSelect={() => {
+                              setPortfolioId(p.id.toString());
+                              setPortfolioOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                portfolioId === p.id.toString()
+                                  ? "opacity-100"
+                                  : "opacity-0"
+                              )}
+                            />
+                            <span className="truncate" title={p.name}>{p.name}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2">
               <Label>Funding Source</Label>
