@@ -77,7 +77,9 @@ import {
   customDashboards, apiRequestLogs, userActivityLogs, featureUsageLogs,
   errorLogs, helpTickets, simulationRuns, simulationEvents, reportSubscriptions,
   legacyRisks, legacyRiskChangeLogs, legacyRiskResourceAssignments,
-  apiTokens, type ApiToken, type InsertApiToken
+  apiTokens, type ApiToken, type InsertApiToken,
+  projectTemplates, type ProjectTemplate, type InsertProjectTemplate,
+  projectTemplateItems, type ProjectTemplateItem, type InsertProjectTemplateItem
 } from "@shared/schema";
 import { eq, and, desc, asc, or, ilike, sql, isNull, isNotNull, inArray, notInArray, gte, lte, lt } from "drizzle-orm";
 import { 
@@ -559,6 +561,16 @@ export interface IStorage {
   getApiTokensByUserAndOrg(userId: string, organizationId: number): Promise<ApiToken[]>;
   deleteApiToken(id: number): Promise<void>;
   updateApiTokenLastUsed(id: number): Promise<void>;
+
+  // Project Templates
+  getProjectTemplates(organizationId: number): Promise<ProjectTemplate[]>;
+  getProjectTemplate(id: number): Promise<ProjectTemplate | undefined>;
+  createProjectTemplate(template: InsertProjectTemplate): Promise<ProjectTemplate>;
+  updateProjectTemplate(id: number, updates: Partial<InsertProjectTemplate>): Promise<ProjectTemplate>;
+  deleteProjectTemplate(id: number): Promise<void>;
+  getProjectTemplateItems(templateId: number): Promise<ProjectTemplateItem[]>;
+  createProjectTemplateItems(items: InsertProjectTemplateItem[]): Promise<ProjectTemplateItem[]>;
+  deleteProjectTemplateItems(templateId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -5294,6 +5306,50 @@ export class DatabaseStorage implements IStorage {
 
   async updateApiTokenLastUsed(id: number): Promise<void> {
     await db.update(apiTokens).set({ lastUsedAt: new Date() }).where(eq(apiTokens.id, id));
+  }
+
+  async getProjectTemplates(organizationId: number): Promise<ProjectTemplate[]> {
+    return db.select().from(projectTemplates)
+      .where(eq(projectTemplates.organizationId, organizationId))
+      .orderBy(desc(projectTemplates.createdAt));
+  }
+
+  async getProjectTemplate(id: number): Promise<ProjectTemplate | undefined> {
+    const [template] = await db.select().from(projectTemplates).where(eq(projectTemplates.id, id));
+    return template;
+  }
+
+  async createProjectTemplate(template: InsertProjectTemplate): Promise<ProjectTemplate> {
+    const [created] = await db.insert(projectTemplates).values(template).returning();
+    return created;
+  }
+
+  async updateProjectTemplate(id: number, updates: Partial<InsertProjectTemplate>): Promise<ProjectTemplate> {
+    const [updated] = await db.update(projectTemplates)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(projectTemplates.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteProjectTemplate(id: number): Promise<void> {
+    await db.delete(projectTemplateItems).where(eq(projectTemplateItems.templateId, id));
+    await db.delete(projectTemplates).where(eq(projectTemplates.id, id));
+  }
+
+  async getProjectTemplateItems(templateId: number): Promise<ProjectTemplateItem[]> {
+    return db.select().from(projectTemplateItems)
+      .where(eq(projectTemplateItems.templateId, templateId))
+      .orderBy(asc(projectTemplateItems.id));
+  }
+
+  async createProjectTemplateItems(items: InsertProjectTemplateItem[]): Promise<ProjectTemplateItem[]> {
+    if (items.length === 0) return [];
+    return db.insert(projectTemplateItems).values(items).returning();
+  }
+
+  async deleteProjectTemplateItems(templateId: number): Promise<void> {
+    await db.delete(projectTemplateItems).where(eq(projectTemplateItems.templateId, templateId));
   }
 }
 

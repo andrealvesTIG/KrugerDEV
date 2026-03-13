@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle, LayoutGrid, Columns, Lightbulb, Mic, Receipt, Code2, PlayCircle, UserCheck, Home, Radar, GraduationCap, Bell, BellOff } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle, LayoutGrid, Columns, Lightbulb, Mic, Receipt, Code2, PlayCircle, UserCheck, Home, Radar, GraduationCap, Bell, BellOff, LayoutTemplate } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -767,6 +767,7 @@ const availableModules = [
   { key: "calendar", name: "Calendar", icon: Calendar, description: "Calendar view" },
   { key: "user-guide", name: "User Guide", icon: BookOpen, description: "Help documentation" },
   { key: "training", name: "Training", icon: GraduationCap, description: "Training & certification courses" },
+  { key: "templates", name: "Templates", icon: LayoutTemplate, description: "Reusable project templates" },
 ];
 
 const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -786,6 +787,7 @@ const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>>
   calendar: Calendar,
   "user-guide": BookOpen,
   training: GraduationCap,
+  templates: LayoutTemplate,
 };
 
 function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder?: string[] | null, hiddenGroups?: string[] | null): SidebarStructure {
@@ -793,6 +795,7 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
     { id: "home", name: "Home", isDefault: true, hidden: false, items: [
       { type: "module" as const, key: "home", hidden: false },
       { type: "module" as const, key: "dashboard", hidden: false },
+      { type: "module" as const, key: "templates", hidden: false },
     ]},
     { id: "portfolio", name: "Portfolio", hidden: false, collapsedByDefault: false, items: [
       { type: "module" as const, key: "portfolios", hidden: false },
@@ -836,6 +839,7 @@ function migrateOldFlatStructure(structure: SidebarStructure): SidebarStructure 
     { id: "home", name: "Home", isDefault: true, hidden: false, items: [
       { type: "module" as const, key: "home", hidden: getItemHidden("home") },
       { type: "module" as const, key: "dashboard", hidden: getItemHidden("dashboard") },
+      { type: "module" as const, key: "templates", hidden: getItemHidden("templates") },
     ]},
     { id: "portfolio", name: "Portfolio", hidden: false, collapsedByDefault: false, items: [
       { type: "module" as const, key: "portfolios", hidden: getItemHidden("portfolios") },
@@ -908,6 +912,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   };
 
   ensureModule("home", "home");
+  ensureModule("templates", "home", "dashboard");
   ensureModule("simulation", "finance");
   ensureModule("pmo-radar", "finance", "simulation");
   ensureModule("timesheets", "portfolio", "tasks");

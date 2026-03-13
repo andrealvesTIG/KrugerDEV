@@ -72,6 +72,7 @@ const UnCon2026LandingPage = lazy(() => import("@/pages/UnCon2026LandingPage"));
 const UnCon2026SelfiePage = lazy(() => import("@/pages/UnCon2026SelfiePage"));
 const Training = lazy(() => import("@/pages/Training"));
 const TrainingModule = lazy(() => import("@/pages/TrainingModule"));
+const Templates = lazy(() => import("@/pages/Templates"));
 
 function PageLoader() {
   return (
@@ -205,6 +206,7 @@ function Router() {
           <GuardedRoute path="/pmo-radar" component={PmoRadar} moduleKey="pmo-radar" />
           <GuardedRoute path="/lessons-learned" component={LessonsLearned} moduleKey="lessons-learned" />
           <GuardedRoute path="/invoices" component={Invoices} moduleKey="invoices" />
+          <GuardedRoute path="/templates" component={Templates} moduleKey="templates" />
           <GuardedRoute path="/timesheets" component={Timesheets} moduleKey="timesheets" />
           <GuardedRoute path="/resources" component={Resources} moduleKey="resources" />
           <Route path="/resources/:id">

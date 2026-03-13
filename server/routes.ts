@@ -17,7 +17,7 @@ import { AVAILABLE_DASHBOARDS, sendScheduledReport, checkAndSendDueReports, init
 import { db } from "./db";
 import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, milestones, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, billingCycles, usageRollups, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries, taskChangeLogs, taskDependencies, notifications, reportSubscriptions, insertReportSubscriptionSchema, trainingModules, trainingLessons, trainingQuizQuestions, timesheetReminderSettings, type Task } from "@shared/schema";
 import { magicLinkTokens, type User } from "@shared/models/auth";
-import { eq, and, desc, asc, sql, isNotNull } from "drizzle-orm";
+import { eq, and, desc, asc, sql, isNotNull, inArray } from "drizzle-orm";
 import multer from "multer";
 import xml2js from "xml2js";
 import Papa from "papaparse";
@@ -14416,6 +14416,663 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       console.error("Error deleting MPP import:", err);
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? "Error deleting import" : classified.message });
+    }
+  });
+
+  // =========== PROJECT TEMPLATES ===========
+
+  app.get('/api/project-templates', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const organizationId = Number(req.query.organizationId);
+      if (isNaN(organizationId)) return res.status(400).json({ message: 'Organization ID required' });
+      if (!await userHasOrgAccess(userId, organizationId)) return res.status(403).json({ message: 'Access denied' });
+      const templates = await storage.getProjectTemplates(organizationId);
+      res.json(templates);
+    } catch (err) {
+      console.error("Error fetching templates:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.get('/api/project-templates/:id', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const template = await storage.getProjectTemplate(id);
+      if (!template) return res.status(404).json({ message: 'Template not found' });
+      if (!await userHasOrgAccess(userId, template.organizationId)) return res.status(403).json({ message: 'Access denied' });
+      const items = await storage.getProjectTemplateItems(id);
+      res.json({ ...template, items });
+    } catch (err) {
+      console.error("Error fetching template:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.post('/api/project-templates/from-mpp', upload.single('file'), async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      const organizationId = Number(req.body.organizationId);
+      const templateName = req.body.name;
+      if (isNaN(organizationId)) return res.status(400).json({ message: 'Organization ID required' });
+      if (!templateName) return res.status(400).json({ message: 'Template name required' });
+      if (!await userHasOrgAccess(userId, organizationId)) return res.status(403).json({ message: 'Access denied' });
+      if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+
+      const fileName = req.file.originalname;
+      const fileExt = fileName.split('.').pop()?.toLowerCase();
+      const fileContent = req.file.buffer.toString('utf-8');
+
+      let storedFileUrl: string | undefined;
+      const uniqueFilename = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+
+      try {
+        const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+        const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+        if (privateObjectDir) {
+          const objectPath = `${privateObjectDir}/project-templates/${uniqueFilename}`;
+          const pathParts = objectPath.split('/');
+          const bucketName = pathParts[1];
+          const objectName = pathParts.slice(2).join('/');
+          const bucket = objectStorageClient.bucket(bucketName);
+          const file = bucket.file(objectName);
+          await file.save(req.file.buffer, {
+            contentType: 'application/octet-stream',
+            metadata: { originalName: fileName, uploadedBy: userId },
+          });
+          storedFileUrl = `/objects/project-templates/${uniqueFilename}`;
+        } else {
+          throw new Error('Object storage not configured');
+        }
+      } catch (objErr) {
+        console.log("Object storage unavailable for template, using local:", (objErr as Error).message);
+        const templateDir = path.join(process.cwd(), 'public', 'project-templates');
+        if (!fs.existsSync(templateDir)) fs.mkdirSync(templateDir, { recursive: true });
+        fs.writeFileSync(path.join(templateDir, uniqueFilename), req.file.buffer);
+        storedFileUrl = `/project-templates/${uniqueFilename}`;
+      }
+
+      let parsedTasks: ParsedMppTask[] = [];
+      if (fileExt === 'mpp') {
+        parsedTasks = parseMppFile(req.file.buffer);
+      } else if (fileExt === 'xml') {
+        parsedTasks = await parseXmlMspdi(fileContent);
+      } else if (fileExt === 'csv') {
+        parsedTasks = parseCsv(fileContent);
+      } else {
+        return res.status(400).json({ message: 'Unsupported file format. Use MPP, XML, or CSV.' });
+      }
+
+      const milestoneCount = parsedTasks.filter(t => t.isMilestone).length;
+      const template = await storage.createProjectTemplate({
+        organizationId,
+        name: templateName,
+        description: req.body.description || null,
+        sourceType: 'mpp',
+        originalFileName: fileName,
+        storedFileUrl,
+        itemCount: parsedTasks.length,
+        milestoneCount,
+        createdBy: userId,
+      });
+
+      if (parsedTasks.length > 0) {
+        const items = parsedTasks.map(task => ({
+          templateId: template.id,
+          taskId: task.taskId,
+          wbs: task.wbs,
+          name: task.taskName,
+          startDate: task.startDate,
+          endDate: task.finishDate,
+          duration: task.duration,
+          durationDays: task.durationDays,
+          outlineLevel: task.outlineLevel || 1,
+          parentTaskId: task.parentTaskId,
+          isSummary: task.isSummary || false,
+          isMilestone: task.isMilestone || false,
+          predecessors: task.predecessors && task.predecessors.length > 0 ? JSON.stringify(task.predecessors) : null,
+          notes: task.notes,
+          workHours: task.workHours?.toString() || null,
+        }));
+        await storage.createProjectTemplateItems(items);
+      }
+
+      res.status(201).json(template);
+    } catch (err) {
+      console.error("Error creating template from MPP:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.post('/api/project-templates/from-project', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      const { projectId, name, description } = req.body;
+      if (!projectId) return res.status(400).json({ message: 'Project ID required' });
+      if (!name) return res.status(400).json({ message: 'Template name required' });
+
+      const project = await storage.getProject(Number(projectId));
+      if (!project) return res.status(404).json({ message: 'Project not found' });
+      if (!await userHasOrgAccess(userId, project.organizationId)) return res.status(403).json({ message: 'Access denied' });
+
+      const projectTasks = await storage.getTasks(Number(projectId));
+      const milestoneCount = projectTasks.filter(t => t.taskType === 'Milestone' || (t.startDate === t.endDate && t.durationDays === 0)).length;
+
+      const template = await storage.createProjectTemplate({
+        organizationId: project.organizationId,
+        name,
+        description: description || project.description || null,
+        sourceType: 'project',
+        originalFileName: null,
+        storedFileUrl: null,
+        itemCount: projectTasks.length,
+        milestoneCount,
+        createdBy: userId,
+        sourceProjectId: project.id,
+      });
+
+      if (projectTasks.length > 0) {
+        const taskDeps = await db.select().from(taskDependencies)
+          .where(inArray(taskDependencies.taskId, projectTasks.map(t => t.id)));
+
+        const depsByTaskId = new Map<number, Array<{ predecessorTaskId: number; type: string; lagDays: number }>>();
+        for (const dep of taskDeps) {
+          const arr = depsByTaskId.get(dep.taskId) || [];
+          arr.push({ predecessorTaskId: dep.dependsOnTaskId, type: dep.dependencyType || 'finish-to-start', lagDays: dep.lagDays || 0 });
+          depsByTaskId.set(dep.taskId, arr);
+        }
+
+        const items = projectTasks.map(task => {
+          const deps = depsByTaskId.get(task.id);
+          return {
+            templateId: template.id,
+            taskId: task.id,
+            wbs: task.wbs,
+            name: task.name,
+            description: task.description,
+            startDate: task.startDate,
+            endDate: task.endDate,
+            duration: task.duration,
+            durationDays: task.durationDays,
+            outlineLevel: task.outlineLevel || 1,
+            parentTaskId: task.parentId,
+            isSummary: task.isSummary || false,
+            isMilestone: task.taskType === 'Milestone',
+            predecessors: deps && deps.length > 0 ? JSON.stringify(deps) : null,
+            notes: task.notes,
+            workHours: task.estimatedHours?.toString() || null,
+          };
+        });
+        await storage.createProjectTemplateItems(items);
+      }
+
+      res.status(201).json(template);
+    } catch (err) {
+      console.error("Error creating template from project:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.put('/api/project-templates/:id', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const template = await storage.getProjectTemplate(id);
+      if (!template) return res.status(404).json({ message: 'Template not found' });
+      if (!await userHasOrgAccess(userId, template.organizationId)) return res.status(403).json({ message: 'Access denied' });
+
+      const { name, description } = req.body;
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (description !== undefined) updates.description = description;
+
+      const updated = await storage.updateProjectTemplate(id, updates);
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating template:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.delete('/api/project-templates/:id', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const template = await storage.getProjectTemplate(id);
+      if (!template) return res.status(404).json({ message: 'Template not found' });
+      if (!await userHasOrgAccess(userId, template.organizationId)) return res.status(403).json({ message: 'Access denied' });
+
+      if (template.storedFileUrl) {
+        try {
+          if (template.storedFileUrl.startsWith('/objects/')) {
+            const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+            const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+            if (privateObjectDir) {
+              const relativePath = template.storedFileUrl.replace('/objects/', '');
+              const objectPath = `${privateObjectDir}/${relativePath}`;
+              const pathParts = objectPath.split('/');
+              const bucketName = pathParts[1];
+              const objectName = pathParts.slice(2).join('/');
+              const bucket = objectStorageClient.bucket(bucketName);
+              await bucket.file(objectName).delete().catch(() => {});
+            }
+          } else {
+            const localPath = path.join(process.cwd(), 'public', template.storedFileUrl);
+            if (fs.existsSync(localPath)) fs.unlinkSync(localPath);
+          }
+        } catch (fileErr) {
+          console.error("Error deleting template file:", fileErr);
+        }
+      }
+
+      await storage.deleteProjectTemplate(id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error deleting template:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.post('/api/project-templates/:id/duplicate', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const template = await storage.getProjectTemplate(id);
+      if (!template) return res.status(404).json({ message: 'Template not found' });
+      if (!await userHasOrgAccess(userId, template.organizationId)) return res.status(403).json({ message: 'Access denied' });
+
+      const newName = req.body.name || `${template.name} (Copy)`;
+
+      let newFileUrl: string | null = null;
+      if (template.storedFileUrl) {
+        try {
+          const uniqueFilename = `${Date.now()}-copy-${template.originalFileName?.replace(/[^a-zA-Z0-9._-]/g, '_') || 'template'}`;
+          if (template.storedFileUrl.startsWith('/objects/')) {
+            const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+            const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+            if (privateObjectDir) {
+              const relativePath = template.storedFileUrl.replace('/objects/', '');
+              const srcPath = `${privateObjectDir}/${relativePath}`;
+              const srcParts = srcPath.split('/');
+              const srcBucket = objectStorageClient.bucket(srcParts[1]);
+              const [contents] = await srcBucket.file(srcParts.slice(2).join('/')).download();
+              const dstPath = `${privateObjectDir}/project-templates/${uniqueFilename}`;
+              const dstParts = dstPath.split('/');
+              const dstBucket = objectStorageClient.bucket(dstParts[1]);
+              await dstBucket.file(dstParts.slice(2).join('/')).save(contents, { contentType: 'application/octet-stream' });
+              newFileUrl = `/objects/project-templates/${uniqueFilename}`;
+            }
+          } else {
+            const srcLocalPath = path.join(process.cwd(), 'public', template.storedFileUrl);
+            if (fs.existsSync(srcLocalPath)) {
+              const templateDir = path.join(process.cwd(), 'public', 'project-templates');
+              if (!fs.existsSync(templateDir)) fs.mkdirSync(templateDir, { recursive: true });
+              fs.copyFileSync(srcLocalPath, path.join(templateDir, uniqueFilename));
+              newFileUrl = `/project-templates/${uniqueFilename}`;
+            }
+          }
+        } catch (copyErr) {
+          console.error("Error copying template file during duplicate:", copyErr);
+        }
+      }
+
+      const newTemplate = await storage.createProjectTemplate({
+        organizationId: template.organizationId,
+        name: newName,
+        description: template.description,
+        sourceType: template.sourceType,
+        originalFileName: template.originalFileName,
+        storedFileUrl: newFileUrl,
+        itemCount: template.itemCount,
+        milestoneCount: template.milestoneCount,
+        createdBy: userId,
+        sourceProjectId: template.sourceProjectId,
+      });
+
+      const items = await storage.getProjectTemplateItems(id);
+      if (items.length > 0) {
+        const newItems = items.map(item => ({
+          templateId: newTemplate.id,
+          taskId: item.taskId,
+          wbs: item.wbs,
+          name: item.name,
+          description: item.description,
+          startDate: item.startDate,
+          endDate: item.endDate,
+          duration: item.duration,
+          durationDays: item.durationDays,
+          outlineLevel: item.outlineLevel,
+          parentTaskId: item.parentTaskId,
+          isSummary: item.isSummary,
+          isMilestone: item.isMilestone,
+          predecessors: item.predecessors,
+          notes: item.notes,
+          workHours: item.workHours?.toString() || null,
+        }));
+        await storage.createProjectTemplateItems(newItems);
+      }
+
+      res.status(201).json(newTemplate);
+    } catch (err) {
+      console.error("Error duplicating template:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.get('/api/project-templates/:id/download', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const template = await storage.getProjectTemplate(id);
+      if (!template) return res.status(404).json({ message: 'Template not found' });
+      if (!await userHasOrgAccess(userId, template.organizationId)) return res.status(403).json({ message: 'Access denied' });
+      if (!template.storedFileUrl) return res.status(404).json({ message: 'No file associated with this template' });
+
+      const downloadName = template.originalFileName || 'template.mpp';
+
+      if (template.storedFileUrl.startsWith('/objects/')) {
+        try {
+          const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+          const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+          if (privateObjectDir) {
+            const relativePath = template.storedFileUrl.replace('/objects/', '');
+            const objectPath = `${privateObjectDir}/${relativePath}`;
+            const pathParts = objectPath.split('/');
+            const bucketName = pathParts[1];
+            const objectName = pathParts.slice(2).join('/');
+            const bucket = objectStorageClient.bucket(bucketName);
+            const file = bucket.file(objectName);
+            const [contents] = await file.download();
+            res.set({
+              'Content-Disposition': `attachment; filename="${downloadName}"`,
+              'Content-Type': 'application/octet-stream',
+              'Content-Length': contents.length.toString(),
+            });
+            return res.send(contents);
+          }
+        } catch (objErr) {
+          console.error("Object storage download failed:", objErr);
+        }
+      }
+
+      const localPath = path.join(process.cwd(), 'public', template.storedFileUrl);
+      if (fs.existsSync(localPath)) {
+        res.set({ 'Content-Disposition': `attachment; filename="${downloadName}"` });
+        return res.sendFile(localPath);
+      }
+
+      return res.status(404).json({ message: 'File not found' });
+    } catch (err) {
+      console.error("Error downloading template file:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.post('/api/project-templates/:id/reimport', upload.single('file'), async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const template = await storage.getProjectTemplate(id);
+      if (!template) return res.status(404).json({ message: 'Template not found' });
+      if (!await userHasOrgAccess(userId, template.organizationId)) return res.status(403).json({ message: 'Access denied' });
+      if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+
+      const fileName = req.file.originalname;
+      const fileExt = fileName.split('.').pop()?.toLowerCase();
+      const fileContent = req.file.buffer.toString('utf-8');
+
+      let parsedTasks: ParsedMppTask[] = [];
+      if (fileExt === 'mpp') {
+        parsedTasks = parseMppFile(req.file.buffer);
+      } else if (fileExt === 'xml') {
+        parsedTasks = await parseXmlMspdi(fileContent);
+      } else if (fileExt === 'csv') {
+        parsedTasks = parseCsv(fileContent);
+      } else {
+        return res.status(400).json({ message: 'Unsupported file format. Use MPP, XML, or CSV.' });
+      }
+
+      let storedFileUrl: string | undefined;
+      const uniqueFilename = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+
+      try {
+        const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+        const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+        if (privateObjectDir) {
+          const objectPath = `${privateObjectDir}/project-templates/${uniqueFilename}`;
+          const pathParts = objectPath.split('/');
+          const bucketName = pathParts[1];
+          const objectName = pathParts.slice(2).join('/');
+          const bucket = objectStorageClient.bucket(bucketName);
+          const file = bucket.file(objectName);
+          await file.save(req.file.buffer, {
+            contentType: 'application/octet-stream',
+            metadata: { originalName: fileName, uploadedBy: userId },
+          });
+          storedFileUrl = `/objects/project-templates/${uniqueFilename}`;
+        } else {
+          throw new Error('Object storage not configured');
+        }
+      } catch (objErr) {
+        console.log("Object storage unavailable for template reimport:", (objErr as Error).message);
+        const templateDir = path.join(process.cwd(), 'public', 'project-templates');
+        if (!fs.existsSync(templateDir)) fs.mkdirSync(templateDir, { recursive: true });
+        fs.writeFileSync(path.join(templateDir, uniqueFilename), req.file.buffer);
+        storedFileUrl = `/project-templates/${uniqueFilename}`;
+      }
+
+      await storage.deleteProjectTemplateItems(id);
+
+      const oldFileUrl = template.storedFileUrl;
+
+      const milestoneCount = parsedTasks.filter(t => t.isMilestone).length;
+      const updated = await storage.updateProjectTemplate(id, {
+        originalFileName: fileName,
+        storedFileUrl,
+        itemCount: parsedTasks.length,
+        milestoneCount,
+      });
+
+      if (parsedTasks.length > 0) {
+        const items = parsedTasks.map(task => ({
+          templateId: id,
+          taskId: task.taskId,
+          wbs: task.wbs,
+          name: task.taskName,
+          startDate: task.startDate,
+          endDate: task.finishDate,
+          duration: task.duration,
+          durationDays: task.durationDays,
+          outlineLevel: task.outlineLevel || 1,
+          parentTaskId: task.parentTaskId,
+          isSummary: task.isSummary || false,
+          isMilestone: task.isMilestone || false,
+          predecessors: task.predecessors && task.predecessors.length > 0 ? JSON.stringify(task.predecessors) : null,
+          notes: task.notes,
+          workHours: task.workHours?.toString() || null,
+        }));
+        await storage.createProjectTemplateItems(items);
+      }
+
+      if (oldFileUrl && oldFileUrl !== storedFileUrl) {
+        try {
+          if (oldFileUrl.startsWith('/objects/')) {
+            const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+            const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+            if (privateObjectDir) {
+              const relativePath = oldFileUrl.replace('/objects/', '');
+              const objectPath = `${privateObjectDir}/${relativePath}`;
+              const pathParts = objectPath.split('/');
+              const bucketName = pathParts[1];
+              const objectName = pathParts.slice(2).join('/');
+              const bucket = objectStorageClient.bucket(bucketName);
+              await bucket.file(objectName).delete().catch(() => {});
+            }
+          } else {
+            const oldPath = path.join(process.cwd(), 'public', oldFileUrl);
+            if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+          }
+        } catch (cleanupErr) {
+          console.error("Error cleaning up old template file:", cleanupErr);
+        }
+      }
+
+      res.json(updated);
+    } catch (err) {
+      console.error("Error reimporting template:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.post('/api/project-templates/:id/create-project', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      const id = Number(req.params.id);
+      const template = await storage.getProjectTemplate(id);
+      if (!template) return res.status(404).json({ message: 'Template not found' });
+      if (!await userHasOrgAccess(userId, template.organizationId)) return res.status(403).json({ message: 'Access denied' });
+
+      const { name, portfolioId, description, status, priority, startDate } = req.body;
+      if (!name) return res.status(400).json({ message: 'Project name required' });
+
+      let validPortfolioId: number | null = null;
+      if (portfolioId) {
+        const portfolio = await storage.getPortfolio(Number(portfolioId));
+        if (!portfolio || portfolio.organizationId !== template.organizationId) {
+          return res.status(400).json({ message: 'Invalid portfolio for this organization' });
+        }
+        validPortfolioId = portfolio.id;
+      }
+
+      const templateItems = await storage.getProjectTemplateItems(id);
+
+      const project = await storage.createProject({
+        organizationId: template.organizationId,
+        name,
+        description: description || template.description || null,
+        portfolioId: validPortfolioId,
+        status: status || 'Initiation',
+        priority: priority || 'Medium',
+        startDate: startDate || null,
+        endDate: null,
+        budget: "0",
+        managerId: userId,
+        source: 'manual',
+      });
+
+      let taskCount = 0;
+      if (templateItems.length > 0) {
+        const oldIdToNewId = new Map<number, number>();
+
+        for (const item of templateItems) {
+          if (item.isSummary) continue;
+
+          const taskStartDate = startDate || item.startDate || new Date().toISOString().split('T')[0];
+          let taskEndDate = item.endDate;
+          if (startDate && item.durationDays) {
+            const start = new Date(startDate);
+            start.setDate(start.getDate() + item.durationDays);
+            taskEndDate = start.toISOString().split('T')[0];
+          }
+          if (!taskEndDate) taskEndDate = taskStartDate;
+
+          const newTask = await storage.createTask({
+            projectId: project.id,
+            name: item.name,
+            description: item.description || null,
+            wbs: item.wbs,
+            startDate: taskStartDate,
+            endDate: taskEndDate,
+            duration: item.duration,
+            durationDays: item.durationDays,
+            outlineLevel: item.outlineLevel,
+            parentId: item.parentTaskId && oldIdToNewId.has(item.parentTaskId) ? oldIdToNewId.get(item.parentTaskId)! : null,
+            isSummary: false,
+            taskType: item.isMilestone ? 'Milestone' : 'Work',
+            status: 'Backlog',
+            priority: 'Medium',
+            progress: 0,
+            notes: item.notes,
+            estimatedHours: item.workHours ? Number(item.workHours) : null,
+          });
+          if (item.taskId) oldIdToNewId.set(item.taskId, newTask.id);
+          taskCount++;
+        }
+
+        for (const item of templateItems) {
+          if (!item.predecessors) continue;
+          try {
+            const deps = JSON.parse(item.predecessors) as Array<{ predecessorTaskId: number; type: string; lagDays: number }>;
+            const currentTaskNewId = item.taskId ? oldIdToNewId.get(item.taskId) : undefined;
+            if (!currentTaskNewId) continue;
+            for (const dep of deps) {
+              const predNewId = oldIdToNewId.get(dep.predecessorTaskId);
+              if (!predNewId) continue;
+              const depTypeMap: Record<string, string> = {
+                'FS': 'finish-to-start', 'SS': 'start-to-start', 'FF': 'finish-to-finish', 'SF': 'start-to-finish',
+                'finish-to-start': 'finish-to-start', 'start-to-start': 'start-to-start', 'finish-to-finish': 'finish-to-finish', 'start-to-finish': 'start-to-finish',
+              };
+              await storage.createTaskDependency({
+                taskId: currentTaskNewId,
+                dependsOnTaskId: predNewId,
+                dependencyType: depTypeMap[dep.type] || 'finish-to-start',
+                lagDays: dep.lagDays || 0,
+              });
+            }
+          } catch (depErr) {
+            console.error("Error creating dependency from template:", depErr);
+          }
+        }
+      }
+
+      const templateUser = userId ? await storage.getUser(userId) : null;
+      const templateUserName = templateUser ? `${templateUser.firstName || ''} ${templateUser.lastName || ''}`.trim() || templateUser.email || 'Unknown' : 'System';
+      await storage.createProjectChangeLog({
+        projectId: project.id,
+        changedBy: userId || null,
+        changedByName: templateUserName,
+        changeType: 'created',
+        changeSummary: `Project "${project.name}" created by ${templateUserName} — from template "${template.name}"`,
+        previousValues: null,
+        newValues: null,
+      });
+
+      res.status(201).json({
+        success: true,
+        project,
+        taskCount,
+        message: `Created project "${project.name}" with ${taskCount} tasks from template "${template.name}"`,
+      });
+    } catch (err) {
+      console.error("Error creating project from template:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
     }
   });
 

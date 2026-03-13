@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
@@ -97,6 +97,7 @@ const moduleDefinitions: Record<string, { name: string; href: string; icon: Reac
   calendar: { name: "Calendar", href: "/calendar", icon: Calendar },
   "user-guide": { name: "User Guide", href: "/user-guide", icon: BookOpen },
   training: { name: "Training", href: "/training", icon: GraduationCap },
+  templates: { name: "Templates", href: "/templates", icon: LayoutTemplate },
 };
 
 const navigation = [
@@ -125,6 +126,7 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
     { id: "home", name: "Home", isDefault: true, hidden: false, items: [
       { type: "module" as const, key: "home", hidden: false },
       { type: "module" as const, key: "dashboard", hidden: false },
+      { type: "module" as const, key: "templates", hidden: false },
     ]},
     { id: "portfolio", name: "Portfolio", hidden: false, collapsedByDefault: false, items: [
       { type: "module" as const, key: "portfolios", hidden: false },
@@ -168,6 +170,7 @@ function migrateOldFlatStructure(structure: SidebarStructure): SidebarStructure 
     { id: "home", name: "Home", isDefault: true, hidden: false, items: [
       { type: "module" as const, key: "home", hidden: getItemHidden("home") },
       { type: "module" as const, key: "dashboard", hidden: getItemHidden("dashboard") },
+      { type: "module" as const, key: "templates", hidden: getItemHidden("templates") },
     ]},
     { id: "portfolio", name: "Portfolio", hidden: false, collapsedByDefault: false, items: [
       { type: "module" as const, key: "portfolios", hidden: getItemHidden("portfolios") },
@@ -242,6 +245,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   };
 
   ensureModule("home", "home");
+  ensureModule("templates", "home", "dashboard");
   ensureModule("simulation", "finance");
   ensureModule("pmo-radar", "finance", "simulation");
   ensureModule("timesheets", "portfolio", "tasks");

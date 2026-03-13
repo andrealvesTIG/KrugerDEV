@@ -2728,3 +2728,60 @@ export const insertUnconSelfieLeadSchema = createInsertSchema(unconSelfieLeads).
 });
 export type InsertUnconSelfieLead = z.infer<typeof insertUnconSelfieLeadSchema>;
 export type UnconSelfieLeadRecord = typeof unconSelfieLeads.$inferSelect;
+
+// === PROJECT TEMPLATES ===
+
+export const projectTemplates = pgTable("project_templates", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  sourceType: text("source_type").notNull().default("project"),
+  originalFileName: text("original_file_name"),
+  storedFileUrl: text("stored_file_url"),
+  itemCount: integer("item_count").default(0),
+  milestoneCount: integer("milestone_count").default(0),
+  createdBy: varchar("created_by").references(() => users.id),
+  sourceProjectId: integer("source_project_id").references(() => projects.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("project_templates_org_idx").on(table.organizationId),
+]);
+
+export const projectTemplateItems = pgTable("project_template_items", {
+  id: serial("id").primaryKey(),
+  templateId: integer("template_id").references(() => projectTemplates.id, { onDelete: "cascade" }).notNull(),
+  taskId: integer("task_id"),
+  wbs: text("wbs"),
+  name: text("name").notNull(),
+  description: text("description"),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  duration: text("duration"),
+  durationDays: integer("duration_days"),
+  outlineLevel: integer("outline_level").default(1),
+  parentTaskId: integer("parent_task_id"),
+  isSummary: boolean("is_summary").default(false),
+  isMilestone: boolean("is_milestone").default(false),
+  predecessors: text("predecessors"),
+  notes: text("notes"),
+  workHours: numeric("work_hours"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("project_template_items_template_idx").on(table.templateId),
+]);
+
+export const insertProjectTemplateSchema = createInsertSchema(projectTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const insertProjectTemplateItemSchema = createInsertSchema(projectTemplateItems).omit({
+  id: true,
+  createdAt: true,
+});
+export type ProjectTemplate = typeof projectTemplates.$inferSelect;
+export type InsertProjectTemplate = z.infer<typeof insertProjectTemplateSchema>;
+export type ProjectTemplateItem = typeof projectTemplateItems.$inferSelect;
+export type InsertProjectTemplateItem = z.infer<typeof insertProjectTemplateItemSchema>;
