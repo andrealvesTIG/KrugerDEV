@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useSearch } from "wouter";
-import { Camera, Share2, Linkedin, Twitter, Copy, CheckCircle, Loader2, RotateCcw, ArrowRight, FileText, ImagePlus, SwitchCamera, VideoOff } from "lucide-react";
+import { Camera, Share2, Linkedin, Twitter, Copy, CheckCircle, Loader2, RotateCcw, ArrowRight, FileText, ImagePlus, SwitchCamera, VideoOff, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -259,6 +259,25 @@ export default function UnCon2026SelfiePage() {
       toast({ title: "Post text copied! Paste it into your LinkedIn post." });
     } catch {
       toast({ title: "Could not copy text", variant: "destructive" });
+    }
+  };
+
+  const handleDownloadCard = async () => {
+    if (!shareToken) return;
+    try {
+      const ogUrl = `${window.location.origin}/api/uncon2026/selfie/${shareToken}/og.png`;
+      const response = await fetch(ogUrl);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `PMO-unCON-2026-${name.trim().replace(/\s+/g, "-")}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Download failed", variant: "destructive" });
     }
   };
 
@@ -591,9 +610,14 @@ export default function UnCon2026SelfiePage() {
                 <h3 className="font-bold text-white text-sm">Share your experience</h3>
               </div>
               <div className="space-y-2">
-                <button onClick={handleLinkedIn} className="w-full h-10 rounded-xl text-white font-medium text-sm flex items-center justify-start gap-3 px-4 border-0 cursor-pointer transition-all hover:brightness-110" style={{ background: "#0077B5" }}>
-                  <Linkedin className="h-4 w-4" /> Share on LinkedIn
-                </button>
+                <div className="flex gap-2">
+                  <button onClick={handleLinkedIn} className="flex-1 h-10 rounded-xl text-white font-medium text-sm flex items-center justify-start gap-3 px-4 border-0 cursor-pointer transition-all hover:brightness-110" style={{ background: "#0077B5" }}>
+                    <Linkedin className="h-4 w-4" /> Share on LinkedIn
+                  </button>
+                  <button onClick={handleDownloadCard} className="h-10 w-10 rounded-xl text-white flex items-center justify-center border-0 cursor-pointer transition-all hover:brightness-110 shrink-0" style={{ background: "#0077B5" }} title="Download selfie card">
+                    <Download className="h-4 w-4" />
+                  </button>
+                </div>
                 <button onClick={handleTwitter} className="w-full h-10 rounded-xl text-white font-medium text-sm flex items-center justify-start gap-3 px-4 border-0 cursor-pointer transition-all hover:brightness-110" style={{ background: "#1A1A1A" }}>
                   <Twitter className="h-4 w-4" /> Share on X
                 </button>
