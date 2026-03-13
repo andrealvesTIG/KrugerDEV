@@ -238,13 +238,15 @@ async function parseXmlMspdi(xmlContent: string): Promise<ParsedMppTask[]> {
       const taskName = task.Name || task.Title || 'Unnamed Task';
       if (!taskName) continue;
       
-      // Parse duration string (e.g., "PT40H0M0S" for 40 hours)
       let durationDays: number | undefined;
       let durationStr = task.Duration || '';
       if (durationStr.startsWith('PT')) {
         const hoursMatch = durationStr.match(/(\d+)H/);
-        if (hoursMatch) {
-          durationDays = Math.ceil(parseInt(hoursMatch[1]) / 8);
+        const minsMatch = durationStr.match(/(\d+)M/);
+        const totalHours = (hoursMatch ? parseInt(hoursMatch[1]) : 0) +
+                           (minsMatch ? parseInt(minsMatch[1]) / 60 : 0);
+        if (totalHours > 0) {
+          durationDays = totalHours / 8;
         }
       }
 
@@ -376,12 +378,21 @@ function parseCsv(csvContent: string): Array<{
     
     if (!taskName) return;
     
-    // Parse duration (e.g., "5 days" or "5d")
     let durationDays: number | undefined;
     const durationStr = durationCol ? row[durationCol] || '' : '';
-    const daysMatch = durationStr.match(/(\d+)/);
-    if (daysMatch) {
-      durationDays = parseInt(daysMatch[1]);
+    const hoursExcelMatch = durationStr.match(/(\d+(?:\.\d+)?)\s*(?:hours?|h)/i);
+    const daysExcelMatch = durationStr.match(/(\d+(?:\.\d+)?)\s*(?:days?|d)/i);
+    if (hoursExcelMatch && daysExcelMatch) {
+      durationDays = parseFloat(daysExcelMatch[1]) + parseFloat(hoursExcelMatch[1]) / 8;
+    } else if (hoursExcelMatch) {
+      durationDays = parseFloat(hoursExcelMatch[1]) / 8;
+    } else if (daysExcelMatch) {
+      durationDays = parseFloat(daysExcelMatch[1]);
+    } else {
+      const numMatch = durationStr.match(/(\d+(?:\.\d+)?)/);
+      if (numMatch) {
+        durationDays = parseFloat(numMatch[1]);
+      }
     }
     
     // Parse percent complete
@@ -6465,10 +6476,9 @@ export async function registerRoutes(
         // Use msdyn_outlinelevel if available, otherwise calculate from WBS
         const outlineLevel = dvTask.msdyn_outlinelevel || (wbsId ? wbsId.split('.').length : 1);
         
-        // Calculate duration - msdyn_duration is in minutes
         let durationDays: number;
         if (dvTask.msdyn_duration !== null && dvTask.msdyn_duration !== undefined) {
-          durationDays = Math.round(dvTask.msdyn_duration / (60 * 24));
+          durationDays = dvTask.msdyn_duration / (60 * 8);
         } else {
           durationDays = calcDurationDays(taskStartDate, taskEndDate);
         }
@@ -7169,7 +7179,7 @@ export async function registerRoutes(
           const outlineLevel = dvTask.msdyn_outlinelevel || (wbsId ? wbsId.split('.').length : 1);
           let durationDays: number;
           if (dvTask.msdyn_duration !== null && dvTask.msdyn_duration !== undefined) {
-            durationDays = Math.round(dvTask.msdyn_duration / (60 * 24));
+            durationDays = dvTask.msdyn_duration / (60 * 8);
           } else {
             durationDays = calcDurationDays(taskStartDate, taskEndDate);
           }
@@ -9164,7 +9174,7 @@ export async function registerRoutes(
         const wbs = (row['WBS'] || '').trim();
 
         const isMilestone = type === 'Milestone';
-        const durationDays = durationStr ? parseInt(durationStr, 10) : undefined;
+        const durationDays = durationStr ? parseFloat(durationStr) : undefined;
         const progress = progressStr ? parseInt(progressStr, 10) : undefined;
 
         const validStatuses = ['Not Started', 'In Progress', 'On Hold', 'Completed', 'Cancelled'];

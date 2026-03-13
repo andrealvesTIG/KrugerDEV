@@ -5,7 +5,7 @@ import { DndContext, DragEndEvent, closestCorners, useSensor, useSensors, Pointe
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { format, addDays, differenceInDays, parseISO, isAfter, isBefore, startOfDay, eachDayOfInterval, startOfMonth, endOfMonth } from "date-fns";
-import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, calculateStartDateFromEndAndDuration } from "@/lib/workingDays";
+import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, calculateStartDateFromEndAndDuration, parseDurationInput, formatDuration } from "@/lib/workingDays";
 import { calculateCPM, type CPMResult } from "@/lib/cpm";
 import { useUpdateTask, useCreateTask, useDeleteTask, useAddTaskDependency, useRemoveTaskDependency, useReorderTask, useProjectDependencies, useBulkUpdateTasks, useBulkDeleteTasks } from "@/hooks/use-tasks";
 import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useProjectTaskAssignments } from "@/hooks/use-resources";
@@ -784,7 +784,9 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
     }
     // Auto-calculate end date when duration changes (working days)
     else if (field === 'durationDays') {
-      const duration = Math.max(0, (value as number) ?? 0);
+      const parsed = Number(value);
+      if (value === null || value === undefined || isNaN(parsed) || parsed < 0) return;
+      const duration = parsed;
       updates.durationDays = duration;
       
       if (duration === 0) {
@@ -1188,11 +1190,13 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                 : (task.durationDays ?? null));
               return (
                 <InlineEditCell
-                  value={calculatedDuration}
-                  displayValue={calculatedDuration != null ? `${calculatedDuration}d` : '—'}
-                  editType="number"
-                  min={0}
-                  onSave={(val) => handleInlineUpdate('durationDays', val as number | null, calculatedDuration)}
+                  value={calculatedDuration != null ? formatDuration(calculatedDuration) : ''}
+                  displayValue={calculatedDuration != null ? formatDuration(calculatedDuration) : '—'}
+                  editType="text"
+                  onSave={(val) => {
+                    const parsed = parseDurationInput(String(val ?? ''));
+                    handleInlineUpdate('durationDays', parsed, calculatedDuration);
+                  }}
                   disabled={isSummaryTask || isReadOnly}
                 />
               );
@@ -4200,7 +4204,7 @@ function ProjectGanttView({
                       if (colId === 'durationDays') {
                         return (
                           <div key={colId} style={{ width: `${colWidth}px` }} className="flex-shrink-0 border-r px-1 flex items-center">
-                            <span className="text-[11px]">{projectSummaryTask.durationDays != null ? `${projectSummaryTask.durationDays}d` : '—'}</span>
+                            <span className="text-[11px]">{projectSummaryTask.durationDays != null ? formatDuration(projectSummaryTask.durationDays) : '—'}</span>
                           </div>
                         );
                       }

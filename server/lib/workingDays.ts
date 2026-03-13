@@ -88,10 +88,12 @@ export function ensureWorkingDay(date: Date): Date {
 
 export function calculateEndDate(startDate: Date, durationDays: number): Date {
   if (durationDays <= 0) return new Date(startDate);
-  if (durationDays === 1) return ensureWorkingDay(new Date(startDate));
+  const wholeDays = Math.floor(durationDays);
+  if (wholeDays === 0) return ensureWorkingDay(new Date(startDate));
+  if (wholeDays === 1 && durationDays === 1) return ensureWorkingDay(new Date(startDate));
 
   const start = ensureWorkingDay(new Date(startDate));
-  return addWorkingDays(start, durationDays - 1);
+  return addWorkingDays(start, wholeDays - 1);
 }
 
 export function calculateDuration(startDate: Date, endDate: Date): number {

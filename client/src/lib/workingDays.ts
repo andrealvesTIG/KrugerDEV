@@ -1,5 +1,7 @@
 import { parseISO, addDays, differenceInCalendarDays, isWeekend, format } from "date-fns";
 
+export const HOURS_PER_DAY = 8;
+
 export function isWorkingDay(date: Date): boolean {
   return !isWeekend(date);
 }
@@ -77,11 +79,15 @@ export function calculateEndDateFromWorkingDays(startDateStr: string, durationWo
   while (!isWorkingDay(current)) {
     current = addDays(current, 1);
   }
-  if (durationWorkingDays === 1) {
+
+  const wholeDays = Math.floor(durationWorkingDays);
+  const effectiveDays = wholeDays > 0 ? wholeDays : 1;
+
+  if (effectiveDays === 1 && durationWorkingDays <= 1) {
     return format(current, 'yyyy-MM-dd');
   }
 
-  return format(addWorkingDays(current, durationWorkingDays - 1), 'yyyy-MM-dd');
+  return format(addWorkingDays(current, effectiveDays - 1), 'yyyy-MM-dd');
 }
 
 export function calculateDurationInWorkingDays(startDateStr: string, endDateStr: string): number {
@@ -102,9 +108,66 @@ export function calculateStartDateFromEndAndDuration(endDateStr: string, duratio
     current = addDays(current, -1);
   }
 
-  if (durationWorkingDays === 1) {
+  const wholeDays = Math.floor(durationWorkingDays);
+  const effectiveDays = wholeDays > 0 ? wholeDays : 1;
+
+  if (effectiveDays === 1) {
     return format(current, 'yyyy-MM-dd');
   }
 
-  return format(addWorkingDays(current, -(durationWorkingDays - 1)), 'yyyy-MM-dd');
+  return format(addWorkingDays(current, -(effectiveDays - 1)), 'yyyy-MM-dd');
+}
+
+export function hoursToFractionalDays(hours: number): number {
+  return hours / HOURS_PER_DAY;
+}
+
+export function fractionalDaysToHours(days: number): number {
+  return days * HOURS_PER_DAY;
+}
+
+export function formatDuration(durationDays: number | null | undefined): string {
+  if (durationDays == null || durationDays < 0) return "—";
+  if (durationDays === 0) return "0d";
+
+  const wholeDays = Math.floor(durationDays);
+  const fractionalPart = durationDays - wholeDays;
+  const remainingHours = Math.round(fractionalPart * HOURS_PER_DAY);
+
+  if (wholeDays === 0 && remainingHours > 0) {
+    return `${remainingHours}h`;
+  }
+  if (remainingHours === 0) {
+    return `${wholeDays}d`;
+  }
+  return `${wholeDays}d ${remainingHours}h`;
+}
+
+export function parseDurationInput(input: string): number | null {
+  if (!input || !input.trim()) return null;
+  const trimmed = input.trim().toLowerCase();
+
+  const daysHoursMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*d(?:ays?)?\s+(\d+(?:\.\d+)?)\s*h(?:ours?)?$/);
+  if (daysHoursMatch) {
+    const days = parseFloat(daysHoursMatch[1]);
+    const hours = parseFloat(daysHoursMatch[2]);
+    return days + hours / HOURS_PER_DAY;
+  }
+
+  const hoursMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*h(?:ours?)?$/);
+  if (hoursMatch) {
+    return parseFloat(hoursMatch[1]) / HOURS_PER_DAY;
+  }
+
+  const daysMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*d(?:ays?)?$/);
+  if (daysMatch) {
+    return parseFloat(daysMatch[1]);
+  }
+
+  const numericMatch = trimmed.match(/^(\d+(?:\.\d+)?)$/);
+  if (numericMatch) {
+    return parseFloat(numericMatch[1]);
+  }
+
+  return null;
 }

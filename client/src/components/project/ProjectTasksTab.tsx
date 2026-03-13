@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, lazy, Suspense } from "react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, parseISO, differenceInDays } from "date-fns";
-import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays } from "@/lib/workingDays";
+import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, parseDurationInput, formatDuration } from "@/lib/workingDays";
 import { computeWbsValues } from "@/lib/taskWbs";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png";
@@ -253,7 +253,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const [activeDialogTab, setActiveDialogTab] = useState<string>("details");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPlannerEditDialog, setShowPlannerEditDialog] = useState(false);
-  const [durationInput, setDurationInput] = useState<string>("1");
+  const [durationInput, setDurationInput] = useState<string>("1d");
   const [isMilestone, setIsMilestone] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -342,12 +342,10 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const startDate = form.watch("startDate");
   const endDate = form.watch("endDate");
   
-  // Compute numeric duration from input (supports empty string during typing)
-  const durationDays = durationInput === "" ? null : parseInt(durationInput, 10);
+  const durationDays = parseDurationInput(durationInput);
   
-  // Sync endDate when startDate or durationDays changes (working days)
   useEffect(() => {
-    if (startDate && durationDays !== null && !isNaN(durationDays) && durationDays >= 0) {
+    if (startDate && durationDays !== null && durationDays >= 0) {
       if (durationDays === 0) {
         form.setValue("endDate", startDate);
         setIsMilestone(true);
@@ -360,32 +358,27 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     }
   }, [startDate, durationDays, form]);
   
-  // Handle duration input change - allow empty during typing
   const handleDurationInputChange = (value: string) => {
     setDurationInput(value);
   };
   
-  // Handle duration blur - persist valid numeric value
   const handleDurationBlur = () => {
-    const num = parseInt(durationInput, 10);
-    if (durationInput === "" || isNaN(num) || num < 0) {
-      // Reset to 1 if invalid
-      setDurationInput("1");
-    } else if (num > 365) {
-      setDurationInput("365");
+    const parsed = parseDurationInput(durationInput);
+    if (parsed === null || parsed < 0) {
+      setDurationInput("1d");
+    } else if (parsed > 365) {
+      setDurationInput("365d");
+    } else {
+      setDurationInput(formatDuration(parsed));
     }
   };
   
-  // Handle end date change - recalculate duration using working days
   const handleEndDateChange = (newEndDate: string) => {
     form.setValue("endDate", newEndDate);
     if (startDate && newEndDate) {
-      const start = parseISO(startDate);
-      const end = parseISO(newEndDate);
-      const diff = differenceInDays(end, start);
-      if (diff >= 0) {
-        const newDuration = calculateDurationInWorkingDays(startDate, newEndDate);
-        setDurationInput(String(Math.max(1, newDuration)));
+      const newDuration = calculateDurationInWorkingDays(startDate, newEndDate);
+      if (newDuration >= 0) {
+        setDurationInput(formatDuration(Math.max(1, newDuration)));
         form.setValue("durationDays", Math.max(1, newDuration));
       }
     }
@@ -397,7 +390,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     const taskDuration = task.durationDays ?? (task.startDate && task.endDate 
       ? calculateDurationInWorkingDays(task.startDate, task.endDate) 
       : 1);
-    setDurationInput(String(taskDuration));
+    setDurationInput(formatDuration(taskDuration));
     setIsMilestone(task.isMilestone || false);
     form.reset({
       projectId: task.projectId,
@@ -433,7 +426,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
 
   const openCreateDialog = () => {
     setEditingTask(null);
-    setDurationInput("1");
+    setDurationInput("1d");
     setIsMilestone(false);
     setSelectedResourceIds([]);
     lastInitializedTaskId.current = null; // Reset to allow re-initialization
@@ -1016,11 +1009,10 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                         <Input type="date" {...form.register("startDate")} data-testid="input-task-start" />
                       </div>
                       <div className="space-y-2">
-                        <Label>Duration (days)</Label>
+                        <Label>Duration</Label>
                         <Input 
-                          type="number" 
-                          min="0" 
-                          max="365" 
+                          type="text" 
+                          placeholder="e.g. 2d, 4h, 1d 4h"
                           value={durationInput}
                           onChange={(e) => handleDurationInputChange(e.target.value)}
                           onBlur={handleDurationBlur}

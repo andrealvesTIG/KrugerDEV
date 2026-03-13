@@ -429,7 +429,7 @@ export const tasks = pgTable("tasks", {
   baselineEndDate: date("baseline_end_date"), // Original planned end
   actualStartDate: date("actual_start_date"), // When work actually started
   actualEndDate: date("actual_end_date"), // When work actually finished
-  durationDays: integer("duration_days"), // Duration in days - auto-calculates endDate if set
+  durationDays: numeric("duration_days"), // Duration in days (supports fractional, e.g. 0.5 = 4h)
   estimatedHours: numeric("estimated_hours"), // Estimated effort in hours
   actualHours: numeric("actual_hours"), // Actual hours worked
   remainingHours: numeric("remaining_hours"), // Remaining effort
@@ -1269,7 +1269,7 @@ export const mppImportTasks = pgTable("mpp_import_tasks", {
   startDate: date("start_date"),
   finishDate: date("finish_date"),
   duration: text("duration"), // Duration as text (e.g., "5 days")
-  durationDays: integer("duration_days"), // Duration in days
+  durationDays: numeric("duration_days"), // Duration in days (supports fractional)
   percentComplete: integer("percent_complete").default(0),
   outlineLevel: integer("outline_level").default(1), // Task hierarchy level
   parentTaskId: integer("parent_task_id"), // Parent task reference
@@ -2759,7 +2759,7 @@ export const projectTemplateItems = pgTable("project_template_items", {
   startDate: date("start_date"),
   endDate: date("end_date"),
   duration: text("duration"),
-  durationDays: integer("duration_days"),
+  durationDays: numeric("duration_days"),
   outlineLevel: integer("outline_level").default(1),
   parentTaskId: integer("parent_task_id"),
   isSummary: boolean("is_summary").default(false),
