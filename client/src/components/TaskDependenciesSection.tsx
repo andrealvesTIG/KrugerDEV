@@ -225,25 +225,27 @@ export function TaskDependenciesSection({
                       ))}
                     </SelectContent>
                   </Select>
-                  <Input
-                    type="number"
-                    className="h-7 w-[52px] text-xs text-center px-1"
-                    title="Lag days"
-                    key={`lag-${dep.id}-${dep.lagDays}`}
-                    defaultValue={dep.lagDays || 0}
-                    onBlur={(e) => {
-                      const newLag = parseInt(e.target.value) || 0;
-                      if (newLag !== (dep.lagDays || 0)) {
-                        handleUpdateLag(dep.dependsOnTaskId, newLag);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        (e.target as HTMLInputElement).blur();
-                      }
-                    }}
-                  />
-                  <span className="text-xs text-muted-foreground">d</span>
+                  <div className="relative h-7 w-[52px]">
+                    <Input
+                      type="number"
+                      className="h-7 w-full text-xs text-center pl-1 pr-4"
+                      title="Lag days"
+                      key={`lag-${dep.id}-${dep.lagDays}`}
+                      defaultValue={dep.lagDays || 0}
+                      onBlur={(e) => {
+                        const newLag = parseInt(e.target.value) || 0;
+                        if (newLag !== (dep.lagDays || 0)) {
+                          handleUpdateLag(dep.dependsOnTaskId, newLag);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          (e.target as HTMLInputElement).blur();
+                        }
+                      }}
+                    />
+                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">d</span>
+                  </div>
                   <Button
                     type="button"
                     variant="ghost"
@@ -291,16 +293,18 @@ export function TaskDependenciesSection({
               ))}
             </SelectContent>
           </Select>
-          <Input
-            type="number"
-            className="w-[52px] h-9 text-xs text-center px-1"
-            title={orgDefaults.enforceDefaults ? "Locked by organization settings" : "Lag days for new dependency"}
-            placeholder="Lag"
-            value={lagDays}
-            onChange={(e) => setLagDays(parseInt(e.target.value) || 0)}
-            disabled={orgDefaults.enforceDefaults}
-          />
-          <span className="text-xs text-muted-foreground">d</span>
+          <div className="relative w-[52px]">
+            <Input
+              type="number"
+              className="w-full h-9 text-xs text-center pl-1 pr-4"
+              title={orgDefaults.enforceDefaults ? "Locked by organization settings" : "Lag days for new dependency"}
+              placeholder="Lag"
+              value={lagDays}
+              onChange={(e) => setLagDays(parseInt(e.target.value) || 0)}
+              disabled={orgDefaults.enforceDefaults}
+            />
+            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">d</span>
+          </div>
         </div>
         <div
           ref={listRef}
