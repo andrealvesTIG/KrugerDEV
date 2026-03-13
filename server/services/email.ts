@@ -1255,3 +1255,138 @@ export async function sendManagerWeeklyDigestEmail(
 
   return sendEmail({ to, subject, text, html });
 }
+
+export async function sendUnconSelfieThankYouEmail(email: string, userName: string): Promise<boolean> {
+  const subject = `Thank you for visiting FridayReport.AI at PMO unCON 2026, ${userName}!`;
+
+  const text = `Hi ${userName},
+
+Thank you so much for stopping by the FridayReport.AI booth and taking a selfie at PMO unCON North America 2026! It was wonderful meeting you, and we truly appreciate your enthusiasm and interest.
+
+We hope you're enjoying the conference and making great connections. Here at FridayReport.AI, we're on a mission to make project portfolio management simpler, smarter, and more impactful for PMO leaders like you.
+
+Here's what FridayReport.AI can do for you:
+
+Portfolio & Project Management - Get full visibility across all your projects and portfolios with real-time status tracking, health indicators, and executive dashboards.
+
+Resource Management & Capacity Planning - Track team availability, workload, and utilization with dedicated views for capacity planning and workload balancing.
+
+Risk & Issue Management - Identify, track, and mitigate risks and issues with our interactive PMO Radar visualization, AI-powered suggestions, and comprehensive reporting.
+
+AI-Powered Intelligence - Leverage AI to generate tasks, risks, issues, and milestones. Smart project matching prevents duplication, and context-aware generation saves hours of manual work.
+
+Timesheet & Compliance - Full timesheet management with approval workflows, automated reminders, escalation policies, compliance reporting, and audit trails.
+
+Gantt Charts & Scheduling - Interactive Gantt charts with drag-and-drop scheduling, critical path analysis, dependency management, undo/redo, and PNG export.
+
+Microsoft Integration - Seamlessly import from Microsoft Project (MPP/XML), sync with Microsoft Planner, and connect to Dynamics 365.
+
+Training & Certification (Friday Academy) - Built-in training modules organized by role and PMO subject area, complete with quizzes, progress tracking, and branded PDF certificates.
+
+Multi-Tenant Organizations - Role-based access control, team management, organization-level settings, and secure multi-tenant architecture.
+
+We'd love to show you how FridayReport.AI can transform the way your PMO operates. Visit us at https://fridayreport.ai to get started - it's free to try!
+
+Thank you again for being part of PMO unCON 2026. We look forward to staying in touch!
+
+Warm regards,
+The FridayReport.AI Team
+info@fridayreport.ai
+https://fridayreport.ai`;
+
+  const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; background-color: #0F172A; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #17255A 0%, #0F1B3D 50%, #0A1128 100%); border-top: 4px solid #FF751F;">
+    
+    <div style="text-align: center; padding: 30px 20px 15px;">
+      <img src="https://fridayreport.ai/frai-logo-white.png" alt="FridayReport.AI" style="height: 36px; display: inline-block;" onerror="this.style.display='none'">
+    </div>
+
+    <div style="padding: 0 30px 30px;">
+      <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 30px; margin-bottom: 20px;">
+        <h1 style="color: #FF751F; font-size: 22px; margin: 0 0 8px; text-align: center;">Thank You, ${userName}!</h1>
+        <p style="color: #D4A84A; font-size: 13px; text-align: center; margin: 0 0 20px; letter-spacing: 2px; font-weight: 700;">PMO unCON NORTH AMERICA 2026</p>
+        
+        <p style="color: #e2e8f0; font-size: 15px; line-height: 1.7; margin: 0 0 15px;">
+          Thank you so much for stopping by the <strong style="color: #FF751F;">FridayReport.AI</strong> booth and taking a selfie at PMO unCON 2026! It was wonderful meeting you, and we truly appreciate your enthusiasm and interest.
+        </p>
+        <p style="color: #e2e8f0; font-size: 15px; line-height: 1.7; margin: 0;">
+          We hope you're enjoying the conference and making great connections. Here at FridayReport.AI, we're on a mission to make project portfolio management <strong style="color: white;">simpler, smarter, and more impactful</strong> for PMO leaders like you.
+        </p>
+      </div>
+
+      <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 30px; margin-bottom: 20px;">
+        <h2 style="color: white; font-size: 18px; margin: 0 0 20px; text-align: center;">What FridayReport.AI Can Do for You</h2>
+
+        <div style="margin-bottom: 18px; padding-left: 10px; border-left: 3px solid #FF751F;">
+          <h3 style="color: #FF751F; font-size: 14px; margin: 0 0 4px;">Portfolio & Project Management</h3>
+          <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; margin: 0;">Full visibility across all your projects and portfolios with real-time status tracking, health indicators, and executive dashboards.</p>
+        </div>
+
+        <div style="margin-bottom: 18px; padding-left: 10px; border-left: 3px solid #FF751F;">
+          <h3 style="color: #FF751F; font-size: 14px; margin: 0 0 4px;">Resource Management & Capacity Planning</h3>
+          <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; margin: 0;">Track team availability, workload, and utilization with dedicated views for capacity planning and workload balancing.</p>
+        </div>
+
+        <div style="margin-bottom: 18px; padding-left: 10px; border-left: 3px solid #FF751F;">
+          <h3 style="color: #FF751F; font-size: 14px; margin: 0 0 4px;">Risk & Issue Management</h3>
+          <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; margin: 0;">Interactive PMO Radar visualization, AI-powered suggestions, and comprehensive reporting to identify, track, and mitigate risks.</p>
+        </div>
+
+        <div style="margin-bottom: 18px; padding-left: 10px; border-left: 3px solid #FF751F;">
+          <h3 style="color: #FF751F; font-size: 14px; margin: 0 0 4px;">AI-Powered Intelligence</h3>
+          <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; margin: 0;">Leverage AI to generate tasks, risks, issues, and milestones. Smart project matching prevents duplication and saves hours of manual work.</p>
+        </div>
+
+        <div style="margin-bottom: 18px; padding-left: 10px; border-left: 3px solid #FF751F;">
+          <h3 style="color: #FF751F; font-size: 14px; margin: 0 0 4px;">Timesheet & Compliance</h3>
+          <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; margin: 0;">Full timesheet management with approval workflows, automated reminders, escalation policies, compliance reporting, and audit trails.</p>
+        </div>
+
+        <div style="margin-bottom: 18px; padding-left: 10px; border-left: 3px solid #FF751F;">
+          <h3 style="color: #FF751F; font-size: 14px; margin: 0 0 4px;">Gantt Charts & Scheduling</h3>
+          <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; margin: 0;">Interactive Gantt charts with drag-and-drop scheduling, critical path analysis, dependency management, undo/redo, and PNG export.</p>
+        </div>
+
+        <div style="margin-bottom: 18px; padding-left: 10px; border-left: 3px solid #FF751F;">
+          <h3 style="color: #FF751F; font-size: 14px; margin: 0 0 4px;">Microsoft Integration</h3>
+          <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; margin: 0;">Seamlessly import from Microsoft Project (MPP/XML), sync with Microsoft Planner, and connect to Dynamics 365.</p>
+        </div>
+
+        <div style="margin-bottom: 18px; padding-left: 10px; border-left: 3px solid #FF751F;">
+          <h3 style="color: #FF751F; font-size: 14px; margin: 0 0 4px;">Training & Certification (Friday Academy)</h3>
+          <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; margin: 0;">Built-in training modules organized by role and PMO subject area, with quizzes, progress tracking, and branded PDF certificates.</p>
+        </div>
+
+        <div style="padding-left: 10px; border-left: 3px solid #FF751F;">
+          <h3 style="color: #FF751F; font-size: 14px; margin: 0 0 4px;">Multi-Tenant Organizations</h3>
+          <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; margin: 0;">Role-based access control, team management, organization-level settings, and secure multi-tenant architecture.</p>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin: 25px 0;">
+        <a href="https://fridayreport.ai" style="background: linear-gradient(135deg, #FF751F 0%, #e85d04 100%); color: white; padding: 14px 40px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 16px; display: inline-block; box-shadow: 0 4px 15px rgba(255,117,31,0.3);">Get Started Free</a>
+      </div>
+
+      <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 20px; text-align: center;">
+        <p style="color: #e2e8f0; font-size: 14px; line-height: 1.7; margin: 0 0 10px;">
+          We'd love to show you how FridayReport.AI can transform the way your PMO operates. Thank you again for being part of PMO unCON 2026!
+        </p>
+        <p style="color: #94a3b8; font-size: 13px; margin: 0;">We look forward to staying in touch.</p>
+      </div>
+
+      <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1);">
+        <p style="color: #94a3b8; font-size: 12px; margin: 0 0 5px;">Warm regards,</p>
+        <p style="color: white; font-size: 14px; font-weight: 600; margin: 0 0 5px;">The FridayReport.AI Team</p>
+        <p style="margin: 0;"><a href="mailto:info@fridayreport.ai" style="color: #FF751F; font-size: 12px; text-decoration: none;">info@fridayreport.ai</a></p>
+        <p style="margin: 8px 0 0;"><a href="https://fridayreport.ai" style="color: #FF751F; font-size: 12px; text-decoration: none;">fridayreport.ai</a></p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  return sendEmail({ to: email, subject, text, html, cc: ["info@fridayreport.ai"] });
+}

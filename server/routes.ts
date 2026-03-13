@@ -2227,6 +2227,13 @@ export async function registerRoutes(
       }).returning();
 
       res.json({ success: true, shareToken: lead.shareToken });
+
+      try {
+        const { sendUnconSelfieThankYouEmail } = await import("./services/email");
+        await sendUnconSelfieThankYouEmail(email.trim(), userName.trim());
+      } catch (emailErr) {
+        console.error('Failed to send UnCon selfie thank-you email:', emailErr);
+      }
     } catch (err) {
       console.error('Selfie submission error:', err);
       const { status, message } = classifyError(err);
