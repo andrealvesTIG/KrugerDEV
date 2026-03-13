@@ -246,8 +246,9 @@ export default function UnCon2026SelfiePage() {
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
+                    capture="user"
                     onChange={handleCapture}
-                    className="hidden"
+                    style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden' }}
                   />
                 </label>
               </div>
