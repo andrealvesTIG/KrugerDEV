@@ -232,12 +232,12 @@ export default function UnCon2026SelfiePage() {
 
   const handleLinkedIn = () => {
     const url = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`;
-    window.open(url, "_blank", "width=600,height=500");
+    window.location.href = url;
   };
 
   const handleTwitter = () => {
     const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(twitterShareText)}&url=${encodeURIComponent(shareUrl)}`;
-    window.open(url, "_blank", "width=600,height=500");
+    window.location.href = url;
   };
 
   const handleCopyLink = async () => {
