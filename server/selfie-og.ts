@@ -151,7 +151,7 @@ export async function generateSelfieOgImage(data: SelfieOgData): Promise<Buffer>
 
   <rect x="140" y="910" width="${S - 280}" height="1" fill="url(#dividerLine)" opacity="0.3" />
 
-  <text x="${cx}" y="950" text-anchor="middle" font-size="14" fill="#9ca3af" font-family="system-ui,sans-serif" opacity="0.5">Gold Sponsor</text>
+  <text x="${cx}" y="950" text-anchor="middle" font-size="18" font-weight="700" fill="#D4A84A" font-family="system-ui,sans-serif" letter-spacing="3">Gold Sponsor</text>
 
   ${fridayElement}
 </svg>`;
