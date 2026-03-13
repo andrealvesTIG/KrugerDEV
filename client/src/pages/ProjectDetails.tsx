@@ -3109,9 +3109,9 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
               <CardDescription className="text-xs">Click any field to edit</CardDescription>
             </div>
           </div>
-          <div className="flex items-end justify-between gap-4 flex-wrap">
-            <div className="flex-1 min-w-[200px] max-w-[400px] overflow-hidden">
-              <Label className="text-xs text-muted-foreground">Project Name</Label>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3">
+            <div className="col-span-2 overflow-hidden">
+              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Project Name</Label>
               {editingField === 'name' ? (
                 <Input
                   value={editValues.name}
@@ -3119,19 +3119,18 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
                   onBlur={() => handleFieldBlur('name')}
                   onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('name')}
                   autoFocus
-                  className="h-9 text-base font-semibold mt-1"
+                  className="h-8 text-sm font-semibold"
                   data-testid="input-project-name"
                 />
               ) : (
-                <p className="text-base font-semibold cursor-pointer hover:bg-muted/50 rounded px-1 py-1 -mx-1 transition-colors mt-1 truncate" onClick={() => setEditingField('name')} title={project.name} data-testid="text-project-name">
+                <p className="text-sm font-semibold cursor-pointer hover:bg-muted/50 rounded px-2 py-1.5 -mx-1 transition-colors h-8 flex items-center truncate" onClick={() => setEditingField('name')} title={project.name} data-testid="text-project-name">
                   {project.name}
                 </p>
               )}
             </div>
-            <div className="flex items-end gap-2">
             <div>
-              <Label className="text-xs text-muted-foreground">Health Status</Label>
-              <div className="flex rounded-md border border-border bg-muted/30 p-0.5 mt-1" data-testid="toggle-project-health">
+              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Health Status</Label>
+              <div className="flex flex-wrap rounded-md border border-border bg-muted/30 p-0.5 min-h-[2rem] items-center" data-testid="toggle-project-health">
                 {[
                   { value: 'Green', bg: 'bg-emerald-500', bgLight: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300' },
                   { value: 'Yellow', bg: 'bg-amber-500', bgLight: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300' },
@@ -3166,12 +3165,12 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
               </button>
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground">Billable Status</Label>
+              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Billable Status</Label>
               <Select 
                 value={project.billableStatus || "N/A"} 
                 onValueChange={(v) => handleSelectChange('billableStatus', v)}
               >
-                <SelectTrigger className="mt-1" data-testid="select-billable-status">
+                <SelectTrigger className="h-8 text-sm" data-testid="select-billable-status">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -3189,7 +3188,6 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
                   <SelectItem value="Invoiced"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500" />Invoiced</span></SelectItem>
                 </SelectContent>
               </Select>
-            </div>
             </div>
           </div>
         </div>
@@ -3237,7 +3235,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
               {editingField === 'budget' ? (
                 <Input type="number" value={editValues.budget} onChange={(e) => setEditValues(prev => ({ ...prev, budget: e.target.value }))} onBlur={() => handleFieldBlur('budget')} onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('budget')} autoFocus className="h-8 text-sm" data-testid="input-project-budget" />
               ) : (
-                <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors" onClick={() => setEditingField('budget')} data-testid="text-project-budget">${Number(project.budget).toLocaleString()}</p>
+                <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-2 py-1.5 -mx-1 transition-colors h-8 flex items-center" onClick={() => setEditingField('budget')} data-testid="text-project-budget">${Number(project.budget).toLocaleString()}</p>
               )}
             </div>
             <div>
@@ -3273,33 +3271,9 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
               {editingField === 'completionPercentage' ? (
                 <Input type="number" min="0" max="100" value={editValues.completionPercentage} onChange={(e) => setEditValues(prev => ({ ...prev, completionPercentage: Number(e.target.value) }))} onBlur={() => handleFieldBlur('completionPercentage')} onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('completionPercentage')} autoFocus className="h-8 text-sm" data-testid="input-project-completion" />
               ) : (
-                <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors" onClick={() => setEditingField('completionPercentage')} data-testid="text-project-completion">{displayCompletion}%</p>
+                <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-2 py-1.5 -mx-1 transition-colors h-8 flex items-center" onClick={() => setEditingField('completionPercentage')} data-testid="text-project-completion">{displayCompletion}%</p>
               )}
             </div>
-            {summaryRiskBadge && (
-              <div>
-                <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">AI Risk Score</Label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className={cn(
-                      "flex items-center gap-1.5 mt-1 px-2 py-1 rounded-md cursor-help",
-                      summaryRiskBadge.riskScore <= 25 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
-                      summaryRiskBadge.riskScore <= 50 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
-                      summaryRiskBadge.riskScore <= 75 ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" :
-                      "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
-                    )} data-testid="summary-risk-score-badge">
-                      <Shield className="h-3.5 w-3.5" />
-                      <span className="text-sm font-semibold">{summaryRiskBadge.riskScore}</span>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-xs">
-                    <p className="text-xs">{summaryRiskBadge.summary}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-            )}
-          </div>
-          <div className="grid grid-cols-3 gap-x-4 gap-y-3">
             <div>
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Start</Label>
               <Popover>
@@ -3346,6 +3320,28 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
                 className="h-8 text-sm"
               />
             </div>
+            {summaryRiskBadge && (
+              <div>
+                <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">AI Risk Score</Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className={cn(
+                      "flex items-center gap-1.5 px-2 py-1 rounded-md cursor-help h-8",
+                      summaryRiskBadge.riskScore <= 25 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                      summaryRiskBadge.riskScore <= 50 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                      summaryRiskBadge.riskScore <= 75 ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" :
+                      "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+                    )} data-testid="summary-risk-score-badge">
+                      <Shield className="h-3.5 w-3.5" />
+                      <span className="text-sm font-semibold">{summaryRiskBadge.riskScore}</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs">
+                    <p className="text-xs">{summaryRiskBadge.summary}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            )}
           </div>
           {(() => {
             const totalEstimated = tasks.reduce((sum, t) => sum + (t.estimatedHours ? Number(t.estimatedHours) : 0), 0);
