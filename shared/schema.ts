@@ -5,8 +5,8 @@ import { relations } from "drizzle-orm";
 
 const numeric = customType<{ data: number; driverData: string }>({
   dataType() { return 'numeric'; },
-  fromDriver(value: string) { return value === null || value === undefined ? null as any : Number(value); },
-  toDriver(value: number) { return value === null || value === undefined ? null as any : String(value); },
+  fromDriver(value: string): number { return (value == null) ? 0 : Number(value); },
+  toDriver(value: number): string { return (value == null) ? '0' : String(value); },
 });
 import { users } from "./models/auth";
 
