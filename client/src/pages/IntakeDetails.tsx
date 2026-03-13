@@ -141,7 +141,18 @@ export default function IntakeDetails() {
   });
 
 
+  const isBudgetExceeded = (() => {
+    const budget = parseFloat(String(formData.estimatedBudget ?? intake?.estimatedBudget ?? 0)) || 0;
+    const capEx = parseFloat(String(formData.capitalExpense ?? intake?.capitalExpense ?? 0)) || 0;
+    const opEx = parseFloat(String(formData.operatingExpense ?? intake?.operatingExpense ?? 0)) || 0;
+    return budget > 0 && (capEx + opEx > budget);
+  })();
+
   const handleSave = () => {
+    if (isBudgetExceeded) {
+      toast({ title: "Cannot save", description: "CapEx + OpEx exceeds the Estimated Total Budget. Please adjust the values.", variant: "destructive" });
+      return;
+    }
     updateIntake.mutate({ ...formData });
   };
 
@@ -584,14 +595,7 @@ export default function IntakeDetails() {
                   <Input
                     type="number"
                     value={formData.capitalExpense ?? intake.capitalExpense ?? ""}
-                    onChange={(e) => {
-                      const newCapEx = parseFloat(e.target.value) || 0;
-                      const currentCapEx = parseFloat(String(formData.capitalExpense ?? intake.capitalExpense ?? 0)) || 0;
-                      const currentOpEx = parseFloat(String(formData.operatingExpense ?? intake.operatingExpense ?? 0)) || 0;
-                      const budget = parseFloat(String(formData.estimatedBudget ?? intake.estimatedBudget ?? 0)) || 0;
-                      if (budget > 0 && newCapEx + currentOpEx > budget && newCapEx > currentCapEx) return;
-                      handleFieldChange('capitalExpense', e.target.value);
-                    }}
+                    onChange={(e) => handleFieldChange('capitalExpense', e.target.value)}
                     disabled={isLocked}
                     placeholder="0.00"
                     data-testid="input-capital-expense"
@@ -602,14 +606,7 @@ export default function IntakeDetails() {
                   <Input
                     type="number"
                     value={formData.operatingExpense ?? intake.operatingExpense ?? ""}
-                    onChange={(e) => {
-                      const newOpEx = parseFloat(e.target.value) || 0;
-                      const currentOpEx = parseFloat(String(formData.operatingExpense ?? intake.operatingExpense ?? 0)) || 0;
-                      const currentCapEx = parseFloat(String(formData.capitalExpense ?? intake.capitalExpense ?? 0)) || 0;
-                      const budget = parseFloat(String(formData.estimatedBudget ?? intake.estimatedBudget ?? 0)) || 0;
-                      if (budget > 0 && currentCapEx + newOpEx > budget && newOpEx > currentOpEx) return;
-                      handleFieldChange('operatingExpense', e.target.value);
-                    }}
+                    onChange={(e) => handleFieldChange('operatingExpense', e.target.value)}
                     disabled={isLocked}
                     placeholder="0.00"
                     data-testid="input-operating-expense"
@@ -622,8 +619,18 @@ export default function IntakeDetails() {
                 const opEx = parseFloat(String(formData.operatingExpense ?? intake.operatingExpense ?? 0)) || 0;
                 const remaining = budget - capEx - opEx;
                 if (budget > 0 && (capEx > 0 || opEx > 0)) {
+                  if (remaining < 0) {
+                    return (
+                      <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20">
+                        <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+                        <p className="text-sm text-destructive">
+                          CapEx + OpEx exceeds the Estimated Total Budget by {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Math.abs(remaining))}. Please adjust the values before saving.
+                        </p>
+                      </div>
+                    );
+                  }
                   return (
-                    <p className={cn("text-xs", remaining >= 0 ? "text-muted-foreground" : "text-destructive")}>
+                    <p className="text-xs text-muted-foreground">
                       Remaining budget: {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(remaining)}
                     </p>
                   );
