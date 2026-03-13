@@ -292,6 +292,51 @@ export default function UnCon2026SelfiePage() {
           0%, 100% { box-shadow: 0 0 20px rgba(255,117,31,0.3); }
           50% { box-shadow: 0 0 40px rgba(255,117,31,0.6); }
         }
+        @keyframes sun-rotate {
+          0% { transform: translate(-50%, -50%) rotate(0deg); }
+          100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        @keyframes sun-pulse {
+          0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+          50% { opacity: 0.8; transform: translate(-50%, -50%) scale(1.05) rotate(180deg); }
+        }
+        .sun-container {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .sun-rays {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 180%;
+          height: 180%;
+          transform: translate(-50%, -50%);
+          animation: sun-rotate 20s linear infinite;
+          pointer-events: none;
+        }
+        .sun-rays-inner {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 160%;
+          height: 160%;
+          animation: sun-pulse 4s ease-in-out infinite;
+          pointer-events: none;
+        }
+        .sun-glow {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 140%;
+          height: 140%;
+          transform: translate(-50%, -50%);
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(255,117,31,0.3) 0%, rgba(255,117,31,0.1) 40%, transparent 70%);
+          pointer-events: none;
+          animation: glow-pulse 3s ease-in-out infinite;
+        }
         .confetti-piece {
           position: fixed;
           top: -20px;
@@ -452,8 +497,22 @@ export default function UnCon2026SelfiePage() {
             ) : (
               <div className="space-y-3">
                 <div className="flex justify-center">
-                  <div className="w-40 h-48 rounded-[50%] overflow-hidden border-4 border-[#FF751F] shadow-lg" style={{ animation: "glow-pulse 2s ease-in-out infinite" }}>
-                    <img src={photoDataUrl} alt="Your selfie" className="w-full h-full object-cover" />
+                  <div className="sun-container" style={{ width: 180, height: 180 }}>
+                    <div className="sun-glow" />
+                    <svg className="sun-rays" viewBox="0 0 200 200">
+                      {Array.from({ length: 16 }, (_, i) => {
+                        const angle = (i * 360) / 16;
+                        const rad = (angle * Math.PI) / 180;
+                        const x1 = 100 + Math.cos(rad) * 52;
+                        const y1 = 100 + Math.sin(rad) * 52;
+                        const x2 = 100 + Math.cos(rad) * 90;
+                        const y2 = 100 + Math.sin(rad) * 90;
+                        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={i % 2 === 0 ? "#FF751F" : "#FFD700"} strokeWidth={i % 2 === 0 ? "2.5" : "1.5"} strokeLinecap="round" opacity={i % 2 === 0 ? 0.7 : 0.4} />;
+                      })}
+                    </svg>
+                    <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-[#FF751F] shadow-lg relative z-10">
+                      <img src={photoDataUrl} alt="Your selfie" className="w-full h-full object-cover" />
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -494,8 +553,22 @@ export default function UnCon2026SelfiePage() {
                 <div className="selfie-card p-4 w-full max-w-[280px]">
                   <p className="text-center text-[10px] font-black uppercase tracking-[0.25em] text-amber-400/80 mb-3">PMO unCON 2026</p>
                   <div className="flex justify-center mb-3">
-                    <div className="w-28 h-32 rounded-[50%] overflow-hidden border-[3px] border-[#FF751F] shadow-lg shadow-orange-500/20">
-                      <img src={photoDataUrl} alt="Your selfie" className="w-full h-full object-cover" />
+                    <div className="sun-container" style={{ width: 140, height: 140 }}>
+                      <div className="sun-glow" />
+                      <svg className="sun-rays" viewBox="0 0 200 200">
+                        {Array.from({ length: 16 }, (_, i) => {
+                          const angle = (i * 360) / 16;
+                          const rad = (angle * Math.PI) / 180;
+                          const x1 = 100 + Math.cos(rad) * 50;
+                          const y1 = 100 + Math.sin(rad) * 50;
+                          const x2 = 100 + Math.cos(rad) * 92;
+                          const y2 = 100 + Math.sin(rad) * 92;
+                          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={i % 2 === 0 ? "#FF751F" : "#FFD700"} strokeWidth={i % 2 === 0 ? "3" : "1.5"} strokeLinecap="round" opacity={i % 2 === 0 ? 0.6 : 0.3} />;
+                        })}
+                      </svg>
+                      <div className="w-24 h-24 rounded-full overflow-hidden border-[3px] border-[#FF751F] shadow-lg shadow-orange-500/20 relative z-10">
+                        <img src={photoDataUrl} alt="Your selfie" className="w-full h-full object-cover" />
+                      </div>
                     </div>
                   </div>
                   <div className="text-center mb-3">
