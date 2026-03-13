@@ -14,8 +14,10 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, DollarSign, Shield, Calculator, Save, Lightbulb, Filter, ClipboardCheck, Users, Gavel } from "lucide-react";
+import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, DollarSign, Shield, Calculator, Save, Lightbulb, Filter, ClipboardCheck, Users, Gavel, ChevronsUpDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { ProjectIntake, Portfolio } from "@shared/schema";
@@ -59,6 +61,7 @@ export default function IntakeDetails() {
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [activeTab, setActiveTab] = useState("details");
+  const [portfolioOpen, setPortfolioOpen] = useState(false);
 
   // Check if user can approve intakes
   const { data: approvalPermission } = useQuery<{ canApprove: boolean }>({
@@ -432,22 +435,55 @@ export default function IntakeDetails() {
                 </div>
                 <div className="space-y-2">
                   <Label>Target Portfolio <span className="text-destructive text-xs">(required for Triage)</span></Label>
-                  <Select 
-                    value={String(formData.portfolioId ?? intake.portfolioId ?? "")}
-                    onValueChange={(v) => handleFieldChange('portfolioId', v ? parseInt(v) : null)}
-                    disabled={isLocked}
-                  >
-                    <SelectTrigger data-testid="select-portfolio">
-                      <SelectValue placeholder="Assign to portfolio" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {portfolios?.map((p: Portfolio) => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          <div className="truncate max-w-[300px]" title={p.name}>{p.name}</div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={portfolioOpen} onOpenChange={setPortfolioOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={portfolioOpen}
+                        className="w-full justify-between font-normal"
+                        disabled={isLocked}
+                        data-testid="select-portfolio"
+                      >
+                        <span className="truncate">
+                          {(formData.portfolioId ?? intake.portfolioId)
+                            ? portfolios?.find((p: Portfolio) => p.id === (formData.portfolioId ?? intake.portfolioId))?.name ?? "Assign to portfolio"
+                            : "Assign to portfolio"}
+                        </span>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Search portfolios..." />
+                        <CommandList>
+                          <CommandEmpty>No portfolio found.</CommandEmpty>
+                          <CommandGroup>
+                            {portfolios?.map((p: Portfolio) => (
+                              <CommandItem
+                                key={p.id}
+                                value={p.name}
+                                onSelect={() => {
+                                  handleFieldChange('portfolioId', p.id);
+                                  setPortfolioOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    (formData.portfolioId ?? intake.portfolioId) === p.id
+                                      ? "opacity-100"
+                                      : "opacity-0"
+                                  )}
+                                />
+                                <span className="truncate" title={p.name}>{p.name}</span>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
               
