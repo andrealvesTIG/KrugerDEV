@@ -83,6 +83,33 @@ function addNote(slide: any, x: number, y: number, w: number, title: string, lin
   });
 }
 
+const PERM_COLOR = "9333EA";
+
+function addPermissions(slide: any, x: number, y: number, w: number, role: string, permissions: string[]) {
+  const h = 0.36 + permissions.length * 0.22 + 0.1;
+  slide.addShape("rect" as any, {
+    x, y, w, h,
+    fill: { color: "FAF5FF" },
+    line: { color: PERM_COLOR, width: 2 },
+    rectRadius: 0.06,
+  });
+  slide.addShape("rect" as any, {
+    x, y, w, h: 0.06,
+    fill: { color: PERM_COLOR },
+  });
+  const text: any[] = [
+    { text: "\uD83D\uDD12 PERMISSIONS REQUIRED", options: { fontSize: 9, bold: true, color: PERM_COLOR, breakLine: true } },
+    { text: `Role: ${role}`, options: { fontSize: 9, bold: true, color: BRAND_DARK, breakLine: true } },
+  ];
+  for (const p of permissions) {
+    text.push({ text: "• " + p, options: { fontSize: 9, color: BRAND_DARK, breakLine: true } });
+  }
+  slide.addText(text, {
+    x: x + 0.12, y: y + 0.08, w: w - 0.24, h: h - 0.16,
+    valign: "top", fontFace: "Segoe UI",
+  });
+}
+
 function addSlideHeader(slide: any, stageNum: number, title: string, color: string) {
   slide.addShape("rect" as any, {
     x: 0, y: 0, w: PW, h: 0.08,
@@ -233,6 +260,19 @@ function build() {
     "docker tag fridayreport <acr>.azurecr.io/fridayreport:latest",
   ], GREEN);
 
+  addPermissions(s1, 0.6, 4.8, 5.5, "Developer / CI Pipeline", [
+    "Read access to source code repository",
+    "Docker daemon access (local or CI runner)",
+    "npm registry access for package installation",
+    "No Azure permissions needed at this stage",
+  ]);
+
+  addPermissions(s1, 6.5, 4.8, 6.2, "CI/CD Service Principal (if automated)", [
+    "Azure DevOps: Build Agent access",
+    "GitHub Actions: GITHUB_TOKEN (for checkout)",
+    "Docker socket or Docker-in-Docker capability",
+  ]);
+
   // ════════════════════════════════════════
   // SLIDE 2: CONTAINER REGISTRY
   // ════════════════════════════════════════
@@ -280,6 +320,19 @@ function build() {
     "git-<sha> — Git commit hash for traceability",
     "Use immutable tags in production",
   ], BRAND_BLUE);
+
+  addPermissions(s2, 0.6, 5.0, 5.5, "Deployer / CI Service Principal", [
+    "AcrPush — Push images to Container Registry",
+    "AcrPull — Pull images (assigned to Container App identity)",
+    "az acr login — Requires AAD authentication",
+    "If using az acr build: AcrPush + Contributor on ACR",
+  ]);
+
+  addPermissions(s2, 6.5, 5.0, 6.2, "ACR Admin (initial setup only)", [
+    "Contributor on ACR resource (to create/configure)",
+    "User Access Administrator (to assign AcrPush/AcrPull roles)",
+    "Disable admin user — use RBAC-only access",
+  ]);
 
   // ════════════════════════════════════════
   // SLIDE 3: AZURE INFRASTRUCTURE
@@ -336,6 +389,23 @@ function build() {
     "Log retention: 30 days (configurable)",
   ], TEAL);
 
+  addPermissions(s3, 0.6, 4.8, 5.5, "Infrastructure Admin / Terraform SP", [
+    "Contributor on Resource Group (create all resources)",
+    "Microsoft.DBforPostgreSQL/* — Create PostgreSQL server",
+    "Microsoft.Storage/* — Create Storage Account",
+    "Microsoft.KeyVault/* — Create and configure Key Vault",
+    "Microsoft.OperationalInsights/* — Create Log Analytics",
+    "Microsoft.App/* — Create Container App Environment",
+  ]);
+
+  addPermissions(s3, 6.5, 4.8, 6.2, "Key Vault Secrets Officer", [
+    "Key Vault Administrator or Secrets Officer",
+    "Set secrets: DATABASE_URL, SESSION_SECRET",
+    "Set secrets: GOOGLE/MICROSOFT OAuth credentials",
+    "Set secrets: RESEND_API_KEY",
+    "Uses Azure RBAC (not vault access policies)",
+  ]);
+
   // ════════════════════════════════════════
   // SLIDE 4: DEPLOY CONTAINER APP
   // ════════════════════════════════════════
@@ -389,6 +459,26 @@ function build() {
     "Update Google OAuth redirect URIs",
     "Update Microsoft Entra ID redirect URIs",
   ], BRAND_BLUE);
+
+  addPermissions(s4, 0.6, 5.0, 3.8, "Container App Deployer", [
+    "Contributor on Container App Environment",
+    "Microsoft.App/containerApps/* — Create/update apps",
+    "AcrPull on ACR (assigned to app's Managed Identity)",
+  ]);
+
+  addPermissions(s4, 4.8, 5.0, 3.8, "Identity & Role Admin", [
+    "User Access Administrator on Resource Group",
+    "Assign AcrPull to Container App identity",
+    "Assign Key Vault Secrets User to app identity",
+    "Assign Storage Blob Data Contributor to app identity",
+  ]);
+
+  addPermissions(s4, 9.0, 5.0, 3.8, "DNS Administrator", [
+    "DNS zone management (external registrar)",
+    "Create CNAME and TXT records",
+    "Google Cloud Console access (OAuth config)",
+    "Azure Portal: App Registrations (Entra ID)",
+  ]);
 
   // ════════════════════════════════════════
   // SLIDE 5: RUNTIME ARCHITECTURE
@@ -467,6 +557,20 @@ function build() {
     "Alert on 5xx error rate > 1%",
     "Alert on container restart count",
   ], GRAY);
+
+  addPermissions(s5, 0.6, 6.0, 6.0, "Container App Managed Identity (runtime)", [
+    "AcrPull — Pull container images on restart/scale-out",
+    "Key Vault Secrets User — Read secrets at startup",
+    "Storage Blob Data Contributor — Read/write file uploads",
+    "PostgreSQL access via DATABASE_URL connection string (not RBAC)",
+  ]);
+
+  addPermissions(s5, 7.0, 6.0, 5.7, "Operations / SRE Team", [
+    "Reader on Resource Group — View all resources",
+    "Log Analytics Reader — Query logs and dashboards",
+    "Container App Contributor — Restart, scale, update revisions",
+    "Monitoring Contributor — Create alerts and action groups",
+  ]);
 
   return pptx;
 }
