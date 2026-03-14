@@ -238,13 +238,15 @@ async function parseXmlMspdi(xmlContent: string): Promise<ParsedMppTask[]> {
       const taskName = task.Name || task.Title || 'Unnamed Task';
       if (!taskName) continue;
       
-      // Parse duration string (e.g., "PT40H0M0S" for 40 hours)
       let durationDays: number | undefined;
       let durationStr = task.Duration || '';
       if (durationStr.startsWith('PT')) {
         const hoursMatch = durationStr.match(/(\d+)H/);
-        if (hoursMatch) {
-          durationDays = Math.ceil(parseInt(hoursMatch[1]) / 8);
+        const minsMatch = durationStr.match(/(\d+)M/);
+        const totalHours = (hoursMatch ? parseInt(hoursMatch[1]) : 0) +
+                           (minsMatch ? parseInt(minsMatch[1]) / 60 : 0);
+        if (totalHours > 0) {
+          durationDays = totalHours / 8;
         }
       }
 
@@ -376,12 +378,21 @@ function parseCsv(csvContent: string): Array<{
     
     if (!taskName) return;
     
-    // Parse duration (e.g., "5 days" or "5d")
     let durationDays: number | undefined;
     const durationStr = durationCol ? row[durationCol] || '' : '';
-    const daysMatch = durationStr.match(/(\d+)/);
-    if (daysMatch) {
-      durationDays = parseInt(daysMatch[1]);
+    const hoursExcelMatch = durationStr.match(/(\d+(?:\.\d+)?)\s*(?:hours?|h)/i);
+    const daysExcelMatch = durationStr.match(/(\d+(?:\.\d+)?)\s*(?:days?|d)/i);
+    if (hoursExcelMatch && daysExcelMatch) {
+      durationDays = parseFloat(daysExcelMatch[1]) + parseFloat(hoursExcelMatch[1]) / 8;
+    } else if (hoursExcelMatch) {
+      durationDays = parseFloat(hoursExcelMatch[1]) / 8;
+    } else if (daysExcelMatch) {
+      durationDays = parseFloat(daysExcelMatch[1]);
+    } else {
+      const numMatch = durationStr.match(/(\d+(?:\.\d+)?)/);
+      if (numMatch) {
+        durationDays = parseFloat(numMatch[1]);
+      }
     }
     
     // Parse percent complete
@@ -6465,10 +6476,9 @@ export async function registerRoutes(
         // Use msdyn_outlinelevel if available, otherwise calculate from WBS
         const outlineLevel = dvTask.msdyn_outlinelevel || (wbsId ? wbsId.split('.').length : 1);
         
-        // Calculate duration - msdyn_duration is in minutes
         let durationDays: number;
         if (dvTask.msdyn_duration !== null && dvTask.msdyn_duration !== undefined) {
-          durationDays = Math.round(dvTask.msdyn_duration / (60 * 24));
+          durationDays = dvTask.msdyn_duration / (60 * 8);
         } else {
           durationDays = calcDurationDays(taskStartDate, taskEndDate);
         }
@@ -7169,7 +7179,7 @@ export async function registerRoutes(
           const outlineLevel = dvTask.msdyn_outlinelevel || (wbsId ? wbsId.split('.').length : 1);
           let durationDays: number;
           if (dvTask.msdyn_duration !== null && dvTask.msdyn_duration !== undefined) {
-            durationDays = Math.round(dvTask.msdyn_duration / (60 * 24));
+            durationDays = dvTask.msdyn_duration / (60 * 8);
           } else {
             durationDays = calcDurationDays(taskStartDate, taskEndDate);
           }
@@ -9164,7 +9174,7 @@ export async function registerRoutes(
         const wbs = (row['WBS'] || '').trim();
 
         const isMilestone = type === 'Milestone';
-        const durationDays = durationStr ? parseInt(durationStr, 10) : undefined;
+        const durationDays = durationStr ? parseFloat(durationStr) : undefined;
         const progress = progressStr ? parseInt(progressStr, 10) : undefined;
 
         const validStatuses = ['Not Started', 'In Progress', 'On Hold', 'Completed', 'Cancelled'];
@@ -10577,12 +10587,15 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       await storage.updateTask(taskId, taskUpdates);
     }
     
-    // Also fix leaf task durationDays to match working days from their dates
     for (const task of allTasks) {
       if (task.startDate && task.endDate && !childrenByParent.has(task.id)) {
-        const correctDuration = calculateDuration(new Date(task.startDate), new Date(task.endDate));
-        // Preserve explicit milestone semantics (durationDays=0 with isMilestone flag)
         if (task.isMilestone && task.durationDays === 0) continue;
+        if (task.durationDays != null && task.durationDays > 0) {
+          const expectedEnd = calculateEndDate(new Date(task.startDate), task.durationDays);
+          const expectedEndStr = formatDateStr(expectedEnd);
+          if (expectedEndStr === task.endDate) continue;
+        }
+        const correctDuration = calculateDuration(new Date(task.startDate), new Date(task.endDate));
         if (task.durationDays !== correctDuration) {
           await storage.updateTask(task.id, { durationDays: correctDuration });
         }
@@ -11393,9 +11406,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
             newEndDate = newStartDate;
             await storage.updateTask(taskId, { startDate: newStartDate, endDate: newStartDate, durationDays: 0 });
           } else {
-            const newEnd = calculateEndDate(requiredStart, Math.max(1, duration));
+            const newEnd = calculateEndDate(requiredStart, duration);
             newEndDate = formatDateStr(newEnd);
-            await storage.updateTask(taskId, { startDate: newStartDate, endDate: newEndDate, durationDays: Math.max(1, duration) });
+            await storage.updateTask(taskId, { startDate: newStartDate, endDate: newEndDate, durationDays: duration });
           }
           dateAdjusted = true;
         } else if (requiredEnd && (!currentEnd || currentEnd < requiredEnd)) {
@@ -11404,9 +11417,10 @@ Format your response as a numbered list with clear, concise strategies. Do not i
             newStartDate = newEndDate;
             await storage.updateTask(taskId, { startDate: newEndDate, endDate: newEndDate, durationDays: 0 });
           } else {
-            const newStart = ensureWorkingDay(addWorkingDays(requiredEnd, -(duration - 1)));
+            const calendarSpan = Math.ceil(duration);
+            const newStart = ensureWorkingDay(addWorkingDays(requiredEnd, -(Math.max(0, calendarSpan - 1))));
             newStartDate = formatDateStr(newStart);
-            await storage.updateTask(taskId, { startDate: newStartDate, endDate: newEndDate, durationDays: Math.max(1, duration) });
+            await storage.updateTask(taskId, { startDate: newStartDate, endDate: newEndDate, durationDays: duration });
           }
           dateAdjusted = true;
         }
@@ -20773,7 +20787,7 @@ Return ONLY valid JSON.`;
 
   // Helper: log timesheet audit event
   const DEFAULT_TIMESHEET_SETTINGS = {
-    mandatoryNotes: true,
+    mandatoryNotes: false,
     maxWeeklyHours: '50',
     minWeeklyHours: '0',
     overtimeThreshold: '40',
@@ -21072,23 +21086,30 @@ Return ONLY valid JSON.`;
 
         if (entry.id) {
           const existing = await storage.getTimesheetEntry(entry.id);
-          if (!existing) continue;
+          if (!existing) {
+            errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: 'Entry not found' });
+            continue;
+          }
           
           if (existing.userId !== userId) {
+            errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: 'You do not own this entry' });
             continue;
           }
           
           if (existing.status !== 'Draft' && existing.status !== 'Rejected') {
+            errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: `Entry is ${existing.status} and cannot be edited` });
             continue;
           }
           
           const isBlocked = await isTaskOrProjectBlocked(existing.taskId, existing.projectId);
           if (isBlocked) {
+            errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: 'Task or project is blocked for timesheet entries' });
             continue;
           }
 
           const isPeriodClosed = await isDateClosed(existing.entryDate);
           if (isPeriodClosed) {
+            errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: 'This date is in a closed period' });
             continue;
           }
           
@@ -21110,16 +21131,19 @@ Return ONLY valid JSON.`;
         } else if (hoursNum > 0) {
           const isAssigned = await validateTaskAssignment(entry.taskId);
           if (!isAssigned) {
+            errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: 'You are not assigned to this task' });
             continue;
           }
           
           const isBlocked = await isTaskOrProjectBlocked(entry.taskId, entry.projectId);
           if (isBlocked) {
+            errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: 'Task or project is blocked for timesheet entries' });
             continue;
           }
 
           const isPeriodClosed = await isDateClosed(entry.entryDate);
           if (isPeriodClosed) {
+            errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: 'This date is in a closed period' });
             continue;
           }
           
@@ -21146,6 +21170,8 @@ Return ONLY valid JSON.`;
                 before: beforeSnapshot,
                 after: { hours: String(hoursNum), notes: entry.notes },
               });
+            } else {
+              errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: `Entry is ${existingEntry.status} and cannot be edited` });
             }
             continue;
           }
@@ -21887,7 +21913,7 @@ Return ONLY valid JSON.`;
         maxWeeklyHours: "50",
         overtimeThreshold: "40",
         gracePeriodDays: 0,
-        mandatoryNotes: true,
+        mandatoryNotes: false,
       });
     } catch (error) {
       console.error('Error getting timesheet settings:', error);
@@ -22319,7 +22345,7 @@ Return ONLY valid JSON.`;
         if (r.userId) {
           byUser[r.userId] = {
             userId: r.userId,
-            resourceName: r.name,
+            resourceName: r.displayName,
             totalHours: 0,
             entries: 0,
             submitted: 0,
@@ -22789,7 +22815,7 @@ Return ONLY valid JSON.`;
         return {
           resourceId: resource.id,
           userId: resource.userId,
-          displayName: resource.displayName || resource.name,
+          displayName: resource.displayName,
           email: resource.email,
           department: resource.department,
           title: resource.title,

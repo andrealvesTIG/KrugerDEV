@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { formatDuration } from "@/lib/workingDays";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import { useRoute, Link } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory } from "@/hooks/use-projects";
@@ -792,7 +793,7 @@ export default function ProjectDetails() {
           case 'baselineEndDate': return task.baselineEndDate || '';
           case 'actualStartDate': return task.actualStartDate || '';
           case 'actualEndDate': return task.actualEndDate || '';
-          case 'durationDays': return task.durationDays != null ? `${task.durationDays}d` : '';
+          case 'durationDays': return task.durationDays != null ? formatDuration(task.durationDays) : '';
           case 'progress': return task.progress != null ? task.progress : '';
           case 'status': return task.status || '';
           case 'priority': return task.priority || '';

@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from "react";
+import { formatDuration } from "@/lib/workingDays";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
@@ -489,7 +490,7 @@ export default function Templates() {
                           </div>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {item.duration || (item.durationDays != null ? `${item.durationDays}d` : "-")}
+                          {item.duration || (item.durationDays != null ? formatDuration(item.durationDays) : "-")}
                         </TableCell>
                         <TableCell>
                           {item.isMilestone ? (

@@ -54,7 +54,7 @@ public class MppParser {
                 if (duration != null) {
                     json.append("\"duration\":\"").append(duration.toString()).append("\",");
                     double days = duration.convertUnits(TimeUnit.DAYS, projectFile.getProjectProperties()).getDuration();
-                    json.append("\"durationDays\":").append((int)Math.ceil(days)).append(",");
+                    json.append("\"durationDays\":").append(Math.round(days * 10000.0) / 10000.0).append(",");
                 } else {
                     json.append("\"duration\":null,");
                     json.append("\"durationDays\":null,");

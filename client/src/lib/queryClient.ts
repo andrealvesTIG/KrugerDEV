@@ -13,6 +13,7 @@ async function throwIfResNotOk(res: Response) {
     (error as any).limitExceeded = errorData.limitExceeded;
     (error as any).resourceType = errorData.resourceType;
     (error as any).status = res.status;
+    (error as any).data = errorData;
     throw error;
   }
 }

@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { DurationInput } from "@/components/ui/duration-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,7 +36,7 @@ import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, P
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { format, addDays, differenceInDays, startOfMonth, endOfMonth, eachDayOfInterval, isWithinInterval, parseISO } from "date-fns";
-import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays } from "@/lib/workingDays";
+import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, parseDurationInput, formatDuration } from "@/lib/workingDays";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -66,7 +67,7 @@ export default function Tasks() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [durationInput, setDurationInput] = useState<string>("1");
+  const [durationInput, setDurationInput] = useState<string>("1d");
   const [filterProjectId, setFilterProjectId] = useState<number | null>(null);
   const [projectFilterSearch, setProjectFilterSearch] = useState("");
   const [groupBy, setGroupBy] = useState<GroupBy>("project");
@@ -293,8 +294,7 @@ export default function Tasks() {
     }
   });
 
-  // Compute numeric duration from input (supports empty string during typing)
-  const durationDays = durationInput === "" ? null : parseInt(durationInput, 10);
+  const durationDays = parseDurationInput(durationInput);
   
   const recalculateEndDate = (newStartDate: string, newDuration: number | null) => {
     if (newStartDate && newDuration !== null && newDuration >= 0) {
@@ -308,13 +308,14 @@ export default function Tasks() {
     }
   };
   
-  // Handle duration blur - persist valid numeric value
   const handleDurationBlur = () => {
-    const num = parseInt(durationInput, 10);
-    if (durationInput === "" || isNaN(num) || num < 0) {
-      setDurationInput("1");
-    } else if (num > 365) {
-      setDurationInput("365");
+    const parsed = parseDurationInput(durationInput);
+    if (parsed === null || parsed < 0) {
+      setDurationInput("1d");
+    } else if (parsed > 365) {
+      setDurationInput("365d");
+    } else {
+      setDurationInput(formatDuration(parsed));
     }
   };
 
@@ -323,7 +324,7 @@ export default function Tasks() {
     const taskDuration = task.durationDays ?? (task.startDate && task.endDate 
       ? calculateDurationInWorkingDays(task.startDate, task.endDate) 
       : 1);
-    setDurationInput(String(taskDuration));
+    setDurationInput(formatDuration(taskDuration));
     setIsMilestone(task.isMilestone || false);
     form.reset({
       projectId: task.projectId,
@@ -344,7 +345,7 @@ export default function Tasks() {
 
   const openCreateDialog = () => {
     setEditingTask(null);
-    setDurationInput("1");
+    setDurationInput("1d");
     setIsMilestone(false);
     setSelectedResourceIds([]);
     lastInitializedTaskId.current = null; // Reset to allow re-initialization
@@ -850,22 +851,16 @@ export default function Tasks() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Duration (days)</Label>
-                          <Input 
-                            type="number" 
-                            min="0" 
-                            max="365" 
+                          <Label>Duration</Label>
+                          <DurationInput
                             value={durationInput}
-                            onChange={(e) => {
-                              const value = e.target.value;
+                            onChange={(value, parsed) => {
                               setDurationInput(value);
-                              const newDuration = value === "" ? null : parseInt(value, 10);
-                              if (newDuration !== null && !isNaN(newDuration) && newDuration >= 0) {
+                              if (parsed !== null && parsed >= 0) {
                                 const currentStartDate = form.getValues("startDate");
-                                recalculateEndDate(currentStartDate, newDuration);
+                                recalculateEndDate(currentStartDate, parsed);
                               }
                             }}
-                            onBlur={handleDurationBlur}
                             data-testid="input-task-duration" 
                           />
                         </div>
@@ -886,14 +881,10 @@ export default function Tasks() {
                                     field.onChange(newEndDate);
                                     if (currentStartDate && newEndDate && newEndDate.length === 10) {
                                       try {
-                                        const start = parseISO(currentStartDate);
-                                        const end = parseISO(newEndDate);
-                                        if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
-                                          const newDuration = differenceInDays(end, start) + 1;
-                                          if (newDuration >= 0) {
-                                            setDurationInput(String(newDuration));
-                                            form.setValue("durationDays", newDuration, { shouldDirty: true, shouldValidate: true });
-                                          }
+                                        const newDuration = calculateDurationInWorkingDays(currentStartDate, newEndDate);
+                                        if (newDuration >= 0) {
+                                          setDurationInput(formatDuration(newDuration));
+                                          form.setValue("durationDays", newDuration, { shouldDirty: true, shouldValidate: true });
                                         }
                                       } catch {
                                       }
@@ -1572,7 +1563,7 @@ function GanttTaskRow({
       )}
       {visibleColumns.includes('duration') && (
         <div className="w-20 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
-          {task.durationDays ? `${task.durationDays}d` : '—'}
+          {task.durationDays != null ? formatDuration(task.durationDays) : '—'}
         </div>
       )}
       {visibleColumns.includes('progress') && (

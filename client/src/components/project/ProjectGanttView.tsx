@@ -5,7 +5,7 @@ import { DndContext, DragEndEvent, closestCorners, useSensor, useSensors, Pointe
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { format, addDays, differenceInDays, parseISO, isAfter, isBefore, startOfDay, eachDayOfInterval, startOfMonth, endOfMonth } from "date-fns";
-import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, calculateStartDateFromEndAndDuration } from "@/lib/workingDays";
+import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, calculateStartDateFromEndAndDuration, parseDurationInput, formatDuration } from "@/lib/workingDays";
 import { calculateCPM, type CPMResult } from "@/lib/cpm";
 import { useUpdateTask, useCreateTask, useDeleteTask, useAddTaskDependency, useRemoveTaskDependency, useReorderTask, useProjectDependencies, useBulkUpdateTasks, useBulkDeleteTasks } from "@/hooks/use-tasks";
 import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useProjectTaskAssignments } from "@/hooks/use-resources";
@@ -743,13 +743,12 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
       if (value) {
         const currentDuration = task.durationDays ?? (task.startDate && task.endDate
           ? calculateDurationInWorkingDays(task.startDate, task.endDate) : 1);
-        const effectiveDuration = currentDuration === 0 ? 0 : Math.max(1, currentDuration);
-        if (effectiveDuration === 0) {
+        if (currentDuration === 0) {
           updates.endDate = value as string;
         } else {
-          updates.endDate = calculateEndDateFromWorkingDays(value as string, effectiveDuration);
+          updates.endDate = calculateEndDateFromWorkingDays(value as string, currentDuration);
         }
-        updates.durationDays = effectiveDuration;
+        updates.durationDays = currentDuration;
       } else {
         updates.endDate = null;
         updates.durationDays = null;
@@ -760,7 +759,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
         const end = parseISO(value as string);
         if (end >= start) {
           const calculatedDuration = calculateDurationInWorkingDays(task.startDate, value as string);
-          updates.durationDays = Math.max(1, calculatedDuration);
+          updates.durationDays = calculatedDuration;
         } else {
           toast({
             title: "Invalid date",
@@ -771,20 +770,21 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
         }
       } else if (value && !task.startDate) {
         const duration = task.durationDays ?? 1;
-        const effectiveDuration = duration === 0 ? 0 : Math.max(1, duration);
-        if (effectiveDuration === 0) {
+        if (duration === 0) {
           updates.startDate = value as string;
         } else {
-          updates.startDate = calculateStartDateFromEndAndDuration(value as string, effectiveDuration);
+          updates.startDate = calculateStartDateFromEndAndDuration(value as string, duration);
         }
-        updates.durationDays = effectiveDuration;
+        updates.durationDays = duration;
       } else if (!value) {
         updates.durationDays = null;
       }
     }
     // Auto-calculate end date when duration changes (working days)
     else if (field === 'durationDays') {
-      const duration = Math.max(0, (value as number) ?? 0);
+      const parsed = Number(value);
+      if (value === null || value === undefined || isNaN(parsed) || parsed < 0) return;
+      const duration = parsed;
       updates.durationDays = duration;
       
       if (duration === 0) {
@@ -1183,16 +1183,18 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                 />
               );
             case 'durationDays':
-              const calculatedDuration = precomputedDates?.duration ?? ((task.startDate && task.endDate)
+              const calculatedDuration = task.durationDays != null ? task.durationDays : (precomputedDates?.duration ?? ((task.startDate && task.endDate)
                 ? calculateDurationInWorkingDays(task.startDate, task.endDate)
-                : (task.durationDays ?? null));
+                : null));
               return (
                 <InlineEditCell
-                  value={calculatedDuration}
-                  displayValue={calculatedDuration != null ? `${calculatedDuration}d` : '—'}
-                  editType="number"
-                  min={0}
-                  onSave={(val) => handleInlineUpdate('durationDays', val as number | null, calculatedDuration)}
+                  value={calculatedDuration != null ? formatDuration(calculatedDuration) : ''}
+                  displayValue={calculatedDuration != null ? formatDuration(calculatedDuration) : '—'}
+                  editType="text"
+                  onSave={(val) => {
+                    const parsed = parseDurationInput(String(val ?? ''));
+                    handleInlineUpdate('durationDays', parsed, calculatedDuration);
+                  }}
                   disabled={isSummaryTask || isReadOnly}
                 />
               );
@@ -3420,7 +3422,7 @@ function ProjectGanttView({
       const actualStart = t.actualStartDate ? parseISO(t.actualStartDate) : null;
       const actualEnd = t.actualEndDate ? parseISO(t.actualEndDate) : null;
       const constraintDate = t.constraintDate ? parseISO(t.constraintDate) : null;
-      const duration = (start && end) ? calculateDurationInWorkingDays(t.startDate, t.endDate) : (t.durationDays ?? null);
+      const duration = t.durationDays != null ? t.durationDays : ((start && end) ? calculateDurationInWorkingDays(t.startDate, t.endDate) : null);
       map.set(t.id, {
         start,
         end,
@@ -4200,7 +4202,7 @@ function ProjectGanttView({
                       if (colId === 'durationDays') {
                         return (
                           <div key={colId} style={{ width: `${colWidth}px` }} className="flex-shrink-0 border-r px-1 flex items-center">
-                            <span className="text-[11px]">{projectSummaryTask.durationDays != null ? `${projectSummaryTask.durationDays}d` : '—'}</span>
+                            <span className="text-[11px]">{projectSummaryTask.durationDays != null ? formatDuration(projectSummaryTask.durationDays) : '—'}</span>
                           </div>
                         );
                       }

@@ -3149,6 +3149,7 @@ export default function Timesheets() {
     if (!currentOrganization || !currentResource) return;
 
     const entriesToUpsert: (InsertTimesheetEntry & { id?: number })[] = [];
+    let missingNotesCount = 0;
     
     for (const taskId in data) {
       const taskData = assignedTasks.find(t => t.task.id === Number(taskId));
@@ -3157,6 +3158,9 @@ export default function Timesheets() {
       for (const dateKey in data[taskId]) {
         const { hours, notes, id } = data[taskId][dateKey];
         if (hours > 0 || id) {
+          if (timesheetSettings?.mandatoryNotes && hours > 0 && (!notes || !notes.trim())) {
+            missingNotesCount++;
+          }
           entriesToUpsert.push({
             id,
             organizationId: currentOrganization.id,
@@ -3172,8 +3176,37 @@ export default function Timesheets() {
       }
     }
 
+    if (missingNotesCount > 0 && missingNotesCount === entriesToUpsert.length) {
+      toast({ 
+        title: "Notes Required", 
+        description: "All timesheet entries with hours require notes. Please add notes to each entry before saving.",
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    const validEntries = timesheetSettings?.mandatoryNotes 
+      ? entriesToUpsert.filter(e => {
+          const hrs = parseFloat(String(e.hours));
+          if (hrs > 0 && (!e.notes || !String(e.notes).trim())) return false;
+          return true;
+        })
+      : entriesToUpsert;
+
+    if (missingNotesCount > 0) {
+      toast({ 
+        title: "Notes Required", 
+        description: `${missingNotesCount} entries are missing required notes and will be skipped.`,
+        variant: "destructive" 
+      });
+    }
+
+    if (validEntries.length === 0) {
+      return;
+    }
+
     try {
-      const response = await bulkUpsert.mutateAsync(entriesToUpsert);
+      const response = await bulkUpsert.mutateAsync(validEntries);
 
       const savedEntries = Array.isArray(response) ? response : (response?.entries || []);
       const validationErrors = Array.isArray(response) ? [] : (response?.errors || []);
@@ -3196,18 +3229,24 @@ export default function Timesheets() {
       }
 
       if (validationErrors.length > 0) {
-        const noteErrors = validationErrors.filter((e: any) => e.message?.includes('Notes'));
+        const noteErrors = validationErrors.filter((e: any) => e.message?.includes('Notes') || e.message?.includes('notes'));
         const hourErrors = validationErrors.filter((e: any) => e.message?.includes('hour') || e.message?.includes('Hours'));
-        const otherSkipped = validationErrors.length - noteErrors.length - hourErrors.length;
+        const assignErrors = validationErrors.filter((e: any) => e.message?.includes('assigned'));
+        const blockedErrors = validationErrors.filter((e: any) => e.message?.includes('blocked'));
+        const closedErrors = validationErrors.filter((e: any) => e.message?.includes('closed'));
+        const otherSkipped = validationErrors.length - noteErrors.length - hourErrors.length - assignErrors.length - blockedErrors.length - closedErrors.length;
         
         let desc = `${savedEntries.length} entries saved.`;
         if (noteErrors.length > 0) desc += ` ${noteErrors.length} rejected: notes required.`;
         if (hourErrors.length > 0) desc += ` ${hourErrors.length} rejected: weekly hour limit exceeded.`;
+        if (assignErrors.length > 0) desc += ` ${assignErrors.length} rejected: not assigned to task.`;
+        if (blockedErrors.length > 0) desc += ` ${blockedErrors.length} rejected: task/project blocked.`;
+        if (closedErrors.length > 0) desc += ` ${closedErrors.length} rejected: date in closed period.`;
         if (otherSkipped > 0) desc += ` ${otherSkipped} skipped due to other validation errors.`;
         
         toast({ title: "Partially Saved", description: desc, variant: "destructive" });
-      } else if (savedEntries.length < entriesToUpsert.length) {
-        const skipped = entriesToUpsert.length - savedEntries.length;
+      } else if (savedEntries.length < validEntries.length) {
+        const skipped = validEntries.length - savedEntries.length;
         toast({ 
           title: "Partially Saved", 
           description: `${savedEntries.length} entries saved, ${skipped} could not be saved (may be locked, in a closed period, or already submitted)`,
@@ -3219,18 +3258,23 @@ export default function Timesheets() {
 
       setHasChanges(false);
     } catch (err: any) {
-      const errorData = err?.data || err;
+      const errorData = err?.data || {};
       if (errorData?.errors?.length > 0) {
-        const noteErrors = errorData.errors.filter((e: any) => e.message?.includes('Notes'));
-        toast({ 
-          title: "Validation Failed", 
-          description: noteErrors.length > 0 
-            ? "Notes are required for all timesheet entries with hours" 
-            : errorData.message || "Failed to save timesheet",
-          variant: "destructive" 
-        });
+        const noteErrors = errorData.errors.filter((e: any) => e.message?.includes('Notes') || e.message?.includes('notes'));
+        const assignErrors = errorData.errors.filter((e: any) => e.message?.includes('assigned'));
+        const blockedErrors = errorData.errors.filter((e: any) => e.message?.includes('blocked'));
+        const closedErrors = errorData.errors.filter((e: any) => e.message?.includes('closed'));
+        
+        let description = "";
+        if (noteErrors.length > 0) description = "Notes are required for all timesheet entries with hours. Please add notes to each entry.";
+        else if (assignErrors.length > 0) description = "You are not assigned to one or more tasks. Contact your manager.";
+        else if (blockedErrors.length > 0) description = "One or more tasks/projects are blocked for timesheet entries.";
+        else if (closedErrors.length > 0) description = "One or more dates are in a closed period.";
+        else description = errorData.message || "Failed to save timesheet";
+        
+        toast({ title: "Validation Failed", description, variant: "destructive" });
       } else {
-        toast({ title: "Error", description: "Failed to save timesheet", variant: "destructive" });
+        toast({ title: "Error", description: err?.message || "Failed to save timesheet", variant: "destructive" });
       }
     }
   };
@@ -3774,7 +3818,7 @@ export default function Timesheets() {
                 isDateInClosedPeriod={isDateInClosedPeriod}
                 getClosedPeriodName={getClosedPeriodName}
                 isFullscreen
-                mandatoryNotes={timesheetSettings?.mandatoryNotes ?? true}
+                mandatoryNotes={timesheetSettings?.mandatoryNotes ?? false}
                 onViewAudit={(entryId) => { setAuditEntryId(entryId); setShowAuditDialog(true); }}
                 overtimeThreshold={weeklyTarget}
               />
@@ -4473,7 +4517,7 @@ export default function Timesheets() {
                   onAutoSave={handleAutoSave}
                   isDateInClosedPeriod={isDateInClosedPeriod}
                   getClosedPeriodName={getClosedPeriodName}
-                  mandatoryNotes={timesheetSettings?.mandatoryNotes ?? true}
+                  mandatoryNotes={timesheetSettings?.mandatoryNotes ?? false}
                   onViewAudit={(entryId) => { setAuditEntryId(entryId); setShowAuditDialog(true); }}
                   overtimeThreshold={weeklyTarget}
                 />

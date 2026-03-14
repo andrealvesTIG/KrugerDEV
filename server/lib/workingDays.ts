@@ -88,10 +88,13 @@ export function ensureWorkingDay(date: Date): Date {
 
 export function calculateEndDate(startDate: Date, durationDays: number): Date {
   if (durationDays <= 0) return new Date(startDate);
-  if (durationDays === 1) return ensureWorkingDay(new Date(startDate));
 
+  const calendarSpan = Math.ceil(durationDays);
   const start = ensureWorkingDay(new Date(startDate));
-  return addWorkingDays(start, durationDays - 1);
+
+  if (calendarSpan <= 1) return start;
+
+  return addWorkingDays(start, calendarSpan - 1);
 }
 
 export function calculateDuration(startDate: Date, endDate: Date): number {
