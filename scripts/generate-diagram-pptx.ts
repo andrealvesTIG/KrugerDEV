@@ -180,33 +180,58 @@ function build() {
     fontSize: 14, color: GRAY, align: "center", fontFace: "Segoe UI",
   });
 
-  const overviewItems = [
+  const overviewRow1 = [
     { num: "1", label: "Build & Containerize", col: GREEN },
     { num: "2", label: "Container Registry", col: BRAND_BLUE },
     { num: "3", label: "Azure Infrastructure", col: BRAND_DARK },
     { num: "4", label: "Deploy Container App", col: BRAND_ORANGE },
     { num: "5", label: "Runtime Architecture", col: ROSE },
   ];
-  const ow = 2.0, oGap = 0.35;
-  const totalOw = overviewItems.length * ow + (overviewItems.length - 1) * oGap;
-  let ox = (PW - totalOw) / 2;
+  const overviewRow2 = [
+    { num: "6", label: "Database Migration", col: BRAND_BLUE },
+    { num: "7", label: "Env Vars Reference", col: PURPLE },
+    { num: "8", label: "Networking & Security", col: BRAND_DARK },
+    { num: "9", label: "Storage Migration", col: TEAL },
+  ];
+  const overviewRow3 = [
+    { num: "10", label: "CI/CD Pipeline", col: GREEN },
+    { num: "11", label: "Rollback & Updates", col: BRAND_ORANGE },
+    { num: "12", label: "Pre-Deploy Checklist", col: GREEN },
+    { num: "13", label: "Cost Estimation", col: TEAL },
+  ];
 
-  for (let i = 0; i < overviewItems.length; i++) {
-    const item = overviewItems[i];
-    titleSlide.addText([
-      { text: item.num, options: { fontSize: 20, bold: true, color: WHITE, align: "center", breakLine: true } },
-      { text: item.label, options: { fontSize: 10, color: WHITE, align: "center" } },
-    ], {
-      x: ox, y: 4.2, w: ow, h: 0.7,
-      fill: { color: item.col },
-      rectRadius: 0.1,
-      valign: "middle",
-    });
-    if (i < overviewItems.length - 1) {
-      addArrowRight(titleSlide, ox + ow, 4.55, oGap, GRAY);
+  function renderOverviewRow(slide: any, items: typeof overviewRow1, y: number, boxW: number, gap: number) {
+    const total = items.length * boxW + (items.length - 1) * gap;
+    let x = (PW - total) / 2;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      slide.addText([
+        { text: item.num, options: { fontSize: 16, bold: true, color: WHITE, align: "center", breakLine: true } },
+        { text: item.label, options: { fontSize: 8, color: WHITE, align: "center" } },
+      ], {
+        x, y, w: boxW, h: 0.55,
+        fill: { color: item.col },
+        rectRadius: 0.08,
+        valign: "middle",
+      });
+      if (i < items.length - 1) {
+        addArrowRight(slide, x + boxW, y + 0.275, gap, GRAY);
+      }
+      x += boxW + gap;
     }
-    ox += ow + oGap;
   }
+
+  titleSlide.addText("DEPLOYMENT STAGES", {
+    x: 0, y: 3.7, w: PW, h: 0.25,
+    fontSize: 10, bold: true, color: GRAY, align: "center", fontFace: "Segoe UI", letterSpacing: 1,
+  });
+  renderOverviewRow(titleSlide, overviewRow1, 4.0, 1.9, 0.3);
+  titleSlide.addText("OPERATIONS & GOVERNANCE", {
+    x: 0, y: 4.7, w: PW, h: 0.25,
+    fontSize: 10, bold: true, color: GRAY, align: "center", fontFace: "Segoe UI", letterSpacing: 1,
+  });
+  renderOverviewRow(titleSlide, overviewRow2, 5.0, 1.9, 0.3);
+  renderOverviewRow(titleSlide, overviewRow3, 5.7, 1.9, 0.3);
 
   // ════════════════════════════════════════
   // SLIDE 1: BUILD & CONTAINERIZE
@@ -214,7 +239,7 @@ function build() {
   const s1 = pptx.addSlide();
   s1.background = { color: WHITE };
   addSlideHeader(s1, 1, "Build & Containerize", GREEN);
-  addFooter(s1, 1, 5, GREEN);
+  addFooter(s1, 1, 13, GREEN);
 
   const bw = 2.0, bh = 0.55, bGap = 0.3;
   const steps = [
@@ -279,7 +304,7 @@ function build() {
   const s2 = pptx.addSlide();
   s2.background = { color: WHITE };
   addSlideHeader(s2, 2, "Container Registry", BRAND_BLUE);
-  addFooter(s2, 2, 5, BRAND_BLUE);
+  addFooter(s2, 2, 13, BRAND_BLUE);
 
   addBox(s2, { x: 1.5, y: 1.6, w: 2.5, h: 0.6, label: "Container Image", sub: "Local Docker Image", color: GREEN });
   addArrowRight(s2, 4.0, 1.9, 1.5, BRAND_BLUE);
@@ -340,7 +365,7 @@ function build() {
   const s3 = pptx.addSlide();
   s3.background = { color: WHITE };
   addSlideHeader(s3, 3, "Azure Infrastructure", BRAND_DARK);
-  addFooter(s3, 3, 5, BRAND_DARK);
+  addFooter(s3, 3, 13, BRAND_DARK);
 
   const infraItems = [
     { l: "Resource Group", s: "fridayreport-rg", col: BRAND_DARK },
@@ -412,7 +437,7 @@ function build() {
   const s4 = pptx.addSlide();
   s4.background = { color: WHITE };
   addSlideHeader(s4, 4, "Deploy Container App", BRAND_ORANGE);
-  addFooter(s4, 4, 5, BRAND_ORANGE);
+  addFooter(s4, 4, 13, BRAND_ORANGE);
 
   const depItems = [
     { l: "Create Container App", s: "az containerapp create", col: BRAND_ORANGE },
@@ -486,7 +511,7 @@ function build() {
   const s5 = pptx.addSlide();
   s5.background = { color: WHITE };
   addSlideHeader(s5, 5, "Runtime Architecture", ROSE);
-  addFooter(s5, 5, 5, ROSE);
+  addFooter(s5, 5, 13, ROSE);
 
   addBox(s5, { x: CX - 1.3, y: 1.2, w: 2.6, h: 0.45, label: "End Users", sub: "HTTPS Traffic", color: BRAND_DARK, rounded: 0.22 });
   addArrowDown(s5, CX, 1.65, 0.25, BRAND_DARK, "ingress");
@@ -571,6 +596,613 @@ function build() {
     "Container App Contributor — Restart, scale, update revisions",
     "Monitoring Contributor — Create alerts and action groups",
   ]);
+
+  // ════════════════════════════════════════
+  // SLIDE 6: DATABASE MIGRATION
+  // ════════════════════════════════════════
+  const s6 = pptx.addSlide();
+  s6.background = { color: WHITE };
+  addSlideHeader(s6, 6, "Database Migration", BRAND_BLUE);
+  addFooter(s6, 6, 13, BRAND_BLUE);
+
+  const migSteps = [
+    { l: "Open Firewall", s: "Allow migration runner IP" },
+    { l: "Set DATABASE_URL", s: "Azure PostgreSQL conn string" },
+    { l: "Run Migrations", s: "drizzle-kit push / migrate" },
+    { l: "Verify Schema", s: "Check tables & extensions" },
+    { l: "Lock Firewall", s: "Remove temp IP rule" },
+  ];
+  const mw = 2.0, mh = 0.55, mGap = 0.28;
+  const totalMw = migSteps.length * mw + (migSteps.length - 1) * mGap;
+  let mx = (PW - totalMw) / 2;
+  const my = 1.4;
+  for (let i = 0; i < migSteps.length; i++) {
+    addBox(s6, { x: mx, y: my, w: mw, h: mh, label: migSteps[i].l, sub: migSteps[i].s, color: BRAND_BLUE });
+    if (i < migSteps.length - 1) addArrowRight(s6, mx + mw, my + mh / 2, mGap, BRAND_BLUE);
+    mx += mw + mGap;
+  }
+
+  s6.addText("The database schema must be initialized on the Azure PostgreSQL server before the application can start. Drizzle ORM manages the schema via migration files.", {
+    x: 0.6, y: 2.2, w: PW - 1.2, h: 0.35,
+    fontSize: 11, color: GRAY, fontFace: "Segoe UI",
+  });
+
+  addNote(s6, 0.6, 2.8, 3.8, "Pre-Migration Setup", [
+    "az postgres flexible-server firewall-rule create \\",
+    "  --name allow-migration-runner \\",
+    "  --start-ip-address <your-ip> --end-ip-address <your-ip>",
+    "Enable extension: CREATE EXTENSION IF NOT EXISTS unaccent;",
+    "Verify SSL mode: require (default for Azure PG)",
+  ], BRAND_BLUE);
+
+  addNote(s6, 4.8, 2.8, 3.8, "Migration Commands", [
+    "export DATABASE_URL=\"postgresql://admin@server:5432/fridayreport?sslmode=require\"",
+    "npx drizzle-kit push — Apply schema to database",
+    "npx drizzle-kit migrate — Run pending migration files",
+    "npm run db:seed — Seed initial data (if applicable)",
+  ], BRAND_BLUE);
+
+  addNote(s6, 9.0, 2.8, 3.8, "Post-Migration Verification", [
+    "\\dt — List all tables in psql",
+    "SELECT count(*) FROM information_schema.tables;",
+    "Verify session table: connect_pg_simple_sessions",
+    "Check extensions: SELECT * FROM pg_extension;",
+    "Remove temp firewall rule after migration",
+  ], GREEN);
+
+  addPermissions(s6, 0.6, 4.8, 5.5, "Database Administrator", [
+    "PostgreSQL server admin credentials",
+    "Firewall rule create/delete on Azure PG Flexible Server",
+    "CREATE EXTENSION privilege (for unaccent)",
+    "Network access from migration runner to Azure PG (port 5432)",
+  ]);
+
+  addPermissions(s6, 6.5, 4.8, 6.2, "Application Service Account", [
+    "PostgreSQL database owner or equivalent",
+    "CREATE TABLE, ALTER TABLE, INSERT, UPDATE, DELETE",
+    "CREATE INDEX for performance indexes",
+    "USAGE on public schema",
+  ]);
+
+  // ════════════════════════════════════════
+  // SLIDE 7: ENVIRONMENT VARIABLES REFERENCE
+  // ════════════════════════════════════════
+  const s7 = pptx.addSlide();
+  s7.background = { color: WHITE };
+  addSlideHeader(s7, 7, "Environment Variables Reference", PURPLE);
+  addFooter(s7, 7, 13, PURPLE);
+
+  s7.addText("Complete list of all environment variables required for deployment. Variables marked with a lock icon are secrets and should be stored in Azure Key Vault.", {
+    x: 0.6, y: 1.0, w: PW - 1.2, h: 0.3,
+    fontSize: 11, color: GRAY, fontFace: "Segoe UI",
+  });
+
+  addNote(s7, 0.6, 1.5, 3.8, "Core Infrastructure (Key Vault)", [
+    "DATABASE_URL — PostgreSQL connection string",
+    "SESSION_SECRET — Express session signing key",
+    "PORT — Application port (default: 5000)",
+    "NODE_ENV — Environment (production)",
+    "APP_URL — Public application URL",
+  ], BRAND_DARK);
+
+  addNote(s7, 4.8, 1.5, 3.8, "Authentication — Google (Key Vault)", [
+    "GOOGLE_CLIENT_ID — OAuth 2.0 client ID",
+    "GOOGLE_CLIENT_SECRET — OAuth 2.0 client secret",
+    "Redirect URI: {APP_URL}/auth/google/callback",
+    "Scopes: profile, email",
+  ], GREEN);
+
+  addNote(s7, 9.0, 1.5, 3.8, "Authentication — Microsoft (Key Vault)", [
+    "MICROSOFT_CLIENT_ID — Entra ID app client ID",
+    "MICROSOFT_CLIENT_SECRET — Entra ID client secret",
+    "MICROSOFT_TENANT_ID — Tenant ID (default: common)",
+    "Redirect URI: {APP_URL}/auth/microsoft/callback",
+    "Scopes: User.Read, Tasks.ReadWrite, etc.",
+  ], BRAND_BLUE);
+
+  addNote(s7, 0.6, 3.6, 3.8, "Email Service (Key Vault)", [
+    "RESEND_API_KEY — Resend email service API key",
+    "RESEND_FROM_EMAIL — Sender address (e.g. noreply@fridayreport.ai)",
+    "Used for: welcome emails, password resets, report delivery",
+  ], BRAND_ORANGE);
+
+  addNote(s7, 4.8, 3.6, 3.8, "Azure Blob Storage (Plain Env Vars)", [
+    "AZURE_STORAGE_ACCOUNT_NAME — Storage account name",
+    "AZURE_STORAGE_CONTAINER_NAME — Blob container (uploads)",
+    "Auth: Managed Identity (no key needed)",
+    "Used for: file uploads, avatars, documents",
+  ], TEAL);
+
+  addNote(s7, 9.0, 3.6, 3.8, "Container App Plain Env Vars", [
+    "NODE_ENV=production",
+    "PORT=5000",
+    "APP_URL=https://app.fridayreport.ai",
+    "AZURE_STORAGE_ACCOUNT_NAME=fridayreportstorage",
+    "AZURE_STORAGE_CONTAINER_NAME=uploads",
+  ], GRAY);
+
+  s7.addShape("rect" as any, {
+    x: 0.6, y: 5.6, w: PW - 1.2, h: 0.5,
+    fill: { color: "FAF5FF" },
+    line: { color: PERM_COLOR, width: 1.5 },
+    rectRadius: 0.06,
+  });
+  s7.addText([
+    { text: "Key Vault vs Plain Env Vars: ", options: { fontSize: 10, bold: true, color: PERM_COLOR } },
+    { text: "Secrets (DATABASE_URL, SESSION_SECRET, OAuth client IDs/secrets, RESEND_API_KEY) go in Key Vault and are referenced via ", options: { fontSize: 10, color: BRAND_DARK } },
+    { text: "secretref:", options: { fontSize: 10, bold: true, color: PERM_COLOR } },
+    { text: " in --env-vars. Non-sensitive values (PORT, NODE_ENV, APP_URL, storage names) are set as plain environment variables.", options: { fontSize: 10, color: BRAND_DARK } },
+  ], {
+    x: 0.8, y: 5.65, w: PW - 1.6, h: 0.4,
+    valign: "middle", fontFace: "Segoe UI",
+  });
+
+  // ════════════════════════════════════════
+  // SLIDE 8: NETWORKING & SECURITY
+  // ════════════════════════════════════════
+  const s8 = pptx.addSlide();
+  s8.background = { color: WHITE };
+  addSlideHeader(s8, 8, "Networking & Security", BRAND_DARK);
+  addFooter(s8, 8, 13, BRAND_DARK);
+
+  const netItems = [
+    { l: "Virtual Network", s: "fridayreport-vnet", col: BRAND_DARK },
+    { l: "Container Subnet", s: "container-app-subnet", col: BRAND_ORANGE },
+    { l: "Database Subnet", s: "postgres-subnet", col: BRAND_BLUE },
+    { l: "Private Endpoints", s: "PG + Key Vault + Blob", col: PURPLE },
+  ];
+  const nw = 2.4, nh = 0.55, nGap = 0.35;
+  const totalNw = netItems.length * nw + (netItems.length - 1) * nGap;
+  let nx = (PW - totalNw) / 2;
+  const ny = 1.4;
+  for (let i = 0; i < netItems.length; i++) {
+    addBox(s8, { x: nx, y: ny, w: nw, h: nh, label: netItems[i].l, sub: netItems[i].s, color: netItems[i].col });
+    if (i < netItems.length - 1) addArrowRight(s8, nx + nw, ny + nh / 2, nGap, BRAND_DARK);
+    nx += nw + nGap;
+  }
+
+  s8.addText("All backend services communicate over private networks. Public access is limited to the Container App ingress endpoint with HTTPS/TLS.", {
+    x: 0.6, y: 2.2, w: PW - 1.2, h: 0.35,
+    fontSize: 11, color: GRAY, fontFace: "Segoe UI",
+  });
+
+  addNote(s8, 0.6, 2.8, 3.8, "VNet Configuration", [
+    "Address space: 10.0.0.0/16",
+    "Container App subnet: 10.0.0.0/23 (min /23 required)",
+    "PostgreSQL subnet: 10.0.1.0/24 (delegated)",
+    "Private endpoint subnet: 10.0.2.0/24",
+    "DNS: Azure Private DNS zones for internal resolution",
+  ], BRAND_DARK);
+
+  addNote(s8, 4.8, 2.8, 3.8, "PostgreSQL Firewall", [
+    "Public network access: Disabled",
+    "VNet integration: postgres-subnet (delegated)",
+    "Private DNS zone: privatelink.postgres.database.azure.com",
+    "SSL enforcement: Enabled (sslmode=require)",
+    "Temp rule for migration: remove after schema setup",
+  ], BRAND_BLUE);
+
+  addNote(s8, 9.0, 2.8, 3.8, "Key Vault & Blob Security", [
+    "Key Vault: Private endpoint + Azure RBAC",
+    "Key Vault: Disable vault access policies, use RBAC only",
+    "Blob Storage: Private endpoint for data access",
+    "Blob Storage: Managed Identity auth (no access keys)",
+    "Both: Deny public network access in production",
+  ], PURPLE);
+
+  addNote(s8, 0.6, 4.8, 3.8, "Ingress & TLS", [
+    "External ingress: HTTPS only (port 443)",
+    "Internal port: 5000 (Container App target)",
+    "Managed TLS certificate (auto-renewed)",
+    "CORS: Configured via Express middleware",
+    "CSP headers: Allow Microsoft Teams iframe embedding",
+  ], BRAND_ORANGE);
+
+  addPermissions(s8, 4.8, 4.8, 3.8, "Network Administrator", [
+    "Network Contributor on Resource Group",
+    "Private DNS Zone Contributor",
+    "Microsoft.Network/virtualNetworks/* — Create VNet",
+    "Microsoft.Network/privateEndpoints/* — Create PE",
+  ]);
+
+  addPermissions(s8, 9.0, 4.8, 3.8, "Security Reviewer", [
+    "Security Reader on subscription",
+    "Review NSG flow logs",
+    "Validate private endpoint DNS resolution",
+    "Audit Key Vault access logs",
+  ]);
+
+  // ════════════════════════════════════════
+  // SLIDE 9: STORAGE MIGRATION PRE-REQUISITE
+  // ════════════════════════════════════════
+  const s9 = pptx.addSlide();
+  s9.background = { color: WHITE };
+  addSlideHeader(s9, 9, "Storage Migration (Pre-requisite)", TEAL);
+  addFooter(s9, 9, 13, TEAL);
+
+  const storSteps = [
+    { l: "Current State", s: "Platform Object Storage", col: GRAY },
+    { l: "Code Change", s: "Replace with @azure/storage-blob", col: TEAL },
+    { l: "Create Container", s: "Azure Blob uploads container", col: TEAL },
+    { l: "Migrate Files", s: "Export → Upload to Blob", col: BRAND_ORANGE },
+    { l: "Verify & Deploy", s: "Test uploads in staging", col: GREEN },
+  ];
+  const sw2 = 2.0, sh2 = 0.55, sGap2 = 0.28;
+  const totalSw2 = storSteps.length * sw2 + (storSteps.length - 1) * sGap2;
+  let sx2 = (PW - totalSw2) / 2;
+  const sy2 = 1.4;
+  for (let i = 0; i < storSteps.length; i++) {
+    addBox(s9, { x: sx2, y: sy2, w: sw2, h: sh2, label: storSteps[i].l, sub: storSteps[i].s, color: storSteps[i].col });
+    if (i < storSteps.length - 1) addArrowRight(s9, sx2 + sw2, sy2 + sh2 / 2, sGap2, TEAL);
+    sx2 += sw2 + sGap2;
+  }
+
+  s9.addText("The application currently uses a platform-specific object storage integration that is NOT compatible with Azure. This code change is required before deployment.", {
+    x: 0.6, y: 2.2, w: PW - 1.2, h: 0.35,
+    fontSize: 11, color: ROSE, fontFace: "Segoe UI", bold: true,
+  });
+
+  addNote(s9, 0.6, 2.8, 3.8, "Affected Code Areas", [
+    "File upload handlers (multer → Blob Storage)",
+    "Avatar / logo image storage",
+    "Document attachments (.mpp, .xlsx, .pdf)",
+    "Report exports and generated files",
+    "Storage module is isolated — contained change",
+  ], TEAL);
+
+  addNote(s9, 4.8, 2.8, 3.8, "Code Change Summary", [
+    "Install: npm install @azure/storage-blob",
+    "Replace object storage calls with BlobServiceClient",
+    "Use DefaultAzureCredential (Managed Identity)",
+    "No access keys or connection strings needed",
+    "Estimated effort: 1-2 days",
+  ], TEAL);
+
+  addNote(s9, 9.0, 2.8, 3.8, "Data Migration Steps", [
+    "1. Export all files from current storage",
+    "2. Create Azure Blob container: uploads",
+    "3. Upload files via az storage blob upload-batch",
+    "4. Verify file counts and sizes match",
+    "5. Update any stored URLs in database",
+  ], BRAND_ORANGE);
+
+  addPermissions(s9, 0.6, 4.8, 5.5, "Developer (code change)", [
+    "Access to source code repository",
+    "npm install permissions for @azure/storage-blob",
+    "Staging environment for testing uploads",
+    "Test with Azure Storage Emulator (Azurite) locally",
+  ]);
+
+  addPermissions(s9, 6.5, 4.8, 6.2, "Storage Admin (data migration)", [
+    "Storage Blob Data Contributor on storage account",
+    "az storage blob upload-batch permissions",
+    "Access to current platform storage (export files)",
+    "Verify blob container access policies",
+  ]);
+
+  // ════════════════════════════════════════
+  // SLIDE 10: CI/CD PIPELINE
+  // ════════════════════════════════════════
+  const s10 = pptx.addSlide();
+  s10.background = { color: WHITE };
+  addSlideHeader(s10, 10, "CI/CD Pipeline", GREEN);
+  addFooter(s10, 10, 13, GREEN);
+
+  const ciSteps = [
+    { l: "Code Push", s: "main branch", col: BRAND_DARK },
+    { l: "Install & Build", s: "npm ci && npm run build", col: GREEN },
+    { l: "Run Tests", s: "npm test", col: GREEN },
+    { l: "Docker Build", s: "Build & tag image", col: GREEN },
+    { l: "Push to ACR", s: "az acr login + push", col: BRAND_BLUE },
+    { l: "Deploy Revision", s: "az containerapp update", col: BRAND_ORANGE },
+  ];
+  const cw = 1.65, ch = 0.55, cGap = 0.2;
+  const totalCw = ciSteps.length * cw + (ciSteps.length - 1) * cGap;
+  let cx2 = (PW - totalCw) / 2;
+  const cy2 = 1.4;
+  for (let i = 0; i < ciSteps.length; i++) {
+    addBox(s10, { x: cx2, y: cy2, w: cw, h: ch, label: ciSteps[i].l, sub: ciSteps[i].s, color: ciSteps[i].col });
+    if (i < ciSteps.length - 1) addArrowRight(s10, cx2 + cw, cy2 + ch / 2, cGap, GREEN);
+    cx2 += cw + cGap;
+  }
+
+  s10.addText("Automated pipeline triggered on push to main. Builds the app, runs tests, creates a Docker image, pushes to ACR, and deploys a new Container App revision.", {
+    x: 0.6, y: 2.2, w: PW - 1.2, h: 0.35,
+    fontSize: 11, color: GRAY, fontFace: "Segoe UI",
+  });
+
+  addNote(s10, 0.6, 2.8, 3.8, "GitHub Actions Workflow", [
+    "Trigger: push to main branch",
+    "Runner: ubuntu-latest",
+    "Steps: checkout → setup-node → npm ci → build → test",
+    "Docker: build, tag with git SHA + latest",
+    "Deploy: az containerapp update --image <tag>",
+  ], GREEN);
+
+  addNote(s10, 4.8, 2.8, 3.8, "Pipeline Secrets (GitHub)", [
+    "AZURE_CLIENT_ID — Service principal app ID",
+    "AZURE_CLIENT_SECRET — Service principal secret",
+    "AZURE_TENANT_ID — Azure tenant ID",
+    "AZURE_SUBSCRIPTION_ID — Target subscription",
+    "ACR_LOGIN_SERVER — fridayreportacr.azurecr.io",
+  ], PURPLE);
+
+  addNote(s10, 9.0, 2.8, 3.8, "Azure DevOps Alternative", [
+    "Pipeline: azure-pipelines.yml",
+    "Service Connection: Azure Resource Manager",
+    "ACR Task: Docker@2 with buildAndPush",
+    "Deploy Task: AzureContainerApps@1",
+    "Variable Groups for secrets management",
+  ], BRAND_BLUE);
+
+  addNote(s10, 0.6, 4.8, 3.8, "Deploy Commands", [
+    "az login --service-principal",
+    "az acr login --name fridayreportacr",
+    "docker build -t fridayreportacr.azurecr.io/fridayreport:$SHA .",
+    "docker push fridayreportacr.azurecr.io/fridayreport:$SHA",
+    "az containerapp update --name fridayreport-app \\",
+    "  --image fridayreportacr.azurecr.io/fridayreport:$SHA",
+  ], BRAND_ORANGE);
+
+  addPermissions(s10, 4.8, 4.8, 3.8, "CI Service Principal", [
+    "AcrPush on Container Registry",
+    "Contributor on Container App",
+    "Reader on Resource Group",
+    "Federated credential (OIDC) recommended over secrets",
+  ]);
+
+  addPermissions(s10, 9.0, 4.8, 3.8, "Pipeline Admin", [
+    "GitHub repo admin (manage secrets)",
+    "Azure AD: Create app registrations",
+    "Create federated credentials for OIDC",
+    "Assign roles to CI service principal",
+  ]);
+
+  // ════════════════════════════════════════
+  // SLIDE 11: ROLLBACK & UPDATE STRATEGY
+  // ════════════════════════════════════════
+  const s11 = pptx.addSlide();
+  s11.background = { color: WHITE };
+  addSlideHeader(s11, 11, "Rollback & Update Strategy", BRAND_ORANGE);
+  addFooter(s11, 11, 13, BRAND_ORANGE);
+
+  const rlSteps = [
+    { l: "New Image", s: "Build & push new tag", col: GREEN },
+    { l: "New Revision", s: "az containerapp update", col: BRAND_ORANGE },
+    { l: "Traffic Split", s: "Canary: 10% → 50% → 100%", col: BRAND_BLUE },
+    { l: "Monitor", s: "Check logs & health", col: GRAY },
+  ];
+  const rlw = 2.4, rlh = 0.55, rlGap = 0.4;
+  const totalRlw = rlSteps.length * rlw + (rlSteps.length - 1) * rlGap;
+  let rlx = (PW - totalRlw) / 2;
+  const rly = 1.4;
+  for (let i = 0; i < rlSteps.length; i++) {
+    addBox(s11, { x: rlx, y: rly, w: rlw, h: rlh, label: rlSteps[i].l, sub: rlSteps[i].s, color: rlSteps[i].col });
+    if (i < rlSteps.length - 1) addArrowRight(s11, rlx + rlw, rly + rlh / 2, rlGap, BRAND_ORANGE);
+    rlx += rlw + rlGap;
+  }
+
+  s11.addText("Azure Container Apps supports multiple active revisions with traffic splitting, enabling blue-green deployments and instant rollback.", {
+    x: 0.6, y: 2.2, w: PW - 1.2, h: 0.35,
+    fontSize: 11, color: GRAY, fontFace: "Segoe UI",
+  });
+
+  addNote(s11, 0.6, 2.8, 3.8, "Update Process", [
+    "1. Build and push new image with version tag",
+    "2. az containerapp update --image <new-tag>",
+    "3. New revision created automatically",
+    "4. Traffic shifts to new revision (single mode)",
+    "5. Old revision deactivated after successful deploy",
+  ], BRAND_ORANGE);
+
+  addNote(s11, 4.8, 2.8, 3.8, "Blue-Green / Canary Deploy", [
+    "Enable multiple revision mode:",
+    "az containerapp revision set-mode --mode multiple",
+    "Split traffic: --traffic latest=10 previous=90",
+    "Gradually increase: 10% → 50% → 100%",
+    "Monitor error rates between each shift",
+  ], BRAND_BLUE);
+
+  addNote(s11, 9.0, 2.8, 3.8, "Rollback Commands", [
+    "List revisions:",
+    "az containerapp revision list --name fridayreport-app",
+    "Activate old revision:",
+    "az containerapp revision activate --revision <name>",
+    "Shift traffic: --traffic <old-rev>=100",
+    "Instant rollback — no rebuild required",
+  ], ROSE);
+
+  addNote(s11, 0.6, 4.8, 5.5, "Database Migration Considerations", [
+    "Forward-only migrations: Always add columns, never remove",
+    "Two-phase migration: 1) Add new column 2) Deploy new code 3) Remove old column",
+    "Test rollback compatibility: new code must work with old schema",
+    "Backup database before destructive schema changes",
+  ], PURPLE);
+
+  addPermissions(s11, 6.5, 4.8, 6.2, "Release Manager", [
+    "Container App Contributor — Update revisions and traffic",
+    "az containerapp revision list/activate/deactivate",
+    "az containerapp ingress traffic set",
+    "Log Analytics Reader — Monitor rollback health",
+  ]);
+
+  // ════════════════════════════════════════
+  // SLIDE 12: PRE-DEPLOYMENT CHECKLIST
+  // ════════════════════════════════════════
+  const s12 = pptx.addSlide();
+  s12.background = { color: WHITE };
+  addSlideHeader(s12, 12, "Pre-Deployment Checklist", GREEN);
+  addFooter(s12, 12, 13, GREEN);
+
+  s12.addText("Complete all items before go-live. Each section has verification commands to confirm readiness.", {
+    x: 0.6, y: 1.0, w: PW - 1.2, h: 0.3,
+    fontSize: 11, color: GRAY, fontFace: "Segoe UI",
+  });
+
+  addNote(s12, 0.6, 1.5, 3.8, "Infrastructure Ready", [
+    "Resource Group created",
+    "PostgreSQL Flexible Server running",
+    "Azure Blob Storage account + uploads container",
+    "Key Vault created with RBAC enabled",
+    "Log Analytics workspace provisioned",
+    "Container App Environment created",
+    "ACR created with admin disabled",
+    "Verify: az resource list -g fridayreport-rg -o table",
+  ], BRAND_DARK);
+
+  addNote(s12, 4.8, 1.5, 3.8, "Code Changes Complete", [
+    "Storage layer migrated to @azure/storage-blob",
+    "Dockerfile tested and builds successfully",
+    "Health check endpoint: GET /api/health",
+    "Environment variables read from process.env",
+    "No hardcoded platform-specific references",
+    "All tests pass: npm test",
+    "Verify: docker build -t fridayreport . && docker run -p 5000:5000",
+  ], GREEN);
+
+  addNote(s12, 9.0, 1.5, 3.8, "Secrets Configured", [
+    "DATABASE_URL set in Key Vault",
+    "SESSION_SECRET generated and stored",
+    "GOOGLE_CLIENT_ID + SECRET stored",
+    "MICROSOFT_CLIENT_ID + SECRET stored",
+    "RESEND_API_KEY stored",
+    "Verify: az keyvault secret list --vault-name fridayreport-kv",
+  ], PURPLE);
+
+  addNote(s12, 0.6, 3.8, 3.8, "Networking & DNS", [
+    "VNet with subnets configured",
+    "Private endpoints for PG, KV, Blob",
+    "Custom domain CNAME record created",
+    "TXT verification record added",
+    "TLS certificate provisioned (or pending)",
+    "OAuth redirect URIs updated (Google + Microsoft)",
+    "Verify: nslookup app.fridayreport.ai",
+  ], BRAND_BLUE);
+
+  addNote(s12, 4.8, 3.8, 3.8, "Database Ready", [
+    "Schema migrations applied successfully",
+    "Extensions installed: unaccent",
+    "Session table verified: connect_pg_simple_sessions",
+    "Initial data seeded (if applicable)",
+    "Firewall temp rules removed",
+    "Connection test from Container App subnet",
+    "Verify: psql $DATABASE_URL -c '\\dt'",
+  ], BRAND_BLUE);
+
+  addNote(s12, 9.0, 3.8, 3.8, "Post-Deploy Smoke Tests", [
+    "GET https://app.fridayreport.ai — returns 200",
+    "GET /api/health — returns healthy status",
+    "Login with email/password — session created",
+    "Login with Google OAuth — redirect works",
+    "Login with Microsoft OAuth — redirect works",
+    "File upload — stored in Blob Storage",
+    "Verify: curl -I https://app.fridayreport.ai",
+  ], BRAND_ORANGE);
+
+  s12.addShape("rect" as any, {
+    x: 0.6, y: 6.0, w: PW - 1.2, h: 0.4,
+    fill: { color: "FEF2F2" },
+    line: { color: ROSE, width: 2 },
+    rectRadius: 0.06,
+  });
+  s12.addText([
+    { text: "GO / NO-GO: ", options: { fontSize: 11, bold: true, color: ROSE } },
+    { text: "All checklist items must be verified before shifting production traffic. Schedule a go-live window with stakeholders and have rollback commands ready.", options: { fontSize: 10, color: BRAND_DARK } },
+  ], {
+    x: 0.8, y: 6.05, w: PW - 1.6, h: 0.3,
+    valign: "middle", fontFace: "Segoe UI",
+  });
+
+  // ════════════════════════════════════════
+  // SLIDE 13: COST ESTIMATION
+  // ════════════════════════════════════════
+  const s13 = pptx.addSlide();
+  s13.background = { color: WHITE };
+  addSlideHeader(s13, 13, "Cost Estimation (Monthly)", TEAL);
+  addFooter(s13, 13, 13, TEAL);
+
+  s13.addText("Estimated monthly Azure costs based on typical usage patterns. Prices are approximate and vary by region (East US shown). All prices in USD.", {
+    x: 0.6, y: 1.0, w: PW - 1.2, h: 0.3,
+    fontSize: 11, color: GRAY, fontFace: "Segoe UI",
+  });
+
+  const costHeaders = ["Service", "SKU / Tier", "Dev Estimate", "Prod Estimate"];
+  const costRows = [
+    ["Container App", "1 vCPU / 2 Gi (dev) — 2 vCPU / 4 Gi x2 (prod)", "$30-50", "$150-300"],
+    ["PostgreSQL Flexible", "Standard_B1ms (dev) — Standard_D4ds_v4 (prod)", "$15-25", "$200-400"],
+    ["Azure Blob Storage", "Standard LRS (dev) — Standard GRS (prod)", "$1-5", "$5-20"],
+    ["Container Registry", "Basic (dev) — Standard (prod)", "$5", "$20"],
+    ["Key Vault", "Standard tier", "$0-1", "$0-5"],
+    ["Log Analytics", "Pay-per-GB ingestion", "$5-10", "$20-50"],
+    ["VNet / Private Endpoints", "3 private endpoints", "$0", "$22"],
+    ["Custom Domain + TLS", "Managed certificate", "$0", "$0"],
+  ];
+
+  const colW = [3.0, 4.5, 1.8, 1.8];
+  const rowH = 0.32;
+  const tableX = 0.6;
+  let tableY = 1.5;
+
+  for (let c = 0; c < costHeaders.length; c++) {
+    const cx3 = tableX + colW.slice(0, c).reduce((a, b) => a + b, 0);
+    s13.addText(costHeaders[c], {
+      x: cx3, y: tableY, w: colW[c], h: rowH,
+      fontSize: 10, bold: true, color: WHITE, align: "center", valign: "middle",
+      fontFace: "Segoe UI",
+      fill: { color: TEAL },
+    });
+  }
+  tableY += rowH;
+
+  for (let r = 0; r < costRows.length; r++) {
+    const bgColor = r % 2 === 0 ? "F0FDFA" : WHITE;
+    for (let c = 0; c < costRows[r].length; c++) {
+      const cx3 = tableX + colW.slice(0, c).reduce((a, b) => a + b, 0);
+      s13.addText(costRows[r][c], {
+        x: cx3, y: tableY, w: colW[c], h: rowH,
+        fontSize: 9, color: BRAND_DARK, align: c >= 2 ? "center" : "left", valign: "middle",
+        fontFace: "Segoe UI",
+        fill: { color: bgColor },
+        line: { color: "E5E7EB", width: 0.5 },
+      });
+    }
+    tableY += rowH;
+  }
+
+  const totalRowY = tableY;
+  for (let c = 0; c < 4; c++) {
+    const cx3 = tableX + colW.slice(0, c).reduce((a, b) => a + b, 0);
+    const vals = ["TOTAL (estimated)", "", "$56-96", "$417-817"];
+    s13.addText(vals[c], {
+      x: cx3, y: totalRowY, w: colW[c], h: rowH,
+      fontSize: 10, bold: true, color: WHITE, align: c >= 2 ? "center" : "left", valign: "middle",
+      fontFace: "Segoe UI",
+      fill: { color: TEAL },
+    });
+  }
+
+  addNote(s13, 0.6, 5.0, 3.8, "Cost Optimization Tips", [
+    "Use Reserved Instances for PostgreSQL (1-3 yr)",
+    "Scale to zero in dev (Container App)",
+    "Use Basic ACR tier in development",
+    "Set log retention to 30 days (default 90)",
+    "Use Spot instances for non-critical workloads",
+  ], TEAL);
+
+  addNote(s13, 4.8, 5.0, 3.8, "Scaling Cost Factors", [
+    "Container App: billed per vCPU-second + memory",
+    "Auto-scaling to 10 replicas: ~$1,500/mo peak",
+    "PostgreSQL: largest cost driver in production",
+    "Consider Burstable tier for predictable workloads",
+  ], BRAND_ORANGE);
+
+  addNote(s13, 9.0, 5.0, 3.8, "Free / Included Services", [
+    "Managed TLS certificates: Free",
+    "Managed Identity: Free",
+    "Azure RBAC: Free",
+    "Key Vault: First 10k operations free",
+    "Blob Storage: 5 GB free (first 12 months)",
+  ], GREEN);
 
   return pptx;
 }
