@@ -2227,19 +2227,6 @@ export async function registerRoutes(
       }).returning();
 
       res.json({ success: true, shareToken: lead.shareToken });
-
-      try {
-        const { sendUnconSelfieThankYouEmail } = await import("./services/email");
-        const { generateSelfieOgImage } = await import("./selfie-og");
-        const brandedImage = await generateSelfieOgImage({
-          userName: userName.trim(),
-          interviewer: interviewer?.trim() || null,
-          selfieBuffer: req.file ? req.file.buffer : null,
-        });
-        await sendUnconSelfieThankYouEmail(email.trim(), userName.trim(), brandedImage);
-      } catch (emailErr) {
-        console.error('Failed to send UnCon selfie thank-you email:', emailErr);
-      }
     } catch (err) {
       console.error('Selfie submission error:', err);
       const { status, message } = classifyError(err);
@@ -2323,20 +2310,14 @@ export async function registerRoutes(
 
       const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-      let fridayLogoWhiteDataUrl = '';
-      let fridayLogoBlackDataUrl = '';
+      let fridayLogoDataUrl = '';
       let pmiPmogaLogoDataUrl = '';
       try {
         const sharp = (await import('sharp')).default;
-        const whiteLogoPath = path.resolve(process.cwd(), 'client', 'public', 'frai-logo-white.png');
-        if (fs.existsSync(whiteLogoPath)) {
-          const buf = await sharp(whiteLogoPath).resize(200, null, { fit: 'inside' }).png().toBuffer();
-          fridayLogoWhiteDataUrl = `data:image/png;base64,${buf.toString('base64')}`;
-        }
-        const blackLogoPath = path.resolve(process.cwd(), 'client', 'public', 'frai-logo-black.png');
-        if (fs.existsSync(blackLogoPath)) {
-          const buf = await sharp(blackLogoPath).resize(200, null, { fit: 'inside' }).png().toBuffer();
-          fridayLogoBlackDataUrl = `data:image/png;base64,${buf.toString('base64')}`;
+        const logoPath = path.resolve(process.cwd(), 'client', 'public', 'logo-full.png');
+        if (fs.existsSync(logoPath)) {
+          const buf = await sharp(logoPath).resize(240, null, { fit: 'inside' }).png().toBuffer();
+          fridayLogoDataUrl = `data:image/png;base64,${buf.toString('base64')}`;
         }
         const pmiPath = path.resolve(process.cwd(), 'client', 'public', 'pmi-pmoga-logo.png');
         if (fs.existsSync(pmiPath)) {
@@ -2359,8 +2340,8 @@ export async function registerRoutes(
   <meta property="og:title" content="${esc(title)}" />
   <meta property="og:description" content="${esc(description)}" />
   <meta property="og:image" content="${esc(ogImageUrl)}" />
-  <meta property="og:image:width" content="1080" />
-  <meta property="og:image:height" content="1080" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="${esc(baseUrl)}/api/uncon2026/selfie/${lead.shareToken}/share" />
   <meta name="twitter:card" content="summary_large_image" />
@@ -2369,31 +2350,31 @@ export async function registerRoutes(
   <meta name="twitter:image" content="${esc(ogImageUrl)}" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; background: #0F172A; display: flex; flex-direction: column; align-items: center; color: white; }
-    .header { width: 100%; padding: 14px 24px; display: flex; align-items: center; justify-content: center; background: rgba(15,23,42,0.9); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.06); }
-    .header img { height: 28px; }
+    body { font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 30%, #f5f6fa 100%); display: flex; flex-direction: column; align-items: center; }
+    .header { width: 100%; background: #17255A; padding: 14px 24px; display: flex; align-items: center; justify-content: center; }
+    .header img { height: 28px; filter: invert(1); }
     .header-text { color: white; font-size: 16px; font-weight: 700; }
-    .container { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 16px; width: 100%; max-width: 480px; }
-    .badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,117,31,0.15); border: 1px solid rgba(255,117,31,0.25); border-radius: 999px; padding: 6px 16px; font-size: 11px; font-weight: 700; color: #FF9F4F; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px; }
-    .og-image { width: 100%; border-radius: 16px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); border: 1px solid rgba(255,117,31,0.15); }
-    h1 { font-size: 22px; color: white; margin-bottom: 8px; line-height: 1.3; font-weight: 800; }
+    .container { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 16px; width: 100%; max-width: 480px; }
+    .card { background: white; border-radius: 20px; box-shadow: 0 8px 40px rgba(0,0,0,0.08); padding: 32px 24px; text-align: center; width: 100%; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(90deg, #fef3c7, #fde68a); border: 1px solid #fcd34d; border-radius: 999px; padding: 6px 16px; font-size: 11px; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 20px; }
+    .og-image { width: 100%; border-radius: 12px; margin-bottom: 24px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+    h1 { font-size: 22px; color: #17255A; margin-bottom: 8px; line-height: 1.3; }
     .subtitle { color: #FF751F; font-size: 15px; font-weight: 600; margin-bottom: 6px; }
-    .interviewer { color: rgba(255,255,255,0.6); font-size: 14px; margin-bottom: 16px; }
-    .interviewer strong { color: #FFD700; }
-    .description { color: rgba(255,255,255,0.5); font-size: 13px; line-height: 1.6; margin-bottom: 20px; }
-    .cta { display: inline-block; background: linear-gradient(135deg, #FF751F, #FF8F3F); color: white; text-decoration: none; font-weight: 700; font-size: 15px; padding: 12px 32px; border-radius: 12px; box-shadow: 0 4px 20px rgba(255,117,31,0.4); transition: all 0.2s; }
-    .cta:hover { box-shadow: 0 6px 28px rgba(255,117,31,0.6); transform: translateY(-1px); }
-    .logos { display: flex; align-items: center; justify-content: center; gap: 20px; margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08); }
-    .logos img { height: 22px; object-fit: contain; opacity: 0.7; }
-    .logos .sep { width: 1px; height: 18px; background: rgba(255,255,255,0.15); }
-    .footer { padding: 16px; text-align: center; color: rgba(255,255,255,0.3); font-size: 11px; }
-    .gold-label { color: #FFD700; font-weight: 600; }
-    .card { background: rgba(255,255,255,0.03); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 28px 20px; text-align: center; width: 100%; }
+    .interviewer { color: #6b7280; font-size: 14px; margin-bottom: 16px; }
+    .interviewer strong { color: #17255A; }
+    .description { color: #6b7280; font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
+    .cta { display: inline-block; background: #FF751F; color: white; text-decoration: none; font-weight: 700; font-size: 15px; padding: 12px 32px; border-radius: 10px; transition: background 0.2s; }
+    .cta:hover { background: #e86a15; }
+    .logos { display: flex; align-items: center; justify-content: center; gap: 24px; margin-top: 24px; padding-top: 20px; border-top: 1px solid #f0f1f5; }
+    .logos img { height: 24px; object-fit: contain; opacity: 0.7; }
+    .logos .sep { width: 1px; height: 20px; background: #e5e7eb; }
+    .footer { padding: 20px; text-align: center; color: #9ca3af; font-size: 12px; }
+    .gold-label { color: #d97706; font-weight: 600; }
   </style>
 </head>
 <body>
   <div class="header">
-    ${fridayLogoWhiteDataUrl ? `<img src="${fridayLogoWhiteDataUrl}" alt="FridayReport.AI" />` : `<span class="header-text">FridayReport.AI</span>`}
+    ${fridayLogoDataUrl ? `<img src="${fridayLogoDataUrl}" alt="FridayReport.AI" />` : `<span class="header-text">FridayReport.AI</span>`}
   </div>
   <div class="container">
     <div class="card">
@@ -2405,9 +2386,9 @@ export async function registerRoutes(
       <p class="description">Snap a selfie, share the moment. Powered by FridayReport.AI \u2014 proud <span class="gold-label">Gold Sponsor</span> of PMO unCON North America 2026.</p>
       <a href="https://fridayreport.ai" class="cta" target="_blank" rel="noopener noreferrer">Learn about FridayReport.AI</a>
       <div class="logos">
-        ${pmiPmogaLogoDataUrl ? `<img src="${pmiPmogaLogoDataUrl}" alt="PMI &middot; PMO Global Alliance" style="filter: brightness(0) invert(1); opacity: 0.9;" />` : `<span style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5)">PMI \u00B7 PMO Global Alliance</span>`}
+        ${pmiPmogaLogoDataUrl ? `<img src="${pmiPmogaLogoDataUrl}" alt="PMI &middot; PMO Global Alliance" />` : `<span style="font-size:12px;font-weight:700;color:#9ca3af">PMI \u00B7 PMO Global Alliance</span>`}
         <div class="sep"></div>
-        ${fridayLogoWhiteDataUrl ? `<img src="${fridayLogoWhiteDataUrl}" alt="FridayReport.AI" />` : `<span style="font-size:12px;font-weight:700;color:white">FridayReport.AI</span>`}
+        ${fridayLogoDataUrl ? `<img src="${fridayLogoDataUrl}" alt="FridayReport.AI" />` : `<span style="font-size:12px;font-weight:700;color:#17255A">FridayReport.AI</span>`}
       </div>
     </div>
   </div>
