@@ -18,3 +18,9 @@ id = "hq5D2KY9xb_sHh8Va1zoG"
 uri = "file://FridayReportAI_Azure_Container_App_Deployment_Guide.docx"
 type = "word_document"
 title = "Azure Container App Deployment Guide (Reorganized Diagram)"
+
+[[outputs]]
+id = "onLkRpsUzWZO1dgnWxO6_"
+uri = "file://FridayReportAI_Azure_Deployment_Flow.pptx"
+type = "slides"
+title = "Azure Deployment Flow Diagram (Editable PowerPoint)"
