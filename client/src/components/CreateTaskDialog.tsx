@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { DurationInput } from "@/components/ui/duration-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,7 +23,7 @@ import { insertTaskSchema } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format, differenceInDays, parseISO } from "date-fns";
-import { calculateEndDateFromWorkingDays } from "@/lib/workingDays";
+import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, parseDurationInput, formatDuration } from "@/lib/workingDays";
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -35,7 +36,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
   const createTask = useCreateTask();
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const { data: projects } = useProjects(organizationId ?? null);
-  const [durationInput, setDurationInput] = useState<string>("1");
+  const [durationInput, setDurationInput] = useState<string>("1d");
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [resourceAllocations, setResourceAllocations] = useState<ResourceAllocation[]>([]);
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
@@ -68,7 +69,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
     },
   });
 
-  const durationDays = durationInput === "" ? null : parseInt(durationInput, 10);
+  const durationDays = parseDurationInput(durationInput);
 
   const recalculateEndDate = (newStartDate: string, newDuration: number | null) => {
     if (newStartDate && newDuration !== null && newDuration >= 0) {
@@ -83,11 +84,13 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
   };
 
   const handleDurationBlur = () => {
-    const num = parseInt(durationInput, 10);
-    if (durationInput === "" || isNaN(num) || num < 0) {
-      setDurationInput("1");
-    } else if (num > 365) {
-      setDurationInput("365");
+    const parsed = parseDurationInput(durationInput);
+    if (parsed === null || parsed < 0) {
+      setDurationInput("1d");
+    } else if (parsed > 365) {
+      setDurationInput("365d");
+    } else {
+      setDurationInput(formatDuration(parsed));
     }
   };
 
@@ -135,7 +138,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
         isMilestone: false,
         timesheetBlocked: false,
       });
-      setDurationInput("1");
+      setDurationInput("1d");
       setSelectedResourceIds([]);
       setResourceAllocations([]);
       inviteAssignedRef.current = false;
@@ -202,7 +205,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
         <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Add New Task</DialogTitle>
-            <DialogDescription>Fill in the details to create a new task.</DialogDescription>
+            <DialogDescription className="sr-only">Fill in the details to create a new task.</DialogDescription>
           </DialogHeader>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col min-h-0">
             <div className="space-y-2 pb-3">
@@ -398,23 +401,17 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Duration (days)</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="365"
+                      <Label className="text-xs">Duration</Label>
+                      <DurationInput
                         className="h-8 text-sm"
                         value={durationInput}
-                        onChange={(e) => {
-                          const value = e.target.value;
+                        onChange={(value, parsed) => {
                           setDurationInput(value);
-                          const newDuration = value === "" ? null : parseInt(value, 10);
-                          if (newDuration !== null && !isNaN(newDuration) && newDuration >= 0) {
+                          if (parsed !== null && parsed >= 0) {
                             const currentStartDate = form.getValues("startDate");
-                            recalculateEndDate(currentStartDate, newDuration);
+                            recalculateEndDate(currentStartDate, parsed);
                           }
                         }}
-                        onBlur={handleDurationBlur}
                         data-testid="input-task-duration"
                       />
                     </div>
@@ -436,17 +433,13 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
                                 field.onChange(newEndDate);
                                 if (currentStartDate && newEndDate && newEndDate.length === 10) {
                                   try {
-                                    const start = parseISO(currentStartDate);
-                                    const end = parseISO(newEndDate);
-                                    if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
-                                      const newDuration = differenceInDays(end, start) + 1;
-                                      if (newDuration >= 0) {
-                                        setDurationInput(String(newDuration));
-                                        form.setValue("durationDays", newDuration, {
-                                          shouldDirty: true,
-                                          shouldValidate: true,
-                                        });
-                                      }
+                                    const newDuration = calculateDurationInWorkingDays(currentStartDate, newEndDate);
+                                    if (newDuration >= 0) {
+                                      setDurationInput(formatDuration(newDuration));
+                                      form.setValue("durationDays", newDuration, {
+                                        shouldDirty: true,
+                                        shouldValidate: true,
+                                      });
                                     }
                                   } catch {}
                                 }

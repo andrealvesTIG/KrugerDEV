@@ -213,7 +213,7 @@ export function TaskDependenciesSection({
                     value={dep.dependencyType || "finish-to-start"}
                     onValueChange={(val) => handleUpdateDependencyType(dep.dependsOnTaskId, val)}
                   >
-                    <SelectTrigger className="h-7 w-[62px] text-xs px-2">
+                    <SelectTrigger className="h-7 w-[160px] text-xs px-2">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -225,10 +225,11 @@ export function TaskDependenciesSection({
                       ))}
                     </SelectContent>
                   </Select>
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">lag/lead days</span>
                   <Input
                     type="number"
-                    className="h-7 w-[52px] text-xs text-center px-1"
-                    title="Lag days"
+                    className="h-7 w-[44px] text-xs text-center px-1"
+                    title="Lag/lead days"
                     key={`lag-${dep.id}-${dep.lagDays}`}
                     defaultValue={dep.lagDays || 0}
                     onBlur={(e) => {
@@ -243,7 +244,6 @@ export function TaskDependenciesSection({
                       }
                     }}
                   />
-                  <span className="text-xs text-muted-foreground">d</span>
                   <Button
                     type="button"
                     variant="ghost"
@@ -279,7 +279,7 @@ export function TaskDependenciesSection({
             />
           </div>
           <Select value={selectedType} onValueChange={setSelectedType} disabled={orgDefaults.enforceDefaults}>
-            <SelectTrigger className="w-[72px] h-9 text-xs" title={orgDefaults.enforceDefaults ? "Locked by organization settings" : undefined}>
+            <SelectTrigger className="w-[160px] h-9 text-xs" title={orgDefaults.enforceDefaults ? "Locked by organization settings" : undefined}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -291,16 +291,16 @@ export function TaskDependenciesSection({
               ))}
             </SelectContent>
           </Select>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">lag/lead days</span>
           <Input
             type="number"
-            className="w-[52px] h-9 text-xs text-center px-1"
-            title={orgDefaults.enforceDefaults ? "Locked by organization settings" : "Lag days for new dependency"}
-            placeholder="Lag"
+            className="w-[48px] h-9 text-xs text-center px-1"
+            title={orgDefaults.enforceDefaults ? "Locked by organization settings" : "Lag/lead days for new dependency"}
+            placeholder="0"
             value={lagDays}
             onChange={(e) => setLagDays(parseInt(e.target.value) || 0)}
             disabled={orgDefaults.enforceDefaults}
           />
-          <span className="text-xs text-muted-foreground">d</span>
         </div>
         <div
           ref={listRef}
