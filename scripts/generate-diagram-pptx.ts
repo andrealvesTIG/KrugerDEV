@@ -9,8 +9,9 @@ const PURPLE = "7C3AED";
 const TEAL = "0891B2";
 const ROSE = "E11D48";
 const GRAY = "6B7280";
-const LIGHT_BG = "F8F9FA";
 const WHITE = "FFFFFF";
+const PW = 13.33;
+const CX = PW / 2;
 
 interface BoxDef {
   x: number;
@@ -23,81 +24,98 @@ interface BoxDef {
   rounded?: number;
 }
 
-function addBox(slide: PptxGenJS.Slide, b: BoxDef) {
-  const text: PptxGenJS.TextProps[] = [
-    { text: b.label, options: { fontSize: 11, bold: true, color: WHITE, align: "center", breakLine: !!b.sub } },
+function addBox(slide: any, b: BoxDef) {
+  const text: any[] = [
+    { text: b.label, options: { fontSize: 14, bold: true, color: WHITE, align: "center", breakLine: !!b.sub } },
   ];
   if (b.sub) {
-    text.push({ text: b.sub, options: { fontSize: 8, color: WHITE, align: "center" } });
+    text.push({ text: b.sub, options: { fontSize: 10, color: WHITE, align: "center" } });
   }
   slide.addText(text, {
     x: b.x, y: b.y, w: b.w, h: b.h,
     fill: { color: b.color },
-    rectRadius: b.rounded ?? 0.08,
+    rectRadius: b.rounded ?? 0.1,
     valign: "middle",
   });
 }
 
-function addArrowRight(slide: PptxGenJS.Slide, x: number, y: number, len: number, color: string) {
+function addArrowRight(slide: any, x: number, y: number, len: number, color: string) {
   slide.addShape("rightArrow" as any, {
-    x, y: y - 0.06, w: len, h: 0.12,
+    x, y: y - 0.08, w: len, h: 0.16,
     fill: { color },
   });
 }
 
-function addArrowDown(slide: PptxGenJS.Slide, x: number, y: number, len: number, color: string, label?: string) {
+function addArrowDown(slide: any, x: number, y: number, len: number, color: string, label?: string) {
   slide.addShape("downArrow" as any, {
-    x: x - 0.06, y, w: 0.12, h: len,
+    x: x - 0.08, y, w: 0.16, h: len,
     fill: { color },
   });
   if (label) {
     slide.addText(label, {
-      x: x + 0.1, y: y + len / 2 - 0.08, w: 0.8, h: 0.16,
-      fontSize: 7, italic: true, color, fontFace: "Segoe UI",
+      x: x + 0.14, y: y + len / 2 - 0.1, w: 1.0, h: 0.2,
+      fontSize: 9, italic: true, color, fontFace: "Segoe UI",
     });
   }
 }
 
-function addSectionBg(slide: PptxGenJS.Slide, x: number, y: number, w: number, h: number, color: string) {
-  slide.addShape("rect" as any, {
-    x, y, w, h,
-    fill: { color, transparency: 94 },
-    line: { color, width: 1, transparency: 70 },
-    rectRadius: 0.08,
-  });
-}
-
-function addSectionLabel(slide: PptxGenJS.Slide, x: number, y: number, label: string, color: string) {
-  slide.addText(label, {
-    x, y, w: label.length * 0.075 + 0.3, h: 0.22,
-    fontSize: 8, bold: true, color,
-    fontFace: "Segoe UI",
-    fill: { color, transparency: 85 },
-    rectRadius: 0.04,
-  });
-}
-
-function addNote(slide: PptxGenJS.Slide, x: number, y: number, w: number, title: string, lines: string[], color: string) {
-  const h = 0.22 + lines.length * 0.16 + 0.06;
+function addNote(slide: any, x: number, y: number, w: number, title: string, lines: string[], color: string) {
+  const h = 0.32 + lines.length * 0.22 + 0.1;
   slide.addShape("rect" as any, {
     x, y, w, h,
     fill: { color: WHITE },
-    line: { color, width: 1 },
-    rectRadius: 0.05,
+    line: { color, width: 1.5 },
+    rectRadius: 0.06,
   });
   slide.addShape("rect" as any, {
-    x, y, w, h: 0.04,
+    x, y, w, h: 0.06,
     fill: { color },
   });
-  const text: PptxGenJS.TextProps[] = [
-    { text: title, options: { fontSize: 8, bold: true, color, breakLine: true } },
+  const text: any[] = [
+    { text: title, options: { fontSize: 11, bold: true, color, breakLine: true } },
   ];
   for (const l of lines) {
-    text.push({ text: "• " + l, options: { fontSize: 7, color: BRAND_DARK, breakLine: true } });
+    text.push({ text: "• " + l, options: { fontSize: 9, color: BRAND_DARK, breakLine: true } });
   }
   slide.addText(text, {
-    x: x + 0.08, y: y + 0.06, w: w - 0.16, h: h - 0.12,
+    x: x + 0.12, y: y + 0.1, w: w - 0.24, h: h - 0.2,
     valign: "top", fontFace: "Segoe UI",
+  });
+}
+
+function addSlideHeader(slide: any, stageNum: number, title: string, color: string) {
+  slide.addShape("rect" as any, {
+    x: 0, y: 0, w: PW, h: 0.08,
+    fill: { color },
+  });
+
+  slide.addText(`STAGE ${stageNum}`, {
+    x: 0.4, y: 0.25, w: 1.2, h: 0.36,
+    fontSize: 13, bold: true, color: WHITE, align: "center",
+    fontFace: "Segoe UI",
+    fill: { color },
+    rectRadius: 0.06,
+  });
+
+  slide.addText(title, {
+    x: 1.8, y: 0.22, w: 8, h: 0.44,
+    fontSize: 22, bold: true, color: BRAND_DARK, fontFace: "Segoe UI",
+  });
+
+  slide.addShape("rect" as any, {
+    x: 0.4, y: 0.75, w: PW - 0.8, h: 0.02,
+    fill: { color, transparency: 70 },
+  });
+}
+
+function addFooter(slide: any, stageNum: number, totalStages: number, color: string) {
+  slide.addText(`FridayReport.AI — Azure Deployment Flow  |  Stage ${stageNum} of ${totalStages}`, {
+    x: 0.4, y: 7.0, w: PW - 0.8, h: 0.3,
+    fontSize: 8, color: GRAY, fontFace: "Segoe UI", align: "center",
+  });
+  slide.addShape("rect" as any, {
+    x: 0, y: 7.42, w: PW, h: 0.08,
+    fill: { color },
   });
 }
 
@@ -107,26 +125,71 @@ function build() {
   pptx.author = "FridayReport.AI";
   pptx.title = "Azure Deployment Flow";
 
-  const slide = pptx.addSlide();
-  slide.background = { color: WHITE };
+  // ════════════════════════════════════════
+  // TITLE SLIDE
+  // ════════════════════════════════════════
+  const titleSlide = pptx.addSlide();
+  titleSlide.background = { color: WHITE };
 
-  slide.addText("FridayReport.AI — Azure Deployment Flow", {
-    x: 0, y: 0.15, w: 13.33, h: 0.4,
-    fontSize: 22, bold: true, color: BRAND_DARK, align: "center", fontFace: "Segoe UI",
+  titleSlide.addShape("rect" as any, {
+    x: 0, y: 0, w: PW, h: 0.12,
+    fill: { color: BRAND_DARK },
   });
-  slide.addText("End-to-end pipeline from source code to production on Azure Container Apps", {
-    x: 0, y: 0.5, w: 13.33, h: 0.22,
-    fontSize: 10, color: GRAY, align: "center", fontFace: "Segoe UI",
+  titleSlide.addShape("rect" as any, {
+    x: 0, y: 7.38, w: PW, h: 0.12,
+    fill: { color: BRAND_DARK },
   });
+
+  titleSlide.addText("FridayReport.AI", {
+    x: 0, y: 1.8, w: PW, h: 0.7,
+    fontSize: 40, bold: true, color: BRAND_DARK, align: "center", fontFace: "Segoe UI",
+  });
+  titleSlide.addText("Azure Container App Deployment Flow", {
+    x: 0, y: 2.5, w: PW, h: 0.5,
+    fontSize: 24, color: BRAND_BLUE, align: "center", fontFace: "Segoe UI",
+  });
+  titleSlide.addText("End-to-end pipeline from source code to production", {
+    x: 0, y: 3.2, w: PW, h: 0.35,
+    fontSize: 14, color: GRAY, align: "center", fontFace: "Segoe UI",
+  });
+
+  const overviewItems = [
+    { num: "1", label: "Build & Containerize", col: GREEN },
+    { num: "2", label: "Container Registry", col: BRAND_BLUE },
+    { num: "3", label: "Azure Infrastructure", col: BRAND_DARK },
+    { num: "4", label: "Deploy Container App", col: BRAND_ORANGE },
+    { num: "5", label: "Runtime Architecture", col: ROSE },
+  ];
+  const ow = 2.0, oGap = 0.35;
+  const totalOw = overviewItems.length * ow + (overviewItems.length - 1) * oGap;
+  let ox = (PW - totalOw) / 2;
+
+  for (let i = 0; i < overviewItems.length; i++) {
+    const item = overviewItems[i];
+    titleSlide.addText([
+      { text: item.num, options: { fontSize: 20, bold: true, color: WHITE, align: "center", breakLine: true } },
+      { text: item.label, options: { fontSize: 10, color: WHITE, align: "center" } },
+    ], {
+      x: ox, y: 4.2, w: ow, h: 0.7,
+      fill: { color: item.col },
+      rectRadius: 0.1,
+      valign: "middle",
+    });
+    if (i < overviewItems.length - 1) {
+      addArrowRight(titleSlide, ox + ow, 4.55, oGap, GRAY);
+    }
+    ox += ow + oGap;
+  }
 
   // ════════════════════════════════════════
-  // STAGE 1: BUILD
+  // SLIDE 1: BUILD & CONTAINERIZE
   // ════════════════════════════════════════
-  const s1y = 0.85;
-  addSectionBg(slide, 0.2, s1y, 12.93, 1.55, GREEN);
-  addSectionLabel(slide, 0.32, s1y + 0.08, "STAGE 1: BUILD & CONTAINERIZE", GREEN);
+  const s1 = pptx.addSlide();
+  s1.background = { color: WHITE };
+  addSlideHeader(s1, 1, "Build & Containerize", GREEN);
+  addFooter(s1, 1, 5, GREEN);
 
-  const bw = 1.7, bh = 0.42, bGap = 0.2;
+  const bw = 2.0, bh = 0.55, bGap = 0.3;
   const steps = [
     { l: "Source Code", s: "TypeScript + React" },
     { l: "npm run build", s: "Vite + esbuild" },
@@ -135,52 +198,96 @@ function build() {
     { l: "Container Image", s: "Node.js 20 + JRE 17" },
   ];
   const totalBw = steps.length * bw + (steps.length - 1) * bGap;
-  let bx = (13.33 - totalBw) / 2;
-  const by = s1y + 0.4;
+  let bx = (PW - totalBw) / 2;
+  const by = 1.4;
 
   for (let i = 0; i < steps.length; i++) {
-    addBox(slide, { x: bx, y: by, w: bw, h: bh, label: steps[i].l, sub: steps[i].s, color: GREEN });
-    if (i < steps.length - 1) addArrowRight(slide, bx + bw, by + bh / 2, bGap, GREEN);
+    addBox(s1, { x: bx, y: by, w: bw, h: bh, label: steps[i].l, sub: steps[i].s, color: GREEN });
+    if (i < steps.length - 1) addArrowRight(s1, bx + bw, by + bh / 2, bGap, GREEN);
     bx += bw + bGap;
   }
 
-  addNote(slide, 0.4, by + bh + 0.15, 2.4, "Build Output", [
-    "dist/index.cjs (server bundle)",
-    "dist/public/ (React SPA)",
-    "lib/ (MPXJ JARs for .mpp parsing)",
+  s1.addText("The build pipeline compiles TypeScript source into production-ready artifacts, then packages them into a Docker container image.", {
+    x: 0.6, y: 2.2, w: PW - 1.2, h: 0.35,
+    fontSize: 11, color: GRAY, fontFace: "Segoe UI",
+  });
+
+  addNote(s1, 0.6, 2.8, 3.8, "Build Output", [
+    "dist/index.cjs — Bundled Express server (single file)",
+    "dist/public/ — React SPA assets (HTML, JS, CSS)",
+    "public/ — Static assets (avatars, logos, favicons)",
+    "lib/ — MPXJ JAR files for Microsoft Project parsing",
   ], GREEN);
 
-  addNote(slide, 3.0, by + bh + 0.15, 2.4, "Dockerfile Highlights", [
-    "Multi-stage: build → runtime",
-    "JRE 17 for MPP parser",
-    "~400-600 MB final image",
+  addNote(s1, 4.8, 2.8, 3.8, "Dockerfile Highlights", [
+    "Multi-stage build: build stage → slim runtime stage",
+    "Base: node:20-slim with JRE 17 (for MPXJ library)",
+    "Final image size: ~400-600 MB",
+    "Entrypoint: node dist/index.cjs",
+  ], GREEN);
+
+  addNote(s1, 9.0, 2.8, 3.8, "Build Commands", [
+    "npm ci — Install dependencies",
+    "npm run build — Vite frontend + esbuild backend",
+    "docker build -t fridayreport . — Build image",
+    "docker tag fridayreport <acr>.azurecr.io/fridayreport:latest",
   ], GREEN);
 
   // ════════════════════════════════════════
-  // STAGE 2: REGISTRY
+  // SLIDE 2: CONTAINER REGISTRY
   // ════════════════════════════════════════
-  const s2y = s1y + 1.7;
-  addSectionBg(slide, 0.2, s2y, 12.93, 0.8, BRAND_BLUE);
-  addSectionLabel(slide, 0.32, s2y + 0.08, "STAGE 2: CONTAINER REGISTRY", BRAND_BLUE);
+  const s2 = pptx.addSlide();
+  s2.background = { color: WHITE };
+  addSlideHeader(s2, 2, "Container Registry", BRAND_BLUE);
+  addFooter(s2, 2, 5, BRAND_BLUE);
 
-  addArrowDown(slide, 6.66, s1y + 1.55, 0.15, BRAND_BLUE, "push image");
+  addBox(s2, { x: 1.5, y: 1.6, w: 2.5, h: 0.6, label: "Container Image", sub: "Local Docker Image", color: GREEN });
+  addArrowRight(s2, 4.0, 1.9, 1.5, BRAND_BLUE);
+  addBox(s2, { x: 5.5, y: 1.4, w: 3.5, h: 0.8, label: "Azure Container Registry", sub: "fridayreportacr.azurecr.io", color: BRAND_BLUE });
+  addArrowRight(s2, 9.0, 1.8, 1.2, BRAND_DARK);
+  addBox(s2, { x: 10.2, y: 1.6, w: 2.5, h: 0.6, label: "Container App", sub: "Pulls image at deploy", color: BRAND_DARK });
 
-  addBox(slide, { x: 4.5, y: s2y + 0.3, w: 3.0, h: 0.42, label: "Azure Container Registry", sub: "docker push / az acr build", color: BRAND_BLUE });
+  s2.addText([
+    { text: "docker push", options: { fontSize: 10, italic: true, color: BRAND_BLUE } },
+  ], { x: 4.2, y: 1.45, w: 1.2, h: 0.2, fontFace: "Segoe UI" });
 
-  addNote(slide, 7.8, s2y + 0.2, 2.5, "ACR Config", [
-    "SKU: Standard or Premium",
-    "Auth: Managed Identity (AcrPull)",
-    "Alternative: az acr build (cloud)",
+  s2.addText([
+    { text: "AcrPull", options: { fontSize: 10, italic: true, color: BRAND_DARK } },
+  ], { x: 9.2, y: 1.45, w: 1.0, h: 0.2, fontFace: "Segoe UI" });
+
+  s2.addText("The container image is pushed to Azure Container Registry, which acts as the private image store. Container Apps pull the image from ACR using Managed Identity.", {
+    x: 0.6, y: 2.7, w: PW - 1.2, h: 0.35,
+    fontSize: 11, color: GRAY, fontFace: "Segoe UI",
+  });
+
+  addNote(s2, 0.6, 3.3, 3.8, "ACR Configuration", [
+    "SKU: Standard (dev) or Premium (prod)",
+    "Geo-replication available on Premium",
+    "Admin access: Disabled (use Managed Identity)",
+    "Retention policy: 30 days for untagged manifests",
+  ], BRAND_BLUE);
+
+  addNote(s2, 4.8, 3.3, 3.8, "Push Commands", [
+    "az acr login --name fridayreportacr",
+    "docker tag fridayreport fridayreportacr.azurecr.io/fridayreport:v1.0",
+    "docker push fridayreportacr.azurecr.io/fridayreport:v1.0",
+    "Alternative: az acr build -t fridayreport:v1.0 .",
+  ], BRAND_BLUE);
+
+  addNote(s2, 9.0, 3.3, 3.8, "Image Tagging Strategy", [
+    "latest — Most recent build",
+    "v1.0, v1.1 — Semantic version tags",
+    "git-<sha> — Git commit hash for traceability",
+    "Use immutable tags in production",
   ], BRAND_BLUE);
 
   // ════════════════════════════════════════
-  // STAGE 3: INFRASTRUCTURE
+  // SLIDE 3: AZURE INFRASTRUCTURE
   // ════════════════════════════════════════
-  const s3y = s2y + 0.95;
-  addSectionBg(slide, 0.2, s3y, 12.93, 1.55, BRAND_DARK);
-  addSectionLabel(slide, 0.32, s3y + 0.08, "STAGE 3: AZURE INFRASTRUCTURE", BRAND_DARK);
-
-  addArrowDown(slide, 6.66, s2y + 0.8, 0.15, BRAND_DARK, "provision");
+  const s3 = pptx.addSlide();
+  s3.background = { color: WHITE };
+  addSlideHeader(s3, 3, "Azure Infrastructure", BRAND_DARK);
+  addFooter(s3, 3, 5, BRAND_DARK);
 
   const infraItems = [
     { l: "Resource Group", s: "fridayreport-rg", col: BRAND_DARK },
@@ -190,164 +297,176 @@ function build() {
     { l: "Log Analytics", s: "Monitoring", col: GRAY },
     { l: "Container Env", s: "Hosting Env", col: BRAND_DARK },
   ];
-  const iw = 1.6, ih = 0.42, iGap = 0.18;
+  const iw = 1.7, ih = 0.55, iGap = 0.22;
   const totalIw = infraItems.length * iw + (infraItems.length - 1) * iGap;
-  let ix = (13.33 - totalIw) / 2;
-  const iy = s3y + 0.4;
+  let ix = (PW - totalIw) / 2;
+  const iy = 1.5;
 
   for (let i = 0; i < infraItems.length; i++) {
-    addBox(slide, { x: ix, y: iy, w: iw, h: ih, label: infraItems[i].l, sub: infraItems[i].s, color: infraItems[i].col });
-    if (i < infraItems.length - 1) addArrowRight(slide, ix + iw, iy + ih / 2, iGap, BRAND_DARK);
+    addBox(s3, { x: ix, y: iy, w: iw, h: ih, label: infraItems[i].l, sub: infraItems[i].s, color: infraItems[i].col });
+    if (i < infraItems.length - 1) addArrowRight(s3, ix + iw, iy + ih / 2, iGap, BRAND_DARK);
     ix += iw + iGap;
   }
 
-  addNote(slide, 0.4, iy + ih + 0.15, 2.6, "PostgreSQL Config", [
-    "Version 15+, SKU: Standard_D4ds_v4",
-    "Extensions: unaccent",
-    "HA: Zone-redundant (prod)",
+  s3.addText("All Azure resources are provisioned inside a single Resource Group. Resources are created in order — each step depends on the previous one.", {
+    x: 0.6, y: 2.3, w: PW - 1.2, h: 0.35,
+    fontSize: 11, color: GRAY, fontFace: "Segoe UI",
+  });
+
+  addNote(s3, 0.6, 2.9, 3.8, "PostgreSQL Config", [
+    "Version: 15+",
+    "SKU: Standard_D4ds_v4 (production)",
+    "SKU: Standard_B1ms (development)",
+    "Extension: unaccent",
+    "HA: Zone-redundant in production",
   ], BRAND_BLUE);
 
-  addNote(slide, 3.2, iy + ih + 0.15, 2.8, "Key Vault Secrets", [
-    "DATABASE_URL, SESSION_SECRET",
-    "GOOGLE_CLIENT_ID / SECRET",
-    "MICROSOFT_CLIENT_ID / SECRET",
-    "RESEND_API_KEY",
+  addNote(s3, 4.8, 2.9, 3.8, "Key Vault Secrets", [
+    "DATABASE_URL — PostgreSQL connection string",
+    "SESSION_SECRET — Express session signing key",
+    "GOOGLE_CLIENT_ID / SECRET — Google OAuth",
+    "MICROSOFT_CLIENT_ID / SECRET — Entra ID OAuth",
+    "RESEND_API_KEY — Email service key",
   ], PURPLE);
 
-  // ════════════════════════════════════════
-  // STAGE 4: DEPLOY
-  // ════════════════════════════════════════
-  const s4y = s3y + 1.7;
-  addSectionBg(slide, 0.2, s4y, 12.93, 1.55, BRAND_ORANGE);
-  addSectionLabel(slide, 0.32, s4y + 0.08, "STAGE 4: DEPLOY CONTAINER APP", BRAND_ORANGE);
+  addNote(s3, 9.0, 2.9, 3.8, "Storage & Monitoring", [
+    "Blob Storage: Standard LRS (dev) / GRS (prod)",
+    "Container: uploads (file attachments)",
+    "Log Analytics workspace for Container App logs",
+    "Log retention: 30 days (configurable)",
+  ], TEAL);
 
-  addArrowDown(slide, 6.66, s3y + 1.55, 0.15, BRAND_ORANGE, "deploy");
+  // ════════════════════════════════════════
+  // SLIDE 4: DEPLOY CONTAINER APP
+  // ════════════════════════════════════════
+  const s4 = pptx.addSlide();
+  s4.background = { color: WHITE };
+  addSlideHeader(s4, 4, "Deploy Container App", BRAND_ORANGE);
+  addFooter(s4, 4, 5, BRAND_ORANGE);
 
   const depItems = [
     { l: "Create Container App", s: "az containerapp create", col: BRAND_ORANGE },
     { l: "Managed Identity", s: "ACR + Key Vault + Blob", col: PURPLE },
     { l: "Ingress & Domain", s: "HTTPS + TLS Certificate", col: BRAND_BLUE },
   ];
-  const dw = 2.4, dh = 0.42, dGap = 0.4;
+  const dw = 2.8, dh = 0.6, dGap = 0.6;
   const totalDw = depItems.length * dw + (depItems.length - 1) * dGap;
-  let dx = (13.33 - totalDw) / 2;
-  const dy = s4y + 0.4;
+  let dx = (PW - totalDw) / 2;
+  const dy = 1.5;
 
   for (let i = 0; i < depItems.length; i++) {
-    addBox(slide, { x: dx, y: dy, w: dw, h: dh, label: depItems[i].l, sub: depItems[i].s, color: depItems[i].col });
-    if (i < depItems.length - 1) addArrowRight(slide, dx + dw, dy + dh / 2, dGap, BRAND_ORANGE);
+    addBox(s4, { x: dx, y: dy, w: dw, h: dh, label: depItems[i].l, sub: depItems[i].s, color: depItems[i].col });
+    if (i < depItems.length - 1) addArrowRight(s4, dx + dw, dy + dh / 2, dGap, BRAND_ORANGE);
     dx += dw + dGap;
   }
 
-  addNote(slide, 0.4, dy + dh + 0.15, 2.4, "Container App Config", [
-    "CPU: 1.0-2.0 vCPU",
-    "Memory: 2.0-4.0 Gi",
-    "Min replicas: 2 (prod)",
-    "Max replicas: 10",
+  s4.addText("The Container App is created with secrets, environment variables, scaling rules, and ingress configuration. Managed Identity replaces stored credentials.", {
+    x: 0.6, y: 2.4, w: PW - 1.2, h: 0.35,
+    fontSize: 11, color: GRAY, fontFace: "Segoe UI",
+  });
+
+  addNote(s4, 0.6, 3.0, 3.8, "Container App Config", [
+    "CPU: 1.0 vCPU (dev) / 2.0 vCPU (prod)",
+    "Memory: 2.0 Gi (dev) / 4.0 Gi (prod)",
+    "Min replicas: 1 (dev) / 2 (prod)",
+    "Max replicas: 3 (dev) / 10 (prod)",
     "Target port: 5000",
+    "Health probe: /api/health",
   ], BRAND_ORANGE);
 
-  addNote(slide, 3.0, dy + dh + 0.15, 2.6, "Identity Roles", [
-    "AcrPull on Container Registry",
-    "Key Vault Secrets User",
-    "Storage Blob Data Contributor",
+  addNote(s4, 4.8, 3.0, 3.8, "Identity Role Assignments", [
+    "AcrPull — Pull images from Container Registry",
+    "Key Vault Secrets User — Read secrets at startup",
+    "Storage Blob Data Contributor — Upload/download files",
+    "Uses system-assigned Managed Identity",
+    "No client secrets or connection strings needed",
   ], PURPLE);
 
-  addNote(slide, 5.8, dy + dh + 0.15, 2.6, "DNS Setup", [
-    "CNAME → *.azurecontainerapps.io",
-    "TXT verification record",
-    "Managed TLS certificate",
-    "Update OAuth redirect URIs",
+  addNote(s4, 9.0, 3.0, 3.8, "DNS & Ingress Setup", [
+    "CNAME: app.fridayreport.ai → *.azurecontainerapps.io",
+    "TXT: asuid.app → domain verification ID",
+    "Managed TLS certificate (auto-renewed)",
+    "Update Google OAuth redirect URIs",
+    "Update Microsoft Entra ID redirect URIs",
   ], BRAND_BLUE);
 
   // ════════════════════════════════════════
-  // STAGE 5: RUNTIME
+  // SLIDE 5: RUNTIME ARCHITECTURE
   // ════════════════════════════════════════
-  const s5y = s4y + 1.7;
-  addSectionBg(slide, 0.2, s5y, 12.93, 2.0, ROSE);
-  addSectionLabel(slide, 0.32, s5y + 0.08, "STAGE 5: RUNTIME ARCHITECTURE", ROSE);
+  const s5 = pptx.addSlide();
+  s5.background = { color: WHITE };
+  addSlideHeader(s5, 5, "Runtime Architecture", ROSE);
+  addFooter(s5, 5, 5, ROSE);
 
-  addArrowDown(slide, 6.66, s4y + 1.55, 0.15, ROSE, "live");
+  addBox(s5, { x: CX - 1.3, y: 1.2, w: 2.6, h: 0.45, label: "End Users", sub: "HTTPS Traffic", color: BRAND_DARK, rounded: 0.22 });
+  addArrowDown(s5, CX, 1.65, 0.25, BRAND_DARK, "ingress");
 
-  addBox(slide, { x: 5.2, y: s5y + 0.3, w: 2.2, h: 0.32, label: "End Users", sub: "HTTPS Traffic", color: BRAND_DARK, rounded: 0.16 });
-  addArrowDown(slide, 6.3, s5y + 0.62, 0.1, BRAND_DARK);
+  addBox(s5, { x: CX - 2.2, y: 2.0, w: 4.4, h: 0.65, label: "FridayReport.AI", sub: "Container App (Node.js + Express + React SPA)", color: ROSE });
 
-  addBox(slide, { x: 4.5, y: s5y + 0.75, w: 3.5, h: 0.45, label: "FridayReport.AI", sub: "Container App (Node.js + Express + React SPA)", color: ROSE });
-
-  addNote(slide, 8.5, s5y + 0.65, 2.5, "Background Jobs", [
-    "Scheduled reports (every 15 min)",
-    "Timesheet reminders (weekdays)",
-    "node-cron inside container",
+  addNote(s5, 9.0, 1.8, 3.6, "Background Jobs", [
+    "Scheduled reports — every 15 min",
+    "Timesheet reminders — weekdays",
+    "Runs via node-cron inside container",
+    "No external scheduler needed",
   ], ROSE);
 
   const rtItems = [
-    { l: "PostgreSQL", s: "Data", col: BRAND_BLUE },
-    { l: "Blob Storage", s: "Files", col: TEAL },
+    { l: "PostgreSQL", s: "Data Persistence", col: BRAND_BLUE },
+    { l: "Blob Storage", s: "File Storage", col: TEAL },
     { l: "Key Vault", s: "Secrets", col: PURPLE },
-    { l: "Log Analytics", s: "Logs", col: GRAY },
+    { l: "Log Analytics", s: "Monitoring", col: GRAY },
   ];
-  const rw = 1.6, rh = 0.36, rGap = 0.25;
+  const rw = 2.0, rh = 0.5, rGap = 0.35;
   const totalRw = rtItems.length * rw + (rtItems.length - 1) * rGap;
-  let rx = (13.33 - totalRw) / 2;
-  const ry = s5y + 1.35;
+  let rx = (PW - totalRw) / 2;
+  const ry = 3.15;
 
   for (let i = 0; i < rtItems.length; i++) {
-    addBox(slide, { x: rx, y: ry, w: rw, h: rh, label: rtItems[i].l, sub: rtItems[i].s, color: rtItems[i].col });
-    addArrowDown(slide, rx + rw / 2, s5y + 1.2, 0.15, rtItems[i].col);
+    addBox(s5, { x: rx, y: ry, w: rw, h: rh, label: rtItems[i].l, sub: rtItems[i].s, color: rtItems[i].col });
+    addArrowDown(s5, rx + rw / 2, 2.65, 0.5, rtItems[i].col);
     rx += rw + rGap;
   }
+
+  s5.addText("EXTERNAL SERVICES (OUTBOUND)", {
+    x: 0.6, y: 4.05, w: 3, h: 0.2,
+    fontSize: 9, bold: true, color: GRAY, fontFace: "Segoe UI", letterSpacing: 0.5,
+  });
 
   const extItems = [
     { l: "Microsoft Graph", s: "Planner / Dataverse", col: BRAND_BLUE },
     { l: "Google OAuth", s: "Authentication", col: GREEN },
     { l: "Resend", s: "Email Delivery", col: BRAND_ORANGE },
   ];
-  const ew = 1.8, eh = 0.3, eGap = 0.3;
+  const ew = 2.4, eh = 0.45, eGap = 0.45;
   const totalEw = extItems.length * ew + (extItems.length - 1) * eGap;
-  let ex = (13.33 - totalEw) / 2;
-  const ey = ry + rh + 0.12;
-
-  slide.addText("EXTERNAL SERVICES (OUTBOUND)", {
-    x: ex, y: ey - 0.14, w: 2.5, h: 0.14,
-    fontSize: 7, bold: true, color: GRAY, fontFace: "Segoe UI",
-  });
+  let ex = (PW - totalEw) / 2;
+  const ey = 4.3;
 
   for (let i = 0; i < extItems.length; i++) {
-    addBox(slide, { x: ex, y: ey, w: ew, h: eh, label: extItems[i].l, sub: extItems[i].s, color: extItems[i].col });
+    addBox(s5, { x: ex, y: ey, w: ew, h: eh, label: extItems[i].l, sub: extItems[i].s, color: extItems[i].col });
     ex += ew + eGap;
   }
 
-  // ════════════════════════════════════════
-  // LEGEND
-  // ════════════════════════════════════════
-  const ly = s5y + 2.1;
-  slide.addShape("rect" as any, {
-    x: 0.2, y: ly, w: 12.93, h: 0.28,
-    fill: { color: BRAND_DARK, transparency: 95 },
-    rectRadius: 0.06,
-  });
+  addNote(s5, 0.6, 5.1, 3.8, "Scaling Behavior", [
+    "HTTP-based auto-scaling",
+    "Scale to zero: disabled in production",
+    "Replicas share PostgreSQL sessions",
+    "Stateless design — no sticky sessions needed",
+  ], ROSE);
 
-  const legendItems = [
-    { color: GREEN, label: "Build" },
-    { color: BRAND_BLUE, label: "Registry / Network" },
-    { color: BRAND_DARK, label: "Infrastructure" },
-    { color: BRAND_ORANGE, label: "Deployment" },
-    { color: PURPLE, label: "Security" },
-    { color: ROSE, label: "Runtime" },
-  ];
-  const lGap = 12.93 / legendItems.length;
-  for (let i = 0; i < legendItems.length; i++) {
-    const lx = 0.4 + i * lGap;
-    slide.addShape("rect" as any, {
-      x: lx, y: ly + 0.07, w: 0.14, h: 0.14,
-      fill: { color: legendItems[i].color },
-      rectRadius: 0.03,
-    });
-    slide.addText(legendItems[i].label, {
-      x: lx + 0.2, y: ly + 0.04, w: 1.5, h: 0.2,
-      fontSize: 8, bold: true, color: BRAND_DARK, fontFace: "Segoe UI",
-    });
-  }
+  addNote(s5, 4.8, 5.1, 3.8, "Health & Readiness", [
+    "Liveness probe: GET /api/health",
+    "Readiness probe: GET /api/health",
+    "Startup probe: 30s initial delay",
+    "Graceful shutdown on SIGTERM",
+  ], BRAND_ORANGE);
+
+  addNote(s5, 9.0, 5.1, 3.8, "Monitoring Queries (KQL)", [
+    "ContainerAppConsoleLogs_CL for app logs",
+    "ContainerAppSystemLogs_CL for platform",
+    "Alert on 5xx error rate > 1%",
+    "Alert on container restart count",
+  ], GRAY);
 
   return pptx;
 }
