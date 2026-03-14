@@ -248,7 +248,7 @@ const doc = new Document({
         pageBreak(),
         h1("1. Executive Summary"),
         para("This document provides a comprehensive, step-by-step guide for deploying the FridayReport.AI application to Microsoft Azure using Azure Container Apps. It covers the complete deployment pipeline from building the application source code through containerization, registry management, infrastructure provisioning, and production configuration."),
-        para("FridayReport.AI is an enterprise-grade Project & Portfolio Management (PPM) platform built on a modern TypeScript stack. The application uses a React 18 frontend with Tailwind CSS, an Express.js backend with PostgreSQL via Drizzle ORM, and integrates with OpenAI for AI-driven risk assessments, Microsoft Graph for Planner/Dataverse connectivity, and PayPal for subscription billing."),
+        para("FridayReport.AI is an enterprise-grade Project & Portfolio Management (PPM) platform built on a modern TypeScript stack. The application uses a React 18 frontend with Tailwind CSS, an Express.js backend with PostgreSQL via Drizzle ORM, and integrates with Microsoft Graph for Planner/Dataverse connectivity."),
         para("The target deployment architecture leverages Azure Container Apps for serverless container hosting, Azure Database for PostgreSQL Flexible Server for data persistence, Azure Blob Storage for file management, and Azure Key Vault for secrets management."),
         para("The target audience for this document includes DevOps engineers, cloud architects, and IT administrators responsible for deploying and maintaining the FridayReport.AI platform in an Azure environment."),
 
@@ -267,10 +267,8 @@ const doc = new Document({
             ["Backend", "Node.js 20 + Express.js (TypeScript)"],
             ["Database", "PostgreSQL 15+ (via Drizzle ORM)"],
             ["Authentication", "Passport.js (Email/Password, Google OAuth 2.0, Microsoft Entra ID OAuth)"],
-            ["AI Services", "OpenAI API (GPT-4o) for risk assessment, dashboard generation, resource optimization"],
             ["File Processing", "Java-based MPP parser (MPXJ library) for Microsoft Project files"],
             ["Email", "Resend API for transactional emails"],
-            ["Payments", "PayPal REST API for subscription billing"],
             ["Scheduling", "node-cron for automated report generation and timesheet reminders"],
             ["Application Port", "5000 (configurable via PORT environment variable)"],
           ]
@@ -291,7 +289,7 @@ const doc = new Document({
             ["client/src/components/", "React UI components organized by functional area"],
             ["client/src/pages/", "Route-level page components"],
             ["server/auth/", "Multi-provider authentication logic (email, Google, Microsoft)"],
-            ["server/services/", "Business logic and third-party integrations (Microsoft Graph, OpenAI, email)"],
+            ["server/services/", "Business logic and third-party integrations (Microsoft Graph, email)"],
             ["shared/", "Database schema (Drizzle ORM) and shared type definitions"],
             ["lib/", "JAR files and Java source for the MPP file parser"],
             ["script/", "Build script (build.ts) and database migration runner (migrate.ts)"],
@@ -345,7 +343,7 @@ const doc = new Document({
         bullet("Container App connects to Azure Database for PostgreSQL via VNet private endpoint."),
         bullet("Container App connects to Azure Blob Storage for file operations via Managed Identity."),
         bullet("Container App retrieves secrets from Azure Key Vault at startup via Managed Identity."),
-        bullet("Outbound API calls go to OpenAI, Resend, Google (OAuth), Microsoft Graph, and PayPal."),
+        bullet("Outbound API calls go to Resend, Google (OAuth), and Microsoft Graph."),
         bullet("Cron jobs (scheduled reports, timesheet reminders) run within the container process."),
 
         // ═══════════════════════════════════════════════
@@ -509,8 +507,6 @@ const doc = new Document({
         code("az keyvault secret set --vault-name fridayreport-kv --name SESSION-SECRET \\"),
         code("  --value \"$(openssl rand -hex 32)\""),
         code(""),
-        code("az keyvault secret set --vault-name fridayreport-kv --name AI-INTEGRATIONS-OPENAI-API-KEY \\"),
-        code("  --value \"<your-openai-api-key>\""),
 
         // 4.10
         pageBreak(),
@@ -556,26 +552,20 @@ const doc = new Document({
         code("  --secrets \\"),
         code("    database-url=\"<your-database-url>\" \\"),
         code("    session-secret=\"<your-session-secret>\" \\"),
-        code("    ai-integrations-openai-api-key=\"<your-openai-key>\" \\"),
         code("    google-client-id=\"<your-google-client-id>\" \\"),
         code("    google-client-secret=\"<your-google-client-secret>\" \\"),
         code("    microsoft-client-id=\"<your-ms-client-id>\" \\"),
         code("    microsoft-client-secret=\"<your-ms-client-secret>\" \\"),
-        code("    paypal-client-id=\"<your-paypal-client-id>\" \\"),
-        code("    paypal-client-secret=\"<your-paypal-client-secret>\" \\"),
         code("    resend-api-key=\"<your-resend-api-key>\" \\"),
         code("  --env-vars \\"),
         code("    NODE_ENV=production \\"),
         code("    PORT=5000 \\"),
         code("    DATABASE_URL=secretref:database-url \\"),
         code("    SESSION_SECRET=secretref:session-secret \\"),
-        code("    AI_INTEGRATIONS_OPENAI_API_KEY=secretref:ai-integrations-openai-api-key \\"),
         code("    GOOGLE_CLIENT_ID=secretref:google-client-id \\"),
         code("    GOOGLE_CLIENT_SECRET=secretref:google-client-secret \\"),
         code("    MICROSOFT_CLIENT_ID=secretref:microsoft-client-id \\"),
         code("    MICROSOFT_CLIENT_SECRET=secretref:microsoft-client-secret \\"),
-        code("    PAYPAL_CLIENT_ID=secretref:paypal-client-id \\"),
-        code("    PAYPAL_CLIENT_SECRET=secretref:paypal-client-secret \\"),
         code("    RESEND_API_KEY=secretref:resend-api-key \\"),
         code("    RESEND_FROM_EMAIL=noreply@fridayreport.ai \\"),
         code("    AZURE_STORAGE_ACCOUNT_NAME=fridayreportstorage \\"),
@@ -678,17 +668,7 @@ const doc = new Document({
         ),
         spacer(),
 
-        h2("5.2 AI Integration"),
-        makeTable(
-          ["Variable", "Description", "Example / Notes"],
-          [
-            ["AI_INTEGRATIONS_OPENAI_API_KEY", "OpenAI API key for GPT-4o features", "sk-... (or Azure OpenAI key)"],
-            ["AI_INTEGRATIONS_OPENAI_BASE_URL", "API base URL (for Azure OpenAI)", "https://<resource>.openai.azure.com/"],
-          ]
-        ),
-        spacer(),
-
-        h2("5.3 Authentication \u2014 Google OAuth"),
+        h2("5.2 Authentication \u2014 Google OAuth"),
         makeTable(
           ["Variable", "Description", "Example / Notes"],
           [
@@ -698,7 +678,7 @@ const doc = new Document({
         ),
         spacer(),
 
-        h2("5.4 Authentication \u2014 Microsoft Entra ID"),
+        h2("5.3 Authentication \u2014 Microsoft Entra ID"),
         makeTable(
           ["Variable", "Description", "Example / Notes"],
           [
@@ -708,7 +688,7 @@ const doc = new Document({
         ),
         spacer(),
 
-        h2("5.5 Email Service"),
+        h2("5.4 Email Service"),
         makeTable(
           ["Variable", "Description", "Example / Notes"],
           [
@@ -718,17 +698,7 @@ const doc = new Document({
         ),
         spacer(),
 
-        h2("5.6 Payments \u2014 PayPal"),
-        makeTable(
-          ["Variable", "Description", "Example / Notes"],
-          [
-            ["PAYPAL_CLIENT_ID", "PayPal REST API client ID", "From PayPal Developer Dashboard"],
-            ["PAYPAL_CLIENT_SECRET", "PayPal REST API client secret", "From PayPal Developer Dashboard"],
-          ]
-        ),
-        spacer(),
-
-        h2("5.7 Storage \u2014 Azure Blob"),
+        h2("5.5 Storage \u2014 Azure Blob"),
         makeTable(
           ["Variable", "Description", "Example / Notes"],
           [
@@ -875,13 +845,11 @@ const doc = new Document({
         boldPara("4. Storage Migration (Required)"),
         para("The application currently uses a platform-specific object storage integration that is not compatible with Azure. Before deployment, the storage layer must be replaced with an Azure Blob Storage adapter using the @azure/storage-blob SDK. The storage integration is isolated in a dedicated module, making this a contained code change. Existing files must be migrated to Azure Blob Storage."),
 
-        boldPara("5. AI Services: OpenAI vs. Azure OpenAI"),
-        para("The application uses OpenAI directly. Consider Azure OpenAI Service for data residency, compliance, and integrated billing. The OpenAI SDK supports Azure OpenAI endpoints with minimal code changes (update base URL and API key)."),
 
-        boldPara("6. Custom Domain & DNS"),
+        boldPara("5. Custom Domain & DNS"),
         para("Azure Container Apps supports custom domains with managed TLS certificates. Plan DNS configuration including CNAME records and domain verification."),
 
-        boldPara("7. Session Management"),
+        boldPara("6. Session Management"),
         para("Sessions are stored in PostgreSQL via connect-pg-simple, which supports horizontal scaling. Sessions survive container restarts and work correctly across multiple replicas."),
 
         // ═══════════════════════════════════════════════

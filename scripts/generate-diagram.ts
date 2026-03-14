@@ -191,7 +191,7 @@ function buildDiagram(): string {
 
   content += renderNote({
     x: 920, y: 420, w: 280, title: "Key Vault Secrets",
-    lines: ["DATABASE_URL", "SESSION_SECRET", "AI_INTEGRATIONS_OPENAI_API_KEY", "GOOGLE_CLIENT_ID/SECRET", "MICROSOFT_CLIENT_ID/SECRET", "PAYPAL_CLIENT_ID/SECRET", "RESEND_API_KEY"],
+    lines: ["DATABASE_URL", "SESSION_SECRET", "GOOGLE_CLIENT_ID/SECRET", "MICROSOFT_CLIENT_ID/SECRET", "RESEND_API_KEY"],
     color: PURPLE,
   });
 
@@ -255,11 +255,9 @@ function buildDiagram(): string {
   content += renderSectionLabel(40, 1430, 1180, "EXTERNAL SERVICES (Outbound)", GRAY);
 
   const externalServices: Box[] = [
-    { x: 60, y: 1480, w: 160, h: 50, label: "OpenAI API", sublabel: "GPT-4o", color: BRAND_DARK },
-    { x: 240, y: 1480, w: 160, h: 50, label: "Microsoft Graph", sublabel: "Planner / Dataverse", color: BRAND_BLUE },
-    { x: 420, y: 1480, w: 160, h: 50, label: "Google OAuth", sublabel: "Authentication", color: GREEN },
-    { x: 600, y: 1480, w: 160, h: 50, label: "Resend", sublabel: "Email Delivery", color: BRAND_ORANGE },
-    { x: 780, y: 1480, w: 160, h: 50, label: "PayPal", sublabel: "Payments", color: PURPLE },
+    { x: 120, y: 1480, w: 180, h: 50, label: "Microsoft Graph", sublabel: "Planner / Dataverse", color: BRAND_BLUE },
+    { x: 340, y: 1480, w: 180, h: 50, label: "Google OAuth", sublabel: "Authentication", color: GREEN },
+    { x: 560, y: 1480, w: 180, h: 50, label: "Resend", sublabel: "Email Delivery", color: BRAND_ORANGE },
   ];
   for (const b of externalServices) content += renderBox(b);
 
