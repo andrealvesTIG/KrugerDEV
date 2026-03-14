@@ -16,6 +16,7 @@ import {
   Footer,
   PageNumber,
   NumberFormat,
+  ImageRun,
   convertInchesToTwip,
 } from "docx";
 import * as fs from "fs";
@@ -323,7 +324,22 @@ const doc = new Document({
         ),
 
         h2("3.2 Architecture Topology"),
-        para("The high-level deployment topology:"),
+        para("The diagram below illustrates the complete deployment flow and runtime architecture:"),
+        spacer(),
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [
+            new ImageRun({
+              data: fs.readFileSync("scripts/deployment-flow.png"),
+              transformation: { width: 720, height: 492 },
+              type: "png",
+            }),
+          ],
+        }),
+        spacer(),
+        para("Figure 1: FridayReport.AI Azure Container App Deployment Flow", { italic: true, color: MEDIUM_GRAY }),
+        spacer(),
+        para("Key data flows:"),
         bullet("Internet traffic enters via Azure Container Apps ingress (HTTPS with managed TLS certificates) or Azure Front Door."),
         bullet("Container App runs the FridayReport.AI container image pulled from Azure Container Registry."),
         bullet("Container App connects to Azure Database for PostgreSQL via VNet private endpoint."),
