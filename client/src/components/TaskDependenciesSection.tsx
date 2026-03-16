@@ -200,61 +200,70 @@ export function TaskDependenciesSection({
             return (
               <div
                 key={dep.id}
-                className="flex items-center justify-between p-2 rounded-md bg-muted/50 border gap-2"
+                className="p-2.5 rounded-md bg-muted/50 border space-y-2"
               >
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className="text-sm truncate">
-                    {predecessorTask?.name || `Task #${dep.dependsOnTaskId}`}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <Select
-                    value={dep.dependencyType || "finish-to-start"}
-                    onValueChange={(val) => handleUpdateDependencyType(dep.dependsOnTaskId, val)}
-                  >
-                    <SelectTrigger className="h-7 w-[160px] text-xs px-2">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DEPENDENCY_TYPES.map(t => (
-                        <SelectItem key={t.value} value={t.value}>
-                          <span className="font-medium">{t.label}</span>
-                          <span className="text-muted-foreground ml-1">({t.description})</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">lag/lead days</span>
-                  <Input
-                    type="number"
-                    className="h-7 w-[44px] text-xs text-center px-1"
-                    title="Lag/lead days"
-                    key={`lag-${dep.id}-${dep.lagDays}`}
-                    defaultValue={dep.lagDays || 0}
-                    onBlur={(e) => {
-                      const newLag = parseInt(e.target.value) || 0;
-                      if (newLag !== (dep.lagDays || 0)) {
-                        handleUpdateLag(dep.dependsOnTaskId, newLag);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        (e.target as HTMLInputElement).blur();
-                      }
-                    }}
-                  />
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-sm truncate">
+                      {predecessorTask?.name || `Task #${dep.dependsOnTaskId}`}
+                    </span>
+                  </div>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7"
+                    className="h-7 w-7 flex-shrink-0"
                     onClick={() => handleRemoveDependency(dep.dependsOnTaskId)}
                     disabled={removeDependency.isPending}
+                    aria-label={`Remove dependency on ${predecessorTask?.name || `Task #${dep.dependsOnTaskId}`}`}
                     data-testid={`remove-dependency-${dep.dependsOnTaskId}`}
                   >
                     <X className="h-4 w-4" />
                   </Button>
+                </div>
+                <div className="flex items-center gap-3 pl-6 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor={`dep-type-${dep.id}`} className="text-[11px] text-muted-foreground whitespace-nowrap">Type</Label>
+                    <Select
+                      value={dep.dependencyType || "finish-to-start"}
+                      onValueChange={(val) => handleUpdateDependencyType(dep.dependsOnTaskId, val)}
+                    >
+                      <SelectTrigger id={`dep-type-${dep.id}`} className="h-7 w-[140px] text-xs px-2" aria-label="Dependency type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DEPENDENCY_TYPES.map(t => (
+                          <SelectItem key={t.value} value={t.value}>
+                            <span className="font-medium">{t.label}</span>
+                            <span className="text-muted-foreground ml-1">({t.description})</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor={`dep-lag-${dep.id}`} className="text-[11px] text-muted-foreground whitespace-nowrap">Lag days</Label>
+                    <Input
+                      id={`dep-lag-${dep.id}`}
+                      type="number"
+                      className="h-7 w-[52px] text-xs text-center px-1"
+                      title="Lag/lead days (negative = lead)"
+                      key={`lag-${dep.id}-${dep.lagDays}`}
+                      defaultValue={dep.lagDays || 0}
+                      onBlur={(e) => {
+                        const newLag = parseInt(e.target.value) || 0;
+                        if (newLag !== (dep.lagDays || 0)) {
+                          handleUpdateLag(dep.dependsOnTaskId, newLag);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          (e.target as HTMLInputElement).blur();
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             );
@@ -266,9 +275,10 @@ export function TaskDependenciesSection({
         </div>
       )}
 
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
+      <div className="space-y-3">
+        <Label className="text-xs text-muted-foreground">Add Predecessor</Label>
+        <div className="space-y-2">
+          <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search tasks by name or ID..."
@@ -278,29 +288,37 @@ export function TaskDependenciesSection({
               data-testid="dependency-search-input"
             />
           </div>
-          <Select value={selectedType} onValueChange={setSelectedType} disabled={orgDefaults.enforceDefaults}>
-            <SelectTrigger className="w-[160px] h-9 text-xs" title={orgDefaults.enforceDefaults ? "Locked by organization settings" : undefined}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DEPENDENCY_TYPES.map(t => (
-                <SelectItem key={t.value} value={t.value}>
-                  <span className="font-medium">{t.label}</span>
-                  <span className="text-muted-foreground ml-1">({t.description})</span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <span className="text-xs text-muted-foreground whitespace-nowrap">lag/lead days</span>
-          <Input
-            type="number"
-            className="w-[48px] h-9 text-xs text-center px-1"
-            title={orgDefaults.enforceDefaults ? "Locked by organization settings" : "Lag/lead days for new dependency"}
-            placeholder="0"
-            value={lagDays}
-            onChange={(e) => setLagDays(parseInt(e.target.value) || 0)}
-            disabled={orgDefaults.enforceDefaults}
-          />
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="new-dep-type" className="text-xs text-muted-foreground whitespace-nowrap">Type</Label>
+              <Select value={selectedType} onValueChange={setSelectedType} disabled={orgDefaults.enforceDefaults}>
+                <SelectTrigger id="new-dep-type" className="w-[140px] h-8 text-xs" aria-label="New dependency type" title={orgDefaults.enforceDefaults ? "Locked by organization settings" : undefined}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DEPENDENCY_TYPES.map(t => (
+                    <SelectItem key={t.value} value={t.value}>
+                      <span className="font-medium">{t.label}</span>
+                      <span className="text-muted-foreground ml-1">({t.description})</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="new-dep-lag" className="text-xs text-muted-foreground whitespace-nowrap">Lag days</Label>
+              <Input
+                id="new-dep-lag"
+                type="number"
+                className="w-[52px] h-8 text-xs text-center px-1"
+                title={orgDefaults.enforceDefaults ? "Locked by organization settings" : "Lag/lead days for new dependency (negative = lead)"}
+                placeholder="0"
+                value={lagDays}
+                onChange={(e) => setLagDays(parseInt(e.target.value) || 0)}
+                disabled={orgDefaults.enforceDefaults}
+              />
+            </div>
+          </div>
         </div>
         <div
           ref={listRef}
@@ -337,6 +355,7 @@ export function TaskDependenciesSection({
                     size="icon"
                     className="h-6 w-6 flex-shrink-0"
                     disabled={addDependency.isPending}
+                    aria-label={`Add ${task.name} as predecessor`}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleAddDependency(task.id);
