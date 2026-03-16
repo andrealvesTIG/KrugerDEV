@@ -757,7 +757,7 @@ const UserGuidePDF = () => (
         </View>
         <Text style={pdfStyles.heading}>Planner Premium Import Guide:</Text>
         <Text style={pdfStyles.paragraph}>
-          Before you start: You need a Microsoft 365 account with Planner Premium or Project Plan 3/5, your Dataverse environment URL, and the integration must be enabled by your organization administrator.
+          Before you start: You need a Microsoft 365 account with Planner Premium or Project Plan 3/5, and the integration must be enabled by your organization administrator. You also need your Dataverse environment URL — find it by opening Project for the Web and copying the base domain from the address bar, or go to make.powerapps.com, click the gear icon, select Session details, and copy the Instance url.
         </Text>
         <View style={pdfStyles.listRow}>
           <View style={pdfStyles.bulletPoint} />
@@ -2532,7 +2532,7 @@ export default function UserGuide() {
                               </li>
                               <li className="flex items-start gap-1.5">
                                 <span className="text-purple-500 mt-0.5">2.</span>
-                                <span>Know your organization's <strong>Dataverse environment URL</strong> (e.g. <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs">https://yourorg.crm.dynamics.com</code>) — you can find this in the Power Platform admin center or ask your IT admin</span>
+                                <span>Know your organization's <strong>Dataverse environment URL</strong> (e.g. <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs">https://yourorg.crm.dynamics.com</code>). To find it: open <strong>Project for the Web</strong> in your browser, look at the URL in the address bar — the base domain (before <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs">/main.aspx</code>) is your environment URL. Alternatively, go to <strong>make.powerapps.com</strong>, click the gear icon, select <strong>Session details</strong>, and copy the <strong>Instance url</strong> value</span>
                               </li>
                               <li className="flex items-start gap-1.5">
                                 <span className="text-purple-500 mt-0.5">3.</span>
