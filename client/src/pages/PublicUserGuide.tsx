@@ -326,8 +326,8 @@ export default function PublicUserGuide() {
                   <p className="text-slate-300">Import and sync projects from your existing tools:</p>
                   <ul className="list-disc list-inside space-y-1">
                     <li>Microsoft Project (.mpp files)</li>
-                    <li>Microsoft Planner</li>
-                    <li>Planner Premium / Project for the Web</li>
+                    <li>Microsoft Planner (with milestone detection)</li>
+                    <li>Planner Premium / Project for the Web (full schedule import with tasks, dependencies, hierarchies, milestones, and resource assignments via Dataverse)</li>
                     <li>Project Online</li>
                     <li>Jira</li>
                     <li>Asana</li>
@@ -337,6 +337,15 @@ export default function PublicUserGuide() {
                     <li>ClickUp</li>
                     <li>Basecamp</li>
                   </ul>
+                  <div className="mt-3 p-3 rounded-lg bg-slate-700/50 border border-slate-600">
+                    <p className="text-sm text-blue-400 font-medium mb-2">Planner Premium Quick Start</p>
+                    <ol className="list-decimal list-inside space-y-1 text-sm">
+                      <li>Set up an Azure App Registration with Dynamics CRM permissions</li>
+                      <li>Go to Integrations and click Planner Premium</li>
+                      <li>Enter your Dataverse environment URL and authenticate</li>
+                      <li>Select plans and import them as full projects with dependencies</li>
+                    </ol>
+                  </div>
                 </CardContent>
               </Card>
 
