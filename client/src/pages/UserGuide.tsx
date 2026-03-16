@@ -757,7 +757,7 @@ const UserGuidePDF = () => (
         </View>
         <Text style={pdfStyles.heading}>Planner Premium Import Guide:</Text>
         <Text style={pdfStyles.paragraph}>
-          Before you start: You need a Microsoft 365 account with Planner Premium or Project Plan 3/5, and the integration must be enabled by your organization administrator. You also need your Dataverse environment URL — find it by opening Project for the Web and copying the base domain from the address bar, or go to make.powerapps.com, click the gear icon, select Session details, and copy the Instance url.
+          Before you start: You need a Microsoft 365 account with Planner Premium or Project Plan 3/5, and the integration must be enabled by your organization administrator. You also need your Dataverse environment URL. To find it: (A) open Project for the Web and copy the base domain from the address bar (before /main.aspx), (B) go to admin.powerplatform.microsoft.com, click Environments, select the one with your projects, and copy the Environment URL, or (C) go to make.powerapps.com, switch to the correct environment using the picker in the top-right, click the gear icon, select Session details, and copy the Instance url. If you have multiple environments, pick the one where your Project for the Web plans are stored.
         </Text>
         <View style={pdfStyles.listRow}>
           <View style={pdfStyles.bulletPoint} />
@@ -2532,7 +2532,24 @@ export default function UserGuide() {
                               </li>
                               <li className="flex items-start gap-1.5">
                                 <span className="text-purple-500 mt-0.5">2.</span>
-                                <span>Know your organization's <strong>Dataverse environment URL</strong> (e.g. <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs">https://yourorg.crm.dynamics.com</code>). To find it: open <strong>Project for the Web</strong> in your browser, look at the URL in the address bar — the base domain (before <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs">/main.aspx</code>) is your environment URL. Alternatively, go to <strong>make.powerapps.com</strong>, click the gear icon, select <strong>Session details</strong>, and copy the <strong>Instance url</strong> value</span>
+                                <div>
+                                  <span>Know your organization's <strong>Dataverse environment URL</strong> (e.g. <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs">https://yourorg.crm.dynamics.com</code>). Here's how to find it:</span>
+                                  <div className="mt-2 ml-1 space-y-2">
+                                    <div className="p-2 rounded bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                      <p className="font-medium text-foreground text-[11px] mb-1">Option A — From Project for the Web</p>
+                                      <p className="text-[11px]">Open any project in <strong>Project for the Web</strong>. Look at the URL in your browser's address bar — copy everything before <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800">/main.aspx</code>. For example, if the URL is <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800">https://yourorg.crm.dynamics.com/main.aspx?...</code>, your environment URL is <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800">https://yourorg.crm.dynamics.com</code></p>
+                                    </div>
+                                    <div className="p-2 rounded bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                      <p className="font-medium text-foreground text-[11px] mb-1">Option B — From Power Platform admin center</p>
+                                      <p className="text-[11px]">Go to <strong>admin.powerplatform.microsoft.com</strong> &gt; <strong>Environments</strong>. You'll see a list of all your organization's environments. Click on the one where your projects live (usually the default or production environment) and copy the <strong>Environment URL</strong> shown in the details panel. If you have multiple environments, choose the one that contains your Project for the Web plans — this is typically named "default" or matches your organization name</p>
+                                    </div>
+                                    <div className="p-2 rounded bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                      <p className="font-medium text-foreground text-[11px] mb-1">Option C — From Power Apps</p>
+                                      <p className="text-[11px]">Go to <strong>make.powerapps.com</strong>. If your organization has multiple environments, use the environment picker in the top-right corner to switch to the correct one. Then click the gear icon, select <strong>Session details</strong>, and copy the <strong>Instance url</strong> value</p>
+                                    </div>
+                                  </div>
+                                  <p className="mt-2 text-[11px] italic">Not sure which environment to pick? Your Project for the Web plans are stored in a specific Dataverse environment. If you see no plans after connecting, try a different environment URL.</p>
+                                </div>
                               </li>
                               <li className="flex items-start gap-1.5">
                                 <span className="text-purple-500 mt-0.5">3.</span>
