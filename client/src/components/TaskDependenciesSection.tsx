@@ -199,9 +199,6 @@ export function TaskDependenciesSection({
             <Link2 className="h-4 w-4" />
             Predecessors
           </Label>
-          {depCount > 0 && (
-            <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{depCount}</Badge>
-          )}
         </div>
         <p className="text-xs text-muted-foreground">
           Tasks that must complete (or start) before this task
