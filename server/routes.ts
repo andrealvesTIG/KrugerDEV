@@ -28,7 +28,7 @@ import * as path from "path";
 import * as os from "os";
 import * as crypto from "crypto";
 import OpenAI from "openai";
-import { addWorkingDays, ensureWorkingDay, calculateEndDate, calculateDuration, nextWorkingDay, formatDateStr } from "./lib/workingDays";
+import { addWorkingDays, ensureWorkingDay, calculateEndDate, calculateDuration, nextWorkingDay, formatDateStr, workingDaysBetweenExclusive } from "./lib/workingDays";
 
 const ENCRYPTION_KEY = process.env.SESSION_SECRET || 'fridayreport-default-encryption-key-32ch';
 function encryptApiKey(plaintext: string): string {
@@ -11255,6 +11255,53 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         await recalculateTaskEstimatedHours(taskId);
       }
       
+      // When the user manually changes a task's start date, update predecessor dependency
+      // lag days so the dependency reflects the user's chosen date instead of reverting it
+      if (datesChanged && input.startDate && input.startDate !== previousTask.startDate) {
+        const predecessorDeps = await storage.getTaskDependencies(taskId);
+        if (predecessorDeps.length > 0) {
+          for (const dep of predecessorDeps) {
+            const predTask = await storage.getTask(dep.dependsOnTaskId);
+            if (!predTask) continue;
+
+            const dtype = (dep.dependencyType || 'finish-to-start').toLowerCase().replace(/[\s_-]/g, '');
+            const newStart = ensureWorkingDay(new Date(updated.startDate + 'T00:00:00'));
+            const newEnd = updated.endDate ? ensureWorkingDay(new Date(updated.endDate + 'T00:00:00')) : newStart;
+            let referenceDate: Date | null = null;
+            let targetDate: Date;
+
+            if (dtype === 'finishtostart' || dtype === 'fs') {
+              referenceDate = predTask.endDate ? nextWorkingDay(new Date(predTask.endDate + 'T00:00:00')) : null;
+              targetDate = newStart;
+            } else if (dtype === 'starttostart' || dtype === 'ss') {
+              referenceDate = predTask.startDate ? ensureWorkingDay(new Date(predTask.startDate + 'T00:00:00')) : null;
+              targetDate = newStart;
+            } else if (dtype === 'finishtofinish' || dtype === 'ff') {
+              referenceDate = predTask.endDate ? ensureWorkingDay(new Date(predTask.endDate + 'T00:00:00')) : null;
+              targetDate = newEnd;
+            } else if (dtype === 'starttofinish' || dtype === 'sf') {
+              referenceDate = predTask.startDate ? ensureWorkingDay(new Date(predTask.startDate + 'T00:00:00')) : null;
+              targetDate = newEnd;
+            } else {
+              continue;
+            }
+
+            if (referenceDate) {
+              let newLag = 0;
+              if (targetDate > referenceDate) {
+                newLag = workingDaysBetweenExclusive(referenceDate, targetDate);
+              } else if (targetDate < referenceDate) {
+                newLag = -workingDaysBetweenExclusive(targetDate, referenceDate);
+              }
+
+              if (newLag !== (dep.lagDays || 0)) {
+                await storage.updateTaskDependency(taskId, dep.dependsOnTaskId, { lagDays: newLag });
+              }
+            }
+          }
+        }
+      }
+
       let propagatedTasks: { taskId: number; newStartDate: string; newEndDate: string }[] = [];
       if (datesChanged && updated.projectId) {
         propagatedTasks = await propagateScheduleForProject(updated.projectId);
