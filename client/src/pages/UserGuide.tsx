@@ -757,7 +757,7 @@ const UserGuidePDF = () => (
         </View>
         <Text style={pdfStyles.heading}>Planner Premium Import Guide:</Text>
         <Text style={pdfStyles.paragraph}>
-          Prerequisites: Microsoft 365 license with Planner Premium or Project Plan 3/5, an Azure App Registration with Dynamics CRM user_impersonation permission configured by your administrator, and your Dataverse environment URL.
+          Before you start: You need a Microsoft 365 account with Planner Premium or Project Plan 3/5, your Dataverse environment URL, and the integration must be enabled by your organization administrator.
         </Text>
         <View style={pdfStyles.listRow}>
           <View style={pdfStyles.bulletPoint} />
@@ -2523,24 +2523,20 @@ export default function UserGuide() {
                           <div className="p-3 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
                             <h6 className="text-sm font-medium text-foreground mb-2 flex items-center gap-1.5">
                               <Info className="h-3.5 w-3.5 text-blue-500" />
-                              Prerequisites
+                              Before You Start
                             </h6>
                             <ul className="text-xs text-muted-foreground space-y-1.5">
                               <li className="flex items-start gap-1.5">
                                 <span className="text-purple-500 mt-0.5">1.</span>
-                                <span>A Microsoft 365 license that includes Planner Premium (formerly Project for the Web) or Project Plan 3/5</span>
+                                <span>You need a <strong>Microsoft 365</strong> account with access to Planner Premium (Project for the Web) or Project Plan 3/5</span>
                               </li>
                               <li className="flex items-start gap-1.5">
                                 <span className="text-purple-500 mt-0.5">2.</span>
-                                <span>An Azure App Registration with <strong>Dynamics CRM &gt; user_impersonation</strong> delegated permission (this is what connects to the Dataverse environment where your plans are stored)</span>
+                                <span>Know your organization's <strong>Dataverse environment URL</strong> (e.g. <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs">https://yourorg.crm.dynamics.com</code>) — you can find this in the Power Platform admin center or ask your IT admin</span>
                               </li>
                               <li className="flex items-start gap-1.5">
                                 <span className="text-purple-500 mt-0.5">3.</span>
-                                <span>The <strong>Client ID</strong>, <strong>Client Secret</strong>, and <strong>Tenant ID</strong> from your Azure App Registration must be configured by your system administrator as environment variables in the FridayReport.AI deployment</span>
-                              </li>
-                              <li className="flex items-start gap-1.5">
-                                <span className="text-purple-500 mt-0.5">4.</span>
-                                <span>Your Dataverse environment URL (e.g. <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs">https://yourorg.crm.dynamics.com</code>)</span>
+                                <span>The Planner Premium integration must be enabled by your organization's administrator. If you see an authentication error, contact your admin to confirm the integration has been set up</span>
                               </li>
                             </ul>
                           </div>
@@ -2645,19 +2641,19 @@ export default function UserGuide() {
                             <ul className="text-xs text-amber-700 dark:text-amber-400 space-y-1.5">
                               <li className="flex items-start gap-1.5">
                                 <ChevronRight className="h-3 w-3 mt-0.5 shrink-0" />
-                                <span><strong>No plans found:</strong> Verify that your Microsoft account has access to Project for the Web plans in the specified Dataverse environment</span>
+                                <span><strong>No plans found:</strong> Make sure your Microsoft account has access to Project for the Web plans in the Dataverse environment you specified. Double-check the environment URL</span>
                               </li>
                               <li className="flex items-start gap-1.5">
                                 <ChevronRight className="h-3 w-3 mt-0.5 shrink-0" />
-                                <span><strong>Authentication error:</strong> Check that the Azure App Registration has the Dynamics CRM &gt; user_impersonation delegated permission and that admin consent has been granted</span>
+                                <span><strong>Authentication error:</strong> The integration may not be configured yet. Contact your organization administrator to confirm the Planner Premium connection has been set up</span>
                               </li>
                               <li className="flex items-start gap-1.5">
                                 <ChevronRight className="h-3 w-3 mt-0.5 shrink-0" />
-                                <span><strong>Session expired:</strong> Click the Reconnect button in the wizard to re-authenticate with Microsoft</span>
+                                <span><strong>Session expired:</strong> Click the Reconnect button in the wizard to sign in with Microsoft again</span>
                               </li>
                               <li className="flex items-start gap-1.5">
                                 <ChevronRight className="h-3 w-3 mt-0.5 shrink-0" />
-                                <span><strong>Missing dependencies:</strong> Ensure the Planner Premium plan uses task dependencies (links between tasks) in the original plan for them to be imported</span>
+                                <span><strong>Missing dependencies:</strong> Make sure your Planner Premium plan has task dependencies (links between tasks) set up in the original plan — only existing links will be imported</span>
                               </li>
                             </ul>
                           </div>
