@@ -181,56 +181,54 @@ export function TaskDependenciesSection({
     );
   }
 
+  const depCount = dependencies?.length || 0;
+
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label className="flex items-center gap-2">
-          <Link2 className="h-4 w-4" />
-          Predecessors
-        </Label>
+    <div className="space-y-5">
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <Label className="flex items-center gap-2 text-sm">
+            <Link2 className="h-4 w-4" />
+            Predecessors
+          </Label>
+          {depCount > 0 && (
+            <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{depCount}</Badge>
+          )}
+        </div>
         <p className="text-xs text-muted-foreground">
-          Tasks that must complete (or start) before this task, depending on the link type
+          Tasks that must complete (or start) before this task
         </p>
       </div>
 
       {dependencies && dependencies.length > 0 ? (
-        <div className="space-y-2">
+        <div className="border rounded-lg overflow-hidden divide-y">
           {dependencies.map((dep) => {
             const predecessorTask = allTasks.find(t => t.id === dep.dependsOnTaskId);
+            const depTypeLabel = DEPENDENCY_TYPES.find(t => t.value === (dep.dependencyType || "finish-to-start"));
             return (
               <div
                 key={dep.id}
-                className="p-2.5 rounded-md bg-muted/50 border space-y-2"
+                className="bg-background hover:bg-muted/30 transition-colors"
               >
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 px-3 py-2.5">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span className="text-sm truncate">
+                    <ArrowRight className="h-3.5 w-3.5 text-primary/60 flex-shrink-0" />
+                    <span className="text-sm font-medium truncate">
                       {predecessorTask?.name || `Task #${dep.dependsOnTaskId}`}
                     </span>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 flex-shrink-0"
-                    onClick={() => handleRemoveDependency(dep.dependsOnTaskId)}
-                    disabled={removeDependency.isPending}
-                    aria-label={`Remove dependency on ${predecessorTask?.name || `Task #${dep.dependsOnTaskId}`}`}
-                    data-testid={`remove-dependency-${dep.dependsOnTaskId}`}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="flex items-center gap-3 pl-6 flex-wrap">
-                  <div className="flex items-center gap-1.5">
-                    <Label htmlFor={`dep-type-${dep.id}`} className="text-[11px] text-muted-foreground whitespace-nowrap">Type</Label>
+
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <Select
                       value={dep.dependencyType || "finish-to-start"}
                       onValueChange={(val) => handleUpdateDependencyType(dep.dependsOnTaskId, val)}
                     >
-                      <SelectTrigger id={`dep-type-${dep.id}`} className="h-7 w-[140px] text-xs px-2" aria-label="Dependency type">
-                        <SelectValue />
+                      <SelectTrigger
+                        id={`dep-type-${dep.id}`}
+                        className="h-7 w-auto min-w-[70px] text-xs px-2 gap-1 border-dashed"
+                        aria-label="Dependency type"
+                      >
+                        <span className="font-semibold">{depTypeLabel?.label || "FS"}</span>
                       </SelectTrigger>
                       <SelectContent>
                         {DEPENDENCY_TYPES.map(t => (
@@ -241,28 +239,42 @@ export function TaskDependenciesSection({
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Label htmlFor={`dep-lag-${dep.id}`} className="text-[11px] text-muted-foreground whitespace-nowrap">Lag days</Label>
-                    <Input
-                      id={`dep-lag-${dep.id}`}
-                      type="number"
-                      className="h-7 w-[52px] text-xs text-center px-1"
-                      title="Lag/lead days (negative = lead)"
-                      key={`lag-${dep.id}-${dep.lagDays}`}
-                      defaultValue={dep.lagDays || 0}
-                      onBlur={(e) => {
-                        const newLag = parseInt(e.target.value) || 0;
-                        if (newLag !== (dep.lagDays || 0)) {
-                          handleUpdateLag(dep.dependsOnTaskId, newLag);
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          (e.target as HTMLInputElement).blur();
-                        }
-                      }}
-                    />
+
+                    <div className="flex items-center gap-1 border border-dashed rounded-md px-1.5 h-7">
+                      <span className="text-[10px] text-muted-foreground">lag</span>
+                      <Input
+                        id={`dep-lag-${dep.id}`}
+                        type="number"
+                        className="h-5 w-[36px] text-xs text-center px-0 border-0 shadow-none focus-visible:ring-0 bg-transparent"
+                        title="Lag/lead days (negative = lead)"
+                        key={`lag-${dep.id}-${dep.lagDays}`}
+                        defaultValue={dep.lagDays || 0}
+                        onBlur={(e) => {
+                          const newLag = parseInt(e.target.value) || 0;
+                          if (newLag !== (dep.lagDays || 0)) {
+                            handleUpdateLag(dep.dependsOnTaskId, newLag);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            (e.target as HTMLInputElement).blur();
+                          }
+                        }}
+                      />
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleRemoveDependency(dep.dependsOnTaskId)}
+                      disabled={removeDependency.isPending}
+                      aria-label={`Remove dependency on ${predecessorTask?.name || `Task #${dep.dependsOnTaskId}`}`}
+                      data-testid={`remove-dependency-${dep.dependsOnTaskId}`}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -270,48 +282,42 @@ export function TaskDependenciesSection({
           })}
         </div>
       ) : (
-        <div className="text-sm text-muted-foreground text-center py-4 border rounded-md bg-muted/30">
+        <div className="text-sm text-muted-foreground text-center py-6 border border-dashed rounded-lg bg-muted/20">
+          <Link2 className="h-5 w-5 mx-auto mb-1.5 text-muted-foreground/50" />
           No predecessors defined
         </div>
       )}
 
-      <div className="space-y-3">
-        <Label className="text-xs text-muted-foreground">Add Predecessor</Label>
-        <div className="space-y-2">
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search tasks by name or ID..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8"
-              data-testid="dependency-search-input"
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="new-dep-type" className="text-xs text-muted-foreground whitespace-nowrap">Type</Label>
-              <Select value={selectedType} onValueChange={setSelectedType} disabled={orgDefaults.enforceDefaults}>
-                <SelectTrigger id="new-dep-type" className="w-[140px] h-8 text-xs" aria-label="New dependency type" title={orgDefaults.enforceDefaults ? "Locked by organization settings" : undefined}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DEPENDENCY_TYPES.map(t => (
-                    <SelectItem key={t.value} value={t.value}>
-                      <span className="font-medium">{t.label}</span>
-                      <span className="text-muted-foreground ml-1">({t.description})</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="new-dep-lag" className="text-xs text-muted-foreground whitespace-nowrap">Lag days</Label>
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-medium text-foreground">Add Predecessor</Label>
+          <div className="flex items-center gap-2">
+            <Select value={selectedType} onValueChange={setSelectedType} disabled={orgDefaults.enforceDefaults}>
+              <SelectTrigger
+                id="new-dep-type"
+                className="h-7 w-auto min-w-[70px] text-xs px-2 gap-1 border-dashed"
+                aria-label="New dependency type"
+                title={orgDefaults.enforceDefaults ? "Locked by organization settings" : "Link type for new dependencies"}
+              >
+                <span className="text-muted-foreground text-[10px] mr-0.5">type:</span>
+                <span className="font-semibold">{DEPENDENCY_TYPES.find(t => t.value === selectedType)?.label || "FS"}</span>
+              </SelectTrigger>
+              <SelectContent>
+                {DEPENDENCY_TYPES.map(t => (
+                  <SelectItem key={t.value} value={t.value}>
+                    <span className="font-medium">{t.label}</span>
+                    <span className="text-muted-foreground ml-1">({t.description})</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-1 border border-dashed rounded-md px-1.5 h-7">
+              <span className="text-[10px] text-muted-foreground">lag</span>
               <Input
                 id="new-dep-lag"
                 type="number"
-                className="w-[52px] h-8 text-xs text-center px-1"
-                title={orgDefaults.enforceDefaults ? "Locked by organization settings" : "Lag/lead days for new dependency (negative = lead)"}
+                className="h-5 w-[36px] text-xs text-center px-0 border-0 shadow-none focus-visible:ring-0 bg-transparent"
+                title={orgDefaults.enforceDefaults ? "Locked by organization settings" : "Lag/lead days (negative = lead)"}
                 placeholder="0"
                 value={lagDays}
                 onChange={(e) => setLagDays(parseInt(e.target.value) || 0)}
@@ -320,12 +326,24 @@ export function TaskDependenciesSection({
             </div>
           </div>
         </div>
+
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Search tasks by name or ID..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-8 h-8 text-sm"
+            data-testid="dependency-search-input"
+          />
+        </div>
+
         <div
           ref={listRef}
-          className="max-h-[200px] overflow-y-auto border rounded-md"
+          className="max-h-[180px] overflow-y-auto border rounded-lg"
         >
           {filteredPredecessors.length === 0 ? (
-            <div className="p-3 text-sm text-muted-foreground text-center">
+            <div className="p-4 text-sm text-muted-foreground text-center">
               {searchQuery ? "No matching tasks found" : "No available predecessor tasks"}
             </div>
           ) : (
@@ -337,23 +355,23 @@ export function TaskDependenciesSection({
                   key={task.id}
                   ref={isImmediatePredecessor ? predecessorItemRef : undefined}
                   className={cn(
-                    "flex items-center justify-between p-2 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors",
+                    "flex items-center justify-between px-3 py-2 border-b last:border-b-0 hover:bg-primary/5 cursor-pointer transition-colors group",
                     isImmediatePredecessor && "bg-primary/5"
                   )}
                   onClick={() => handleAddDependency(task.id)}
                   data-testid={`predecessor-option-${task.id}`}
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="text-xs text-muted-foreground flex-shrink-0 w-8">
-                      #{taskIndex + 1}
-                    </span>
+                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-mono flex-shrink-0">
+                      {taskIndex + 1}
+                    </Badge>
                     <span className="text-sm truncate">{task.name}</span>
                   </div>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 flex-shrink-0"
+                    className="h-6 w-6 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                     disabled={addDependency.isPending}
                     aria-label={`Add ${task.name} as predecessor`}
                     onClick={(e) => {
