@@ -50,6 +50,9 @@ export function TaskDependenciesSection({
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedType, setSelectedType] = useState<string>(orgDefaults.defaultDependencyType);
   const [lagDays, setLagDays] = useState<number>(orgDefaults.defaultLagDays);
+  const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
+  const [rowType, setRowType] = useState<string>(orgDefaults.defaultDependencyType);
+  const [rowLag, setRowLag] = useState<number>(orgDefaults.defaultLagDays);
   const [defaultsApplied, setDefaultsApplied] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const predecessorItemRef = useRef<HTMLDivElement>(null);
@@ -58,6 +61,8 @@ export function TaskDependenciesSection({
     if (schedulingDefaults && !defaultsApplied) {
       setSelectedType(schedulingDefaults.defaultDependencyType);
       setLagDays(schedulingDefaults.defaultLagDays);
+      setRowType(schedulingDefaults.defaultDependencyType);
+      setRowLag(schedulingDefaults.defaultLagDays);
       setDefaultsApplied(true);
     }
   }, [schedulingDefaults, defaultsApplied]);
@@ -94,11 +99,14 @@ export function TaskDependenciesSection({
     }
   }, [searchQuery]);
 
-  const handleAddDependency = (predecessorId: number) => {
+  const handleAddDependency = (predecessorId: number, type?: string, lag?: number) => {
+    const depType = type || selectedType;
+    const depLag = lag !== undefined ? lag : lagDays;
     addDependency.mutate(
-      { taskId, dependsOnTaskId: predecessorId, projectId, dependencyType: selectedType, lagDays },
+      { taskId, dependsOnTaskId: predecessorId, projectId, dependencyType: depType, lagDays: depLag },
       {
         onSuccess: (data: any) => {
+          setExpandedTaskId(null);
           if (data?.dateAdjusted) {
             toast({
               title: "Dependency added",
@@ -288,44 +296,8 @@ export function TaskDependenciesSection({
         </div>
       )}
 
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between">
-          <Label className="text-xs font-medium text-foreground">Add Predecessor</Label>
-          <div className="flex items-center gap-2">
-            <Select value={selectedType} onValueChange={setSelectedType} disabled={orgDefaults.enforceDefaults}>
-              <SelectTrigger
-                id="new-dep-type"
-                className="h-7 w-auto min-w-[70px] text-xs px-2 gap-1 border-dashed"
-                aria-label="New dependency type"
-                title={orgDefaults.enforceDefaults ? "Locked by organization settings" : "Link type for new dependencies"}
-              >
-                <span className="text-muted-foreground text-[10px] mr-0.5">type:</span>
-                <span className="font-semibold">{DEPENDENCY_TYPES.find(t => t.value === selectedType)?.label || "FS"}</span>
-              </SelectTrigger>
-              <SelectContent>
-                {DEPENDENCY_TYPES.map(t => (
-                  <SelectItem key={t.value} value={t.value}>
-                    <span className="font-medium">{t.label}</span>
-                    <span className="text-muted-foreground ml-1">({t.description})</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="flex items-center gap-1 border border-dashed rounded-md px-1.5 h-7">
-              <span className="text-[10px] text-muted-foreground">lag</span>
-              <Input
-                id="new-dep-lag"
-                type="number"
-                className="h-5 w-[36px] text-xs text-center px-0 border-0 shadow-none focus-visible:ring-0 bg-transparent"
-                title={orgDefaults.enforceDefaults ? "Locked by organization settings" : "Lag/lead days (negative = lead)"}
-                placeholder="0"
-                value={lagDays}
-                onChange={(e) => setLagDays(parseInt(e.target.value) || 0)}
-                disabled={orgDefaults.enforceDefaults}
-              />
-            </div>
-          </div>
-        </div>
+      <div className="space-y-2">
+        <Label className="text-xs font-medium text-foreground">Add Predecessor</Label>
 
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -340,7 +312,7 @@ export function TaskDependenciesSection({
 
         <div
           ref={listRef}
-          className="max-h-[180px] overflow-y-auto border rounded-lg"
+          className="max-h-[200px] overflow-y-auto border rounded-lg"
         >
           {filteredPredecessors.length === 0 ? (
             <div className="p-4 text-sm text-muted-foreground text-center">
@@ -350,41 +322,104 @@ export function TaskDependenciesSection({
             filteredPredecessors.map(task => {
               const isImmediatePredecessor = task.id === immediatePredecessorId;
               const taskIndex = allTasks.findIndex(t => t.id === task.id);
+              const isExpanded = expandedTaskId === task.id;
               return (
                 <div
                   key={task.id}
                   ref={isImmediatePredecessor ? predecessorItemRef : undefined}
                   className={cn(
-                    "flex items-center justify-between px-3 py-2 border-b last:border-b-0 hover:bg-primary/5 cursor-pointer transition-colors group",
-                    isImmediatePredecessor && "bg-primary/5"
+                    "border-b last:border-b-0 transition-colors",
+                    isImmediatePredecessor && !isExpanded && "bg-primary/5",
+                    isExpanded && "bg-muted/50"
                   )}
-                  onClick={() => handleAddDependency(task.id)}
                   data-testid={`predecessor-option-${task.id}`}
                 >
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-mono flex-shrink-0">
-                      {taskIndex + 1}
-                    </Badge>
-                    <span className="text-sm truncate">{task.name}</span>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                    disabled={addDependency.isPending}
-                    aria-label={`Add ${task.name} as predecessor`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleAddDependency(task.id);
+                  <div
+                    className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-primary/5 group"
+                    onClick={() => {
+                      if (isExpanded) {
+                        setExpandedTaskId(null);
+                      } else {
+                        setExpandedTaskId(task.id);
+                        setRowType(orgDefaults.enforceDefaults ? orgDefaults.defaultDependencyType : selectedType);
+                        setRowLag(orgDefaults.enforceDefaults ? orgDefaults.defaultLagDays : lagDays);
+                      }
                     }}
                   >
-                    {addDependency.isPending ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Plus className="h-3 w-3" />
-                    )}
-                  </Button>
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-mono flex-shrink-0">
+                        {taskIndex + 1}
+                      </Badge>
+                      <span className="text-sm truncate">{task.name}</span>
+                    </div>
+                    <Plus className={cn(
+                      "h-3.5 w-3.5 flex-shrink-0 text-muted-foreground transition-transform",
+                      isExpanded && "rotate-45"
+                    )} />
+                  </div>
+
+                  {isExpanded && (
+                    <div className="px-3 pb-2.5 pt-1">
+                      <div className="flex items-center gap-2 justify-between">
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={rowType}
+                            onValueChange={setRowType}
+                            disabled={orgDefaults.enforceDefaults}
+                          >
+                            <SelectTrigger
+                              className="h-7 w-auto min-w-[70px] text-xs px-2 gap-1"
+                              aria-label="Dependency type"
+                            >
+                              <span className="font-semibold">
+                                {DEPENDENCY_TYPES.find(t => t.value === rowType)?.label || "FS"}
+                              </span>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {DEPENDENCY_TYPES.map(t => (
+                                <SelectItem key={t.value} value={t.value}>
+                                  <span className="font-medium">{t.label}</span>
+                                  <span className="text-muted-foreground ml-1">({t.description})</span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+
+                          <div className="flex items-center gap-1 border rounded-md px-1.5 h-7">
+                            <span className="text-[10px] text-muted-foreground">lag</span>
+                            <Input
+                              type="number"
+                              className="h-5 w-[36px] text-xs text-center px-0 border-0 shadow-none focus-visible:ring-0 bg-transparent"
+                              title="Lag/lead days (negative = lead)"
+                              value={rowLag}
+                              onChange={(e) => setRowLag(parseInt(e.target.value) || 0)}
+                              disabled={orgDefaults.enforceDefaults}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                        </div>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-7 text-xs px-3"
+                          disabled={addDependency.isPending}
+                          aria-label={`Add ${task.name} as predecessor`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAddDependency(task.id, rowType, rowLag);
+                          }}
+                        >
+                          {addDependency.isPending ? (
+                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                          ) : (
+                            <Plus className="h-3 w-3 mr-1" />
+                          )}
+                          Add
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })
