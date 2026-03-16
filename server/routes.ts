@@ -6056,7 +6056,10 @@ export async function registerRoutes(
           ? plannerTask.dueDateTime.split('T')[0] 
           : (plannerTask.startDateTime ? plannerTask.startDateTime.split('T')[0] : defaultEndDate);
 
-        const durationDays = calculateDuration(new Date(taskStartDate), new Date(taskEndDate));
+        const hasExplicitStart = !!plannerTask.startDateTime;
+        const hasExplicitDue = !!plannerTask.dueDateTime;
+        const isSameDayMilestone = hasExplicitStart && hasExplicitDue && taskStartDate === taskEndDate;
+        const durationDays = isSameDayMilestone ? 0 : calculateDuration(new Date(taskStartDate), new Date(taskEndDate));
         const taskIsMilestone = durationDays === 0;
 
         const task = await storage.createTask({
@@ -6792,11 +6795,95 @@ export async function registerRoutes(
         // Continue without failing the import - resources are optional
       }
 
+      let dependenciesImported = 0;
+      try {
+        const depApiUrls = [
+          `${environmentUrl}/api/data/v9.2/msdyn_projecttaskdependencies?$select=msdyn_projecttaskdependencyid,_msdyn_successortask_value,_msdyn_predecessortask_value,msdyn_linktype&$filter=_msdyn_project_value eq ${planId}`,
+          `${environmentUrl}/api/data/v9.2/msdyn_projecttaskdependencies?$filter=_msdyn_project_value eq ${planId}`,
+        ];
+
+        let depResponse: Response | null = null;
+        let depFetched = false;
+
+        for (let i = 0; i < depApiUrls.length; i++) {
+          depResponse = await fetch(depApiUrls[i], {
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json",
+              "OData-MaxVersion": "4.0",
+              "OData-Version": "4.0",
+            },
+          });
+          if (depResponse.ok) {
+            console.log(`Import: Successfully fetched task dependencies using API variant ${i + 1}`);
+            depFetched = true;
+            break;
+          }
+          console.log(`Import: Dependencies API attempt ${i + 1} failed (status ${depResponse.status}), trying next...`);
+        }
+
+        if (depResponse && depFetched) {
+          let allDvDependencies: any[] = [];
+          let depData = await depResponse.json();
+          allDvDependencies = allDvDependencies.concat(depData.value || []);
+
+          while (depData['@odata.nextLink']) {
+            const nextResponse = await fetch(depData['@odata.nextLink'], {
+              headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json",
+                "OData-MaxVersion": "4.0",
+                "OData-Version": "4.0",
+              },
+            });
+            if (!nextResponse.ok) break;
+            depData = await nextResponse.json();
+            allDvDependencies = allDvDependencies.concat(depData.value || []);
+          }
+
+          const dvDependencies = allDvDependencies;
+          console.log(`Import: Found ${dvDependencies.length} task dependencies in Dataverse`);
+
+          for (const dep of dvDependencies) {
+            const successorTaskId = dep._msdyn_successortask_value;
+            const predecessorTaskId = dep._msdyn_predecessortask_value;
+
+            if (!successorTaskId || !predecessorTaskId) continue;
+
+            const ourSuccessorId = taskIdMap.get(successorTaskId);
+            const ourPredecessorId = taskIdMap.get(predecessorTaskId);
+
+            if (ourSuccessorId && ourPredecessorId) {
+              let dependencyType = 'finish-to-start';
+              if (dep.msdyn_linktype === 192350001) dependencyType = 'finish-to-finish';
+              else if (dep.msdyn_linktype === 192350002) dependencyType = 'start-to-start';
+              else if (dep.msdyn_linktype === 192350003) dependencyType = 'start-to-finish';
+
+              try {
+                await db.insert(taskDependencies).values({
+                  taskId: ourSuccessorId,
+                  dependsOnTaskId: ourPredecessorId,
+                  dependencyType,
+                  lagDays: 0,
+                });
+                dependenciesImported++;
+              } catch (depInsertErr) {
+                console.log(`Import: Failed to create dependency (successor ${ourSuccessorId} -> predecessor ${ourPredecessorId}):`, depInsertErr);
+              }
+            }
+          }
+          console.log(`Import: Created ${dependenciesImported} task dependencies from Dataverse`);
+        }
+      } catch (depErr) {
+        console.log("Import: Error importing dependencies from Dataverse:", depErr);
+      }
+
       res.status(201).json({ 
         project,
         tasksCreated: createdTasks.length,
         resourcesImported,
-        message: `Successfully imported "${plan.msdyn_subject || project.name}" with ${createdTasks.length} tasks${resourcesImported > 0 ? ` and ${resourcesImported} new resources` : ''} from Planner Premium`
+        dependenciesImported,
+        message: `Successfully imported "${plan.msdyn_subject || project.name}" with ${createdTasks.length} tasks${resourcesImported > 0 ? ` and ${resourcesImported} new resources` : ''}${dependenciesImported > 0 ? ` and ${dependenciesImported} dependencies` : ''} from Planner Premium`
       });
     } catch (err: any) {
       console.error("Dataverse import error:", err);
@@ -7564,6 +7651,90 @@ export async function registerRoutes(
           // Continue without failing the sync - resources are optional
         }
 
+        let dataverseDepsImported = 0;
+        let dataverseDepsFetchedSuccessfully = false;
+        try {
+          const depApiUrls = [
+            `${environmentUrl}/api/data/v9.2/msdyn_projecttaskdependencies?$select=msdyn_projecttaskdependencyid,_msdyn_successortask_value,_msdyn_predecessortask_value,msdyn_linktype&$filter=_msdyn_project_value eq ${planId}`,
+            `${environmentUrl}/api/data/v9.2/msdyn_projecttaskdependencies?$filter=_msdyn_project_value eq ${planId}`,
+          ];
+
+          let depResponse: Response | null = null;
+          let depFetched = false;
+
+          for (let i = 0; i < depApiUrls.length; i++) {
+            depResponse = await fetch(depApiUrls[i], {
+              headers: {
+                "Authorization": `Bearer ${dataverseToken}`,
+                "Content-Type": "application/json",
+                "OData-MaxVersion": "4.0",
+                "OData-Version": "4.0",
+              },
+            });
+            if (depResponse.ok) {
+              console.log(`Planner Premium sync: Successfully fetched task dependencies using API variant ${i + 1}`);
+              depFetched = true;
+              break;
+            }
+            console.log(`Planner Premium sync: Dependencies API attempt ${i + 1} failed (status ${depResponse.status}), trying next...`);
+          }
+
+          if (depResponse && depFetched) {
+            dataverseDepsFetchedSuccessfully = true;
+            let allDvDependencies: any[] = [];
+            let depData = await depResponse.json();
+            allDvDependencies = allDvDependencies.concat(depData.value || []);
+
+            while (depData['@odata.nextLink']) {
+              const nextResponse = await fetch(depData['@odata.nextLink'], {
+                headers: {
+                  "Authorization": `Bearer ${dataverseToken}`,
+                  "Content-Type": "application/json",
+                  "OData-MaxVersion": "4.0",
+                  "OData-Version": "4.0",
+                },
+              });
+              if (!nextResponse.ok) break;
+              depData = await nextResponse.json();
+              allDvDependencies = allDvDependencies.concat(depData.value || []);
+            }
+
+            console.log(`Planner Premium sync: Found ${allDvDependencies.length} task dependencies in Dataverse`);
+
+            for (const dep of allDvDependencies) {
+              const successorTaskId = dep._msdyn_successortask_value;
+              const predecessorTaskId = dep._msdyn_predecessortask_value;
+
+              if (!successorTaskId || !predecessorTaskId) continue;
+
+              const ourSuccessorId = taskIdMap.get(successorTaskId);
+              const ourPredecessorId = taskIdMap.get(predecessorTaskId);
+
+              if (ourSuccessorId && ourPredecessorId) {
+                let dependencyType = 'finish-to-start';
+                if (dep.msdyn_linktype === 192350001) dependencyType = 'finish-to-finish';
+                else if (dep.msdyn_linktype === 192350002) dependencyType = 'start-to-start';
+                else if (dep.msdyn_linktype === 192350003) dependencyType = 'start-to-finish';
+
+                try {
+                  await db.insert(taskDependencies).values({
+                    taskId: ourSuccessorId,
+                    dependsOnTaskId: ourPredecessorId,
+                    dependencyType,
+                    lagDays: 0,
+                  });
+                  dataverseDepsImported++;
+                } catch (depInsertErr) {
+                  console.log(`Planner Premium sync: Failed to create dependency:`, depInsertErr);
+                }
+              }
+            }
+            console.log(`Planner Premium sync: Created ${dataverseDepsImported} task dependencies from Dataverse`);
+          }
+        } catch (depErr) {
+          console.log("Planner Premium sync: Error importing dependencies from Dataverse:", depErr);
+        }
+
         // Reassign preserved data to new tasks using externalId (primary) and task name (fallback)
         let timesheetEntriesPreserved = 0;
         let timesheetEntriesLost = 0;
@@ -7792,63 +7963,66 @@ export async function registerRoutes(
           console.log(`Planner Premium sync: Preserved ${changeLogsPreserved} change logs, lost ${changeLogsLost}`);
         }
         
-        // Restore task dependencies - externalId first, task name fallback
         let dependenciesPreserved = 0;
         let dependenciesLost = 0;
-        const processedDepExtIds = new Set<string>();
-        for (const [extId, deps] of dependenciesByExternalId) {
-          const newTaskId = newExternalIdToTaskId.get(extId);
-          processedDepExtIds.add(extId);
-          if (newTaskId) {
-            for (const dep of deps) {
-              const dependsOnTaskId = resolveNewTaskId(dep.dependsOnExternalId, dep.dependsOnTaskName);
-              if (dependsOnTaskId) {
-                try {
-                  await db.insert(taskDependencies).values({
-                    taskId: newTaskId,
-                    dependsOnTaskId: dependsOnTaskId,
-                    dependencyType: dep.dependencyType,
-                    lagDays: dep.lagDays,
-                  });
-                  dependenciesPreserved++;
-                } catch (err) {
-                  console.log(`Planner Premium sync: Failed to preserve dependency:`, err);
+        if (dataverseDepsFetchedSuccessfully) {
+          console.log(`Planner Premium sync: Skipping preserved dependency restoration — Dataverse is source of truth (${dataverseDepsImported} dependencies imported)`);
+        } else {
+          const processedDepExtIds = new Set<string>();
+          for (const [extId, deps] of dependenciesByExternalId) {
+            const newTaskId = newExternalIdToTaskId.get(extId);
+            processedDepExtIds.add(extId);
+            if (newTaskId) {
+              for (const dep of deps) {
+                const dependsOnTaskId = resolveNewTaskId(dep.dependsOnExternalId, dep.dependsOnTaskName);
+                if (dependsOnTaskId) {
+                  try {
+                    await db.insert(taskDependencies).values({
+                      taskId: newTaskId,
+                      dependsOnTaskId: dependsOnTaskId,
+                      dependencyType: dep.dependencyType,
+                      lagDays: dep.lagDays,
+                    });
+                    dependenciesPreserved++;
+                  } catch (err) {
+                    console.log(`Planner Premium sync: Failed to preserve dependency:`, err);
+                    dependenciesLost++;
+                  }
+                } else {
                   dependenciesLost++;
                 }
-              } else {
-                dependenciesLost++;
               }
+            } else {
+              dependenciesLost += deps.length;
             }
-          } else {
-            dependenciesLost += deps.length;
           }
-        }
-        for (const [taskName, deps] of dependenciesByTaskNames) {
-          const matchingTask = existingTasks.find(t => t.name.toLowerCase().trim() === taskName && t.externalId && processedDepExtIds.has(t.externalId));
-          if (matchingTask) continue;
-          const newTaskId = newTaskNameToId.get(taskName);
-          if (newTaskId) {
-            for (const dep of deps) {
-              const dependsOnTaskId = resolveNewTaskId(dep.dependsOnExternalId, dep.dependsOnTaskName);
-              if (dependsOnTaskId) {
-                try {
-                  await db.insert(taskDependencies).values({
-                    taskId: newTaskId,
-                    dependsOnTaskId: dependsOnTaskId,
-                    dependencyType: dep.dependencyType,
-                    lagDays: dep.lagDays,
-                  });
-                  dependenciesPreserved++;
-                } catch (err) {
-                  console.log(`Planner Premium sync: Failed to preserve dependency:`, err);
+          for (const [taskName, deps] of dependenciesByTaskNames) {
+            const matchingTask = existingTasks.find(t => t.name.toLowerCase().trim() === taskName && t.externalId && processedDepExtIds.has(t.externalId));
+            if (matchingTask) continue;
+            const newTaskId = newTaskNameToId.get(taskName);
+            if (newTaskId) {
+              for (const dep of deps) {
+                const dependsOnTaskId = resolveNewTaskId(dep.dependsOnExternalId, dep.dependsOnTaskName);
+                if (dependsOnTaskId) {
+                  try {
+                    await db.insert(taskDependencies).values({
+                      taskId: newTaskId,
+                      dependsOnTaskId: dependsOnTaskId,
+                      dependencyType: dep.dependencyType,
+                      lagDays: dep.lagDays,
+                    });
+                    dependenciesPreserved++;
+                  } catch (err) {
+                    console.log(`Planner Premium sync: Failed to preserve dependency:`, err);
+                    dependenciesLost++;
+                  }
+                } else {
                   dependenciesLost++;
                 }
-              } else {
-                dependenciesLost++;
               }
+            } else {
+              dependenciesLost += deps.length;
             }
-          } else {
-            dependenciesLost += deps.length;
           }
         }
         if (dependenciesPreserved > 0 || dependenciesLost > 0) {
@@ -7887,6 +8061,7 @@ export async function registerRoutes(
         return res.json({ 
           synced: createdTasks.length,
           resourcesSynced,
+          dataverseDepsImported,
           timesheetEntriesPreserved,
           timesheetEntriesLost,
           changeLogsPreserved,
@@ -7895,7 +8070,7 @@ export async function registerRoutes(
           dependenciesLost,
           issueLinksPreserved,
           issueLinksLost,
-          message: `Successfully synced ${createdTasks.length} tasks${resourcesSynced > 0 ? ` and ${resourcesSynced} new resources` : ''}${timesheetEntriesPreserved > 0 ? ` (preserved ${timesheetEntriesPreserved} timesheet entries)` : ''}${changeLogsPreserved > 0 ? ` (preserved ${changeLogsPreserved} change logs)` : ''}${dependenciesPreserved > 0 ? ` (preserved ${dependenciesPreserved} dependencies)` : ''}${issueLinksPreserved > 0 ? ` (preserved ${issueLinksPreserved} issue links)` : ''} from Planner Premium`
+          message: `Successfully synced ${createdTasks.length} tasks${resourcesSynced > 0 ? ` and ${resourcesSynced} new resources` : ''}${dataverseDepsImported > 0 ? ` (imported ${dataverseDepsImported} dependencies)` : ''}${timesheetEntriesPreserved > 0 ? ` (preserved ${timesheetEntriesPreserved} timesheet entries)` : ''}${changeLogsPreserved > 0 ? ` (preserved ${changeLogsPreserved} change logs)` : ''}${dependenciesPreserved > 0 ? ` (preserved ${dependenciesPreserved} dependencies)` : ''}${issueLinksPreserved > 0 ? ` (preserved ${issueLinksPreserved} issue links)` : ''} from Planner Premium`
         });
       }
 
@@ -8123,7 +8298,10 @@ export async function registerRoutes(
           ? plannerTask.dueDateTime.split('T')[0] 
           : (plannerTask.startDateTime ? plannerTask.startDateTime.split('T')[0] : defaultEndDate);
 
-        const durationDays = calculateDuration(new Date(taskStartDate), new Date(taskEndDate));
+        const hasExplicitStart = !!plannerTask.startDateTime;
+        const hasExplicitDue = !!plannerTask.dueDateTime;
+        const isSameDayMilestone = hasExplicitStart && hasExplicitDue && taskStartDate === taskEndDate;
+        const durationDays = isSameDayMilestone ? 0 : calculateDuration(new Date(taskStartDate), new Date(taskEndDate));
         const taskIsMilestone = durationDays === 0;
 
         const task = await storage.createTask({

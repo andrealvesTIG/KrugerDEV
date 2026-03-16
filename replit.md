@@ -55,6 +55,7 @@ The application features an enterprise-grade UI inspired by Linear and Asana, bu
 -   **UI Libraries**: shadcn/ui, Radix UI, Lucide React
 -   **Integrations**:
     -   Microsoft Project (MPXJ)
-    -   Microsoft Planner (Microsoft Graph API)
+    -   Microsoft Planner (Microsoft Graph API) — import/sync with milestone detection for same-day tasks, dependency import from Dataverse with pagination
+    -   Microsoft Planner Premium / Dataverse (msdyn_projecttaskdependencies) — dependency import with link-type mapping (FS/FF/SS/SF) and OData pagination
     -   Microsoft Dynamics 365 Sales Hub (OAuth 2.0 / MSAL)
     -   Analytics API (for external analytics tools)
