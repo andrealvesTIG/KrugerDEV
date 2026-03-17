@@ -141,6 +141,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
         setSyncError(null);
         setLastSyncedAt(new Date());
         queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'dependencies'] });
         queryClient.invalidateQueries({ queryKey: ['/api/resources'] });
         refetchTasks();
         if (!silent) {
@@ -172,6 +173,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             const data = await response.json();
             setLastSyncedAt(new Date());
             queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'dependencies'] });
             toast({ 
               title: "Synced with Planner", 
               description: `${data.synced || 0} tasks synced successfully` 
