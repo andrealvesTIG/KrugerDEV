@@ -709,6 +709,87 @@ const spec = {
         },
         required: ['id', 'taskId', 'dependsOnTaskId'],
       },
+      TaskDependencyCreateRequest: {
+        type: 'object',
+        description: 'Input schema for creating a task dependency.',
+        properties: {
+          dependsOnTaskId: { type: 'integer', description: 'The ID of the predecessor task that must complete first' },
+          dependencyType: {
+            type: 'string',
+            enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'],
+            default: 'finish-to-start',
+            description: 'The type of dependency relationship. Defaults to finish-to-start if omitted.',
+          },
+          lagDays: { type: 'integer', default: 0, description: 'Lag (positive) or lead (negative) time in working days. Defaults to 0.' },
+        },
+        required: ['dependsOnTaskId'],
+      },
+      TaskDependencyUpdateRequest: {
+        type: 'object',
+        description: 'Input schema for updating a task dependency. Both fields are optional; only provided fields are changed.',
+        properties: {
+          dependencyType: {
+            type: 'string',
+            enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'],
+            description: 'New dependency type',
+          },
+          lagDays: { type: 'integer', description: 'New lag (positive) or lead (negative) time in working days' },
+        },
+      },
+      TaskDependencyCreateResponse: {
+        type: 'object',
+        description: 'Response when a dependency is created. Includes the dependency record plus schedule adjustment information.',
+        properties: {
+          id: { type: 'integer' },
+          taskId: { type: 'integer' },
+          dependsOnTaskId: { type: 'integer' },
+          dependencyType: { type: 'string', enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'] },
+          lagDays: { type: 'integer' },
+          createdAt: { type: 'string', format: 'date-time' },
+          dateAdjusted: { type: 'boolean', description: 'Whether the dependent task dates were automatically adjusted to satisfy the constraint' },
+          adjustedTaskId: { type: 'integer', nullable: true, description: 'ID of the task whose dates were adjusted, or null' },
+          newStartDate: { type: 'string', format: 'date', nullable: true, description: 'New start date of the adjusted task, or null' },
+          newEndDate: { type: 'string', format: 'date', nullable: true, description: 'New end date of the adjusted task, or null' },
+          propagatedTasks: {
+            type: 'array',
+            description: 'Downstream tasks whose dates were cascaded after the initial adjustment',
+            items: {
+              type: 'object',
+              properties: {
+                taskId: { type: 'integer' },
+                newStartDate: { type: 'string', format: 'date' },
+                newEndDate: { type: 'string', format: 'date' },
+              },
+            },
+          },
+        },
+        required: ['id', 'taskId', 'dependsOnTaskId', 'dateAdjusted', 'propagatedTasks'],
+      },
+      TaskDependencyUpdateResponse: {
+        type: 'object',
+        description: 'Response when a dependency is updated. Includes the updated record plus any cascaded schedule changes.',
+        properties: {
+          id: { type: 'integer' },
+          taskId: { type: 'integer' },
+          dependsOnTaskId: { type: 'integer' },
+          dependencyType: { type: 'string', enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'] },
+          lagDays: { type: 'integer' },
+          createdAt: { type: 'string', format: 'date-time' },
+          propagatedTasks: {
+            type: 'array',
+            description: 'Downstream tasks whose dates were cascaded after the update',
+            items: {
+              type: 'object',
+              properties: {
+                taskId: { type: 'integer' },
+                newStartDate: { type: 'string', format: 'date' },
+                newEndDate: { type: 'string', format: 'date' },
+              },
+            },
+          },
+        },
+        required: ['id', 'taskId', 'dependsOnTaskId', 'propagatedTasks'],
+      },
       User: {
         type: 'object',
         properties: {
@@ -1874,27 +1955,31 @@ const spec = {
       }),
       post: op('Tasks', 'Add task dependency', {
         summary: 'Add a dependency to a task',
-        description: 'Creates a finish-to-start dependency where the specified task depends on the given predecessor task. Both tasks must be leaf tasks (no children). Self-dependencies and circular dependencies are not allowed.',
+        description: 'Creates a dependency where the specified task depends on the given predecessor task. Optionally specify dependencyType (defaults to finish-to-start) and lagDays (defaults to 0). Both tasks must be leaf tasks (no children); self-dependencies are not allowed. If the dependency constraint is violated, the dependent task dates are automatically adjusted and downstream tasks are cascaded.',
         parameters: [pathId()],
-        requestBody: body({
-          type: 'object',
-          required: ['dependsOnTaskId'],
-          properties: {
-            dependsOnTaskId: { type: 'integer', description: 'The ID of the predecessor task that must complete first' },
-          },
-        }),
+        requestBody: body(ref('TaskDependencyCreateRequest')),
         responses: {
-          ...r201('The created dependency record', ref('TaskDependency')),
+          ...r201('The created dependency record with schedule adjustment info', ref('TaskDependencyCreateResponse')),
           ...createRes,
         },
       }),
     },
     '/tasks/{id}/dependencies/{dependsOnTaskId}': {
+      put: op('Tasks', 'Update task dependency', {
+        summary: 'Update dependency type or lag days',
+        description: 'Updates the dependency type and/or lag days for an existing dependency between two tasks. After updating, downstream task dates are automatically cascaded if the constraint changes.',
+        parameters: [pathId(), pathId('dependsOnTaskId')],
+        requestBody: body(ref('TaskDependencyUpdateRequest')),
+        responses: {
+          ...r200('The updated dependency record with cascaded schedule changes', ref('TaskDependencyUpdateResponse')),
+          ...updateRes,
+        },
+      }),
       delete: op('Tasks', 'Remove task dependency', {
         summary: 'Remove a dependency from a task',
-        description: 'Removes the dependency relationship between the task (id) and its predecessor (dependsOnTaskId).',
+        description: 'Removes the dependency relationship between the task (id) and its predecessor (dependsOnTaskId). Returns 204 with no content on success.',
         parameters: [pathId(), pathId('dependsOnTaskId')],
-        responses: { ...r200('Dependency removed successfully'), ...fullRes },
+        responses: { ...r204('Dependency removed successfully'), ...authRes },
       }),
     },
     '/projects/{projectId}/dependencies': {
@@ -1904,7 +1989,7 @@ const spec = {
         parameters: [pathId('projectId')],
         responses: {
           ...r200('Array of all dependency records in the project', arrOf('TaskDependency')),
-          ...idRes,
+          ...fullRes,
         },
       }),
     },
