@@ -701,6 +701,7 @@ const spec = {
           dependencyType: {
             type: 'string',
             enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'],
+            'x-enum-varnames': ['FinishToStart', 'StartToStart', 'FinishToFinish', 'StartToFinish'],
             default: 'finish-to-start',
             description: 'The type of dependency relationship between the two tasks',
           },
@@ -717,6 +718,7 @@ const spec = {
           dependencyType: {
             type: 'string',
             enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'],
+            'x-enum-varnames': ['FinishToStart', 'StartToStart', 'FinishToFinish', 'StartToFinish'],
             default: 'finish-to-start',
             nullable: true,
             description: 'The type of dependency relationship. Defaults to finish-to-start if omitted or null. Also accepts alternate formats: "FinishToStart", "Finish To Start", "finish_to_start", "FS" (and equivalents for other types: SS, FF, SF).',
@@ -732,6 +734,7 @@ const spec = {
           dependencyType: {
             type: 'string',
             enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'],
+            'x-enum-varnames': ['FinishToStart', 'StartToStart', 'FinishToFinish', 'StartToFinish'],
             nullable: true,
             description: 'New dependency type. Also accepts alternate formats: "FinishToStart", "Finish To Start", "finish_to_start", "FS" (and equivalents for other types: SS, FF, SF). Null is treated as omitted.',
           },
@@ -748,6 +751,7 @@ const spec = {
           dependencyType: {
             type: 'string',
             enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'],
+            'x-enum-varnames': ['FinishToStart', 'StartToStart', 'FinishToFinish', 'StartToFinish'],
             default: 'finish-to-start',
             description: 'The normalized dependency type. Always one of the four canonical values.',
           },
@@ -783,6 +787,7 @@ const spec = {
           dependencyType: {
             type: 'string',
             enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'],
+            'x-enum-varnames': ['FinishToStart', 'StartToStart', 'FinishToFinish', 'StartToFinish'],
             description: 'The updated dependency type',
           },
           lagDays: { type: 'integer', description: 'Updated lag/lead time in working days' },
