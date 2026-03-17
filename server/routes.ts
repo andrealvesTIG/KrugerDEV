@@ -11511,78 +11511,21 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
       
       const dependentTask = await storage.getTask(taskId);
-      const predecessorTask = await storage.getTask(dependsOnTaskId);
-      let dateAdjusted = false;
-      let newStartDate: string | null = null;
-      let newEndDate: string | null = null;
-
-      if (dependentTask && predecessorTask) {
-        const depType = (updated.dependencyType || 'finish-to-start').toLowerCase().replace(/[\s_-]/g, '');
-        const lag = updated.lagDays || 0;
-        const predStart = predecessorTask.startDate ? new Date(predecessorTask.startDate + 'T00:00:00') : null;
-        const predEnd = predecessorTask.endDate ? new Date(predecessorTask.endDate + 'T00:00:00') : null;
-        const currentStart = dependentTask.startDate ? new Date(dependentTask.startDate + 'T00:00:00') : null;
-        const currentEnd = dependentTask.endDate ? new Date(dependentTask.endDate + 'T00:00:00') : null;
-        const duration = dependentTask.durationDays ?? (currentStart && currentEnd
-          ? calculateDuration(currentStart, currentEnd) : 1);
-
-        let requiredStart: Date | null = null;
-        let requiredEnd: Date | null = null;
-
-        if ((depType === 'finishtostart' || depType === 'fs') && predEnd) {
-          const base = nextWorkingDay(predEnd);
-          requiredStart = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
-        } else if ((depType === 'starttostart' || depType === 'ss') && predStart) {
-          const base = ensureWorkingDay(new Date(predStart));
-          requiredStart = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
-        } else if ((depType === 'finishtofinish' || depType === 'ff') && predEnd) {
-          const base = ensureWorkingDay(new Date(predEnd));
-          requiredEnd = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
-        } else if ((depType === 'starttofinish' || depType === 'sf') && predStart) {
-          const base = ensureWorkingDay(new Date(predStart));
-          requiredEnd = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
-        }
-
-        if (requiredStart) {
-          newStartDate = formatDateStr(requiredStart);
-          if (duration === 0 || dependentTask.isMilestone) {
-            newEndDate = newStartDate;
-            await storage.updateTask(taskId, { startDate: newStartDate, endDate: newStartDate, durationDays: 0 });
-          } else {
-            const newEnd = calculateEndDate(requiredStart, duration);
-            newEndDate = formatDateStr(newEnd);
-            await storage.updateTask(taskId, { startDate: newStartDate, endDate: newEndDate, durationDays: duration });
-          }
-          dateAdjusted = true;
-        } else if (requiredEnd) {
-          newEndDate = formatDateStr(requiredEnd);
-          if (duration === 0 || dependentTask.isMilestone) {
-            newStartDate = newEndDate;
-            await storage.updateTask(taskId, { startDate: newEndDate, endDate: newEndDate, durationDays: 0 });
-          } else {
-            const calendarSpan = Math.ceil(duration);
-            const newStart = ensureWorkingDay(addWorkingDays(requiredEnd, -(Math.max(0, calendarSpan - 1))));
-            newStartDate = formatDateStr(newStart);
-            await storage.updateTask(taskId, { startDate: newStartDate, endDate: newEndDate, durationDays: duration });
-          }
-          dateAdjusted = true;
-        }
-      }
-
       let propagatedTasks: { taskId: number; newStartDate: string; newEndDate: string }[] = [];
+
       if (dependentTask) {
-        if (dateAdjusted) {
-          await rollUpParentTasks(dependentTask.projectId);
-        }
         propagatedTasks = await propagateScheduleForProject(dependentTask.projectId);
+        await rollUpParentTasks(dependentTask.projectId);
       }
+
+      const updatedTask = await storage.getTask(taskId);
       
       res.json({ 
         ...updated, 
-        dateAdjusted,
-        adjustedTaskId: dateAdjusted ? taskId : null,
-        newStartDate,
-        newEndDate,
+        dateAdjusted: propagatedTasks.some(p => p.taskId === taskId),
+        adjustedTaskId: propagatedTasks.some(p => p.taskId === taskId) ? taskId : null,
+        newStartDate: updatedTask?.startDate || null,
+        newEndDate: updatedTask?.endDate || null,
         propagatedTasks,
       });
     } catch (err) {
@@ -11739,7 +11682,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
       const currentStart = successor.startDate ? new Date(successor.startDate + 'T00:00:00') : null;
       const currentEnd = successor.endDate ? new Date(successor.endDate + 'T00:00:00') : null;
-      const duration = successor.durationDays ?? (currentStart && currentEnd ? calculateDuration(currentStart, currentEnd) : 1);
+      const parsedDuration = successor.durationDays == null ? NaN : Number(successor.durationDays);
+      const duration = Number.isFinite(parsedDuration) ? parsedDuration : (currentStart && currentEnd ? calculateDuration(currentStart, currentEnd) : 1);
 
       let newStart: Date | null = null;
       let newEnd: Date | null = null;
