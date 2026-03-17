@@ -385,8 +385,29 @@ export const api = {
       path: '/api/tasks/:id/dependencies',
       input: z.object({
         dependsOnTaskId: z.number(),
-        dependencyType: z.enum(['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish']).optional().default('finish-to-start'),
-        lagDays: z.number().int().optional().default(0),
+        dependencyType: z.preprocess(
+          (val) => {
+            if (val === null || val === undefined) return undefined;
+            if (typeof val !== 'string') return val;
+            const normalized = val.toLowerCase().replace(/[\s_]/g, '');
+            const map: Record<string, string> = {
+              'finishtostart': 'finish-to-start', 'fs': 'finish-to-start',
+              'starttostart': 'start-to-start', 'ss': 'start-to-start',
+              'finishtofinish': 'finish-to-finish', 'ff': 'finish-to-finish',
+              'starttofinish': 'start-to-finish', 'sf': 'start-to-finish',
+              'finish-to-start': 'finish-to-start',
+              'start-to-start': 'start-to-start',
+              'finish-to-finish': 'finish-to-finish',
+              'start-to-finish': 'start-to-finish',
+            };
+            return map[normalized] || val;
+          },
+          z.enum(['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish']).optional().default('finish-to-start'),
+        ),
+        lagDays: z.preprocess(
+          (val) => (val === null ? undefined : val),
+          z.number().int().optional().default(0),
+        ),
       }),
       responses: {
         201: z.custom<typeof taskDependencies.$inferSelect>(),
@@ -398,8 +419,29 @@ export const api = {
       method: 'PUT' as const,
       path: '/api/tasks/:id/dependencies/:dependsOnTaskId',
       input: z.object({
-        dependencyType: z.enum(['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish']).optional(),
-        lagDays: z.number().int().optional(),
+        dependencyType: z.preprocess(
+          (val) => {
+            if (val === null || val === undefined) return undefined;
+            if (typeof val !== 'string') return val;
+            const normalized = val.toLowerCase().replace(/[\s_]/g, '');
+            const map: Record<string, string> = {
+              'finishtostart': 'finish-to-start', 'fs': 'finish-to-start',
+              'starttostart': 'start-to-start', 'ss': 'start-to-start',
+              'finishtofinish': 'finish-to-finish', 'ff': 'finish-to-finish',
+              'starttofinish': 'start-to-finish', 'sf': 'start-to-finish',
+              'finish-to-start': 'finish-to-start',
+              'start-to-start': 'start-to-start',
+              'finish-to-finish': 'finish-to-finish',
+              'start-to-finish': 'start-to-finish',
+            };
+            return map[normalized] || val;
+          },
+          z.enum(['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish']).optional(),
+        ),
+        lagDays: z.preprocess(
+          (val) => (val === null ? undefined : val),
+          z.number().int().optional(),
+        ),
       }),
       responses: {
         200: z.custom<typeof taskDependencies.$inferSelect>(),
