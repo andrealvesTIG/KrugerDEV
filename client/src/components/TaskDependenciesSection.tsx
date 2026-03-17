@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTaskDependencies, useAddTaskDependency, useRemoveTaskDependency, useUpdateTaskDependency } from "@/hooks/use-tasks";
 import { useOrganization } from "@/hooks/use-organization";
@@ -24,19 +24,30 @@ function getDependencyDescription(type: string | null | undefined): string {
   return found ? found.description : "Finish-to-Start";
 }
 
-export function TaskDependenciesSection({
-  taskId,
-  projectId,
-  allTasks,
-}: {
-  taskId: number;
-  projectId: number;
-  allTasks: Task[];
-}) {
+export type PendingDepChange = {
+  dependsOnTaskId: number;
+  dependencyType?: string;
+  lagDays?: number;
+};
+
+export type TaskDependenciesSectionHandle = {
+  getPendingChanges: () => PendingDepChange[];
+  clearPendingChanges: () => void;
+};
+
+export const TaskDependenciesSection = forwardRef<
+  TaskDependenciesSectionHandle,
+  {
+    taskId: number;
+    projectId: number;
+    allTasks: Task[];
+    pendingChanges?: Map<number, PendingDepChange>;
+    onPendingChangesUpdate?: (changes: Map<number, PendingDepChange>) => void;
+  }
+>(function TaskDependenciesSection({ taskId, projectId, allTasks, pendingChanges: externalPending, onPendingChangesUpdate }, ref) {
   const { data: dependencies, isLoading } = useTaskDependencies(taskId);
   const addDependency = useAddTaskDependency();
   const removeDependency = useRemoveTaskDependency();
-  const updateDependency = useUpdateTaskDependency();
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
 
@@ -53,6 +64,22 @@ export function TaskDependenciesSection({
   const [defaultsApplied, setDefaultsApplied] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const predecessorItemRef = useRef<HTMLDivElement>(null);
+
+  const [localPending, setLocalPending] = useState<Map<number, PendingDepChange>>(new Map());
+  const pendingChanges = externalPending ?? localPending;
+  const setPendingChanges = (updater: Map<number, PendingDepChange> | ((prev: Map<number, PendingDepChange>) => Map<number, PendingDepChange>)) => {
+    const newVal = typeof updater === 'function' ? updater(pendingChanges) : updater;
+    if (onPendingChangesUpdate) {
+      onPendingChangesUpdate(newVal);
+    } else {
+      setLocalPending(newVal);
+    }
+  };
+
+  useImperativeHandle(ref, () => ({
+    getPendingChanges: () => Array.from(pendingChanges.values()),
+    clearPendingChanges: () => setPendingChanges(new Map()),
+  }), [pendingChanges]);
 
   useEffect(() => {
     if (schedulingDefaults && !defaultsApplied) {
@@ -120,6 +147,12 @@ export function TaskDependenciesSection({
   };
 
   const handleRemoveDependency = (predecessorId: number) => {
+    setPendingChanges(prev => {
+      const next = new Map(prev);
+      next.delete(predecessorId);
+      return next;
+    });
+
     removeDependency.mutate(
       { taskId, dependsOnTaskId: predecessorId },
       {
@@ -137,40 +170,56 @@ export function TaskDependenciesSection({
     );
   };
 
-  const handleUpdateDependencyType = (predecessorId: number, newType: string) => {
-    updateDependency.mutate(
-      { taskId, dependsOnTaskId: predecessorId, dependencyType: newType, projectId },
-      {
-        onSuccess: () => {
-          toast({ title: "Updated", description: `Dependency type changed to ${getDependencyDescription(newType)}` });
-        },
-        onError: (error: any) => {
-          toast({
-            title: "Error",
-            description: error?.message || "Failed to update dependency",
-            variant: "destructive",
-          });
-        },
-      }
-    );
+  const handleStageDependencyType = (dep: any, newType: string) => {
+    const serverType = dep.dependencyType || "finish-to-start";
+    const serverLag = dep.lagDays || 0;
+    const pending = pendingChanges.get(dep.dependsOnTaskId);
+    const effectiveLag = pending?.lagDays ?? serverLag;
+
+    if (newType === serverType && effectiveLag === serverLag) {
+      setPendingChanges(prev => {
+        const next = new Map(prev);
+        next.delete(dep.dependsOnTaskId);
+        return next;
+      });
+    } else {
+      setPendingChanges(prev => {
+        const next = new Map(prev);
+        next.set(dep.dependsOnTaskId, { dependsOnTaskId: dep.dependsOnTaskId, dependencyType: newType, lagDays: effectiveLag });
+        return next;
+      });
+    }
   };
 
-  const handleUpdateLag = (predecessorId: number, newLag: number) => {
-    updateDependency.mutate(
-      { taskId, dependsOnTaskId: predecessorId, lagDays: newLag, projectId },
-      {
-        onSuccess: () => {
-          toast({ title: "Updated", description: `Lag updated to ${newLag} day${newLag !== 1 ? 's' : ''}` });
-        },
-        onError: (error: any) => {
-          toast({
-            title: "Error",
-            description: error?.message || "Failed to update lag",
-            variant: "destructive",
-          });
-        },
-      }
-    );
+  const handleStageLag = (dep: any, newLag: number) => {
+    const serverType = dep.dependencyType || "finish-to-start";
+    const serverLag = dep.lagDays || 0;
+    const pending = pendingChanges.get(dep.dependsOnTaskId);
+    const effectiveType = pending?.dependencyType ?? serverType;
+
+    if (newLag === serverLag && effectiveType === serverType) {
+      setPendingChanges(prev => {
+        const next = new Map(prev);
+        next.delete(dep.dependsOnTaskId);
+        return next;
+      });
+    } else {
+      setPendingChanges(prev => {
+        const next = new Map(prev);
+        next.set(dep.dependsOnTaskId, { dependsOnTaskId: dep.dependsOnTaskId, dependencyType: effectiveType, lagDays: newLag });
+        return next;
+      });
+    }
+  };
+
+  const getEffectiveType = (dep: any): string => {
+    const pending = pendingChanges.get(dep.dependsOnTaskId);
+    return pending?.dependencyType ?? dep.dependencyType ?? "finish-to-start";
+  };
+
+  const getEffectiveLag = (dep: any): number => {
+    const pending = pendingChanges.get(dep.dependsOnTaskId);
+    return pending?.lagDays ?? dep.lagDays ?? 0;
   };
 
   if (isLoading) {
@@ -189,7 +238,7 @@ export function TaskDependenciesSection({
           Predecessors
         </Label>
         <p className="text-xs text-muted-foreground">
-          Tasks that must complete (or start) before this task, depending on the link type
+          Tasks that must complete (or start) before this task, depending on the link type. Changes to type and lag are saved when you click Update Task.
         </p>
       </div>
 
@@ -197,21 +246,30 @@ export function TaskDependenciesSection({
         <div className="space-y-2">
           {dependencies.map((dep) => {
             const predecessorTask = allTasks.find(t => t.id === dep.dependsOnTaskId);
+            const hasPendingChange = pendingChanges.has(dep.dependsOnTaskId);
             return (
               <div
                 key={dep.id}
-                className="flex items-center justify-between p-2 rounded-md bg-muted/50 border gap-2"
+                className={cn(
+                  "flex items-center justify-between p-2 rounded-md bg-muted/50 border gap-2",
+                  hasPendingChange && "border-orange-400/50 bg-orange-50/30 dark:bg-orange-950/10"
+                )}
               >
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <span className="text-sm truncate">
                     {predecessorTask?.name || `Task #${dep.dependsOnTaskId}`}
                   </span>
+                  {hasPendingChange && (
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-orange-400 text-orange-600 dark:text-orange-400">
+                      unsaved
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   <Select
-                    value={dep.dependencyType || "finish-to-start"}
-                    onValueChange={(val) => handleUpdateDependencyType(dep.dependsOnTaskId, val)}
+                    value={getEffectiveType(dep)}
+                    onValueChange={(val) => handleStageDependencyType(dep, val)}
                   >
                     <SelectTrigger className="h-7 w-[160px] text-xs px-2">
                       <SelectValue />
@@ -230,13 +288,11 @@ export function TaskDependenciesSection({
                     type="number"
                     className="h-7 w-[44px] text-xs text-center px-1"
                     title="Lag/lead days"
-                    key={`lag-${dep.id}-${dep.lagDays}`}
-                    defaultValue={dep.lagDays || 0}
+                    key={`lag-${dep.id}-${getEffectiveLag(dep)}`}
+                    defaultValue={getEffectiveLag(dep)}
                     onBlur={(e) => {
                       const newLag = parseInt(e.target.value) || 0;
-                      if (newLag !== (dep.lagDays || 0)) {
-                        handleUpdateLag(dep.dependsOnTaskId, newLag);
-                      }
+                      handleStageLag(dep, newLag);
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -356,4 +412,4 @@ export function TaskDependenciesSection({
       </div>
     </div>
   );
-}
+});
