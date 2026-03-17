@@ -2747,7 +2747,7 @@ function ProjectGanttView({
         continue;
       }
       
-      const depType = schedulingDefaults?.defaultDependencyType || 'finish-to-start';
+      const depType = schedulingDefaults?.defaultDependencyType || 'FinishToStart';
       const depLag = schedulingDefaults?.defaultLagDays || 0;
       try {
         await addDependency.mutateAsync({

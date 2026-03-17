@@ -13,14 +13,25 @@ import { cn, normalizeSearch } from "@/lib/utils";
 import type { Task, SchedulingDefaults } from "@shared/schema";
 
 const DEPENDENCY_TYPES = [
-  { value: "finish-to-start", label: "FS", description: "Finish-to-Start" },
-  { value: "start-to-start", label: "SS", description: "Start-to-Start" },
-  { value: "finish-to-finish", label: "FF", description: "Finish-to-Finish" },
-  { value: "start-to-finish", label: "SF", description: "Start-to-Finish" },
+  { value: "FinishToStart", label: "FS", description: "Finish-to-Start" },
+  { value: "StartToStart", label: "SS", description: "Start-to-Start" },
+  { value: "FinishToFinish", label: "FF", description: "Finish-to-Finish" },
+  { value: "StartToFinish", label: "SF", description: "Start-to-Finish" },
 ] as const;
 
+function normalizeToPascal(type: string | null | undefined): string {
+  if (!type) return "FinishToStart";
+  const n = type.toLowerCase().replace(/[\s_-]/g, '');
+  if (n === 'finishtostart' || n === 'fs') return 'FinishToStart';
+  if (n === 'starttostart' || n === 'ss') return 'StartToStart';
+  if (n === 'finishtofinish' || n === 'ff') return 'FinishToFinish';
+  if (n === 'starttofinish' || n === 'sf') return 'StartToFinish';
+  return 'FinishToStart';
+}
+
 function getDependencyDescription(type: string | null | undefined): string {
-  const found = DEPENDENCY_TYPES.find(t => t.value === type);
+  const pascal = normalizeToPascal(type);
+  const found = DEPENDENCY_TYPES.find(t => t.value === pascal);
   return found ? found.description : "Finish-to-Start";
 }
 
@@ -45,7 +56,7 @@ export function TaskDependenciesSection({
     enabled: !!currentOrganization?.id,
   });
 
-  const orgDefaults = schedulingDefaults || { defaultDependencyType: 'finish-to-start' as const, defaultLagDays: 0, enforceDefaults: false };
+  const orgDefaults = schedulingDefaults || { defaultDependencyType: 'FinishToStart' as const, defaultLagDays: 0, enforceDefaults: false };
 
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedType, setSelectedType] = useState<string>(orgDefaults.defaultDependencyType);
@@ -209,7 +220,7 @@ export function TaskDependenciesSection({
         <div className="border rounded-lg overflow-hidden divide-y">
           {dependencies.map((dep) => {
             const predecessorTask = allTasks.find(t => t.id === dep.dependsOnTaskId);
-            const depTypeLabel = DEPENDENCY_TYPES.find(t => t.value === (dep.dependencyType || "finish-to-start"));
+            const depTypeLabel = DEPENDENCY_TYPES.find(t => t.value === normalizeToPascal(dep.dependencyType));
             return (
               <div
                 key={dep.id}
@@ -225,7 +236,7 @@ export function TaskDependenciesSection({
 
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <Select
-                      value={dep.dependencyType || "finish-to-start"}
+                      value={normalizeToPascal(dep.dependencyType)}
                       onValueChange={(val) => handleUpdateDependencyType(dep.dependsOnTaskId, val)}
                     >
                       <SelectTrigger

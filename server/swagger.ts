@@ -694,10 +694,8 @@ const spec = {
       },
       DependencyType: {
         type: 'string',
-        enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'],
-        'x-enumNames': ['FinishToStart', 'StartToStart', 'FinishToFinish', 'StartToFinish'],
-        'x-enum-varnames': ['FinishToStart', 'StartToStart', 'FinishToFinish', 'StartToFinish'],
-        description: 'Task dependency relationship type. Values: finish-to-start (FS), start-to-start (SS), finish-to-finish (FF), start-to-finish (SF). The API also accepts alternate input formats such as "FinishToStart", "finish_to_start", or abbreviations like "FS".',
+        enum: ['FinishToStart', 'StartToStart', 'FinishToFinish', 'StartToFinish'],
+        description: 'Task dependency relationship type. API responses use PascalCase values: FinishToStart, StartToStart, FinishToFinish, StartToFinish. For input, the API also accepts alternate formats such as "finish-to-start", "finish_to_start", "FS", "fs", "Finish To Start", etc.',
       },
       TaskDependency: {
         type: 'object',

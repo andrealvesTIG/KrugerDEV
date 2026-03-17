@@ -11482,10 +11482,20 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   // Task Dependencies
+  const depTypeToApi: Record<string, string> = {
+    'finish-to-start': 'FinishToStart',
+    'start-to-start': 'StartToStart',
+    'finish-to-finish': 'FinishToFinish',
+    'start-to-finish': 'StartToFinish',
+  };
+  function formatDepForApi(dep: any) {
+    return { ...dep, dependencyType: depTypeToApi[dep.dependencyType] || dep.dependencyType || 'FinishToStart' };
+  }
+
   app.get(api.tasks.getDependencies.path, async (req, res) => {
     const taskId = Number(req.params.id);
     const dependencies = await storage.getTaskDependencies(taskId);
-    res.json(dependencies);
+    res.json(dependencies.map(formatDepForApi));
   });
 
   app.post(api.tasks.addDependency.path, async (req, res) => {
@@ -11610,7 +11620,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
 
       res.status(201).json({ 
-        ...dependency, 
+        ...formatDepForApi(dependency), 
         dateAdjusted,
         adjustedTaskId: dateAdjusted ? taskId : null,
         newStartDate: dateAdjusted ? newStartDate : null,
@@ -11647,7 +11657,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         propagatedTasks = await propagateScheduleForProject(dependentTask.projectId);
       }
       
-      res.json({ ...updated, propagatedTasks });
+      res.json({ ...formatDepForApi(updated), propagatedTasks });
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
       const classified = classifyError(err);
@@ -11679,7 +11689,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         }
       }
       const dependencies = await storage.getProjectDependencies(projectId);
-      res.json(dependencies);
+      res.json(dependencies.map(formatDepForApi));
     } catch (err) {
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching project dependencies" : classified.message });
