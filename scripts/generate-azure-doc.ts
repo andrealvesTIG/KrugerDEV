@@ -257,7 +257,7 @@ const doc = new Document({
         // ═══════════════════════════════════════════════
         pageBreak(),
         h1("2. Application Architecture"),
-        para("FridayReport.AI is an enterprise-grade Project and Portfolio Management (PPM) platform built as a full-stack TypeScript monolithic application. It provides project tracking, resource allocation, AI-driven risk assessments, timesheet management, and deep integrations with the Microsoft ecosystem."),
+        para("FridayReport.AI is an enterprise-grade Project and Portfolio Management (PPM) platform built as a full-stack TypeScript monolithic application. It provides project tracking, resource allocation, risk assessments, timesheet management, and deep integrations with the Microsoft ecosystem."),
 
         h2("2.1 Technology Stack"),
         makeTable(
@@ -279,7 +279,7 @@ const doc = new Document({
         bullet("Client Layer: A React Single Page Application (SPA) served as static files in production."),
         bullet("Server Layer: A RESTful Express API handling business logic, authentication, and external service integrations."),
         bullet("Shared Layer: Drizzle ORM schema and Zod validation types used by both frontend and backend for type safety."),
-        bullet("Service Layer: Specialized business logic in dedicated service modules (notifications, AI, Microsoft integrations, scheduled reports)."),
+        bullet("Service Layer: Specialized business logic in dedicated service modules (notifications, Microsoft integrations, scheduled reports)."),
         para("In production, Express serves both the API endpoints and the pre-built React static files from a single Node.js process."),
 
         h2("2.3 Key Directory Structure"),
