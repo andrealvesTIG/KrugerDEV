@@ -496,7 +496,7 @@ async function seedDatabase() {
       priority: "High",
       startDate: "2025-01-01",
       endDate: "2025-06-30",
-      budget: "450000",
+      budget: 450000,
       managerId: null,
       health: "Green",
       completionPercentage: 45
@@ -512,7 +512,7 @@ async function seedDatabase() {
       priority: "Critical",
       startDate: "2025-02-15",
       endDate: "2025-09-15",
-      budget: "800000",
+      budget: 800000,
       managerId: null,
       health: "Yellow",
       completionPercentage: 15
@@ -529,7 +529,7 @@ async function seedDatabase() {
       priority: "High",
       startDate: "2024-11-01",
       endDate: "2025-05-31",
-      budget: "350000",
+      budget: 350000,
       managerId: null,
       health: "Green",
       completionPercentage: 60
@@ -545,7 +545,7 @@ async function seedDatabase() {
       priority: "Medium",
       startDate: "2024-10-15",
       endDate: "2025-04-30",
-      budget: "280000",
+      budget: 280000,
       managerId: null,
       health: "Red",
       completionPercentage: 35
@@ -561,7 +561,7 @@ async function seedDatabase() {
       priority: "High",
       startDate: "2025-03-01",
       endDate: "2025-07-31",
-      budget: "180000",
+      budget: 180000,
       managerId: null,
       health: "Green",
       completionPercentage: 5
@@ -594,7 +594,7 @@ async function seedDatabase() {
       priority: "Medium",
       startDate: "2024-09-01",
       endDate: "2025-01-31",
-      budget: "120000",
+      budget: 120000,
       managerId: null,
       health: "Green",
       completionPercentage: 90
@@ -5991,7 +5991,7 @@ export async function registerRoutes(
         description: `Imported from Microsoft Planner on ${new Date().toLocaleDateString()}`,
         status: "Initiation",
         priority: "Medium",
-        budget: "0",
+        budget: 0,
         health: "Green",
         startDate: projectStartDate,
         endDate: projectEndDate,
@@ -6389,7 +6389,7 @@ export async function registerRoutes(
         description: `Imported from Planner Premium on ${new Date().toLocaleDateString()}`,
         status: "Initiation",
         priority: "Medium",
-        budget: "0",
+        budget: 0,
         health: "Green",
         startDate: projectStartDate,
         endDate: projectEndDate,
@@ -15218,7 +15218,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         priority: priority || 'Medium',
         startDate: startDate || null,
         endDate: null,
-        budget: "0",
+        budget: 0,
         managerId: userId,
         source: 'manual',
       });
