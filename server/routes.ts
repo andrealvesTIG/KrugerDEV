@@ -578,7 +578,7 @@ async function seedDatabase() {
       priority: "Critical",
       startDate: "2024-12-01",
       endDate: "2025-06-30",
-      budget: "400000",
+      budget: 400000,
       managerId: null,
       health: "Yellow",
       completionPercentage: 40
