@@ -940,7 +940,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                   <TabsTrigger value="details" className="text-xs">Details</TabsTrigger>
                   <TabsTrigger value="schedule" className="text-xs">Schedule</TabsTrigger>
                   <TabsTrigger value="resources" className="text-xs">Resources</TabsTrigger>
-                  <TabsTrigger value="dependencies" className="text-xs" disabled={!editingTask}>Dependencies</TabsTrigger>
+                  <TabsTrigger value="dependencies" className="text-xs" disabled={!editingTask || isOngoingTask}>Dependencies</TabsTrigger>
                 </TabsList>
                 
                 <div className="flex-1 overflow-y-auto py-4 min-h-[280px]">
