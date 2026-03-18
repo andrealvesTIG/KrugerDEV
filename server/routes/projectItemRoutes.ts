@@ -791,27 +791,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (!parentTask) continue;
       
       const leafTasks = getLeafDescendants(parentId);
-      const validLeaves = leafTasks.filter(t => t.startDate && t.endDate && !t.isOngoing);
-      if (validLeaves.length === 0) continue;
+      if (leafTasks.length === 0) continue;
 
-      const startDates = validLeaves.map(t => new Date(t.startDate!).getTime());
-      const endDates = validLeaves.map(t => new Date(t.endDate!).getTime());
-      const minStartDate = new Date(Math.min(...startDates));
-      const maxEndDate = new Date(Math.max(...endDates));
-      const minStart = minStartDate.toISOString().split('T')[0];
-      const maxEnd = maxEndDate.toISOString().split('T')[0];
-      
-      const rollUpDurationDays = calculateDuration(minStartDate, maxEndDate);
-      
-      let totalDuration = 0;
-      let weightedProgress = 0;
-      for (const leaf of validLeaves) {
-        const duration = Math.max(1, calculateDuration(new Date(leaf.startDate!), new Date(leaf.endDate!)));
-        totalDuration += duration;
-        weightedProgress += (leaf.progress || 0) * duration;
-      }
-      const avgProgress = totalDuration > 0 ? Math.round(weightedProgress / totalDuration) : 0;
-      
       const totalEstimatedHours = leafTasks.reduce((sum, t) => sum + Number(t.estimatedHours || 0), 0);
       const totalActualHours = leafTasks.reduce((sum, t) => sum + Number(t.actualHours || 0), 0);
       const totalCost = leafTasks.reduce((sum, t) => sum + Number(t.cost || 0), 0);
@@ -821,6 +802,32 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const actHoursStr = totalActualHours > 0 ? String(totalActualHours) : null;
       const costStr = totalCost > 0 ? String(totalCost) : null;
       const actCostStr = totalActualCost > 0 ? String(totalActualCost) : null;
+
+      const datedLeaves = leafTasks.filter(t => t.startDate && t.endDate && !t.isOngoing);
+
+      let minStart = parentTask.startDate;
+      let maxEnd = parentTask.endDate;
+      let rollUpDurationDays = parentTask.durationDays;
+      let avgProgress = parentTask.progress || 0;
+
+      if (datedLeaves.length > 0) {
+        const startDates = datedLeaves.map(t => new Date(t.startDate!).getTime());
+        const endDates = datedLeaves.map(t => new Date(t.endDate!).getTime());
+        const minStartDate = new Date(Math.min(...startDates));
+        const maxEndDate = new Date(Math.max(...endDates));
+        minStart = minStartDate.toISOString().split('T')[0];
+        maxEnd = maxEndDate.toISOString().split('T')[0];
+        rollUpDurationDays = calculateDuration(minStartDate, maxEndDate);
+
+        let totalDuration = 0;
+        let weightedProgress = 0;
+        for (const leaf of datedLeaves) {
+          const duration = Math.max(1, calculateDuration(new Date(leaf.startDate!), new Date(leaf.endDate!)));
+          totalDuration += duration;
+          weightedProgress += (leaf.progress || 0) * duration;
+        }
+        avgProgress = totalDuration > 0 ? Math.round(weightedProgress / totalDuration) : 0;
+      }
       
       const needsUpdate = 
         parentTask.startDate !== minStart || 
@@ -1036,6 +1043,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         timesheet_blocked: 'timesheetBlocked',
         external_id: 'externalId',
         completion_overridden: 'completionOverridden',
+        is_ongoing: 'isOngoing',
       };
       for (const [snake, camel] of Object.entries(snakeToCamelMap)) {
         if (snake in body && !(camel in body)) {
@@ -1045,6 +1053,10 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
 
       const input = api.tasks.create.input.parse(body);
+
+      if (!input.isOngoing && !input.startDate) {
+        return res.status(400).json({ message: "Start date is required for non-ongoing tasks" });
+      }
       
       // Check task limit before creation (using org subscription from project)
       if (userId) {
@@ -1401,6 +1413,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         timesheet_blocked: 'timesheetBlocked',
         external_id: 'externalId',
         completion_overridden: 'completionOverridden',
+        is_ongoing: 'isOngoing',
       };
       for (const [snake, camel] of Object.entries(snakeToCamelMap)) {
         if (snake in body && !(camel in body)) {
@@ -1410,6 +1423,26 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
 
       const input = api.tasks.update.input.parse(body);
+
+      if (input.isOngoing === true && !previousTask.isOngoing) {
+        const outgoingDeps = await storage.getTaskDependencies(taskId);
+        for (const dep of outgoingDeps) {
+          await storage.deleteTaskDependency(dep.taskId, dep.dependsOnTaskId);
+        }
+        const incomingDeps = await storage.getTaskDependents(taskId);
+        for (const dep of incomingDeps) {
+          await storage.deleteTaskDependency(dep.taskId, dep.dependsOnTaskId);
+        }
+        input.startDate = null;
+        input.endDate = null;
+        input.durationDays = null;
+        input.isMilestone = false;
+      }
+
+      const isOngoing = input.isOngoing !== undefined ? input.isOngoing : previousTask.isOngoing;
+      if (!isOngoing && input.startDate === null && previousTask.startDate && input.startDate !== undefined) {
+        return res.status(400).json({ message: "Start date is required for non-ongoing tasks" });
+      }
       
       // Guardrails: sync status and progress
       const incomingStatus = input.status ?? previousTask.status;
