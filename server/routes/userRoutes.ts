@@ -1170,4 +1170,295 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
+  // ===== USER CONSENT ENDPOINTS =====
+
+  app.get('/api/consents/status', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    try {
+      const termsConsent = await storage.getUserConsentByType(userId, 'terms_of_service');
+      const privacyConsent = await storage.getUserConsentByType(userId, 'privacy_policy');
+
+      res.json({
+        currentTermsVersion: CURRENT_TERMS_VERSION,
+        currentPrivacyVersion: CURRENT_PRIVACY_VERSION,
+        termsAccepted: termsConsent ? termsConsent.version === CURRENT_TERMS_VERSION : false,
+        privacyAccepted: privacyConsent ? privacyConsent.version === CURRENT_PRIVACY_VERSION : false,
+        termsConsentDate: termsConsent?.acceptedAt,
+        privacyConsentDate: privacyConsent?.acceptedAt,
+        needsConsent: !termsConsent || termsConsent.version !== CURRENT_TERMS_VERSION ||
+                      !privacyConsent || privacyConsent.version !== CURRENT_PRIVACY_VERSION
+      });
+    } catch (error) {
+      console.error('Error fetching consent status:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch consent status' : classified.message });
+    }
+  });
+
+  app.get('/api/consents', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    try {
+      const consents = await storage.getUserConsents(userId);
+      res.json(consents);
+    } catch (error) {
+      console.error('Error fetching consents:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch consents' : classified.message });
+    }
+  });
+
+  app.post('/api/consents', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    try {
+      const { consentType, version, method } = req.body;
+
+      if (!consentType || !version) {
+        return res.status(400).json({ message: 'consentType and version are required' });
+      }
+
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
+
+      const consent = await storage.createUserConsent({
+        userId,
+        consentType,
+        version,
+        ipAddress,
+        userAgent,
+        method: method || 'checkbox'
+      });
+
+      res.status(201).json(consent);
+    } catch (error) {
+      console.error('Error recording consent:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to record consent' : classified.message });
+    }
+  });
+
+  app.post('/api/consents/accept-all', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    try {
+      const { method } = req.body;
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
+
+      const termsConsent = await storage.createUserConsent({
+        userId,
+        consentType: 'terms_of_service',
+        version: CURRENT_TERMS_VERSION,
+        ipAddress,
+        userAgent,
+        method: method || 'modal'
+      });
+
+      const privacyConsent = await storage.createUserConsent({
+        userId,
+        consentType: 'privacy_policy',
+        version: CURRENT_PRIVACY_VERSION,
+        ipAddress,
+        userAgent,
+        method: method || 'modal'
+      });
+
+      res.status(201).json({
+        termsConsent,
+        privacyConsent,
+        message: 'Consents recorded successfully'
+      });
+    } catch (error) {
+      console.error('Error recording consents:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to record consents' : classified.message });
+    }
+  });
+
+  app.get('/api/admin/consents', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    try {
+      const user = await storage.getUser(userId);
+      if (!user || !hasAdminAccess(user)) {
+        return res.status(403).json({ message: 'Forbidden: Admin access required' });
+      }
+
+      const limit = Number(req.query.limit) || 100;
+      const offset = Number(req.query.offset) || 0;
+
+      const consents = await storage.getAllUserConsents(limit, offset);
+
+      const consentsWithUsers = await Promise.all(
+        consents.map(async (consent) => {
+          const consentUser = await storage.getUser(consent.userId);
+          return {
+            ...consent,
+            userName: consentUser ? `${consentUser.firstName || ''} ${consentUser.lastName || ''}`.trim() || consentUser.email : 'Unknown',
+            userEmail: consentUser?.email || 'Unknown'
+          };
+        })
+      );
+
+      res.json(consentsWithUsers);
+    } catch (error) {
+      console.error('Error fetching all consents:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch consents' : classified.message });
+    }
+  });
+
+  app.get('/api/admin/consents/stats', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    try {
+      const user = await storage.getUser(userId);
+      if (!user || !hasAdminAccess(user)) {
+        return res.status(403).json({ message: 'Forbidden: Admin access required' });
+      }
+
+      const stats = await storage.getUserConsentStats();
+      res.json({
+        stats,
+        currentVersions: {
+          terms_of_service: CURRENT_TERMS_VERSION,
+          privacy_policy: CURRENT_PRIVACY_VERSION
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching consent stats:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch consent statistics' : classified.message });
+    }
+  });
+
+  // ============ DELEGATE / ACT-AS MODE ============
+
+  app.post("/api/organizations/:orgId/act-as", async (req, res) => {
+    try {
+      const realUserId = (req as any).session.userId;
+      if (!realUserId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      if ((req as any).session.actingAsUserId) {
+        return res.status(400).json({ message: "Already acting as another user. Exit delegate mode first." });
+      }
+
+      const orgId = parseInt(req.params.orgId);
+      const { targetUserId } = req.body;
+
+      if (!targetUserId) {
+        return res.status(400).json({ message: "targetUserId is required" });
+      }
+
+      if (targetUserId === realUserId) {
+        return res.status(400).json({ message: "Cannot act as yourself" });
+      }
+
+      const [realUser] = await db.select().from(users).where(eq(users.id, realUserId)).limit(1);
+      if (!realUser) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const isSuperAdmin = hasAdminAccess(realUser);
+      if (!isSuperAdmin) {
+        const realUserMemberships = await storage.getUserOrganizations(realUserId);
+        const realUserMembership = realUserMemberships.find(m => m.organizationId === orgId);
+        if (!realUserMembership || !['org_admin', 'owner'].includes(realUserMembership.role)) {
+          return res.status(403).json({ message: "Only organization admins and owners can use delegate mode" });
+        }
+      }
+
+      const targetMemberships = await storage.getUserOrganizations(targetUserId);
+      const targetMembership = targetMemberships.find(m => m.organizationId === orgId);
+      if (!targetMembership) {
+        return res.status(400).json({ message: "Target user is not a member of this organization" });
+      }
+
+      const [targetUser] = await db.select().from(users).where(eq(users.id, targetUserId)).limit(1);
+      if (!targetUser) {
+        return res.status(400).json({ message: "Target user not found" });
+      }
+
+      (req as any).session.actingAsUserId = targetUserId;
+      (req as any).session.actingAsOrgId = orgId;
+
+      (req as any).session.save((err: any) => {
+        if (err) {
+          console.error("Failed to save session for act-as:", err);
+          return res.status(500).json({ message: "Failed to start delegate mode" });
+        }
+
+        console.log(`[delegate] User ${realUserId} (${realUser.email}) started acting as ${targetUserId} (${targetUser.email}) in org ${orgId}`);
+
+        res.json({
+          success: true,
+          actingAs: {
+            id: targetUser.id,
+            firstName: targetUser.firstName,
+            lastName: targetUser.lastName,
+            username: targetUser.username,
+            email: targetUser.email,
+          },
+        });
+      });
+    } catch (error) {
+      console.error("Act-as start error:", error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to start delegate mode" : classified.message });
+    }
+  });
+
+  app.delete("/api/organizations/:orgId/act-as", async (req, res) => {
+    try {
+      const realUserId = (req as any).session.userId;
+      if (!realUserId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const wasActingAs = (req as any).session.actingAsUserId;
+
+      delete (req as any).session.actingAsUserId;
+      delete (req as any).session.actingAsOrgId;
+
+      (req as any).session.save((err: any) => {
+        if (err) {
+          console.error("Failed to save session for act-as stop:", err);
+          return res.status(500).json({ message: "Failed to stop delegate mode" });
+        }
+
+        if (wasActingAs) {
+          console.log(`[delegate] User ${realUserId} stopped acting as ${wasActingAs}`);
+        }
+
+        res.json({ success: true });
+      });
+    } catch (error) {
+      console.error("Act-as stop error:", error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to stop delegate mode" : classified.message });
+    }
+  });
+
 }
