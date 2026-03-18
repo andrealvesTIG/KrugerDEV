@@ -21138,7 +21138,7 @@ Return ONLY valid JSON.`;
         taskId,
         projectId,
         entryDate,
-        hours: String(hours),
+        hours: hours,
         notes,
         status: 'Draft',
       });
@@ -21148,7 +21148,7 @@ Return ONLY valid JSON.`;
         entryId: entry.id,
         action: 'create',
         actorId: userId,
-        after: { hours: String(hours), notes, taskId, projectId, entryDate },
+        after: { hours: hours, notes, taskId, projectId, entryDate },
       });
 
       res.status(201).json(entry);
@@ -21298,7 +21298,7 @@ Return ONLY valid JSON.`;
           
           const beforeSnapshot = { hours: existing.hours, notes: existing.notes };
           const updated = await storage.updateTimesheetEntry(entry.id, {
-            hours: String(hoursNum),
+            hours: hoursNum,
             notes: entry.notes,
           });
           results.push(updated);
@@ -21309,7 +21309,7 @@ Return ONLY valid JSON.`;
             action: 'update',
             actorId: userId,
             before: beforeSnapshot,
-            after: { hours: String(hoursNum), notes: entry.notes },
+            after: { hours: hoursNum, notes: entry.notes },
           });
         } else if (hoursNum > 0) {
           const isAssigned = await validateTaskAssignment(entry.taskId);
@@ -21340,7 +21340,7 @@ Return ONLY valid JSON.`;
             if (existingEntry.status === 'Draft' || existingEntry.status === 'Rejected') {
               const beforeSnapshot = { hours: existingEntry.hours, notes: existingEntry.notes };
               const updated = await storage.updateTimesheetEntry(existingEntry.id, {
-                hours: String(hoursNum),
+                hours: hoursNum,
                 notes: entry.notes,
               });
               results.push(updated);
@@ -21351,7 +21351,7 @@ Return ONLY valid JSON.`;
                 action: 'update',
                 actorId: userId,
                 before: beforeSnapshot,
-                after: { hours: String(hoursNum), notes: entry.notes },
+                after: { hours: hoursNum, notes: entry.notes },
               });
             } else {
               errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: `Entry is ${existingEntry.status} and cannot be edited` });
@@ -21366,7 +21366,7 @@ Return ONLY valid JSON.`;
             taskId: entry.taskId,
             projectId: entry.projectId,
             entryDate: entry.entryDate,
-            hours: String(entry.hours),
+            hours: entry.hours,
             notes: entry.notes,
             status: 'Draft',
           });
@@ -21377,7 +21377,7 @@ Return ONLY valid JSON.`;
             entryId: created.id,
             action: 'create',
             actorId: userId,
-            after: { hours: String(entry.hours), notes: entry.notes, taskId: entry.taskId, entryDate: entry.entryDate },
+            after: { hours: entry.hours, notes: entry.notes, taskId: entry.taskId, entryDate: entry.entryDate },
           });
         }
       }
@@ -22450,7 +22450,7 @@ Return ONLY valid JSON.`;
         taskId,
         projectId,
         entryDate,
-        hours: String(hoursNum),
+        hours: hoursNum,
         notes,
         status: 'Draft',
         proxyUserId: userId,
@@ -22462,7 +22462,7 @@ Return ONLY valid JSON.`;
         action: 'proxy_create',
         actorId: userId,
         targetUserId: targetResource.userId!,
-        after: { hours: String(hoursNum), notes, taskId, projectId, entryDate },
+        after: { hours: hoursNum, notes, taskId, projectId, entryDate },
         metadata: { proxyUserId: userId, targetResourceId },
       });
 
@@ -23415,7 +23415,7 @@ Return ONLY valid JSON.`;
         resourceId: userResource.id,
         categoryId,
         entryDate,
-        hours: String(hoursNum),
+        hours: hoursNum,
         notes,
         status: 'Draft'
       });
