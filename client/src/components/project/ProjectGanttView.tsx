@@ -738,6 +738,20 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
     // - 1 = single working day task (start == end if start is a weekday)
     // - N = N working-day task (end = N working days from start)
     
+    if (field === 'taskType' && value === 'Ongoing') {
+      updates.isOngoing = true;
+      updates.startDate = null;
+      updates.endDate = null;
+      updates.durationDays = null;
+      updates.isMilestone = false;
+    } else if (field === 'taskType' && oldValue === 'Ongoing' && value !== 'Ongoing') {
+      updates.isOngoing = false;
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      updates.startDate = todayStr;
+      updates.endDate = calculateEndDateFromWorkingDays(todayStr, 1);
+      updates.durationDays = 1;
+    }
+
     // Auto-calculate duration when start or end date changes
     if (field === 'startDate') {
       if (value) {
@@ -1071,6 +1085,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
           { value: 'Work', label: 'Work' },
           { value: 'Milestone', label: 'Milestone' },
           { value: 'Summary', label: 'Summary' },
+          { value: 'Ongoing', label: 'Ongoing' },
         ];
         
         const constraintTypeOptions = [
@@ -1704,9 +1719,15 @@ const ProjectGanttTaskRowTimeline = memo(function ProjectGanttTaskRowTimeline({
         </>
       ) : (
         <div className="h-full flex items-center px-1" onClick={() => onTaskClick(task)}>
-          <Badge variant="outline" className="text-[9px] px-1 py-0 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
-            No dates
-          </Badge>
+          {task.isOngoing ? (
+            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/30 dark:text-violet-400 dark:border-violet-700">
+              Ongoing
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
+              No dates
+            </Badge>
+          )}
         </div>
       )}
     </div>

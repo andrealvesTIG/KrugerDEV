@@ -421,10 +421,10 @@ export const tasks = pgTable("tasks", {
   wbs: text("wbs"), // Work Breakdown Structure code (e.g., "1.2.3") - MS Project style
   name: text("name").notNull(),
   description: text("description"),
-  taskType: text("task_type"), // Work, Milestone, Summary, Fixed Duration, Fixed Units
+  taskType: text("task_type"), // Work, Milestone, Summary, Fixed Duration, Fixed Units, Ongoing
   priority: text("priority").default("Medium"), // Low, Medium, High, Critical
-  startDate: date("start_date").notNull(),
-  endDate: date("end_date").notNull(),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
   baselineStartDate: date("baseline_start_date"), // Original planned start
   baselineEndDate: date("baseline_end_date"), // Original planned end
   actualStartDate: date("actual_start_date"), // When work actually started
@@ -444,6 +444,7 @@ export const tasks = pgTable("tasks", {
   isMilestone: boolean("is_milestone").default(false), // Show task on project timeline
   isSummary: boolean("is_summary").default(false), // Is a summary/parent task
   isCritical: boolean("is_critical").default(false), // On critical path
+  isOngoing: boolean("is_ongoing").default(false), // Ongoing/operational task without scheduled dates
   cost: numeric("cost"), // Budget for this task
   actualCost: numeric("actual_cost"), // Actual cost incurred
   phase: text("phase"), // Project phase this task belongs to
@@ -1527,6 +1528,9 @@ export const insertIssueSchema = baseIssueSchema.extend({
 });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true }).extend({
   durationDays: z.number().min(0).max(365).nullable().optional(),
+  startDate: z.string().nullable().optional(),
+  endDate: z.string().nullable().optional(),
+  isOngoing: z.boolean().optional(),
 });
 export const insertTaskChangeLogSchema = createInsertSchema(taskChangeLogs).omit({ id: true, changedAt: true });
 export const insertProjectChangeLogSchema = createInsertSchema(projectChangeLogs).omit({ id: true, changedAt: true });

@@ -15,7 +15,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Calendar as CalendarIcon, Milestone as MilestoneIcon } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Loader2, Calendar as CalendarIcon, Milestone as MilestoneIcon, RefreshCw } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -66,8 +67,11 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
       baselineEndDate: null as string | null,
       isMilestone: false,
       timesheetBlocked: false,
+      isOngoing: false,
     },
   });
+
+  const isOngoing = form.watch("isOngoing");
 
   const durationDays = parseDurationInput(durationInput);
 
@@ -137,6 +141,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
         baselineEndDate: null,
         isMilestone: false,
         timesheetBlocked: false,
+        isOngoing: false,
       });
       setDurationInput("1d");
       setSelectedResourceIds([]);
@@ -152,20 +157,23 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
       toast({ title: "Validation Error", description: "Please select a valid project.", variant: "destructive" });
       return;
     }
+    const taskIsOngoing = data.isOngoing || false;
     const taskData = {
       projectId,
       name: data.name,
       description: data.description || null,
-      startDate: data.startDate,
-      endDate: data.endDate,
-      durationDays: durationDays ?? 1,
+      startDate: taskIsOngoing ? null : data.startDate,
+      endDate: taskIsOngoing ? null : data.endDate,
+      durationDays: taskIsOngoing ? null : (durationDays ?? 1),
       progress: data.progress || 0,
       status: data.status || "Not Started",
       assignee: data.assignee || null,
       baselineStartDate: data.baselineStartDate || null,
       baselineEndDate: data.baselineEndDate || null,
-      isMilestone: data.isMilestone || false,
+      isMilestone: taskIsOngoing ? false : (data.isMilestone || false),
       timesheetBlocked: data.timesheetBlocked || false,
+      isOngoing: taskIsOngoing,
+      taskType: taskIsOngoing ? "Ongoing" : undefined,
     };
     createTask.mutate(taskData, {
       onSuccess: (newTask: any) => {
@@ -340,24 +348,49 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
                     <Label className="text-xs">Description</Label>
                     <Textarea {...form.register("description")} className="text-sm min-h-[80px]" />
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center justify-between rounded-md border p-3">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="create-task-isOngoing" className="text-sm font-medium cursor-pointer flex items-center gap-2">
+                        <RefreshCw className="h-4 w-4 text-violet-500" />
+                        Ongoing Task
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        For operations or internal work without scheduled dates
+                      </p>
+                    </div>
                     <Controller
                       control={form.control}
-                      name="isMilestone"
+                      name="isOngoing"
                       render={({ field }) => (
-                        <Checkbox
-                          id="create-task-isMilestone"
+                        <Switch
+                          id="create-task-isOngoing"
                           checked={field.value || false}
                           onCheckedChange={field.onChange}
-                          data-testid="checkbox-task-milestone"
+                          data-testid="switch-task-ongoing"
                         />
                       )}
                     />
-                    <Label htmlFor="create-task-isMilestone" className="text-sm font-normal cursor-pointer flex items-center gap-2">
-                      <MilestoneIcon className="h-4 w-4 text-primary" />
-                      Mark as Milestone
-                    </Label>
                   </div>
+                  {!isOngoing && (
+                    <div className="flex items-center space-x-2">
+                      <Controller
+                        control={form.control}
+                        name="isMilestone"
+                        render={({ field }) => (
+                          <Checkbox
+                            id="create-task-isMilestone"
+                            checked={field.value || false}
+                            onCheckedChange={field.onChange}
+                            data-testid="checkbox-task-milestone"
+                          />
+                        )}
+                      />
+                      <Label htmlFor="create-task-isMilestone" className="text-sm font-normal cursor-pointer flex items-center gap-2">
+                        <MilestoneIcon className="h-4 w-4 text-primary" />
+                        Mark as Milestone
+                      </Label>
+                    </div>
+                  )}
                   <div className="flex items-center space-x-2">
                     <Controller
                       control={form.control}
@@ -378,6 +411,16 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
                 </TabsContent>
 
                 <TabsContent value="schedule" className="mt-0 space-y-4">
+                  {isOngoing ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center space-y-2">
+                      <RefreshCw className="h-8 w-8 text-violet-400" />
+                      <p className="text-sm font-medium">Ongoing Task</p>
+                      <p className="text-xs text-muted-foreground max-w-[300px]">
+                        This task has no scheduled dates. It represents continuous or operational work that runs indefinitely.
+                      </p>
+                    </div>
+                  ) : (
+                  <>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Start Date</Label>
@@ -550,6 +593,8 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
                       </p>
                     )}
                   </div>
+                  </>
+                  )}
                 </TabsContent>
 
                 <TabsContent value="resources" className="mt-0">

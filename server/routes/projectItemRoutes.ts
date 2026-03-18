@@ -791,7 +791,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (!parentTask) continue;
       
       const leafTasks = getLeafDescendants(parentId);
-      const validLeaves = leafTasks.filter(t => t.startDate && t.endDate);
+      const validLeaves = leafTasks.filter(t => t.startDate && t.endDate && !t.isOngoing);
       if (validLeaves.length === 0) continue;
 
       const startDates = validLeaves.map(t => new Date(t.startDate!).getTime());
@@ -855,6 +855,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     
     const durationFixes: import('../storage/taskStorage').BatchTaskFieldUpdate[] = [];
     for (const task of allTasks) {
+      if (task.isOngoing) continue;
       if (task.startDate && task.endDate && !childrenByParent.has(task.id)) {
         if (task.isMilestone && task.durationDays === 0) continue;
         if (task.durationDays != null && task.durationDays > 0) {
@@ -1645,8 +1646,14 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         return res.status(400).json({ message: "A task cannot depend on itself" });
       }
       
-      // Check if the dependent task (taskId) has children - only leaf tasks can have dependencies
+      // Check if either task is ongoing - ongoing tasks cannot have dependencies
       const dependentTask = await storage.getTask(taskId);
+      const predecessorCheck = await storage.getTask(dependsOnTaskId);
+      if (dependentTask?.isOngoing || predecessorCheck?.isOngoing) {
+        return res.status(400).json({ message: "Dependencies cannot be added to or from ongoing tasks" });
+      }
+
+      // Check if the dependent task (taskId) has children - only leaf tasks can have dependencies
       if (dependentTask) {
         const allTasks = await storage.getTasksByProject(dependentTask.projectId);
         const sortedTasks = [...allTasks].sort((a, b) => (a.taskIndex || 0) - (b.taskIndex || 0));
@@ -1661,7 +1668,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
       
       // Check if the predecessor task (dependsOnTaskId) has children
-      const predecessorTask = await storage.getTask(dependsOnTaskId);
+      const predecessorTask = predecessorCheck;
       if (predecessorTask) {
         const allTasks = await storage.getTasksByProject(predecessorTask.projectId);
         const sortedTasks = [...allTasks].sort((a, b) => (a.taskIndex || 0) - (b.taskIndex || 0));
@@ -1936,6 +1943,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
       const successor = taskMap.get(taskId);
       if (!successor) continue;
+      if (successor.isOngoing) continue;
 
       let maxRequiredStart: Date | null = null;
       let maxRequiredEnd: Date | null = null;

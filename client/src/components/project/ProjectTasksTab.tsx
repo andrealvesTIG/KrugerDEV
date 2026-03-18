@@ -35,6 +35,7 @@ import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
 import { Loader2, AlertCircle, Calendar as CalendarIcon, Plus, Pencil, GanttChartSquare, Table, Milestone as MilestoneIcon, History, Maximize2, Minimize2, Columns3, RefreshCw, Download, Upload, ExternalLink, Search, Link2, User as UserIcon } from "lucide-react";
 
 function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId, sourceFileName, sourceFileUrl, dataverseOrgId, dataverseTenantId, urlTaskId, readOnly = false, projectUpdatedAt }: { 
@@ -259,6 +260,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const [showPlannerEditDialog, setShowPlannerEditDialog] = useState(false);
   const [durationInput, setDurationInput] = useState<string>("1d");
   const [isMilestone, setIsMilestone] = useState(false);
+  const [isOngoingTask, setIsOngoingTask] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -400,12 +402,13 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       : 1);
     setDurationInput(formatDuration(taskDuration));
     setIsMilestone(task.isMilestone || false);
+    setIsOngoingTask(task.isOngoing || false);
     form.reset({
       projectId: task.projectId,
       name: task.name,
       description: task.description || "",
-      startDate: task.startDate,
-      endDate: task.endDate,
+      startDate: task.startDate || format(new Date(), 'yyyy-MM-dd'),
+      endDate: task.endDate || calculateEndDateFromWorkingDays(format(new Date(), 'yyyy-MM-dd'), 1),
       durationDays: taskDuration,
       progress: task.progress || 0,
       status: task.status || "Not Started",
@@ -436,8 +439,9 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     setEditingTask(null);
     setDurationInput("1d");
     setIsMilestone(false);
+    setIsOngoingTask(false);
     setSelectedResourceIds([]);
-    lastInitializedTaskId.current = null; // Reset to allow re-initialization
+    lastInitializedTaskId.current = null;
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     form.reset({
       projectId: projectId,
@@ -461,16 +465,18 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       projectId,
       name: data.name,
       description: data.description || null,
-      startDate: data.startDate,
-      endDate: data.endDate,
-      durationDays: durationDays ?? 1,
+      startDate: isOngoingTask ? null : data.startDate,
+      endDate: isOngoingTask ? null : data.endDate,
+      durationDays: isOngoingTask ? null : (durationDays ?? 1),
       progress: data.progress || 0,
       status: data.status || "Not Started",
       assignee: data.assignee || null,
-      isMilestone: isMilestone,
+      isMilestone: isOngoingTask ? false : isMilestone,
       baselineStartDate: data.baselineStartDate || null,
       baselineEndDate: data.baselineEndDate || null,
       timesheetBlocked: data.timesheetBlocked || false,
+      isOngoing: isOngoingTask,
+      taskType: isOngoingTask ? "Ongoing" : (editingTask?.taskType === "Ongoing" ? "Work" : undefined),
     };
 
     if (editingTask) {
@@ -1001,18 +1007,37 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                       <Label>Description</Label>
                       <Textarea {...form.register("description")} className="min-h-[80px] focus-visible:ring-inset" />
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox 
-                        id="isMilestone" 
-                        checked={isMilestone}
-                        onCheckedChange={(checked) => setIsMilestone(checked === true)}
-                        data-testid="checkbox-task-milestone"
+                    <div className="flex items-center justify-between rounded-md border p-3">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="edit-task-isOngoing" className="text-sm font-medium cursor-pointer flex items-center gap-2">
+                          <RefreshCw className="h-4 w-4 text-violet-500" />
+                          Ongoing Task
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          For operations or internal work without scheduled dates
+                        </p>
+                      </div>
+                      <Switch
+                        id="edit-task-isOngoing"
+                        checked={isOngoingTask}
+                        onCheckedChange={setIsOngoingTask}
+                        data-testid="switch-task-ongoing"
                       />
-                      <Label htmlFor="isMilestone" className="text-sm font-normal cursor-pointer flex items-center gap-2">
-                        <MilestoneIcon className="h-4 w-4 text-primary" />
-                        Mark as Milestone
-                      </Label>
                     </div>
+                    {!isOngoingTask && (
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="isMilestone" 
+                          checked={isMilestone}
+                          onCheckedChange={(checked) => setIsMilestone(checked === true)}
+                          data-testid="checkbox-task-milestone"
+                        />
+                        <Label htmlFor="isMilestone" className="text-sm font-normal cursor-pointer flex items-center gap-2">
+                          <MilestoneIcon className="h-4 w-4 text-primary" />
+                          Mark as Milestone
+                        </Label>
+                      </div>
+                    )}
                     <div className="flex items-center space-x-2">
                       <Controller 
                         control={form.control} 
@@ -1034,6 +1059,16 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                   
                   {/* Schedule Tab */}
                   <TabsContent value="schedule" className="mt-0 space-y-4">
+                    {isOngoingTask ? (
+                      <div className="flex flex-col items-center justify-center py-8 text-center space-y-2">
+                        <RefreshCw className="h-8 w-8 text-violet-400" />
+                        <p className="text-sm font-medium">Ongoing Task</p>
+                        <p className="text-xs text-muted-foreground max-w-[300px]">
+                          This task has no scheduled dates. It represents continuous or operational work that runs indefinitely.
+                        </p>
+                      </div>
+                    ) : (
+                    <>
                     <div className="grid grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label>Start Date</Label>
@@ -1159,6 +1194,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                         </p>
                       )}
                     </div>
+                    </>
+                    )}
                   </TabsContent>
                   
                   {/* Resources Tab */}
