@@ -14811,7 +14811,6 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             description: task.description,
             startDate: task.startDate,
             endDate: task.endDate,
-            duration: task.duration,
             durationDays: task.durationDays,
             outlineLevel: task.outlineLevel || 1,
             parentTaskId: task.parentId,
@@ -14819,7 +14818,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             isMilestone: task.taskType === 'Milestone',
             predecessors: deps && deps.length > 0 ? JSON.stringify(deps) : null,
             notes: task.notes,
-            workHours: task.estimatedHours?.toString() || null,
+            workHours: task.estimatedHours || null,
           });
         }
       }
