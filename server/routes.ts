@@ -7055,8 +7055,8 @@ export async function registerRoutes(
         
         // Preserve hours (estimatedHours, actualHours) by externalId and task name
         // externalId is the primary key for matching (survives renames), task name is fallback
-        const hoursByExternalId = new Map<string, { estimatedHours: string | null; actualHours: string | null }>();
-        const hoursByTaskName = new Map<string, { estimatedHours: string | null; actualHours: string | null }>();
+        const hoursByExternalId = new Map<string, { estimatedHours: number | null; actualHours: number | null }>();
+        const hoursByTaskName = new Map<string, { estimatedHours: number | null; actualHours: number | null }>();
         for (const task of existingTasks) {
           if (task.estimatedHours || task.actualHours) {
             const hoursData = { estimatedHours: task.estimatedHours, actualHours: task.actualHours };
