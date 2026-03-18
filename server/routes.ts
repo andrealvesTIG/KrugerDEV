@@ -1113,7 +1113,7 @@ async function logUserActivity(
       userId,
       action,
       entityType: entityType ?? null,
-      entityId: entityId ?? null,
+      entityId: entityId != null ? String(entityId) : null,
       metadata: metadata ?? null,
       ipAddress: req?.ip ?? null,
       userAgent: req?.headers?.['user-agent'] ?? null,
