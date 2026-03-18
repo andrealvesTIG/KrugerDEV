@@ -10787,7 +10787,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     return taskList.map(t => {
       const tsHours = hoursMap.get(t.id);
       if (tsHours !== undefined && tsHours > 0) {
-        return { ...t, actualHours: String(tsHours) };
+        return { ...t, actualHours: tsHours };
       }
       return t;
     });
