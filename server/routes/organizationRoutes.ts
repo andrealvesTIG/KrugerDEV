@@ -1,4 +1,6 @@
 import type { Express } from "express";
+import path from "path";
+import fs from "fs";
 import { storage } from "../storage";
 import { db } from "../db";
 import { z } from "zod";
@@ -348,7 +350,7 @@ export function registerOrganizationRoutes(app: Express) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
 
-      const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
+      const { ObjectStorageService } = await import("../replit_integrations/object_storage/objectStorage");
       const objectStorageService = new ObjectStorageService();
       
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
@@ -391,7 +393,7 @@ export function registerOrganizationRoutes(app: Express) {
       let servePath: string;
       
       try {
-        const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+        const { objectStorageClient } = await import("../replit_integrations/object_storage/objectStorage");
         const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
         
         if (privateObjectDir) {

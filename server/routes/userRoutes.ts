@@ -1,4 +1,6 @@
 import type { Express } from "express";
+import path from "path";
+import fs from "fs";
 import { storage } from "../storage";
 import { db } from "../db";
 import { z } from "zod";
@@ -692,7 +694,7 @@ export function registerUserRoutes(app: Express) {
 
   app.get('/api/users/:userId/badge-card.png', async (req, res) => {
     try {
-      const { getBadgeOgData, generateBadgeOgImage } = await import("./badge-og");
+      const { getBadgeOgData, generateBadgeOgImage } = await import("../badge-og");
       const ogData = await getBadgeOgData(req.params.userId);
       if (!ogData) {
         return res.status(404).json({ message: 'Profile not found' });
@@ -712,7 +714,7 @@ export function registerUserRoutes(app: Express) {
 
   app.get('/api/users/:userId/badges/:badgeId/image.png', async (req, res) => {
     try {
-      const { getSingleBadgeOgData, generateSingleBadgeImage } = await import("./badge-og");
+      const { getSingleBadgeOgData, generateSingleBadgeImage } = await import("../badge-og");
       const badgeData = await getSingleBadgeOgData(req.params.userId, req.params.badgeId);
       if (!badgeData) {
         return res.status(404).json({ message: 'Badge not found' });
@@ -767,7 +769,7 @@ export function registerUserRoutes(app: Express) {
       let photoPath: string | null = null;
 
       try {
-        const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
+        const { ObjectStorageService } = await import("../replit_integrations/object_storage/objectStorage");
         const oss = new ObjectStorageService();
         const uploadURL = await oss.getObjectEntityUploadURL();
         photoPath = oss.normalizeObjectEntityPath(uploadURL);
@@ -859,7 +861,7 @@ export function registerUserRoutes(app: Express) {
               selfieBuffer = fs.readFileSync(localPath);
             }
           } else {
-            const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
+            const { ObjectStorageService } = await import("../replit_integrations/object_storage/objectStorage");
             const oss = new ObjectStorageService();
             const file = await oss.getObjectEntityFile(lead.photoPath);
             const [contents] = await file.download();
@@ -870,7 +872,7 @@ export function registerUserRoutes(app: Express) {
         }
       }
 
-      const { generateSelfieOgImage } = await import("./selfie-og");
+      const { generateSelfieOgImage } = await import("../selfie-og");
       const pngBuffer = await generateSelfieOgImage({
         userName: lead.name,
         interviewer: lead.interviewer,
@@ -1046,7 +1048,7 @@ export function registerUserRoutes(app: Express) {
         return res.status(403).json({ message: "Access denied" });
       }
 
-      const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
+      const { ObjectStorageService } = await import("../replit_integrations/object_storage/objectStorage");
       const objectStorageService = new ObjectStorageService();
       
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
@@ -1080,7 +1082,7 @@ export function registerUserRoutes(app: Express) {
       let servePath: string;
       
       try {
-        const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+        const { objectStorageClient } = await import("../replit_integrations/object_storage/objectStorage");
         const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
         
         if (privateObjectDir) {

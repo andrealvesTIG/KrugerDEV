@@ -1,4 +1,6 @@
 import type { Express } from "express";
+import path from "path";
+import fs from "fs";
 import { storage } from "../storage";
 import { db } from "../db";
 import { z } from "zod";
@@ -414,7 +416,7 @@ export function registerIntakeRoutes(app: Express) {
       const uniqueFilename = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
       
       try {
-        const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+        const { objectStorageClient } = await import("../replit_integrations/object_storage/objectStorage");
         const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
         
         if (privateObjectDir) {
@@ -726,7 +728,7 @@ export function registerIntakeRoutes(app: Express) {
       const uniqueFilename = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 
       try {
-        const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+        const { objectStorageClient } = await import("../replit_integrations/object_storage/objectStorage");
         const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
         if (privateObjectDir) {
           const objectPath = `${privateObjectDir}/project-templates/${uniqueFilename}`;
@@ -943,7 +945,7 @@ export function registerIntakeRoutes(app: Express) {
       if (template.storedFileUrl) {
         try {
           if (template.storedFileUrl.startsWith('/objects/')) {
-            const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+            const { objectStorageClient } = await import("../replit_integrations/object_storage/objectStorage");
             const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
             if (privateObjectDir) {
               const relativePath = template.storedFileUrl.replace('/objects/', '');
@@ -989,7 +991,7 @@ export function registerIntakeRoutes(app: Express) {
         try {
           const uniqueFilename = `${Date.now()}-copy-${template.originalFileName?.replace(/[^a-zA-Z0-9._-]/g, '_') || 'template'}`;
           if (template.storedFileUrl.startsWith('/objects/')) {
-            const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+            const { objectStorageClient } = await import("../replit_integrations/object_storage/objectStorage");
             const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
             if (privateObjectDir) {
               const relativePath = template.storedFileUrl.replace('/objects/', '');
@@ -1076,7 +1078,7 @@ export function registerIntakeRoutes(app: Express) {
 
       if (template.storedFileUrl.startsWith('/objects/')) {
         try {
-          const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+          const { objectStorageClient } = await import("../replit_integrations/object_storage/objectStorage");
           const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
           if (privateObjectDir) {
             const relativePath = template.storedFileUrl.replace('/objects/', '');
@@ -1143,7 +1145,7 @@ export function registerIntakeRoutes(app: Express) {
       const uniqueFilename = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 
       try {
-        const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+        const { objectStorageClient } = await import("../replit_integrations/object_storage/objectStorage");
         const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
         if (privateObjectDir) {
           const objectPath = `${privateObjectDir}/project-templates/${uniqueFilename}`;
@@ -1204,7 +1206,7 @@ export function registerIntakeRoutes(app: Express) {
       if (oldFileUrl && oldFileUrl !== storedFileUrl) {
         try {
           if (oldFileUrl.startsWith('/objects/')) {
-            const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+            const { objectStorageClient } = await import("../replit_integrations/object_storage/objectStorage");
             const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
             if (privateObjectDir) {
               const relativePath = oldFileUrl.replace('/objects/', '');
