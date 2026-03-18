@@ -13901,7 +13901,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
                 taskId: task.id,
                 projectId: task.projectId,
                 entryDate: entryDate.toISOString().split('T')[0],
-                hours: String(hours),
+                hours: hours,
                 notes: ['Development work', 'Code review', 'Testing', 'Documentation', 'Meeting', 'Design review'][Math.floor(Math.random() * 6)],
                 status: dayOffset > 7 ? 'Approved' : dayOffset > 3 ? 'Submitted' : 'Draft',
               });
