@@ -13628,7 +13628,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
               impact: riskTemplate.impact,
               status: riskTemplate.status,
               mitigationPlan: riskTemplate.mitigationPlan,
-              costExposure: riskTemplate.costExposure || null,
+              costExposure: riskTemplate.costExposure ? Number(riskTemplate.costExposure) : null,
               isDemo: true,
             });
             stats.risks++;
