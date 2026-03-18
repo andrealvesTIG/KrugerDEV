@@ -149,8 +149,8 @@ async function seedTrainingDataIfEmpty() {
         }
       }
     });
-    const totalLessons = staticModules.reduce((s: number, m: any) => s + m.lessons.length, 0);
-    const totalQuestions = staticModules.reduce((s: number, m: any) => s + m.lessons.reduce((ls: number, l: any) => ls + l.questions.length, 0), 0);
+    const totalLessons = staticModules.reduce((s: number, m: { lessons: unknown[] }) => s + m.lessons.length, 0);
+    const totalQuestions = staticModules.reduce((s: number, m: { lessons: { questions: unknown[] }[] }) => s + m.lessons.reduce((ls: number, l) => ls + l.questions.length, 0), 0);
     console.log(`[training] Auto-seeded ${staticModules.length} modules, ${totalLessons} lessons, ${totalQuestions} questions`);
   } catch (err: any) {
     console.error('[training] Auto-seed failed, will use static fallback:', err.message);
