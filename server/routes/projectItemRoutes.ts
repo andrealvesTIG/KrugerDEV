@@ -753,15 +753,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   }
 
-  // Helper function to roll up dates and values from children to parent tasks
   async function rollUpParentTasks(projectId: number) {
-    // First, ensure parentId is correctly set based on outline levels
     await recalculateParentIds(projectId);
     
     const allTasks = await storage.getTasks(projectId);
     if (allTasks.length === 0) return;
     
-    // Build parent-child relationships using parentId field
     const childrenByParent = new Map<number, typeof allTasks>();
     const taskById = new Map<number, typeof allTasks[0]>();
     
@@ -774,15 +771,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
     }
     
-    // Recursive function to get all leaf descendants
     function getLeafDescendants(taskId: number): typeof allTasks {
       const children = childrenByParent.get(taskId) || [];
       if (children.length === 0) {
-        // This task is a leaf - return it
         const task = taskById.get(taskId);
         return task ? [task] : [];
       }
-      // Get leaf descendants from all children
       const leaves: typeof allTasks = [];
       for (const child of children) {
         leaves.push(...getLeafDescendants(child.id));
@@ -790,85 +784,76 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       return leaves;
     }
     
-    const updates: Array<{ taskId: number; updates: any }> = [];
+    const batchUpdates: import('../storage/taskStorage').BatchTaskFieldUpdate[] = [];
     
-    // Process all tasks that have children (are parents)
-    for (const [parentId, children] of childrenByParent.entries()) {
+    for (const [parentId] of childrenByParent.entries()) {
       const parentTask = taskById.get(parentId);
       if (!parentTask) continue;
       
-      // Get all leaf descendants for this parent
       const leafTasks = getLeafDescendants(parentId);
-      
-      // Calculate roll-up values from leaf tasks with valid dates
       const validLeaves = leafTasks.filter(t => t.startDate && t.endDate);
-      if (validLeaves.length > 0) {
-        const startDates = validLeaves.map(t => new Date(t.startDate!).getTime());
-        const endDates = validLeaves.map(t => new Date(t.endDate!).getTime());
-        const minStartDate = new Date(Math.min(...startDates));
-        const maxEndDate = new Date(Math.max(...endDates));
-        const minStart = minStartDate.toISOString().split('T')[0];
-        const maxEnd = maxEndDate.toISOString().split('T')[0];
-        
-        const rollUpDurationDays = calculateDuration(minStartDate, maxEndDate);
-        
-        // Calculate weighted average progress based on duration
-        let totalDuration = 0;
-        let weightedProgress = 0;
-        for (const leaf of validLeaves) {
-          const duration = Math.max(1, calculateDuration(new Date(leaf.startDate!), new Date(leaf.endDate!)));
-          totalDuration += duration;
-          weightedProgress += (leaf.progress || 0) * duration;
-        }
-        const avgProgress = totalDuration > 0 ? Math.round(weightedProgress / totalDuration) : 0;
-        
-        // Calculate total hours and costs from leaf tasks
-        const totalEstimatedHours = leafTasks.reduce((sum, t) => sum + Number(t.estimatedHours || 0), 0);
-        const totalActualHours = leafTasks.reduce((sum, t) => sum + Number(t.actualHours || 0), 0);
-        const totalCost = leafTasks.reduce((sum, t) => sum + Number(t.cost || 0), 0);
-        const totalActualCost = leafTasks.reduce((sum, t) => sum + Number(t.actualCost || 0), 0);
-        
-        // Check if any values changed
-        const estHoursStr = totalEstimatedHours > 0 ? String(totalEstimatedHours) : null;
-        const actHoursStr = totalActualHours > 0 ? String(totalActualHours) : null;
-        const costStr = totalCost > 0 ? String(totalCost) : null;
-        const actCostStr = totalActualCost > 0 ? String(totalActualCost) : null;
-        
-        const needsUpdate = 
-          parentTask.startDate !== minStart || 
-          parentTask.endDate !== maxEnd || 
-          parentTask.durationDays !== rollUpDurationDays ||
-          parentTask.progress !== avgProgress ||
-          parentTask.estimatedHours !== estHoursStr ||
-          parentTask.actualHours !== actHoursStr ||
-          parentTask.cost !== costStr ||
-          parentTask.actualCost !== actCostStr ||
-          !parentTask.isSummary;
-        
-        if (needsUpdate) {
-          updates.push({
-            taskId: parentId,
-            updates: {
-              startDate: minStart,
-              endDate: maxEnd,
-              durationDays: rollUpDurationDays,
-              progress: avgProgress,
-              estimatedHours: estHoursStr,
-              actualHours: actHoursStr,
-              cost: costStr,
-              actualCost: actCostStr,
-              isSummary: true, // Mark as summary task
-            }
-          });
-        }
+      if (validLeaves.length === 0) continue;
+
+      const startDates = validLeaves.map(t => new Date(t.startDate!).getTime());
+      const endDates = validLeaves.map(t => new Date(t.endDate!).getTime());
+      const minStartDate = new Date(Math.min(...startDates));
+      const maxEndDate = new Date(Math.max(...endDates));
+      const minStart = minStartDate.toISOString().split('T')[0];
+      const maxEnd = maxEndDate.toISOString().split('T')[0];
+      
+      const rollUpDurationDays = calculateDuration(minStartDate, maxEndDate);
+      
+      let totalDuration = 0;
+      let weightedProgress = 0;
+      for (const leaf of validLeaves) {
+        const duration = Math.max(1, calculateDuration(new Date(leaf.startDate!), new Date(leaf.endDate!)));
+        totalDuration += duration;
+        weightedProgress += (leaf.progress || 0) * duration;
+      }
+      const avgProgress = totalDuration > 0 ? Math.round(weightedProgress / totalDuration) : 0;
+      
+      const totalEstimatedHours = leafTasks.reduce((sum, t) => sum + Number(t.estimatedHours || 0), 0);
+      const totalActualHours = leafTasks.reduce((sum, t) => sum + Number(t.actualHours || 0), 0);
+      const totalCost = leafTasks.reduce((sum, t) => sum + Number(t.cost || 0), 0);
+      const totalActualCost = leafTasks.reduce((sum, t) => sum + Number(t.actualCost || 0), 0);
+      
+      const estHoursStr = totalEstimatedHours > 0 ? String(totalEstimatedHours) : null;
+      const actHoursStr = totalActualHours > 0 ? String(totalActualHours) : null;
+      const costStr = totalCost > 0 ? String(totalCost) : null;
+      const actCostStr = totalActualCost > 0 ? String(totalActualCost) : null;
+      
+      const needsUpdate = 
+        parentTask.startDate !== minStart || 
+        parentTask.endDate !== maxEnd || 
+        parentTask.durationDays !== rollUpDurationDays ||
+        parentTask.progress !== avgProgress ||
+        parentTask.estimatedHours !== estHoursStr ||
+        parentTask.actualHours !== actHoursStr ||
+        parentTask.cost !== costStr ||
+        parentTask.actualCost !== actCostStr ||
+        !parentTask.isSummary;
+      
+      if (needsUpdate) {
+        batchUpdates.push({
+          id: parentId,
+          startDate: minStart,
+          endDate: maxEnd,
+          durationDays: rollUpDurationDays,
+          progress: avgProgress,
+          estimatedHours: estHoursStr,
+          actualHours: actHoursStr,
+          cost: costStr,
+          actualCost: actCostStr,
+          isSummary: true,
+        });
       }
     }
     
-    // Apply updates (without triggering more roll-ups to avoid loops)
-    for (const { taskId, updates: taskUpdates } of updates) {
-      await storage.updateTask(taskId, taskUpdates);
+    if (batchUpdates.length > 0) {
+      await storage.batchUpdateTaskFields(batchUpdates);
     }
     
+    const durationFixes: import('../storage/taskStorage').BatchTaskFieldUpdate[] = [];
     for (const task of allTasks) {
       if (task.startDate && task.endDate && !childrenByParent.has(task.id)) {
         if (task.isMilestone && task.durationDays === 0) continue;
@@ -879,9 +864,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         }
         const correctDuration = calculateDuration(new Date(task.startDate), new Date(task.endDate));
         if (task.durationDays !== correctDuration) {
-          await storage.updateTask(task.id, { durationDays: correctDuration });
+          durationFixes.push({ id: task.id, durationDays: correctDuration });
         }
       }
+    }
+    if (durationFixes.length > 0) {
+      await storage.batchUpdateTaskFields(durationFixes);
     }
   }
   
@@ -1995,12 +1983,17 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         const newEndStr = formatDateStr(newEnd);
 
         if (newStartStr !== successor.startDate || newEndStr !== successor.endDate) {
-          await storage.updateTask(taskId, { startDate: newStartStr, endDate: newEndStr });
           const updated = { ...successor, startDate: newStartStr, endDate: newEndStr };
           taskMap.set(taskId, updated);
           adjustedTasks.push({ taskId, newStartDate: newStartStr, newEndDate: newEndStr });
         }
       }
+    }
+
+    if (adjustedTasks.length > 0) {
+      await storage.batchUpdateTaskFields(
+        adjustedTasks.map(t => ({ id: t.taskId, startDate: t.newStartDate, endDate: t.newEndDate }))
+      );
     }
 
     return adjustedTasks;

@@ -225,6 +225,7 @@ export interface ITaskStorage {
   updateTask(id: number, updates: UpdateTaskRequest): Promise<Task>;
   batchUpdateTaskWbs(updates: Array<{ id: number; wbs: string }>): Promise<void>;
   batchUpdateTaskParentIds(updates: Array<{ id: number; parentId: number | null }>): Promise<void>;
+  batchUpdateTaskFields(updates: import('./taskStorage').BatchTaskFieldUpdate[]): Promise<void>;
   getResourcesByUserId(userId: string, organizationId: number): Promise<Resource[]>;
   getTaskResourceAssignmentsByOrgId(organizationId: number): Promise<(TaskResourceAssignment & { resource: Resource })[]>;
   deleteTask(id: number): Promise<void>;

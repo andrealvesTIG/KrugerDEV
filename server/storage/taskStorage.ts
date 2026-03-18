@@ -247,6 +247,62 @@ export async function batchUpdateTaskParentIds(updates: Array<{ id: number; pare
   }
 }
 
+export interface BatchTaskFieldUpdate {
+  id: number;
+  startDate?: string | null;
+  endDate?: string | null;
+  durationDays?: number | null;
+  progress?: number | null;
+  estimatedHours?: string | null;
+  actualHours?: string | null;
+  cost?: string | null;
+  actualCost?: string | null;
+  isSummary?: boolean;
+}
+
+export async function batchUpdateTaskFields(updates: BatchTaskFieldUpdate[]): Promise<void> {
+  if (updates.length === 0) return;
+  const BATCH_SIZE = 200;
+  for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+    const batch = updates.slice(i, i + BATCH_SIZE);
+    const ids = batch.map(u => u.id);
+    const setObj: Record<string, any> = {};
+
+    const fields: Array<{ key: string; col: any; defaultVal: any }> = [
+      { key: 'startDate', col: tasks.startDate, defaultVal: tasks.startDate },
+      { key: 'endDate', col: tasks.endDate, defaultVal: tasks.endDate },
+      { key: 'durationDays', col: tasks.durationDays, defaultVal: tasks.durationDays },
+      { key: 'progress', col: tasks.progress, defaultVal: tasks.progress },
+      { key: 'estimatedHours', col: tasks.estimatedHours, defaultVal: tasks.estimatedHours },
+      { key: 'actualHours', col: tasks.actualHours, defaultVal: tasks.actualHours },
+      { key: 'cost', col: tasks.cost, defaultVal: tasks.cost },
+      { key: 'actualCost', col: tasks.actualCost, defaultVal: tasks.actualCost },
+      { key: 'isSummary', col: tasks.isSummary, defaultVal: tasks.isSummary },
+    ];
+
+    for (const field of fields) {
+      const hasField = batch.some(u => (u as any)[field.key] !== undefined);
+      if (!hasField) continue;
+
+      let caseSql = sql`CASE`;
+      for (const u of batch) {
+        const val = (u as any)[field.key];
+        if (val !== undefined) {
+          caseSql = val === null
+            ? sql`${caseSql} WHEN ${tasks.id} = ${u.id} THEN NULL`
+            : sql`${caseSql} WHEN ${tasks.id} = ${u.id} THEN ${val}`;
+        }
+      }
+      caseSql = sql`${caseSql} ELSE ${field.defaultVal} END`;
+      setObj[field.key] = caseSql;
+    }
+
+    if (Object.keys(setObj).length > 0) {
+      await db.update(tasks).set(setObj as any).where(inArray(tasks.id, ids));
+    }
+  }
+}
+
 export async function getResourcesByUserId(userId: string, organizationId: number): Promise<Resource[]> {
   return await db.select().from(resources).where(
     and(eq(resources.userId, userId), eq(resources.organizationId, organizationId), isNull(resources.deletedAt))
