@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction, RequestHandler } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { setupAuth as setupReplitAuth } from "./replit_integrations/auth";
@@ -42,28 +42,29 @@ export async function registerRoutes(
     });
   }
 
-  app.use(async (req: any, _res: any, next: any) => {
+  app.use((async (req: Request, _res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      const existingUserId = req.user?.claims?.sub || req.session?.userId;
+      const r = req as Request & { user?: { claims?: { sub?: string } }; session?: Record<string, unknown>; bearerOrgId?: number };
+      const existingUserId = r.user?.claims?.sub || r.session?.userId;
       if (!existingUserId) {
         try {
           const token = authHeader.slice(7);
           const tokenRecord = await storage.getApiTokenByToken(token);
           if (tokenRecord) {
             if (!tokenRecord.expiresAt || tokenRecord.expiresAt >= new Date()) {
-              if (!req.session) req.session = {};
-              req.session.userId = tokenRecord.userId;
-              req.bearerOrgId = tokenRecord.organizationId;
+              if (!r.session) r.session = {};
+              r.session.userId = tokenRecord.userId;
+              r.bearerOrgId = tokenRecord.organizationId;
               storage.updateApiTokenLastUsed(tokenRecord.id);
             }
           }
-        } catch (err) {
+        } catch (_err) {
         }
       }
     }
     next();
-  });
+  }) as RequestHandler);
 
   await setupReplitAuth(app);
   await setupEmailAuth(app);
