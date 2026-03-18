@@ -22121,9 +22121,9 @@ Return ONLY valid JSON.`;
 
       const settings = await storage.upsertTimesheetSettings({
         organizationId,
-        minWeeklyHours: minWeeklyHours !== undefined ? String(minWeeklyHours) : undefined,
-        maxWeeklyHours: maxWeeklyHours !== undefined ? String(maxWeeklyHours) : undefined,
-        overtimeThreshold: overtimeThreshold !== undefined ? String(overtimeThreshold) : undefined,
+        minWeeklyHours: minWeeklyHours !== undefined ? Number(minWeeklyHours) : undefined,
+        maxWeeklyHours: maxWeeklyHours !== undefined ? Number(maxWeeklyHours) : undefined,
+        overtimeThreshold: overtimeThreshold !== undefined ? Number(overtimeThreshold) : undefined,
         gracePeriodDays: gracePeriodDays !== undefined ? Number(gracePeriodDays) : undefined,
         mandatoryNotes: mandatoryNotes !== undefined ? Boolean(mandatoryNotes) : undefined,
       });
