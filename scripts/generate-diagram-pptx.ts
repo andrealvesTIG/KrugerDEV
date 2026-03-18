@@ -776,6 +776,7 @@ function build() {
 
   addNote(s8, 4.8, 2.8, 3.8, "PostgreSQL Firewall", [
     "Public network access: Disabled",
+    "Allow Azure services: Enabled (for Container App)",
     "VNet integration: postgres-subnet (delegated)",
     "Private DNS zone: privatelink.postgres.database.azure.com",
     "SSL enforcement: Enabled (sslmode=require)",
@@ -790,11 +791,12 @@ function build() {
     "Both: Deny public network access in production",
   ], PURPLE);
 
-  addNote(s8, 0.6, 4.8, 3.8, "Ingress & TLS", [
+  addNote(s8, 0.6, 4.8, 3.8, "Ingress, TLS & NSG Rules", [
     "External ingress: HTTPS only (port 443)",
     "Internal port: 5000 (Container App target)",
+    "NSG: Allow 443 inbound, deny all other inbound",
+    "NSG: Allow outbound to PG (5432), KV (443), Blob (443)",
     "Managed TLS certificate (auto-renewed)",
-    "CORS: Configured via Express middleware",
     "CSP headers: Allow Microsoft Teams iframe embedding",
   ], BRAND_ORANGE);
 
