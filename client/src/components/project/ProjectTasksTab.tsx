@@ -389,7 +389,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     setEditingTask(task);
     setActiveDialogTab(tab);
     const taskDuration = task.durationDays ?? (task.startDate && task.endDate 
-      ? calculateDurationInWorkingDays(task.startDate, task.endDate) 
+      ? (task.startDate === task.endDate ? 0 : calculateDurationInWorkingDays(task.startDate, task.endDate))
       : 1);
     setDurationInput(formatDuration(taskDuration));
     setIsMilestone(task.isMilestone || false);
