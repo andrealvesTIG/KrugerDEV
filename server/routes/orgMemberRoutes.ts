@@ -38,6 +38,7 @@ import {
   seedDatabase,
   formatZodErrors,
 } from "./helpers";
+import { sendOrganizationInviteEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification } from "../services/email";
 
 export function registerOrgMemberRoutes(app: Express) {
   // --- Organization Invites ---
@@ -868,5 +869,375 @@ export function registerOrgMemberRoutes(app: Express) {
     }
   });
 
+  // --- Organization Members ---
+  app.get('/api/organizations/:id/members', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const members = await storage.getOrganizationMembers(orgId);
+      const allUsers = await storage.getAllUsers();
+      const enrichedMembers = members.map(m => ({
+        ...m,
+        user: sanitizeUser(allUsers.find(u => u.id === m.userId))
+      }));
+      res.json(enrichedMembers);
+    } catch (err) {
+      res.json([]);
+    }
+  });
+
+  app.get('/api/users/:userId/organizations', async (req, res) => {
+    try {
+      const currentUserId = getUserIdFromRequest(req);
+      if (!currentUserId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      const targetUserId = req.params.userId;
+
+      if (currentUserId !== targetUserId) {
+        const [currentUser] = await db.select().from(users).where(eq(users.id, currentUserId));
+        if (!currentUser || currentUser.role !== 'super_admin') {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+      }
+
+      const memberships = await storage.getUserOrganizations(targetUserId);
+      res.json(memberships);
+    } catch (err) {
+      console.error('Error fetching user organizations:', err);
+      res.status(500).json({ message: 'Failed to fetch organizations' });
+    }
+  });
+
+  app.post('/api/organizations/:id/members', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const currentUserId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAccess(currentUserId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const { checkSeatLimit } = await import("../services/billing");
+      const seatCheck = await checkSeatLimit(orgId, 1);
+      if (!seatCheck.allowed) {
+        return res.status(403).json({ 
+          message: seatCheck.reason || 'Seat limit reached. Please upgrade your plan.',
+          limitExceeded: true,
+          resourceType: 'seats',
+          currentSeats: seatCheck.currentSeats,
+          maxSeats: seatCheck.maxSeats
+        });
+      }
+      
+      const { userId, role } = req.body;
+      const member = await storage.addOrganizationMember({
+        organizationId: orgId,
+        userId,
+        role: role || 'member'
+      });
+      
+      const existingResources = await storage.getResources(orgId);
+      const existingResource = existingResources.find(r => r.userId === userId);
+      
+      if (!existingResource) {
+        const user = await storage.getUser(userId);
+        if (user) {
+          await storage.createResource({
+            organizationId: orgId,
+            displayName: user.firstName && user.lastName 
+              ? `${user.firstName} ${user.lastName}` 
+              : user.username || user.email || 'Team Member',
+            email: user.email || null,
+            userId: userId,
+            isActive: true,
+            isApprover: false,
+            isIntakeApprover: false,
+          });
+        }
+      }
+      
+      res.status(201).json(member);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to add member' : classified.message });
+    }
+  });
+
+  app.put('/api/organizations/:id/members/:userId', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const currentUserId = getUserIdFromRequest(req);
+      
+      if (!currentUserId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      
+      if (!await userHasOrgAccess(currentUserId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const members = await storage.getOrganizationMembers(orgId);
+      const requesterMembership = members.find(m => m.userId === currentUserId);
+      if (!requesterMembership || (requesterMembership.role !== 'owner' && requesterMembership.role !== 'org_admin')) {
+        const [currentUser] = await db.select().from(users).where(eq(users.id, currentUserId));
+        if (!hasAdminAccess(currentUser)) {
+          return res.status(403).json({ message: 'Only organization owners and admins can update member roles' });
+        }
+      }
+      
+      const targetMembership = members.find(m => m.userId === req.params.userId);
+      if (targetMembership?.role === 'owner') {
+        return res.status(403).json({ message: 'Cannot change the role of an organization owner' });
+      }
+      
+      const { role } = req.body;
+      const updated = await storage.updateOrganizationMemberRole(
+        orgId,
+        req.params.userId,
+        role
+      );
+      res.json(updated);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update member role' : classified.message });
+    }
+  });
+
+  app.delete('/api/organizations/:id/members/:userId', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const currentUserId = getUserIdFromRequest(req);
+      
+      if (!currentUserId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      
+      if (!await userHasOrgAccess(currentUserId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const members = await storage.getOrganizationMembers(orgId);
+      const requesterMembership = members.find(m => m.userId === currentUserId);
+      const targetUserId = req.params.userId;
+      
+      if (currentUserId !== targetUserId) {
+        if (!requesterMembership || (requesterMembership.role !== 'owner' && requesterMembership.role !== 'org_admin')) {
+          const [currentUser] = await db.select().from(users).where(eq(users.id, currentUserId));
+          if (!hasAdminAccess(currentUser)) {
+            return res.status(403).json({ message: 'Only organization owners and admins can remove members' });
+          }
+        }
+      }
+      
+      const targetMembership = members.find(m => m.userId === targetUserId);
+      if (targetMembership?.role === 'owner') {
+        const ownerCount = members.filter(m => m.role === 'owner').length;
+        if (ownerCount <= 1) {
+          return res.status(403).json({ message: 'Cannot remove the last owner of an organization' });
+        }
+      }
+      
+      await storage.removeOrganizationMember(orgId, targetUserId);
+      res.status(204).send();
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to remove member' : classified.message });
+    }
+  });
+
+  // --- Organization Seat Info ---
+  app.get('/api/organizations/:id/seats', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const { checkSeatLimit } = await import("../services/billing");
+      const seatInfo = await checkSeatLimit(orgId, 0);
+      
+      const { billingProvider } = await import("../services/billing");
+      const subscription = await billingProvider.getSubscriptionForOrg(orgId);
+      
+      let planName = "Free";
+      let planCode = "FREE";
+      let extraSeatPriceCents: number | null = null;
+      
+      if (subscription) {
+        const [plan] = await db.select().from(plans).where(eq(plans.id, subscription.planId)).limit(1);
+        if (plan) {
+          planName = plan.name;
+          planCode = plan.code;
+          extraSeatPriceCents = plan.extraSeatPriceCents;
+        }
+      }
+      
+      const invites = await storage.getOrganizationInvites(orgId);
+      const pendingInvites = invites.filter(i => i.status === 'pending').length;
+      
+      const members = await storage.getOrganizationMembers(orgId);
+      const currentMember = members.find(m => m.userId === userId);
+      
+      const user = await storage.getUser(userId!);
+      const isSuperAdmin = hasAdminAccess(user);
+      
+      const isAdmin = currentMember?.role === 'org_admin' || currentMember?.role === 'owner' || isSuperAdmin;
+      
+      res.json({
+        ...seatInfo,
+        pendingInvites,
+        planName,
+        planCode,
+        subscriptionId: subscription?.id || null,
+        bonusSeats: subscription?.bonusSeats || 0,
+        extraSeatPriceCents,
+        isAdmin
+      });
+    } catch (err) {
+      console.error("Error fetching seat info:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch seat information' : classified.message });
+    }
+  });
+
+  app.post('/api/organizations/:id/seats/remove', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      const { quantity = 1 } = req.body;
+
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      const members = await storage.getOrganizationMembers(orgId);
+      const currentMember = members.find(m => m.userId === userId);
+      const user = await storage.getUser(userId!);
+      const isSuperAdmin = hasAdminAccess(user);
+      
+      if (!isSuperAdmin && (!currentMember || !['org_admin', 'owner'].includes(currentMember.role))) {
+        return res.status(403).json({ message: 'Only organization admins can remove seats' });
+      }
+
+      const { billingProvider } = await import("../services/billing");
+      const subscription = await billingProvider.getSubscriptionForOrg(orgId);
+
+      if (!subscription) {
+        return res.status(400).json({ message: 'No active subscription found' });
+      }
+
+      const currentBonusSeats = subscription.bonusSeats || 0;
+      if (currentBonusSeats < quantity) {
+        return res.status(400).json({ message: "Cannot remove more seats than purchased extra seats" });
+      }
+
+      const newBonusSeats = currentBonusSeats - quantity;
+
+      await db.update(subscriptions)
+        .set({ bonusSeats: newBonusSeats })
+        .where(eq(subscriptions.id, subscription.id));
+
+      await db.insert(billingAuditLogs).values({
+        actorUserId: userId,
+        orgId: orgId,
+        action: "EXTRA_SEAT_REMOVED",
+        entityType: "subscription",
+        entityId: String(subscription.id),
+        metadataJson: {
+          quantity,
+          previousBonusSeats: currentBonusSeats,
+          newBonusSeats
+        }
+      });
+
+      res.json({ message: "Extra seats removed successfully", bonusSeats: newBonusSeats });
+    } catch (error: any) {
+      console.error('Error removing extra seats:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to remove extra seats" : classified.message });
+    }
+  });
+
+  app.post('/api/organizations/:id/seats/purchase', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      const { quantity = 1 } = req.body;
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const members = await storage.getOrganizationMembers(orgId);
+      const currentMember = members.find(m => m.userId === userId);
+      const user = await storage.getUser(userId!);
+      const isSuperAdmin = hasAdminAccess(user);
+      
+      if (!isSuperAdmin && (!currentMember || !['org_admin', 'owner'].includes(currentMember.role))) {
+        return res.status(403).json({ message: 'Only organization admins can purchase extra seats' });
+      }
+      
+      const { billingProvider } = await import("../services/billing");
+      const subscription = await billingProvider.getSubscriptionForOrg(orgId);
+      
+      if (!subscription) {
+        return res.status(400).json({ message: 'No active subscription found. Please upgrade to a paid plan first.' });
+      }
+      
+      const [plan] = await db.select().from(plans).where(eq(plans.id, subscription.planId)).limit(1);
+      
+      if (!plan) {
+        return res.status(400).json({ message: 'Plan not found' });
+      }
+      
+      if (plan.extraSeatPriceCents === null) {
+        return res.status(400).json({ message: 'Extra seats are not available for the Free plan. Please upgrade first.' });
+      }
+      
+      const newBonusSeats = (subscription.bonusSeats || 0) + quantity;
+      
+      await db.update(subscriptions)
+        .set({ bonusSeats: newBonusSeats })
+        .where(eq(subscriptions.id, subscription.id));
+      
+      await db.insert(billingAuditLogs).values({
+        actorUserId: userId,
+        orgId: orgId,
+        action: "EXTRA_SEAT_PURCHASE",
+        entityType: "subscription",
+        entityId: String(subscription.id),
+        metadataJson: { 
+          quantity,
+          pricePerSeatCents: plan.extraSeatPriceCents,
+          totalCents: plan.extraSeatPriceCents * quantity,
+          previousBonusSeats: subscription.bonusSeats || 0,
+          newBonusSeats
+        }
+      });
+      
+      const { checkSeatLimit } = await import("../services/billing");
+      const seatInfo = await checkSeatLimit(orgId, 0);
+      
+      res.json({
+        success: true,
+        message: `Successfully added ${quantity} extra seat${quantity > 1 ? 's' : ''} to your subscription`,
+        bonusSeats: newBonusSeats,
+        ...seatInfo
+      });
+    } catch (err) {
+      console.error("Error purchasing extra seat:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to purchase extra seat' : classified.message });
+    }
+  });
 
 }

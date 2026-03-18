@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import path from "path";
 import fs from "fs";
+import * as crypto from "crypto";
 import { storage } from "../storage";
 import { db } from "../db";
 import { z } from "zod";
