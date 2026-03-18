@@ -46,16 +46,15 @@ export type TaskDependenciesSectionHandle = {
   clearPendingChanges: () => void;
 };
 
-export const TaskDependenciesSection = forwardRef<
-  TaskDependenciesSectionHandle,
-  {
-    taskId: number;
-    projectId: number;
-    allTasks: Task[];
-    pendingChanges?: Map<number, PendingDepChange>;
-    onPendingChangesUpdate?: (changes: Map<number, PendingDepChange>) => void;
-  }
->(function TaskDependenciesSection({ taskId, projectId, allTasks, pendingChanges: externalPending, onPendingChangesUpdate }, ref) {
+interface TaskDependenciesSectionProps {
+  taskId: number;
+  projectId: number;
+  allTasks: Task[];
+  pendingChanges?: Map<number, PendingDepChange>;
+  onPendingChangesUpdate?: (changes: Map<number, PendingDepChange>) => void;
+}
+
+export const TaskDependenciesSection = forwardRef<TaskDependenciesSectionHandle, TaskDependenciesSectionProps>(function TaskDependenciesSection({ taskId, projectId, allTasks, pendingChanges: externalPending, onPendingChangesUpdate }, ref) {
   const { data: dependencies, isLoading } = useTaskDependencies(taskId);
   const addDependency = useAddTaskDependency();
   const removeDependency = useRemoveTaskDependency();
