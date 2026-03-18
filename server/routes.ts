@@ -53,8 +53,8 @@ export async function registerRoutes(
           const tokenRecord = await storage.getApiTokenByToken(token);
           if (tokenRecord) {
             if (!tokenRecord.expiresAt || tokenRecord.expiresAt >= new Date()) {
-              if (!r.session) r.session = {};
-              r.session.userId = tokenRecord.userId;
+              if (!r.session) (r as any).session = {};
+              (r.session as Record<string, unknown>).userId = tokenRecord.userId;
               r.bearerOrgId = tokenRecord.organizationId;
               storage.updateApiTokenLastUsed(tokenRecord.id);
             }
