@@ -10636,14 +10636,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       let totalEstimatedHours = 0;
       for (const assignment of assignments) {
         const allocationPct = assignment.allocationPercentage ?? 100;
-        const weeklyCapacityStr = assignment.resource?.weeklyCapacity;
-        const weeklyCapacity = weeklyCapacityStr ? parseFloat(weeklyCapacityStr) : 40;
+        const weeklyCapacity = assignment.resource?.weeklyCapacity || 40;
         const dailyHours = weeklyCapacity / 5;
         const hoursForResource = (allocationPct / 100) * dailyHours * duration;
         totalEstimatedHours += hoursForResource;
       }
       const roundedHours = Math.round(totalEstimatedHours * 100) / 100;
-      await storage.updateTask(taskId, { estimatedHours: String(roundedHours) });
+      await storage.updateTask(taskId, { estimatedHours: roundedHours });
     } else {
       await storage.updateTask(taskId, { estimatedHours: null });
     }
