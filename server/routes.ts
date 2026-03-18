@@ -23460,8 +23460,8 @@ Return ONLY valid JSON.`;
 
       // Only allow updating hours and notes
       const { hours, notes } = req.body;
-      const updates: { hours?: string; notes?: string } = {};
-      if (hours !== undefined) updates.hours = String(Number(hours));
+      const updates: { hours?: number; notes?: string } = {};
+      if (hours !== undefined) updates.hours = Number(hours);
       if (notes !== undefined) updates.notes = notes;
 
       const updated = await storage.updateNonProjectTimeEntry(id, updates);
