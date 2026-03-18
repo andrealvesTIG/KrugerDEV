@@ -1,0 +1,326 @@
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Loader2, Trash2, FileText, Pencil, Plus, Check } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useCustomFieldDefinitions, useCreateCustomFieldDefinition, useUpdateCustomFieldDefinition, useDeleteCustomFieldDefinition } from "@/hooks/use-custom-fields";
+import type { CustomFieldDefinition } from "@shared/schema";
+
+const FIELD_TYPES = [
+  { value: "text", label: "Text" },
+  { value: "number", label: "Number" },
+  { value: "date", label: "Date" },
+  { value: "select", label: "Single Select" },
+  { value: "multiselect", label: "Multi Select" },
+  { value: "checkbox", label: "Checkbox" },
+  { value: "url", label: "URL" },
+] as const;
+
+export function CustomFieldsSection({ organizationId }: { organizationId: number }) {
+  const { toast } = useToast();
+  const { data: fields = [], isLoading } = useCustomFieldDefinitions(organizationId);
+  const createMutation = useCreateCustomFieldDefinition();
+  const updateMutation = useUpdateCustomFieldDefinition();
+  const deleteMutation = useDeleteCustomFieldDefinition();
+
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingField, setEditingField] = useState<CustomFieldDefinition | null>(null);
+  const [deleteField, setDeleteField] = useState<CustomFieldDefinition | null>(null);
+
+  const [name, setName] = useState("");
+  const [fieldType, setFieldType] = useState<string>("text");
+  const [description, setDescription] = useState("");
+  const [isRequired, setIsRequired] = useState(false);
+  const [options, setOptions] = useState("");
+
+  const resetForm = () => {
+    setName("");
+    setFieldType("text");
+    setDescription("");
+    setIsRequired(false);
+    setOptions("");
+    setEditingField(null);
+  };
+
+  const openEditDialog = (field: CustomFieldDefinition) => {
+    setEditingField(field);
+    setName(field.name);
+    setFieldType(field.fieldType);
+    setDescription(field.description || "");
+    setIsRequired(field.isRequired ?? false);
+    setOptions(field.options ? (field.options as string[]).join(", ") : "");
+    setShowAddDialog(true);
+  };
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      toast({ title: "Error", description: "Field name is required", variant: "destructive" });
+      return;
+    }
+
+    const optionsArray = (fieldType === "select" || fieldType === "multiselect") && options.trim()
+      ? options.split(",").map(o => o.trim()).filter(Boolean)
+      : null;
+
+    try {
+      if (editingField) {
+        await updateMutation.mutateAsync({
+          id: editingField.id,
+          organizationId,
+          name: name.trim(),
+          fieldType,
+          description: description.trim() || null,
+          isRequired,
+          options: optionsArray,
+        });
+        toast({ title: "Success", description: "Custom field updated" });
+      } else {
+        await createMutation.mutateAsync({
+          organizationId,
+          name: name.trim(),
+          fieldType,
+          description: description.trim() || null,
+          isRequired,
+          options: optionsArray,
+          displayOrder: fields.length,
+        });
+        toast({ title: "Success", description: "Custom field created" });
+      }
+      setShowAddDialog(false);
+      resetForm();
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to save custom field", variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteField) return;
+    try {
+      await deleteMutation.mutateAsync({ id: deleteField.id, organizationId });
+      toast({ title: "Deleted", description: "Custom field removed" });
+      setDeleteField(null);
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to delete custom field", variant: "destructive" });
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Custom Fields
+          </CardTitle>
+          <CardDescription>
+            Define custom fields that can be added to projects in your organization
+          </CardDescription>
+        </div>
+        <Button
+          onClick={() => {
+            resetForm();
+            setShowAddDialog(true);
+          }}
+          data-testid="button-add-custom-field"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Add Field
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {fields.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>No custom fields defined yet</p>
+            <p className="text-sm">Add custom fields to capture additional information on projects</p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Required</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead className="w-24">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {fields.map((field) => (
+                <TableRow key={field.id} data-testid={`row-custom-field-${field.id}`}>
+                  <TableCell className="font-medium">{field.name}</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">
+                      {FIELD_TYPES.find(t => t.value === field.fieldType)?.label || field.fieldType}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {field.isRequired ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm max-w-xs truncate">
+                    {field.description || "-"}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEditDialog(field)}
+                        data-testid={`button-edit-field-${field.id}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDeleteField(field)}
+                        data-testid={`button-delete-field-${field.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+
+      <Dialog open={showAddDialog} onOpenChange={(open) => {
+        if (!open) resetForm();
+        setShowAddDialog(open);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingField ? "Edit Custom Field" : "Add Custom Field"}</DialogTitle>
+            <DialogDescription>
+              {editingField ? "Update the custom field settings" : "Create a new custom field for projects"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="field-name">Field Name *</Label>
+              <Input
+                id="field-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., Business Unit"
+                data-testid="input-field-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="field-type">Field Type</Label>
+              <Select value={fieldType} onValueChange={setFieldType}>
+                <SelectTrigger id="field-type" data-testid="select-field-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FIELD_TYPES.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {(fieldType === "select" || fieldType === "multiselect") && (
+              <div className="space-y-2">
+                <Label htmlFor="field-options">Options (comma-separated)</Label>
+                <Input
+                  id="field-options"
+                  value={options}
+                  onChange={(e) => setOptions(e.target.value)}
+                  placeholder="Option 1, Option 2, Option 3"
+                  data-testid="input-field-options"
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="field-description">Description</Label>
+              <Input
+                id="field-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Optional description"
+                data-testid="input-field-description"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="field-required"
+                checked={isRequired}
+                onCheckedChange={(checked) => setIsRequired(checked === true)}
+                data-testid="checkbox-field-required"
+              />
+              <Label htmlFor="field-required" className="cursor-pointer">
+                Required field
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowAddDialog(false);
+              resetForm();
+            }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={createMutation.isPending || updateMutation.isPending}
+              data-testid="button-save-field"
+            >
+              {(createMutation.isPending || updateMutation.isPending) && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              {editingField ? "Update" : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteField} onOpenChange={(open) => !open && setDeleteField(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Custom Field</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteField?.name}"? This will remove this field from all projects and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-field"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  );
+}

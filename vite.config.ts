@@ -30,6 +30,37 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "react/jsx-runtime"],
+          "vendor-router": ["wouter"],
+          "vendor-query": ["@tanstack/react-query"],
+          "vendor-ui": [
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-select",
+            "@radix-ui/react-tabs",
+            "@radix-ui/react-tooltip",
+            "@radix-ui/react-popover",
+            "@radix-ui/react-accordion",
+            "@radix-ui/react-alert-dialog",
+            "@radix-ui/react-checkbox",
+            "@radix-ui/react-label",
+            "@radix-ui/react-scroll-area",
+            "@radix-ui/react-separator",
+            "@radix-ui/react-slider",
+            "@radix-ui/react-switch",
+            "@radix-ui/react-toggle",
+          ],
+          "vendor-charts": ["recharts"],
+          "vendor-motion": ["framer-motion"],
+          "vendor-dates": ["date-fns"],
+          "vendor-forms": ["react-hook-form", "@hookform/resolvers", "zod"],
+          "vendor-pdf": ["@react-pdf/renderer"],
+        },
+      },
+    },
   },
   server: {
     fs: {
