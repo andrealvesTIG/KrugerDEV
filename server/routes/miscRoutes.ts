@@ -42,6 +42,316 @@ import { sendEmail } from "../services/email";
 import { AVAILABLE_DASHBOARDS, sendScheduledReport, checkAndSendDueReports, initializeSubscriptionSchedule, calculateNextScheduledTime } from "../services/scheduledReports";
 
 export async function registerMiscRoutes(app: Express) {
+  // --- External Shares (Cross-organization sharing) ---
+
+  // Get all external shares for the current user
+  app.get('/api/external-shares', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const shares = await storage.getExternalSharesForUser(userId);
+      res.json(shares);
+    } catch (err) {
+      console.error('Failed to get external shares:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get external shares' : classified.message });
+    }
+  });
+
+  // Get external projects for the current user (with full project details)
+  app.get('/api/external-projects', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const shares = await storage.getExternalSharesForUser(userId);
+      const projectShares = shares.filter(s => s.objectType === 'project');
+
+      if (projectShares.length === 0) return res.json([]);
+
+      const projectIds = projectShares.map(s => s.objectId);
+      const orgIds = [...new Set(projectShares.map(s => s.sourceOrganizationId))];
+      const [allProjects, allOrgs] = await Promise.all([
+        Promise.all(projectIds.map(id => storage.getProject(id))),
+        Promise.all(orgIds.map(id => storage.getOrganization(id)))
+      ]);
+      const projectMap = new Map(allProjects.filter(Boolean).map(p => [p!.id, p!]));
+      const orgMap = new Map(allOrgs.filter(Boolean).map(o => [o!.id, o!]));
+
+      const projects = projectShares.map(share => {
+        const project = projectMap.get(share.objectId);
+        if (!project) return null;
+        const org = orgMap.get(share.sourceOrganizationId);
+        return {
+          ...project,
+          isExternal: true,
+          sourceOrganizationId: share.sourceOrganizationId,
+          sourceOrganizationName: org?.name || 'External Organization',
+          externalShareId: share.id,
+          accessRole: share.accessRole
+        };
+      });
+
+      res.json(projects.filter(Boolean));
+    } catch (err) {
+      console.error('Failed to get external projects:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get external projects' : classified.message });
+    }
+  });
+
+  app.get('/api/external-tasks', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const shares = await storage.getExternalSharesForUser(userId);
+      const taskShares = shares.filter(s => s.objectType === 'task');
+
+      if (taskShares.length === 0) return res.json([]);
+
+      const taskIds = taskShares.map(s => s.objectId);
+      const orgIds = [...new Set(taskShares.map(s => s.sourceOrganizationId))];
+      const [allTasks, allOrgs] = await Promise.all([
+        Promise.all(taskIds.map(id => storage.getTask(id))),
+        Promise.all(orgIds.map(id => storage.getOrganization(id)))
+      ]);
+      const taskMap = new Map(allTasks.filter(Boolean).map(t => [t!.id, t!]));
+      const orgMap = new Map(allOrgs.filter(Boolean).map(o => [o!.id, o!]));
+      const projectIds = [...new Set(Array.from(taskMap.values()).map(t => t.projectId).filter(Boolean))];
+      const allProjects = await Promise.all(projectIds.map(id => storage.getProject(id)));
+      const projectMap = new Map(allProjects.filter(Boolean).map(p => [p!.id, p!]));
+
+      const tasks = taskShares.map(share => {
+        const task = taskMap.get(share.objectId);
+        if (!task) return null;
+        const org = orgMap.get(share.sourceOrganizationId);
+        const project = task.projectId ? projectMap.get(task.projectId) : null;
+        return {
+          ...task,
+          isExternal: true,
+          sourceOrganizationId: share.sourceOrganizationId,
+          sourceOrganizationName: org?.name || 'External Organization',
+          projectName: project?.name || null,
+          externalShareId: share.id,
+          accessRole: share.accessRole
+        };
+      });
+
+      res.json(tasks.filter(Boolean));
+    } catch (err) {
+      console.error('Failed to get external tasks:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get external tasks' : classified.message });
+    }
+  });
+
+  app.get('/api/external-risks', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const shares = await storage.getExternalSharesForUser(userId);
+      const riskShares = shares.filter(s => s.objectType === 'risk');
+
+      if (riskShares.length === 0) return res.json([]);
+
+      const riskIds = riskShares.map(s => s.objectId);
+      const orgIds = [...new Set(riskShares.map(s => s.sourceOrganizationId))];
+      const [allRisks, allOrgs] = await Promise.all([
+        Promise.all(riskIds.map(id => storage.getRisk(id))),
+        Promise.all(orgIds.map(id => storage.getOrganization(id)))
+      ]);
+      const riskMap = new Map(allRisks.filter(Boolean).map(r => [r!.id, r!]));
+      const orgMap = new Map(allOrgs.filter(Boolean).map(o => [o!.id, o!]));
+      const projectIds = [...new Set(Array.from(riskMap.values()).map(r => r.projectId).filter(Boolean))];
+      const allProjects = await Promise.all(projectIds.map(id => storage.getProject(id)));
+      const projectMap = new Map(allProjects.filter(Boolean).map(p => [p!.id, p!]));
+
+      const risks = riskShares.map(share => {
+        const risk = riskMap.get(share.objectId);
+        if (!risk) return null;
+        const org = orgMap.get(share.sourceOrganizationId);
+        const project = risk.projectId ? projectMap.get(risk.projectId) : null;
+        return {
+          ...risk,
+          isExternal: true,
+          sourceOrganizationId: share.sourceOrganizationId,
+          sourceOrganizationName: org?.name || 'External Organization',
+          projectName: project?.name || null,
+          externalShareId: share.id,
+          accessRole: share.accessRole
+        };
+      });
+
+      res.json(risks.filter(Boolean));
+    } catch (err) {
+      console.error('Failed to get external risks:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get external risks' : classified.message });
+    }
+  });
+
+  app.get('/api/external-issues', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const shares = await storage.getExternalSharesForUser(userId);
+      const issueShares = shares.filter(s => s.objectType === 'issue');
+
+      if (issueShares.length === 0) return res.json([]);
+
+      const issueIds = issueShares.map(s => s.objectId);
+      const orgIds = [...new Set(issueShares.map(s => s.sourceOrganizationId))];
+      const [allIssues, allOrgs] = await Promise.all([
+        Promise.all(issueIds.map(id => storage.getIssue(id))),
+        Promise.all(orgIds.map(id => storage.getOrganization(id)))
+      ]);
+      const issueMap = new Map(allIssues.filter(Boolean).map(i => [i!.id, i!]));
+      const orgMap = new Map(allOrgs.filter(Boolean).map(o => [o!.id, o!]));
+      const projectIds = [...new Set(Array.from(issueMap.values()).map(i => i.projectId).filter(Boolean))];
+      const allProjects = await Promise.all(projectIds.map(id => storage.getProject(id)));
+      const projectMap = new Map(allProjects.filter(Boolean).map(p => [p!.id, p!]));
+
+      const issues = issueShares.map(share => {
+        const issue = issueMap.get(share.objectId);
+        if (!issue) return null;
+        const org = orgMap.get(share.sourceOrganizationId);
+        const project = issue.projectId ? projectMap.get(issue.projectId) : null;
+        return {
+          ...issue,
+          isExternal: true,
+          sourceOrganizationId: share.sourceOrganizationId,
+          sourceOrganizationName: org?.name || 'External Organization',
+          projectName: project?.name || null,
+          externalShareId: share.id,
+          accessRole: share.accessRole
+        };
+      });
+
+      res.json(issues.filter(Boolean));
+    } catch (err) {
+      console.error('Failed to get external issues:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get external issues' : classified.message });
+    }
+  });
+
+  // --- Recycle Bin ---
+  app.get('/api/organizations/:id/recycle-bin', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      const items = await storage.getDeletedItems(orgId);
+      res.json(items);
+    } catch (err) {
+      console.error('Failed to get recycle bin items:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get deleted items' : classified.message });
+    }
+  });
+
+  app.post('/api/organizations/:id/recycle-bin/restore', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      const { type, itemId } = req.body;
+      if (!type || !itemId) {
+        return res.status(400).json({ message: 'Type and itemId are required' });
+      }
+
+      const success = await storage.restoreItem(type, itemId, orgId);
+      if (!success) {
+        return res.status(404).json({ message: 'Item not found in this organization' });
+      }
+      res.json({ message: 'Item restored successfully' });
+    } catch (err) {
+      console.error('Failed to restore item:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to restore item' : classified.message });
+    }
+  });
+
+  app.delete('/api/organizations/:id/recycle-bin/:type/:itemId', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      const { type, itemId } = req.params;
+      const success = await storage.permanentlyDeleteItem(type as any, Number(itemId), orgId);
+      if (!success) {
+        return res.status(404).json({ message: 'Item not found in this organization' });
+      }
+      res.json({ message: 'Item permanently deleted' });
+    } catch (err) {
+      console.error('Failed to permanently delete item:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to permanently delete item' : classified.message });
+    }
+  });
+
+  // --- Global Search ---
+  app.get('/api/search', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      const query = req.query.q as string;
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : undefined;
+
+      if (!query || query.length < 2) {
+        return res.json({ portfolios: [], projects: [], tasks: [], issues: [], risks: [], milestones: [] });
+      }
+
+      // Get user's accessible organization IDs for security filtering
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (accessibleOrgIds.length === 0) {
+        return res.json({ portfolios: [], projects: [], tasks: [], issues: [], risks: [], milestones: [] });
+      }
+
+      // If organizationId specified, verify user has access and filter to just that org
+      let searchOrgIds = accessibleOrgIds;
+      if (organizationId) {
+        if (!accessibleOrgIds.includes(organizationId)) {
+          return res.json({ portfolios: [], projects: [], tasks: [], issues: [], risks: [], milestones: [] });
+        }
+        searchOrgIds = [organizationId];
+      }
+
+      const results = await storage.search(query, searchOrgIds);
+      res.json(results);
+    } catch (err) {
+      console.error('Search error:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Search failed' : classified.message });
+    }
+  });
+
+
   // === Custom Dashboards API ===
 
   // Get all custom dashboards for an organization
