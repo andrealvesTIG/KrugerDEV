@@ -13549,10 +13549,10 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         timesheets: 0,
       };
       
-      const sanitizeBudget = (value: any) => {
-        if (typeof value === 'number') return String(value);
-        if (typeof value === 'string') return value.replace(/,/g, '');
-        return '0';
+      const sanitizeBudget = (value: any): number => {
+        if (typeof value === 'number') return value;
+        if (typeof value === 'string') return parseFloat(value.replace(/,/g, '')) || 0;
+        return 0;
       };
       
       const today = new Date();
