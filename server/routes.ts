@@ -14442,9 +14442,9 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           isSummary: task.isSummary || false,
           isMilestone: task.isMilestone || false,
           notes: task.notes,
-          workHours: task.workHours?.toString() || null,
-          actualWorkHours: task.actualWorkHours?.toString() || null,
-          remainingWorkHours: task.remainingWorkHours?.toString() || null,
+          workHours: task.workHours ? Number(task.workHours) : null,
+          actualWorkHours: task.actualWorkHours ? Number(task.actualWorkHours) : null,
+          remainingWorkHours: task.remainingWorkHours ? Number(task.remainingWorkHours) : null,
           predecessors: task.predecessors && task.predecessors.length > 0 ? JSON.stringify(task.predecessors) : null,
         }));
         await storage.createMppImportTasks(taskRecords);
