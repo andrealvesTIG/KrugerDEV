@@ -9486,10 +9486,10 @@ export async function registerRoutes(
       const totalProgress = tasks.reduce((sum: number, t: any) => sum + (t.progress || 0), 0);
       const overallCompletion = tasks.length > 0 ? Math.round(totalProgress / tasks.length) : 0;
       
-      const budget = financials.reduce((sum, f) => sum + parseFloat(f.budgetAmount || "0"), 0);
-      const actual = financials.reduce((sum, f) => sum + parseFloat(f.actualAmount || "0"), 0);
-      const planned = financials.reduce((sum, f) => sum + parseFloat(f.plannedAmount || "0"), 0);
-      const projectBudget = parseFloat(project.budget?.toString() || "0");
+      const budget = financials.reduce((sum, f) => sum + (f.budgetAmount || 0), 0);
+      const actual = financials.reduce((sum, f) => sum + (f.actualAmount || 0), 0);
+      const planned = financials.reduce((sum, f) => sum + (f.plannedAmount || 0), 0);
+      const projectBudget = project.budget || 0;
       const totalBudget = budget > 0 ? budget : projectBudget;
       const forecast = planned > 0 ? planned : totalBudget;
       const variance = totalBudget - actual;
