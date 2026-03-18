@@ -13846,7 +13846,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           title: resourceTemplate.title,
           department: resourceTemplate.department,
           skills: resourceTemplate.skills,
-          hourlyRate: String(Math.floor(Math.random() * 100) + 80),
+          hourlyRate: Math.floor(Math.random() * 100) + 80,
           isActive: true,
           isDemo: true,
         });
