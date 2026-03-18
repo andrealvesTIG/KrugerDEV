@@ -2013,6 +2013,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const projectId = Number(req.params.projectId);
       const adjustedTasks = await propagateScheduleForProject(projectId);
+      await rollUpParentTasks(projectId);
       
       res.json({ 
         success: true, 
@@ -2062,6 +2063,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
       
       await recalculateProjectWBS(projectId);
+      await rollUpParentTasks(projectId);
       
       res.json({ message: "Tasks reordered successfully" });
     } catch (err) {
@@ -2094,8 +2096,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         }
       }
       
-      // Recalculate WBS
+      // Recalculate WBS and roll up parent tasks
       await recalculateProjectWBS(projectId);
+      await rollUpParentTasks(projectId);
       
       res.json({ message: "Tasks reindexed and WBS recalculated", count: sortedTasks.length });
     } catch (err) {
