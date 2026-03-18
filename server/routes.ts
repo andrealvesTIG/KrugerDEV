@@ -23098,7 +23098,7 @@ Return ONLY valid JSON.`;
         const entryResource = resources.find(r => r.id === entry.resourceId);
         const managerId = entryResource?.managerId || 'unassigned';
         const managerResource = resources.find(r => r.userId === managerId);
-        const managerName = managerResource?.displayName || managerResource?.name || (managerId === 'unassigned' ? 'Unassigned' : 'Unknown');
+        const managerName = managerResource?.displayName || [managerResource?.firstName, managerResource?.lastName].filter(Boolean).join(' ') || (managerId === 'unassigned' ? 'Unassigned' : 'Unknown');
 
         if (!managerMetrics[managerId]) {
           managerMetrics[managerId] = { managerId, managerName, resolvedCount: 0, totalTurnaroundMs: 0, exceedingSla: 0, pendingExceedingSla: 0, totalSubmitted: 0, totalApproved: 0, totalRejected: 0, totalPending: 0 };
