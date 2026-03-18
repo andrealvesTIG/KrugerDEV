@@ -3666,6 +3666,389 @@ async function seedTrainingDataIfEmpty() {
   } catch (err: any) {
     console.error('[training] Auto-seed failed, will use static fallback:', err.message);
   }
+
+  // === REFERRAL PROGRAM ROUTES ===
+  
+  // Get or create user's referral code
+  app.get('/api/referral/my-code', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    try {
+      const { referralCodes } = await import("@shared/schema");
+      
+      // Check if user already has a referral code
+      let [existingCode] = await db.select().from(referralCodes).where(eq(referralCodes.userId, userId));
+      
+      if (!existingCode) {
+        // Generate a unique referral code
+        const user = await storage.getUser(userId);
+        const baseCode = (user?.firstName || user?.email?.split('@')[0] || 'REF').toUpperCase().substring(0, 6);
+        const uniqueSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const code = `${baseCode}${uniqueSuffix}`;
+        
+        [existingCode] = await db.insert(referralCodes).values({
+          userId,
+          code,
+          commissionPercent: 10,
+          isActive: true,
+          totalReferrals: 0,
+          totalEarningsCents: 0,
+        }).returning();
+      }
+      
+      res.json(existingCode);
+    } catch (error) {
+      console.error('Error getting referral code:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get referral code' : classified.message });
+    }
+  });
+
+  // Get referral statistics for a user
+  app.get('/api/referral/stats', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    try {
+      const { referralCodes, referrals, referralPayouts } = await import("@shared/schema");
+      
+      // Get user's referral code - auto-create if none exists
+      let [userCode] = await db.select().from(referralCodes).where(eq(referralCodes.userId, userId));
+      
+      if (!userCode) {
+        // Auto-generate a unique referral code
+        const user = await storage.getUser(userId);
+        const baseCode = (user?.firstName || user?.email?.split('@')[0] || 'REF').toUpperCase().substring(0, 6);
+        const uniqueSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const code = `${baseCode}${uniqueSuffix}`;
+        
+        [userCode] = await db.insert(referralCodes).values({
+          userId,
+          code,
+          commissionPercent: 10,
+          isActive: true,
+          totalReferrals: 0,
+          totalEarningsCents: 0,
+        }).returning();
+      }
+      
+      // Get referrals for this code
+      const userReferrals = await db.select().from(referrals)
+        .where(eq(referrals.referralCodeId, userCode.id))
+        .orderBy(referrals.createdAt);
+      
+      // Get payouts
+      const userPayouts = await db.select().from(referralPayouts)
+        .where(eq(referralPayouts.userId, userId))
+        .orderBy(referralPayouts.createdAt);
+      
+      // Calculate stats
+      const signedUp = userReferrals.filter(r => r.status === 'SIGNED_UP' || r.status === 'CONVERTED' || r.status === 'PAID_OUT').length;
+      const converted = userReferrals.filter(r => r.status === 'CONVERTED' || r.status === 'PAID_OUT').length;
+      const pendingEarningsCents = userReferrals
+        .filter(r => r.status === 'CONVERTED')
+        .reduce((sum, r) => sum + (r.commissionAmountCents || 0), 0);
+      const paidOutCents = userPayouts
+        .filter(p => p.status === 'COMPLETED')
+        .reduce((sum, p) => sum + p.amountCents, 0);
+      
+      res.json({
+        code: userCode,
+        totalReferrals: userReferrals.length,
+        signedUp,
+        converted,
+        pendingEarningsCents,
+        paidOutCents,
+        referrals: userReferrals,
+        payouts: userPayouts,
+      });
+    } catch (error) {
+      console.error('Error getting referral stats:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get referral stats' : classified.message });
+    }
+  });
+
+  // Validate a referral code (public endpoint for signup)
+  app.get('/api/referral/validate/:code', async (req, res) => {
+    try {
+      const { referralCodes } = await import("@shared/schema");
+      const code = req.params.code.toUpperCase();
+      
+      const [refCode] = await db.select().from(referralCodes)
+        .where(and(eq(referralCodes.code, code), eq(referralCodes.isActive, true)));
+      
+      if (!refCode) {
+        return res.json({ valid: false });
+      }
+      
+      // Get referrer info
+      const referrer = await storage.getUser(refCode.userId);
+      
+      res.json({
+        valid: true,
+        referrerName: referrer ? `${referrer.firstName || ''} ${referrer.lastName || ''}`.trim() : 'A friend',
+      });
+    } catch (error) {
+      console.error('Error validating referral code:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to validate referral code' : classified.message });
+    }
+  });
+
+  // Track a referral (called when a new user signs up with a referral code)
+  app.post('/api/referral/track', async (req, res) => {
+    try {
+      const { referralCodes, referrals } = await import("@shared/schema");
+      const { code, email, userId } = req.body;
+      
+      if (!code || (!email && !userId)) {
+        return res.status(400).json({ message: 'Code and email or userId required' });
+      }
+      
+      const [refCode] = await db.select().from(referralCodes)
+        .where(and(eq(referralCodes.code, code.toUpperCase()), eq(referralCodes.isActive, true)));
+      
+      if (!refCode) {
+        return res.status(404).json({ message: 'Invalid referral code' });
+      }
+      
+      // Create referral record
+      const [newReferral] = await db.insert(referrals).values({
+        referralCodeId: refCode.id,
+        referrerId: refCode.userId,
+        referredUserId: userId || null,
+        referredEmail: email || null,
+        status: userId ? 'SIGNED_UP' : 'PENDING',
+        signedUpAt: userId ? new Date() : null,
+      }).returning();
+      
+      // Update total referrals count
+      await db.update(referralCodes)
+        .set({ totalReferrals: (refCode.totalReferrals || 0) + 1 })
+        .where(eq(referralCodes.id, refCode.id));
+      
+      res.status(201).json({ success: true, referral: newReferral });
+    } catch (error) {
+      console.error('Error tracking referral:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to track referral' : classified.message });
+    }
+  });
+
+  // Request a payout (user requesting their earnings)
+  app.post('/api/referral/request-payout', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    try {
+      const { referralCodes, referrals, referralPayouts } = await import("@shared/schema");
+      const { paypalEmail } = req.body;
+      
+      if (!paypalEmail) {
+        return res.status(400).json({ message: 'PayPal email required' });
+      }
+      
+      // Get user's referral code
+      const [userCode] = await db.select().from(referralCodes).where(eq(referralCodes.userId, userId));
+      
+      if (!userCode) {
+        return res.status(400).json({ message: 'No referral code found' });
+      }
+      
+      // Calculate pending earnings
+      const convertedReferrals = await db.select().from(referrals)
+        .where(and(eq(referrals.referralCodeId, userCode.id), eq(referrals.status, 'CONVERTED')));
+      
+      const pendingAmount = convertedReferrals.reduce((sum, r) => sum + (r.commissionAmountCents || 0), 0);
+      
+      if (pendingAmount < 1000) { // Minimum $10 payout
+        return res.status(400).json({ message: 'Minimum payout is $10' });
+      }
+      
+      // Create payout request
+      const [payout] = await db.insert(referralPayouts).values({
+        userId,
+        amountCents: pendingAmount,
+        status: 'PENDING',
+        paypalEmail,
+      }).returning();
+      
+      // Mark referrals as paid out
+      for (const ref of convertedReferrals) {
+        await db.update(referrals)
+          .set({ status: 'PAID_OUT' })
+          .where(eq(referrals.id, ref.id));
+      }
+      
+      res.json({ success: true, payout });
+    } catch (error) {
+      console.error('Error requesting payout:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to request payout' : classified.message });
+    }
+  });
+
+  // =========== NOTIFICATIONS ===========
+  
+  // Get all notifications for the current user
+  app.get('/api/notifications', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const notifications = await storage.getNotifications(userId);
+      res.json(notifications);
+    } catch (err) {
+      console.error("Error fetching notifications:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching notifications" : classified.message });
+    }
+  });
+
+  // Get unread notification count
+  app.get('/api/notifications/unread-count', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const count = await storage.getUnreadNotificationCount(userId);
+      res.json({ count });
+    } catch (err) {
+      console.error("Error fetching notification count:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching notification count" : classified.message });
+    }
+  });
+
+  // Mark a notification as read
+  app.patch('/api/notifications/:id/read', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const id = Number(req.params.id);
+      await storage.markNotificationRead(id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error marking notification as read:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error marking notification as read" : classified.message });
+    }
+  });
+
+  // Mark all notifications as read
+  app.patch('/api/notifications/read-all', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      await storage.markAllNotificationsRead(userId);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error marking all notifications as read:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error marking all notifications as read" : classified.message });
+    }
+  });
+
+  // Run notification checks for an organization (generates notifications for overdue tasks, deadlines, health alerts, etc.)
+  app.post('/api/organizations/:orgId/notifications/check', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const orgId = Number(req.params.orgId);
+      
+      // Check user has access to the organization (admin or owner only)
+      const orgMembers = await storage.getOrganizationMembers(orgId);
+      const membership = orgMembers.find(m => m.userId === userId);
+      const user = await storage.getUser(userId);
+      const isSuperAdmin = hasAdminAccess(user);
+      const isOrgAdmin = membership?.role === 'owner' || membership?.role === 'org_admin' || membership?.role === 'admin';
+      
+      if (!isSuperAdmin && !isOrgAdmin) {
+        return res.status(403).json({ message: "Admin access required to run notification checks" });
+      }
+      
+      const { runAllNotificationChecks } = await import('../services/notificationEngine');
+      const results = await runAllNotificationChecks(orgId);
+      
+      res.json({
+        message: "Notification check completed",
+        results,
+      });
+    } catch (err) {
+      console.error("Error running notification checks:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error running notification checks" : classified.message });
+    }
+  });
+
+  // Run notification checks for all organizations (super admin only - for scheduled jobs)
+  app.post('/api/admin/notifications/check-all', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (user?.role !== 'super_admin') {
+        return res.status(403).json({ message: "Super admin access required" });
+      }
+      
+      const orgs = await storage.getOrganizations();
+      const activeOrgs = orgs.filter(o => !o.deactivatedAt);
+      
+      const { runAllNotificationChecks } = await import('../services/notificationEngine');
+      const allResults = [];
+      
+      for (const org of activeOrgs) {
+        try {
+          const result = await runAllNotificationChecks(org.id);
+          allResults.push({ organizationId: org.id, organizationName: org.name, ...result });
+        } catch (err) {
+          allResults.push({ organizationId: org.id, organizationName: org.name, error: String(err) });
+        }
+      }
+      
+      const totals = allResults.reduce((acc, r: any) => ({
+        totalCreated: acc.totalCreated + (r.totalCreated || 0),
+        totalSkipped: acc.totalSkipped + (r.totalSkipped || 0),
+        totalErrors: acc.totalErrors + (r.totalErrors || 0),
+      }), { totalCreated: 0, totalSkipped: 0, totalErrors: 0 });
+      
+      res.json({
+        message: "Notification check completed for all organizations",
+        organizationsProcessed: activeOrgs.length,
+        ...totals,
+        details: allResults,
+      });
+    } catch (err) {
+      console.error("Error running notification checks for all orgs:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error running notification checks" : classified.message });
+    }
+  });
+
 }
 
 export { seedTrainingDataIfEmpty };
