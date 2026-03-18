@@ -1,42 +1,17 @@
 import type { Express } from "express";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { db } from "../db";
 import { z } from "zod";
-import { eq, and, desc, asc, sql, isNotNull, inArray } from "drizzle-orm";
-import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, milestones, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, billingCycles, usageRollups, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries, taskChangeLogs, taskDependencies, notifications, reportSubscriptions, insertReportSubscriptionSchema, trainingModules, trainingLessons, trainingQuizQuestions, timesheetReminderSettings, type Task } from "@shared/schema";
-import type { User } from "@shared/models/auth";
+import { issues, projects, portfolios, milestones } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
-  sanitizeUser,
-  sanitizeUsers,
-  hasAdminAccess,
   userHasOrgAccess,
   getUserOrgIds,
   userHasAnyOrgAccess,
   requireEmailVerified,
-  getUserOrgRole,
-  isTeamMemberInOrg,
-  getUserResourceIds,
-  getTeamMemberAccessData,
-  getTeamMemberProjectIds,
-  getTeamMemberTaskIds,
-  getTeamMemberRiskIds,
-  getTeamMemberIssueIds,
   getTeamMemberPortfolioIds,
-  normalizeSearchStr,
   logUserActivity,
-  upload,
-  imageUpload,
-  openai,
-  encryptApiKey,
-  decryptApiKey,
-  parseMppFile,
-  parseXmlMspdi,
-  parseCsv,
-  parseDate,
-  seedDatabase,
   formatZodErrors,
 } from "./helpers";
 
