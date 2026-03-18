@@ -21457,7 +21457,7 @@ Return ONLY valid JSON.`;
 
       const beforeSnapshot = { hours: entry.hours, notes: entry.notes };
       const updated = await storage.updateTimesheetEntry(id, {
-        hours: hours !== undefined ? String(parseFloat(hours)) : undefined,
+        hours: hours !== undefined ? parseFloat(hours) : undefined,
         notes,
       });
 
