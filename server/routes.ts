@@ -13664,7 +13664,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
               status: issueTemplate.status,
               type: issueTemplate.type,
               assignee: issueTemplate.assignee,
-              costExposure: issueTemplate.costExposure || null,
+              costExposure: issueTemplate.costExposure ? Number(issueTemplate.costExposure) : null,
               isDemo: true,
             });
             stats.issues++;
