@@ -13706,7 +13706,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
                 requestedBy: 'Demo User',
                 requestedDate: requestedDate.toISOString().split('T')[0],
                 impact: crTemplate.impact,
-                estimatedCost: String(crTemplate.estimatedCost || 0),
+                estimatedCost: Number(crTemplate.estimatedCost) || 0,
                 estimatedEffort: crTemplate.estimatedEffort,
                 isDemo: true,
               });
