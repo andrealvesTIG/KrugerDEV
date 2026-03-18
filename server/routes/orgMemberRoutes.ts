@@ -2,8 +2,8 @@ import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
 import { z } from "zod";
-import { eq, and, desc, asc, sql, isNotNull, inArray } from "drizzle-orm";
-import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, milestones, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, billingCycles, usageRollups, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries, taskChangeLogs, taskDependencies, notifications, reportSubscriptions, insertReportSubscriptionSchema, trainingModules, trainingLessons, trainingQuizQuestions, timesheetReminderSettings, type Task } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
+import { users, organizationInvites, plans, subscriptions, billingAuditLogs, notifications, type Task } from "@shared/schema";
 import type { User } from "@shared/models/auth";
 import {
   classifyError,
