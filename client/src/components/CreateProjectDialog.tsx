@@ -238,7 +238,7 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
       description: "",
       priority: "Medium",
       status: "Initiation",
-      budget: "0",
+      budget: 0,
       startDate: undefined,
       endDate: undefined,
       organizationId: organizationId || undefined,
@@ -254,10 +254,10 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
   const onSubmit = (data: InsertProject) => {
     const cleanedData = {
       ...data,
-      organizationId: organizationId || null,
+      organizationId: organizationId!,
       startDate: data.startDate || null,
       endDate: data.endDate || null,
-      budget: data.budget || "0",
+      budget: Number(data.budget) || 0,
     };
     createMutation.mutate(cleanedData, {
       onSuccess: (newProject: any) => {

@@ -98,10 +98,10 @@ export function ProjectStatusReport({
   ].filter(d => d.value > 0), [taskStats]);
 
   const financialSummary = useMemo(() => {
-    const budget = financials.reduce((sum, f) => sum + parseFloat(f.budgetAmount || "0"), 0);
-    const actual = financials.reduce((sum, f) => sum + parseFloat(f.actualAmount || "0"), 0);
-    const planned = financials.reduce((sum, f) => sum + parseFloat(f.plannedAmount || "0"), 0);
-    const projectBudget = parseFloat(project.budget?.toString() || "0");
+    const budget = financials.reduce((sum, f) => sum + (f.budgetAmount || 0), 0);
+    const actual = financials.reduce((sum, f) => sum + (f.actualAmount || 0), 0);
+    const planned = financials.reduce((sum, f) => sum + (f.plannedAmount || 0), 0);
+    const projectBudget = project.budget || 0;
     const totalBudget = budget > 0 ? budget : projectBudget;
     return {
       budget: totalBudget,

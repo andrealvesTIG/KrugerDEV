@@ -249,7 +249,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
           wbs: formData.wbs || null,
           category: formData.category || null,
           comments: formData.comments || null,
-          aopTotal: formData.aopTotal,
+          aopTotal: parseFloat(formData.aopTotal) || 0,
         },
       });
       setDialogOpen(false);
@@ -262,7 +262,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
         comments: formData.comments || null,
         fiscalYear,
         parentId: parentIdForNew,
-        aopTotal: formData.aopTotal,
+        aopTotal: parseFloat(formData.aopTotal) || 0,
       });
     }
   };
@@ -294,7 +294,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
           total += parseFloat(String(item[key] || 0)) || 0;
         }
       });
-      updates[viewMode === "act" ? "actTotal" : "fcstTotal"] = String(total);
+      updates[viewMode === "act" ? "actTotal" : "fcstTotal"] = total;
     }
 
     updateMutation.mutate({ id: editingCell.id, data: updates });
