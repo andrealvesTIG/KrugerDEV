@@ -13930,7 +13930,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             status: intakeTemplate.status,
             businessUnit: intakeTemplate.businessUnit,
             fundingSource: intakeTemplate.funding,
-            estimatedBudget: intakeTemplate.budget,
+            estimatedBudget: Number(intakeTemplate.budget) || 0,
             currentStep: intakeTemplate.status === 'approved' ? 'pmo_approved' : 'basic_info',
             basicInfoComplete: true,
             isDemo: true,
