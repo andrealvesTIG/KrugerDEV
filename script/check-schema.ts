@@ -4,7 +4,7 @@ import * as authModels from "../shared/models/auth";
 import * as billingModels from "../shared/models/billing";
 import * as chatModels from "../shared/models/chat";
 import { getTableName, getTableColumns } from "drizzle-orm";
-import { PgTable, PgColumn } from "drizzle-orm/pg-core";
+import { PgTable, PgColumn, getTableConfig } from "drizzle-orm/pg-core";
 
 const { Pool } = pg;
 
@@ -14,12 +14,20 @@ if (!process.env.DATABASE_URL) {
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+const verbose = process.argv.includes("--verbose") || process.argv.includes("-v");
+
 interface ExpectedColumn {
   name: string;
   dataType: string;
   isNullable: boolean;
   hasDefault: boolean;
   isPrimaryKey: boolean;
+}
+
+interface ExpectedFK {
+  column: string;
+  foreignTable: string;
+  foreignColumn: string;
 }
 
 interface ActualColumn {
@@ -41,7 +49,7 @@ interface ActualConstraint {
 interface Mismatch {
   table: string;
   column?: string;
-  type: "missing_table" | "missing_column" | "extra_column" | "type_mismatch" | "nullable_mismatch" | "default_mismatch" | "pk_mismatch" | "fk_info";
+  type: "missing_table" | "missing_column" | "extra_column" | "type_mismatch" | "nullable_mismatch" | "default_mismatch" | "pk_mismatch" | "fk_mismatch" | "fk_missing";
   expected?: string;
   actual?: string;
 }
@@ -121,6 +129,14 @@ function collectDrizzleTables(): Map<string, PgTable> {
 
 function getExpectedColumns(table: PgTable): ExpectedColumn[] {
   const cols = getTableColumns(table);
+  const config = getTableConfig(table);
+  const compositePkColumns = new Set<string>();
+  for (const pk of config.primaryKeys) {
+    for (const col of pk.columns) {
+      compositePkColumns.add((col as any).name);
+    }
+  }
+
   const result: ExpectedColumn[] = [];
 
   for (const [, col] of Object.entries(cols)) {
@@ -133,8 +149,29 @@ function getExpectedColumns(table: PgTable): ExpectedColumn[] {
       dataType: drizzleTypeToPostgres(pgCol),
       isNullable: !pgCol.notNull,
       hasDefault: pgCol.hasDefault || isSerial,
-      isPrimaryKey: pgCol.primary,
+      isPrimaryKey: pgCol.primary || compositePkColumns.has(pgCol.name),
     });
+  }
+  return result;
+}
+
+function getExpectedForeignKeys(table: PgTable): ExpectedFK[] {
+  const config = getTableConfig(table);
+  const result: ExpectedFK[] = [];
+
+  for (const fk of config.foreignKeys) {
+    const ref = fk.reference();
+    const columns = ref.columns.map((c: any) => c.name);
+    const foreignColumns = ref.foreignColumns.map((c: any) => c.name);
+    const foreignTableName = (ref.foreignTable as any)[Symbol.for("drizzle:Name")] || getTableName(ref.foreignTable as PgTable);
+
+    for (let i = 0; i < columns.length; i++) {
+      result.push({
+        column: columns[i],
+        foreignTable: foreignTableName,
+        foreignColumn: foreignColumns[i] || foreignColumns[0],
+      });
+    }
   }
   return result;
 }
@@ -190,6 +227,7 @@ async function main() {
   console.log("  - shared/models/chat.ts (conversations, messages)");
   console.log("  - Database: PostgreSQL via DATABASE_URL");
   console.log("  - ORM: Drizzle ORM with drizzle-kit push");
+  if (verbose) console.log("  - Mode: VERBOSE (showing per-table details)");
   console.log();
 
   const expectedTables = collectDrizzleTables();
@@ -204,6 +242,8 @@ async function main() {
   let tablesOk = 0;
   let columnsChecked = 0;
   let columnsOk = 0;
+  let fksChecked = 0;
+  let fksOk = 0;
 
   for (const [tableName, table] of expectedTables) {
     if (!actualTableSet.has(tableName)) {
@@ -213,6 +253,7 @@ async function main() {
 
     tablesOk++;
     const expectedCols = getExpectedColumns(table);
+    const expectedFKs = getExpectedForeignKeys(table);
     const actualCols = await getActualColumns(tableName);
     const constraints = await getConstraints(tableName);
 
@@ -232,6 +273,8 @@ async function main() {
     }
 
     const expectedColNames = new Set<string>();
+    let tableColsOk = 0;
+    let tableColIssues = 0;
 
     for (const ec of expectedCols) {
       expectedColNames.add(ec.name);
@@ -240,8 +283,11 @@ async function main() {
 
       if (!ac) {
         mismatches.push({ table: tableName, column: ec.name, type: "missing_column", expected: ec.dataType });
+        tableColIssues++;
         continue;
       }
+
+      let colOk = true;
 
       const expectedType = normalizeType(ec.dataType);
       const actualTypeRaw = ac.data_type === "ARRAY" ? "ARRAY" : normalizeType(ac.udt_name || ac.data_type);
@@ -262,6 +308,7 @@ async function main() {
             expected: expectedType,
             actual: actualTypeRaw,
           });
+          colOk = false;
         }
       }
 
@@ -274,6 +321,7 @@ async function main() {
           expected: ec.isNullable ? "nullable" : "NOT NULL",
           actual: actualNullable ? "nullable" : "NOT NULL",
         });
+        colOk = false;
       }
 
       const actualHasDefault = ac.column_default !== null;
@@ -285,6 +333,7 @@ async function main() {
           expected: "has default",
           actual: "no default",
         });
+        colOk = false;
       }
 
       if (ec.isPrimaryKey && !pkColumns.has(ec.name)) {
@@ -295,25 +344,62 @@ async function main() {
           expected: "PRIMARY KEY",
           actual: "not a PK",
         });
+        colOk = false;
       }
 
-      columnsOk++;
+      if (colOk) {
+        columnsOk++;
+        tableColsOk++;
+      } else {
+        tableColIssues++;
+      }
     }
 
-    for (const ac of actualCols) {
-      if (!expectedColNames.has(ac.column_name)) {
+    for (const efk of expectedFKs) {
+      fksChecked++;
+      const actualFK = fkMap.get(efk.column);
+      if (!actualFK) {
         mismatches.push({
           table: tableName,
-          column: ac.column_name,
-          type: "extra_column",
-          actual: normalizeType(ac.udt_name || ac.data_type),
+          column: efk.column,
+          type: "fk_missing",
+          expected: `FK -> ${efk.foreignTable}.${efk.foreignColumn}`,
+          actual: "no FK constraint",
         });
+      } else if (actualFK.table !== efk.foreignTable || actualFK.column !== efk.foreignColumn) {
+        mismatches.push({
+          table: tableName,
+          column: efk.column,
+          type: "fk_mismatch",
+          expected: `FK -> ${efk.foreignTable}.${efk.foreignColumn}`,
+          actual: `FK -> ${actualFK.table}.${actualFK.column}`,
+        });
+      } else {
+        fksOk++;
       }
+    }
+
+    const extraInTable = actualCols.filter(ac => !expectedColNames.has(ac.column_name));
+    for (const ac of extraInTable) {
+      mismatches.push({
+        table: tableName,
+        column: ac.column_name,
+        type: "extra_column",
+        actual: normalizeType(ac.udt_name || ac.data_type),
+      });
+    }
+
+    if (verbose) {
+      const tableFkIssues = mismatches.filter(m => m.table === tableName && (m.type === "fk_missing" || m.type === "fk_mismatch")).length;
+      const status = (tableColIssues === 0 && extraInTable.length === 0 && tableFkIssues === 0) ? "OK" : "ISSUES";
+      const fkStatus = expectedFKs.length > 0 ? `, ${expectedFKs.length} FKs${tableFkIssues > 0 ? ` (${tableFkIssues} issues)` : ""}` : "";
+      console.log(`  [${status}] ${tableName}: ${expectedCols.length} cols (${tableColsOk} ok, ${tableColIssues} issues), ${extraInTable.length} extra${fkStatus}`);
     }
   }
 
   const extraTables = actualTableNames.filter(t => !expectedTables.has(t));
 
+  console.log();
   console.log("-".repeat(70));
   console.log("  RESULTS");
   console.log("-".repeat(70));
@@ -326,6 +412,8 @@ async function main() {
   const nullMismatches = mismatches.filter(m => m.type === "nullable_mismatch");
   const defaultMismatches = mismatches.filter(m => m.type === "default_mismatch");
   const pkMismatches = mismatches.filter(m => m.type === "pk_mismatch");
+  const fkMissing = mismatches.filter(m => m.type === "fk_missing");
+  const fkMismatches = mismatches.filter(m => m.type === "fk_mismatch");
 
   if (missingTables.length > 0) {
     console.log(`MISSING TABLES (${missingTables.length}):`);
@@ -391,6 +479,22 @@ async function main() {
     console.log();
   }
 
+  if (fkMissing.length > 0) {
+    console.log(`MISSING FOREIGN KEYS (${fkMissing.length}):`);
+    for (const m of fkMissing) {
+      console.log(`  [!] ${m.table}.${m.column}: expected ${m.expected}, got ${m.actual}`);
+    }
+    console.log();
+  }
+
+  if (fkMismatches.length > 0) {
+    console.log(`FOREIGN KEY MISMATCHES (${fkMismatches.length}):`);
+    for (const m of fkMismatches) {
+      console.log(`  [X] ${m.table}.${m.column}: expected ${m.expected}, got ${m.actual}`);
+    }
+    console.log();
+  }
+
   console.log("-".repeat(70));
   console.log("  SUMMARY");
   console.log("-".repeat(70));
@@ -407,9 +511,13 @@ async function main() {
   console.log(`  Nullable mismatches:  ${nullMismatches.length}`);
   console.log(`  Default mismatches:   ${defaultMismatches.length}`);
   console.log(`  PK mismatches:        ${pkMismatches.length}`);
+  console.log(`  FK checked:           ${fksChecked}`);
+  console.log(`  FK OK:                ${fksOk}`);
+  console.log(`  FK missing:           ${fkMissing.length}`);
+  console.log(`  FK mismatches:        ${fkMismatches.length}`);
   console.log();
 
-  const totalIssues = missingTables.length + missingCols.length + typeMismatches.length + pkMismatches.length;
+  const totalIssues = missingTables.length + missingCols.length + typeMismatches.length + pkMismatches.length + fkMissing.length + fkMismatches.length;
   if (totalIssues === 0) {
     console.log("  STATUS: ALL GOOD - Schema and database are in sync!");
   } else {
