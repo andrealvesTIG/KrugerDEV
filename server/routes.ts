@@ -14733,7 +14733,6 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           name: task.taskName,
           startDate: task.startDate,
           endDate: task.finishDate,
-          duration: task.duration,
           durationDays: task.durationDays,
           outlineLevel: task.outlineLevel || 1,
           parentTaskId: task.parentTaskId,
@@ -14741,7 +14740,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           isMilestone: task.isMilestone || false,
           predecessors: task.predecessors && task.predecessors.length > 0 ? JSON.stringify(task.predecessors) : null,
           notes: task.notes,
-          workHours: task.workHours?.toString() || null,
+          workHours: task.workHours ? Number(task.workHours) : null,
         }));
         await storage.createProjectTemplateItems(items);
       }
@@ -15145,7 +15144,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           isMilestone: task.isMilestone || false,
           predecessors: task.predecessors && task.predecessors.length > 0 ? JSON.stringify(task.predecessors) : null,
           notes: task.notes,
-          workHours: task.workHours?.toString() || null,
+          workHours: task.workHours ? Number(task.workHours) : null,
         }));
         await storage.createProjectTemplateItems(items);
       }
