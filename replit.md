@@ -25,12 +25,15 @@ The application features an enterprise-grade UI inspired by Linear and Asana, bu
 **Performance Optimizations**: Includes extensive database indexing, N+1 query fixes, `React.memo` and `useCallback` for UI components, bulk assignment fetching, `inArray` batch queries, virtual scrolling for large data sets, and memoized date parsing maps. Server-side date filtering is supported, with optimized `workingDaysBetween` calculation. Batch SQL updates for WBS and parentId recalculation using CASE statements. External sharing endpoints use pre-fetched maps instead of per-item lookups. Team member access control uses `getResourcesByUserId` and `getTaskResourceAssignmentsByOrgId` for batch queries instead of fetching all resources. Risk/issue team member helpers use `Promise.all` for parallel fetches. Dashboard KPI aggregations are wrapped in `useMemo`. `ProjectGanttView` is lazy-loaded. `InlineEditCell` and `TaskNameCell` use `React.memo`.
 **Code Organization (Performance Refactoring)**: Critical oversized files have been modularized:
 - `server/routes.ts` (was ~27K lines) → 100-line orchestrator + 16 domain files in `server/routes/` with a shared `helpers.ts`
-- `server/storage.ts` (was ~5.3K lines) → 26-line composition file + 11 domain files in `server/storage/` with `types.ts` for IStorage interface
+- `server/storage.ts` (was ~5.3K lines) → 26-line composition file + 11 domain files in `server/storage/` with `types.ts` defining 10 domain sub-interfaces (IUserStorage, IOrganizationStorage, IPortfolioStorage, IProjectStorage, ITaskStorage, IResourceStorage, IFinancialStorage, ITimesheetStorage, IIntakeStorage, IMiscStorage) composed into IStorage
 - `client/src/pages/SuperAdmin.tsx` (was ~7.3K lines) → 126-line shell + 9 tab components in `client/src/components/admin/`
 - `client/src/pages/OrgSettings.tsx` (was ~6.1K lines) → 252-line shell + 15 section components in `client/src/components/settings/`
 - 7 duplicate industry landing pages consolidated to data-driven wrappers + shared `IndustryLandingPage` template
 - Vite `manualChunks` configured for vendor code splitting
 - 12 duplicate MPP files removed from `public/mpp-imports/`
+- Hero PNGs converted to WebP (1.4-1.9MB → 92-232KB) in `client/src/assets/` subdirectories
+- Landing page configs extracted to `client/src/data/landing/` (7 industry config files)
+- Training module data extracted to `client/src/lib/trainingModulesData.ts` (~800 lines); `trainingData.ts` uses lazy-loading via `loadFallbackModules()`
 **Testing**: Utilizes Vitest for testing, focusing on date calculation logic, performance, and cross-validation.
 **Resource Management**: Tracks resource skills, availability, and utilization with dedicated views for Capacity Planning, Workload Dashboard, and Availability Calendar.
 **PMO Radar**: A dynamic risk visualization page displaying risks and issues on a radar-style interface with interactive filters, time projection, timeline playback, and detailed drill-down capabilities.

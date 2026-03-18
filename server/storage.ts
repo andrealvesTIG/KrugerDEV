@@ -10,7 +10,8 @@ import * as timesheetFns from "./storage/timesheetStorage";
 import * as intakeFns from "./storage/intakeStorage";
 import * as miscFns from "./storage/miscStorage";
 
-export type { IStorage } from "./storage/types";
+export type { IStorage, IUserStorage, IOrganizationStorage, IPortfolioStorage, IProjectStorage, ITaskStorage, IResourceStorage, IFinancialStorage, ITimesheetStorage, IIntakeStorage, IMiscStorage } from "./storage/types";
+export type { TaskDateFilterOptions } from "./storage/types";
 
 export const storage: IStorage = {
   ...userFns,

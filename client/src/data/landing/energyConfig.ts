@@ -1,0 +1,102 @@
+import { Zap, Leaf, Shield, Users, Layers, AlertTriangle, FileCheck, BarChart3, TrendingUp, Clock, Target } from "lucide-react";
+import type { IndustryConfig } from "@/components/landing/types";
+import heroImage from "@/assets/energy/hero-energy-ops.webp";
+import networkImage from "@/assets/energy/energy-network.webp";
+import complianceImage from "@/assets/energy/compliance-dashboard.webp";
+import clientLogo3 from "@assets/client-logo-3.png";
+import clientLogo4 from "@assets/client-logo-4.png";
+
+export const energyConfig: IndustryConfig = {
+  slug: "energy",
+  routePath: "/energy",
+  seo: {
+    title: "Energy & Utilities Project Management Software | FridayReport.AI",
+    description: "AI-powered project portfolio management built for energy and utility companies. Track grid modernization, renewable deployments, NERC CIP compliance, and more. Free forever.",
+    ogTitle: "Energy & Utilities Project Management Software | FridayReport.AI",
+    ogDescription: "AI-powered PMO software for energy and utility companies. Free forever.",
+  },
+  colors: {
+    primary: "emerald",
+    secondary: "green",
+    heroGradient: "bg-gradient-to-br from-emerald-50 via-green-50 to-background dark:from-emerald-950/30 dark:via-green-950/20 dark:to-background",
+    patternFillColor: "059669",
+    darkSectionGradient: "bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900",
+    ctaSectionGradient: "bg-gradient-to-br from-emerald-50 via-green-50 to-background dark:from-emerald-950/20 dark:via-green-950/10 dark:to-background",
+    badgeClasses: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-900/50 dark:text-emerald-300",
+    checkIconClasses: "text-emerald-600 dark:text-emerald-400",
+    heroGlowClasses: "bg-gradient-to-r from-emerald-500/20 to-green-500/20",
+    featureIconBg: "bg-emerald-100 dark:bg-emerald-900/40",
+    featureIconText: "text-emerald-600 dark:text-emerald-400",
+    useCaseIconBg: "bg-emerald-500/20",
+    useCaseIconText: "text-emerald-400",
+    useCaseBadgeBg: "bg-emerald-500/20",
+    useCaseBadgeText: "text-emerald-300",
+    useCaseBadgeBorder: "border-emerald-500/30",
+    ctaIconBg: "bg-emerald-100 dark:bg-emerald-900/40",
+    ctaIconText: "text-emerald-600 dark:text-emerald-400",
+    signupIconBg: "bg-emerald-100 dark:bg-emerald-900/40",
+    signupIconText: "text-emerald-600 dark:text-emerald-400",
+    statGradient: "from-emerald-600 to-green-600 dark:from-emerald-400 dark:to-green-400",
+  },
+  heroIcon: Zap,
+  heroBadgeText: "Built for Energy & Utilities",
+  heroTitle: "Project Portfolio Management",
+  heroTitleHighlight: "Built for Energy & Utilities",
+  heroSubtitle: "From grid modernization and renewable deployments to NERC CIP compliance — manage your entire energy PMO with AI-powered oversight that catches risks before they become outages.",
+  heroChecklist: [
+    "Track grid upgrades, renewable projects, and compliance programs in one place",
+    "AI-powered risk detection alerts you before issues escalate",
+    "Executive dashboards your leadership team will actually use",
+  ],
+  heroImageAlt: "Energy utility project management dashboard",
+  trustedByText: "Trusted by teams at leading energy & utility organizations",
+  trustedByOrgs: [
+    { icon: Zap, label: "Major Utilities" },
+    { icon: Leaf, label: "Renewable Developers" },
+  ],
+  painPointsBadge: "Energy PMO Challenges",
+  painPointsTitle: "Your Energy PMO Deserves Better Tools",
+  painPointsSubtitle: "Energy companies manage billions in capital projects across complex regulatory environments. Generic project tools were not designed for the scale of utility operations.",
+  painPoints: [
+    { icon: Zap, title: "Grid Modernization Complexity", description: "Coordinate massive grid upgrade programs spanning multiple regions, substations, and technology platforms with full portfolio visibility and real-time progress tracking.", color: "text-emerald-600 bg-emerald-100 dark:bg-emerald-900/40 dark:text-emerald-400" },
+    { icon: Leaf, title: "Renewable Integration Programs", description: "Manage solar, wind, and battery storage deployments across distributed sites with dependency mapping, permitting timelines, and interconnection queue tracking.", color: "text-green-600 bg-green-100 dark:bg-green-900/40 dark:text-green-400" },
+    { icon: Shield, title: "NERC/FERC Compliance", description: "Stay ahead of NERC CIP, FERC, and state regulatory requirements with built-in compliance milestone tracking and automated alerts before audit deadlines slip.", color: "text-teal-600 bg-teal-100 dark:bg-teal-900/40 dark:text-teal-400" },
+    { icon: Users, title: "Capital Project Portfolio Management", description: "Balance resources and budgets across transmission, distribution, generation, and IT modernization initiatives with capacity planning and workload dashboards.", color: "text-lime-600 bg-lime-100 dark:bg-lime-900/40 dark:text-lime-400" },
+  ],
+  featuresBadge: "The Solution",
+  featuresTitle: "One Platform for Your Entire Utility Portfolio",
+  featuresSubtitle: "FridayReport.AI brings AI-powered portfolio management to energy and utilities, giving you the visibility and control your leadership team needs.",
+  features: [
+    { icon: Layers, title: "Portfolio Oversight for Utility Programs", description: "See every initiative across your utility in one view — from grid modernization and renewable deployments to smart meter rollouts and compliance programs.", image: networkImage },
+    { icon: AlertTriangle, title: "AI-Powered Risk Detection for Grid Projects", description: "Our AI continuously monitors your project portfolio for schedule risks, budget overruns, and resource conflicts — alerting you before small issues become costly outages or regulatory violations.", image: complianceImage },
+    { icon: FileCheck, title: "Regulatory Compliance Tracking (NERC CIP)", description: "Track NERC CIP milestones, FERC filing deadlines, state PUC requirements, and environmental permits alongside your capital projects. Never miss a compliance deadline again.", image: networkImage },
+  ],
+  useCasesBadge: "Use Cases",
+  useCasesTitle: "Built for the Way Energy Companies Deliver Projects",
+  useCasesSubtitle: "Whether you are upgrading the grid, deploying renewables, or modernizing infrastructure — FridayReport.AI adapts to your workflow.",
+  useCases: [
+    { title: "Grid Modernization", description: "Plan multi-phase grid upgrade programs with task dependencies, substation milestones, and automated status reporting to executive leadership and regulators.", icon: Zap },
+    { title: "Renewable Energy Deployments", description: "Track solar farm construction, wind turbine installations, and battery storage projects across multiple sites with permitting, procurement, and interconnection timelines.", icon: Leaf },
+    { title: "Smart Meter Rollouts", description: "Coordinate AMI deployments across service territories with vendor management, field crew scheduling, and customer communication tracking at scale.", icon: BarChart3 },
+    { title: "Pipeline & Transmission Projects", description: "Manage pipeline integrity programs, transmission line upgrades, and right-of-way acquisitions with regulatory milestone tracking and multi-stakeholder coordination.", icon: TrendingUp },
+  ],
+  stats: [
+    { value: "60%", label: "Faster Status Reporting", description: "AI generates weekly reports automatically" },
+    { value: "100%", label: "Portfolio Visibility", description: "Real-time health across all initiatives" },
+    { value: "3x", label: "Faster Risk Detection", description: "AI spots issues before they escalate" },
+    { value: "0", label: "Missed Deadlines", description: "Proactive alerts keep projects on track" },
+  ],
+  comparisonSubtitle: "See why energy PMOs choose FridayReport.AI over generic project management tools.",
+  ctaTitle: "Ready to Modernize Your Energy PMO?",
+  ctaSubtitle: "Join energy and utility organizations that have already streamlined their project management with AI-powered tools designed for the unique demands of the energy sector.",
+  ctaItems: [
+    { icon: Zap, text: "Set up in minutes, not months" },
+    { icon: Shield, text: "Enterprise-grade security" },
+    { icon: Clock, text: "Free forever plan — no strings attached" },
+    { icon: Target, text: "Import existing projects from MS Project, Planner, and more" },
+  ],
+  signupSubtitle: "Get your energy PMO up and running in minutes",
+  emailPlaceholder: "you@utility.com",
+  footerLabel: "Energy & Utilities Project Management",
+  images: { hero: heroImage, clientLogo3, clientLogo4 },
+};

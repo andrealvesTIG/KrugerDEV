@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, Plus, Edit, Trash2, ChevronDown, ChevronRight, BookOpen, HelpCircle, GraduationCap, Upload, Eye, EyeOff, Check, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { allModules as staticModules } from "@/lib/trainingData";
+import { loadFallbackModules } from "@/lib/trainingData";
+import type { TrainingModule } from "@/lib/trainingData";
 
 interface TrainingModuleRecord {
   id: number;
@@ -76,6 +77,15 @@ export function TrainingManagementTab() {
 
   const [seedConfirmOpen, setSeedConfirmOpen] = useState(false);
 
+  const [staticModules, setStaticModules] = useState<TrainingModule[]>([]);
+  const [staticModulesLoaded, setStaticModulesLoaded] = useState(false);
+  useEffect(() => {
+    loadFallbackModules().then((mods) => {
+      setStaticModules(mods);
+      setStaticModulesLoaded(true);
+    });
+  }, []);
+
   const { data: modules, isLoading: modulesLoading, isError: modulesError } = useQuery<TrainingModuleRecord[]>({
     queryKey: ['/api/admin/training/modules'],
     staleTime: 0,
@@ -83,8 +93,10 @@ export function TrainingManagementTab() {
 
   const seedMutation = useMutation({
     mutationFn: async () => {
+      const mods = staticModules.length > 0 ? staticModules : await loadFallbackModules();
+      if (mods.length === 0) throw new Error("Failed to load training module templates");
       const payload = {
-        modules: staticModules.map((mod, i) => ({
+        modules: mods.map((mod, i) => ({
           moduleKey: mod.id,
           name: mod.name,
           subtitle: mod.subtitle,
@@ -158,7 +170,7 @@ export function TrainingManagementTab() {
         </div>
         <div className="flex gap-2">
           {!hasData && (
-            <Button variant="outline" onClick={() => setSeedConfirmOpen(true)} disabled={seedMutation.isPending}>
+            <Button variant="outline" onClick={() => setSeedConfirmOpen(true)} disabled={seedMutation.isPending || !staticModulesLoaded}>
               {seedMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
               Seed from Template
             </Button>
@@ -178,7 +190,7 @@ export function TrainingManagementTab() {
             <p className="text-sm text-muted-foreground mb-4">
               Get started by seeding the default training content or creating modules manually.
             </p>
-            <Button variant="outline" onClick={() => setSeedConfirmOpen(true)} disabled={seedMutation.isPending}>
+            <Button variant="outline" onClick={() => setSeedConfirmOpen(true)} disabled={seedMutation.isPending || !staticModulesLoaded}>
               {seedMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
               Seed Default Content
             </Button>
@@ -264,7 +276,7 @@ export function TrainingManagementTab() {
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSeedConfirmOpen(false)}>Cancel</Button>
-            <Button onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending}>
+            <Button onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending || !staticModulesLoaded}>
               {seedMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
               Seed Content
             </Button>

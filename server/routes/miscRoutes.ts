@@ -3445,7 +3445,7 @@ async function seedTrainingDataIfEmpty() {
   console.log('[training] No training data found, auto-seeding from static content...');
 
   try {
-    const { allModules: staticModules } = await import('../../client/src/lib/trainingData');
+    const { allModules: staticModules } = await import('../../client/src/lib/trainingModulesData');
     await db.transaction(async (tx) => {
       for (let i = 0; i < staticModules.length; i++) {
         const mod = staticModules[i];
