@@ -14989,7 +14989,6 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           description: item.description,
           startDate: item.startDate,
           endDate: item.endDate,
-          duration: item.duration,
           durationDays: item.durationDays,
           outlineLevel: item.outlineLevel,
           parentTaskId: item.parentTaskId,
@@ -14997,7 +14996,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           isMilestone: item.isMilestone,
           predecessors: item.predecessors,
           notes: item.notes,
-          workHours: item.workHours?.toString() || null,
+          workHours: item.workHours ? Number(item.workHours) : null,
         }));
         await storage.createProjectTemplateItems(newItems);
       }
