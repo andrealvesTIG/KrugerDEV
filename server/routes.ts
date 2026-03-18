@@ -22660,8 +22660,8 @@ Return ONLY valid JSON.`;
         const delegateRes = resources.find(r => r.userId === d.delegateId);
         return {
           ...d,
-          delegatorName: delegatorRes?.displayName || delegatorRes?.name || 'Unknown',
-          delegateName: delegateRes?.displayName || delegateRes?.name || 'Unknown',
+          delegatorName: delegatorRes?.displayName || [delegatorRes?.firstName, delegatorRes?.lastName].filter(Boolean).join(' ') || 'Unknown',
+          delegateName: delegateRes?.displayName || [delegateRes?.firstName, delegateRes?.lastName].filter(Boolean).join(' ') || 'Unknown',
         };
       });
       res.json(enriched);
