@@ -3,7 +3,8 @@ import { Link } from "wouter";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png"; 
 import { usePaginatedTasks, useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskHistory } from "@/hooks/use-tasks";
-import { TaskDependenciesSection } from "@/components/TaskDependenciesSection"; 
+import { TaskDependenciesSection, type TaskDependenciesSectionHandle, type PendingDepChange } from "@/components/TaskDependenciesSection";
+import { useUpdateTaskDependency } from "@/hooks/use-tasks"; 
 import { useExternalTasks } from "@/hooks/use-external-shares";
 import { ExternalBadge } from "@/components/ExternalBadge";
 import { useProjects } from "@/hooks/use-projects";
@@ -92,6 +93,9 @@ export default function Tasks() {
   const lastInitializedTaskId = useRef<number | null>(null);
   // Track when an invite already assigned resources to prevent form from overwriting
   const inviteAssignedRef = useRef(false);
+  const depsRef = useRef<TaskDependenciesSectionHandle>(null);
+  const [pendingDepChanges, setPendingDepChanges] = useState<Map<number, PendingDepChange>>(new Map());
+  const updateDependency = useUpdateTaskDependency();
 
   // Only sync selectedResourceIds and allocations from server on INITIAL load for a task
   // Don't overwrite user changes when query refetches
@@ -320,6 +324,7 @@ export default function Tasks() {
   };
 
   const openEditDialog = (task: Task) => {
+    setPendingDepChanges(new Map());
     setEditingTask(task);
     const taskDuration = task.durationDays ?? (task.startDate && task.endDate 
       ? calculateDurationInWorkingDays(task.startDate, task.endDate) 
@@ -427,6 +432,8 @@ export default function Tasks() {
     };
 
     if (editingTask) {
+      const depChangesToApply = Array.from(pendingDepChanges.values());
+
       updateTask.mutate({ id: editingTask.id, ...taskData }, {
         onSuccess: (result) => {
           if (!inviteAssignedRef.current) {
@@ -437,11 +444,32 @@ export default function Tasks() {
             });
           }
           inviteAssignedRef.current = false;
-          if (result?.datesCorrectedByDependency) {
+
+          if (depChangesToApply.length > 0) {
+            let completed = 0;
+            for (const change of depChangesToApply) {
+              updateDependency.mutate(
+                { taskId: editingTask.id, dependsOnTaskId: change.dependsOnTaskId, dependencyType: change.dependencyType, lagDays: change.lagDays, projectId: editingTask.projectId },
+                {
+                  onSuccess: () => {
+                    completed++;
+                    if (completed === depChangesToApply.length) {
+                      toast({ title: "Success", description: "Task and dependencies updated" });
+                    }
+                  },
+                  onError: (error: any) => {
+                    toast({ title: "Error", description: error?.message || "Failed to update dependency", variant: "destructive" });
+                  }
+                }
+              );
+            }
+          } else if (result?.datesCorrectedByDependency) {
             toast({ title: "Dates adjusted", description: "The start date was adjusted to respect task dependencies", variant: "default" });
           } else {
             toast({ title: "Success", description: "Task updated" });
           }
+
+          setPendingDepChanges(new Map());
           setIsDialogOpen(false);
           setEditingTask(null);
         },
@@ -689,7 +717,7 @@ export default function Tasks() {
             organizationId={currentOrganization?.id ?? null}
           />
 
-          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingTask(null); }}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) { setPendingDepChanges(new Map()); setEditingTask(null); } }}>
             <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col">
               <DialogHeader>
                 <DialogTitle>{editingTask ? "Edit Task" : "Add New Task"}</DialogTitle>
@@ -1014,9 +1042,12 @@ export default function Tasks() {
                     <TabsContent value="dependencies" className="mt-0">
                       {editingTask ? (
                         <TaskDependenciesSection
+                          ref={depsRef}
                           taskId={editingTask.id}
                           projectId={editingTask.projectId}
                           allTasks={editingTaskProjectTasks || []}
+                          pendingChanges={pendingDepChanges}
+                          onPendingChangesUpdate={setPendingDepChanges}
                         />
                       ) : (
                         <div className="text-sm text-muted-foreground text-center py-8">
@@ -1065,6 +1096,7 @@ export default function Tasks() {
                       type="button" 
                       variant="outline" 
                       onClick={() => {
+                        setPendingDepChanges(new Map());
                         setIsDialogOpen(false);
                         setEditingTask(null);
                       }}

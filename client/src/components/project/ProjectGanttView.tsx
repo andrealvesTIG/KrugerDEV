@@ -1184,7 +1184,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'durationDays':
               const calculatedDuration = task.durationDays != null ? task.durationDays : (precomputedDates?.duration ?? ((task.startDate && task.endDate)
-                ? calculateDurationInWorkingDays(task.startDate, task.endDate)
+                ? (task.startDate === task.endDate ? 0 : calculateDurationInWorkingDays(task.startDate, task.endDate))
                 : null));
               return (
                 <InlineEditCell
@@ -1573,8 +1573,9 @@ const ProjectGanttTaskRowTimeline = memo(function ProjectGanttTaskRowTimeline({
   // - durationDays > 0 && isMilestone: Bar + diamond at end date
   // - durationDays > 0 && !isMilestone: Bar only
   const isMarkedAsMilestone = task.isMilestone === true;
-  const isZeroDuration = task.durationDays !== null && task.durationDays !== undefined && task.durationDays === 0;
-  const effectiveDuration = task.durationDays ?? (start && end ? differenceInDays(end, start) + 1 : null);
+  const isSameDate = start && end && differenceInDays(end, start) === 0;
+  const isZeroDuration = (task.durationDays !== null && task.durationDays !== undefined && task.durationDays === 0) || (task.durationDays == null && isSameDate);
+  const effectiveDuration = task.durationDays ?? (start && end ? (isSameDate ? 0 : differenceInDays(end, start) + 1) : null);
   const hasDuration = effectiveDuration !== null && effectiveDuration > 0;
   
   // Diamond only: 0-duration tasks or milestones with no duration
@@ -3422,7 +3423,7 @@ function ProjectGanttView({
       const actualStart = t.actualStartDate ? parseISO(t.actualStartDate) : null;
       const actualEnd = t.actualEndDate ? parseISO(t.actualEndDate) : null;
       const constraintDate = t.constraintDate ? parseISO(t.constraintDate) : null;
-      const duration = t.durationDays != null ? t.durationDays : ((start && end) ? calculateDurationInWorkingDays(t.startDate, t.endDate) : null);
+      const duration = t.durationDays != null ? t.durationDays : ((start && end) ? (t.startDate === t.endDate ? 0 : calculateDurationInWorkingDays(t.startDate, t.endDate)) : null);
       map.set(t.id, {
         start,
         end,

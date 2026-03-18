@@ -18,7 +18,8 @@ import { cn, normalizeSearch } from "@/lib/utils";
 import { insertTaskSchema } from "@shared/schema";
 import type { Task, TaskResourceAssignment, Resource } from "@shared/schema";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
-import { TaskDependenciesSection } from "@/components/TaskDependenciesSection";
+import { TaskDependenciesSection, type TaskDependenciesSectionHandle, type PendingDepChange } from "@/components/TaskDependenciesSection";
+import { useUpdateTaskDependency } from "@/hooks/use-tasks";
 const ProjectGanttView = lazy(() => import("@/components/project/ProjectGanttView"));
 import ProjectKanbanView, { ProjectTaskHistoryDialog } from "@/components/project/ProjectKanbanView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -264,6 +265,9 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
   const lastInitializedTaskId = useRef<number | null>(null);
   const inviteAssignedRef = useRef(false);
+  const depsRef = useRef<TaskDependenciesSectionHandle>(null);
+  const [pendingDepChanges, setPendingDepChanges] = useState<Map<number, PendingDepChange>>(new Map());
+  const updateDependency = useUpdateTaskDependency();
   
   // Get sidebar state to calculate fullscreen positioning
   // Sidebar is w-72 (288px) when expanded, w-20 (80px) when collapsed
@@ -388,10 +392,11 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   };
 
   const openEditDialog = (task: Task, tab: string = "details") => {
+    setPendingDepChanges(new Map());
     setEditingTask(task);
     setActiveDialogTab(tab);
     const taskDuration = task.durationDays ?? (task.startDate && task.endDate 
-      ? calculateDurationInWorkingDays(task.startDate, task.endDate) 
+      ? (task.startDate === task.endDate ? 0 : calculateDurationInWorkingDays(task.startDate, task.endDate))
       : 1);
     setDurationInput(formatDuration(taskDuration));
     setIsMilestone(task.isMilestone || false);
@@ -469,17 +474,40 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     };
 
     if (editingTask) {
+      const depChangesToApply = Array.from(pendingDepChanges.values());
+
       updateTask.mutate({ id: editingTask.id, ...taskData }, {
         onSuccess: (result) => {
           if (!inviteAssignedRef.current) {
             updateTaskResources.mutate({ taskId: editingTask.id, resourceIds: selectedResourceIds });
           }
           inviteAssignedRef.current = false;
-          if (result?.datesCorrectedByDependency) {
+
+          if (depChangesToApply.length > 0) {
+            let completed = 0;
+            for (const change of depChangesToApply) {
+              updateDependency.mutate(
+                { taskId: editingTask.id, dependsOnTaskId: change.dependsOnTaskId, dependencyType: change.dependencyType, lagDays: change.lagDays, projectId },
+                {
+                  onSuccess: () => {
+                    completed++;
+                    if (completed === depChangesToApply.length) {
+                      toast({ title: "Success", description: "Task and dependencies updated" });
+                    }
+                  },
+                  onError: (error: any) => {
+                    toast({ title: "Error", description: error?.message || "Failed to update dependency", variant: "destructive" });
+                  }
+                }
+              );
+            }
+          } else if (result?.datesCorrectedByDependency) {
             toast({ title: "Dates adjusted", description: "The start date was adjusted to respect task dependencies", variant: "default" });
           } else {
             toast({ title: "Success", description: "Task updated" });
           }
+
+          setPendingDepChanges(new Map());
           setIsDialogOpen(false);
           setEditingTask(null);
         },
@@ -879,7 +907,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               data-testid="input-task-search"
             />
           </div>
-          {<Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingTask(null); }}>
+          {<Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) { setPendingDepChanges(new Map()); setEditingTask(null); } }}>
             <DialogTrigger asChild>
               <Button onClick={openCreateDialog} disabled={readOnly} data-testid="button-add-task">
                 <Plus className="mr-2 h-4 w-4" /> Add Task
@@ -1174,9 +1202,12 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                       </div>
                     ) : editingTask ? (
                       <TaskDependenciesSection 
+                        ref={depsRef}
                         taskId={editingTask.id} 
                         projectId={projectId}
                         allTasks={tasks || []}
+                        pendingChanges={pendingDepChanges}
+                        onPendingChangesUpdate={setPendingDepChanges}
                       />
                     ) : (
                       <div className="text-sm text-muted-foreground text-center py-8">
@@ -1225,6 +1256,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                     type="button" 
                     variant="outline" 
                     onClick={() => {
+                      setPendingDepChanges(new Map());
                       setIsDialogOpen(false);
                       setEditingTask(null);
                     }}
