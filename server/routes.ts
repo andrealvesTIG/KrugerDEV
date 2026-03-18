@@ -28,7 +28,7 @@ import * as path from "path";
 import * as os from "os";
 import * as crypto from "crypto";
 import OpenAI from "openai";
-import { addWorkingDays, ensureWorkingDay, calculateEndDate, calculateDuration, nextWorkingDay, formatDateStr } from "./lib/workingDays";
+import { addWorkingDays, ensureWorkingDay, calculateEndDate, calculateDuration, nextWorkingDay, formatDateStr, workingDaysBetweenExclusive } from "./lib/workingDays";
 
 const ENCRYPTION_KEY = process.env.SESSION_SECRET || 'fridayreport-default-encryption-key-32ch';
 function encryptApiKey(plaintext: string): string {
@@ -496,7 +496,7 @@ async function seedDatabase() {
       priority: "High",
       startDate: "2025-01-01",
       endDate: "2025-06-30",
-      budget: 450000,
+      budget: "450000",
       managerId: null,
       health: "Green",
       completionPercentage: 45
@@ -512,7 +512,7 @@ async function seedDatabase() {
       priority: "Critical",
       startDate: "2025-02-15",
       endDate: "2025-09-15",
-      budget: 800000,
+      budget: "800000",
       managerId: null,
       health: "Yellow",
       completionPercentage: 15
@@ -529,7 +529,7 @@ async function seedDatabase() {
       priority: "High",
       startDate: "2024-11-01",
       endDate: "2025-05-31",
-      budget: 350000,
+      budget: "350000",
       managerId: null,
       health: "Green",
       completionPercentage: 60
@@ -545,7 +545,7 @@ async function seedDatabase() {
       priority: "Medium",
       startDate: "2024-10-15",
       endDate: "2025-04-30",
-      budget: 280000,
+      budget: "280000",
       managerId: null,
       health: "Red",
       completionPercentage: 35
@@ -561,7 +561,7 @@ async function seedDatabase() {
       priority: "High",
       startDate: "2025-03-01",
       endDate: "2025-07-31",
-      budget: 180000,
+      budget: "180000",
       managerId: null,
       health: "Green",
       completionPercentage: 5
@@ -578,7 +578,7 @@ async function seedDatabase() {
       priority: "Critical",
       startDate: "2024-12-01",
       endDate: "2025-06-30",
-      budget: 400000,
+      budget: "400000",
       managerId: null,
       health: "Yellow",
       completionPercentage: 40
@@ -594,7 +594,7 @@ async function seedDatabase() {
       priority: "Medium",
       startDate: "2024-09-01",
       endDate: "2025-01-31",
-      budget: 120000,
+      budget: "120000",
       managerId: null,
       health: "Green",
       completionPercentage: 90
@@ -851,7 +851,7 @@ async function seedDatabase() {
       impact: "High",
       status: "Open",
       mitigationPlan: "Early review of App Store guidelines, implement in-app purchase where required, thorough privacy policy review.",
-      costExposure: 75000,
+      costExposure: "75000",
     });
 
     await storage.createRisk({
@@ -862,7 +862,7 @@ async function seedDatabase() {
       impact: "High",
       status: "Mitigated",
       mitigationPlan: "Implement fallback payment processor (PayPal), add offline cart persistence, display helpful error messages.",
-      costExposure: 120000,
+      costExposure: "120000",
     });
 
     await storage.createRisk({
@@ -873,7 +873,7 @@ async function seedDatabase() {
       impact: "Medium",
       status: "Open",
       mitigationPlan: "Implement connection pooling, add Redis pub/sub for horizontal scaling, load testing at 10x expected traffic.",
-      costExposure: 45000,
+      costExposure: "45000",
     });
 
     await storage.createRisk({
@@ -884,7 +884,7 @@ async function seedDatabase() {
       impact: "High",
       status: "Open",
       mitigationPlan: "Extensive data validation scripts, parallel run of old and new systems, rollback plan within 24 hours.",
-      costExposure: 200000,
+      costExposure: "200000",
     });
 
     await storage.createRisk({
@@ -895,7 +895,7 @@ async function seedDatabase() {
       impact: "High",
       status: "Open",
       mitigationPlan: "Start with basic Kubernetes networking, gradually introduce Istio features, extensive monitoring with Prometheus/Grafana.",
-      costExposure: 85000,
+      costExposure: "85000",
     });
 
     await storage.createRisk({
@@ -906,7 +906,7 @@ async function seedDatabase() {
       impact: "Medium",
       status: "Open",
       mitigationPlan: "Implement Kubecost for cost monitoring, use spot instances for non-critical workloads, regular right-sizing reviews.",
-      costExposure: 60000,
+      costExposure: "60000",
     });
 
     await storage.createRisk({
@@ -917,7 +917,7 @@ async function seedDatabase() {
       impact: "Critical",
       status: "Open",
       mitigationPlan: "Continuous security scanning with Snyk, internal penetration testing before audit, dedicated security sprint buffer.",
-      costExposure: 350000,
+      costExposure: "350000",
     });
 
     // ==================== ISSUES ====================
@@ -931,7 +931,7 @@ async function seedDatabase() {
       status: "In Progress",
       type: "Bug",
       assignee: "James Wilson",
-      costExposure: 15000,
+      costExposure: "15000",
     });
 
     await storage.createIssue({
@@ -942,7 +942,7 @@ async function seedDatabase() {
       status: "Open",
       type: "Enhancement",
       assignee: null,
-      costExposure: 8000,
+      costExposure: "8000",
     });
 
     await storage.createIssue({
@@ -953,7 +953,7 @@ async function seedDatabase() {
       status: "Open",
       type: "Bug",
       assignee: "Maria Garcia",
-      costExposure: 95000,
+      costExposure: "95000",
     });
 
     // SaaS Dashboard Issues
@@ -965,7 +965,7 @@ async function seedDatabase() {
       status: "In Progress",
       type: "Bug",
       assignee: "David Park",
-      costExposure: 12000,
+      costExposure: "12000",
     });
 
     await storage.createIssue({
@@ -976,7 +976,7 @@ async function seedDatabase() {
       status: "Open",
       type: "Enhancement",
       assignee: null,
-      costExposure: 3000,
+      costExposure: "3000",
     });
 
     await storage.createIssue({
@@ -987,7 +987,7 @@ async function seedDatabase() {
       status: "Open",
       type: "Bug",
       assignee: "Emma Thompson",
-      costExposure: 35000,
+      costExposure: "35000",
     });
 
     // CRM Issues
@@ -999,7 +999,7 @@ async function seedDatabase() {
       status: "In Progress",
       type: "Bug",
       assignee: "Backend Team",
-      costExposure: 20000,
+      costExposure: "20000",
     });
 
     await storage.createIssue({
@@ -1010,7 +1010,7 @@ async function seedDatabase() {
       status: "Open",
       type: "Task",
       assignee: null,
-      costExposure: 10000,
+      costExposure: "10000",
     });
 
     // Kubernetes Issues
@@ -1022,7 +1022,7 @@ async function seedDatabase() {
       status: "In Progress",
       type: "Bug",
       assignee: "Chris Lee",
-      costExposure: 150000,
+      costExposure: "150000",
     });
 
     await storage.createIssue({
@@ -1033,7 +1033,7 @@ async function seedDatabase() {
       status: "Open",
       type: "Task",
       assignee: "Jennifer Wu",
-      costExposure: 5000,
+      costExposure: "5000",
     });
 
     await storage.createIssue({
@@ -1044,7 +1044,7 @@ async function seedDatabase() {
       status: "Open",
       type: "Enhancement",
       assignee: "Robert Taylor",
-      costExposure: 25000,
+      costExposure: "25000",
     });
 
     // CI/CD Issues
@@ -1056,7 +1056,7 @@ async function seedDatabase() {
       status: "Resolved",
       type: "Bug",
       assignee: "DevOps Team",
-      costExposure: 18000,
+      costExposure: "18000",
     });
 
     await storage.createIssue({
@@ -1067,7 +1067,7 @@ async function seedDatabase() {
       status: "Closed",
       type: "Enhancement",
       assignee: "DevOps Team",
-      costExposure: 7000,
+      costExposure: "7000",
     });
 
     console.log("Database seeded with software development demo data successfully.");
@@ -1113,7 +1113,7 @@ async function logUserActivity(
       userId,
       action,
       entityType: entityType ?? null,
-      entityId: entityId != null ? String(entityId) : null,
+      entityId: entityId ?? null,
       metadata: metadata ?? null,
       ipAddress: req?.ip ?? null,
       userAgent: req?.headers?.['user-agent'] ?? null,
@@ -5991,7 +5991,7 @@ export async function registerRoutes(
         description: `Imported from Microsoft Planner on ${new Date().toLocaleDateString()}`,
         status: "Initiation",
         priority: "Medium",
-        budget: 0,
+        budget: "0",
         health: "Green",
         startDate: projectStartDate,
         endDate: projectEndDate,
@@ -6056,10 +6056,7 @@ export async function registerRoutes(
           ? plannerTask.dueDateTime.split('T')[0] 
           : (plannerTask.startDateTime ? plannerTask.startDateTime.split('T')[0] : defaultEndDate);
 
-        const hasExplicitStart = !!plannerTask.startDateTime;
-        const hasExplicitDue = !!plannerTask.dueDateTime;
-        const isSameDayMilestone = hasExplicitStart && hasExplicitDue && taskStartDate === taskEndDate;
-        const durationDays = isSameDayMilestone ? 0 : calculateDuration(new Date(taskStartDate), new Date(taskEndDate));
+        const durationDays = calculateDuration(new Date(taskStartDate), new Date(taskEndDate));
         const taskIsMilestone = durationDays === 0;
 
         const task = await storage.createTask({
@@ -6389,7 +6386,7 @@ export async function registerRoutes(
         description: `Imported from Planner Premium on ${new Date().toLocaleDateString()}`,
         status: "Initiation",
         priority: "Medium",
-        budget: 0,
+        budget: "0",
         health: "Green",
         startDate: projectStartDate,
         endDate: projectEndDate,
@@ -6795,95 +6792,11 @@ export async function registerRoutes(
         // Continue without failing the import - resources are optional
       }
 
-      let dependenciesImported = 0;
-      try {
-        const depApiUrls = [
-          `${environmentUrl}/api/data/v9.2/msdyn_projecttaskdependencies?$select=msdyn_projecttaskdependencyid,_msdyn_successortask_value,_msdyn_predecessortask_value,msdyn_linktype&$filter=_msdyn_project_value eq ${planId}`,
-          `${environmentUrl}/api/data/v9.2/msdyn_projecttaskdependencies?$filter=_msdyn_project_value eq ${planId}`,
-        ];
-
-        let depResponse: Response | null = null;
-        let depFetched = false;
-
-        for (let i = 0; i < depApiUrls.length; i++) {
-          depResponse = await fetch(depApiUrls[i], {
-            headers: {
-              "Authorization": `Bearer ${token}`,
-              "Content-Type": "application/json",
-              "OData-MaxVersion": "4.0",
-              "OData-Version": "4.0",
-            },
-          });
-          if (depResponse.ok) {
-            console.log(`Import: Successfully fetched task dependencies using API variant ${i + 1}`);
-            depFetched = true;
-            break;
-          }
-          console.log(`Import: Dependencies API attempt ${i + 1} failed (status ${depResponse.status}), trying next...`);
-        }
-
-        if (depResponse && depFetched) {
-          let allDvDependencies: any[] = [];
-          let depData = await depResponse.json();
-          allDvDependencies = allDvDependencies.concat(depData.value || []);
-
-          while (depData['@odata.nextLink']) {
-            const nextResponse = await fetch(depData['@odata.nextLink'], {
-              headers: {
-                "Authorization": `Bearer ${token}`,
-                "Content-Type": "application/json",
-                "OData-MaxVersion": "4.0",
-                "OData-Version": "4.0",
-              },
-            });
-            if (!nextResponse.ok) break;
-            depData = await nextResponse.json();
-            allDvDependencies = allDvDependencies.concat(depData.value || []);
-          }
-
-          const dvDependencies = allDvDependencies;
-          console.log(`Import: Found ${dvDependencies.length} task dependencies in Dataverse`);
-
-          for (const dep of dvDependencies) {
-            const successorTaskId = dep._msdyn_successortask_value;
-            const predecessorTaskId = dep._msdyn_predecessortask_value;
-
-            if (!successorTaskId || !predecessorTaskId) continue;
-
-            const ourSuccessorId = taskIdMap.get(successorTaskId);
-            const ourPredecessorId = taskIdMap.get(predecessorTaskId);
-
-            if (ourSuccessorId && ourPredecessorId) {
-              let dependencyType = 'finish-to-start';
-              if (dep.msdyn_linktype === 192350001) dependencyType = 'finish-to-finish';
-              else if (dep.msdyn_linktype === 192350002) dependencyType = 'start-to-start';
-              else if (dep.msdyn_linktype === 192350003) dependencyType = 'start-to-finish';
-
-              try {
-                await db.insert(taskDependencies).values({
-                  taskId: ourSuccessorId,
-                  dependsOnTaskId: ourPredecessorId,
-                  dependencyType,
-                  lagDays: 0,
-                });
-                dependenciesImported++;
-              } catch (depInsertErr) {
-                console.log(`Import: Failed to create dependency (successor ${ourSuccessorId} -> predecessor ${ourPredecessorId}):`, depInsertErr);
-              }
-            }
-          }
-          console.log(`Import: Created ${dependenciesImported} task dependencies from Dataverse`);
-        }
-      } catch (depErr) {
-        console.log("Import: Error importing dependencies from Dataverse:", depErr);
-      }
-
       res.status(201).json({ 
         project,
         tasksCreated: createdTasks.length,
         resourcesImported,
-        dependenciesImported,
-        message: `Successfully imported "${plan.msdyn_subject || project.name}" with ${createdTasks.length} tasks${resourcesImported > 0 ? ` and ${resourcesImported} new resources` : ''}${dependenciesImported > 0 ? ` and ${dependenciesImported} dependencies` : ''} from Planner Premium`
+        message: `Successfully imported "${plan.msdyn_subject || project.name}" with ${createdTasks.length} tasks${resourcesImported > 0 ? ` and ${resourcesImported} new resources` : ''} from Planner Premium`
       });
     } catch (err: any) {
       console.error("Dataverse import error:", err);
@@ -7055,8 +6968,8 @@ export async function registerRoutes(
         
         // Preserve hours (estimatedHours, actualHours) by externalId and task name
         // externalId is the primary key for matching (survives renames), task name is fallback
-        const hoursByExternalId = new Map<string, { estimatedHours: number | null; actualHours: number | null }>();
-        const hoursByTaskName = new Map<string, { estimatedHours: number | null; actualHours: number | null }>();
+        const hoursByExternalId = new Map<string, { estimatedHours: string | null; actualHours: string | null }>();
+        const hoursByTaskName = new Map<string, { estimatedHours: string | null; actualHours: string | null }>();
         for (const task of existingTasks) {
           if (task.estimatedHours || task.actualHours) {
             const hoursData = { estimatedHours: task.estimatedHours, actualHours: task.actualHours };
@@ -7651,90 +7564,6 @@ export async function registerRoutes(
           // Continue without failing the sync - resources are optional
         }
 
-        let dataverseDepsImported = 0;
-        let dataverseDepsFetchedSuccessfully = false;
-        try {
-          const depApiUrls = [
-            `${environmentUrl}/api/data/v9.2/msdyn_projecttaskdependencies?$select=msdyn_projecttaskdependencyid,_msdyn_successortask_value,_msdyn_predecessortask_value,msdyn_linktype&$filter=_msdyn_project_value eq ${planId}`,
-            `${environmentUrl}/api/data/v9.2/msdyn_projecttaskdependencies?$filter=_msdyn_project_value eq ${planId}`,
-          ];
-
-          let depResponse: Response | null = null;
-          let depFetched = false;
-
-          for (let i = 0; i < depApiUrls.length; i++) {
-            depResponse = await fetch(depApiUrls[i], {
-              headers: {
-                "Authorization": `Bearer ${dataverseToken}`,
-                "Content-Type": "application/json",
-                "OData-MaxVersion": "4.0",
-                "OData-Version": "4.0",
-              },
-            });
-            if (depResponse.ok) {
-              console.log(`Planner Premium sync: Successfully fetched task dependencies using API variant ${i + 1}`);
-              depFetched = true;
-              break;
-            }
-            console.log(`Planner Premium sync: Dependencies API attempt ${i + 1} failed (status ${depResponse.status}), trying next...`);
-          }
-
-          if (depResponse && depFetched) {
-            dataverseDepsFetchedSuccessfully = true;
-            let allDvDependencies: any[] = [];
-            let depData = await depResponse.json();
-            allDvDependencies = allDvDependencies.concat(depData.value || []);
-
-            while (depData['@odata.nextLink']) {
-              const nextResponse = await fetch(depData['@odata.nextLink'], {
-                headers: {
-                  "Authorization": `Bearer ${dataverseToken}`,
-                  "Content-Type": "application/json",
-                  "OData-MaxVersion": "4.0",
-                  "OData-Version": "4.0",
-                },
-              });
-              if (!nextResponse.ok) break;
-              depData = await nextResponse.json();
-              allDvDependencies = allDvDependencies.concat(depData.value || []);
-            }
-
-            console.log(`Planner Premium sync: Found ${allDvDependencies.length} task dependencies in Dataverse`);
-
-            for (const dep of allDvDependencies) {
-              const successorTaskId = dep._msdyn_successortask_value;
-              const predecessorTaskId = dep._msdyn_predecessortask_value;
-
-              if (!successorTaskId || !predecessorTaskId) continue;
-
-              const ourSuccessorId = taskIdMap.get(successorTaskId);
-              const ourPredecessorId = taskIdMap.get(predecessorTaskId);
-
-              if (ourSuccessorId && ourPredecessorId) {
-                let dependencyType = 'finish-to-start';
-                if (dep.msdyn_linktype === 192350001) dependencyType = 'finish-to-finish';
-                else if (dep.msdyn_linktype === 192350002) dependencyType = 'start-to-start';
-                else if (dep.msdyn_linktype === 192350003) dependencyType = 'start-to-finish';
-
-                try {
-                  await db.insert(taskDependencies).values({
-                    taskId: ourSuccessorId,
-                    dependsOnTaskId: ourPredecessorId,
-                    dependencyType,
-                    lagDays: 0,
-                  });
-                  dataverseDepsImported++;
-                } catch (depInsertErr) {
-                  console.log(`Planner Premium sync: Failed to create dependency:`, depInsertErr);
-                }
-              }
-            }
-            console.log(`Planner Premium sync: Created ${dataverseDepsImported} task dependencies from Dataverse`);
-          }
-        } catch (depErr) {
-          console.log("Planner Premium sync: Error importing dependencies from Dataverse:", depErr);
-        }
-
         // Reassign preserved data to new tasks using externalId (primary) and task name (fallback)
         let timesheetEntriesPreserved = 0;
         let timesheetEntriesLost = 0;
@@ -7963,66 +7792,63 @@ export async function registerRoutes(
           console.log(`Planner Premium sync: Preserved ${changeLogsPreserved} change logs, lost ${changeLogsLost}`);
         }
         
+        // Restore task dependencies - externalId first, task name fallback
         let dependenciesPreserved = 0;
         let dependenciesLost = 0;
-        if (dataverseDepsFetchedSuccessfully) {
-          console.log(`Planner Premium sync: Skipping preserved dependency restoration — Dataverse is source of truth (${dataverseDepsImported} dependencies imported)`);
-        } else {
-          const processedDepExtIds = new Set<string>();
-          for (const [extId, deps] of dependenciesByExternalId) {
-            const newTaskId = newExternalIdToTaskId.get(extId);
-            processedDepExtIds.add(extId);
-            if (newTaskId) {
-              for (const dep of deps) {
-                const dependsOnTaskId = resolveNewTaskId(dep.dependsOnExternalId, dep.dependsOnTaskName);
-                if (dependsOnTaskId) {
-                  try {
-                    await db.insert(taskDependencies).values({
-                      taskId: newTaskId,
-                      dependsOnTaskId: dependsOnTaskId,
-                      dependencyType: dep.dependencyType,
-                      lagDays: dep.lagDays,
-                    });
-                    dependenciesPreserved++;
-                  } catch (err) {
-                    console.log(`Planner Premium sync: Failed to preserve dependency:`, err);
-                    dependenciesLost++;
-                  }
-                } else {
+        const processedDepExtIds = new Set<string>();
+        for (const [extId, deps] of dependenciesByExternalId) {
+          const newTaskId = newExternalIdToTaskId.get(extId);
+          processedDepExtIds.add(extId);
+          if (newTaskId) {
+            for (const dep of deps) {
+              const dependsOnTaskId = resolveNewTaskId(dep.dependsOnExternalId, dep.dependsOnTaskName);
+              if (dependsOnTaskId) {
+                try {
+                  await db.insert(taskDependencies).values({
+                    taskId: newTaskId,
+                    dependsOnTaskId: dependsOnTaskId,
+                    dependencyType: dep.dependencyType,
+                    lagDays: dep.lagDays,
+                  });
+                  dependenciesPreserved++;
+                } catch (err) {
+                  console.log(`Planner Premium sync: Failed to preserve dependency:`, err);
                   dependenciesLost++;
                 }
+              } else {
+                dependenciesLost++;
               }
-            } else {
-              dependenciesLost += deps.length;
             }
+          } else {
+            dependenciesLost += deps.length;
           }
-          for (const [taskName, deps] of dependenciesByTaskNames) {
-            const matchingTask = existingTasks.find(t => t.name.toLowerCase().trim() === taskName && t.externalId && processedDepExtIds.has(t.externalId));
-            if (matchingTask) continue;
-            const newTaskId = newTaskNameToId.get(taskName);
-            if (newTaskId) {
-              for (const dep of deps) {
-                const dependsOnTaskId = resolveNewTaskId(dep.dependsOnExternalId, dep.dependsOnTaskName);
-                if (dependsOnTaskId) {
-                  try {
-                    await db.insert(taskDependencies).values({
-                      taskId: newTaskId,
-                      dependsOnTaskId: dependsOnTaskId,
-                      dependencyType: dep.dependencyType,
-                      lagDays: dep.lagDays,
-                    });
-                    dependenciesPreserved++;
-                  } catch (err) {
-                    console.log(`Planner Premium sync: Failed to preserve dependency:`, err);
-                    dependenciesLost++;
-                  }
-                } else {
+        }
+        for (const [taskName, deps] of dependenciesByTaskNames) {
+          const matchingTask = existingTasks.find(t => t.name.toLowerCase().trim() === taskName && t.externalId && processedDepExtIds.has(t.externalId));
+          if (matchingTask) continue;
+          const newTaskId = newTaskNameToId.get(taskName);
+          if (newTaskId) {
+            for (const dep of deps) {
+              const dependsOnTaskId = resolveNewTaskId(dep.dependsOnExternalId, dep.dependsOnTaskName);
+              if (dependsOnTaskId) {
+                try {
+                  await db.insert(taskDependencies).values({
+                    taskId: newTaskId,
+                    dependsOnTaskId: dependsOnTaskId,
+                    dependencyType: dep.dependencyType,
+                    lagDays: dep.lagDays,
+                  });
+                  dependenciesPreserved++;
+                } catch (err) {
+                  console.log(`Planner Premium sync: Failed to preserve dependency:`, err);
                   dependenciesLost++;
                 }
+              } else {
+                dependenciesLost++;
               }
-            } else {
-              dependenciesLost += deps.length;
             }
+          } else {
+            dependenciesLost += deps.length;
           }
         }
         if (dependenciesPreserved > 0 || dependenciesLost > 0) {
@@ -8061,7 +7887,6 @@ export async function registerRoutes(
         return res.json({ 
           synced: createdTasks.length,
           resourcesSynced,
-          dataverseDepsImported,
           timesheetEntriesPreserved,
           timesheetEntriesLost,
           changeLogsPreserved,
@@ -8070,7 +7895,7 @@ export async function registerRoutes(
           dependenciesLost,
           issueLinksPreserved,
           issueLinksLost,
-          message: `Successfully synced ${createdTasks.length} tasks${resourcesSynced > 0 ? ` and ${resourcesSynced} new resources` : ''}${dataverseDepsImported > 0 ? ` (imported ${dataverseDepsImported} dependencies)` : ''}${timesheetEntriesPreserved > 0 ? ` (preserved ${timesheetEntriesPreserved} timesheet entries)` : ''}${changeLogsPreserved > 0 ? ` (preserved ${changeLogsPreserved} change logs)` : ''}${dependenciesPreserved > 0 ? ` (preserved ${dependenciesPreserved} dependencies)` : ''}${issueLinksPreserved > 0 ? ` (preserved ${issueLinksPreserved} issue links)` : ''} from Planner Premium`
+          message: `Successfully synced ${createdTasks.length} tasks${resourcesSynced > 0 ? ` and ${resourcesSynced} new resources` : ''}${timesheetEntriesPreserved > 0 ? ` (preserved ${timesheetEntriesPreserved} timesheet entries)` : ''}${changeLogsPreserved > 0 ? ` (preserved ${changeLogsPreserved} change logs)` : ''}${dependenciesPreserved > 0 ? ` (preserved ${dependenciesPreserved} dependencies)` : ''}${issueLinksPreserved > 0 ? ` (preserved ${issueLinksPreserved} issue links)` : ''} from Planner Premium`
         });
       }
 
@@ -8128,8 +7953,8 @@ export async function registerRoutes(
       }
       
       // Preserve hours by externalId (primary) and task name (fallback)
-      const hoursByExternalId = new Map<string, { estimatedHours: number | null; actualHours: number | null }>();
-      const hoursByTaskName = new Map<string, { estimatedHours: number | null; actualHours: number | null }>();
+      const hoursByExternalId = new Map<string, { estimatedHours: string | null; actualHours: string | null }>();
+      const hoursByTaskName = new Map<string, { estimatedHours: string | null; actualHours: string | null }>();
       for (const task of existingTasks) {
         if (task.estimatedHours || task.actualHours) {
           const hoursData = { estimatedHours: task.estimatedHours, actualHours: task.actualHours };
@@ -8298,10 +8123,7 @@ export async function registerRoutes(
           ? plannerTask.dueDateTime.split('T')[0] 
           : (plannerTask.startDateTime ? plannerTask.startDateTime.split('T')[0] : defaultEndDate);
 
-        const hasExplicitStart = !!plannerTask.startDateTime;
-        const hasExplicitDue = !!plannerTask.dueDateTime;
-        const isSameDayMilestone = hasExplicitStart && hasExplicitDue && taskStartDate === taskEndDate;
-        const durationDays = isSameDayMilestone ? 0 : calculateDuration(new Date(taskStartDate), new Date(taskEndDate));
+        const durationDays = calculateDuration(new Date(taskStartDate), new Date(taskEndDate));
         const taskIsMilestone = durationDays === 0;
 
         const task = await storage.createTask({
@@ -9486,10 +9308,10 @@ export async function registerRoutes(
       const totalProgress = tasks.reduce((sum: number, t: any) => sum + (t.progress || 0), 0);
       const overallCompletion = tasks.length > 0 ? Math.round(totalProgress / tasks.length) : 0;
       
-      const budget = financials.reduce((sum, f) => sum + (f.budgetAmount || 0), 0);
-      const actual = financials.reduce((sum, f) => sum + (f.actualAmount || 0), 0);
-      const planned = financials.reduce((sum, f) => sum + (f.plannedAmount || 0), 0);
-      const projectBudget = project.budget || 0;
+      const budget = financials.reduce((sum, f) => sum + parseFloat(f.budgetAmount || "0"), 0);
+      const actual = financials.reduce((sum, f) => sum + parseFloat(f.actualAmount || "0"), 0);
+      const planned = financials.reduce((sum, f) => sum + parseFloat(f.plannedAmount || "0"), 0);
+      const projectBudget = parseFloat(project.budget?.toString() || "0");
       const totalBudget = budget > 0 ? budget : projectBudget;
       const forecast = planned > 0 ? planned : totalBudget;
       const variance = totalBudget - actual;
@@ -9889,9 +9711,9 @@ Generated by FridayReport.AI
           projectHealth: project.health || 'Green',
           projectStatus: project.status,
           completionPercentage: overallCompletion,
-          totalBudget: totalBudget,
-          actualSpent: actual,
-          forecastAmount: forecast,
+          totalBudget: totalBudget.toString(),
+          actualSpent: actual.toString(),
+          forecastAmount: forecast.toString(),
           openRisksCount,
           openIssuesCount,
           completedMilestonesCount,
@@ -10636,13 +10458,14 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       let totalEstimatedHours = 0;
       for (const assignment of assignments) {
         const allocationPct = assignment.allocationPercentage ?? 100;
-        const weeklyCapacity = assignment.resource?.weeklyCapacity || 40;
+        const weeklyCapacityStr = assignment.resource?.weeklyCapacity;
+        const weeklyCapacity = weeklyCapacityStr ? parseFloat(weeklyCapacityStr) : 40;
         const dailyHours = weeklyCapacity / 5;
         const hoursForResource = (allocationPct / 100) * dailyHours * duration;
         totalEstimatedHours += hoursForResource;
       }
       const roundedHours = Math.round(totalEstimatedHours * 100) / 100;
-      await storage.updateTask(taskId, { estimatedHours: roundedHours });
+      await storage.updateTask(taskId, { estimatedHours: String(roundedHours) });
     } else {
       await storage.updateTask(taskId, { estimatedHours: null });
     }
@@ -10787,7 +10610,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     return taskList.map(t => {
       const tsHours = hoursMap.get(t.id);
       if (tsHours !== undefined && tsHours > 0) {
-        return { ...t, actualHours: tsHours };
+        return { ...t, actualHours: String(tsHours) };
       }
       return t;
     });
@@ -11330,7 +11153,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
           input.progress = 50;
         }
       } else if (input.progress !== undefined && input.progress !== (previousTask.progress ?? 0)) {
-        if (incomingStatus === "Not Started" && (input.progress ?? 0) > 0) {
+        if (incomingStatus === "Not Started" && input.progress > 0) {
           input.status = "In Progress";
         }
         if (incomingStatus === "In Progress" && input.progress === 100) {
@@ -11432,6 +11255,53 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         await recalculateTaskEstimatedHours(taskId);
       }
       
+      // When the user manually changes a task's start date, update predecessor dependency
+      // lag days so the dependency reflects the user's chosen date instead of reverting it
+      if (datesChanged && input.startDate && input.startDate !== previousTask.startDate) {
+        const predecessorDeps = await storage.getTaskDependencies(taskId);
+        if (predecessorDeps.length > 0) {
+          for (const dep of predecessorDeps) {
+            const predTask = await storage.getTask(dep.dependsOnTaskId);
+            if (!predTask) continue;
+
+            const dtype = (dep.dependencyType || 'finish-to-start').toLowerCase().replace(/[\s_-]/g, '');
+            const newStart = ensureWorkingDay(new Date(updated.startDate + 'T00:00:00'));
+            const newEnd = updated.endDate ? ensureWorkingDay(new Date(updated.endDate + 'T00:00:00')) : newStart;
+            let referenceDate: Date | null = null;
+            let targetDate: Date;
+
+            if (dtype === 'finishtostart' || dtype === 'fs') {
+              referenceDate = predTask.endDate ? nextWorkingDay(new Date(predTask.endDate + 'T00:00:00')) : null;
+              targetDate = newStart;
+            } else if (dtype === 'starttostart' || dtype === 'ss') {
+              referenceDate = predTask.startDate ? ensureWorkingDay(new Date(predTask.startDate + 'T00:00:00')) : null;
+              targetDate = newStart;
+            } else if (dtype === 'finishtofinish' || dtype === 'ff') {
+              referenceDate = predTask.endDate ? ensureWorkingDay(new Date(predTask.endDate + 'T00:00:00')) : null;
+              targetDate = newEnd;
+            } else if (dtype === 'starttofinish' || dtype === 'sf') {
+              referenceDate = predTask.startDate ? ensureWorkingDay(new Date(predTask.startDate + 'T00:00:00')) : null;
+              targetDate = newEnd;
+            } else {
+              continue;
+            }
+
+            if (referenceDate) {
+              let newLag = 0;
+              if (targetDate > referenceDate) {
+                newLag = workingDaysBetweenExclusive(referenceDate, targetDate);
+              } else if (targetDate < referenceDate) {
+                newLag = -workingDaysBetweenExclusive(targetDate, referenceDate);
+              }
+
+              if (newLag !== (dep.lagDays || 0)) {
+                await storage.updateTaskDependency(taskId, dep.dependsOnTaskId, { lagDays: newLag });
+              }
+            }
+          }
+        }
+      }
+
       let propagatedTasks: { taskId: number; newStartDate: string; newEndDate: string }[] = [];
       if (datesChanged && updated.projectId) {
         propagatedTasks = await propagateScheduleForProject(updated.projectId);
@@ -11481,20 +11351,10 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   // Task Dependencies
-  const depTypeToApi: Record<string, string> = {
-    'finish-to-start': 'FinishToStart',
-    'start-to-start': 'StartToStart',
-    'finish-to-finish': 'FinishToFinish',
-    'start-to-finish': 'StartToFinish',
-  };
-  function formatDepForApi(dep: any) {
-    return { ...dep, dependencyType: depTypeToApi[dep.dependencyType] || dep.dependencyType || 'FinishToStart' };
-  }
-
   app.get(api.tasks.getDependencies.path, async (req, res) => {
     const taskId = Number(req.params.id);
     const dependencies = await storage.getTaskDependencies(taskId);
-    res.json(dependencies.map(formatDepForApi));
+    res.json(dependencies);
   });
 
   app.post(api.tasks.addDependency.path, async (req, res) => {
@@ -11619,7 +11479,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
 
       res.status(201).json({ 
-        ...formatDepForApi(dependency), 
+        ...dependency, 
         dateAdjusted,
         adjustedTaskId: dateAdjusted ? taskId : null,
         newStartDate: dateAdjusted ? newStartDate : null,
@@ -11652,11 +11512,22 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       
       const dependentTask = await storage.getTask(taskId);
       let propagatedTasks: { taskId: number; newStartDate: string; newEndDate: string }[] = [];
+
       if (dependentTask) {
         propagatedTasks = await propagateScheduleForProject(dependentTask.projectId);
+        await rollUpParentTasks(dependentTask.projectId);
       }
+
+      const updatedTask = await storage.getTask(taskId);
       
-      res.json({ ...formatDepForApi(updated), propagatedTasks });
+      res.json({ 
+        ...updated, 
+        dateAdjusted: propagatedTasks.some(p => p.taskId === taskId),
+        adjustedTaskId: propagatedTasks.some(p => p.taskId === taskId) ? taskId : null,
+        newStartDate: updatedTask?.startDate || null,
+        newEndDate: updatedTask?.endDate || null,
+        propagatedTasks,
+      });
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
       const classified = classifyError(err);
@@ -11688,7 +11559,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         }
       }
       const dependencies = await storage.getProjectDependencies(projectId);
-      res.json(dependencies.map(formatDepForApi));
+      res.json(dependencies);
     } catch (err) {
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching project dependencies" : classified.message });
@@ -11811,7 +11682,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
       const currentStart = successor.startDate ? new Date(successor.startDate + 'T00:00:00') : null;
       const currentEnd = successor.endDate ? new Date(successor.endDate + 'T00:00:00') : null;
-      const duration = successor.durationDays ?? (currentStart && currentEnd ? calculateDuration(currentStart, currentEnd) : 1);
+      const parsedDuration = successor.durationDays == null ? NaN : Number(successor.durationDays);
+      const duration = Number.isFinite(parsedDuration) ? parsedDuration : (currentStart && currentEnd ? calculateDuration(currentStart, currentEnd) : 1);
 
       let newStart: Date | null = null;
       let newEnd: Date | null = null;
@@ -13549,10 +13421,10 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         timesheets: 0,
       };
       
-      const sanitizeBudget = (value: any): number => {
-        if (typeof value === 'number') return value;
-        if (typeof value === 'string') return parseFloat(value.replace(/,/g, '')) || 0;
-        return 0;
+      const sanitizeBudget = (value: any) => {
+        if (typeof value === 'number') return String(value);
+        if (typeof value === 'string') return value.replace(/,/g, '');
+        return '0';
       };
       
       const today = new Date();
@@ -13628,7 +13500,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
               impact: riskTemplate.impact,
               status: riskTemplate.status,
               mitigationPlan: riskTemplate.mitigationPlan,
-              costExposure: riskTemplate.costExposure ? Number(riskTemplate.costExposure) : null,
+              costExposure: riskTemplate.costExposure || null,
               isDemo: true,
             });
             stats.risks++;
@@ -13664,7 +13536,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
               status: issueTemplate.status,
               type: issueTemplate.type,
               assignee: issueTemplate.assignee,
-              costExposure: issueTemplate.costExposure ? Number(issueTemplate.costExposure) : null,
+              costExposure: issueTemplate.costExposure || null,
               isDemo: true,
             });
             stats.issues++;
@@ -13706,7 +13578,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
                 requestedBy: 'Demo User',
                 requestedDate: requestedDate.toISOString().split('T')[0],
                 impact: crTemplate.impact,
-                estimatedCost: Number(crTemplate.estimatedCost) || 0,
+                estimatedCost: String(crTemplate.estimatedCost || 0),
                 estimatedEffort: crTemplate.estimatedEffort,
                 isDemo: true,
               });
@@ -13794,8 +13666,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
                 category: benefitTemplate.category,
                 benefitType: benefitTemplate.benefitType,
                 status: benefitTemplate.status,
-                targetValue: parseFloat(benefitTemplate.targetValue) || 0,
-                actualValue: benefitTemplate.actualValue ? parseFloat(benefitTemplate.actualValue) : null,
+                targetValue: benefitTemplate.targetValue,
+                actualValue: benefitTemplate.actualValue || null,
                 measurementMethod: benefitTemplate.measurementMethod,
                 targetDate: targetDate.toISOString().split('T')[0],
                 isDemo: true,
@@ -13846,7 +13718,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           title: resourceTemplate.title,
           department: resourceTemplate.department,
           skills: resourceTemplate.skills,
-          hourlyRate: Math.floor(Math.random() * 100) + 80,
+          hourlyRate: String(Math.floor(Math.random() * 100) + 80),
           isActive: true,
           isDemo: true,
         });
@@ -13901,7 +13773,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
                 taskId: task.id,
                 projectId: task.projectId,
                 entryDate: entryDate.toISOString().split('T')[0],
-                hours: hours,
+                hours: String(hours),
                 notes: ['Development work', 'Code review', 'Testing', 'Documentation', 'Meeting', 'Design review'][Math.floor(Math.random() * 6)],
                 status: dayOffset > 7 ? 'Approved' : dayOffset > 3 ? 'Submitted' : 'Draft',
               });
@@ -13930,7 +13802,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             status: intakeTemplate.status,
             businessUnit: intakeTemplate.businessUnit,
             fundingSource: intakeTemplate.funding,
-            estimatedBudget: Number(intakeTemplate.budget) || 0,
+            estimatedBudget: intakeTemplate.budget,
             currentStep: intakeTemplate.status === 'approved' ? 'pmo_approved' : 'basic_info',
             basicInfoComplete: true,
             isDemo: true,
@@ -14442,9 +14314,9 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           isSummary: task.isSummary || false,
           isMilestone: task.isMilestone || false,
           notes: task.notes,
-          workHours: task.workHours ? Number(task.workHours) : null,
-          actualWorkHours: task.actualWorkHours ? Number(task.actualWorkHours) : null,
-          remainingWorkHours: task.remainingWorkHours ? Number(task.remainingWorkHours) : null,
+          workHours: task.workHours?.toString() || null,
+          actualWorkHours: task.actualWorkHours?.toString() || null,
+          remainingWorkHours: task.remainingWorkHours?.toString() || null,
           predecessors: task.predecessors && task.predecessors.length > 0 ? JSON.stringify(task.predecessors) : null,
         }));
         await storage.createMppImportTasks(taskRecords);
@@ -14733,6 +14605,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           name: task.taskName,
           startDate: task.startDate,
           endDate: task.finishDate,
+          duration: task.duration,
           durationDays: task.durationDays,
           outlineLevel: task.outlineLevel || 1,
           parentTaskId: task.parentTaskId,
@@ -14740,7 +14613,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           isMilestone: task.isMilestone || false,
           predecessors: task.predecessors && task.predecessors.length > 0 ? JSON.stringify(task.predecessors) : null,
           notes: task.notes,
-          workHours: task.workHours ? Number(task.workHours) : null,
+          workHours: task.workHours?.toString() || null,
         }));
         await storage.createProjectTemplateItems(items);
       }
@@ -14810,6 +14683,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             description: task.description,
             startDate: task.startDate,
             endDate: task.endDate,
+            duration: task.duration,
             durationDays: task.durationDays,
             outlineLevel: task.outlineLevel || 1,
             parentTaskId: task.parentId,
@@ -14817,7 +14691,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             isMilestone: task.taskType === 'Milestone',
             predecessors: deps && deps.length > 0 ? JSON.stringify(deps) : null,
             notes: task.notes,
-            workHours: task.estimatedHours || null,
+            workHours: task.estimatedHours?.toString() || null,
           });
         }
       }
@@ -14989,6 +14863,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           description: item.description,
           startDate: item.startDate,
           endDate: item.endDate,
+          duration: item.duration,
           durationDays: item.durationDays,
           outlineLevel: item.outlineLevel,
           parentTaskId: item.parentTaskId,
@@ -14996,7 +14871,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           isMilestone: item.isMilestone,
           predecessors: item.predecessors,
           notes: item.notes,
-          workHours: item.workHours ? Number(item.workHours) : null,
+          workHours: item.workHours?.toString() || null,
         }));
         await storage.createProjectTemplateItems(newItems);
       }
@@ -15143,7 +15018,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           isMilestone: task.isMilestone || false,
           predecessors: task.predecessors && task.predecessors.length > 0 ? JSON.stringify(task.predecessors) : null,
           notes: task.notes,
-          workHours: task.workHours ? Number(task.workHours) : null,
+          workHours: task.workHours?.toString() || null,
         }));
         await storage.createProjectTemplateItems(items);
       }
@@ -15214,7 +15089,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         priority: priority || 'Medium',
         startDate: startDate || null,
         endDate: null,
-        budget: 0,
+        budget: "0",
         managerId: userId,
         source: 'manual',
       });
@@ -15269,6 +15144,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             wbs: item.wbs,
             startDate: taskStartDate,
             endDate: taskEndDate,
+            duration: item.duration,
             durationDays: item.durationDays,
             outlineLevel: item.outlineLevel,
             parentId: item.parentTaskId && oldIdToNewId.has(item.parentTaskId) ? oldIdToNewId.get(item.parentTaskId)! : null,
@@ -16910,7 +16786,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
         status: aiResult.project.status || "Initiation",
         priority: aiResult.project.priority || "Medium",
         health: aiResult.project.health || "Green",
-        budget: Number(aiResult.project.budget || 0),
+        budget: String(aiResult.project.budget || 0),
         startDate: today.toISOString().split('T')[0],
         source: "ai_generated",
       };
@@ -17232,7 +17108,7 @@ Return ONLY valid JSON.`;
             status: proj.status || "Initiation",
             priority: proj.priority || "Medium",
             health: proj.health || "Green",
-            budget: Number(proj.budget || 0),
+            budget: String(proj.budget || 0),
             startDate: today.toISOString().split('T')[0],
             source: "ai_generated",
           };
@@ -17257,7 +17133,7 @@ Return ONLY valid JSON.`;
           status: aiResult.items.project.status || "Initiation",
           priority: aiResult.items.project.priority || "Medium",
           health: aiResult.items.project.health || "Green",
-          budget: Number(aiResult.items.project.budget || 0),
+          budget: String(aiResult.items.project.budget || 0),
           startDate: today.toISOString().split('T')[0],
           source: "ai_generated",
         };
@@ -17843,7 +17719,7 @@ Return ONLY valid JSON.`;
             status: proj.status || "Initiation",
             priority: proj.priority || "Medium",
             health: proj.health || "Green",
-            budget: Number(proj.budget || 0),
+            budget: String(proj.budget || 0),
             startDate: today.toISOString().split('T')[0],
             source: "ai_generated",
           });
@@ -17864,7 +17740,7 @@ Return ONLY valid JSON.`;
           status: proj.status || "Initiation",
           priority: proj.priority || "Medium",
           health: proj.health || "Green",
-          budget: Number(proj.budget || 0),
+          budget: String(proj.budget || 0),
           startDate: today.toISOString().split('T')[0],
           source: "ai_generated",
         });
@@ -21138,7 +21014,7 @@ Return ONLY valid JSON.`;
         taskId,
         projectId,
         entryDate,
-        hours: hours,
+        hours: String(hours),
         notes,
         status: 'Draft',
       });
@@ -21148,7 +21024,7 @@ Return ONLY valid JSON.`;
         entryId: entry.id,
         action: 'create',
         actorId: userId,
-        after: { hours: hours, notes, taskId, projectId, entryDate },
+        after: { hours: String(hours), notes, taskId, projectId, entryDate },
       });
 
       res.status(201).json(entry);
@@ -21298,7 +21174,7 @@ Return ONLY valid JSON.`;
           
           const beforeSnapshot = { hours: existing.hours, notes: existing.notes };
           const updated = await storage.updateTimesheetEntry(entry.id, {
-            hours: hoursNum,
+            hours: String(hoursNum),
             notes: entry.notes,
           });
           results.push(updated);
@@ -21309,7 +21185,7 @@ Return ONLY valid JSON.`;
             action: 'update',
             actorId: userId,
             before: beforeSnapshot,
-            after: { hours: hoursNum, notes: entry.notes },
+            after: { hours: String(hoursNum), notes: entry.notes },
           });
         } else if (hoursNum > 0) {
           const isAssigned = await validateTaskAssignment(entry.taskId);
@@ -21340,7 +21216,7 @@ Return ONLY valid JSON.`;
             if (existingEntry.status === 'Draft' || existingEntry.status === 'Rejected') {
               const beforeSnapshot = { hours: existingEntry.hours, notes: existingEntry.notes };
               const updated = await storage.updateTimesheetEntry(existingEntry.id, {
-                hours: hoursNum,
+                hours: String(hoursNum),
                 notes: entry.notes,
               });
               results.push(updated);
@@ -21351,7 +21227,7 @@ Return ONLY valid JSON.`;
                 action: 'update',
                 actorId: userId,
                 before: beforeSnapshot,
-                after: { hours: hoursNum, notes: entry.notes },
+                after: { hours: String(hoursNum), notes: entry.notes },
               });
             } else {
               errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: `Entry is ${existingEntry.status} and cannot be edited` });
@@ -21366,7 +21242,7 @@ Return ONLY valid JSON.`;
             taskId: entry.taskId,
             projectId: entry.projectId,
             entryDate: entry.entryDate,
-            hours: entry.hours,
+            hours: String(entry.hours),
             notes: entry.notes,
             status: 'Draft',
           });
@@ -21377,7 +21253,7 @@ Return ONLY valid JSON.`;
             entryId: created.id,
             action: 'create',
             actorId: userId,
-            after: { hours: entry.hours, notes: entry.notes, taskId: entry.taskId, entryDate: entry.entryDate },
+            after: { hours: String(entry.hours), notes: entry.notes, taskId: entry.taskId, entryDate: entry.entryDate },
           });
         }
       }
@@ -21457,7 +21333,7 @@ Return ONLY valid JSON.`;
 
       const beforeSnapshot = { hours: entry.hours, notes: entry.notes };
       const updated = await storage.updateTimesheetEntry(id, {
-        hours: hours !== undefined ? parseFloat(hours) : undefined,
+        hours: hours !== undefined ? String(parseFloat(hours)) : undefined,
         notes,
       });
 
@@ -22121,9 +21997,9 @@ Return ONLY valid JSON.`;
 
       const settings = await storage.upsertTimesheetSettings({
         organizationId,
-        minWeeklyHours: minWeeklyHours !== undefined ? Number(minWeeklyHours) : undefined,
-        maxWeeklyHours: maxWeeklyHours !== undefined ? Number(maxWeeklyHours) : undefined,
-        overtimeThreshold: overtimeThreshold !== undefined ? Number(overtimeThreshold) : undefined,
+        minWeeklyHours: minWeeklyHours !== undefined ? String(minWeeklyHours) : undefined,
+        maxWeeklyHours: maxWeeklyHours !== undefined ? String(maxWeeklyHours) : undefined,
+        overtimeThreshold: overtimeThreshold !== undefined ? String(overtimeThreshold) : undefined,
         gracePeriodDays: gracePeriodDays !== undefined ? Number(gracePeriodDays) : undefined,
         mandatoryNotes: mandatoryNotes !== undefined ? Boolean(mandatoryNotes) : undefined,
       });
@@ -22450,7 +22326,7 @@ Return ONLY valid JSON.`;
         taskId,
         projectId,
         entryDate,
-        hours: hoursNum,
+        hours: String(hoursNum),
         notes,
         status: 'Draft',
         proxyUserId: userId,
@@ -22462,7 +22338,7 @@ Return ONLY valid JSON.`;
         action: 'proxy_create',
         actorId: userId,
         targetUserId: targetResource.userId!,
-        after: { hours: hoursNum, notes, taskId, projectId, entryDate },
+        after: { hours: String(hoursNum), notes, taskId, projectId, entryDate },
         metadata: { proxyUserId: userId, targetResourceId },
       });
 
@@ -22660,8 +22536,8 @@ Return ONLY valid JSON.`;
         const delegateRes = resources.find(r => r.userId === d.delegateId);
         return {
           ...d,
-          delegatorName: delegatorRes?.displayName || [delegatorRes?.firstName, delegatorRes?.lastName].filter(Boolean).join(' ') || 'Unknown',
-          delegateName: delegateRes?.displayName || [delegateRes?.firstName, delegateRes?.lastName].filter(Boolean).join(' ') || 'Unknown',
+          delegatorName: delegatorRes?.displayName || delegatorRes?.name || 'Unknown',
+          delegateName: delegateRes?.displayName || delegateRes?.name || 'Unknown',
         };
       });
       res.json(enriched);
@@ -23098,7 +22974,7 @@ Return ONLY valid JSON.`;
         const entryResource = resources.find(r => r.id === entry.resourceId);
         const managerId = entryResource?.managerId || 'unassigned';
         const managerResource = resources.find(r => r.userId === managerId);
-        const managerName = managerResource?.displayName || [managerResource?.firstName, managerResource?.lastName].filter(Boolean).join(' ') || (managerId === 'unassigned' ? 'Unassigned' : 'Unknown');
+        const managerName = managerResource?.displayName || managerResource?.name || (managerId === 'unassigned' ? 'Unassigned' : 'Unknown');
 
         if (!managerMetrics[managerId]) {
           managerMetrics[managerId] = { managerId, managerName, resolvedCount: 0, totalTurnaroundMs: 0, exceedingSla: 0, pendingExceedingSla: 0, totalSubmitted: 0, totalApproved: 0, totalRejected: 0, totalPending: 0 };
@@ -23415,7 +23291,7 @@ Return ONLY valid JSON.`;
         resourceId: userResource.id,
         categoryId,
         entryDate,
-        hours: hoursNum,
+        hours: String(hoursNum),
         notes,
         status: 'Draft'
       });
@@ -23460,8 +23336,8 @@ Return ONLY valid JSON.`;
 
       // Only allow updating hours and notes
       const { hours, notes } = req.body;
-      const updates: { hours?: number; notes?: string } = {};
-      if (hours !== undefined) updates.hours = Number(hours);
+      const updates: { hours?: string; notes?: string } = {};
+      if (hours !== undefined) updates.hours = String(Number(hours));
       if (notes !== undefined) updates.notes = notes;
 
       const updated = await storage.updateNonProjectTimeEntry(id, updates);
