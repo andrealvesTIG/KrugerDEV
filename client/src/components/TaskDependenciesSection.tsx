@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from "react";
+import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useTaskDependencies, useAddTaskDependency, useRemoveTaskDependency, useUpdateTaskDependency } from "@/hooks/use-tasks";
+import { useTaskDependencies, useAddTaskDependency, useRemoveTaskDependency } from "@/hooks/use-tasks";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
@@ -54,7 +54,7 @@ interface TaskDependenciesSectionProps {
   onPendingChangesUpdate?: (changes: Map<number, PendingDepChange>) => void;
 }
 
-export const TaskDependenciesSection = forwardRef<TaskDependenciesSectionHandle, TaskDependenciesSectionProps>(function TaskDependenciesSection({ taskId, projectId, allTasks, pendingChanges: externalPending, onPendingChangesUpdate }, ref) {
+export const TaskDependenciesSection = forwardRef(function TaskDependenciesSection({ taskId, projectId, allTasks, pendingChanges: externalPending, onPendingChangesUpdate }: TaskDependenciesSectionProps, ref: React.ForwardedRef<TaskDependenciesSectionHandle>) {
   const { data: dependencies, isLoading } = useTaskDependencies(taskId);
   const addDependency = useAddTaskDependency();
   const removeDependency = useRemoveTaskDependency();
@@ -266,79 +266,7 @@ export const TaskDependenciesSection = forwardRef<TaskDependenciesSectionHandle,
       {dependencies && dependencies.length > 0 ? (
         <div className="border rounded-lg overflow-hidden divide-y">
           {dependencies.map((dep) => {
-            const predecessorTask = allTasks.find(t => t.id === dep.dependsOnTaskId); 
-            const depTypeLabel = DEPENDENCY_TYPES.find(t => t.value === normalizeToPascal(dep.dependencyType));
-            return (
-              <div
-                key={dep.id}
-                className="bg-background hover:bg-muted/30 transition-colors"
-              >
-                <div className="flex items-center gap-2 px-3 py-2.5">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <ArrowRight className="h-3.5 w-3.5 text-primary/60 flex-shrink-0" />
-                    <span className="text-sm font-medium truncate">
-                      {predecessorTask?.name || `Task #${dep.dependsOnTaskId}`}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <Select
-                      value={normalizeToPascal(dep.dependencyType)}
-                      onValueChange={(val) => handleUpdateDependencyType(dep.dependsOnTaskId, val)}
-                    >
-                      <SelectTrigger
-                        id={`dep-type-${dep.id}`}
-                        className="h-7 w-auto min-w-[70px] text-xs px-2 gap-1 border-dashed"
-                        aria-label="Dependency type"
-                      >
-                        <span className="font-semibold">{depTypeLabel?.label || "FS"}</span>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DEPENDENCY_TYPES.map(t => (
-                          <SelectItem key={t.value} value={t.value}>
-                            <span className="font-medium">{t.label}</span>
-                            <span className="text-muted-foreground ml-1">({t.description})</span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    <div className="flex items-center gap-1 border border-dashed rounded-md px-1.5 h-7">
-                      <span className="text-[10px] text-muted-foreground">lag</span>
-                      <Input
-                        id={`dep-lag-${dep.id}`}
-                        type="number"
-                        className="h-5 w-[36px] text-xs text-center px-0 border-0 shadow-none focus-visible:ring-0 bg-transparent"
-                        title="Lag/lead days (negative = lead)"
-                        key={`lag-${dep.id}-${dep.lagDays}`}
-                        defaultValue={dep.lagDays || 0}
-                        onBlur={(e) => {
-                          const newLag = parseInt(e.target.value) || 0;
-                          if (newLag !== (dep.lagDays || 0)) {
-                            handleUpdateLag(dep.dependsOnTaskId, newLag);
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            (e.target as HTMLInputElement).blur();
-                          }
-                        }}
-                      />
-                    </div>
-
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-destructive"
-                      onClick={() => handleRemoveDependency(dep.dependsOnTaskId)}
-                      disabled={removeDependency.isPending}
-                      aria-label={`Remove dependency on ${predecessorTask?.name || `Task #${dep.dependsOnTaskId}`}`}
-                      data-testid={`remove-dependency-${dep.dependsOnTaskId}`}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  </div> 
+            const predecessorTask = allTasks.find(t => t.id === dep.dependsOnTaskId);
             const hasPendingChange = pendingChanges.has(dep.dependsOnTaskId);
             return (
               <div
