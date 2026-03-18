@@ -11330,7 +11330,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
           input.progress = 50;
         }
       } else if (input.progress !== undefined && input.progress !== (previousTask.progress ?? 0)) {
-        if (incomingStatus === "Not Started" && input.progress > 0) {
+        if (incomingStatus === "Not Started" && (input.progress ?? 0) > 0) {
           input.status = "In Progress";
         }
         if (incomingStatus === "In Progress" && input.progress === 100) {
