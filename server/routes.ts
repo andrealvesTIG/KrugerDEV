@@ -15272,7 +15272,6 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             wbs: item.wbs,
             startDate: taskStartDate,
             endDate: taskEndDate,
-            duration: item.duration,
             durationDays: item.durationDays,
             outlineLevel: item.outlineLevel,
             parentId: item.parentTaskId && oldIdToNewId.has(item.parentTaskId) ? oldIdToNewId.get(item.parentTaskId)! : null,
