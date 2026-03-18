@@ -13,7 +13,7 @@ import {
   AreaChart, Area, BarChart, Bar, ComposedChart, Scatter
 } from "recharts";
 import { format, subMonths, startOfMonth, endOfMonth, eachMonthOfInterval } from "date-fns";
-import type { Risk, Task } from "@shared/schema";
+import type { Risk } from "@shared/schema";
 
 export function TrendAnalysisDashboard() {
   const { currentOrganization } = useOrganization();
@@ -23,16 +23,6 @@ export function TrendAnalysisDashboard() {
     queryKey: ['/api/risks', currentOrganization?.id],
     queryFn: async () => {
       const res = await fetch(`/api/risks?organizationId=${currentOrganization?.id}`);
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: !!currentOrganization?.id,
-  });
-
-  const { data: allTasks = [] } = useQuery<Task[]>({
-    queryKey: ['/api/tasks', currentOrganization?.id],
-    queryFn: async () => {
-      const res = await fetch(`/api/tasks?organizationId=${currentOrganization?.id}`);
       if (!res.ok) return [];
       return res.json();
     },

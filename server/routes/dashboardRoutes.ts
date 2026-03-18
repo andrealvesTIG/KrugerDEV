@@ -42,19 +42,202 @@ import {
 export function registerDashboardRoutes(app: Express) {
   // ==================== DASHBOARD AGGREGATION ENDPOINTS ====================
 
-  // Get all risks for an organization (dashboard)
-  app.get('/api/risks', async (req, res) => {
+  app.get('/api/dashboard/summary', async (req, res) => {
     try {
       const organizationId = Number(req.query.organizationId);
       if (!organizationId) {
         return res.status(400).json({ message: "organizationId is required" });
       }
-      const projects = await storage.getProjects(organizationId);
-      const allRisks = [];
-      for (const project of projects) {
-        const risks = await storage.getRisks(project.id);
-        allRisks.push(...risks);
+      const userId = getUserIdFromRequest(req);
+      if (!userId || !(await userHasOrgAccess(userId, organizationId))) {
+        return res.status(403).json({ message: "Access denied" });
       }
+
+      const orgProjects = await db.select({
+        id: projects.id,
+        status: projects.status,
+        health: projects.health,
+        budget: projects.budget,
+        actualCost: projects.actualCost,
+        completionPercentage: projects.completionPercentage,
+        portfolioId: projects.portfolioId,
+      }).from(projects).where(
+        and(eq(projects.organizationId, organizationId), sql`${projects.deletedAt} IS NULL`)
+      );
+
+      const projectIds = orgProjects.map(p => p.id);
+
+      let taskStats = { total: 0, completed: 0, inProgress: 0, notStarted: 0, overdue: 0 };
+      let tasksByAssignee: { assignee: string | null; status: string | null; count: number }[] = [];
+      let riskStats = { total: 0, open: 0, mitigated: 0, closed: 0, highPriority: 0, criticalImpact: 0 };
+      let issueStats = { total: 0, open: 0, inProgress: 0, resolved: 0, highPriority: 0 };
+      let risksByPriority: { priority: string | null; count: number }[] = [];
+      let issuesByPriority: { priority: string | null; count: number }[] = [];
+
+      if (projectIds.length > 0) {
+        const today = new Date().toISOString().split('T')[0];
+
+        const taskCountRows = await db.select({
+          status: tasks.status,
+          cnt: sql<number>`count(*)::int`,
+        }).from(tasks).where(
+          and(inArray(tasks.projectId, projectIds), sql`${tasks.deletedAt} IS NULL`)
+        ).groupBy(tasks.status);
+
+        for (const row of taskCountRows) {
+          taskStats.total += row.cnt;
+          if (row.status === 'Completed') taskStats.completed += row.cnt;
+          else if (row.status === 'In Progress') taskStats.inProgress += row.cnt;
+          else if (row.status === 'Not Started') taskStats.notStarted += row.cnt;
+        }
+
+        const [overdueRow] = await db.select({
+          cnt: sql<number>`count(*)::int`,
+        }).from(tasks).where(
+          and(
+            inArray(tasks.projectId, projectIds),
+            sql`${tasks.deletedAt} IS NULL`,
+            sql`${tasks.status} != 'Completed'`,
+            sql`${tasks.endDate} IS NOT NULL`,
+            sql`${tasks.endDate}::date < ${today}::date`
+          )
+        );
+        taskStats.overdue = overdueRow?.cnt || 0;
+
+        tasksByAssignee = await db.select({
+          assignee: tasks.assignee,
+          status: tasks.status,
+          count: sql<number>`count(*)::int`,
+        }).from(tasks).where(
+          and(
+            inArray(tasks.projectId, projectIds),
+            sql`${tasks.deletedAt} IS NULL`,
+            sql`${tasks.assignee} IS NOT NULL`,
+            sql`${tasks.assignee} != ''`
+          )
+        ).groupBy(tasks.assignee, tasks.status);
+
+        const riskRows = await db.select({
+          status: issues.status,
+          priority: issues.priority,
+          impact: issues.impact,
+          cnt: sql<number>`count(*)::int`,
+        }).from(issues).where(
+          and(
+            inArray(issues.projectId, projectIds),
+            eq(issues.itemType, 'risk'),
+            sql`${issues.deletedAt} IS NULL`
+          )
+        ).groupBy(issues.status, issues.priority, issues.impact);
+
+        for (const row of riskRows) {
+          riskStats.total += row.cnt;
+          if (row.status === 'Open' || row.status === 'Identified') riskStats.open += row.cnt;
+          else if (row.status === 'Mitigated') riskStats.mitigated += row.cnt;
+          else if (row.status === 'Closed' || row.status === 'Resolved') riskStats.closed += row.cnt;
+          if (row.priority === 'High' || row.priority === 'Critical') riskStats.highPriority += row.cnt;
+          if (row.impact === 'Critical' || row.impact === 'High') riskStats.criticalImpact += row.cnt;
+        }
+
+        risksByPriority = await db.select({
+          priority: issues.priority,
+          count: sql<number>`count(*)::int`,
+        }).from(issues).where(
+          and(
+            inArray(issues.projectId, projectIds),
+            eq(issues.itemType, 'risk'),
+            sql`${issues.deletedAt} IS NULL`
+          )
+        ).groupBy(issues.priority);
+
+        const issueRows = await db.select({
+          status: issues.status,
+          priority: issues.priority,
+          cnt: sql<number>`count(*)::int`,
+        }).from(issues).where(
+          and(
+            inArray(issues.projectId, projectIds),
+            eq(issues.itemType, 'issue'),
+            sql`${issues.deletedAt} IS NULL`
+          )
+        ).groupBy(issues.status, issues.priority);
+
+        for (const row of issueRows) {
+          issueStats.total += row.cnt;
+          if (row.status === 'Open') issueStats.open += row.cnt;
+          else if (row.status === 'In Progress') issueStats.inProgress += row.cnt;
+          else if (row.status === 'Resolved' || row.status === 'Closed') issueStats.resolved += row.cnt;
+          if (row.priority === 'High' || row.priority === 'Critical') issueStats.highPriority += row.cnt;
+        }
+
+        issuesByPriority = await db.select({
+          priority: issues.priority,
+          count: sql<number>`count(*)::int`,
+        }).from(issues).where(
+          and(
+            inArray(issues.projectId, projectIds),
+            eq(issues.itemType, 'issue'),
+            sql`${issues.deletedAt} IS NULL`
+          )
+        ).groupBy(issues.priority);
+      }
+
+      const projectStats = {
+        total: orgProjects.length,
+        byHealth: { Green: 0, Yellow: 0, Red: 0 } as Record<string, number>,
+        byStatus: {} as Record<string, number>,
+        totalBudget: 0,
+        totalActualCost: 0,
+        avgCompletion: 0,
+      };
+      for (const p of orgProjects) {
+        if (p.health) projectStats.byHealth[p.health] = (projectStats.byHealth[p.health] || 0) + 1;
+        if (p.status) projectStats.byStatus[p.status] = (projectStats.byStatus[p.status] || 0) + 1;
+        projectStats.totalBudget += Number(p.budget) || 0;
+        projectStats.totalActualCost += Number(p.actualCost) || 0;
+      }
+      if (orgProjects.length > 0) {
+        projectStats.avgCompletion = Math.round(
+          orgProjects.reduce((s, p) => s + (Number(p.completionPercentage) || 0), 0) / orgProjects.length
+        );
+      }
+
+      res.json({
+        tasks: taskStats,
+        tasksByAssignee,
+        risks: riskStats,
+        risksByPriority,
+        issues: issueStats,
+        issuesByPriority,
+        projects: projectStats,
+      });
+    } catch (err) {
+      console.error("Error fetching dashboard summary:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching dashboard summary" : classified.message });
+    }
+  });
+
+  app.get('/api/risks', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      const organizationId = Number(req.query.organizationId);
+      if (!organizationId) {
+        return res.status(400).json({ message: "organizationId is required" });
+      }
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const orgProjects = await storage.getProjects(organizationId);
+      const projectIds = orgProjects.map(p => p.id);
+      if (projectIds.length === 0) return res.json([]);
+      const allRisks = await db.select().from(issues).where(
+        and(
+          inArray(issues.projectId, projectIds),
+          eq(issues.itemType, 'risk'),
+          sql`${issues.deletedAt} IS NULL`
+        )
+      );
       res.json(allRisks);
     } catch (err) {
       console.error("Error fetching all risks:", err);

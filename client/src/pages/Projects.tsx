@@ -481,7 +481,7 @@ export default function Projects() {
   const { data: projects, isLoading } = useProjects(currentOrganization?.id, selectedPortfolio !== "all" ? parseInt(selectedPortfolio) : undefined);
   const { data: externalProjects } = useExternalProjects();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
-  const { data: allTasks } = useAllTasks();
+  const { data: allTasks } = useAllTasks(currentOrganization?.id);
   
   // Fetch organization integrations for dynamic import menu
   const { data: orgIntegrations } = useQuery<{ integrationType: string; connectionStatus: string }[]>({

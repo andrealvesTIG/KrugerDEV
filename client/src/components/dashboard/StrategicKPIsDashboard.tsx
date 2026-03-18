@@ -1,7 +1,6 @@
 import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
-import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,36 +11,16 @@ import {
   ArrowUpRight, ArrowDownRight, Minus, Calendar, Shield
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, CartesianGrid } from "recharts";
-import type { Risk, Issue, Task } from "@shared/schema";
 import { formatCurrency } from "@/lib/format";
+import { useDashboardSummary } from "@/hooks/use-dashboard-summary";
 
 export function StrategicKPIsDashboard() {
   const { currentOrganization } = useOrganization();
   const { data: projectsData } = useProjects(currentOrganization?.id);
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
-
-  const { data: allRisks = [] } = useQuery<Risk[]>({
-    queryKey: ['/api/risks', currentOrganization?.id],
-    queryFn: async () => {
-      const res = await fetch(`/api/risks?organizationId=${currentOrganization?.id}`);
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: !!currentOrganization?.id,
-  });
-
-  const { data: allTasksData } = useQuery<{ tasks: Task[]; total: number; hasMore: boolean }>({
-    queryKey: ['/api/tasks', currentOrganization?.id],
-    queryFn: async () => {
-      const res = await fetch(`/api/tasks?organizationId=${currentOrganization?.id}`);
-      if (!res.ok) return { tasks: [], total: 0, hasMore: false };
-      return res.json();
-    },
-    enabled: !!currentOrganization?.id,
-  });
+  const { data: summary } = useDashboardSummary(currentOrganization?.id);
 
   const projects = projectsData || [];
-  const allTasks = allTasksData?.tasks || [];
 
   const kpis = useMemo(() => {
     const totalProjects = projects.length;
@@ -51,17 +30,17 @@ export function StrategicKPIsDashboard() {
     const atRiskProjects = projects.filter(p => p.health === 'Yellow').length;
     const criticalProjects = projects.filter(p => p.health === 'Red').length;
     
-    const totalBudget = projects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
-    const totalActualCost = projects.reduce((sum, p) => sum + Number(p.actualCost || 0), 0);
-    const avgCompletion = totalProjects > 0 
+    const totalBudget = summary?.projects.totalBudget ?? projects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
+    const totalActualCost = summary?.projects.totalActualCost ?? projects.reduce((sum, p) => sum + Number(p.actualCost || 0), 0);
+    const avgCompletion = summary?.projects.avgCompletion ?? (totalProjects > 0 
       ? Math.round(projects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / totalProjects)
-      : 0;
+      : 0);
     
-    const openRisks = allRisks.filter(r => r.status === 'Open' || r.status === 'Identified').length;
-    const highRisks = allRisks.filter(r => (r.status === 'Open' || r.status === 'Identified') && r.severity === 'High').length;
+    const openRisks = summary?.risks.open ?? 0;
+    const highRisks = summary?.risks.highPriority ?? 0;
     
-    const completedTasks = allTasks.filter(t => t.status === 'Completed').length;
-    const totalTasks = allTasks.length;
+    const completedTasks = summary?.tasks.completed ?? 0;
+    const totalTasks = summary?.tasks.total ?? 0;
     const taskCompletionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
     const projectSuccessRate = totalProjects > 0 ? Math.round((onTrackProjects / totalProjects) * 100) : 0;
@@ -86,7 +65,7 @@ export function StrategicKPIsDashboard() {
       schedulePerformanceIndex,
       portfolioCount: portfolios?.length || 0,
     };
-  }, [projects, allRisks, allTasks, portfolios, allTasksData]);
+  }, [projects, portfolios, summary]);
 
   const healthDistribution = [
     { name: 'On Track', value: kpis.onTrackProjects, color: '#10b981' },

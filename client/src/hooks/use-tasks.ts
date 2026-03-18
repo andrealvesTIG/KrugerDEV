@@ -31,18 +31,23 @@ interface PaginatedTasksResponse {
   hasMore: boolean;
 }
 
-export function useAllTasks() {
+export function useAllTasks(organizationId?: number | null) {
   return useQuery<Task[]>({
-    queryKey: ['/api/tasks', 'all'],
+    queryKey: ['/api/tasks', 'all', organizationId],
     queryFn: async () => {
-      const res = await fetch('/api/tasks?limit=10000&offset=0');
+      const params = new URLSearchParams();
+      params.set('limit', '10000');
+      params.set('offset', '0');
+      if (organizationId) params.set('organizationId', String(organizationId));
+      const res = await fetch(`/api/tasks?${params.toString()}`);
       if (!res.ok) {
         throw new Error('Failed to fetch tasks');
       }
       const data = await res.json();
-      // Handle both old array format and new paginated format
       return Array.isArray(data) ? data : (data.tasks || []);
     },
+    enabled: organizationId !== undefined && organizationId !== null,
+    staleTime: 60_000,
   });
 }
 

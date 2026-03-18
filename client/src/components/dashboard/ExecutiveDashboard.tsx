@@ -48,6 +48,7 @@ export function ExecutiveDashboard() {
       return res.json();
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 60_000,
   });
 
   const { data: allIssues = [] } = useQuery<Issue[]>({
@@ -58,6 +59,7 @@ export function ExecutiveDashboard() {
       return res.json();
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 60_000,
   });
 
   const projects = useMemo(() => {

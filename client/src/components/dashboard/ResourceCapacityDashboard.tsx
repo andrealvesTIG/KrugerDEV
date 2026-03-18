@@ -41,7 +41,7 @@ export function ResourceCapacityDashboard() {
   const { currentOrganization } = useOrganization();
   const { data: resources, isLoading: resourcesLoading } = useResources(currentOrganization?.id ?? null);
   const { data: projectsData, isLoading: projectsLoading } = useProjects(currentOrganization?.id);
-  const { data: tasks, isLoading: tasksLoading } = useAllTasks();
+  const { data: tasks, isLoading: tasksLoading } = useAllTasks(currentOrganization?.id);
   
   const [filters, setFilters] = useState<ResourceFilters>({
     resourceId: null,

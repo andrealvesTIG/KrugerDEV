@@ -31,7 +31,7 @@ export function ResourceManagementDashboard() {
   const { data: resources, isLoading: resourcesLoading } = useResources(currentOrganization?.id ?? null);
   const { data: projectsData, isLoading: projectsLoading } = useProjects(currentOrganization?.id);
   const { data: portfolios, isLoading: portfoliosLoading } = usePortfolios(currentOrganization?.id);
-  const { data: tasks, isLoading: tasksLoading } = useAllTasks();
+  const { data: tasks, isLoading: tasksLoading } = useAllTasks(currentOrganization?.id);
   const [filters, setFilters] = useState<DashboardFilterState>(getDefaultFilters());
 
   const { data: timesheetData = [], isLoading: timesheetLoading } = useQuery<{ weekStart: string; hours: number }[]>({
