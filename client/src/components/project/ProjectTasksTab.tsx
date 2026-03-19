@@ -19,7 +19,7 @@ import { insertTaskSchema } from "@shared/schema";
 import type { Task, TaskResourceAssignment, Resource } from "@shared/schema";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { TaskDependenciesSection, type TaskDependenciesSectionHandle, type PendingDepChange } from "@/components/TaskDependenciesSection";
-import { useUpdateTaskDependency, useAddTaskDependency } from "@/hooks/use-tasks";
+import { useUpdateTaskDependency, useAddTaskDependency, useRemoveTaskDependency } from "@/hooks/use-tasks";
 const ProjectGanttView = lazy(() => import("@/components/project/ProjectGanttView"));
 import ProjectKanbanView, { ProjectTaskHistoryDialog } from "@/components/project/ProjectKanbanView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -271,6 +271,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const [pendingDepChanges, setPendingDepChanges] = useState<Map<number, PendingDepChange>>(new Map());
   const updateDependency = useUpdateTaskDependency();
   const addDependency = useAddTaskDependency();
+  const removeDependency = useRemoveTaskDependency();
   
   // Get sidebar state to calculate fullscreen positioning
   // Sidebar is w-72 (288px) when expanded, w-20 (80px) when collapsed
@@ -483,7 +484,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     if (editingTask) {
       const allDepChanges = Array.from(pendingDepChanges.values());
       const newDeps = allDepChanges.filter(c => c.isNew);
-      const updatedDeps = allDepChanges.filter(c => !c.isNew);
+      const removedDeps = allDepChanges.filter(c => c.isRemoved);
+      const updatedDeps = allDepChanges.filter(c => !c.isNew && !c.isRemoved);
 
       updateTask.mutate({ id: editingTask.id, ...taskData }, {
         onSuccess: (result) => {
@@ -492,7 +494,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           }
           inviteAssignedRef.current = false;
 
-          const totalDepOps = newDeps.length + updatedDeps.length;
+          const totalDepOps = newDeps.length + updatedDeps.length + removedDeps.length;
           if (totalDepOps > 0) {
             let completed = 0;
             const onDepComplete = () => {
@@ -508,6 +510,12 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             for (const change of newDeps) {
               addDependency.mutate(
                 { taskId: editingTask.id, dependsOnTaskId: change.dependsOnTaskId, projectId, dependencyType: change.dependencyType, lagDays: change.lagDays },
+                { onSuccess: onDepComplete, onError: onDepError }
+              );
+            }
+            for (const change of removedDeps) {
+              removeDependency.mutate(
+                { taskId: editingTask.id, dependsOnTaskId: change.dependsOnTaskId },
                 { onSuccess: onDepComplete, onError: onDepError }
               );
             }

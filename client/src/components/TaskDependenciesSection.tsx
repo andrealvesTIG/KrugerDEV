@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useTaskDependencies, useAddTaskDependency, useRemoveTaskDependency } from "@/hooks/use-tasks";
+import { useTaskDependencies } from "@/hooks/use-tasks";
 import { useOrganization } from "@/hooks/use-organization";
-import { useToast } from "@/hooks/use-toast";
+
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ export type PendingDepChange = {
   dependencyType?: string;
   lagDays?: number;
   isNew?: boolean;
+  isRemoved?: boolean;
 };
 
 export type TaskDependenciesSectionHandle = {
@@ -57,9 +58,6 @@ interface TaskDependenciesSectionProps {
 
 export const TaskDependenciesSection = forwardRef(function TaskDependenciesSection({ taskId, projectId, allTasks, pendingChanges: externalPending, onPendingChangesUpdate }: TaskDependenciesSectionProps, ref: React.ForwardedRef<TaskDependenciesSectionHandle>) {
   const { data: dependencies, isLoading } = useTaskDependencies(taskId);
-  const addDependency = useAddTaskDependency();
-  const removeDependency = useRemoveTaskDependency();
-  const { toast } = useToast();
   const { currentOrganization } = useOrganization();
 
   const { data: schedulingDefaults } = useQuery<SchedulingDefaults>({
@@ -135,55 +133,20 @@ export const TaskDependenciesSection = forwardRef(function TaskDependenciesSecti
     }
   }, [searchQuery]);
 
-  const handleAddDependency = (predecessorId: number, type?: string, lag?: number) => {
-    const depType = type || selectedType;
-    const depLag = lag !== undefined ? lag : lagDays;
-    addDependency.mutate(
-      { taskId, dependsOnTaskId: predecessorId, projectId, dependencyType: depType, lagDays: depLag },
-      {
-        onSuccess: (data: any) => {
-          if (data?.dateAdjusted) {
-            toast({
-              title: "Dependency added",
-              description: `Task dates automatically adjusted (${data.newStartDate} - ${data.newEndDate})`,
-            });
-          } else {
-            toast({ title: "Success", description: "Dependency added" });
-          }
-        },
-        onError: (error: any) => {
-          toast({
-            title: "Error",
-            description: error?.message || "Failed to add dependency",
-            variant: "destructive",
-          });
-        },
-      }
-    );
+  const handleRemoveDependency = (predecessorId: number) => {
+    setPendingChanges(prev => {
+      const next = new Map(prev);
+      next.set(predecessorId, { dependsOnTaskId: predecessorId, isRemoved: true });
+      return next;
+    });
   };
 
-  const handleRemoveDependency = (predecessorId: number) => {
+  const handleUndoRemoveDependency = (predecessorId: number) => {
     setPendingChanges(prev => {
       const next = new Map(prev);
       next.delete(predecessorId);
       return next;
     });
-
-    removeDependency.mutate(
-      { taskId, dependsOnTaskId: predecessorId },
-      {
-        onSuccess: () => {
-          toast({ title: "Success", description: "Dependency removed" });
-        },
-        onError: (error: any) => {
-          toast({
-            title: "Error",
-            description: error?.message || "Failed to remove dependency",
-            variant: "destructive",
-          });
-        },
-      }
-    );
   };
 
   const handleStageDependencyType = (dep: any, newType: string) => {
@@ -265,20 +228,28 @@ export const TaskDependenciesSection = forwardRef(function TaskDependenciesSecti
         <div className="border rounded-lg overflow-hidden divide-y">
           {dependencies?.map((dep) => {
             const predecessorTask = allTasks.find(t => t.id === dep.dependsOnTaskId);
-            const hasPendingChange = pendingChanges.has(dep.dependsOnTaskId) && !pendingChanges.get(dep.dependsOnTaskId)?.isNew;
+            const pendingEntry = pendingChanges.get(dep.dependsOnTaskId);
+            const isMarkedRemoved = pendingEntry?.isRemoved === true;
+            const hasPendingChange = !!pendingEntry && !pendingEntry.isNew && !pendingEntry.isRemoved;
             return (
               <div
                 key={dep.id}
                 className={cn(
                   "flex items-center justify-between p-2 rounded-md bg-muted/50 border gap-2",
-                  hasPendingChange && "border-orange-400/50 bg-orange-50/30 dark:bg-orange-950/10"
+                  hasPendingChange && "border-orange-400/50 bg-orange-50/30 dark:bg-orange-950/10",
+                  isMarkedRemoved && "border-red-400/50 bg-red-50/30 dark:bg-red-950/10 opacity-60"
                 )}
               >
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className="text-sm truncate">
+                  <span className={cn("text-sm truncate", isMarkedRemoved && "line-through text-muted-foreground")}>
                     {predecessorTask?.name || `Task #${dep.dependsOnTaskId}`}
                   </span>
+                  {isMarkedRemoved && (
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-red-400 text-red-600 dark:text-red-400">
+                      removing
+                    </Badge>
+                  )}
                   {hasPendingChange && (
                     <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-orange-400 text-orange-600 dark:text-orange-400">
                       unsaved
@@ -286,50 +257,63 @@ export const TaskDependenciesSection = forwardRef(function TaskDependenciesSecti
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <Select
-                    value={getEffectiveType(dep)}
-                    onValueChange={(val) => handleStageDependencyType(dep, val)}
-                  >
-                    <SelectTrigger className="h-7 w-[160px] text-xs px-2">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DEPENDENCY_TYPES.map(t => (
-                        <SelectItem key={t.value} value={t.value}>
-                          <span className="font-medium">{t.label}</span>
-                          <span className="text-muted-foreground ml-1">({t.description})</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">lag/lead days</span>
-                  <Input
-                    type="number"
-                    className="h-7 w-[44px] text-xs text-center px-1"
-                    title="Lag/lead days"
-                    key={`lag-${dep.id}-${getEffectiveLag(dep)}`}
-                    defaultValue={getEffectiveLag(dep)}
-                    onBlur={(e) => {
-                      const newLag = parseInt(e.target.value) || 0;
-                      handleStageLag(dep, newLag);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        (e.target as HTMLInputElement).blur();
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => handleRemoveDependency(dep.dependsOnTaskId)}
-                    disabled={removeDependency.isPending}
-                    data-testid={`remove-dependency-${dep.dependsOnTaskId}`}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button> 
+                  {isMarkedRemoved ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs px-2"
+                      onClick={() => handleUndoRemoveDependency(dep.dependsOnTaskId)}
+                    >
+                      Undo
+                    </Button>
+                  ) : (
+                    <>
+                      <Select
+                        value={getEffectiveType(dep)}
+                        onValueChange={(val) => handleStageDependencyType(dep, val)}
+                      >
+                        <SelectTrigger className="h-7 w-[160px] text-xs px-2">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DEPENDENCY_TYPES.map(t => (
+                            <SelectItem key={t.value} value={t.value}>
+                              <span className="font-medium">{t.label}</span>
+                              <span className="text-muted-foreground ml-1">({t.description})</span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">lag/lead days</span>
+                      <Input
+                        type="number"
+                        className="h-7 w-[44px] text-xs text-center px-1"
+                        title="Lag/lead days"
+                        key={`lag-${dep.id}-${getEffectiveLag(dep)}`}
+                        defaultValue={getEffectiveLag(dep)}
+                        onBlur={(e) => {
+                          const newLag = parseInt(e.target.value) || 0;
+                          handleStageLag(dep, newLag);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            (e.target as HTMLInputElement).blur();
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => handleRemoveDependency(dep.dependsOnTaskId)}
+                        data-testid={`remove-dependency-${dep.dependsOnTaskId}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             );
