@@ -89,23 +89,21 @@ export function registerOrganizationRoutes(app: Express) {
         return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
       }
       
-      const { name, slug, description, ownerId } = req.body;
-      const org = await storage.createOrganization({ name, slug, description, ownerId });
-      // Add creator as org_admin
-      if (ownerId) {
-        await storage.addOrganizationMember({ 
-          organizationId: org.id, 
-          userId: ownerId, 
-          role: 'org_admin' 
-        });
-      }
+      const { name, slug, description } = req.body;
+      const safeOwnerId = userId!;
+      const org = await storage.createOrganization({ name, slug, description, ownerId: safeOwnerId });
+      await storage.addOrganizationMember({ 
+        organizationId: org.id, 
+        userId: safeOwnerId, 
+        role: 'org_admin' 
+      });
       // Auto-assign FREE plan subscription to new organization
       try {
         const { billingProvider } = await import("../services/billing");
         await billingProvider.createSubscription({
           planCode: "FREE",
           orgId: org.id,
-          userId: ownerId || undefined,
+          userId: safeOwnerId,
         });
       } catch (billingErr) {
         console.error("Failed to assign FREE plan to organization:", billingErr);

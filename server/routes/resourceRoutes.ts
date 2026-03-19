@@ -7,6 +7,7 @@ import {
   classifyError,
   getUserIdFromRequest,
   userHasOrgAccess,
+  getUserOrgRole,
   requireEmailVerified,
 } from "./helpers";
 
@@ -429,7 +430,7 @@ export function registerResourceRoutes(app: Express) {
     }
   });
 
-  // Delete a resource
+  // Delete a resource (requires admin role)
   app.delete('/api/resources/:id', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -439,6 +440,10 @@ export function registerResourceRoutes(app: Express) {
       if (!existing) return res.status(404).json({ message: "Resource not found" });
       if (!await userHasOrgAccess(userId, existing.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const role = await getUserOrgRole(userId, existing.organizationId);
+      if (role !== 'org_admin' && role !== 'owner') {
+        return res.status(403).json({ message: 'Admin role required to delete resources' });
       }
       await storage.deleteResource(id);
       res.status(204).send();
@@ -626,7 +631,12 @@ export function registerResourceRoutes(app: Express) {
   // Get all task resource assignments for an organization with full resource data (bulk endpoint - avoids N+1 queries)
   app.get('/api/organizations/:id/full-task-assignments', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const orgId = Number(req.params.id);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       const assignments = await storage.getAllTaskResourceAssignments(orgId);
       res.json(assignments);
     } catch (err) {
@@ -638,7 +648,14 @@ export function registerResourceRoutes(app: Express) {
   // Get all task resource assignments for a project (bulk endpoint - avoids N+1 queries)
   app.get('/api/projects/:id/task-resource-assignments', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const projectId = Number(req.params.id);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: 'Project not found' });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       const assignments = await storage.getProjectTaskResourceAssignments(projectId);
       res.json(assignments);
     } catch (err) {
@@ -650,7 +667,12 @@ export function registerResourceRoutes(app: Express) {
   // Get all issue resource assignments for an organization (bulk endpoint - avoids N+1 queries)
   app.get('/api/organizations/:id/issue-assignments', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const orgId = Number(req.params.id);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       const assignments = await storage.getAllIssueResourceAssignments(orgId);
       res.json(assignments);
     } catch (err) {
@@ -662,7 +684,15 @@ export function registerResourceRoutes(app: Express) {
   // Get assignments for a task
   app.get('/api/tasks/:taskId/resources', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const taskId = Number(req.params.taskId);
+      const task = await storage.getTask(taskId);
+      if (!task) return res.status(404).json({ message: 'Task not found' });
+      const project = await storage.getProject(task.projectId);
+      if (project && !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       const assignments = await storage.getTaskResourceAssignments(taskId);
       res.json(assignments);
     } catch (err) {

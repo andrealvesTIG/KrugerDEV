@@ -231,7 +231,15 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
         startDate: z.string().nullable().optional().transform((v) => v || null),
         endDate: z.string().nullable().optional().transform((v) => v || null),
         budget: z.string().nullable().optional().transform((v) => v || "0"),
-      })
+      }).refine(
+        (data) => {
+          if (data.startDate && data.endDate) {
+            return new Date(data.endDate) >= new Date(data.startDate);
+          }
+          return true;
+        },
+        { message: "End date cannot be before start date", path: ["endDate"] }
+      )
     ),
     defaultValues: {
       name: "",

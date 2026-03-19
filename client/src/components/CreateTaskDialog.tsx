@@ -182,6 +182,10 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
             taskId: newTask.id,
             resourceIds: selectedResourceIds,
             allocations: resourceAllocations,
+          }, {
+            onError: () => {
+              toast({ title: "Warning", description: "Task created but resource assignment failed. Please assign resources manually.", variant: "destructive" });
+            },
           });
         }
         inviteAssignedRef.current = false;

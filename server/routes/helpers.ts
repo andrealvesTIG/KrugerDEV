@@ -14,7 +14,14 @@ import * as os from "os";
 import * as crypto from "crypto";
 import OpenAI from "openai";
 
-const ENCRYPTION_KEY = process.env.SESSION_SECRET || 'fridayreport-default-encryption-key-32ch';
+const ENCRYPTION_KEY = (() => {
+  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('SESSION_SECRET environment variable is required in production for encryption');
+  }
+  console.warn('[SECURITY WARNING] SESSION_SECRET not set — using insecure fallback key. Set SESSION_SECRET before deploying.');
+  return 'fridayreport-default-encryption-key-32ch';
+})();
 
 function encryptApiKey(plaintext: string): string {
   const key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();

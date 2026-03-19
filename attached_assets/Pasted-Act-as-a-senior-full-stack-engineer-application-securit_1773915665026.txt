@@ -1,0 +1,156 @@
+Act as a senior full-stack engineer, application security engineer, and refactoring specialist.
+
+Your task is to implement all of the fixes listed below in this codebase carefully, without breaking existing functionality, user flows, or performance.
+
+Primary goal:
+Fix the security, validation, and reliability issues while preserving:
+- existing features
+- current business logic
+- API contracts unless a change is absolutely required
+- UI behavior unless needed to support safer error handling
+- application performance and responsiveness
+
+Important constraints:
+- Do not do a broad rewrite.
+- Make the smallest safe changes necessary.
+- Avoid introducing unnecessary abstractions.
+- Preserve backward compatibility wherever possible.
+- Do not degrade performance.
+- Do not remove existing functionality unless it is insecure and must be restricted.
+- Reuse existing middleware, auth helpers, role checks, validation patterns, DB utilities, and error handling conventions whenever possible.
+- If there is an existing project pattern, follow it.
+- Prefer targeted fixes over architectural changes.
+
+Issues to fix:
+
+1. [CRITICAL] Add auth + org access checks to:
+   - risks list endpoints
+   - task delete endpoints
+   - task history endpoints
+   - task dependencies endpoints
+   These currently allow cross-tenant data access and/or unauthorized deletion.
+
+2. [CRITICAL] Add auth checks to all resource assignment GET endpoints.
+   These endpoints currently expose assignment data without proper verification.
+
+3. [HIGH] Fix organization creation to force:
+   - ownerId = authenticated userId
+   Prevent privilege escalation by ignoring any unsafe client-supplied ownerId.
+
+4. [HIGH] Add admin role check to resource delete.
+   Prevent viewers or unauthorized users from deleting resources.
+
+5. [HIGH] Remove hardcoded encryption fallback key, or if removal is not possible without breaking runtime behavior:
+   - require a secure environment variable
+   - fail safely in production
+   - log a clear warning in non-production environments
+   Do not weaken encryption behavior.
+
+6. [MEDIUM] Add try/catch to all async GET route handlers that can leak framework/default HTML errors.
+   Ensure consistent JSON/API-safe error responses.
+
+7. [MEDIUM] Add Zod validation to unvalidated POST routes:
+   - timesheets
+   - billing
+   - portfolios
+   Preserve existing accepted payload shapes unless clearly unsafe.
+
+8. [MEDIUM] Wrap task reorder logic in a DB transaction.
+   Prevent partial updates and race-condition inconsistencies.
+
+9. [LOW] Add cross-field date validation for project start/end dates:
+   - client side
+   - server side
+   Ensure end date cannot be before start date.
+
+10. [LOW] In CreateTaskDialog, handle resource assignment failure separately.
+   If task creation succeeds but assignment fails:
+   - do not falsely show total failure
+   - show a clear warning
+   - preserve successful task creation behavior
+
+Execution requirements:
+
+Phase 1 — Analyze first
+- Inspect the codebase and locate every file related to the issues above.
+- Identify existing patterns for:
+  - auth middleware
+  - org/tenant authorization
+  - admin role checks
+  - Zod validation
+  - DB transactions
+  - API error handling
+  - frontend toast/error messaging
+- Create a short implementation plan before editing.
+
+Phase 2 — Implement carefully
+- Apply fixes issue by issue.
+- Keep changes scoped and localized.
+- Reuse existing helpers instead of creating duplicates.
+- When adding auth/org checks, ensure they are efficient and do not add unnecessary queries.
+- Prefer middleware/composable guards when already used elsewhere in the app.
+- For performance-sensitive paths, avoid repeated DB lookups if the same context is already available.
+
+Phase 3 — Verify safety
+After making changes, verify:
+- no route lost existing functionality for authorized users
+- no UI flow was unintentionally changed
+- no new validation breaks legitimate existing payloads unless explicitly required for safety
+- no significant increase in DB round-trips
+- no unnecessary re-renders or client-side regressions
+- all modified endpoints still return consistent response formats
+
+Testing requirements:
+- Run or add targeted tests for each fix when possible.
+- At minimum, validate these scenarios:
+
+Auth / access control
+- authorized user in same org can access allowed data
+- user from another org is denied
+- unauthenticated user is denied
+- non-admin cannot delete protected resources
+- admin can still delete where allowed
+
+Organization creation
+- client-supplied ownerId is ignored
+- authenticated user becomes owner
+
+Encryption
+- secure key required in production
+- non-production warning behavior is correct if applicable
+
+Validation
+- valid payloads still pass
+- invalid payloads fail with clean structured errors
+- project end date before start date is rejected on both client and server
+
+Task reorder
+- reorder updates succeed atomically
+- partial writes do not occur on failure
+
+CreateTaskDialog
+- task creation success + assignment failure shows partial-success warning
+- full success still behaves normally
+- true task creation failure still shows correct error
+
+Output format:
+1. Files inspected
+2. Existing patterns found
+3. Implementation plan
+4. Code changes made
+5. Why each change is safe
+6. Any compatibility concerns
+7. Tests run / checks performed
+8. Remaining risks or manual follow-up
+
+Coding rules:
+- Prefer minimal diffs.
+- Keep code readable.
+- Do not silently change unrelated logic.
+- Do not introduce speculative improvements unrelated to the listed fixes.
+- If a fix requires a tradeoff, choose the safest option with the least impact to existing functionality and performance.
+- If you find ambiguity, resolve it by following existing codebase conventions rather than inventing a new pattern.
+- If you must change an API contract, document it clearly and keep the change minimal.
+
+Final instruction:
+Make the fixes directly in the codebase and provide a concise implementation report with evidence that performance and existing functionality were preserved as much as possible.

@@ -1,9 +1,10 @@
 import type { Express } from "express";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
+import { db } from "../db";
 import { z } from "zod";
 import Papa from "papaparse";
-import { and, desc, asc } from "drizzle-orm";
+import { and, desc, asc, eq } from "drizzle-orm";
 import { issues, tasks, projects, portfolios, milestones, type Task } from "@shared/schema";
 import {
   classifyError,
@@ -24,8 +25,21 @@ import { addWorkingDays, ensureWorkingDay, calculateEndDate, calculateDuration, 
 export function registerProjectItemRoutes(app: Express) {
   // --- Risks ---
   app.get(api.risks.list.path, async (req, res) => {
-    const risks = await storage.getRisks(Number(req.params.projectId));
-    res.json(risks);
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const projectId = Number(req.params.projectId);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: 'Project not found' });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const risks = await storage.getRisks(projectId);
+      res.json(risks);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching risks" : classified.message });
+    }
   });
 
   app.post(api.risks.create.path, async (req, res) => {
@@ -1611,33 +1625,68 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   app.delete(api.tasks.delete.path, async (req, res) => {
-    const userId = getUserIdFromRequest(req);
-    const taskId = Number(req.params.id);
-    const task = await storage.getTask(taskId);
-    const projectId = task?.projectId;
-    
-    await storage.softDeleteItem('task', taskId, userId!);
-    
-    // Recalculate WBS after deletion
-    if (projectId) {
-      await recalculateProjectWBS(projectId);
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const taskId = Number(req.params.id);
+      const task = await storage.getTask(taskId);
+      if (!task) return res.status(404).json({ message: 'Task not found' });
+      const project = await storage.getProject(task.projectId);
+      if (project && !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      
+      await storage.softDeleteItem('task', taskId, userId);
+      
+      if (task.projectId) {
+        await recalculateProjectWBS(task.projectId);
+      }
+      
+      res.status(204).send();
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error deleting task" : classified.message });
     }
-    
-    res.status(204).send();
   });
 
   // Task History
   app.get(api.tasks.getHistory.path, async (req, res) => {
-    const taskId = Number(req.params.id);
-    const history = await storage.getTaskChangeLogs(taskId);
-    res.json(history);
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const taskId = Number(req.params.id);
+      const task = await storage.getTask(taskId);
+      if (!task) return res.status(404).json({ message: 'Task not found' });
+      const project = await storage.getProject(task.projectId);
+      if (project && !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const history = await storage.getTaskChangeLogs(taskId);
+      res.json(history);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching task history" : classified.message });
+    }
   });
 
   // Task Dependencies
   app.get(api.tasks.getDependencies.path, async (req, res) => {
-    const taskId = Number(req.params.id);
-    const dependencies = await storage.getTaskDependencies(taskId);
-    res.json(dependencies);
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const taskId = Number(req.params.id);
+      const task = await storage.getTask(taskId);
+      if (!task) return res.status(404).json({ message: 'Task not found' });
+      const project = await storage.getProject(task.projectId);
+      if (project && !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const dependencies = await storage.getTaskDependencies(taskId);
+      res.json(dependencies);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching task dependencies" : classified.message });
+    }
   });
 
   app.post(api.tasks.addDependency.path, async (req, res) => {
@@ -2068,12 +2117,14 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const clampedIndex = Math.max(0, Math.min(newIndex, tasksWithoutMoved.length));
       tasksWithoutMoved.splice(clampedIndex, 0, ...tasksToMove);
       
-      for (let i = 0; i < tasksWithoutMoved.length; i++) {
-        const task = tasksWithoutMoved[i];
-        if (task.taskIndex !== i + 1) {
-          await storage.updateTask(task.id, { taskIndex: i + 1 });
+      await db.transaction(async (tx) => {
+        for (let i = 0; i < tasksWithoutMoved.length; i++) {
+          const task = tasksWithoutMoved[i];
+          if (task.taskIndex !== i + 1) {
+            await tx.update(tasks).set({ taskIndex: i + 1 }).where(eq(tasks.id, task.id));
+          }
         }
-      }
+      });
       
       await recalculateProjectWBS(projectId);
       await rollUpParentTasks(projectId);
@@ -2187,10 +2238,17 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   app.get(api.projectFinancials.get.path, async (req, res) => {
-    const id = Number(req.params.id);
-    const financial = await storage.getProjectFinancial(id);
-    if (!financial) return res.status(404).json({ message: "Financial record not found" });
-    res.json(financial);
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const financial = await storage.getProjectFinancial(id);
+      if (!financial) return res.status(404).json({ message: "Financial record not found" });
+      res.json(financial);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching financial record" : classified.message });
+    }
   });
 
   app.post(api.projectFinancials.create.path, async (req, res) => {
