@@ -39,6 +39,7 @@ export function registerProjectRoutes(app: Express) {
     
     const requestedOrgId = req.query.organizationId ? Number(req.query.organizationId) : undefined;
     const portfolioId = req.query.portfolioId ? Number(req.query.portfolioId) : undefined;
+    const isInternal = req.query.isInternal !== undefined ? req.query.isInternal === 'true' : undefined;
     const page = req.query.page ? Number(req.query.page) : undefined;
     const pageSize = req.query.pageSize ? Number(req.query.pageSize) : 10;
     
@@ -53,7 +54,7 @@ export function registerProjectRoutes(app: Express) {
       return res.json([]);
     }
     
-    const allProjects = await storage.getProjects(requestedOrgId, portfolioId);
+    const allProjects = await storage.getProjects(requestedOrgId, portfolioId, isInternal);
     
     // Filter projects to only those in accessible orgs
     let filteredProjects = allProjects.filter(p => 

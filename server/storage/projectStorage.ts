@@ -22,23 +22,12 @@ import {
 } from "@shared/schema";
 import { eq, and, desc, or, isNull, isNotNull, inArray, sql } from "drizzle-orm";
 
-export async function getProjects(organizationId?: number, portfolioId?: number): Promise<Project[]> {
-  if (organizationId && portfolioId) {
-    return await db.select().from(projects).where(
-      and(eq(projects.organizationId, organizationId), eq(projects.portfolioId, portfolioId), isNull(projects.deletedAt))
-    );
-  }
-  if (organizationId) {
-    return await db.select().from(projects).where(
-      and(eq(projects.organizationId, organizationId), isNull(projects.deletedAt))
-    );
-  }
-  if (portfolioId) {
-    return await db.select().from(projects).where(
-      and(eq(projects.portfolioId, portfolioId), isNull(projects.deletedAt))
-    );
-  }
-  return await db.select().from(projects).where(isNull(projects.deletedAt));
+export async function getProjects(organizationId?: number, portfolioId?: number, isInternal?: boolean): Promise<Project[]> {
+  const conditions = [isNull(projects.deletedAt)];
+  if (organizationId) conditions.push(eq(projects.organizationId, organizationId));
+  if (portfolioId) conditions.push(eq(projects.portfolioId, portfolioId));
+  if (isInternal !== undefined) conditions.push(eq(projects.isInternal, isInternal));
+  return await db.select().from(projects).where(and(...conditions));
 }
 
 export async function getProject(id: number): Promise<Project | undefined> {
