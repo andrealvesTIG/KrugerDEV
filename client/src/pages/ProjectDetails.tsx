@@ -441,12 +441,20 @@ export default function ProjectDetails() {
     return Math.round(totalProgress / projectTasks.length);
   }, [projectTasks, project?.completionPercentage]);
 
-  // Auto-switch organization if the project belongs to a different org the user has access to
+  const autoSwitchedForProjectRef = useRef<number | null>(null);
+  const lastProjectIdRef = useRef<number | null>(null);
+
   useEffect(() => {
     if (!project || !organizations.length) return;
+    if (project.id !== lastProjectIdRef.current) {
+      lastProjectIdRef.current = project.id;
+      autoSwitchedForProjectRef.current = null;
+    }
     if (currentOrganization && project.organizationId === currentOrganization.id) return;
+    if (autoSwitchedForProjectRef.current === project.id) return;
     const targetOrg = organizations.find(o => o.id === project.organizationId);
     if (targetOrg) {
+      autoSwitchedForProjectRef.current = project.id;
       setCurrentOrganization(targetOrg);
     }
   }, [project, organizations, currentOrganization, setCurrentOrganization]);
@@ -3372,16 +3380,29 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
               </div>
             );
           })()}
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="project-timesheet-blocked"
-              checked={project.timesheetBlocked || false}
-              onCheckedChange={(checked) => autoSave('timesheetBlocked', checked === true)}
-              data-testid="checkbox-project-timesheet-blocked"
-            />
-            <Label htmlFor="project-timesheet-blocked" className="text-xs text-muted-foreground cursor-pointer">
-              Block timesheet entries
-            </Label>
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="project-is-internal"
+                checked={(project as any).isInternal || false}
+                onCheckedChange={(checked) => autoSave('isInternal', checked === true)}
+                data-testid="checkbox-project-is-internal"
+              />
+              <Label htmlFor="project-is-internal" className="text-xs text-muted-foreground cursor-pointer">
+                Internal project
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="project-timesheet-blocked"
+                checked={project.timesheetBlocked || false}
+                onCheckedChange={(checked) => autoSave('timesheetBlocked', checked === true)}
+                data-testid="checkbox-project-timesheet-blocked"
+              />
+              <Label htmlFor="project-timesheet-blocked" className="text-xs text-muted-foreground cursor-pointer">
+                Block timesheet entries
+              </Label>
+            </div>
           </div>
           <div>
             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Description</Label>

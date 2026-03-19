@@ -97,6 +97,7 @@ export const api = {
       path: '/api/projects',
       input: z.object({
         portfolioId: z.coerce.number().optional(),
+        isInternal: z.enum(['true', 'false']).transform(v => v === 'true').optional(),
         page: z.coerce.number().optional(),
         pageSize: z.coerce.number().optional(),
       }).optional(),

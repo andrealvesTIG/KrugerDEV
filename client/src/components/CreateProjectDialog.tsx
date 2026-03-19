@@ -536,6 +536,22 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
                   <Label htmlFor="cp-description">Description</Label>
                   <Textarea id="cp-description" {...form.register("description")} data-testid="input-description" />
                 </div>
+
+                <div className="col-span-2 flex items-center space-x-2">
+                  <Controller
+                    control={form.control}
+                    name="isInternal"
+                    render={({ field }) => (
+                      <Checkbox
+                        id="cp-isInternal"
+                        checked={field.value || false}
+                        onCheckedChange={(checked) => field.onChange(checked === true)}
+                        data-testid="checkbox-is-internal"
+                      />
+                    )}
+                  />
+                  <Label htmlFor="cp-isInternal" className="text-sm cursor-pointer">Internal Project</Label>
+                </div>
               </div>
 
               <DialogFooter>

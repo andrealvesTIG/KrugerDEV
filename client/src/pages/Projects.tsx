@@ -246,6 +246,11 @@ function ProjectsListView({
                         <span className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors" title={project.name}>
                           {project.name}
                         </span>
+                        {(project as any).isInternal && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-violet-300 text-violet-600 dark:border-violet-700 dark:text-violet-400 shrink-0">
+                            Internal
+                          </Badge>
+                        )}
                         {project.timesheetBlocked && (
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -808,6 +813,9 @@ export default function Projects() {
         case "my-closed":
           matchesFilterView = isMyProject && isClosed;
           break;
+        case "internal":
+          matchesFilterView = (p as any).isInternal === true;
+          break;
       }
       
       return matchesSearch && matchesSource && matchesPortfolio && matchesFilterView;
@@ -1300,6 +1308,7 @@ const ALL_GRID_COLUMNS: GridColumn[] = [
   { id: "createdAt", label: "Created Date", defaultVisible: false },
   { id: "updatedAt", label: "Updated Date", defaultVisible: false },
   { id: "description", label: "Description", defaultVisible: false },
+  { id: "isInternal", label: "Internal", defaultVisible: false },
 ];
 
 const GRID_COLUMN_ORDER_KEY = "projects-grid-column-order";
@@ -1788,6 +1797,11 @@ function ProjectsGridView({
             <Link href={`/projects/${project.id}`} className="font-medium text-primary hover:underline truncate flex-1 min-w-0" title={project.name}>
               {project.name}
             </Link>
+            {(project as any).isInternal && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-violet-300 text-violet-600 dark:border-violet-700 dark:text-violet-400 flex-shrink-0">
+                Internal
+              </Badge>
+            )}
             {project.timesheetBlocked && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -2110,6 +2124,12 @@ function ProjectsGridView({
         return <span className="text-sm">{project.createdAt ? format(new Date(project.createdAt), 'MMM d, yyyy') : "-"}</span>;
       case "updatedAt":
         return <span className="text-sm">{(project as any).updatedAt ? format(new Date((project as any).updatedAt), 'MMM d, yyyy') : "-"}</span>;
+      case "isInternal":
+        return (project as any).isInternal ? (
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-violet-300 text-violet-600 dark:border-violet-700 dark:text-violet-400">
+            Internal
+          </Badge>
+        ) : <span className="text-sm text-muted-foreground">-</span>;
       default:
         return "-";
     }
@@ -2568,6 +2588,11 @@ function DraggableProjectCard({ project }: { project: Project }) {
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
               <div className="font-medium text-sm line-clamp-2 flex-1">{project.name}</div>
+              {(project as any).isInternal && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-violet-300 text-violet-600 dark:border-violet-700 dark:text-violet-400 flex-shrink-0">
+                  Internal
+                </Badge>
+              )}
               {project.timesheetBlocked && (
                 <Tooltip>
                   <TooltipTrigger asChild>

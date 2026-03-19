@@ -28,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ChevronDown, Plus, Save, Pencil, Trash2, Check, Star, Search, AlertCircle, FolderOpen, Users, User, Archive, FolderCheck, Building2 } from "lucide-react";
+import { ChevronDown, Plus, Save, Pencil, Trash2, Check, Star, Search, AlertCircle, FolderOpen, Users, User, Archive, FolderCheck, Building2, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProjectViews, useCreateProjectView, useUpdateProjectView, useDeleteProjectView, useSetDefaultView } from "@/hooks/use-project-views";
 import { useQuery } from "@tanstack/react-query";
@@ -56,7 +56,8 @@ export type ProjectFilterView =
   | "my-active"
   | "active"
   | "closed"
-  | "my-closed";
+  | "my-closed"
+  | "internal";
 
 interface FilterViewOption {
   id: ProjectFilterView;
@@ -95,6 +96,12 @@ const FILTER_VIEW_OPTIONS: FilterViewOption[] = [
     label: "My Closed Projects",
     icon: FolderCheck,
     tooltip: "Your assigned projects with 'Closed' status",
+  },
+  {
+    id: "internal",
+    label: "Internal Projects",
+    icon: Lock,
+    tooltip: "Projects marked as internal",
   },
 ];
 
