@@ -118,13 +118,9 @@ export const TaskDependenciesSection = forwardRef(function TaskDependenciesSecti
   const filteredPredecessors = availablePredecessors.filter(task => {
     if (!searchQuery.trim()) return true;
     const query = normalizeSearch(searchQuery);
-    const isNumericQuery = /^\d+$/.test(searchQuery.trim());
     const displayIndex = allTasks.findIndex(t => t.id === task.id) + 1;
-    if (isNumericQuery) {
-      return String(displayIndex).includes(searchQuery.trim());
-    }
     const nameMatch = normalizeSearch(task.name).includes(query);
-    const indexMatch = String(displayIndex).includes(query);
+    const indexMatch = String(displayIndex).includes(searchQuery.trim());
     return nameMatch || indexMatch;
   });
 
