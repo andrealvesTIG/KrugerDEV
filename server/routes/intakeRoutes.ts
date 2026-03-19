@@ -1,10 +1,7 @@
 import type { Express } from "express";
-import path from "path";
-import fs from "fs";
 import { storage } from "../storage";
-import { db } from "../db";
-import { and, inArray } from "drizzle-orm";
-import { resources, tasks, taskDependencies } from "@shared/schema";
+import { and } from "drizzle-orm";
+import { resources } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -12,10 +9,6 @@ import {
   userHasOrgAccess,
   getUserOrgIds,
   requireEmailVerified,
-  upload,
-  parseMppFile,
-  parseXmlMspdi,
-  parseCsv,
 } from "./helpers";
 
 export function registerIntakeRoutes(app: Express) {

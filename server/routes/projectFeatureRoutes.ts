@@ -1,8 +1,10 @@
 import type { Express } from "express";
+import path from "path";
+import fs from "fs";
 import { storage } from "../storage";
 import { db } from "../db";
-import { eq, and, asc } from "drizzle-orm";
-import { users, tasks, projects, systemProjectViews, notifications } from "@shared/schema";
+import { eq, and, asc, inArray } from "drizzle-orm";
+import { users, tasks, projects, systemProjectViews, notifications, taskDependencies } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -11,6 +13,9 @@ import {
   getUserOrgIds,
   requireEmailVerified,
   upload,
+  parseMppFile,
+  parseXmlMspdi,
+  parseCsv,
 } from "./helpers";
 
 export function registerProjectFeatureRoutes(app: Express) {
