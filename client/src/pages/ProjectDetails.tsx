@@ -441,12 +441,20 @@ export default function ProjectDetails() {
     return Math.round(totalProgress / projectTasks.length);
   }, [projectTasks, project?.completionPercentage]);
 
-  // Auto-switch organization if the project belongs to a different org the user has access to
+  const autoSwitchedForProjectRef = useRef<number | null>(null);
+  const lastProjectIdRef = useRef<number | null>(null);
+
   useEffect(() => {
     if (!project || !organizations.length) return;
+    if (project.id !== lastProjectIdRef.current) {
+      lastProjectIdRef.current = project.id;
+      autoSwitchedForProjectRef.current = null;
+    }
     if (currentOrganization && project.organizationId === currentOrganization.id) return;
+    if (autoSwitchedForProjectRef.current === project.id) return;
     const targetOrg = organizations.find(o => o.id === project.organizationId);
     if (targetOrg) {
+      autoSwitchedForProjectRef.current = project.id;
       setCurrentOrganization(targetOrg);
     }
   }, [project, organizations, currentOrganization, setCurrentOrganization]);
