@@ -24,3 +24,9 @@ id = "onLkRpsUzWZO1dgnWxO6_"
 uri = "file://FridayReportAI_Azure_Deployment_Flow.pptx"
 type = "slides"
 title = "Azure Deployment Flow — Complete 14-Slide Deck (Editable)"
+
+[[outputs]]
+id = "JlJoXGCdJy_KGzDHvXauM"
+uri = "file://Schema_Analysis_Report.md"
+type = "text"
+title = "FridayReport.AI — Comprehensive Schema & Architecture Analysis Report"
