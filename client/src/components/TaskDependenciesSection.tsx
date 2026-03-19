@@ -118,10 +118,14 @@ export const TaskDependenciesSection = forwardRef(function TaskDependenciesSecti
   const filteredPredecessors = availablePredecessors.filter(task => {
     if (!searchQuery.trim()) return true;
     const query = normalizeSearch(searchQuery);
+    const isNumericQuery = /^\d+$/.test(searchQuery.trim());
+    const displayIndex = allTasks.findIndex(t => t.id === task.id) + 1;
+    if (isNumericQuery) {
+      return String(displayIndex).includes(searchQuery.trim());
+    }
     const nameMatch = normalizeSearch(task.name).includes(query);
-    const idMatch = String(task.id).includes(query);
-    const taskIndexMatch = task.taskIndex ? String(task.taskIndex).includes(query) : false;
-    return nameMatch || idMatch || taskIndexMatch;
+    const indexMatch = String(displayIndex).includes(query);
+    return nameMatch || indexMatch;
   });
 
   const immediatePredecessorId = currentTaskIndex > 0
@@ -350,7 +354,7 @@ export const TaskDependenciesSection = forwardRef(function TaskDependenciesSecti
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder="Search tasks by name or ID..."
+            placeholder="Search tasks by name or index..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-8 h-8 text-sm"
