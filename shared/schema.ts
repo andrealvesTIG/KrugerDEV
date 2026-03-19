@@ -284,6 +284,7 @@ export const projects = pgTable("projects", {
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
   isDemo: boolean("is_demo").default(false),
+  isInternal: boolean("is_internal").default(false),
   timesheetBlocked: boolean("timesheet_blocked").default(false),
 }, (table) => [
   index("projects_org_id_idx").on(table.organizationId),
