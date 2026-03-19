@@ -47,6 +47,7 @@ The application features an enterprise-grade UI inspired by Linear and Asana, bu
 **Reminder & Escalation System**: Automated multi-channel reminder engine for timesheets, including submission reminders, manager approval reminders, auto-escalation to skip-level managers, and weekly manager digest emails. Configurable at the organization level.
 
 **Database Migration & Deployment**: The build process runs `drizzle-kit push --force` to sync schema tables and `script/migrate.ts` for additional indexes and manual migrations.
+**Schema Integrity**: `script/check-schema.ts --verbose` validates all 110 tables, 1,517 columns, and 249 FKs. `task_dependencies` has a unique constraint on `(task_id, depends_on_task_id)`. `lessons_learned.approvedBy` is `varchar` with FK to `users`. Legacy `identifiedDate` column removed from `lessons_learned` (consolidated to `dateIdentified`). `tasks.start_date` and `tasks.end_date` are nullable in both schema and DB.
 
 ## External Dependencies
 
