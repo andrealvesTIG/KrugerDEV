@@ -39,6 +39,7 @@ export type PendingDepChange = {
   dependsOnTaskId: number;
   dependencyType?: string;
   lagDays?: number;
+  isNew?: boolean;
 };
 
 export type TaskDependenciesSectionHandle = {
@@ -101,9 +102,12 @@ export const TaskDependenciesSection = forwardRef(function TaskDependenciesSecti
 
   const currentTaskIndex = allTasks.findIndex(t => t.id === taskId);
 
+  const pendingNewDeps = Array.from(pendingChanges.values()).filter(p => p.isNew);
+
   const availablePredecessors = allTasks.filter((task, index) => {
     if (task.id === taskId) return false;
     if (dependencies?.some(d => d.dependsOnTaskId === task.id)) return false;
+    if (pendingChanges.has(task.id) && pendingChanges.get(task.id)?.isNew) return false;
     const taskLevel = task.outlineLevel || 1;
     const hasChildren = index < allTasks.length - 1 && ((allTasks[index + 1].outlineLevel || 1) > taskLevel);
     if (hasChildren) return false;
@@ -257,11 +261,11 @@ export const TaskDependenciesSection = forwardRef(function TaskDependenciesSecti
         </p>
       </div>
 
-      {dependencies && dependencies.length > 0 ? (
+      {(dependencies && dependencies.length > 0) || pendingNewDeps.length > 0 ? (
         <div className="border rounded-lg overflow-hidden divide-y">
-          {dependencies.map((dep) => {
+          {dependencies?.map((dep) => {
             const predecessorTask = allTasks.find(t => t.id === dep.dependsOnTaskId);
-            const hasPendingChange = pendingChanges.has(dep.dependsOnTaskId);
+            const hasPendingChange = pendingChanges.has(dep.dependsOnTaskId) && !pendingChanges.get(dep.dependsOnTaskId)?.isNew;
             return (
               <div
                 key={dep.id}
@@ -330,6 +334,94 @@ export const TaskDependenciesSection = forwardRef(function TaskDependenciesSecti
               </div>
             );
           })}
+          {pendingNewDeps.map((pending) => {
+            const predecessorTask = allTasks.find(t => t.id === pending.dependsOnTaskId);
+            const pendingType = normalizeToPascal(pending.dependencyType);
+            const pendingLag = pending.lagDays ?? 0;
+            return (
+              <div
+                key={`pending-${pending.dependsOnTaskId}`}
+                className="flex items-center justify-between p-2 rounded-md border gap-2 border-orange-400/50 bg-orange-50/30 dark:bg-orange-950/10"
+              >
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className="text-sm truncate">
+                    {predecessorTask?.name || `Task #${pending.dependsOnTaskId}`}
+                  </span>
+                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-orange-400 text-orange-600 dark:text-orange-400">
+                    unsaved
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <Select
+                    value={pendingType}
+                    onValueChange={(val) => {
+                      setPendingChanges(prev => {
+                        const next = new Map(prev);
+                        const existing = next.get(pending.dependsOnTaskId);
+                        if (existing) {
+                          next.set(pending.dependsOnTaskId, { ...existing, dependencyType: val });
+                        }
+                        return next;
+                      });
+                    }}
+                  >
+                    <SelectTrigger className="h-7 w-[160px] text-xs px-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DEPENDENCY_TYPES.map(t => (
+                        <SelectItem key={t.value} value={t.value}>
+                          <span className="font-medium">{t.label}</span>
+                          <span className="text-muted-foreground ml-1">({t.description})</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">lag/lead days</span>
+                  <Input
+                    type="number"
+                    className="h-7 w-[44px] text-xs text-center px-1"
+                    title="Lag/lead days"
+                    key={`pending-lag-${pending.dependsOnTaskId}-${pendingLag}`}
+                    defaultValue={pendingLag}
+                    onBlur={(e) => {
+                      const newLag = parseInt(e.target.value) || 0;
+                      setPendingChanges(prev => {
+                        const next = new Map(prev);
+                        const existing = next.get(pending.dependsOnTaskId);
+                        if (existing) {
+                          next.set(pending.dependsOnTaskId, { ...existing, lagDays: newLag });
+                        }
+                        return next;
+                      });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => {
+                      setPendingChanges(prev => {
+                        const next = new Map(prev);
+                        next.delete(pending.dependsOnTaskId);
+                        return next;
+                      });
+                    }}
+                    data-testid={`remove-pending-${pending.dependsOnTaskId}`}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="text-sm text-muted-foreground text-center py-6 border border-dashed rounded-lg bg-muted/20">
@@ -379,7 +471,11 @@ export const TaskDependenciesSection = forwardRef(function TaskDependenciesSecti
                     onClick={() => {
                       const defaultType = orgDefaults.enforceDefaults ? orgDefaults.defaultDependencyType : "FinishToStart";
                       const defaultLag = orgDefaults.enforceDefaults ? orgDefaults.defaultLagDays : 0;
-                      handleAddDependency(task.id, defaultType, defaultLag);
+                      setPendingChanges(prev => {
+                        const next = new Map(prev);
+                        next.set(task.id, { dependsOnTaskId: task.id, dependencyType: defaultType, lagDays: defaultLag, isNew: true });
+                        return next;
+                      });
                     }}
                   >
                     <div className="flex items-center gap-2 min-w-0 flex-1">

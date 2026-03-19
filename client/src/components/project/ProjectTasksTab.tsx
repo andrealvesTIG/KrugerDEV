@@ -19,7 +19,7 @@ import { insertTaskSchema } from "@shared/schema";
 import type { Task, TaskResourceAssignment, Resource } from "@shared/schema";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { TaskDependenciesSection, type TaskDependenciesSectionHandle, type PendingDepChange } from "@/components/TaskDependenciesSection";
-import { useUpdateTaskDependency } from "@/hooks/use-tasks";
+import { useUpdateTaskDependency, useAddTaskDependency } from "@/hooks/use-tasks";
 const ProjectGanttView = lazy(() => import("@/components/project/ProjectGanttView"));
 import ProjectKanbanView, { ProjectTaskHistoryDialog } from "@/components/project/ProjectKanbanView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -270,6 +270,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const depsRef = useRef<TaskDependenciesSectionHandle>(null);
   const [pendingDepChanges, setPendingDepChanges] = useState<Map<number, PendingDepChange>>(new Map());
   const updateDependency = useUpdateTaskDependency();
+  const addDependency = useAddTaskDependency();
   
   // Get sidebar state to calculate fullscreen positioning
   // Sidebar is w-72 (288px) when expanded, w-20 (80px) when collapsed
@@ -480,7 +481,9 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     };
 
     if (editingTask) {
-      const depChangesToApply = Array.from(pendingDepChanges.values());
+      const allDepChanges = Array.from(pendingDepChanges.values());
+      const newDeps = allDepChanges.filter(c => c.isNew);
+      const updatedDeps = allDepChanges.filter(c => !c.isNew);
 
       updateTask.mutate({ id: editingTask.id, ...taskData }, {
         onSuccess: (result) => {
@@ -489,22 +492,29 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           }
           inviteAssignedRef.current = false;
 
-          if (depChangesToApply.length > 0) {
+          const totalDepOps = newDeps.length + updatedDeps.length;
+          if (totalDepOps > 0) {
             let completed = 0;
-            for (const change of depChangesToApply) {
+            const onDepComplete = () => {
+              completed++;
+              if (completed === totalDepOps) {
+                toast({ title: "Success", description: "Task and dependencies updated" });
+              }
+            };
+            const onDepError = (error: any) => {
+              toast({ title: "Error", description: error?.message || "Failed to update dependency", variant: "destructive" });
+            };
+
+            for (const change of newDeps) {
+              addDependency.mutate(
+                { taskId: editingTask.id, dependsOnTaskId: change.dependsOnTaskId, projectId, dependencyType: change.dependencyType, lagDays: change.lagDays },
+                { onSuccess: onDepComplete, onError: onDepError }
+              );
+            }
+            for (const change of updatedDeps) {
               updateDependency.mutate(
                 { taskId: editingTask.id, dependsOnTaskId: change.dependsOnTaskId, dependencyType: change.dependencyType, lagDays: change.lagDays, projectId },
-                {
-                  onSuccess: () => {
-                    completed++;
-                    if (completed === depChangesToApply.length) {
-                      toast({ title: "Success", description: "Task and dependencies updated" });
-                    }
-                  },
-                  onError: (error: any) => {
-                    toast({ title: "Error", description: error?.message || "Failed to update dependency", variant: "destructive" });
-                  }
-                }
+                { onSuccess: onDepComplete, onError: onDepError }
               );
             }
           } else if (result?.datesCorrectedByDependency) {
