@@ -571,6 +571,10 @@ export function registerProjectRoutes(app: Express) {
         return res.status(400).json({ message: "Plan ID and Organization ID are required" });
       }
 
+      if (!await userHasOrgAccess(userId, Number(organizationId))) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+
       // Fetch WhoAmI to get the Dataverse organization ID for URL construction
       let dataverseOrgId: string | null = null;
       try {
@@ -820,7 +824,7 @@ export function registerProjectRoutes(app: Express) {
         
         let durationDays: number;
         if (dvTask.msdyn_duration !== null && dvTask.msdyn_duration !== undefined) {
-          durationDays = dvTask.msdyn_duration / (60 * 8);
+          durationDays = dvTask.msdyn_duration;
         } else {
           durationDays = calcDurationDays(taskStartDate, taskEndDate);
         }
@@ -1591,7 +1595,7 @@ export function registerProjectRoutes(app: Express) {
           const outlineLevel = dvTask.msdyn_outlinelevel || (wbsId ? wbsId.split('.').length : 1);
           let durationDays: number;
           if (dvTask.msdyn_duration !== null && dvTask.msdyn_duration !== undefined) {
-            durationDays = dvTask.msdyn_duration / (60 * 8);
+            durationDays = dvTask.msdyn_duration;
           } else {
             durationDays = calcDurationDays(taskStartDate, taskEndDate);
           }
