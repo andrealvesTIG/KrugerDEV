@@ -142,7 +142,7 @@ export interface IPortfolioStorage {
 }
 
 export interface IProjectStorage {
-  getProjects(organizationId?: number, portfolioId?: number): Promise<Project[]>;
+  getProjects(organizationId?: number, portfolioId?: number, isInternal?: boolean): Promise<Project[]>;
   getProject(id: number): Promise<Project | undefined>;
   createProject(project: InsertProject): Promise<Project>;
   updateProject(id: number, updates: UpdateProjectRequest): Promise<Project>;
