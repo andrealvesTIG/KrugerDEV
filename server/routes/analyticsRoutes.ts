@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request as ExpressRequest } from "express";
 import { storage } from "../storage";
 import { and } from "drizzle-orm";
 import { issues, tasks, projects, portfolios, milestones } from "@shared/schema";
