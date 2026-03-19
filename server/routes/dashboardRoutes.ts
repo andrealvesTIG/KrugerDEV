@@ -332,7 +332,7 @@ export function registerDashboardRoutes(app: Express) {
       }
     }
     
-    const { industryTemplates } = await import('./demo-data-templates');
+    const { industryTemplates } = await import('../demo-data-templates');
     const industries = Object.entries(industryTemplates).map(([key, template]) => ({
       id: key,
       label: template.label,
@@ -389,7 +389,7 @@ export function registerDashboardRoutes(app: Express) {
     }
     
     try {
-      const { industryTemplates } = await import('./demo-data-templates');
+      const { industryTemplates } = await import('../demo-data-templates');
       type IndustryType = keyof typeof industryTemplates;
       let template = industry ? industryTemplates[industry as IndustryType] : null;
       
