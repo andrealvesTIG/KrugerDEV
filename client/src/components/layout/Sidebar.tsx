@@ -412,6 +412,43 @@ export function Sidebar() {
           )}
         </div>
       </div>
+      {/* Mobile Organization Switcher */}
+      {organizations.length > 1 && (
+        <div className="md:hidden px-4 pb-2">
+          <Select
+            value={currentOrganization?.id?.toString() || ""}
+            onValueChange={(value) => {
+              const org = organizations.find(o => o.id.toString() === value);
+              if (org) {
+                setCurrentOrganization(org);
+                setIsMobileOpen(false);
+              }
+            }}
+          >
+            <SelectTrigger className="w-full bg-slate-800 border-slate-700 text-white hover:bg-slate-700 h-9 text-sm" data-testid="mobile-org-switcher">
+              <div className="flex items-center gap-2 min-w-0">
+                <Building2 className="h-4 w-4 flex-shrink-0 text-slate-400" />
+                <SelectValue placeholder="Select organization" />
+              </div>
+            </SelectTrigger>
+            <SelectContent className="z-[60]">
+              {organizations.map(org => (
+                <SelectItem key={org.id} value={org.id.toString()} data-testid={`mobile-org-item-${org.id}`}>
+                  {org.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      {organizations.length === 1 && (
+        <div className="md:hidden px-4 pb-2">
+          <div className="flex items-center gap-2 text-sm text-slate-400">
+            <Building2 className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">{currentOrganization?.name}</span>
+          </div>
+        </div>
+      )}
       {/* Navigation */}
       <nav className={cn("flex-1 space-y-1 py-6 overflow-y-auto", isCollapsed ? "px-2" : "px-4")}>
         {(() => {
