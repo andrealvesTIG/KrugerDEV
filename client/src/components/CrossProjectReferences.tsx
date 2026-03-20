@@ -17,17 +17,30 @@ import { Loader2, Plus, X, ExternalLink, ArrowRight } from "lucide-react";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
-const RELATIONSHIP_TYPES = [
+const TASK_RELATIONSHIP_TYPES = [
   { value: "blocks", label: "Blocks" },
   { value: "is_blocked_by", label: "Is Blocked By" },
-  { value: "depends_on", label: "Depends On" },
   { value: "relates_to", label: "Relates To" },
   { value: "duplicates", label: "Duplicates" },
 ] as const;
 
+const PROJECT_RELATIONSHIP_TYPES = [
+  { value: "depends_on", label: "Depends On" },
+  { value: "is_dependency_of", label: "Is Dependency Of" },
+  { value: "relates_to", label: "Relates To" },
+] as const;
+
+const ALL_RELATIONSHIP_LABELS: Record<string, string> = {
+  blocks: "Blocks",
+  is_blocked_by: "Is Blocked By",
+  depends_on: "Depends On",
+  is_dependency_of: "Is Dependency Of",
+  relates_to: "Relates To",
+  duplicates: "Duplicates",
+};
+
 function getRelationshipLabel(type: string): string {
-  const found = RELATIONSHIP_TYPES.find(r => r.value === type);
-  return found?.label ?? type;
+  return ALL_RELATIONSHIP_LABELS[type] ?? type;
 }
 
 function getRelationshipColor(type: string): string {
@@ -68,7 +81,7 @@ export function CrossProjectReferences({
   const [relationshipType, setRelationshipType] = useState<string>("relates_to");
   const [taskSearch, setTaskSearch] = useState("");
 
-  const otherProjects = orgProjects?.filter(p => entityType === "project" ? p.id !== entityProjectId : true) ?? [];
+  const otherProjects = orgProjects?.filter(p => p.id !== entityProjectId) ?? [];
   const { data: targetTasks } = useTasksForReference(selectedTargetType === "task" ? selectedProjectId : undefined);
 
   const filteredTasks = targetTasks?.filter(t => {
@@ -209,7 +222,7 @@ export function CrossProjectReferences({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {RELATIONSHIP_TYPES.map(r => (
+                  {(entityType === "task" ? TASK_RELATIONSHIP_TYPES : PROJECT_RELATIONSHIP_TYPES).map(r => (
                     <SelectItem key={r.value} value={r.value} className="text-xs">
                       {r.label}
                     </SelectItem>

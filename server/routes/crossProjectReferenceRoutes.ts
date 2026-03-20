@@ -44,10 +44,10 @@ const createRefSchema = z.object({
 }, { message: "Cannot create a reference from a project to itself" })
 .refine((data) => {
   if (data.referenceType === "task_to_task") {
-    return !(data.sourceId === data.targetId && data.sourceProjectId === data.targetProjectId);
+    return data.sourceProjectId !== data.targetProjectId;
   }
   return true;
-}, { message: "Cannot create a reference from a task to itself" });
+}, { message: "Cross-project task references must link tasks from different projects" });
 
 export function registerCrossProjectReferenceRoutes(app: Express) {
   app.get("/api/cross-project-references", async (req, res) => {
