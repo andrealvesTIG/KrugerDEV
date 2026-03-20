@@ -420,6 +420,8 @@ async function migrate() {
          AND t.name = m.title
          AND t.is_milestone = true
          AND t.task_type = 'Milestone'
+         AND COALESCE(t.end_date, '') = COALESCE(m.due_date, '')
+         AND COALESCE(t.milestone_number, -1) = COALESCE(m.milestone_number, -1)
      )`,
 
     // Index for milestone queries on tasks
