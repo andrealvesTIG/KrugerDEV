@@ -2,7 +2,7 @@ import { db } from "../db";
 import {
   users, organizations, organizationMembers, organizationInvites, organizationAccessRequests,
   organizationIntegrations, externalShares,
-  portfolios, projects, tasks, issues, milestones,
+  portfolios, projects, tasks, issues,
   resources, taskResourceAssignments, issueResourceAssignments,
   taskDependencies, taskChangeLogs, issueChangeLogs,
   projectFinancials, changeRequests, projectDocuments, projectComments,
@@ -105,12 +105,11 @@ export async function deleteOrganization(id: number): Promise<void> {
       }
       await db.delete(issues).where(eq(issues.projectId, projectId));
 
-      const milestoneRows = await db.select({ id: milestones.id }).from(milestones).where(eq(milestones.projectId, projectId));
-      const milestoneIds = milestoneRows.map(m => m.id);
+      const milestoneTaskRows = await db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.projectId, projectId), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone')));
+      const milestoneIds = milestoneTaskRows.map(m => m.id);
       if (milestoneIds.length > 0) {
         await db.delete(notifications).where(inArray(notifications.milestoneId, milestoneIds));
       }
-      await db.delete(milestones).where(eq(milestones.projectId, projectId));
 
       await db.delete(projectFinancials).where(eq(projectFinancials.projectId, projectId));
       await db.delete(changeRequests).where(eq(changeRequests.projectId, projectId));

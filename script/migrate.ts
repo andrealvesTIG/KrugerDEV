@@ -369,6 +369,62 @@ async function migrate() {
 
     `CREATE INDEX IF NOT EXISTS uncon_selfie_leads_email_idx ON uncon_selfie_leads (email)`,
     `CREATE UNIQUE INDEX IF NOT EXISTS uncon_selfie_leads_share_token_idx ON uncon_selfie_leads (share_token)`,
+
+    // === MILESTONE CONSOLIDATION: Add milestone-specific columns to tasks table ===
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS milestone_number TEXT`,
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS milestone_type TEXT`,
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS deliverables TEXT`,
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS acceptance_criteria TEXT`,
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS success_metrics TEXT`,
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS stakeholders TEXT`,
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`,
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS organization_id INTEGER REFERENCES organizations(id)`,
+
+    // Backfill tasks.organization_id from projects
+    `UPDATE tasks SET organization_id = p.organization_id FROM projects p WHERE tasks.project_id = p.id AND tasks.organization_id IS NULL`,
+
+    // Migrate milestones data into tasks table (deduplicate by checking title+project combo)
+    `INSERT INTO tasks (project_id, name, description, task_type, is_milestone, priority, start_date, end_date, baseline_end_date, actual_end_date, status, progress, assignee, owner_id, milestone_number, milestone_type, deliverables, acceptance_criteria, success_metrics, stakeholders, phase, notes, organization_id, created_at, deleted_at, deleted_by, is_demo)
+     SELECT
+       m.project_id,
+       m.title,
+       m.description,
+       'Milestone',
+       true,
+       m.priority,
+       m.start_date,
+       m.due_date,
+       m.baseline_due_date,
+       m.actual_completion_date,
+       COALESCE(m.status, CASE WHEN m.completed THEN 'Done' ELSE 'Not Started' END),
+       CASE WHEN m.completed THEN 100 ELSE 0 END,
+       m.assignee,
+       m.owner_id,
+       m.milestone_number,
+       m.milestone_type,
+       m.deliverables,
+       m.acceptance_criteria,
+       m.success_metrics,
+       m.stakeholders,
+       m.phase,
+       m.notes,
+       m.organization_id,
+       m.created_at,
+       m.deleted_at,
+       m.deleted_by,
+       m.is_demo
+     FROM milestones m
+     WHERE NOT EXISTS (
+       SELECT 1 FROM tasks t
+       WHERE t.project_id = m.project_id
+         AND t.name = m.title
+         AND t.is_milestone = true
+         AND t.task_type = 'Milestone'
+     )`,
+
+    // Index for milestone queries on tasks
+    `CREATE INDEX IF NOT EXISTS idx_tasks_is_milestone ON tasks (is_milestone) WHERE is_milestone = true`,
+    `CREATE INDEX IF NOT EXISTS idx_tasks_organization_id ON tasks (organization_id)`,
   ];
 
   for (const sql of migrations) {

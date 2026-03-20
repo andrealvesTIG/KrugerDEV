@@ -27,7 +27,7 @@ import {
   usageEvents, usageRollups, billingCycles, invoiceRecords,
   referralCodes,
 } from "@shared/models/billing";
-import { eq, or } from "drizzle-orm";
+import { eq, or, and } from "drizzle-orm";
 
 export async function getUser(id: string): Promise<User | undefined> {
   const [user] = await db.select().from(users).where(eq(users.id, id));
@@ -86,7 +86,6 @@ export async function deleteUser(id: string): Promise<void> {
   await db.update(issues).set({ deletedBy: null }).where(eq(issues.deletedBy, id));
   await db.update(issues).set({ ownerId: null }).where(eq(issues.ownerId, id));
   await db.update(issues).set({ reviewerId: null }).where(eq(issues.reviewerId, id));
-  await db.update(milestones).set({ deletedBy: null }).where(eq(milestones.deletedBy, id));
   await db.delete(timesheetEntries).where(eq(timesheetEntries.userId, id));
   await db.update(timesheetEntries).set({ approvedBy: null }).where(eq(timesheetEntries.approvedBy, id));
   await db.update(projectChangeLogs).set({ changedByName: null }).where(eq(projectChangeLogs.changedBy, id));

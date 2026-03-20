@@ -2220,7 +2220,7 @@ export async function registerMiscRoutes(app: Express) {
         UNION ALL
         SELECT 'risks', COUNT(*) FROM issues WHERE item_type = 'risk'
         UNION ALL
-        SELECT 'milestones', COUNT(*) FROM milestones
+        SELECT 'milestones', COUNT(*) FROM tasks WHERE is_milestone = true
         UNION ALL
         SELECT 'resources', COUNT(*) FROM resources
         UNION ALL
@@ -2323,7 +2323,7 @@ export async function registerMiscRoutes(app: Express) {
           (SELECT COUNT(*) FROM tasks t INNER JOIN projects pr ON t.project_id = pr.id WHERE pr.organization_id = o.id) as task_count,
           (SELECT COUNT(*) FROM portfolios pf WHERE pf.organization_id = o.id AND pf.deleted_at IS NULL) as portfolio_count,
           (SELECT COUNT(*) FROM risks r INNER JOIN projects pr ON r.project_id = pr.id WHERE pr.organization_id = o.id) as risk_count,
-          (SELECT COUNT(*) FROM milestones m INNER JOIN projects pr ON m.project_id = pr.id WHERE pr.organization_id = o.id) as milestone_count,
+          (SELECT COUNT(*) FROM tasks m WHERE m.is_milestone = true AND m.organization_id = o.id) as milestone_count,
           (SELECT COUNT(*) FROM issues i INNER JOIN projects pr ON i.project_id = pr.id WHERE pr.organization_id = o.id) as issue_count,
           (SELECT COUNT(*) FROM api_request_logs l WHERE l.organization_id = o.id AND l.created_at >= NOW() - INTERVAL '7 days') as api_requests_7d
         FROM organizations o

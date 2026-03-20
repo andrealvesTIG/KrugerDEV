@@ -75,11 +75,10 @@ export async function deleteProject(id: number): Promise<void> {
   }
   await db.delete(issues).where(eq(issues.projectId, id));
 
-  const milestoneRows = await db.select({ id: milestones.id }).from(milestones).where(eq(milestones.projectId, id));
-  if (milestoneRows.length > 0) {
-    await db.delete(notifications).where(inArray(notifications.milestoneId, milestoneRows.map(m => m.id)));
+  const milestoneTaskRows = await db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.projectId, id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone')));
+  if (milestoneTaskRows.length > 0) {
+    await db.delete(notifications).where(inArray(notifications.milestoneId, milestoneTaskRows.map(m => m.id)));
   }
-  await db.delete(milestones).where(eq(milestones.projectId, id));
 
   await db.delete(projectFinancials).where(eq(projectFinancials.projectId, id));
   await db.delete(changeRequests).where(eq(changeRequests.projectId, id));
@@ -176,32 +175,122 @@ export async function convertRiskToIssue(id: number): Promise<Issue | undefined>
   return converted;
 }
 
+function taskToMilestone(task: Task): Milestone {
+  return {
+    id: task.id,
+    projectId: task.projectId,
+    milestoneNumber: task.milestoneNumber ?? null,
+    title: task.name,
+    description: task.description,
+    milestoneType: task.milestoneType ?? null,
+    dueDate: task.endDate ?? '',
+    baselineDueDate: task.baselineEndDate ?? null,
+    actualCompletionDate: task.actualEndDate ?? null,
+    startDate: task.startDate ?? null,
+    completed: task.status === 'Done' || task.status === 'Completed' || task.progress === 100,
+    status: task.status,
+    priority: task.priority,
+    ownerId: task.ownerId ?? null,
+    assignee: task.assignee ?? null,
+    deliverables: task.deliverables ?? null,
+    acceptanceCriteria: task.acceptanceCriteria ?? null,
+    dependencies: null,
+    successMetrics: task.successMetrics ?? null,
+    stakeholders: task.stakeholders ?? null,
+    phase: task.phase ?? null,
+    notes: task.notes ?? null,
+    organizationId: task.organizationId ?? null,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt ?? task.createdAt,
+    deletedAt: task.deletedAt,
+    deletedBy: task.deletedBy,
+    isDemo: task.isDemo,
+  };
+}
+
 export async function getMilestones(projectId: number): Promise<Milestone[]> {
-  return await db.select().from(milestones).where(
-    and(eq(milestones.projectId, projectId), isNull(milestones.deletedAt))
+  const rows = await db.select().from(tasks).where(
+    and(eq(tasks.projectId, projectId), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone'), isNull(tasks.deletedAt))
   );
+  return rows.map(taskToMilestone);
 }
 
 export async function getAllMilestones(): Promise<Milestone[]> {
-  return await db.select().from(milestones).where(isNull(milestones.deletedAt));
+  const rows = await db.select().from(tasks).where(
+    and(eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone'), isNull(tasks.deletedAt))
+  );
+  return rows.map(taskToMilestone);
 }
 
 export async function createMilestone(milestone: InsertMilestone): Promise<Milestone> {
-  const [newMilestone] = await db.insert(milestones).values(milestone).returning();
-  return newMilestone;
+  const taskData: any = {
+    projectId: milestone.projectId,
+    name: milestone.title,
+    description: milestone.description ?? null,
+    taskType: 'Milestone',
+    isMilestone: true,
+    priority: milestone.priority ?? 'Medium',
+    startDate: milestone.startDate ?? null,
+    endDate: milestone.dueDate,
+    baselineEndDate: milestone.baselineDueDate ?? null,
+    actualEndDate: milestone.actualCompletionDate ?? null,
+    status: milestone.status ?? (milestone.completed ? 'Done' : 'Not Started'),
+    progress: milestone.completed ? 100 : 0,
+    assignee: milestone.assignee ?? null,
+    ownerId: milestone.ownerId ?? null,
+    milestoneNumber: milestone.milestoneNumber ?? null,
+    milestoneType: milestone.milestoneType ?? null,
+    deliverables: milestone.deliverables ?? null,
+    acceptanceCriteria: milestone.acceptanceCriteria ?? null,
+    successMetrics: milestone.successMetrics ?? null,
+    stakeholders: milestone.stakeholders ?? null,
+    phase: milestone.phase ?? null,
+    notes: milestone.notes ?? null,
+    organizationId: milestone.organizationId ?? null,
+    isDemo: milestone.isDemo ?? false,
+  };
+  const [newTask] = await db.insert(tasks).values(taskData).returning();
+  return taskToMilestone(newTask);
 }
 
 export async function updateMilestone(id: number, updates: UpdateMilestoneRequest): Promise<Milestone> {
-  const [updated] = await db.update(milestones)
-    .set(updates)
-    .where(eq(milestones.id, id))
+  const taskUpdates: any = {};
+  if (updates.title !== undefined) taskUpdates.name = updates.title;
+  if (updates.description !== undefined) taskUpdates.description = updates.description;
+  if (updates.dueDate !== undefined) taskUpdates.endDate = updates.dueDate;
+  if (updates.baselineDueDate !== undefined) taskUpdates.baselineEndDate = updates.baselineDueDate;
+  if (updates.actualCompletionDate !== undefined) taskUpdates.actualEndDate = updates.actualCompletionDate;
+  if (updates.startDate !== undefined) taskUpdates.startDate = updates.startDate;
+  if (updates.status !== undefined) taskUpdates.status = updates.status;
+  if (updates.priority !== undefined) taskUpdates.priority = updates.priority;
+  if (updates.assignee !== undefined) taskUpdates.assignee = updates.assignee;
+  if (updates.ownerId !== undefined) taskUpdates.ownerId = updates.ownerId;
+  if (updates.milestoneNumber !== undefined) taskUpdates.milestoneNumber = updates.milestoneNumber;
+  if (updates.milestoneType !== undefined) taskUpdates.milestoneType = updates.milestoneType;
+  if (updates.deliverables !== undefined) taskUpdates.deliverables = updates.deliverables;
+  if (updates.acceptanceCriteria !== undefined) taskUpdates.acceptanceCriteria = updates.acceptanceCriteria;
+  if (updates.successMetrics !== undefined) taskUpdates.successMetrics = updates.successMetrics;
+  if (updates.stakeholders !== undefined) taskUpdates.stakeholders = updates.stakeholders;
+  if (updates.phase !== undefined) taskUpdates.phase = updates.phase;
+  if (updates.notes !== undefined) taskUpdates.notes = updates.notes;
+  if (updates.completed !== undefined) {
+    taskUpdates.progress = updates.completed ? 100 : 0;
+    if (updates.status === undefined) {
+      taskUpdates.status = updates.completed ? 'Done' : 'Not Started';
+    }
+  }
+  taskUpdates.updatedAt = new Date();
+
+  const [updated] = await db.update(tasks)
+    .set(taskUpdates)
+    .where(and(eq(tasks.id, id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone')))
     .returning();
-  return updated;
+  return taskToMilestone(updated);
 }
 
 export async function deleteMilestone(id: number): Promise<void> {
   await db.delete(notifications).where(eq(notifications.milestoneId, id));
-  await db.delete(milestones).where(eq(milestones.id, id));
+  await db.delete(tasks).where(and(eq(tasks.id, id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone')));
 }
 
 export async function getIssues(projectId: number): Promise<Issue[]> {
@@ -355,18 +444,21 @@ export async function search(query: string, organizationIds?: number[]): Promise
     )
     .limit(limit);
 
-  const milestoneResults = await db.select().from(milestones)
+  const milestoneTaskResults = await db.select().from(tasks)
     .where(
       and(
-        isNull(milestones.deletedAt),
-        sql`${milestones.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
+        isNull(tasks.deletedAt),
+        eq(tasks.isMilestone, true),
+        eq(tasks.taskType, 'Milestone'),
+        sql`${tasks.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
         or(
-          sql`COALESCE(${milestones.title}, '') ILIKE ${searchPattern}`,
-          sql`COALESCE(${milestones.description}, '') ILIKE ${searchPattern}`
+          sql`COALESCE(${tasks.name}, '') ILIKE ${searchPattern}`,
+          sql`COALESCE(${tasks.description}, '') ILIKE ${searchPattern}`
         )
       )
     )
     .limit(limit);
+  const milestoneResults = milestoneTaskResults.map(taskToMilestone);
 
   return { portfolios: portfolioResults, projects: projectResults, tasks: taskResults, issues: issueResults, risks: riskResults, milestones: milestoneResults };
 }
@@ -405,9 +497,16 @@ export async function deleteAllDemoDataForOrganization(organizationId: number): 
     }
     stats.assignments += taskAssignmentsDeleted;
     
+    const demoMilestoneTasks = await db.select({ id: tasks.id }).from(tasks)
+      .where(and(eq(tasks.projectId, project.id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone'), eq(tasks.isDemo, true)));
+    for (const ms of demoMilestoneTasks) {
+      await db.delete(notifications).where(eq(notifications.milestoneId, ms.id));
+    }
+    stats.milestones += demoMilestoneTasks.length;
+
     const deletedTasks = await db.delete(tasks)
       .where(and(eq(tasks.projectId, project.id), eq(tasks.isDemo, true))).returning();
-    stats.tasks += deletedTasks.length;
+    stats.tasks += deletedTasks.length - demoMilestoneTasks.length;
     
     const demoIssuesAndRisks = await db.select({ id: issues.id }).from(issues)
       .where(and(eq(issues.projectId, project.id), eq(issues.isDemo, true)));
@@ -419,15 +518,6 @@ export async function deleteAllDemoDataForOrganization(organizationId: number): 
     const deletedRisks = await db.delete(issues)
       .where(and(eq(issues.projectId, project.id), eq(issues.itemType, 'risk'), eq(issues.isDemo, true))).returning();
     stats.risks += deletedRisks.length;
-    
-    const demoMilestones = await db.select({ id: milestones.id }).from(milestones)
-      .where(and(eq(milestones.projectId, project.id), eq(milestones.isDemo, true)));
-    for (const ms of demoMilestones) {
-      await db.delete(notifications).where(eq(notifications.milestoneId, ms.id));
-    }
-    const deletedMilestones = await db.delete(milestones)
-      .where(and(eq(milestones.projectId, project.id), eq(milestones.isDemo, true))).returning();
-    stats.milestones += deletedMilestones.length;
     
     const deletedIssues = await db.delete(issues)
       .where(and(eq(issues.projectId, project.id), eq(issues.itemType, 'issue'), eq(issues.isDemo, true))).returning();
@@ -460,7 +550,7 @@ export async function deleteAllDemoDataForOrganization(organizationId: number): 
   for (const project of demoProjects) {
     const remainingTasks = await db.select({ count: sql`count(*)` }).from(tasks).where(eq(tasks.projectId, project.id));
     const remainingIssuesAll = await db.select({ count: sql`count(*)` }).from(issues).where(eq(issues.projectId, project.id));
-    const remainingMilestones = await db.select({ count: sql`count(*)` }).from(milestones).where(eq(milestones.projectId, project.id));
+    const remainingMilestones = await db.select({ count: sql`count(*)` }).from(tasks).where(and(eq(tasks.projectId, project.id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone')));
     const remainingFinancials = await db.select({ count: sql`count(*)` }).from(projectFinancials).where(eq(projectFinancials.projectId, project.id));
     const remainingCRs = await db.select({ count: sql`count(*)` }).from(changeRequests).where(eq(changeRequests.projectId, project.id));
     const remainingDocs = await db.select({ count: sql`count(*)` }).from(projectDocuments).where(eq(projectDocuments.projectId, project.id));
@@ -596,13 +686,15 @@ export async function getDeletedItems(organizationId: number): Promise<RecycleBi
       items.push({ id: r.id, type: 'risk', name: r.title, projectName: projectMap.get(r.projectId), deletedAt: r.deletedAt!, deletedBy: r.deletedBy });
     }
 
-    const deletedMilestonesItems = await db.select().from(milestones)
+    const deletedMilestonesItems = await db.select().from(tasks)
       .where(and(
-        sql`${milestones.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
-        isNotNull(milestones.deletedAt)
+        eq(tasks.isMilestone, true),
+        eq(tasks.taskType, 'Milestone'),
+        sql`${tasks.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
+        isNotNull(tasks.deletedAt)
       ));
     for (const m of deletedMilestonesItems) {
-      items.push({ id: m.id, type: 'milestone', name: m.title, projectName: projectMap.get(m.projectId), deletedAt: m.deletedAt!, deletedBy: m.deletedBy });
+      items.push({ id: m.id, type: 'milestone', name: m.name, projectName: projectMap.get(m.projectId), deletedAt: m.deletedAt!, deletedBy: m.deletedBy });
     }
 
     const deletedIssuesItems = await db.select().from(issues)
@@ -674,12 +766,12 @@ export async function softDeleteItem(type: RecycleBinItemType, id: number, userI
       break;
     case 'milestone':
       if (organizationId) {
-        const [m] = await db.select().from(milestones).where(eq(milestones.id, id));
+        const [m] = await db.select().from(tasks).where(and(eq(tasks.id, id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone')));
         if (!m) return false;
         const [p] = await db.select().from(projects).where(and(eq(projects.id, m.projectId), eq(projects.organizationId, organizationId)));
         if (!p) return false;
       }
-      await db.update(milestones).set({ deletedAt: now, deletedBy: userId }).where(eq(milestones.id, id));
+      await db.update(tasks).set({ deletedAt: now, deletedBy: userId }).where(and(eq(tasks.id, id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone')));
       break;
     case 'issue':
       if (organizationId) {
@@ -725,11 +817,11 @@ export async function restoreItem(type: RecycleBinItemType, id: number, organiza
       break;
     }
     case 'milestone': {
-      const [m] = await db.select().from(milestones).where(eq(milestones.id, id));
+      const [m] = await db.select().from(tasks).where(and(eq(tasks.id, id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone')));
       if (!m) return false;
       const [p] = await db.select().from(projects).where(and(eq(projects.id, m.projectId), eq(projects.organizationId, organizationId)));
       if (!p) return false;
-      await db.update(milestones).set({ deletedAt: null, deletedBy: null }).where(eq(milestones.id, id));
+      await db.update(tasks).set({ deletedAt: null, deletedBy: null }).where(and(eq(tasks.id, id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone')));
       break;
     }
     case 'issue': {
@@ -788,11 +880,12 @@ export async function permanentlyDeleteItem(type: RecycleBinItemType, id: number
       break;
     }
     case 'milestone': {
-      const [m] = await db.select().from(milestones).where(eq(milestones.id, id));
+      const [m] = await db.select().from(tasks).where(and(eq(tasks.id, id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone')));
       if (!m) return false;
       const [p] = await db.select().from(projects).where(and(eq(projects.id, m.projectId), eq(projects.organizationId, organizationId)));
       if (!p) return false;
-      await db.delete(milestones).where(eq(milestones.id, id));
+      await db.delete(notifications).where(eq(notifications.milestoneId, id));
+      await db.delete(tasks).where(and(eq(tasks.id, id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone')));
       break;
     }
     case 'issue': {

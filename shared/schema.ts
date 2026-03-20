@@ -321,6 +321,7 @@ export const healthStatusHistory = pgTable("health_status_history", {
 // The 'risks' table is deprecated - use issues with itemType filter instead
 
 // Milestones
+/** @deprecated Use tasks table with isMilestone=true instead. This table is kept for backward compatibility but is no longer read from or written to. All milestone data has been migrated to the tasks table. */
 export const milestones = pgTable("milestones", {
   id: serial("id").primaryKey(),
   projectId: integer("project_id").references(() => projects.id).notNull(),
@@ -463,6 +464,14 @@ export const tasks = pgTable("tasks", {
   timesheetBlocked: boolean("timesheet_blocked").default(false),
   externalId: text("external_id"),
   completionOverridden: boolean("completion_overridden").default(false),
+  milestoneNumber: text("milestone_number"),
+  milestoneType: text("milestone_type"),
+  deliverables: text("deliverables"),
+  acceptanceCriteria: text("acceptance_criteria"),
+  successMetrics: text("success_metrics"),
+  stakeholders: text("stakeholders"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  organizationId: integer("organization_id").references(() => organizations.id),
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),

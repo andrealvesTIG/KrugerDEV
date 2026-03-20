@@ -7,7 +7,7 @@ import { db } from "../db";
 import { z } from "zod";
 import { eq, and, desc, sql } from "drizzle-orm";
 import multer from "multer";
-import { users, taskResourceAssignments, issues, resources, tasks, projects, portfolios, milestones, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, type Task } from "@shared/schema";
+import { users, taskResourceAssignments, issues, resources, tasks, projects, portfolios, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, type Task } from "@shared/schema";
 import type { User } from "@shared/models/auth";
 import {
   classifyError,
@@ -350,8 +350,8 @@ export function registerUserRoutes(app: Express) {
         ));
 
       const milestonesOwned = await db.select({ count: sql<number>`count(*)::int` })
-        .from(milestones)
-        .where(and(eq(milestones.ownerId, targetUserId), sql`${milestones.deletedAt} IS NULL`));
+        .from(tasks)
+        .where(and(eq(tasks.ownerId, targetUserId), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone'), sql`${tasks.deletedAt} IS NULL`));
 
       const portfoliosManaged = await db.select({ count: sql<number>`count(*)::int` })
         .from(portfolios)
@@ -568,8 +568,8 @@ export function registerUserRoutes(app: Express) {
         ));
 
       const milestonesOwned = await db.select({ count: sql<number>`count(*)::int` })
-        .from(milestones)
-        .where(and(eq(milestones.ownerId, targetUserId), sql`${milestones.deletedAt} IS NULL`));
+        .from(tasks)
+        .where(and(eq(tasks.ownerId, targetUserId), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone'), sql`${tasks.deletedAt} IS NULL`));
 
       const portfoliosManaged = await db.select({ count: sql<number>`count(*)::int` })
         .from(portfolios)

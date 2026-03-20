@@ -1,6 +1,6 @@
 import { db } from "../db";
 import {
-  portfolios, projects, issues, milestones, customPortfolioProjects,
+  portfolios, projects, issues, tasks, customPortfolioProjects,
   type Portfolio, type InsertPortfolio, type UpdatePortfolioRequest,
   type Risk, type Issue, type Milestone,
 } from "@shared/schema";
@@ -103,8 +103,38 @@ export async function getPortfolioMilestones(portfolioId: number): Promise<(Mile
   if (projectIds.length === 0) return [];
   
   const projectMap = new Map(portfolioProjs.map(p => [p.id, p.name]));
-  const allMilestones = await db.select().from(milestones).where(
-    and(inArray(milestones.projectId, projectIds), isNull(milestones.deletedAt))
+  const milestoneTasks = await db.select().from(tasks).where(
+    and(inArray(tasks.projectId, projectIds), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone'), isNull(tasks.deletedAt))
   );
-  return allMilestones.map(m => ({ ...m, projectName: projectMap.get(m.projectId!) || '' }));
+  return milestoneTasks.map(t => ({
+    id: t.id,
+    projectId: t.projectId,
+    milestoneNumber: t.milestoneNumber ?? null,
+    title: t.name,
+    description: t.description,
+    milestoneType: t.milestoneType ?? null,
+    dueDate: t.endDate ?? '',
+    baselineDueDate: t.baselineEndDate ?? null,
+    actualCompletionDate: t.actualEndDate ?? null,
+    startDate: t.startDate ?? null,
+    completed: t.status === 'Done' || t.status === 'Completed' || t.progress === 100,
+    status: t.status,
+    priority: t.priority,
+    ownerId: t.ownerId ?? null,
+    assignee: t.assignee ?? null,
+    deliverables: t.deliverables ?? null,
+    acceptanceCriteria: t.acceptanceCriteria ?? null,
+    dependencies: null,
+    successMetrics: t.successMetrics ?? null,
+    stakeholders: t.stakeholders ?? null,
+    phase: t.phase ?? null,
+    notes: t.notes ?? null,
+    organizationId: t.organizationId ?? null,
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt ?? t.createdAt,
+    deletedAt: t.deletedAt,
+    deletedBy: t.deletedBy,
+    isDemo: t.isDemo,
+    projectName: projectMap.get(t.projectId) || '',
+  }));
 }

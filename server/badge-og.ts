@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { users } from "@shared/models/auth";
 import { eq, and, sql } from "drizzle-orm";
-import { projects, tasks, issues, milestones, portfolios, taskResourceAssignments, resources } from "@shared/schema";
+import { projects, tasks, issues, portfolios, taskResourceAssignments, resources } from "@shared/schema";
 import sharp from "sharp";
 import path from "path";
 import fs from "fs";
@@ -52,8 +52,8 @@ export async function getBadgeOgData(userId: string): Promise<BadgeOgData | null
     .where(and(sql`(${issues.assigneeId} = ${userId} OR ${issues.ownerId} = ${userId})`, eq(issues.itemType, 'issue'), sql`${issues.deletedAt} IS NULL`));
   const [ra] = await db.select({ count: sql<number>`count(*)::int` }).from(issues)
     .where(and(sql`(${issues.assigneeId} = ${userId} OR ${issues.ownerId} = ${userId})`, eq(issues.itemType, 'risk'), sql`${issues.deletedAt} IS NULL`));
-  const [mo] = await db.select({ count: sql<number>`count(*)::int` }).from(milestones)
-    .where(and(eq(milestones.ownerId, userId), sql`${milestones.deletedAt} IS NULL`));
+  const [mo] = await db.select({ count: sql<number>`count(*)::int` }).from(tasks)
+    .where(and(eq(tasks.ownerId, userId), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone'), sql`${tasks.deletedAt} IS NULL`));
   const [po] = await db.select({ count: sql<number>`count(*)::int` }).from(portfolios)
     .where(and(sql`(${portfolios.managerId} = ${userId} OR ${portfolios.businessOwnerId} = ${userId})`, sql`${portfolios.deletedAt} IS NULL`));
   const [tl] = await db.select({ count: sql<number>`count(*)::int` }).from(apiRequestLogs)
@@ -284,8 +284,8 @@ export async function getSingleBadgeOgData(userId: string, badgeId: string): Pro
     .where(and(sql`(${issues.assigneeId} = ${userId} OR ${issues.ownerId} = ${userId})`, eq(issues.itemType, 'risk'), sql`${issues.deletedAt} IS NULL`));
   const [rr] = await db.select({ count: sql<number>`count(*)::int` }).from(issues)
     .where(and(sql`(${issues.assigneeId} = ${userId} OR ${issues.ownerId} = ${userId})`, eq(issues.itemType, 'risk'), sql`${issues.status} IN ('Mitigated', 'Closed')`, sql`${issues.deletedAt} IS NULL`));
-  const [mo] = await db.select({ count: sql<number>`count(*)::int` }).from(milestones)
-    .where(and(eq(milestones.ownerId, userId), sql`${milestones.deletedAt} IS NULL`));
+  const [mo] = await db.select({ count: sql<number>`count(*)::int` }).from(tasks)
+    .where(and(eq(tasks.ownerId, userId), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone'), sql`${tasks.deletedAt} IS NULL`));
   const [po] = await db.select({ count: sql<number>`count(*)::int` }).from(portfolios)
     .where(and(sql`(${portfolios.managerId} = ${userId} OR ${portfolios.businessOwnerId} = ${userId})`, sql`${portfolios.deletedAt} IS NULL`));
   const [tl] = await db.select({ count: sql<number>`count(*)::int` }).from(apiRequestLogs)

@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { storage } from '../storage';
-import { tasks, projects, portfolios, issues, milestones, taskResourceAssignments, resources, users, notifications, organizationMembers } from '@shared/schema';
+import { tasks, projects, portfolios, issues, taskResourceAssignments, resources, users, notifications, organizationMembers } from '@shared/schema';
 import { eq, and, lt, lte, gte, isNull, or, not, inArray, sql } from 'drizzle-orm';
 import { addDays, format, startOfDay } from 'date-fns';
 
@@ -261,18 +261,20 @@ export async function checkMilestones(organizationId: number): Promise<Notificat
   try {
     const upcomingMilestones = await db
       .select({
-        milestone: milestones,
+        milestone: tasks,
         project: projects,
       })
-      .from(milestones)
-      .innerJoin(projects, eq(milestones.projectId, projects.id))
+      .from(tasks)
+      .innerJoin(projects, eq(tasks.projectId, projects.id))
       .where(and(
         eq(projects.organizationId, organizationId),
-        gte(milestones.dueDate, todayStr),
-        lte(milestones.dueDate, nextWeekStr),
-        not(eq(milestones.status, 'Done')),
-        not(eq(milestones.completed, true)),
-        isNull(milestones.deletedAt),
+        eq(tasks.isMilestone, true),
+        eq(tasks.taskType, 'Milestone'),
+        gte(tasks.endDate, todayStr),
+        lte(tasks.endDate, nextWeekStr),
+        not(eq(tasks.status, 'Done')),
+        sql`(${tasks.progress} IS NULL OR ${tasks.progress} < 100)`,
+        isNull(tasks.deletedAt),
         isNull(projects.deletedAt)
       ));
     
@@ -295,7 +297,7 @@ export async function checkMilestones(organizationId: number): Promise<Notificat
             organizationId,
             type: 'milestone_approaching',
             title: 'Milestone Approaching',
-            message: `Milestone "${milestone.title}" in project "${project.name}" is due on ${milestone.dueDate}`,
+            message: `Milestone "${milestone.name}" in project "${project.name}" is due on ${milestone.endDate}`,
             projectId: project.id,
             milestoneId: milestone.id,
             severity: 'warning',
@@ -310,17 +312,19 @@ export async function checkMilestones(organizationId: number): Promise<Notificat
     
     const overdueMilestones = await db
       .select({
-        milestone: milestones,
+        milestone: tasks,
         project: projects,
       })
-      .from(milestones)
-      .innerJoin(projects, eq(milestones.projectId, projects.id))
+      .from(tasks)
+      .innerJoin(projects, eq(tasks.projectId, projects.id))
       .where(and(
         eq(projects.organizationId, organizationId),
-        lt(milestones.dueDate, todayStr),
-        not(eq(milestones.status, 'Done')),
-        not(eq(milestones.completed, true)),
-        isNull(milestones.deletedAt),
+        eq(tasks.isMilestone, true),
+        eq(tasks.taskType, 'Milestone'),
+        lt(tasks.endDate, todayStr),
+        not(eq(tasks.status, 'Done')),
+        sql`(${tasks.progress} IS NULL OR ${tasks.progress} < 100)`,
+        isNull(tasks.deletedAt),
         isNull(projects.deletedAt)
       ));
     
@@ -338,7 +342,7 @@ export async function checkMilestones(organizationId: number): Promise<Notificat
             organizationId,
             type: 'milestone_overdue',
             title: 'Milestone Overdue',
-            message: `Milestone "${milestone.title}" in project "${project.name}" is overdue (was due: ${milestone.dueDate})`,
+            message: `Milestone "${milestone.name}" in project "${project.name}" is overdue (was due: ${milestone.endDate})`,
             projectId: project.id,
             milestoneId: milestone.id,
             severity: 'critical',
