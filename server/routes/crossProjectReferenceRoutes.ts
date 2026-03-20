@@ -128,6 +128,16 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
         return res.status(400).json({ message: "Target ID must match target project ID for project references" });
       }
 
+      const validTaskRelationships = ["blocks", "is_blocked_by", "relates_to", "duplicates"];
+      const validProjectRelationships = ["depends_on", "is_dependency_of", "relates_to"];
+
+      if (input.referenceType === "task_to_task" && !validTaskRelationships.includes(input.relationshipType)) {
+        return res.status(400).json({ message: `Invalid relationship type for task references. Must be one of: ${validTaskRelationships.join(", ")}` });
+      }
+      if (input.referenceType === "project_to_project" && !validProjectRelationships.includes(input.relationshipType)) {
+        return res.status(400).json({ message: `Invalid relationship type for project references. Must be one of: ${validProjectRelationships.join(", ")}` });
+      }
+
       if (input.sourceType === "task") {
         const valid = await validateTaskBelongsToProject(input.sourceId, input.sourceProjectId);
         if (!valid) {

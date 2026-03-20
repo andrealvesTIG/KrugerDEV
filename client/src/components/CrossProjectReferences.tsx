@@ -11,9 +11,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Plus, X, ExternalLink, ArrowRight } from "lucide-react";
+import { Loader2, Plus, X, ExternalLink, ArrowRight, Check, ChevronsUpDown } from "lucide-react";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -80,6 +82,7 @@ export function CrossProjectReferences({
   const [selectedTaskId, setSelectedTaskId] = useState<number | undefined>();
   const [relationshipType, setRelationshipType] = useState<string>("relates_to");
   const [taskSearch, setTaskSearch] = useState("");
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
 
   const otherProjects = orgProjects?.filter(p => p.id !== entityProjectId) ?? [];
   const { data: targetTasks } = useTasksForReference(selectedTargetType === "task" ? selectedProjectId : undefined);
@@ -234,26 +237,49 @@ export function CrossProjectReferences({
           </div>
 
           <div>
-            <Label className="text-xs">Target Project</Label>
-            <Select
-              value={selectedProjectId ? String(selectedProjectId) : ""}
-              onValueChange={(v) => {
-                setSelectedProjectId(Number(v));
-                setSelectedTaskId(undefined);
-                setTaskSearch("");
-              }}
-            >
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue placeholder="Select a project..." />
-              </SelectTrigger>
-              <SelectContent>
-                {otherProjects.map(p => (
-                  <SelectItem key={p.id} value={String(p.id)} className="text-xs">
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label className="text-xs">{entityType === "project" ? "Related Project" : "Target Project"}</Label>
+            <Popover open={projectPickerOpen} onOpenChange={setProjectPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={projectPickerOpen}
+                  className="h-8 w-full justify-between text-xs font-normal"
+                >
+                  {selectedProjectId
+                    ? otherProjects.find(p => p.id === selectedProjectId)?.name ?? "Select..."
+                    : "Search projects..."}
+                  <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[300px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search projects..." className="h-8 text-xs" />
+                  <CommandList>
+                    <CommandEmpty>No projects found.</CommandEmpty>
+                    <CommandGroup>
+                      {otherProjects.map(p => (
+                        <CommandItem
+                          key={p.id}
+                          value={p.name}
+                          onSelect={() => {
+                            setSelectedProjectId(p.id);
+                            setSelectedTaskId(undefined);
+                            setTaskSearch("");
+                            setProjectPickerOpen(false);
+                          }}
+                          className="text-xs"
+                        >
+                          <Check className={cn("mr-2 h-3 w-3", selectedProjectId === p.id ? "opacity-100" : "opacity-0")} />
+                          {p.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {selectedTargetType === "task" && selectedProjectId && (
