@@ -3312,12 +3312,14 @@ export function registerProjectRoutes(app: Express) {
       };
       
       if (format === 'csv') {
-        // Generate CSV
-        const headers = ['WBS', 'Name', 'Type', 'Start Date', 'End Date', 'Duration (days)', '% Complete', 'Status', 'Priority', 'Assigned To', 'Description'];
+        // Generate CSV with task indentation reflecting outline hierarchy
+        const headers = ['Index', 'WBS', 'Outline Level', 'Name', 'Type', 'Start Date', 'End Date', 'Duration (days)', '% Complete', 'Status', 'Priority', 'Assigned To', 'Description'];
         const rows: string[][] = [];
         
         // Add project as first row
         rows.push([
+          '0',
+          '0',
           '0',
           project.name || '',
           'Project',
@@ -3331,37 +3333,36 @@ export function registerProjectRoutes(app: Express) {
           project.description || ''
         ]);
         
-        // Add tasks
+        // Compute WBS values based on hierarchy
+        const wbsCounters: number[] = [];
+        const computeWbs = (outlineLevel: number): string => {
+          const lvlIdx = outlineLevel - 1;
+          while (wbsCounters.length <= lvlIdx) wbsCounters.push(0);
+          wbsCounters[lvlIdx]++;
+          wbsCounters.length = outlineLevel;
+          return wbsCounters.join('.');
+        };
+
+        // Add tasks with indentation
         tasks.forEach((task, index) => {
+          const level = task.outlineLevel || 1;
+          const indent = '    '.repeat(level - 1);
+          const wbs = task.wbs || computeWbs(level);
+          const taskType = task.isSummary ? 'Summary' : task.isMilestone ? 'Milestone' : 'Task';
           rows.push([
             String(index + 1),
-            task.name || '',
-            task.isMilestone ? 'Milestone' : 'Task',
+            wbs,
+            String(level),
+            indent + (task.name || ''),
+            taskType,
             task.startDate || '',
             task.endDate || '',
             task.durationDays != null ? String(task.durationDays) : '',
             String(task.progress || 0),
             task.status || '',
-            '',
+            task.priority || '',
             taskResourceMap.get(task.id) || task.assignee || '',
             task.description || ''
-          ]);
-        });
-        
-        // Add milestones
-        milestones.forEach((ms, index) => {
-          rows.push([
-            `M${index + 1}`,
-            ms.title || '',
-            'Milestone',
-            ms.dueDate || '',
-            ms.dueDate || '',
-            '0',
-            ms.completed ? '100' : '0',
-            ms.completed ? 'Completed' : 'Pending',
-            ms.priority || '',
-            ms.assignee || '',
-            ms.description || ''
           ]);
         });
         
