@@ -1860,7 +1860,6 @@ export interface StatusReportTabProps {
   project: any;
   risks: Risk[];
   issues: Issue[];
-  milestones: any[];
   financials: ProjectFinancial[];
   tasks: Task[];
   changeRequests: ChangeRequest[];
@@ -1871,7 +1870,6 @@ export function StatusReportTab({
   project,
   risks,
   issues,
-  milestones,
   financials,
   tasks,
   changeRequests,
@@ -1894,7 +1892,6 @@ export function StatusReportTab({
           project={project}
           risks={risks}
           issues={issues}
-          milestones={milestones}
           financials={financials}
           tasks={tasks}
           changeRequests={changeRequests}
@@ -1949,7 +1946,7 @@ export function StatusReportTab({
           project={project}
           risks={risks}
           issues={issues}
-          milestones={milestones}
+
           financials={financials}
           tasks={tasks}
           changeRequests={changeRequests}
@@ -2072,7 +2069,7 @@ export function StatusReportTab({
           project={project}
           risks={risks}
           issues={issues}
-          milestones={milestones}
+
           financials={financials}
           tasks={tasks}
           changeRequests={changeRequests}

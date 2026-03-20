@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusReportDialog } from "@/components/StatusReportDialog";
 import { FileText, TrendingUp, Calendar, DollarSign } from "lucide-react";
-import type { Project, Risk, Issue, Milestone, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
+import type { Project, Risk, Issue, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
 import { formatCurrency } from "@/lib/format";
 
 interface ProjectCardCompactProps {
@@ -46,16 +46,6 @@ export function ProjectCardCompact({ project, showBudget = true, showProgress = 
     queryKey: ['/api/projects', project.id, 'issues'],
     queryFn: async () => {
       const res = await fetch(`/api/projects/${project.id}/issues`);
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: dialogOpen,
-  });
-
-  const { data: milestones = [] } = useQuery<Milestone[]>({
-    queryKey: ['/api/projects', project.id, 'milestones'],
-    queryFn: async () => {
-      const res = await fetch(`/api/projects/${project.id}/milestones`);
       if (!res.ok) return [];
       return res.json();
     },
@@ -171,7 +161,6 @@ export function ProjectCardCompact({ project, showBudget = true, showProgress = 
         project={project}
         risks={risks}
         issues={issues}
-        milestones={milestones}
         financials={financials}
         tasks={tasks}
         changeRequests={changeRequests}

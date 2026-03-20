@@ -13,7 +13,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { ProjectStatusReport } from "./ProjectStatusReport";
 import { ProjectStatusReportPDF } from "./ProjectStatusReportPDF";
 import { Download, Mail, Loader2, FileText, Eye } from "lucide-react";
-import type { Project, Risk, Issue, Milestone, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
+import type { Project, Risk, Issue, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
 
 interface StatusReportDialogProps {
   open: boolean;
@@ -21,7 +21,6 @@ interface StatusReportDialogProps {
   project: Project;
   risks: Risk[];
   issues: Issue[];
-  milestones: Milestone[];
   financials: ProjectFinancial[];
   tasks: Task[];
   changeRequests?: ChangeRequest[];
@@ -34,7 +33,6 @@ export function StatusReportDialog({
   project,
   risks,
   issues,
-  milestones,
   financials,
   tasks,
   changeRequests = [],
@@ -53,7 +51,7 @@ export function StatusReportDialog({
           project={project}
           risks={risks}
           issues={issues}
-          milestones={milestones}
+
           financials={financials}
           tasks={tasks}
           changeRequests={changeRequests}
@@ -101,7 +99,7 @@ export function StatusReportDialog({
           project={project}
           risks={risks}
           issues={issues}
-          milestones={milestones}
+
           financials={financials}
           tasks={tasks}
           changeRequests={changeRequests}
@@ -183,7 +181,7 @@ export function StatusReportDialog({
                 project={project}
                 risks={risks}
                 issues={issues}
-                milestones={milestones}
+      
                 financials={financials}
                 tasks={tasks}
                 changeRequests={changeRequests}

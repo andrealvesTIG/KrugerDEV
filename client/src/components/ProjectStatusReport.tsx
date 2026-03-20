@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { format, differenceInDays, isAfter, isBefore } from "date-fns";
-import type { Project, Risk, Issue, Milestone, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
+import type { Project, Risk, Issue, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle2, Circle, Clock, Target, TrendingUp, Users, DollarSign, Calendar, Flag, FileText, GitPullRequest, ChevronDown, ChevronUp } from "lucide-react";
@@ -11,7 +11,6 @@ interface ProjectStatusReportProps {
   project: Project;
   risks: Risk[];
   issues: Issue[];
-  milestones: Milestone[];
   financials: ProjectFinancial[];
   tasks: Task[];
   changeRequests?: ChangeRequest[];
@@ -61,7 +60,6 @@ export function ProjectStatusReport({
   project,
   risks,
   issues,
-  milestones,
   financials,
   tasks,
   changeRequests = [],
@@ -152,10 +150,10 @@ export function ProjectStatusReport({
   }, [risks, issues]);
 
   const majorMilestones = useMemo(() => {
-    return milestones
-      .filter(m => !m.deletedAt)
-      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-  }, [milestones]);
+    return tasks
+      .filter(t => t.isMilestone && !t.deletedAt && t.dueDate)
+      .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
+  }, [tasks]);
 
   const timelineData = useMemo(() => {
     if (!project.startDate || !project.endDate) return null;
@@ -168,9 +166,9 @@ export function ProjectStatusReport({
     const progressPercent = Math.min((elapsedDays / totalDays) * 100, 100);
     
     const milestonesOnTimeline = majorMilestones.map(m => {
-      const mDate = new Date(m.dueDate);
+      const mDate = new Date(m.dueDate!);
       const position = Math.max(0, Math.min(100, (differenceInDays(mDate, start) / totalDays) * 100));
-      const isComplete = m.completed || m.status === "Done";
+      const isComplete = m.status === "Completed" || m.progress === 100;
       const isPast = isBefore(mDate, today);
       const isAtRisk = isPast && !isComplete;
       return { ...m, position, isComplete, isAtRisk };
@@ -188,11 +186,13 @@ export function ProjectStatusReport({
     };
   }, [project.startDate, project.endDate, majorMilestones]);
 
-  const getMilestoneStatus = (milestone: Milestone) => {
-    if (milestone.completed || milestone.status === "Done") return "Complete";
-    const dueDate = new Date(milestone.dueDate);
-    const today = new Date();
-    if (dueDate < today) return "At Risk";
+  const getMilestoneStatus = (task: Task) => {
+    if (task.status === "Completed" || task.progress === 100) return "Complete";
+    if (task.dueDate) {
+      const dueDate = new Date(task.dueDate);
+      const today = new Date();
+      if (dueDate < today) return "At Risk";
+    }
     return "On Track";
   };
 
@@ -516,7 +516,7 @@ export function ProjectStatusReport({
                           <tr key={milestone.id} className="border-b border-border last:border-0">
                             <td className="py-2 pr-2">{milestone.title}</td>
                             <td className="py-2 pr-2 text-muted-foreground">
-                              {format(new Date(milestone.dueDate), "MMM d, yyyy")}
+                              {milestone.dueDate ? format(new Date(milestone.dueDate), "MMM d, yyyy") : "—"}
                             </td>
                             <td className={cn("py-2 text-right font-medium", getMilestoneStatusColor(status))}>
                               {status}
@@ -670,7 +670,7 @@ export function ProjectStatusReport({
             <span className="text-sm text-muted-foreground block">Complete</span>
           </div>
           <div className="border rounded-lg p-4 text-center">
-            <span className="text-3xl font-bold text-blue-600">{milestones.filter(m => !m.deletedAt).length}</span>
+            <span className="text-3xl font-bold text-blue-600">{majorMilestones.length}</span>
             <span className="text-sm text-muted-foreground block">Milestones</span>
           </div>
           <div className="border rounded-lg p-4 text-center">

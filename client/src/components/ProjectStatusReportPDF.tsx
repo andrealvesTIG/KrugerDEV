@@ -1,6 +1,6 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { format, differenceInDays } from "date-fns";
-import type { Project, Risk, Issue, Milestone, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
+import type { Project, Risk, Issue, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
 
 const styles = StyleSheet.create({
   page: {
@@ -440,7 +440,6 @@ interface ProjectStatusReportPDFProps {
   project: Project;
   risks: Risk[];
   issues: Issue[];
-  milestones: Milestone[];
   financials: ProjectFinancial[];
   tasks: Task[];
   changeRequests?: ChangeRequest[];
@@ -466,7 +465,6 @@ export function ProjectStatusReportPDF({
   project,
   risks,
   issues,
-  milestones,
   financials,
   tasks,
   changeRequests = [],
@@ -502,16 +500,18 @@ export function ProjectStatusReportPDF({
     ...openIssues.slice(0, 2).map((i) => ({ type: "issue" as const, title: i.title, priority: i.priority })),
   ].slice(0, 5);
 
-  const allMilestones = milestones
-    .filter((m) => !m.deletedAt)
-    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  const allMilestones = tasks
+    .filter((t) => t.isMilestone && !t.deletedAt && t.dueDate)
+    .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
   const majorMilestones = allMilestones.slice(0, 8);
 
-  const getMilestoneStatus = (milestone: Milestone) => {
-    if (milestone.completed || milestone.status === "Done") return "Complete";
-    const dueDate = new Date(milestone.dueDate);
-    const today = new Date();
-    if (dueDate < today) return "At Risk";
+  const getMilestoneStatus = (task: Task) => {
+    if (task.status === "Completed" || task.progress === 100) return "Complete";
+    if (task.dueDate) {
+      const dueDate = new Date(task.dueDate);
+      const today = new Date();
+      if (dueDate < today) return "At Risk";
+    }
     return "On Track";
   };
 
@@ -740,7 +740,7 @@ export function ProjectStatusReportPDF({
                     <View key={milestone.id} style={styles.milestoneRow}>
                       <Text style={styles.milestoneTitle}>{milestone.title}</Text>
                       <Text style={styles.milestoneDate}>
-                        {format(new Date(milestone.dueDate), "MMM d, yyyy")}
+                        {milestone.dueDate ? format(new Date(milestone.dueDate), "MMM d, yyyy") : "—"}
                       </Text>
                       <Text
                         style={[
@@ -845,7 +845,7 @@ export function ProjectStatusReportPDF({
             <Text style={styles.statLabel}>Complete</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>{milestones.filter((m) => !m.deletedAt).length}</Text>
+            <Text style={styles.statValue}>{allMilestones.length}</Text>
             <Text style={styles.statLabel}>Milestones</Text>
           </View>
           <View style={styles.statBox}>

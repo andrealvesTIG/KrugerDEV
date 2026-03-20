@@ -1440,7 +1440,6 @@ export default function ProjectDetails() {
               project={project}
               risks={projectRisks || []}
               issues={projectIssues || []}
-              milestones={projectMilestones || []}
               financials={financials || []}
               tasks={projectTasks || []}
               changeRequests={projectChangeRequests || []}
@@ -1467,7 +1466,6 @@ export default function ProjectDetails() {
         project={project}
         risks={projectRisks || []}
         issues={projectIssues || []}
-        milestones={projectMilestones || []}
         financials={financials || []}
         tasks={projectTasks || []}
         changeRequests={projectChangeRequests || []}
