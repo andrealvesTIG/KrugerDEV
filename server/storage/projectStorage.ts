@@ -854,7 +854,6 @@ export async function permanentlyDeleteItem(type: RecycleBinItemType, id: number
         await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
       }
       await db.delete(tasks).where(eq(tasks.projectId, id));
-      await db.delete(milestones).where(eq(milestones.projectId, id));
       await db.delete(issues).where(eq(issues.projectId, id));
       await db.delete(projectFinancials).where(eq(projectFinancials.projectId, id));
       await db.delete(projects).where(eq(projects.id, id));

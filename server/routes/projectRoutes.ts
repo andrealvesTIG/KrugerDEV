@@ -4,7 +4,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { z } from "zod";
 import { eq, and, asc } from "drizzle-orm";
-import { users, taskResourceAssignments, issues, resources, tasks, projects, milestones, plans, timesheetEntries, taskChangeLogs, taskDependencies, notifications, type Task } from "@shared/schema";
+import { users, taskResourceAssignments, issues, resources, tasks, projects, plans, timesheetEntries, taskChangeLogs, taskDependencies, notifications, type Task } from "@shared/schema";
 import type { User } from "@shared/models/auth";
 import {
   classifyError,

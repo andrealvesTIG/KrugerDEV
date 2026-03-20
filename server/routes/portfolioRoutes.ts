@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { z } from "zod";
-import { issues, projects, portfolios, milestones } from "@shared/schema";
+import { issues, projects, portfolios } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,

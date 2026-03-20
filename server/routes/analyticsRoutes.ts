@@ -1,7 +1,7 @@
 import type { Express, Request as ExpressRequest } from "express";
 import { storage } from "../storage";
 import { and } from "drizzle-orm";
-import { issues, tasks, projects, portfolios, milestones } from "@shared/schema";
+import { issues, tasks, projects, portfolios } from "@shared/schema";
 import type { User } from "@shared/models/auth";
 import {
   classifyError,

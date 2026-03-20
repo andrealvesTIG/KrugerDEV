@@ -3,7 +3,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { z } from "zod";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
-import { users, usageEvents, meters, issues, resources, tasks, projects, portfolios, milestones, customDashboards, plans, subscriptions, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, helpTickets, notifications, reportSubscriptions, trainingModules, trainingLessons, trainingQuizQuestions } from "@shared/schema";
+import { users, usageEvents, meters, issues, resources, tasks, projects, portfolios, customDashboards, plans, subscriptions, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, helpTickets, notifications, reportSubscriptions, trainingModules, trainingLessons, trainingQuizQuestions } from "@shared/schema";
 import type { User } from "@shared/models/auth";
 import {
   classifyError,

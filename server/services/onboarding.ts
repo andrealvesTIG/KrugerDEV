@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { users, organizations, organizationMembers, portfolios, projects, milestones, issues, tasks, resources, changeRequests, projectIntakes, subscriptions } from "@shared/schema";
+import { users, organizations, organizationMembers, portfolios, projects, issues, tasks, resources, changeRequests, projectIntakes, subscriptions } from "@shared/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { extractDomain, isPersonalEmailDomain } from "./companyLookup";
 
@@ -433,15 +433,17 @@ export async function generateSampleDataForOrg(
     
     for (let j = 0; j < projectTemplate.milestones.length; j++) {
       const milestone = projectTemplate.milestones[j];
-      await db.insert(milestones).values({
+      await db.insert(tasks).values({
         projectId: project.id,
-        title: milestone.title,
+        name: milestone.title,
         description: milestone.description,
-        dueDate: formatDate(addDays(today, startOffset + (j + 1) * 20)),
+        endDate: formatDate(addDays(today, startOffset + (j + 1) * 20)),
         startDate: formatDate(addDays(today, startOffset + j * 20)),
-        completed: j === 0,
         status: j === 0 ? 'Done' : j === 1 ? 'In Progress' : 'Backlog',
+        progress: j === 0 ? 100 : 0,
         priority: 'Medium',
+        taskType: 'Milestone',
+        isMilestone: true,
         isDemo: true,
       });
     }

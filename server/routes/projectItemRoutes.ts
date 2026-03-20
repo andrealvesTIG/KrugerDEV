@@ -5,7 +5,7 @@ import { db } from "../db";
 import { z } from "zod";
 import Papa from "papaparse";
 import { and, desc, asc, eq } from "drizzle-orm";
-import { issues, tasks, projects, portfolios, milestones, type Task } from "@shared/schema";
+import { issues, tasks, projects, portfolios, type Task } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,

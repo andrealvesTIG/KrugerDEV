@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and, sql, inArray } from "drizzle-orm";
-import { users, taskResourceAssignments, issues, resources, tasks, projects, portfolios, milestones, organizationMembers, type Task } from "@shared/schema";
+import { users, taskResourceAssignments, issues, resources, tasks, projects, portfolios, organizationMembers, type Task } from "@shared/schema";
 import type { User } from "@shared/models/auth";
 import {
   classifyError,

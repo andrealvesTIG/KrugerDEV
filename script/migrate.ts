@@ -421,10 +421,13 @@ async function migrate() {
          AND t.is_milestone = true
          AND t.task_type = 'Milestone'
          AND COALESCE(t.end_date, '') = COALESCE(m.due_date, '')
-         AND COALESCE(t.milestone_number, -1) = COALESCE(m.milestone_number, -1)
+         AND COALESCE(t.milestone_number, '') = COALESCE(m.milestone_number, '')
      )`,
 
     // Index for milestone queries on tasks
+    // Normalize legacy tasks with isMilestone=true but missing taskType
+    `UPDATE tasks SET task_type = 'Milestone' WHERE is_milestone = true AND (task_type IS NULL OR task_type = '')`,
+
     `CREATE INDEX IF NOT EXISTS idx_tasks_is_milestone ON tasks (is_milestone) WHERE is_milestone = true`,
     `CREATE INDEX IF NOT EXISTS idx_tasks_organization_id ON tasks (organization_id)`,
   ];
