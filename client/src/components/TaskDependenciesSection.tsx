@@ -117,7 +117,8 @@ export const TaskDependenciesSection = forwardRef(function TaskDependenciesSecti
     const query = normalizeSearch(searchQuery);
     const displayIndex = allTasks.findIndex(t => t.id === task.id) + 1;
     const nameMatch = normalizeSearch(task.name).includes(query);
-    const indexMatch = String(displayIndex).includes(searchQuery.trim());
+    const trimmed = searchQuery.trim();
+    const indexMatch = /^\d+$/.test(trimmed) && displayIndex === Number(trimmed);
     return nameMatch || indexMatch;
   });
 
