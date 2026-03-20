@@ -30,3 +30,9 @@ id = "JlJoXGCdJy_KGzDHvXauM"
 uri = "file://Schema_Analysis_Report.md"
 type = "text"
 title = "FridayReport.AI — Comprehensive Schema & Architecture Analysis Report"
+
+[[outputs]]
+id = "cH3BpjIX41-UG7eW9QOHr"
+uri = "file://Schema_Missing_Elements_Report.md"
+type = "text"
+title = "Schema Missing Elements & Mismatch Report"
