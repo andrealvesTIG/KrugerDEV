@@ -2972,7 +2972,7 @@ function ProjectGanttView({
 
   // Determine which tasks have children, filter visible tasks, and compute WBS
   // Uses tasks in their original order to preserve hierarchy
-  const { visibleTasks, taskHasChildren, wbsMap } = useMemo(() => {
+  const { visibleTasks, taskHasChildren, wbsMap, absoluteIndexMap } = useMemo(() => {
     const taskHasChildren: Record<number, boolean> = {};
 
     // First pass: determine which tasks have children based on outline levels
