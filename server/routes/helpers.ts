@@ -364,11 +364,21 @@ function parseCsv(csvContent: string): Array<{
   const durationCol = findColumn(['duration']);
   const percentCol = findColumn(['percent', '%', 'complete']);
   const wbsCol = findColumn(['wbs']);
+  const outlineLevelCol = findColumn(['outline level', 'outline_level', 'level']);
+  const typeCol = findColumn(['type']);
+  const priorityCol = findColumn(['priority']);
+  const assignedCol = findColumn(['assigned', 'resource']);
+  const descriptionCol = findColumn(['description', 'notes']);
   
+  const parentStack: { taskId: number; level: number }[] = [];
+
   parseResult.data.forEach((row: any, index: number) => {
     const taskName = nameCol ? row[nameCol]?.trim() : '';
     
     if (!taskName) return;
+    
+    const typeValue = typeCol ? (row[typeCol] || '').trim().toLowerCase() : '';
+    if (typeValue === 'project') return;
     
     let durationDays: number | undefined;
     const durationStr = durationCol ? row[durationCol] || '' : '';
@@ -387,15 +397,32 @@ function parseCsv(csvContent: string): Array<{
       }
     }
     
-    // Parse percent complete
     let percentComplete = 0;
     if (percentCol && row[percentCol]) {
       const pctStr = row[percentCol].replace('%', '').trim();
       percentComplete = parseInt(pctStr) || 0;
     }
     
+    let outlineLevel = 1;
+    if (outlineLevelCol && row[outlineLevelCol]) {
+      const parsed = parseInt(row[outlineLevelCol]);
+      if (!isNaN(parsed) && parsed >= 1) outlineLevel = parsed;
+    }
+
+    const isSummary = typeValue === 'summary';
+    const isMilestone = typeValue === 'milestone';
+
+    const taskId = tasks.length + 1;
+
+    while (parentStack.length > 0 && parentStack[parentStack.length - 1].level >= outlineLevel) {
+      parentStack.pop();
+    }
+    const parentTaskId = parentStack.length > 0 ? parentStack[parentStack.length - 1].taskId : undefined;
+
+    parentStack.push({ taskId, level: outlineLevel });
+    
     tasks.push({
-      taskId: index + 1,
+      taskId,
       wbs: wbsCol ? row[wbsCol]?.trim() : undefined,
       taskName,
       startDate: startCol ? parseDate(row[startCol]) : undefined,
@@ -403,9 +430,11 @@ function parseCsv(csvContent: string): Array<{
       duration: durationStr,
       durationDays,
       percentComplete,
-      outlineLevel: 1,
-      isSummary: false,
-      isMilestone: false,
+      outlineLevel,
+      parentTaskId,
+      isSummary,
+      isMilestone,
+      notes: descriptionCol ? row[descriptionCol]?.trim() : undefined,
     });
   });
   
