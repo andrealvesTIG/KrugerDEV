@@ -121,6 +121,13 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
         return res.status(400).json({ message: "Both projects must belong to the same organization" });
       }
 
+      if (input.sourceType === "project" && input.sourceId !== input.sourceProjectId) {
+        return res.status(400).json({ message: "Source ID must match source project ID for project references" });
+      }
+      if (input.targetType === "project" && input.targetId !== input.targetProjectId) {
+        return res.status(400).json({ message: "Target ID must match target project ID for project references" });
+      }
+
       if (input.sourceType === "task") {
         const valid = await validateTaskBelongsToProject(input.sourceId, input.sourceProjectId);
         if (!valid) {
@@ -169,7 +176,7 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
       if (ref.createdBy && ref.createdBy !== userId) {
         const members = await storage.getOrganizationMembers(ref.organizationId);
         const member = members.find(m => m.userId === userId);
-        if (member && !["owner", "admin"].includes(member.role)) {
+        if (member && !["owner", "org_admin"].includes(member.role)) {
           return res.status(403).json({ message: "Only the creator or an admin can delete this reference" });
         }
       }
