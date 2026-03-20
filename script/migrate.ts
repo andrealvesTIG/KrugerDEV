@@ -263,6 +263,55 @@ async function migrate() {
     `ALTER TABLE organization_integrations ADD COLUMN IF NOT EXISTS refresh_token_encrypted TEXT`,
     `ALTER TABLE organization_integrations ADD COLUMN IF NOT EXISTS tokens_encrypted BOOLEAN DEFAULT false`,
 
+    // Self-referencing FK on tasks.parent_id for subtask hierarchy
+    `DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'tasks_parent_id_tasks_id_fk' AND table_name = 'tasks'
+      ) THEN
+        ALTER TABLE tasks ADD CONSTRAINT tasks_parent_id_tasks_id_fk
+          FOREIGN KEY (parent_id) REFERENCES tasks(id) ON DELETE SET NULL NOT VALID;
+        ALTER TABLE tasks VALIDATE CONSTRAINT tasks_parent_id_tasks_id_fk;
+      END IF;
+    END $$`,
+
+    // Fix tokens_encrypted column type (text -> boolean) if still text
+    `DO $$ BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'organization_integrations' AND column_name = 'tokens_encrypted' AND data_type = 'text'
+      ) THEN
+        ALTER TABLE organization_integrations ALTER COLUMN tokens_encrypted TYPE boolean
+          USING CASE WHEN tokens_encrypted = 'true' THEN true ELSE false END;
+        ALTER TABLE organization_integrations ALTER COLUMN tokens_encrypted SET DEFAULT false;
+      END IF;
+    END $$`,
+
+    // Backfill milestones.organization_id from projects
+    `ALTER TABLE milestones ADD COLUMN IF NOT EXISTS organization_id INTEGER REFERENCES organizations(id)`,
+    `ALTER TABLE milestones ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`,
+    `ALTER TABLE milestones ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`,
+    `UPDATE milestones SET organization_id = p.organization_id FROM projects p WHERE milestones.project_id = p.id AND milestones.organization_id IS NULL`,
+
+    // Milestones indexes
+    `CREATE INDEX IF NOT EXISTS idx_milestones_organization_id ON milestones (organization_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_milestones_owner_id ON milestones (owner_id)`,
+
+    // Additional issues indexes
+    `CREATE INDEX IF NOT EXISTS idx_issues_assignee_id ON issues (assignee_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_issues_owner_id ON issues (owner_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_issues_status ON issues (status)`,
+
+    // Tasks indexes
+    `CREATE INDEX IF NOT EXISTS idx_tasks_owner_id ON tasks (owner_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_tasks_external_id ON tasks (project_id, external_id)`,
+
+    // Notifications indexes
+    `CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications (user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_notifications_organization_id ON notifications (organization_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications (is_read)`,
+    `CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications (created_at)`,
+
     `CREATE TABLE IF NOT EXISTS training_modules (
       id SERIAL PRIMARY KEY,
       module_key VARCHAR(100) NOT NULL UNIQUE,

@@ -344,11 +344,16 @@ export const milestones = pgTable("milestones", {
   stakeholders: text("stakeholders"), // Key stakeholders
   phase: text("phase"), // Project phase this milestone belongs to
   notes: text("notes"),
+  organizationId: integer("organization_id").references(() => organizations.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
   isDemo: boolean("is_demo").default(false), // True if created by demo data generator
 }, (table) => [
   index("milestones_project_id_idx").on(table.projectId),
+  index("milestones_organization_id_idx").on(table.organizationId),
+  index("milestones_owner_id_idx").on(table.ownerId),
 ]);
 
 // Issues (consolidated - includes both issues and risks via itemType)
@@ -411,6 +416,9 @@ export const issues = pgTable("issues", {
   index("issues_project_id_idx").on(table.projectId),
   index("issues_item_type_idx").on(table.itemType),
   index("issues_project_item_type_idx").on(table.projectId, table.itemType),
+  index("issues_assignee_id_idx").on(table.assigneeId),
+  index("issues_owner_id_idx").on(table.ownerId),
+  index("issues_status_idx").on(table.status),
 ]);
 
 // Tasks (for Gantt Chart)
@@ -441,7 +449,7 @@ export const tasks = pgTable("tasks", {
   assignee: text("assignee"),
   ownerId: varchar("owner_id").references(() => users.id), // Task owner/lead
   outlineLevel: integer("outline_level"), // Hierarchy level (1, 2, 3...)
-  parentId: integer("parent_id"), // For subtasks/dependencies
+  parentId: integer("parent_id").references((): any => tasks.id, { onDelete: 'set null' }), // For subtasks/dependencies
   isMilestone: boolean("is_milestone").default(false), // Show task on project timeline
   isSummary: boolean("is_summary").default(false), // Is a summary/parent task
   isCritical: boolean("is_critical").default(false), // On critical path
@@ -468,6 +476,8 @@ export const tasks = pgTable("tasks", {
   index("tasks_status_idx").on(table.status),
   index("tasks_created_at_idx").on(table.createdAt),
   index("tasks_project_deleted_task_idx").on(table.projectId, table.deletedAt, table.taskIndex),
+  index("tasks_owner_id_idx").on(table.ownerId),
+  index("tasks_external_id_idx").on(table.projectId, table.externalId),
 ]);
 
 // Task Change Logs (Audit Trail)
@@ -1046,7 +1056,12 @@ export const notifications = pgTable("notifications", {
   metadata: text("metadata"), // JSON string for additional context
   isRead: boolean("is_read").default(false),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("notifications_user_id_idx").on(table.userId),
+  index("notifications_organization_id_idx").on(table.organizationId),
+  index("notifications_is_read_idx").on(table.isRead),
+  index("notifications_created_at_idx").on(table.createdAt),
+]);
 
 // Status Report History (Weekly status reports archive)
 export const statusReportHistory = pgTable("status_report_history", {
@@ -1329,7 +1344,7 @@ export const organizationIntegrations = pgTable("organization_integrations", {
   updatedAt: timestamp("updated_at").defaultNow(),
   accessTokenEncrypted: text("access_token_encrypted"),
   refreshTokenEncrypted: text("refresh_token_encrypted"),
-  tokensEncrypted: text("tokens_encrypted"),
+  tokensEncrypted: boolean("tokens_encrypted").default(false),
 });
 
 // === RELATIONS ===
