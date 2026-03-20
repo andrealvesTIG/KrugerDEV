@@ -63,7 +63,7 @@ export function CrossProjectReferences({
 
   const [isAdding, setIsAdding] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<number | undefined>();
-  const [selectedTargetType, setSelectedTargetType] = useState<"task" | "project">(entityType === "task" ? "task" : "project");
+  const selectedTargetType = entityType;
   const [selectedTaskId, setSelectedTaskId] = useState<number | undefined>();
   const [relationshipType, setRelationshipType] = useState<string>("relates_to");
   const [taskSearch, setTaskSearch] = useState("");
@@ -87,13 +87,11 @@ export function CrossProjectReferences({
   const handleAdd = async () => {
     if (!selectedProjectId || !relationshipType) return;
 
-    const targetId = selectedTargetType === "task" ? selectedTaskId : selectedProjectId;
-    if (!targetId) return;
+    const resolvedTargetId = entityType === "task" ? selectedTaskId : selectedProjectId;
+    if (!resolvedTargetId) return;
 
     try {
-      const actualTargetType = entityType === "project" ? "project" : selectedTargetType;
-      const refType = entityType === "task" && actualTargetType === "task" ? "task_to_task" : "project_to_project";
-      const actualTargetId = actualTargetType === "task" ? (selectedTaskId as number) : selectedProjectId;
+      const refType = entityType === "task" ? "task_to_task" : "project_to_project";
 
       await createRef.mutateAsync({
         organizationId,
@@ -101,9 +99,9 @@ export function CrossProjectReferences({
         sourceType: entityType,
         sourceId: entityId,
         sourceProjectId: entityProjectId,
-        targetType: actualTargetType,
-        targetId: actualTargetId!,
-        targetProjectId: selectedProjectId,
+        targetType: entityType,
+        targetId: resolvedTargetId,
+        targetProjectId: selectedProjectId!,
         relationshipType,
       });
 
@@ -139,7 +137,7 @@ export function CrossProjectReferences({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <Label className="text-sm font-medium">Cross-Project References</Label>
+        <Label className="text-sm font-medium">{entityType === "project" ? "Related Projects" : "Cross-Project References"}</Label>
         {!isAdding && (
           <Button
             type="button"
@@ -155,7 +153,7 @@ export function CrossProjectReferences({
 
       {displayRefs.length === 0 && !isAdding && (
         <div className="text-sm text-muted-foreground text-center py-3 border rounded-md border-dashed">
-          No cross-project references yet
+          {entityType === "project" ? "No related projects yet" : "No cross-project references yet"}
         </div>
       )}
 
@@ -219,23 +217,7 @@ export function CrossProjectReferences({
                 </SelectContent>
               </Select>
             </div>
-            {entityType === "task" && (
-              <div>
-                <Label className="text-xs">Target Type</Label>
-                <Select value={selectedTargetType} onValueChange={(v) => {
-                  setSelectedTargetType(v as "task" | "project");
-                  setSelectedTaskId(undefined);
-                }}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="task" className="text-xs">Task</SelectItem>
-                    <SelectItem value="project" className="text-xs">Project</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+          
           </div>
 
           <div>

@@ -166,6 +166,14 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
         return res.status(403).json({ message: "Access denied" });
       }
 
+      if (ref.createdBy && ref.createdBy !== userId) {
+        const members = await storage.getOrganizationMembers(ref.organizationId);
+        const member = members.find(m => m.userId === userId);
+        if (member && !["owner", "admin"].includes(member.role)) {
+          return res.status(403).json({ message: "Only the creator or an admin can delete this reference" });
+        }
+      }
+
       await deleteCrossProjectReference(id);
       res.status(204).send();
     } catch (err) {

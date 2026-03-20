@@ -4,6 +4,7 @@ import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png"; 
 import { usePaginatedTasks, useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskHistory } from "@/hooks/use-tasks";
 import { TaskDependenciesSection, type TaskDependenciesSectionHandle, type PendingDepChange } from "@/components/TaskDependenciesSection";
+import { CrossProjectReferences } from "@/components/CrossProjectReferences";
 import { useUpdateTaskDependency } from "@/hooks/use-tasks"; 
 import { useExternalTasks } from "@/hooks/use-external-shares";
 import { ExternalBadge } from "@/components/ExternalBadge";
@@ -1041,14 +1042,26 @@ export default function Tasks() {
 
                     <TabsContent value="dependencies" className="mt-0">
                       {editingTask ? (
-                        <TaskDependenciesSection
-                          ref={depsRef}
-                          taskId={editingTask.id}
-                          projectId={editingTask.projectId}
-                          allTasks={editingTaskProjectTasks || []}
-                          pendingChanges={pendingDepChanges}
-                          onPendingChangesUpdate={setPendingDepChanges}
-                        />
+                        <div className="space-y-6">
+                          <TaskDependenciesSection
+                            ref={depsRef}
+                            taskId={editingTask.id}
+                            projectId={editingTask.projectId}
+                            allTasks={editingTaskProjectTasks || []}
+                            pendingChanges={pendingDepChanges}
+                            onPendingChangesUpdate={setPendingDepChanges}
+                          />
+                          {currentOrganization?.id && (
+                            <div className="border-t pt-4">
+                              <CrossProjectReferences
+                                entityType="task"
+                                entityId={editingTask.id}
+                                entityProjectId={editingTask.projectId}
+                                organizationId={currentOrganization.id}
+                              />
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <div className="text-sm text-muted-foreground text-center py-8">
                           Save the task first to add dependencies
