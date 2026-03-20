@@ -23,6 +23,7 @@ import { useOrganization } from "@/hooks/use-organization";
 import { useAuth } from "@/hooks/use-auth";
 import { ResourceSelector } from "@/components/ResourceSelector";
 import { StatusReportDialog } from "@/components/StatusReportDialog";
+import { CrossProjectReferences } from "@/components/CrossProjectReferences";
 import TasksTab from "@/components/project/ProjectTasksTab";
 import RisksTab from "@/components/project/ProjectRisksTab";
 import { IssuesTab, FinancialsTab, ChangeRequestsTab, DocumentsTab, StatusReportTab, ScoringTab, BenefitsTab, DecisionsTab, LessonsLearnedTab, InvoicesTab } from "@/components/project/ProjectTabs";
@@ -3430,6 +3431,19 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
         <ProjectCustomFieldsSection projectId={project.id} organizationId={currentOrganization?.id} />
       </CardContent>
     </Card>
+
+    {currentOrganization?.id && (
+      <Card className="mt-4">
+        <CardContent className="pt-4">
+          <CrossProjectReferences
+            entityType="project"
+            entityId={project.id}
+            entityProjectId={project.id}
+            organizationId={currentOrganization.id}
+          />
+        </CardContent>
+      </Card>
+    )}
     
     <Dialog open={showHealthReasonDialog} onOpenChange={(open) => {
         if (!open) {

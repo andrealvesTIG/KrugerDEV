@@ -531,6 +531,34 @@ export const taskDependencies = pgTable("task_dependencies", {
   index("task_dependencies_depends_on_idx").on(table.dependsOnTaskId),
 ]);
 
+// Cross-Project References (links between tasks in different projects, or between projects)
+export const crossProjectReferences = pgTable("cross_project_references", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  referenceType: text("reference_type").notNull(), // 'task_to_task' | 'project_to_project'
+  sourceType: text("source_type").notNull(), // 'task' | 'project'
+  sourceId: integer("source_id").notNull(),
+  sourceProjectId: integer("source_project_id").references(() => projects.id).notNull(),
+  targetType: text("target_type").notNull(), // 'task' | 'project'
+  targetId: integer("target_id").notNull(),
+  targetProjectId: integer("target_project_id").references(() => projects.id).notNull(),
+  relationshipType: text("relationship_type").notNull(), // 'blocks', 'is_blocked_by', 'relates_to', 'duplicates', 'depends_on', 'is_dependency_of'
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("cross_project_refs_org_idx").on(table.organizationId),
+  index("cross_project_refs_source_idx").on(table.sourceType, table.sourceId),
+  index("cross_project_refs_target_idx").on(table.targetType, table.targetId),
+]);
+
+export const insertCrossProjectReferenceSchema = createInsertSchema(crossProjectReferences).omit({
+  id: true,
+  createdAt: true,
+});
+export type CrossProjectReference = typeof crossProjectReferences.$inferSelect;
+export type InsertCrossProjectReference = z.infer<typeof insertCrossProjectReferenceSchema>;
+
 // Resources (Global list of team members/resources)
 export const resources = pgTable("resources", {
   id: serial("id").primaryKey(),

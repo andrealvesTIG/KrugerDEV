@@ -19,6 +19,7 @@ import { insertTaskSchema } from "@shared/schema";
 import type { Task, TaskResourceAssignment, Resource } from "@shared/schema";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { TaskDependenciesSection, type TaskDependenciesSectionHandle, type PendingDepChange } from "@/components/TaskDependenciesSection";
+import { CrossProjectReferences } from "@/components/CrossProjectReferences";
 import { useUpdateTaskDependency, useAddTaskDependency, useRemoveTaskDependency } from "@/hooks/use-tasks";
 const ProjectGanttView = lazy(() => import("@/components/project/ProjectGanttView"));
 import ProjectKanbanView, { ProjectTaskHistoryDialog } from "@/components/project/ProjectKanbanView";
@@ -1256,14 +1257,26 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                         <span>Dependencies are only available for leaf tasks. This is a summary task with children.</span>
                       </div>
                     ) : editingTask ? (
-                      <TaskDependenciesSection 
-                        ref={depsRef}
-                        taskId={editingTask.id} 
-                        projectId={projectId}
-                        allTasks={tasks || []}
-                        pendingChanges={pendingDepChanges}
-                        onPendingChangesUpdate={setPendingDepChanges}
-                      />
+                      <div className="space-y-6">
+                        <TaskDependenciesSection 
+                          ref={depsRef}
+                          taskId={editingTask.id} 
+                          projectId={projectId}
+                          allTasks={tasks || []}
+                          pendingChanges={pendingDepChanges}
+                          onPendingChangesUpdate={setPendingDepChanges}
+                        />
+                        {currentOrganization?.id && (
+                          <div className="border-t pt-4">
+                            <CrossProjectReferences
+                              entityType="task"
+                              entityId={editingTask.id}
+                              entityProjectId={projectId}
+                              organizationId={currentOrganization.id}
+                            />
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <div className="text-sm text-muted-foreground text-center py-8">
                         Save the task first to add dependencies
