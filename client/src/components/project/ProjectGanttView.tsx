@@ -3015,7 +3015,12 @@ function ProjectGanttView({
     // Compute WBS values based on task hierarchy (using ALL tasks, not just visible)
     const wbsMap = computeWbsValues(tasks);
 
-    return { visibleTasks, taskHasChildren, wbsMap };
+    const absoluteIndexMap = new Map<number, number>();
+    for (let i = 0; i < tasks.length; i++) {
+      absoluteIndexMap.set(tasks[i].id, i + 1);
+    }
+
+    return { visibleTasks, taskHasChildren, wbsMap, absoluteIndexMap };
   }, [tasks, collapsedTasks]);
 
   // Virtual scrolling: only render rows visible in the viewport when task count is large
@@ -4253,7 +4258,7 @@ function ProjectGanttView({
                         <div key={task.id} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vRow.start}px)`, height: `${vRow.size}px` }}>
                           <ProjectGanttTaskRowMeta
                             task={task}
-                            rowIndex={index + 1}
+                            rowIndex={absoluteIndexMap.get(task.id) ?? (index + 1)}
                             visibleColumns={visibleColumns}
                             organizationId={organizationId}
                             onIndent={handleIndent}
@@ -4298,7 +4303,7 @@ function ProjectGanttView({
                           {(dragHandleProps) => (
                             <ProjectGanttTaskRowMeta
                               task={task}
-                              rowIndex={index + 1}
+                              rowIndex={absoluteIndexMap.get(task.id) ?? (index + 1)}
                               visibleColumns={visibleColumns}
                               organizationId={organizationId}
                               onIndent={handleIndent}
