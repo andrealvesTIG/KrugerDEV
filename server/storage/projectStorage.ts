@@ -79,6 +79,7 @@ export async function deleteProject(id: number): Promise<void> {
   if (milestoneTaskRows.length > 0) {
     await db.delete(notifications).where(inArray(notifications.milestoneId, milestoneTaskRows.map(m => m.id)));
   }
+  await db.delete(milestones).where(eq(milestones.projectId, id));
 
   await db.delete(projectFinancials).where(eq(projectFinancials.projectId, id));
   await db.delete(changeRequests).where(eq(changeRequests.projectId, id));
@@ -598,6 +599,7 @@ export async function deleteAllDemoDataForOrganization(organizationId: number): 
         await db.delete(legacyRiskResourceAssignments).where(eq(legacyRiskResourceAssignments.riskId, lr.id));
       }
       await db.delete(legacyRisks).where(eq(legacyRisks.projectId, project.id));
+      await db.delete(milestones).where(eq(milestones.projectId, project.id));
       await db.delete(projects).where(eq(projects.id, project.id));
       stats.projects++;
     }
@@ -855,6 +857,7 @@ export async function permanentlyDeleteItem(type: RecycleBinItemType, id: number
       }
       await db.delete(tasks).where(eq(tasks.projectId, id));
       await db.delete(issues).where(eq(issues.projectId, id));
+      await db.delete(milestones).where(eq(milestones.projectId, id));
       await db.delete(projectFinancials).where(eq(projectFinancials.projectId, id));
       await db.delete(projects).where(eq(projects.id, id));
       break;
