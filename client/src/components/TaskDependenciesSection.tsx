@@ -106,6 +106,9 @@ export const TaskDependenciesSection = forwardRef(function TaskDependenciesSecti
     if (task.id === taskId) return false;
     if (dependencies?.some(d => d.dependsOnTaskId === task.id)) return false;
     if (pendingChanges.has(task.id) && pendingChanges.get(task.id)?.isNew) return false;
+    const taskLevel = task.outlineLevel || 1;
+    const hasChildren = index < allTasks.length - 1 && ((allTasks[index + 1].outlineLevel || 1) > taskLevel);
+    if (hasChildren) return false;
     return true;
   });
 
