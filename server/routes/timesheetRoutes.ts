@@ -1798,6 +1798,7 @@ export function registerTimesheetRoutes(app: Express) {
       }
 
       let allEntries = await storage.getAllTimesheetEntriesWithDetails(organizationId, startDate, endDate);
+      const allNonProjectEntries = await storage.getAllNonProjectTimeEntriesWithCategory(organizationId, startDate, endDate);
 
       if (projectId) {
         allEntries = allEntries.filter(({ entry }) => entry.projectId === projectId);
@@ -1821,7 +1822,7 @@ export function registerTimesheetRoutes(app: Express) {
       const overtimeThreshold = Number(settings?.overtimeThreshold || 40);
       const totalResources = activeResources.length;
 
-      const byUser: Record<string, { userId: string; resourceName: string; totalHours: number; entries: number; submitted: number; approved: number; rejected: number; draft: number; overtime: boolean }> = {};
+      const byUser: Record<string, { userId: string; resourceName: string; totalHours: number; nonProjectHours: number; entries: number; submitted: number; approved: number; rejected: number; draft: number; overtime: boolean; hasNonProjectTime: boolean }> = {};
 
       for (const r of activeResources) {
         if (r.userId) {
@@ -1829,12 +1830,14 @@ export function registerTimesheetRoutes(app: Express) {
             userId: r.userId,
             resourceName: r.displayName,
             totalHours: 0,
+            nonProjectHours: 0,
             entries: 0,
             submitted: 0,
             approved: 0,
             rejected: 0,
             draft: 0,
             overtime: false,
+            hasNonProjectTime: false,
           };
         }
       }
@@ -1873,6 +1876,21 @@ export function registerTimesheetRoutes(app: Express) {
               lateSubmissions++;
             }
           }
+        }
+      }
+
+      for (const { entry } of allNonProjectEntries) {
+        const u = byUser[entry.userId];
+        if (u) {
+          const hrs = Number(entry.hours || 0);
+          u.totalHours += hrs;
+          u.nonProjectHours += hrs;
+          u.entries += 1;
+          u.hasNonProjectTime = true;
+          if (entry.status === 'Submitted') { u.submitted++; totalSubmitted++; }
+          else if (entry.status === 'Approved') { u.approved++; totalApproved++; }
+          else if (entry.status === 'Rejected') { u.rejected++; totalRejected++; }
+          else { u.draft++; totalDraft++; }
         }
       }
 
@@ -2272,6 +2290,7 @@ export function registerTimesheetRoutes(app: Express) {
       }
 
       const allEntries = await storage.getAllTimesheetEntriesWithDetails(organizationId, startDate, endDate);
+      const allNonProjectEntries = await storage.getAllNonProjectTimeEntriesWithCategory(organizationId, startDate, endDate);
 
       const managerUserIds = new Set<string>();
       managerUserIds.add(userId);
@@ -2288,11 +2307,15 @@ export function registerTimesheetRoutes(app: Express) {
 
       const teamData = activeResources.map(resource => {
         const userEntries = allEntries.filter(({ entry }) => entry.resourceId === resource.id);
-        const totalHours = userEntries.reduce((sum, { entry }) => sum + Number(entry.hours || 0), 0);
-        const draft = userEntries.filter(({ entry }) => entry.status === 'Draft').length;
-        const submitted = userEntries.filter(({ entry }) => entry.status === 'Submitted').length;
-        const approved = userEntries.filter(({ entry }) => entry.status === 'Approved').length;
-        const rejected = userEntries.filter(({ entry }) => entry.status === 'Rejected').length;
+        const userNonProjectEntries = allNonProjectEntries.filter(({ entry }) => entry.userId === resource.userId);
+        const projectHours = userEntries.reduce((sum, { entry }) => sum + Number(entry.hours || 0), 0);
+        const nonProjectHours = userNonProjectEntries.reduce((sum, { entry }) => sum + Number(entry.hours || 0), 0);
+        const totalHours = projectHours + nonProjectHours;
+        const totalEntryCount = userEntries.length + userNonProjectEntries.length;
+        const draft = userEntries.filter(({ entry }) => entry.status === 'Draft').length + userNonProjectEntries.filter(({ entry }) => entry.status === 'Draft').length;
+        const submitted = userEntries.filter(({ entry }) => entry.status === 'Submitted').length + userNonProjectEntries.filter(({ entry }) => entry.status === 'Submitted').length;
+        const approved = userEntries.filter(({ entry }) => entry.status === 'Approved').length + userNonProjectEntries.filter(({ entry }) => entry.status === 'Approved').length;
+        const rejected = userEntries.filter(({ entry }) => entry.status === 'Rejected').length + userNonProjectEntries.filter(({ entry }) => entry.status === 'Rejected').length;
 
         return {
           resourceId: resource.id,
@@ -2303,12 +2326,14 @@ export function registerTimesheetRoutes(app: Express) {
           title: resource.title,
           photoUrl: resource.photoUrl,
           totalHours,
-          entryCount: userEntries.length,
+          nonProjectHours,
+          entryCount: totalEntryCount,
           draft,
           submitted,
           approved,
           rejected,
-          submissionStatus: draft > 0 ? 'partial' : submitted > 0 ? 'submitted' : approved === userEntries.length && userEntries.length > 0 ? 'approved' : userEntries.length === 0 ? 'no_entries' : 'mixed',
+          hasNonProjectTime: nonProjectHours > 0,
+          submissionStatus: draft > 0 ? 'partial' : submitted > 0 ? 'submitted' : approved === totalEntryCount && totalEntryCount > 0 ? 'approved' : totalEntryCount === 0 ? 'no_entries' : 'mixed',
         };
       });
 

@@ -331,6 +331,9 @@ export function TimesheetComplianceDashboard({ organizationId }: TimesheetCompli
                       <span className={user.overtime ? "text-amber-600 font-semibold" : ""}>
                         {user.totalHours.toFixed(1)}
                       </span>
+                      {user.nonProjectHours > 0 && (
+                        <div className="text-[10px] text-purple-500">{user.nonProjectHours.toFixed(1)}h time off</div>
+                      )}
                     </td>
                     <td className="py-2 text-center">{user.entries}</td>
                     <td className="py-2 text-center text-gray-500">{user.draft}</td>
@@ -340,6 +343,8 @@ export function TimesheetComplianceDashboard({ organizationId }: TimesheetCompli
                     <td className="py-2 text-center">
                       {user.entries === 0 ? (
                         <Badge variant="outline" className="text-red-600 border-red-300">No Entries</Badge>
+                      ) : user.hasNonProjectTime && user.entries === (user.draft + user.submitted + user.approved + user.rejected) && (user.totalHours - (user.nonProjectHours || 0)) === 0 ? (
+                        <Badge variant="outline" className="text-purple-600 border-purple-300">Time Off</Badge>
                       ) : user.overtime ? (
                         <Badge variant="outline" className="text-amber-600 border-amber-300">Overtime</Badge>
                       ) : user.draft > 0 ? (

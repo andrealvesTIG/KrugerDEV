@@ -251,6 +251,9 @@ export function TeamReviewDashboard() {
                       <div className="text-right min-w-[60px]">
                         <div className="text-sm font-medium tabular-nums">{member.totalHours}h</div>
                         <div className="text-xs text-muted-foreground">{member.entryCount} entries</div>
+                        {member.nonProjectHours > 0 && (
+                          <div className="text-[10px] text-purple-500">{member.nonProjectHours}h time off</div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 min-w-[140px]">
                         <div className="w-16">
@@ -280,6 +283,11 @@ export function TeamReviewDashboard() {
                           </Badge>
                         )}
                       </div>
+                      {member.hasNonProjectTime && (
+                        <Badge className="bg-purple-500/10 text-purple-600 border-purple-200 text-[10px] h-5 px-1.5">
+                          Time Off
+                        </Badge>
+                      )}
                       {getStatusBadge(member.submissionStatus)}
                     </div>
                   </div>

@@ -316,6 +316,7 @@ export interface ITimesheetStorage {
   updateTimeCategory(id: number, updates: Partial<InsertTimeCategory>): Promise<TimeCategory>;
   deleteTimeCategory(id: number): Promise<void>;
   getNonProjectTimeEntry(id: number): Promise<NonProjectTimeEntry | undefined>;
+  getAllNonProjectTimeEntriesWithCategory(organizationId: number, startDate: string, endDate: string): Promise<{ entry: NonProjectTimeEntry; category: TimeCategory }[]>;
   getNonProjectTimeEntries(userId: string, organizationId: number, startDate: string, endDate: string): Promise<NonProjectTimeEntry[]>;
   getNonProjectTimeEntriesWithCategory(userId: string, organizationId: number, startDate: string, endDate: string): Promise<{ entry: NonProjectTimeEntry; category: TimeCategory }[]>;
   createNonProjectTimeEntry(entry: InsertNonProjectTimeEntry): Promise<NonProjectTimeEntry>;

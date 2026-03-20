@@ -410,6 +410,22 @@ export async function getNonProjectTimeEntry(id: number): Promise<NonProjectTime
   return entry;
 }
 
+export async function getAllNonProjectTimeEntriesWithCategory(organizationId: number, startDate: string, endDate: string): Promise<{ entry: NonProjectTimeEntry; category: TimeCategory }[]> {
+  const results = await db.select({
+    entry: nonProjectTimeEntries,
+    category: timeCategories
+  })
+    .from(nonProjectTimeEntries)
+    .innerJoin(timeCategories, eq(nonProjectTimeEntries.categoryId, timeCategories.id))
+    .where(and(
+      eq(nonProjectTimeEntries.organizationId, organizationId),
+      isNull(nonProjectTimeEntries.deletedAt),
+      sql`${nonProjectTimeEntries.entryDate} >= ${startDate}`,
+      sql`${nonProjectTimeEntries.entryDate} <= ${endDate}`
+    ));
+  return results;
+}
+
 export async function getNonProjectTimeEntries(userId: string, organizationId: number, startDate: string, endDate: string): Promise<NonProjectTimeEntry[]> {
   return await db.select().from(nonProjectTimeEntries)
     .where(and(

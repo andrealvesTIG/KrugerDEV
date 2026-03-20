@@ -441,12 +441,14 @@ export interface ComplianceReportData {
     userId: string;
     resourceName: string;
     totalHours: number;
+    nonProjectHours: number;
     entries: number;
     submitted: number;
     approved: number;
     rejected: number;
     draft: number;
     overtime: boolean;
+    hasNonProjectTime: boolean;
   }[];
 }
 
@@ -647,11 +649,13 @@ export interface TeamReviewData {
     title: string | null;
     photoUrl: string | null;
     totalHours: number;
+    nonProjectHours: number;
     entryCount: number;
     draft: number;
     submitted: number;
     approved: number;
     rejected: number;
+    hasNonProjectTime: boolean;
     submissionStatus: string;
   }[];
   delegatedForUsers: string[];
