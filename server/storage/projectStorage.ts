@@ -481,8 +481,13 @@ export async function deleteAllDemoDataForOrganization(organizationId: number): 
     .where(eq(projects.organizationId, organizationId));
   
   for (const project of allProjects) {
-    const demoTasks = await db.select().from(tasks)
-      .where(and(eq(tasks.projectId, project.id), eq(tasks.isDemo, true)));
+    const isDemoProject = project.isDemo === true;
+
+    const demoFilter = isDemoProject
+      ? eq(tasks.projectId, project.id)
+      : and(eq(tasks.projectId, project.id), eq(tasks.isDemo, true));
+
+    const demoTasks = await db.select().from(tasks).where(demoFilter);
     
     let taskAssignmentsDeleted = 0;
     for (const task of demoTasks) {
@@ -498,50 +503,76 @@ export async function deleteAllDemoDataForOrganization(organizationId: number): 
     }
     stats.assignments += taskAssignmentsDeleted;
     
-    const demoMilestoneTasks = await db.select({ id: tasks.id }).from(tasks)
-      .where(and(eq(tasks.projectId, project.id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone'), eq(tasks.isDemo, true)));
+    const milestoneDemoFilter = isDemoProject
+      ? and(eq(tasks.projectId, project.id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone'))
+      : and(eq(tasks.projectId, project.id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone'), eq(tasks.isDemo, true));
+
+    const demoMilestoneTasks = await db.select({ id: tasks.id }).from(tasks).where(milestoneDemoFilter);
     for (const ms of demoMilestoneTasks) {
       await db.delete(notifications).where(eq(notifications.milestoneId, ms.id));
     }
     stats.milestones += demoMilestoneTasks.length;
 
-    const deletedTasks = await db.delete(tasks)
-      .where(and(eq(tasks.projectId, project.id), eq(tasks.isDemo, true))).returning();
+    const deletedTasks = await db.delete(tasks).where(demoFilter).returning();
     stats.tasks += deletedTasks.length - demoMilestoneTasks.length;
+
+    const issuesDemoFilter = isDemoProject
+      ? eq(issues.projectId, project.id)
+      : and(eq(issues.projectId, project.id), eq(issues.isDemo, true));
     
-    const demoIssuesAndRisks = await db.select({ id: issues.id }).from(issues)
-      .where(and(eq(issues.projectId, project.id), eq(issues.isDemo, true)));
+    const demoIssuesAndRisks = await db.select({ id: issues.id }).from(issues).where(issuesDemoFilter);
     for (const item of demoIssuesAndRisks) {
       await db.delete(issueChangeLogs).where(eq(issueChangeLogs.issueId, item.id));
       await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.issueId, item.id));
     }
 
     const deletedRisks = await db.delete(issues)
-      .where(and(eq(issues.projectId, project.id), eq(issues.itemType, 'risk'), eq(issues.isDemo, true))).returning();
+      .where(isDemoProject
+        ? and(eq(issues.projectId, project.id), eq(issues.itemType, 'risk'))
+        : and(eq(issues.projectId, project.id), eq(issues.itemType, 'risk'), eq(issues.isDemo, true))
+      ).returning();
     stats.risks += deletedRisks.length;
     
     const deletedIssues = await db.delete(issues)
-      .where(and(eq(issues.projectId, project.id), eq(issues.itemType, 'issue'), eq(issues.isDemo, true))).returning();
+      .where(isDemoProject
+        ? and(eq(issues.projectId, project.id), eq(issues.itemType, 'issue'))
+        : and(eq(issues.projectId, project.id), eq(issues.itemType, 'issue'), eq(issues.isDemo, true))
+      ).returning();
     stats.issues += deletedIssues.length;
     
     const deletedFinancials = await db.delete(projectFinancials)
-      .where(and(eq(projectFinancials.projectId, project.id), eq(projectFinancials.isDemo, true))).returning();
+      .where(isDemoProject
+        ? eq(projectFinancials.projectId, project.id)
+        : and(eq(projectFinancials.projectId, project.id), eq(projectFinancials.isDemo, true))
+      ).returning();
     stats.financials += deletedFinancials.length;
 
     const deletedChangeRequests = await db.delete(changeRequests)
-      .where(and(eq(changeRequests.projectId, project.id), eq(changeRequests.isDemo, true))).returning();
+      .where(isDemoProject
+        ? eq(changeRequests.projectId, project.id)
+        : and(eq(changeRequests.projectId, project.id), eq(changeRequests.isDemo, true))
+      ).returning();
     stats.changeRequests += deletedChangeRequests.length;
 
     const deletedDocuments = await db.delete(projectDocuments)
-      .where(and(eq(projectDocuments.projectId, project.id), eq(projectDocuments.isDemo, true))).returning();
+      .where(isDemoProject
+        ? eq(projectDocuments.projectId, project.id)
+        : and(eq(projectDocuments.projectId, project.id), eq(projectDocuments.isDemo, true))
+      ).returning();
     stats.documents += deletedDocuments.length;
 
     const deletedBenefits = await db.delete(projectBenefits)
-      .where(and(eq(projectBenefits.projectId, project.id), eq(projectBenefits.isDemo, true))).returning();
+      .where(isDemoProject
+        ? eq(projectBenefits.projectId, project.id)
+        : and(eq(projectBenefits.projectId, project.id), eq(projectBenefits.isDemo, true))
+      ).returning();
     stats.benefits += deletedBenefits.length;
 
     const deletedDecisions = await db.delete(projectDecisions)
-      .where(and(eq(projectDecisions.projectId, project.id), eq(projectDecisions.isDemo, true))).returning();
+      .where(isDemoProject
+        ? eq(projectDecisions.projectId, project.id)
+        : and(eq(projectDecisions.projectId, project.id), eq(projectDecisions.isDemo, true))
+      ).returning();
     stats.decisions += deletedDecisions.length;
   }
   
