@@ -230,7 +230,7 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
         organizationId: z.number().nullable().optional(),
         startDate: z.string().nullable().optional().transform((v) => v || null),
         endDate: z.string().nullable().optional().transform((v) => v || null),
-        budget: z.string().nullable().optional().transform((v) => v || "0"),
+        budget: z.union([z.string(), z.number()]).nullable().optional().transform((v) => v ? String(v) : "0"),
       }).refine(
         (data) => {
           if (data.startDate && data.endDate) {
