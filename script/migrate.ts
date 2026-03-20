@@ -304,7 +304,7 @@ async function migrate() {
 
     // Tasks indexes
     `CREATE INDEX IF NOT EXISTS idx_tasks_owner_id ON tasks (owner_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_tasks_external_id ON tasks (project_id, external_id)`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS tasks_project_external_id_unique_idx ON tasks (project_id, external_id) WHERE external_id IS NOT NULL`,
 
     // Notifications indexes
     `CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications (user_id)`,

@@ -1,7 +1,7 @@
-import { pgTable, text, serial, integer, boolean, timestamp, date, varchar, jsonb, uniqueIndex, index, customType } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, date, varchar, jsonb, uniqueIndex, index, customType, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 const numeric = customType<{ data: number; driverData: string }>({
   dataType() { return 'numeric'; },
@@ -449,7 +449,7 @@ export const tasks = pgTable("tasks", {
   assignee: text("assignee"),
   ownerId: varchar("owner_id").references(() => users.id), // Task owner/lead
   outlineLevel: integer("outline_level"), // Hierarchy level (1, 2, 3...)
-  parentId: integer("parent_id").references((): any => tasks.id, { onDelete: 'set null' }), // For subtasks/dependencies
+  parentId: integer("parent_id").references((): AnyPgColumn => tasks.id, { onDelete: 'set null' }), // For subtasks/dependencies
   isMilestone: boolean("is_milestone").default(false), // Show task on project timeline
   isSummary: boolean("is_summary").default(false), // Is a summary/parent task
   isCritical: boolean("is_critical").default(false), // On critical path
@@ -477,7 +477,7 @@ export const tasks = pgTable("tasks", {
   index("tasks_created_at_idx").on(table.createdAt),
   index("tasks_project_deleted_task_idx").on(table.projectId, table.deletedAt, table.taskIndex),
   index("tasks_owner_id_idx").on(table.ownerId),
-  index("tasks_external_id_idx").on(table.projectId, table.externalId),
+  uniqueIndex("tasks_project_external_id_unique_idx").on(table.projectId, table.externalId).where(sql`external_id IS NOT NULL`),
 ]);
 
 // Task Change Logs (Audit Trail)
