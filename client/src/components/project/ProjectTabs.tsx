@@ -986,8 +986,8 @@ export function ChangeRequestsTab({ projectId }: { projectId: number }) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    type: 'scope' as 'scope' | 'schedule' | 'budget' | 'resource' | 'other',
-    priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
+    type: 'Scope' as 'Scope' | 'Schedule' | 'Budget' | 'Resource' | 'Other',
+    priority: 'Medium' as 'Low' | 'Medium' | 'High' | 'Critical',
     status: 'Draft' as 'Draft' | 'Submitted' | 'Under Review' | 'Approved' | 'Rejected' | 'Implemented',
     impact: '',
     justification: '',
@@ -997,8 +997,8 @@ export function ChangeRequestsTab({ projectId }: { projectId: number }) {
     setFormData({
       title: '',
       description: '',
-      type: 'scope',
-      priority: 'medium',
+      type: 'Scope',
+      priority: 'Medium',
       status: 'Draft',
       impact: '',
       justification: '',
@@ -1128,11 +1128,11 @@ export function ChangeRequestsTab({ projectId }: { projectId: number }) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="scope">Scope</SelectItem>
-                      <SelectItem value="schedule">Schedule</SelectItem>
-                      <SelectItem value="budget">Budget</SelectItem>
-                      <SelectItem value="resource">Resource</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
+                      <SelectItem value="Scope">Scope</SelectItem>
+                      <SelectItem value="Schedule">Schedule</SelectItem>
+                      <SelectItem value="Budget">Budget</SelectItem>
+                      <SelectItem value="Resource">Resource</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1143,10 +1143,10 @@ export function ChangeRequestsTab({ projectId }: { projectId: number }) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="critical">Critical</SelectItem>
+                      <SelectItem value="Low">Low</SelectItem>
+                      <SelectItem value="Medium">Medium</SelectItem>
+                      <SelectItem value="High">High</SelectItem>
+                      <SelectItem value="Critical">Critical</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

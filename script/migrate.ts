@@ -261,7 +261,7 @@ async function migrate() {
     // === ENCRYPTED TOKEN COLUMNS FOR INTEGRATION SECURITY ===
     `ALTER TABLE organization_integrations ADD COLUMN IF NOT EXISTS access_token_encrypted TEXT`,
     `ALTER TABLE organization_integrations ADD COLUMN IF NOT EXISTS refresh_token_encrypted TEXT`,
-    `ALTER TABLE organization_integrations ADD COLUMN IF NOT EXISTS tokens_encrypted BOOLEAN DEFAULT false`,
+    `ALTER TABLE organization_integrations DROP COLUMN IF EXISTS tokens_encrypted`,
 
     // Self-referencing FK on tasks.parent_id for subtask hierarchy
     `DO $$ BEGIN
@@ -275,17 +275,6 @@ async function migrate() {
       END IF;
     END $$`,
 
-    // Fix tokens_encrypted column type (text -> boolean) if still text
-    `DO $$ BEGIN
-      IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'organization_integrations' AND column_name = 'tokens_encrypted' AND data_type = 'text'
-      ) THEN
-        ALTER TABLE organization_integrations ALTER COLUMN tokens_encrypted TYPE boolean
-          USING CASE WHEN tokens_encrypted = 'true' THEN true ELSE false END;
-        ALTER TABLE organization_integrations ALTER COLUMN tokens_encrypted SET DEFAULT false;
-      END IF;
-    END $$`,
 
     // Backfill milestones.organization_id from projects
     `ALTER TABLE milestones ADD COLUMN IF NOT EXISTS organization_id INTEGER REFERENCES organizations(id)`,
@@ -430,6 +419,40 @@ async function migrate() {
 
     `CREATE INDEX IF NOT EXISTS idx_tasks_is_milestone ON tasks (is_milestone) WHERE is_milestone = true`,
     `CREATE INDEX IF NOT EXISTS idx_tasks_organization_id ON tasks (organization_id)`,
+
+    // Partial unique index for project invoices (soft-delete safe)
+    `CREATE UNIQUE INDEX IF NOT EXISTS project_invoices_ext_org_source_idx
+     ON project_invoices (external_id, organization_id, source) WHERE deleted_at IS NULL`,
+
+    // Billing FK constraints (billing.ts can't import organizations due to circular deps)
+    `DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'subscriptions_org_id_fk') THEN
+        ALTER TABLE subscriptions ADD CONSTRAINT subscriptions_org_id_fk FOREIGN KEY (org_id) REFERENCES organizations(id);
+      END IF;
+    END $$`,
+    `DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'seat_assignments_org_id_fk') THEN
+        ALTER TABLE seat_assignments ADD CONSTRAINT seat_assignments_org_id_fk FOREIGN KEY (org_id) REFERENCES organizations(id);
+      END IF;
+    END $$`,
+    `DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'usage_events_org_id_fk') THEN
+        ALTER TABLE usage_events ADD CONSTRAINT usage_events_org_id_fk FOREIGN KEY (org_id) REFERENCES organizations(id);
+      END IF;
+    END $$`,
+    `DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'billing_audit_logs_org_id_fk') THEN
+        ALTER TABLE billing_audit_logs ADD CONSTRAINT billing_audit_logs_org_id_fk FOREIGN KEY (org_id) REFERENCES organizations(id);
+      END IF;
+    END $$`,
+    `DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'billing_transactions_org_id_fk') THEN
+        ALTER TABLE billing_transactions ADD CONSTRAINT billing_transactions_org_id_fk FOREIGN KEY (org_id) REFERENCES organizations(id);
+      END IF;
+    END $$`,
+
+    // Backfill tasks.organization_id from projects for any null values
+    `UPDATE tasks SET organization_id = (SELECT organization_id FROM projects WHERE projects.id = tasks.project_id) WHERE organization_id IS NULL AND project_id IS NOT NULL`,
   ];
 
   for (const sql of migrations) {

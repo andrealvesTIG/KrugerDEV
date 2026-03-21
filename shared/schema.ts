@@ -1013,7 +1013,9 @@ export const projectDocuments = pgTable("project_documents", {
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
   isDemo: boolean("is_demo").default(false),
-});
+}, (table) => [
+  index("project_documents_project_id_idx").on(table.projectId),
+]);
 
 // Project Comments (Notes feed for project discussions)
 export const projectComments = pgTable("project_comments", {
@@ -1027,7 +1029,9 @@ export const projectComments = pgTable("project_comments", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at"),
   isDemo: boolean("is_demo").default(false),
-});
+}, (table) => [
+  index("project_comments_project_id_idx").on(table.projectId),
+]);
 
 // Notification types:
 // - mention: @mention in a comment
@@ -1102,7 +1106,9 @@ export const statusReportHistory = pgTable("status_report_history", {
   createdByName: text("created_by_name"),
   createdAt: timestamp("created_at").defaultNow(),
   isDemo: boolean("is_demo").default(false),
-});
+}, (table) => [
+  index("status_report_history_project_id_idx").on(table.projectId),
+]);
 
 // Project Invoices for tracking billing
 export const projectInvoices = pgTable("project_invoices", {
@@ -1137,7 +1143,9 @@ export const projectInvoices = pgTable("project_invoices", {
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
   isDemo: boolean("is_demo").default(false),
-});
+}, (table) => [
+  index("project_invoices_project_id_idx").on(table.projectId),
+]);
 
 // Invoice Notes (tracking notes with timestamps like billable status comments)
 export const invoiceNotes = pgTable("invoice_notes", {
@@ -1166,7 +1174,9 @@ export const projectFinancials = pgTable("project_financials", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   isDemo: boolean("is_demo").default(false), // True if created by demo data generator
-});
+}, (table) => [
+  index("project_financials_project_id_idx").on(table.projectId),
+]);
 
 // Cost Items (Hierarchical financial line items with monthly breakdown)
 export const costItems = pgTable("cost_items", {
@@ -1212,7 +1222,9 @@ export const costItems = pgTable("cost_items", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   isDemo: boolean("is_demo").default(false),
-});
+}, (table) => [
+  index("cost_items_project_id_idx").on(table.projectId),
+]);
 
 // Project Intakes (Intake workflow for new project ideas)
 export const projectIntakes = pgTable("project_intakes", {
@@ -1281,7 +1293,10 @@ export const projectIntakes = pgTable("project_intakes", {
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
   isDemo: boolean("is_demo").default(false),
-});
+}, (table) => [
+  index("project_intakes_org_id_idx").on(table.organizationId),
+  index("project_intakes_portfolio_id_idx").on(table.portfolioId),
+]);
 
 // Intake Workflow Steps - Configurable workflow steps per organization
 export const intakeWorkflowSteps = pgTable("intake_workflow_steps", {
@@ -1353,8 +1368,9 @@ export const organizationIntegrations = pgTable("organization_integrations", {
   updatedAt: timestamp("updated_at").defaultNow(),
   accessTokenEncrypted: text("access_token_encrypted"),
   refreshTokenEncrypted: text("refresh_token_encrypted"),
-  tokensEncrypted: boolean("tokens_encrypted").default(false),
-});
+}, (table) => [
+  uniqueIndex("org_integrations_org_type_idx").on(table.organizationId, table.integrationType),
+]);
 
 // === RELATIONS ===
 
@@ -1970,7 +1986,9 @@ export const projectCustomFieldValues = pgTable("project_custom_field_values", {
   dateValue: date("date_value"), // Legacy typed storage
   booleanValue: boolean("boolean_value"), // Legacy typed storage
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("pcfv_project_field_idx").on(table.projectId, table.fieldDefinitionId),
+]);
 
 export const insertProjectCustomFieldValueSchema = createInsertSchema(projectCustomFieldValues).omit({
   id: true,
@@ -2123,7 +2141,9 @@ export const projectScores = pgTable("project_scores", {
   justification: text("justification"),
   scoredAt: timestamp("scored_at").defaultNow(),
   scoredBy: varchar("scored_by").references(() => users.id),
-});
+}, (table) => [
+  uniqueIndex("project_scores_project_criteria_idx").on(table.projectId, table.criteriaId),
+]);
 
 export const insertProjectScoreSchema = createInsertSchema(projectScores).omit({
   id: true,
@@ -2649,28 +2669,6 @@ export const legacyRiskResourceAssignments = pgTable("risk_resource_assignments"
 
 export type LegacyRiskResourceAssignment = typeof legacyRiskResourceAssignments.$inferSelect;
 
-export const organizationCustomFields = pgTable("organization_custom_fields", {
-  id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
-  name: text("name").notNull(),
-  fieldType: text("field_type").notNull(),
-  options: text("options").array(),
-  required: boolean("required").default(false),
-  description: text("description"),
-  displayOrder: integer("display_order").default(0),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const insertOrganizationCustomFieldSchema = createInsertSchema(organizationCustomFields).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-export type InsertOrganizationCustomField = z.infer<typeof insertOrganizationCustomFieldSchema>;
-export type OrganizationCustomField = typeof organizationCustomFields.$inferSelect;
-
 // API Tokens (Bearer auth for Analytics API, scoped to user + organization)
 export const apiTokens = pgTable("api_tokens", {
   id: serial("id").primaryKey(),
@@ -2701,7 +2699,7 @@ export const trainingModules = pgTable("training_modules", {
   moduleKey: varchar("module_key").unique().notNull(),
   name: text("name").notNull(),
   subtitle: text("subtitle").notNull(),
-  certPrefix: varchar("cert_prefix", { length: 10 }).notNull(),
+  certPrefix: varchar("cert_prefix", { length: 20 }).notNull(),
   sortOrder: integer("sort_order").default(0),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
