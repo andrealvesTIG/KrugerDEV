@@ -36,3 +36,9 @@ id = "cH3BpjIX41-UG7eW9QOHr"
 uri = "file://Schema_Missing_Elements_Report.md"
 type = "text"
 title = "Schema Missing Elements & Mismatch Report"
+
+[[outputs]]
+id = "gyzN-Ym-IwXS3SfyBoWCO"
+uri = "file://Schema_Gap_Analysis.md"
+type = "text"
+title = "Schema Gap Analysis Report"
