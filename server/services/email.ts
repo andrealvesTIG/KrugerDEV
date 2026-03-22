@@ -1265,10 +1265,12 @@ export async function sendManagerWeeklyDigestEmail(
 
 export async function sendUnconSelfieThankYouEmail(email: string, userName: string, brandedImage?: Buffer): Promise<boolean> {
   const escapeHtml = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const sanitize = (str: string) => str.replace(/[\r\n\x00-\x1f\x7f]/g, '');
   const safeUserName = escapeHtml(userName);
-  const subject = `Thank you for visiting FridayReport.AI at PMO unCON 2026, ${userName}!`;
+  const cleanUserName = sanitize(userName);
+  const subject = `Thank you for visiting FridayReport.AI at PMO unCON 2026, ${cleanUserName}!`;
 
-  const text = `Hi ${userName},
+  const text = `Hi ${cleanUserName},
 
 Thank you for stopping by the FridayReport.AI booth at PMO unCON North America 2026!
 
@@ -1354,7 +1356,7 @@ https://fridayreport.ai`;
   const emailAttachments: EmailAttachment[] = [];
   if (brandedImage) {
     emailAttachments.push({
-      filename: `PMO-unCON-2026-${userName.replace(/[^a-zA-Z0-9]/g, '-')}.png`,
+      filename: `PMO-unCON-2026-${cleanUserName.replace(/[^a-zA-Z0-9]/g, '-')}.png`,
       content: brandedImage,
       contentType: 'image/png',
       content_id: 'selfie-card',
