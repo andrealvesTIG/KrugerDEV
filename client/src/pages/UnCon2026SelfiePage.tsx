@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useSearch } from "wouter";
-import { Camera, Share2, Linkedin, Twitter, Copy, CheckCircle, Loader2, RotateCcw, ArrowRight, FileText, Download } from "lucide-react";
+import { Camera, Share2, Linkedin, Twitter, Copy, CheckCircle, Loader2, RotateCcw, ArrowRight, FileText, Download, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,7 +26,12 @@ export default function UnCon2026SelfiePage() {
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     const prevTitle = document.title;
@@ -34,13 +39,68 @@ export default function UnCon2026SelfiePage() {
     return () => { document.title = prevTitle; };
   }, []);
 
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setCameraActive(false);
+  }, []);
+
+  useEffect(() => {
+    return () => { stopCamera(); };
+  }, [stopCamera]);
+
+  const startCamera = useCallback(async () => {
+    setCameraError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 960 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setCameraActive(true);
+    } catch (err: any) {
+      console.error("Camera access error:", err);
+      setCameraError("Could not access camera. Please use the gallery option instead.");
+    }
+  }, []);
+
+  const capturePhoto = useCallback(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0);
+
+    stopCamera();
+
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const file = new File([blob], "selfie.jpg", { type: "image/jpeg" });
+      setPhotoFile(file);
+      setPhotoDataUrl(canvas.toDataURL("image/jpeg", 0.92));
+    }, "image/jpeg", 0.92);
+  }, [stopCamera]);
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim()) return;
     setStep("camera");
   };
 
-  const handleCapture = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleGalleryCapture = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setPhotoFile(file);
@@ -59,6 +119,7 @@ export default function UnCon2026SelfiePage() {
   const handleRetake = () => {
     setPhotoDataUrl(null);
     setPhotoFile(null);
+    setCameraError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -237,34 +298,62 @@ export default function UnCon2026SelfiePage() {
             <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Take your selfie</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">Smile! This will appear on your branded card.</p>
 
+            <canvas ref={canvasRef} className="hidden" />
+
             {!photoDataUrl ? (
               <div className="space-y-3">
-                <label className="flex flex-col items-center justify-center w-full h-52 border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-2xl cursor-pointer bg-amber-50/50 dark:bg-amber-950/20 hover:bg-amber-100/50 dark:hover:bg-amber-950/40 transition-colors">
-                  <Camera className="h-12 w-12 text-amber-500 mb-3" />
-                  <span className="text-base font-medium text-amber-700 dark:text-amber-400">Tap to take a selfie</span>
-                  <span className="text-xs text-gray-500 mt-1">Opens your front camera</span>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="user"
-                    onChange={handleCapture}
-                    className="hidden"
-                  />
-                </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const galleryInput = document.createElement("input");
-                    galleryInput.type = "file";
-                    galleryInput.accept = "image/*";
-                    galleryInput.onchange = (e) => handleCapture(e as any);
-                    galleryInput.click();
-                  }}
-                  className="w-full text-center text-sm text-amber-600 dark:text-amber-400 hover:underline py-2"
-                >
-                  or choose a photo from your gallery
-                </button>
+                {cameraActive ? (
+                  <div className="space-y-4">
+                    <div className="relative rounded-2xl overflow-hidden bg-black aspect-[3/4]">
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-full object-cover"
+                        style={{ transform: "scaleX(-1)" }}
+                      />
+                    </div>
+                    <Button
+                      onClick={capturePhoto}
+                      className="w-full bg-[#FF751F] hover:bg-[#e86a15] text-white min-h-14 text-lg rounded-full"
+                    >
+                      <Camera className="mr-2 h-6 w-6" />
+                      Capture
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    {cameraError && (
+                      <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg p-3 mb-2">
+                        {cameraError}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={startCamera}
+                      className="flex flex-col items-center justify-center w-full h-52 border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-2xl cursor-pointer bg-amber-50/50 dark:bg-amber-950/20 hover:bg-amber-100/50 dark:hover:bg-amber-950/40 transition-colors"
+                    >
+                      <Camera className="h-12 w-12 text-amber-500 mb-3" />
+                      <span className="text-base font-medium text-amber-700 dark:text-amber-400">Tap to open camera</span>
+                      <span className="text-xs text-gray-500 mt-1">Take a photo right here in the browser</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const galleryInput = document.createElement("input");
+                        galleryInput.type = "file";
+                        galleryInput.accept = "image/*";
+                        galleryInput.onchange = (e) => handleGalleryCapture(e as any);
+                        galleryInput.click();
+                      }}
+                      className="w-full flex items-center justify-center gap-2 text-sm text-amber-600 dark:text-amber-400 hover:underline py-2"
+                    >
+                      <ImageIcon className="h-4 w-4" />
+                      or choose a photo from your gallery
+                    </button>
+                  </>
+                )}
               </div>
             ) : (
               <div className="space-y-4">
@@ -299,7 +388,7 @@ export default function UnCon2026SelfiePage() {
               </div>
             )}
 
-            <Button variant="ghost" onClick={() => setStep("form")} className="w-full mt-3 text-gray-500">
+            <Button variant="ghost" onClick={() => { stopCamera(); setStep("form"); }} className="w-full mt-3 text-gray-500">
               Back to info
             </Button>
           </div>
