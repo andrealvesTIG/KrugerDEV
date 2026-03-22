@@ -13,6 +13,7 @@ async function cleanup() {
   const cleanups: string[] = [
     `UPDATE tasks SET parent_id = NULL WHERE parent_id IS NOT NULL AND parent_id NOT IN (SELECT id FROM tasks)`,
     `ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_parent_id_tasks_id_fk`,
+    `DROP INDEX IF EXISTS tasks_project_external_id_unique_idx`,
   ];
 
   for (const sql of cleanups) {

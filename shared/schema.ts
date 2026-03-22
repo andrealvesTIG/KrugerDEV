@@ -486,7 +486,7 @@ export const tasks = pgTable("tasks", {
   index("tasks_created_at_idx").on(table.createdAt),
   index("tasks_project_deleted_task_idx").on(table.projectId, table.deletedAt, table.taskIndex),
   index("tasks_owner_id_idx").on(table.ownerId),
-  uniqueIndex("tasks_project_external_id_unique_idx").on(table.projectId, table.externalId).where(sql`external_id IS NOT NULL`),
+  index("tasks_project_external_id_idx").on(table.projectId, table.externalId),
 ]);
 
 // Task Change Logs (Audit Trail)
