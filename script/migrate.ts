@@ -263,6 +263,9 @@ async function migrate() {
     `ALTER TABLE organization_integrations ADD COLUMN IF NOT EXISTS refresh_token_encrypted TEXT`,
     `ALTER TABLE organization_integrations DROP COLUMN IF EXISTS tokens_encrypted`,
 
+    // Clean up orphaned parent_id references before adding FK constraint
+    `UPDATE tasks SET parent_id = NULL WHERE parent_id IS NOT NULL AND parent_id NOT IN (SELECT id FROM tasks)`,
+
     // Self-referencing FK on tasks.parent_id for subtask hierarchy
     `DO $$ BEGIN
       IF NOT EXISTS (

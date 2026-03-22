@@ -35,6 +35,14 @@ const allowlist = [
 async function buildAll() {
   await rm("dist", { recursive: true, force: true });
 
+  console.log("cleaning up orphaned data before schema sync...");
+  try {
+    execSync("npx tsx script/pre-push-cleanup.ts", { stdio: "inherit" });
+    console.log("Pre-push cleanup complete.");
+  } catch (err) {
+    console.warn("Warning: Pre-push cleanup had issues, continuing...", err);
+  }
+
   console.log("syncing database schema...");
   execSync("npx drizzle-kit push --force", { stdio: "inherit" });
   console.log("Schema push complete.");
