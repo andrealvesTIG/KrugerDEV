@@ -1296,60 +1296,104 @@ https://fridayreport.ai`;
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-  <div style="max-width: 600px; margin: 0 auto; background-color: #f5f5f5; padding: 20px;">
-    <div style="background: linear-gradient(135deg, #17255A 0%, #0d1a3f 100%); border-radius: 16px; overflow: hidden;">
-      <div style="text-align: center; padding: 30px 30px 20px;">
-        <p style="color: #D4A84A; font-size: 13px; text-align: center; margin: 0 0 4px; letter-spacing: 2px; font-weight: 700;">PMO unCON NORTH AMERICA 2026</p>
-      </div>
-
-      <div style="padding: 0 30px 30px;">
-        ${brandedImage ? `<div style="text-align: center; margin-bottom: 20px;">
-          <img src="cid:selfie-card" alt="Your PMO unCON 2026 Selfie" style="width: 100%; max-width: 540px; border-radius: 16px; display: block; margin: 0 auto;" />
-        </div>` : ''}
-        <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 30px; margin-bottom: 20px;">
-          <h1 style="color: #FF751F; font-size: 22px; margin: 0 0 8px; text-align: center;">Thank You, ${safeUserName}!</h1>
-          <p style="color: #D4A84A; font-size: 13px; text-align: center; margin: 0 0 20px; letter-spacing: 2px; font-weight: 700;">PMO unCON NORTH AMERICA 2026</p>
-          <p style="color: rgba(255,255,255,0.8); font-size: 15px; line-height: 1.6; margin: 0;">
-            It was great meeting you at our booth! We hope you enjoyed the selfie experience. Here's a quick look at what FridayReport.AI can do for your team:
-          </p>
-        </div>
-
-        <div style="margin-bottom: 20px;">
-          <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; margin-bottom: 10px;">
-            <h3 style="color: #FF751F; font-size: 15px; margin: 0 0 4px;">AI-Powered Project Insights</h3>
-            <p style="color: rgba(255,255,255,0.7); font-size: 13px; margin: 0;">Smart recommendations and predictive analytics to keep projects on track.</p>
-          </div>
-          <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; margin-bottom: 10px;">
-            <h3 style="color: #FF751F; font-size: 15px; margin: 0 0 4px;">Portfolio Management</h3>
-            <p style="color: rgba(255,255,255,0.7); font-size: 13px; margin: 0;">Complete oversight of all your projects in one unified dashboard.</p>
-          </div>
-          <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; margin-bottom: 10px;">
-            <h3 style="color: #FF751F; font-size: 15px; margin: 0 0 4px;">Resource Optimization</h3>
-            <p style="color: rgba(255,255,255,0.7); font-size: 13px; margin: 0;">Maximize team efficiency with capacity planning and workload balancing.</p>
-          </div>
-          <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; margin-bottom: 10px;">
-            <h3 style="color: #FF751F; font-size: 15px; margin: 0 0 4px;">Risk Management</h3>
-            <p style="color: rgba(255,255,255,0.7); font-size: 13px; margin: 0;">Proactive risk identification and mitigation with the PMO Radar.</p>
-          </div>
-          <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px;">
-            <h3 style="color: #FF751F; font-size: 15px; margin: 0 0 4px;">Real-time Dashboards</h3>
-            <p style="color: rgba(255,255,255,0.7); font-size: 13px; margin: 0;">Beautiful, actionable project analytics at your fingertips.</p>
-          </div>
-        </div>
-
-        <div style="text-align: center; margin: 25px 0;">
-          <a href="https://fridayreport.ai" style="display: inline-block; background: #FF751F; color: white; text-decoration: none; padding: 14px 40px; border-radius: 8px; font-weight: 700; font-size: 16px;">Start Your Free Trial</a>
-        </div>
-
-        <div style="text-align: center; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1);">
-          <p style="color: rgba(255,255,255,0.4); font-size: 12px; margin: 0;">
-            &copy; 2026 FridayReport.AI &mdash; Project Portfolio Management, Reimagined.
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
+<body style="margin: 0; padding: 0; background-color: #f0f0f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f0f0f0;">
+    <tr>
+      <td align="center" style="padding: 20px 0;">
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background-color: #ffffff; border: 1px solid #e0e0e0;">
+          <tr>
+            <td style="background-color: #17255A; padding: 30px 30px 20px; text-align: center;">
+              <p style="color: #D4A84A; font-size: 13px; margin: 0 0 4px; letter-spacing: 2px; font-weight: 700;">PMO unCON NORTH AMERICA 2026</p>
+            </td>
+          </tr>
+          ${brandedImage ? `<tr>
+            <td style="background-color: #17255A; padding: 0 30px 20px; text-align: center;">
+              <img src="cid:selfie-card" alt="Your PMO unCON 2026 Selfie" width="540" style="width: 100%; max-width: 540px; display: block; margin: 0 auto;" />
+            </td>
+          </tr>` : ''}
+          <tr>
+            <td style="background-color: #ffffff; padding: 30px;">
+              <h1 style="color: #FF751F; font-size: 22px; margin: 0 0 8px; text-align: center;">Thank You, ${safeUserName}!</h1>
+              <p style="color: #17255A; font-size: 13px; text-align: center; margin: 0 0 20px; letter-spacing: 2px; font-weight: 700;">PMO unCON NORTH AMERICA 2026</p>
+              <p style="color: #333333; font-size: 15px; line-height: 1.6; margin: 0;">
+                It was great meeting you at our booth! We hope you enjoyed the selfie experience. Here's a quick look at what FridayReport.AI can do for your team:
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #ffffff; padding: 0 30px 10px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8f8f8; border: 1px solid #e8e8e8;">
+                <tr><td style="padding: 16px;">
+                  <h3 style="color: #FF751F; font-size: 15px; margin: 0 0 4px;">AI-Powered Project Insights</h3>
+                  <p style="color: #555555; font-size: 13px; margin: 0;">Smart recommendations and predictive analytics to keep projects on track.</p>
+                </td></tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #ffffff; padding: 0 30px 10px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8f8f8; border: 1px solid #e8e8e8;">
+                <tr><td style="padding: 16px;">
+                  <h3 style="color: #FF751F; font-size: 15px; margin: 0 0 4px;">Portfolio Management</h3>
+                  <p style="color: #555555; font-size: 13px; margin: 0;">Complete oversight of all your projects in one unified dashboard.</p>
+                </td></tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #ffffff; padding: 0 30px 10px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8f8f8; border: 1px solid #e8e8e8;">
+                <tr><td style="padding: 16px;">
+                  <h3 style="color: #FF751F; font-size: 15px; margin: 0 0 4px;">Resource Optimization</h3>
+                  <p style="color: #555555; font-size: 13px; margin: 0;">Maximize team efficiency with capacity planning and workload balancing.</p>
+                </td></tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #ffffff; padding: 0 30px 10px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8f8f8; border: 1px solid #e8e8e8;">
+                <tr><td style="padding: 16px;">
+                  <h3 style="color: #FF751F; font-size: 15px; margin: 0 0 4px;">Risk Management</h3>
+                  <p style="color: #555555; font-size: 13px; margin: 0;">Proactive risk identification and mitigation with the PMO Radar.</p>
+                </td></tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #ffffff; padding: 0 30px 20px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8f8f8; border: 1px solid #e8e8e8;">
+                <tr><td style="padding: 16px;">
+                  <h3 style="color: #FF751F; font-size: 15px; margin: 0 0 4px;">Real-time Dashboards</h3>
+                  <p style="color: #555555; font-size: 13px; margin: 0;">Beautiful, actionable project analytics at your fingertips.</p>
+                </td></tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #ffffff; padding: 0 30px 30px; text-align: center;">
+              <!--[if mso]>
+              <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="https://fridayreport.ai" style="height:48px;v-text-anchor:middle;width:240px;" arcsize="17%" fillcolor="#FF751F" stroke="f">
+                <w:anchorlock/>
+                <center style="color:#ffffff;font-family:sans-serif;font-size:16px;font-weight:bold;">Start Your Free Trial</center>
+              </v:roundrect>
+              <![endif]-->
+              <!--[if !mso]><!-->
+              <a href="https://fridayreport.ai" style="display: inline-block; background-color: #FF751F; color: #ffffff; text-decoration: none; padding: 14px 40px; border-radius: 8px; font-weight: 700; font-size: 16px;">Start Your Free Trial</a>
+              <!--<![endif]-->
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f8f8f8; padding: 16px 30px; text-align: center; border-top: 1px solid #e0e0e0;">
+              <p style="color: #999999; font-size: 12px; margin: 0;">
+                &copy; 2026 FridayReport.AI &mdash; Project Portfolio Management, Reimagined.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`;
 
