@@ -54,38 +54,39 @@ export async function generateSelfieOgImage(data: SelfieOgData): Promise<Buffer>
   const userName = escapeXml((data.userName || "Attendee").toUpperCase());
   const interviewer = data.interviewer ? escapeXml(data.interviewer) : null;
 
-  const photoSize = 820;
+  const photoSize = 920;
   const photoX = (1200 - photoSize) / 2;
-  const photoY = 60;
+  const photoY = 40;
 
   const selfieElement = selfieB64
     ? `<defs>
         <clipPath id="squareClip">
-          <rect x="${photoX}" y="${photoY}" width="${photoSize}" height="${photoSize}" rx="24" ry="24" />
+          <rect x="${photoX}" y="${photoY}" width="${photoSize}" height="${photoSize}" rx="20" ry="20" />
         </clipPath>
       </defs>
-      <rect x="${photoX - 4}" y="${photoY - 4}" width="${photoSize + 8}" height="${photoSize + 8}" rx="28" ry="28" fill="#FF751F" />
+      <rect x="${photoX - 4}" y="${photoY - 4}" width="${photoSize + 8}" height="${photoSize + 8}" rx="24" ry="24" fill="#FF751F" />
       <image href="${selfieB64}" x="${photoX}" y="${photoY}" width="${photoSize}" height="${photoSize}" preserveAspectRatio="xMidYMid slice" clip-path="url(#squareClip)" />`
-    : `<rect x="${photoX - 4}" y="${photoY - 4}" width="${photoSize + 8}" height="${photoSize + 8}" rx="28" ry="28" fill="#FF751F" />
-      <rect x="${photoX}" y="${photoY}" width="${photoSize}" height="${photoSize}" rx="24" ry="24" fill="#1a2a5e" />
+    : `<rect x="${photoX - 4}" y="${photoY - 4}" width="${photoSize + 8}" height="${photoSize + 8}" rx="24" ry="24" fill="#FF751F" />
+      <rect x="${photoX}" y="${photoY}" width="${photoSize}" height="${photoSize}" rx="20" ry="20" fill="#1a2a5e" />
       <text x="600" y="${photoY + photoSize / 2 + 20}" text-anchor="middle" font-size="72" font-family="system-ui,sans-serif">📸</text>`;
 
-  const bottomY = photoY + photoSize;
-  const nameY = bottomY + 50;
+  const nameY = photoY + photoSize + 48;
 
   const interviewerLine = interviewer
-    ? `<text x="600" y="${nameY + 32}" text-anchor="middle" font-size="16" fill="#d4a44a" font-family="system-ui,sans-serif">Interviewed by ${interviewer}</text>`
+    ? `<text x="600" y="${nameY + 30}" text-anchor="middle" font-size="16" fill="#d4a44a" font-family="system-ui,sans-serif">Interviewed by ${interviewer}</text>`
     : "";
 
-  const badgeY = interviewer ? nameY + 48 : nameY + 20;
+  const badgeY = interviewer ? nameY + 44 : nameY + 18;
+
+  const logoY = badgeY + 54;
 
   const pmiPmogaElement = pmiPmogaLogoB64
-    ? `<image href="${pmiPmogaLogoB64}" x="80" y="1128" width="240" height="50" preserveAspectRatio="xMidYMid meet" />`
-    : `<text x="200" y="1158" text-anchor="middle" font-size="14" font-weight="700" fill="white" font-family="system-ui,sans-serif">Project Management Institute</text>`;
+    ? `<image href="${pmiPmogaLogoB64}" x="80" y="${logoY}" width="240" height="50" preserveAspectRatio="xMidYMid meet" />`
+    : `<text x="200" y="${logoY + 30}" text-anchor="middle" font-size="14" font-weight="700" fill="white" font-family="system-ui,sans-serif">Project Management Institute</text>`;
 
   const fridayLogoElement = fridayLogoB64
-    ? `<image href="${fridayLogoB64}" x="880" y="1130" width="200" height="40" preserveAspectRatio="xMidYMid meet" />`
-    : `<text x="980" y="1155" text-anchor="middle" font-size="20" font-weight="800" fill="white" font-family="system-ui,sans-serif">FridayReport.AI</text>`;
+    ? `<image href="${fridayLogoB64}" x="880" y="${logoY + 2}" width="200" height="40" preserveAspectRatio="xMidYMid meet" />`
+    : `<text x="980" y="${logoY + 28}" text-anchor="middle" font-size="20" font-weight="800" fill="white" font-family="system-ui,sans-serif">FridayReport.AI</text>`;
 
   const svg = `<svg width="1200" height="1200" xmlns="http://www.w3.org/2000/svg">
   <rect width="1200" height="1200" rx="24" fill="#111B3E" />
