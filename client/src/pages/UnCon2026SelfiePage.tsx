@@ -59,16 +59,20 @@ export default function UnCon2026SelfiePage() {
         audio: false,
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
       setCameraActive(true);
     } catch (err: any) {
       console.error("Camera access error:", err);
       setCameraError("Could not access camera. Please use the gallery option instead.");
     }
   }, []);
+
+  useEffect(() => {
+    if (cameraActive && streamRef.current && videoRef.current) {
+      const video = videoRef.current;
+      video.srcObject = streamRef.current;
+      video.play().catch(err => console.error("Video play error:", err));
+    }
+  }, [cameraActive]);
 
   const capturePhoto = useCallback(() => {
     const video = videoRef.current;
