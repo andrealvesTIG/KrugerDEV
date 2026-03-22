@@ -829,6 +829,19 @@ export function registerUserRoutes(app: Express) {
       }).returning();
 
       res.json({ success: true, shareToken: lead.shareToken });
+
+      try {
+        const { generateSelfieOgImage } = await import("../selfie-og");
+        const { sendUnconSelfieThankYouEmail } = await import("../services/email");
+        const brandedImage = await generateSelfieOgImage({
+          userName: userName.trim(),
+          interviewer: interviewer?.trim() || null,
+          selfieBuffer: req.file!.buffer,
+        });
+        await sendUnconSelfieThankYouEmail(email.trim(), userName.trim(), brandedImage);
+      } catch (emailErr) {
+        console.error('Failed to send UnCon selfie thank-you email:', emailErr);
+      }
     } catch (err) {
       console.error('Selfie submission error:', err);
       const { status, message } = classifyError(err);

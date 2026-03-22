@@ -19,6 +19,7 @@ export interface EmailAttachment {
   filename: string;
   content: Buffer | string;
   contentType?: string;
+  content_id?: string;
 }
 
 export async function sendEmail({
@@ -63,7 +64,7 @@ export async function sendEmail({
       subject: string;
       text: string;
       html: string;
-      attachments?: { filename: string; content: Buffer }[];
+      attachments?: { filename: string; content: Buffer; content_id?: string }[];
     } = {
       from: fromAddress,
       to: [to],
@@ -77,10 +78,16 @@ export async function sendEmail({
     }
     
     if (attachments && attachments.length > 0) {
-      emailPayload.attachments = attachments.map(att => ({
-        filename: att.filename,
-        content: Buffer.isBuffer(att.content) ? att.content : Buffer.from(att.content, 'base64'),
-      }));
+      emailPayload.attachments = attachments.map(att => {
+        const mapped: { filename: string; content: Buffer; content_id?: string } = {
+          filename: att.filename,
+          content: Buffer.isBuffer(att.content) ? att.content : Buffer.from(att.content, 'base64'),
+        };
+        if (att.content_id) {
+          mapped.content_id = att.content_id;
+        }
+        return mapped;
+      });
     }
     
     const { data, error } = await client.emails.send(emailPayload);
@@ -1254,4 +1261,105 @@ export async function sendManagerWeeklyDigestEmail(
 </html>`;
 
   return sendEmail({ to, subject, text, html });
+}
+
+export async function sendUnconSelfieThankYouEmail(email: string, userName: string, brandedImage?: Buffer): Promise<boolean> {
+  const escapeHtml = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const safeUserName = escapeHtml(userName);
+  const subject = `Thank you for visiting FridayReport.AI at PMO unCON 2026, ${userName}!`;
+
+  const text = `Hi ${userName},
+
+Thank you for stopping by the FridayReport.AI booth at PMO unCON North America 2026!
+
+It was great meeting you and sharing how FridayReport.AI can transform your project portfolio management.
+
+Here's what FridayReport.AI offers:
+- AI-Powered Project Insights - Smart recommendations and predictive analytics
+- Portfolio Management - Complete oversight of all your projects
+- Resource Optimization - Maximize team efficiency and capacity
+- Risk Management - Proactive risk identification and mitigation
+- Real-time Dashboards - Beautiful, actionable project analytics
+
+We'd love to show you more! Visit https://fridayreport.ai to start your free trial.
+
+Best regards,
+The FridayReport.AI Team
+
+https://fridayreport.ai`;
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; background-color: #f5f5f5; padding: 20px;">
+    <div style="background: linear-gradient(135deg, #17255A 0%, #0d1a3f 100%); border-radius: 16px; overflow: hidden;">
+      <div style="text-align: center; padding: 30px 30px 20px;">
+        <p style="color: #D4A84A; font-size: 13px; text-align: center; margin: 0 0 4px; letter-spacing: 2px; font-weight: 700;">PMO unCON NORTH AMERICA 2026</p>
+      </div>
+
+      <div style="padding: 0 30px 30px;">
+        ${brandedImage ? `<div style="text-align: center; margin-bottom: 20px;">
+          <img src="cid:selfie-card" alt="Your PMO unCON 2026 Selfie" style="width: 100%; max-width: 540px; border-radius: 16px; display: block; margin: 0 auto;" />
+        </div>` : ''}
+        <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 30px; margin-bottom: 20px;">
+          <h1 style="color: #FF751F; font-size: 22px; margin: 0 0 8px; text-align: center;">Thank You, ${safeUserName}!</h1>
+          <p style="color: #D4A84A; font-size: 13px; text-align: center; margin: 0 0 20px; letter-spacing: 2px; font-weight: 700;">PMO unCON NORTH AMERICA 2026</p>
+          <p style="color: rgba(255,255,255,0.8); font-size: 15px; line-height: 1.6; margin: 0;">
+            It was great meeting you at our booth! We hope you enjoyed the selfie experience. Here's a quick look at what FridayReport.AI can do for your team:
+          </p>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+          <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; margin-bottom: 10px;">
+            <h3 style="color: #FF751F; font-size: 15px; margin: 0 0 4px;">AI-Powered Project Insights</h3>
+            <p style="color: rgba(255,255,255,0.7); font-size: 13px; margin: 0;">Smart recommendations and predictive analytics to keep projects on track.</p>
+          </div>
+          <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; margin-bottom: 10px;">
+            <h3 style="color: #FF751F; font-size: 15px; margin: 0 0 4px;">Portfolio Management</h3>
+            <p style="color: rgba(255,255,255,0.7); font-size: 13px; margin: 0;">Complete oversight of all your projects in one unified dashboard.</p>
+          </div>
+          <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; margin-bottom: 10px;">
+            <h3 style="color: #FF751F; font-size: 15px; margin: 0 0 4px;">Resource Optimization</h3>
+            <p style="color: rgba(255,255,255,0.7); font-size: 13px; margin: 0;">Maximize team efficiency with capacity planning and workload balancing.</p>
+          </div>
+          <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; margin-bottom: 10px;">
+            <h3 style="color: #FF751F; font-size: 15px; margin: 0 0 4px;">Risk Management</h3>
+            <p style="color: rgba(255,255,255,0.7); font-size: 13px; margin: 0;">Proactive risk identification and mitigation with the PMO Radar.</p>
+          </div>
+          <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px;">
+            <h3 style="color: #FF751F; font-size: 15px; margin: 0 0 4px;">Real-time Dashboards</h3>
+            <p style="color: rgba(255,255,255,0.7); font-size: 13px; margin: 0;">Beautiful, actionable project analytics at your fingertips.</p>
+          </div>
+        </div>
+
+        <div style="text-align: center; margin: 25px 0;">
+          <a href="https://fridayreport.ai" style="display: inline-block; background: #FF751F; color: white; text-decoration: none; padding: 14px 40px; border-radius: 8px; font-weight: 700; font-size: 16px;">Start Your Free Trial</a>
+        </div>
+
+        <div style="text-align: center; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1);">
+          <p style="color: rgba(255,255,255,0.4); font-size: 12px; margin: 0;">
+            &copy; 2026 FridayReport.AI &mdash; Project Portfolio Management, Reimagined.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  const emailAttachments: EmailAttachment[] = [];
+  if (brandedImage) {
+    emailAttachments.push({
+      filename: `PMO-unCON-2026-${userName.replace(/[^a-zA-Z0-9]/g, '-')}.png`,
+      content: brandedImage,
+      contentType: 'image/png',
+      content_id: 'selfie-card',
+    });
+  }
+
+  return sendEmail({ to: email, subject, text, html, cc: ["info@fridayreport.ai"], attachments: emailAttachments.length > 0 ? emailAttachments : undefined });
 }
