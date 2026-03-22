@@ -263,20 +263,11 @@ async function migrate() {
     `ALTER TABLE organization_integrations ADD COLUMN IF NOT EXISTS refresh_token_encrypted TEXT`,
     `ALTER TABLE organization_integrations DROP COLUMN IF EXISTS tokens_encrypted`,
 
-    // Clean up orphaned parent_id references before adding FK constraint
+    // Clean up orphaned parent_id references (no FK constraint — enforced at app level)
     `UPDATE tasks SET parent_id = NULL WHERE parent_id IS NOT NULL AND parent_id NOT IN (SELECT id FROM tasks)`,
 
-    // Self-referencing FK on tasks.parent_id for subtask hierarchy
-    `DO $$ BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM information_schema.table_constraints
-        WHERE constraint_name = 'tasks_parent_id_tasks_id_fk' AND table_name = 'tasks'
-      ) THEN
-        ALTER TABLE tasks ADD CONSTRAINT tasks_parent_id_tasks_id_fk
-          FOREIGN KEY (parent_id) REFERENCES tasks(id) ON DELETE SET NULL NOT VALID;
-        ALTER TABLE tasks VALIDATE CONSTRAINT tasks_parent_id_tasks_id_fk;
-      END IF;
-    END $$`,
+    // Drop the FK constraint if it exists from a previous migration attempt
+    `ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_parent_id_tasks_id_fk`,
 
 
     // Backfill milestones.organization_id from projects
