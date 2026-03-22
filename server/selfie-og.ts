@@ -44,7 +44,7 @@ export async function generateSelfieOgImage(data: SelfieOgData): Promise<Buffer>
   if (data.selfieBuffer) {
     try {
       const resizedSelfie = await sharp(data.selfieBuffer)
-        .resize(340, 340, { fit: 'cover', position: 'centre' })
+        .resize(600, 600, { fit: 'cover', position: 'centre' })
         .png()
         .toBuffer();
       selfieB64 = `data:image/png;base64,${resizedSelfie.toString("base64")}`;
@@ -54,29 +54,36 @@ export async function generateSelfieOgImage(data: SelfieOgData): Promise<Buffer>
   const userName = escapeXml((data.userName || "Attendee").toUpperCase());
   const interviewer = data.interviewer ? escapeXml(data.interviewer) : null;
 
+  const photoSize = 600;
+  const photoX = (1200 - photoSize) / 2;
+  const photoY = 160;
+  const borderW = photoSize + 12;
+  const borderX = photoX - 6;
+  const borderY = photoY - 6;
+
   const selfieElement = selfieB64
     ? `<defs>
         <clipPath id="squareClip">
-          <rect x="425" y="280" width="350" height="350" rx="40" ry="40" />
+          <rect x="${photoX}" y="${photoY}" width="${photoSize}" height="${photoSize}" rx="32" ry="32" />
         </clipPath>
       </defs>
-      <rect x="419" y="274" width="362" height="362" rx="44" ry="44" fill="#FF751F" />
-      <rect x="423" y="278" width="354" height="354" rx="42" ry="42" fill="#1a2a5e" />
-      <image href="${selfieB64}" x="425" y="280" width="350" height="350" preserveAspectRatio="xMidYMid slice" clip-path="url(#squareClip)" />`
-    : `<rect x="419" y="274" width="362" height="362" rx="44" ry="44" fill="#FF751F" />
-      <rect x="423" y="278" width="354" height="354" rx="42" ry="42" fill="#1a2a5e" />
-      <text x="600" y="470" text-anchor="middle" font-size="72" font-family="system-ui,sans-serif">📸</text>`;
+      <rect x="${borderX}" y="${borderY}" width="${borderW}" height="${borderW}" rx="36" ry="36" fill="#FF751F" />
+      <image href="${selfieB64}" x="${photoX}" y="${photoY}" width="${photoSize}" height="${photoSize}" preserveAspectRatio="xMidYMid slice" clip-path="url(#squareClip)" />`
+    : `<rect x="${borderX}" y="${borderY}" width="${borderW}" height="${borderW}" rx="36" ry="36" fill="#FF751F" />
+      <rect x="${photoX}" y="${photoY}" width="${photoSize}" height="${photoSize}" rx="32" ry="32" fill="#1a2a5e" />
+      <text x="600" y="${photoY + photoSize / 2 + 20}" text-anchor="middle" font-size="72" font-family="system-ui,sans-serif">📸</text>`;
 
+  const nameY = photoY + photoSize + 60;
   const interviewerLine = interviewer
-    ? `<text x="600" y="780" text-anchor="middle" font-size="18" fill="#d4a44a" font-family="system-ui,sans-serif">Interviewed by ${interviewer}</text>`
+    ? `<text x="600" y="${nameY + 40}" text-anchor="middle" font-size="18" fill="#d4a44a" font-family="system-ui,sans-serif">Interviewed by ${interviewer}</text>`
     : "";
 
   const pmiPmogaElement = pmiPmogaLogoB64
-    ? `<image href="${pmiPmogaLogoB64}" x="100" y="1100" width="320" height="65" preserveAspectRatio="xMidYMid meet" />`
+    ? `<image href="${pmiPmogaLogoB64}" x="100" y="1105" width="320" height="65" preserveAspectRatio="xMidYMid meet" />`
     : `<text x="260" y="1140" text-anchor="middle" font-size="18" font-weight="700" fill="white" font-family="system-ui,sans-serif">Project Management Institute</text>`;
 
   const fridayLogoElement = fridayLogoB64
-    ? `<image href="${fridayLogoB64}" x="780" y="1108" width="280" height="50" preserveAspectRatio="xMidYMid meet" />`
+    ? `<image href="${fridayLogoB64}" x="780" y="1112" width="280" height="50" preserveAspectRatio="xMidYMid meet" />`
     : `<text x="920" y="1140" text-anchor="middle" font-size="24" font-weight="800" fill="white" font-family="system-ui,sans-serif">FridayReport.AI</text>`;
 
   const svg = `<svg width="1200" height="1200" xmlns="http://www.w3.org/2000/svg">
@@ -89,25 +96,17 @@ export async function generateSelfieOgImage(data: SelfieOgData): Promise<Buffer>
 
   <rect width="1200" height="1200" rx="32" fill="url(#cardBg)" />
 
-  <text x="600" y="120" text-anchor="middle" font-size="36" font-weight="700" fill="#d4a44a" font-family="system-ui,sans-serif" letter-spacing="3">PMO UNCON 2026</text>
-  <text x="600" y="170" text-anchor="middle" font-size="18" font-weight="400" fill="rgba(255,255,255,0.5)" font-family="system-ui,sans-serif" letter-spacing="4">NORTH AMERICA</text>
+  <text x="600" y="100" text-anchor="middle" font-size="32" font-weight="700" fill="#d4a44a" font-family="system-ui,sans-serif" letter-spacing="3">PMO UNCON 2026</text>
 
   ${selfieElement}
 
-  <text x="600" y="750" text-anchor="middle" font-size="34" font-weight="800" fill="white" font-family="system-ui,-apple-system,sans-serif" letter-spacing="2">${userName}</text>
+  <text x="600" y="${nameY}" text-anchor="middle" font-size="36" font-weight="800" fill="white" font-family="system-ui,-apple-system,sans-serif" letter-spacing="2">${userName}</text>
   ${interviewerLine}
 
-  <rect x="400" y="820" width="400" height="52" rx="26" fill="#FF751F" />
-  <text x="600" y="853" text-anchor="middle" font-size="16" font-weight="700" fill="white" font-family="system-ui,sans-serif" letter-spacing="1">I WAS THERE! 🎉</text>
+  <rect x="420" y="${nameY + 30}" width="360" height="48" rx="24" fill="#FF751F" />
+  <text x="600" y="${nameY + 61}" text-anchor="middle" font-size="15" font-weight="700" fill="white" font-family="system-ui,sans-serif" letter-spacing="1">I WAS THERE! 🎉</text>
 
-  <line x1="100" y1="920" x2="1100" y2="920" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
-
-  <text x="600" y="970" text-anchor="middle" font-size="16" fill="rgba(255,255,255,0.5)" font-family="system-ui,sans-serif" letter-spacing="1">PROJECT PORTFOLIO MANAGEMENT, REIMAGINED</text>
-
-  <rect x="380" y="1000" width="440" height="54" rx="27" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" />
-  <text x="600" y="1034" text-anchor="middle" font-size="16" font-weight="600" fill="#FF751F" font-family="system-ui,sans-serif">fridayreport.ai</text>
-
-  <line x1="100" y1="1080" x2="1100" y2="1080" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+  <line x1="100" y1="1080" x2="1100" y2="1080" stroke="#1e3070" stroke-width="1" />
 
   ${pmiPmogaElement}
   ${fridayLogoElement}
