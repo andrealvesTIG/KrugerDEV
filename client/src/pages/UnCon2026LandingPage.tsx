@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useLocation, Link } from "wouter";
-import { Menu, X, Mail, Loader2, CheckCircle, ChevronRight, Shield, Users, BarChart3, Clock, Target, ArrowRight, Zap, TrendingUp, Eye, Brain, FileText, LayoutDashboard, Lightbulb, Award, Sparkles, CalendarDays, Camera } from "lucide-react";
+import { Menu, X, Mail, Loader2, CheckCircle, ChevronRight, Shield, Users, BarChart3, Clock, Target, ArrowRight, Zap, TrendingUp, Eye, Brain, FileText, LayoutDashboard, Lightbulb, Award, Sparkles, CalendarDays, Camera, ExternalLink, MapPin, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -276,11 +276,17 @@ export default function UnCon2026LandingPage() {
           <div className="relative px-6 md:px-12 lg:px-20 py-16 lg:py-28 max-w-[1400px] mx-auto">
             <AnimatedSection className="flex flex-col items-center text-center max-w-4xl mx-auto">
               <motion.div variants={fadeUp} className="w-full">
-                <div className="inline-flex items-center gap-2 mb-8 px-5 py-2.5 rounded-full bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-900/50 dark:to-yellow-900/50 border border-amber-200/60 dark:border-amber-700/40">
+                <a
+                  href="https://pmoga.pmi.org/events/pmo-uncon/overview"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 mb-8 px-5 py-2.5 rounded-full bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-900/50 dark:to-yellow-900/50 border border-amber-200/60 dark:border-amber-700/40 hover:shadow-md hover:scale-[1.01] transition-all duration-200"
+                >
                   <Award className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                   <span className="text-sm font-semibold text-amber-800 dark:text-amber-300 tracking-wide uppercase">Gold Sponsor</span>
-                  <span className="text-sm text-amber-700 dark:text-amber-400">PMO unCON North America 2026</span>
-                </div>
+                  <span className="text-sm text-amber-700 dark:text-amber-400">PMI's PMO unCON North America 2026</span>
+                  <ExternalLink className="h-3 w-3 text-amber-500 dark:text-amber-400" />
+                </a>
                 <h1
                   className="text-4xl md:text-5xl lg:text-[3.75rem] font-bold tracking-tight text-foreground leading-[1.1]"
                   style={{ fontFamily: "var(--font-display)" }}
@@ -291,7 +297,10 @@ export default function UnCon2026LandingPage() {
                   </span>
                 </h1>
                 <p className="mt-6 text-xl text-muted-foreground leading-relaxed max-w-3xl mx-auto">
-                  Thank you for visiting FridayReport.AI — a proud Gold Sponsor of PMO unCON North America 2026.
+                  Thank you for visiting FridayReport.AI — a proud Gold Sponsor of{" "}
+                  <a href="https://pmoga.pmi.org/events/pmo-uncon/overview" target="_blank" rel="noopener noreferrer" className="text-amber-600 dark:text-amber-400 font-semibold hover:underline">
+                    PMI's PMO unCON North America 2026
+                  </a>.
                 </p>
                 <p className="mt-4 text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto">
                   Discover how an AI-first PMO platform can help your organization improve visibility, reporting, and decision-making across portfolios and projects.
@@ -344,7 +353,11 @@ export default function UnCon2026LandingPage() {
                   Great Connecting with You at PMO unCON
                 </h2>
                 <p className="text-lg text-muted-foreground leading-relaxed">
-                  Whether we met at the booth, during a session, or at a networking event — we are glad you are here. PMO unCON brings together the people who are shaping the future of project management, and we are honored to be part of that conversation as a Gold Sponsor.
+                  Whether we met at the booth, during a session, or at a networking event — we are glad you are here.{" "}
+                  <a href="https://pmoga.pmi.org/events/pmo-uncon/overview" target="_blank" rel="noopener noreferrer" className="text-amber-600 dark:text-amber-400 font-semibold hover:underline">
+                    PMI's PMO unCON
+                  </a>{" "}
+                  brings together the people who are shaping the future of project management, and we are honored to be part of that conversation as a Gold Sponsor.
                 </p>
                 <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
                   We built FridayReport.AI because we believe PMO leaders deserve better tools — tools that use AI to reduce overhead, surface insights, and help you deliver more strategic value to your organization.
@@ -430,6 +443,71 @@ export default function UnCon2026LandingPage() {
           </AnimatedSection>
         </section>
 
+        <section className="border-y border-border bg-gradient-to-b from-slate-50 to-white dark:from-slate-900/50 dark:to-background">
+          <div className="px-6 md:px-12 lg:px-20 py-16 lg:py-20 max-w-[1400px] mx-auto">
+            <AnimatedSection className="text-center mb-12">
+              <motion.div variants={fadeUp}>
+                <Badge variant="outline" className="mb-4 text-sm">Presented by PMI</Badge>
+                <h2 className="text-3xl md:text-4xl font-bold text-foreground" style={{ fontFamily: "var(--font-display)" }}>
+                  About PMO unCON North America
+                </h2>
+                <p className="mt-4 text-lg text-muted-foreground max-w-3xl mx-auto">
+                  PMO unCON is the premier unconference for PMO leaders, presented by the Project Management Institute (PMI). It brings together hundreds of portfolio, program, and project management professionals for interactive sessions, peer learning, and real-world insights.
+                </p>
+              </motion.div>
+            </AnimatedSection>
+            <AnimatedSection className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+              <motion.div variants={fadeUp}>
+                <Card className="h-full text-center border-border hover:shadow-lg transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center mx-auto mb-4">
+                      <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <h3 className="font-bold text-foreground mb-2">Peer-Driven Learning</h3>
+                    <p className="text-sm text-muted-foreground">Interactive sessions led by PMO practitioners sharing real challenges and solutions</p>
+                  </CardContent>
+                </Card>
+              </motion.div>
+              <motion.div variants={fadeUp}>
+                <Card className="h-full text-center border-border hover:shadow-lg transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="w-12 h-12 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center mx-auto mb-4">
+                      <MapPin className="h-6 w-6 text-green-600 dark:text-green-400" />
+                    </div>
+                    <h3 className="font-bold text-foreground mb-2">In-Person Networking</h3>
+                    <p className="text-sm text-muted-foreground">Connect with PMO leaders from across industries in an intimate, collaborative setting</p>
+                  </CardContent>
+                </Card>
+              </motion.div>
+              <motion.div variants={fadeUp}>
+                <Card className="h-full text-center border-border hover:shadow-lg transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center mx-auto mb-4">
+                      <Calendar className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <h3 className="font-bold text-foreground mb-2">PMI-Backed Content</h3>
+                    <p className="text-sm text-muted-foreground">Curated by the Project Management Institute with PDU-eligible sessions</p>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </AnimatedSection>
+            <AnimatedSection className="text-center mt-10">
+              <motion.div variants={fadeUp}>
+                <a
+                  href="https://pmoga.pmi.org/events/pmo-uncon/overview"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button variant="outline" size="lg" className="text-base gap-2">
+                    Visit the Official PMO unCON Page at PMI.org
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                </a>
+              </motion.div>
+            </AnimatedSection>
+          </div>
+        </section>
+
         <section className="border-y border-border bg-gradient-to-r from-amber-50/60 via-yellow-50/40 to-amber-50/60 dark:from-amber-950/20 dark:via-yellow-950/10 dark:to-amber-950/20">
           <div className="px-6 md:px-12 lg:px-20 py-16 max-w-[1400px] mx-auto">
             <AnimatedSection className="flex flex-col md:flex-row items-center justify-center gap-8 text-center md:text-left">
@@ -447,11 +525,20 @@ export default function UnCon2026LandingPage() {
               </motion.div>
               <motion.div variants={fadeUp} className="max-w-2xl">
                 <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3" style={{ fontFamily: "var(--font-display)" }}>
-                  Proud Gold Sponsor of PMO unCON 2026
+                  Proud Gold Sponsor of PMI's PMO unCON 2026
                 </h2>
                 <p className="text-lg text-muted-foreground leading-relaxed">
-                  We are committed to advancing the PMO profession. Our sponsorship of PMO unCON North America reflects our belief that great project leadership deserves great tools. We are here to support the community — not just with software, but with thought leadership, resources, and genuine partnership.
+                  We are committed to advancing the PMO profession. Our sponsorship of PMI's PMO unCON North America reflects our belief that great project leadership deserves great tools. We are here to support the community — not just with software, but with thought leadership, resources, and genuine partnership.
                 </p>
+                <a
+                  href="https://pmoga.pmi.org/events/pmo-uncon/overview"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 mt-4 text-amber-600 dark:text-amber-400 font-semibold hover:underline"
+                >
+                  Learn more about PMO unCON at PMI.org
+                  <ExternalLink className="h-4 w-4" />
+                </a>
               </motion.div>
             </AnimatedSection>
           </div>
@@ -637,9 +724,11 @@ export default function UnCon2026LandingPage() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
               <img src={logoBlack} alt="FridayReport.AI" className="h-6 object-contain dark:invert" />
-              <span className="text-sm text-muted-foreground">Gold Sponsor — PMO unCON 2026</span>
+              <span className="text-sm text-muted-foreground">Gold Sponsor — PMI's PMO unCON 2026</span>
             </div>
             <div className="flex flex-wrap justify-center items-center gap-4">
+              <a href="https://pmoga.pmi.org/events/pmo-uncon/overview" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground hover:underline">PMO unCON at PMI.org</a>
+              <span className="text-muted-foreground">|</span>
               <a href="/terms" className="text-sm text-muted-foreground hover:text-foreground hover:underline">Terms of Service</a>
               <span className="text-muted-foreground">|</span>
               <a href="/privacy" className="text-sm text-muted-foreground hover:text-foreground hover:underline">Privacy Statement</a>
