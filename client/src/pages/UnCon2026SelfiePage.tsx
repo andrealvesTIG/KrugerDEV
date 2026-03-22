@@ -237,19 +237,33 @@ export default function UnCon2026SelfiePage() {
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">Smile! This will appear on your branded card.</p>
 
             {!photoDataUrl ? (
-              <div className="space-y-4">
-                <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-2xl cursor-pointer bg-amber-50/50 dark:bg-amber-950/20 hover:bg-amber-100/50 dark:hover:bg-amber-950/40 transition-colors">
+              <div className="space-y-3">
+                <label className="flex flex-col items-center justify-center w-full h-52 border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-2xl cursor-pointer bg-amber-50/50 dark:bg-amber-950/20 hover:bg-amber-100/50 dark:hover:bg-amber-950/40 transition-colors">
                   <Camera className="h-12 w-12 text-amber-500 mb-3" />
-                  <span className="text-base font-medium text-amber-700 dark:text-amber-400">Tap to open camera</span>
-                  <span className="text-sm text-gray-500 mt-1">or choose a photo from your gallery</span>
+                  <span className="text-base font-medium text-amber-700 dark:text-amber-400">Tap to take a selfie</span>
+                  <span className="text-xs text-gray-500 mt-1">Opens your front camera</span>
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
+                    capture="user"
                     onChange={handleCapture}
                     className="hidden"
                   />
                 </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const galleryInput = document.createElement("input");
+                    galleryInput.type = "file";
+                    galleryInput.accept = "image/*";
+                    galleryInput.onchange = (e) => handleCapture(e as any);
+                    galleryInput.click();
+                  }}
+                  className="w-full text-center text-sm text-amber-600 dark:text-amber-400 hover:underline py-2"
+                >
+                  or choose a photo from your gallery
+                </button>
               </div>
             ) : (
               <div className="space-y-4">
