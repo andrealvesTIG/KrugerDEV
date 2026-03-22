@@ -368,7 +368,7 @@ export default function UnCon2026SelfiePage() {
             ) : (
               <div className="space-y-4">
                 <div className="relative flex justify-center">
-                  <div className="w-48 h-60 rounded-[50%] overflow-hidden border-4 border-[#FF751F] shadow-lg">
+                  <div className="w-48 h-48 rounded-3xl overflow-hidden border-4 border-[#FF751F] shadow-lg">
                     <img src={photoDataUrl} alt="Your selfie" className="w-full h-full object-cover" />
                   </div>
                 </div>
@@ -431,7 +431,7 @@ export default function UnCon2026SelfiePage() {
                       <span className="text-amber-400 text-xs font-bold uppercase tracking-widest">PMO unCON 2026</span>
                     </div>
                     <div className="flex justify-center mb-3">
-                      <div className="w-36 h-44 rounded-[50%] overflow-hidden border-4 border-[#FF751F] shadow-lg ring-4 ring-[#FF751F]/20">
+                      <div className="w-36 h-36 rounded-2xl overflow-hidden border-4 border-[#FF751F] shadow-lg ring-4 ring-[#FF751F]/20">
                         <img src={photoDataUrl} alt="Your selfie" className="w-full h-full object-cover" />
                       </div>
                     </div>

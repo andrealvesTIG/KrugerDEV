@@ -44,7 +44,7 @@ export async function generateSelfieOgImage(data: SelfieOgData): Promise<Buffer>
   if (data.selfieBuffer) {
     try {
       const resizedSelfie = await sharp(data.selfieBuffer)
-        .resize(420, 520, { fit: 'cover', position: 'centre' })
+        .resize(340, 340, { fit: 'cover', position: 'centre' })
         .png()
         .toBuffer();
       selfieB64 = `data:image/png;base64,${resizedSelfie.toString("base64")}`;
@@ -56,16 +56,16 @@ export async function generateSelfieOgImage(data: SelfieOgData): Promise<Buffer>
 
   const selfieElement = selfieB64
     ? `<defs>
-        <clipPath id="ovalClip">
-          <ellipse cx="600" cy="480" rx="170" ry="210" />
+        <clipPath id="squareClip">
+          <rect x="425" y="280" width="350" height="350" rx="40" ry="40" />
         </clipPath>
       </defs>
-      <ellipse cx="600" cy="480" rx="178" ry="218" fill="#FF751F" />
-      <ellipse cx="600" cy="480" rx="173" ry="213" fill="#1a2a5e" />
-      <image href="${selfieB64}" x="430" y="270" width="340" height="420" preserveAspectRatio="xMidYMid slice" clip-path="url(#ovalClip)" />`
-    : `<ellipse cx="600" cy="480" rx="178" ry="218" fill="#FF751F" />
-      <ellipse cx="600" cy="480" rx="173" ry="213" fill="#1a2a5e" />
-      <text x="600" y="490" text-anchor="middle" font-size="72" font-family="system-ui,sans-serif">📸</text>`;
+      <rect x="419" y="274" width="362" height="362" rx="44" ry="44" fill="#FF751F" />
+      <rect x="423" y="278" width="354" height="354" rx="42" ry="42" fill="#1a2a5e" />
+      <image href="${selfieB64}" x="425" y="280" width="350" height="350" preserveAspectRatio="xMidYMid slice" clip-path="url(#squareClip)" />`
+    : `<rect x="419" y="274" width="362" height="362" rx="44" ry="44" fill="#FF751F" />
+      <rect x="423" y="278" width="354" height="354" rx="42" ry="42" fill="#1a2a5e" />
+      <text x="600" y="470" text-anchor="middle" font-size="72" font-family="system-ui,sans-serif">📸</text>`;
 
   const interviewerLine = interviewer
     ? `<text x="600" y="780" text-anchor="middle" font-size="18" fill="#d4a44a" font-family="system-ui,sans-serif">Interviewed by ${interviewer}</text>`
