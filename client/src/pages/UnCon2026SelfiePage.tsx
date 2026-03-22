@@ -74,6 +74,12 @@ export default function UnCon2026SelfiePage() {
     }
   }, [cameraActive]);
 
+  useEffect(() => {
+    if (step === "camera" && !cameraActive && !photoDataUrl) {
+      startCamera();
+    }
+  }, [step]);
+
   const capturePhoto = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
