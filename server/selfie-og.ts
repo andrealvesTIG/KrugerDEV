@@ -37,8 +37,8 @@ async function loadLogoBase64Inverted(filename: string, width: number, height?: 
 }
 
 export async function generateSelfieOgImage(data: SelfieOgData): Promise<Buffer> {
-  const fridayLogoB64 = await loadLogoBase64("logo-white.png", 200);
-  const pmiPmogaLogoB64 = await loadLogoBase64Inverted("pmi-pmoga-logo.png", 240, 50);
+  const fridayLogoB64 = await loadLogoBase64("logo-white.png", 340);
+  const pmiPmogaLogoB64 = await loadLogoBase64Inverted("pmi-pmoga-logo.png", 380, 78);
 
   let selfieB64 = "";
   if (data.selfieBuffer) {
@@ -81,12 +81,12 @@ export async function generateSelfieOgImage(data: SelfieOgData): Promise<Buffer>
   const logoY = badgeY + 54;
 
   const pmiPmogaElement = pmiPmogaLogoB64
-    ? `<image href="${pmiPmogaLogoB64}" x="80" y="${logoY}" width="240" height="50" preserveAspectRatio="xMidYMid meet" />`
-    : `<text x="200" y="${logoY + 30}" text-anchor="middle" font-size="14" font-weight="700" fill="white" font-family="system-ui,sans-serif">Project Management Institute</text>`;
+    ? `<image href="${pmiPmogaLogoB64}" x="60" y="${logoY}" width="380" height="78" preserveAspectRatio="xMidYMid meet" />`
+    : `<text x="250" y="${logoY + 45}" text-anchor="middle" font-size="18" font-weight="700" fill="white" font-family="system-ui,sans-serif">Project Management Institute</text>`;
 
   const fridayLogoElement = fridayLogoB64
-    ? `<image href="${fridayLogoB64}" x="880" y="${logoY + 2}" width="200" height="40" preserveAspectRatio="xMidYMid meet" />`
-    : `<text x="980" y="${logoY + 28}" text-anchor="middle" font-size="20" font-weight="800" fill="white" font-family="system-ui,sans-serif">FridayReport.AI</text>`;
+    ? `<image href="${fridayLogoB64}" x="780" y="${logoY + 8}" width="340" height="60" preserveAspectRatio="xMidYMid meet" />`
+    : `<text x="950" y="${logoY + 42}" text-anchor="middle" font-size="26" font-weight="800" fill="white" font-family="system-ui,sans-serif">FridayReport.AI</text>`;
 
   const svg = `<svg width="1200" height="1200" xmlns="http://www.w3.org/2000/svg">
   <rect width="1200" height="1200" rx="24" fill="#111B3E" />
