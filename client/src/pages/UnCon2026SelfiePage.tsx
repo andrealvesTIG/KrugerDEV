@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useSearch } from "wouter";
-import { Camera, Share2, Linkedin, Twitter, Copy, CheckCircle, Loader2, RotateCcw, ArrowRight, FileText } from "lucide-react";
+import { Camera, Share2, Linkedin, Twitter, Copy, CheckCircle, Loader2, RotateCcw, ArrowRight, FileText, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -352,6 +352,19 @@ export default function UnCon2026SelfiePage() {
             </div>
 
             <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-800">
+              <Button
+                onClick={() => {
+                  const link = document.createElement("a");
+                  link.href = ogImageUrl;
+                  link.download = `PMO-unCON-2026-${name.trim().replace(/\s+/g, "-")}.png`;
+                  link.click();
+                }}
+                className="w-full bg-[#17255A] hover:bg-[#0d1a3f] text-white min-h-12 text-base mb-4"
+              >
+                <Download className="mr-2 h-5 w-5" />
+                Download Your Selfie Card
+              </Button>
+
               <div className="flex items-center gap-2 mb-4">
                 <Share2 className="h-5 w-5 text-[#FF751F]" />
                 <h3 className="font-bold text-gray-900 dark:text-white">Share your experience</h3>
