@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
+import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
 import pmiPmogaLogo from "@assets/pmi-logo-DQ-6QQ___1773339567528.png";
 
 type Step = "form" | "camera" | "result";
@@ -342,8 +343,8 @@ export default function UnCon2026SelfiePage() {
                       )}
                     </div>
                     <div className="flex items-center justify-between gap-3 pt-2 border-t border-white/10">
-                      <img src={pmiPmogaLogo} alt="PMI · PMO Global Alliance" className="h-7 object-contain invert" />
-                      <img src={logoBlack} alt="FridayReport.AI" className="h-5 object-contain invert opacity-90" />
+                      <img src={pmiPmogaLogo} alt="PMI · PMO Global Alliance" className="h-7 object-contain brightness-0 invert" />
+                      <img src={logoWhite} alt="FridayReport.AI" className="h-5 object-contain" />
                     </div>
                   </div>
                 </div>
