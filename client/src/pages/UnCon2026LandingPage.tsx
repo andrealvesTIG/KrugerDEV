@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -109,7 +108,6 @@ export default function UnCon2026LandingPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [demoDialogOpen, setDemoDialogOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
@@ -233,7 +231,7 @@ export default function UnCon2026LandingPage() {
               Log in
             </Button>
             <Button
-              onClick={() => setDemoDialogOpen(true)}
+              onClick={() => window.open("https://bit.ly/unCON2026v", "_blank")}
               className="bg-[#F37021] hover:bg-[#e0621a] text-white"
             >
               Book Your Demo
@@ -263,7 +261,7 @@ export default function UnCon2026LandingPage() {
             </Button>
             <Button
               className="w-full bg-[#F37021] hover:bg-[#e0621a] text-white"
-              onClick={() => { setDemoDialogOpen(true); setMobileMenuOpen(false); }}
+              onClick={() => { window.open("https://bit.ly/unCON2026v", "_blank"); setMobileMenuOpen(false); }}
             >
               Book Your Demo
             </Button>
@@ -302,7 +300,7 @@ export default function UnCon2026LandingPage() {
                   <Button
                     size="lg"
                     className="bg-[#F37021] hover:bg-[#e0621a] text-white text-lg min-h-14 px-8"
-                    onClick={() => setDemoDialogOpen(true)}
+                    onClick={() => window.open("https://bit.ly/unCON2026v", "_blank")}
                   >
                     Book Your Demo
                     <ArrowRight className="ml-2 h-5 w-5" />
@@ -666,16 +664,6 @@ export default function UnCon2026LandingPage() {
         </div>
       </footer>
 
-      <Dialog open={demoDialogOpen} onOpenChange={setDemoDialogOpen}>
-        <DialogContent className="max-w-3xl w-[95vw] p-0 overflow-hidden">
-          <DialogTitle className="sr-only">Book Your Demo</DialogTitle>
-          <iframe
-            src="https://bit.ly/unCON2026v"
-            className="w-full h-[80vh] border-0"
-            allow="camera; microphone; fullscreen"
-          />
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
