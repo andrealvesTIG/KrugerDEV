@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, date, varchar, jsonb, uniqueIndex, index, customType, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, date, varchar, jsonb, uniqueIndex, index, customType } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations, sql } from "drizzle-orm";
@@ -450,7 +450,7 @@ export const tasks = pgTable("tasks", {
   assignee: text("assignee"),
   ownerId: varchar("owner_id").references(() => users.id), // Task owner/lead
   outlineLevel: integer("outline_level"), // Hierarchy level (1, 2, 3...)
-  parentId: integer("parent_id").references((): AnyPgColumn => tasks.id, { onDelete: 'set null' }), // For subtasks/dependencies
+  parentId: integer("parent_id"), // Self-ref FK managed in migrate.ts with NOT VALID for safe production deploys
   isMilestone: boolean("is_milestone").default(false), // Show task on project timeline
   isSummary: boolean("is_summary").default(false), // Is a summary/parent task
   isCritical: boolean("is_critical").default(false), // On critical path
