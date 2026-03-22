@@ -189,8 +189,8 @@ export default function UnCon2026SelfiePage() {
     : "";
 
   const shareText = interviewer
-    ? `Great meeting ${interviewer} at PMO unCON 2026! Interviewed by @Alex Rodov (https://www.linkedin.com/in/rodov/) at the @PMO Global Alliance @FridayReport.AI booth 📸 #PMOunCON #FridayReportAI #PMI`
-    : `Had an amazing time at PMO unCON 2026! Great connecting with @PMO Global Alliance and @FridayReport.AI 📸 #PMOunCON #FridayReportAI #PMI`;
+    ? `Great meeting ${interviewer} at PMO unCON 2026! Interviewed by @Alex Rodov (https://www.linkedin.com/in/rodov/) at the @PMO Global Alliance @FridayReport.AI booth 📸 #PMOunCON #FridayReport.AI #PMI`
+    : `Had an amazing time at PMO unCON 2026! Great connecting with @PMO Global Alliance and @FridayReport.AI 📸 #PMOunCON #FridayReport.AI #PMI`;
 
   const twitterShareText = interviewer
     ? `Great meeting ${interviewer} at PMO unCON 2026! 📸 #PMOunCON #FridayReportAI #PMI`
