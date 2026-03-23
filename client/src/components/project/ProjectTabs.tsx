@@ -16,7 +16,7 @@ import { useProjectDocuments, useCreateProjectDocument, useUpdateProjectDocument
 import { useScoringCriteria, useCreateScoringCriteria, useDeleteScoringCriteria, useProjectScores, useSaveProjectScore, useProjectBenefits, useCreateProjectBenefit, useUpdateProjectBenefit, useDeleteProjectBenefit, useProjectDecisions, useCreateProjectDecision, useUpdateProjectDecision, useDeleteProjectDecision } from "@/hooks/use-project-features";
 import { useLessonsLearned, useCreateLessonLearned, useUpdateLessonLearned, useDeleteLessonLearned } from "@/hooks/use-lessons-learned";
 import { insertIssueSchema } from "@shared/schema";
-import type { Issue, ProjectFinancial, ChangeRequest, ProjectDocument, Risk, Task, ProjectInvoice, InvoiceNote } from "@shared/schema";
+import type { Issue, ProjectFinancial, ChangeRequest, ProjectDocument, Risk, Task, ProjectInvoice, InvoiceNote, Milestone } from "@shared/schema";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { ProjectStatusReport } from "@/components/ProjectStatusReport";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
@@ -1862,6 +1862,7 @@ export interface StatusReportTabProps {
   issues: Issue[];
   financials: ProjectFinancial[];
   tasks: Task[];
+  milestones: Milestone[];
   changeRequests: ChangeRequest[];
   documents: ProjectDocument[];
 }
@@ -1872,6 +1873,7 @@ export function StatusReportTab({
   issues,
   financials,
   tasks,
+  milestones,
   changeRequests,
   documents
 }: StatusReportTabProps) {
@@ -1894,6 +1896,7 @@ export function StatusReportTab({
           issues={issues}
           financials={financials}
           tasks={tasks}
+          milestones={milestones}
           changeRequests={changeRequests}
           documents={documents}
           executiveSummary={project.description || ""}
@@ -1949,6 +1952,7 @@ export function StatusReportTab({
 
           financials={financials}
           tasks={tasks}
+          milestones={milestones}
           changeRequests={changeRequests}
           documents={documents}
           executiveSummary={project.description || ""}
@@ -2072,6 +2076,7 @@ export function StatusReportTab({
 
           financials={financials}
           tasks={tasks}
+          milestones={milestones}
           changeRequests={changeRequests}
           documents={documents}
           executiveSummary={project.description || ""}

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { format, differenceInDays, isAfter, isBefore } from "date-fns";
-import type { Project, Risk, Issue, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
+import type { Project, Risk, Issue, ProjectFinancial, Task, ChangeRequest, ProjectDocument, Milestone } from "@shared/schema";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle2, Circle, Clock, Target, TrendingUp, Users, DollarSign, Calendar, Flag, FileText, GitPullRequest, ChevronDown, ChevronUp } from "lucide-react";
@@ -13,6 +13,7 @@ interface ProjectStatusReportProps {
   issues: Issue[];
   financials: ProjectFinancial[];
   tasks: Task[];
+  milestones?: Milestone[];
   changeRequests?: ChangeRequest[];
   documents?: ProjectDocument[];
   executiveSummary?: string;
@@ -62,6 +63,7 @@ export function ProjectStatusReport({
   issues,
   financials,
   tasks,
+  milestones = [],
   changeRequests = [],
   documents = [],
   executiveSummary
@@ -150,10 +152,21 @@ export function ProjectStatusReport({
   }, [risks, issues]);
 
   const majorMilestones = useMemo(() => {
-    return tasks
+    const taskMilestones = tasks
       .filter(t => t.isMilestone && !t.deletedAt && t.dueDate)
-      .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
-  }, [tasks]);
+      .map(t => ({ id: `task-${t.id}`, title: t.title, dueDate: t.dueDate!, status: t.status, progress: t.progress || 0 }));
+    const standaloneMilestones = milestones
+      .filter(m => !m.deletedAt && m.dueDate)
+      .map(m => ({ id: `ms-${m.id}`, title: m.title, dueDate: m.dueDate!, status: m.completed ? "Completed" : (m.status === "Done" ? "Completed" : m.status || "Not Started"), progress: m.completed ? 100 : 0 }));
+    const seen = new Set<string>();
+    const combined = [...taskMilestones, ...standaloneMilestones].filter(m => {
+      const key = m.title.toLowerCase().trim();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    return combined.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  }, [tasks, milestones]);
 
   const timelineData = useMemo(() => {
     if (!project.startDate || !project.endDate) return null;
@@ -186,10 +199,10 @@ export function ProjectStatusReport({
     };
   }, [project.startDate, project.endDate, majorMilestones]);
 
-  const getMilestoneStatus = (task: Task) => {
-    if (task.status === "Completed" || task.progress === 100) return "Complete";
-    if (task.dueDate) {
-      const dueDate = new Date(task.dueDate);
+  const getMilestoneStatus = (m: { status: string | null; progress: number; dueDate: string }) => {
+    if (m.status === "Completed" || m.progress === 100) return "Complete";
+    if (m.dueDate) {
+      const dueDate = new Date(m.dueDate);
       const today = new Date();
       if (dueDate < today) return "At Risk";
     }
