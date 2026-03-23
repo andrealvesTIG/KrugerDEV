@@ -695,7 +695,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   onTrackChange?: (taskId: number, projectId: number, before: Record<string, unknown>, after: Record<string, unknown>, label: string) => void;
   prevTaskLevel?: number;
   isSelected: boolean;
-  onToggleSelection: (taskId: number) => void;
+  onToggleSelection: (taskId: number, shiftKey?: boolean) => void;
   hasDependencies?: boolean;
   computedWbs?: string;
   isReadOnly?: boolean;
@@ -920,10 +920,16 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
       data-testid={`gantt-task-meta-${task.id}`}
     >
       {/* Bulk selection checkbox column */}
-      <div className="w-8 flex-shrink-0 border-r flex items-center justify-center">
+      <div
+        className="w-8 flex-shrink-0 border-r flex items-center justify-center"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleSelection(task.id, e.shiftKey);
+        }}
+      >
         <Checkbox
           checked={isSelected}
-          onCheckedChange={() => onToggleSelection(task.id)}
+          onCheckedChange={() => {}}
           data-testid={`bulk-select-${task.id}`}
         />
       </div>
@@ -1972,17 +1978,39 @@ function ProjectGanttView({
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
   const [bulkDeletePending, setBulkDeletePending] = useState(false);
   const [bulkTimesheetBlockPending, setBulkTimesheetBlockPending] = useState(false);
+  const lastSelectedTaskIdRef = useRef<number | null>(null);
+  const visibleTasksRef = useRef<Task[]>([]);
   
-  const toggleTaskSelection = useCallback((taskId: number) => {
+  const toggleTaskSelection = useCallback((taskId: number, shiftKey?: boolean) => {
     setSelectedTaskIds(prev => {
       const next = new Set(prev);
-      if (next.has(taskId)) {
-        next.delete(taskId);
+      const currentVisibleTasks = visibleTasksRef.current;
+      if (shiftKey && lastSelectedTaskIdRef.current !== null) {
+        const currentIndex = currentVisibleTasks.findIndex(t => t.id === taskId);
+        const lastIndex = currentVisibleTasks.findIndex(t => t.id === lastSelectedTaskIdRef.current);
+        if (currentIndex !== -1 && lastIndex !== -1) {
+          const start = Math.min(currentIndex, lastIndex);
+          const end = Math.max(currentIndex, lastIndex);
+          for (let i = start; i <= end; i++) {
+            next.add(currentVisibleTasks[i].id);
+          }
+        } else {
+          if (next.has(taskId)) {
+            next.delete(taskId);
+          } else {
+            next.add(taskId);
+          }
+        }
       } else {
-        next.add(taskId);
+        if (next.has(taskId)) {
+          next.delete(taskId);
+        } else {
+          next.add(taskId);
+        }
       }
       return next;
     });
+    lastSelectedTaskIdRef.current = taskId;
   }, []);
   
   const selectAllTasks = () => {
@@ -1991,6 +2019,7 @@ function ProjectGanttView({
   
   const clearTaskSelection = () => {
     setSelectedTaskIds(new Set());
+    lastSelectedTaskIdRef.current = null;
   };
   
   const handleBulkDelete = async () => {
@@ -3022,6 +3051,8 @@ function ProjectGanttView({
 
     return { visibleTasks, taskHasChildren, wbsMap, absoluteIndexMap };
   }, [tasks, collapsedTasks]);
+
+  visibleTasksRef.current = visibleTasks;
 
   // Virtual scrolling: only render rows visible in the viewport when task count is large
   const VIRTUAL_SCROLL_THRESHOLD = 100;
