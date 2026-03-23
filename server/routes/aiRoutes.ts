@@ -804,85 +804,35 @@ Return ONLY valid JSON.`;
         }
       }
 
-      const systemPrompt = `You are an AI assistant for a project portfolio management system. Based on the user's request, determine what they want to create and generate the appropriate data.
+      const systemPrompt = `You are a project management AI. Parse the user's request and return JSON describing items to create.
 
-Analyze the request and decide which type(s) of items to create:
-- "project" - For creating new projects with tasks, risks, and issues
-- "task" - For creating one or more tasks (requires projectId context)
-- "risk" - For creating one or more project risks (requires projectId context)
-- "issue" - For creating one or more project issues (requires projectId context)
-- "milestone" - For creating one or more milestones (requires projectId context)
-- "resource" - For creating team members/resources
+Item types: project, task, risk, issue, milestone, resource.
 
-IMPORTANT: Before creating a new project, ALWAYS check the list of existing projects provided in the context. If the user references a project by name (or a name that closely matches an existing project), use that existing project instead of creating a new one. Set "existingProjectId" to the matching project's ID and do NOT include a "project" object in "items".
+JSON structure:
+{"intent":"project|task|risk|issue|milestone|resource|multiple","requiresProject":boolean,"existingProjectId":number|null,"assignToMe":boolean,"items":{"project":null|{...},"tasks":[],"risks":[],"issues":[],"milestones":[],"resources":[]}}
 
-Only create a new project if:
-1. The user explicitly asks to create a NEW project, OR
-2. No existing project matches what the user is describing
+Schemas:
+- project: {"name","description","status":"Initiation","priority":"Medium","health":"Green","budget":0}
+- task: {"name","description","durationDays":5,"status":"Not Started","priority":"Medium"}
+- risk: {"title","description","probability":"Medium","impact":"Medium","status":"Open","mitigationPlan","costExposure":"50000"}
+- issue: {"title","description","priority":"Medium","status":"Open","type":"Task","costExposure":"25000"}
+- milestone: {"name","description","daysFromStart":30}
+- resource: {"displayName","email","title","department","skills"}
+- Multiple projects: {"projects":[...],"tasks":[{"projectIndex":0,...},...]}
 
-Return a JSON response with this structure:
-{
-  "intent": "project" | "task" | "risk" | "issue" | "milestone" | "resource" | "multiple",
-  "requiresProject": boolean,
-  "existingProjectId": number | null,
-  "assignToMe": boolean,
-  "items": {
-    "project": { ... } | null,
-    "tasks": [...] | [],
-    "risks": [...] | [],
-    "issues": [...] | [],
-    "milestones": [...] | [],
-    "resources": [...] | []
-  }
-}
-
-Set "existingProjectId" to the ID of the matching existing project when the user references one. Set it to null only if creating a brand new project or if no project context is needed.
-
-For a PROJECT: { "name": "Project name", "description": "Description", "status": "Initiation", "priority": "Medium", "health": "Green", "budget": 0 }
-For TASKS (array): { "name": "Task name", "description": "Description", "durationDays": 5, "status": "Not Started", "priority": "Medium" }
-For RISKS (array): { "title": "Risk title", "description": "Description", "probability": "Medium", "impact": "Medium", "status": "Open", "mitigationPlan": "How to mitigate", "costExposure": "50000" }
-For ISSUES (array): { "title": "Issue title", "description": "Description", "priority": "Medium", "status": "Open", "type": "Task", "costExposure": "25000" }
-For MILESTONES (array): { "name": "Milestone name", "description": "Description", "daysFromStart": 30 }
-For RESOURCES (array): { "displayName": "Full Name", "email": "email@example.com", "title": "Job Title", "department": "Department", "skills": "Skill1, Skill2" }
-
-Guidelines:
-- FIRST check if the user's request references any existing project by name. If it does, use "existingProjectId" instead of creating a new project.
-- If user wants to create a brand new project (e.g., "create a new project called X"), create a project with related tasks/risks.
-- If user mentions "task", "todo", "work item" create tasks. If no projectId is provided AND no existing project matches, also create a project.
-- If user mentions "risk", "concern", "threat" create risks. If no projectId AND no existing project matches, also create a project.
-- If user mentions "issue", "problem", "bug", "blocker" create issues. If no projectId AND no existing project matches, also create a project.
-- If user mentions "milestone", "deadline", "deliverable" create milestones. If no projectId AND no existing project matches, also create a project.
-- If user mentions "resource", "team member", "person", "staff" create resources only
-- If the user asks to create items across multiple existing projects, you can reference multiple existing projects.
-- If the user says "assign me" or similar, set "assignToMe": true
-- Generate 3-8 items when creating multiple of the same type
-- When distributing tasks across multiple projects, assign each task a "projectIndex" (0-based)
-
-Context-Awareness Rules (IMPORTANT):
-- When project details are provided in the context (description, status, existing tasks, risks, issues, milestones), use them to generate highly relevant and specific items.
-- Risks should reflect realistic threats to the specific project domain, technology stack, timeline, and scope. Reference actual project characteristics.
-- Issues should be relevant to the project's current phase, status, and existing work items. They should address practical concerns specific to this project.
-- Tasks should complement (not duplicate) existing tasks. Consider the project timeline, current phase, and what work would logically come next.
-- Milestones should align with the project timeline, existing tasks, and deliverable schedule.
-- Do NOT create generic or boilerplate items. Every item should be specifically tailored to the project's actual context.
-- Do NOT duplicate items that already exist in the project. Check the existing items list and create new, different ones.
-- Use realistic cost exposure values appropriate to the project's budget and scale.
-- Set appropriate probability/impact levels based on the project's actual risk profile.
-
-For MULTIPLE PROJECTS, use:
-{ "projects": [{ "name": "...", ... }, ...], "tasks": [{ "name": "...", "projectIndex": 0, ... }, ...] }
+Rules:
+1. If user references an existing project by name, set "existingProjectId" to its ID. Do NOT create a new project.
+2. Only create a new project if explicitly requested or no existing project matches.
+3. Generate 3-8 items per type. Don't duplicate existing items.
+4. Tailor items to the project's actual context, domain, phase, and existing items. Avoid generic boilerplate.
+5. If user says "assign me", set "assignToMe":true.
+6. If items need a project but none exists/matches, set "requiresProject":true and also create a project.
 
 Return ONLY valid JSON.`;
 
       const projectSummariesForAI = activeProjects.map((p: any) => {
         let summary = `- ID: ${p.id}, Name: "${p.name}"`;
-        if (p.description) summary += `, Description: "${p.description.substring(0, 200)}"`;
         if (p.status) summary += `, Status: ${p.status}`;
-        if (p.priority) summary += `, Priority: ${p.priority}`;
-        if (p.health) summary += `, Health: ${p.health}`;
-        if (p.startDate) summary += `, Start: ${p.startDate}`;
-        if (p.endDate) summary += `, End: ${p.endDate}`;
-        if (p.budget) summary += `, Budget: ${p.budget}`;
         return summary;
       });
 
@@ -891,13 +841,13 @@ Return ONLY valid JSON.`;
         : '\n\nNo existing projects in this organization.';
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4o-mini",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Request: ${prompt}\n\nContext: organizationId=${organizationId}${projectId ? `, projectId=${projectId}` : ''}${targetProjectDetails}${existingProjectsContext}` }
         ],
         response_format: { type: "json_object" },
-        max_tokens: 4000,
+        max_tokens: 2000,
       });
 
       const content = response.choices[0]?.message?.content;
