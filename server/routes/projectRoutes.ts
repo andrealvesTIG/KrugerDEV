@@ -3,7 +3,7 @@ import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { db } from "../db";
 import { z } from "zod";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, inArray } from "drizzle-orm";
 import { users, taskResourceAssignments, issues, resources, tasks, projects, plans, timesheetEntries, taskChangeLogs, taskDependencies, notifications, type Task } from "@shared/schema";
 import type { User } from "@shared/models/auth";
 import {
@@ -3312,8 +3312,40 @@ export function registerProjectRoutes(app: Express) {
       };
       
       if (format === 'csv') {
+        // Fetch dependencies for this project
+        const taskIds = tasks.map(t => t.id);
+        const allDependencies = taskIds.length > 0
+          ? await db.select().from(taskDependencies)
+              .where(inArray(taskDependencies.taskId, taskIds))
+          : [];
+
+        const taskIdToIndex = new Map<number, number>();
+        tasks.forEach((task, index) => {
+          taskIdToIndex.set(task.id, index + 1);
+        });
+
+        const taskPredecessors = new Map<number, string[]>();
+        for (const dep of allDependencies) {
+          const predIndex = taskIdToIndex.get(dep.dependsOnTaskId);
+          if (predIndex === undefined) continue;
+          const depTypeMap: Record<string, string> = {
+            'finish-to-start': 'FS',
+            'start-to-start': 'SS',
+            'finish-to-finish': 'FF',
+            'start-to-finish': 'SF',
+          };
+          const typeAbbr = depTypeMap[dep.dependencyType || 'finish-to-start'] || 'FS';
+          let predStr = String(predIndex);
+          if (typeAbbr !== 'FS') predStr += typeAbbr;
+          if (dep.lagDays && dep.lagDays !== 0) {
+            predStr += (dep.lagDays > 0 ? '+' : '') + dep.lagDays + 'd';
+          }
+          if (!taskPredecessors.has(dep.taskId)) taskPredecessors.set(dep.taskId, []);
+          taskPredecessors.get(dep.taskId)!.push(predStr);
+        }
+
         // Generate CSV with task indentation reflecting outline hierarchy
-        const headers = ['Index', 'WBS', 'Outline Level', 'Name', 'Type', 'Start Date', 'End Date', 'Duration (days)', '% Complete', 'Status', 'Priority', 'Assigned To', 'Description'];
+        const headers = ['Index', 'WBS', 'Outline Level', 'Name', 'Type', 'Start Date', 'End Date', 'Duration (days)', '% Complete', 'Status', 'Priority', 'Assigned To', 'Predecessors', 'Description'];
         const rows: string[][] = [];
         
         // Add project as first row
@@ -3329,6 +3361,7 @@ export function registerProjectRoutes(app: Express) {
           String(project.completionPercentage || 0),
           project.status || '',
           project.priority || '',
+          '',
           '',
           project.description || ''
         ]);
@@ -3349,6 +3382,7 @@ export function registerProjectRoutes(app: Express) {
           const indent = '    '.repeat(level - 1);
           const wbs = task.wbs || computeWbs(level);
           const taskType = task.isSummary ? 'Summary' : task.isMilestone ? 'Milestone' : 'Task';
+          const predecessorStr = taskPredecessors.get(task.id)?.join(';') || '';
           rows.push([
             String(index + 1),
             wbs,
@@ -3362,6 +3396,7 @@ export function registerProjectRoutes(app: Express) {
             task.status || '',
             task.priority || '',
             taskResourceMap.get(task.id) || task.assignee || '',
+            predecessorStr,
             task.description || ''
           ]);
         });

@@ -2386,9 +2386,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       let updated = 0;
       let skipped = 0;
 
+      const csvIndexToTaskId = new Map<number, number>();
+      const pendingDependencies: { csvIndex: number; predecessorsStr: string }[] = [];
+
       for (const row of rows) {
         const name = (row['Name'] || '').trim();
         const type = (row['Type'] || '').trim();
+        const csvIndex = parseInt((row['Index'] || '').trim(), 10);
 
         if (!name || type === 'Project') {
           skipped++;
@@ -2404,6 +2408,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         const assignee = (row['Assigned To'] || '').trim();
         const description = (row['Description'] || '').trim();
         const wbs = (row['WBS'] || '').trim();
+        const predecessorsStr = (row['Predecessors'] || '').trim();
 
         const isMilestone = type === 'Milestone';
         const durationDays = durationStr ? parseFloat(durationStr) : undefined;
@@ -2437,6 +2442,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
           } else {
             skipped++;
           }
+          if (!isNaN(csvIndex)) csvIndexToTaskId.set(csvIndex, existingTask.id);
+          if (predecessorsStr) pendingDependencies.push({ csvIndex, predecessorsStr });
         } else {
           const today = new Date().toISOString().split('T')[0];
           const resolvedStartDate = isValidDate(startDate) ? startDate : today;
@@ -2461,16 +2468,69 @@ Format your response as a numbered list with clear, concise strategies. Do not i
           if (assignee) taskData.assignee = assignee;
           if (wbs) taskData.wbs = wbs;
 
-          await storage.createTask(taskData);
+          const newTask = await storage.createTask(taskData);
           created++;
+          if (!isNaN(csvIndex)) csvIndexToTaskId.set(csvIndex, newTask.id);
+          if (predecessorsStr) pendingDependencies.push({ csvIndex, predecessorsStr });
+        }
+      }
+
+      let dependenciesCreated = 0;
+      const tasksWithDepsToReplace = new Set<number>();
+      for (const { csvIndex } of pendingDependencies) {
+        const taskId = csvIndexToTaskId.get(csvIndex);
+        if (taskId) tasksWithDepsToReplace.add(taskId);
+      }
+      if (tasksWithDepsToReplace.size > 0) {
+        const { taskDependencies: taskDepsTable } = await import("@shared/schema");
+        const { inArray } = await import("drizzle-orm");
+        await db.delete(taskDepsTable).where(inArray(taskDepsTable.taskId, Array.from(tasksWithDepsToReplace)));
+      }
+
+      for (const { csvIndex, predecessorsStr } of pendingDependencies) {
+        const taskId = csvIndexToTaskId.get(csvIndex);
+        if (!taskId) continue;
+
+        const predecessors = predecessorsStr.split(';').map(s => s.trim()).filter(Boolean);
+        for (const pred of predecessors) {
+          const match = pred.match(/^(\d+)(FS|SS|FF|SF)?(([+-]\d+)d)?$/i);
+          if (!match) continue;
+          const predIndex = parseInt(match[1], 10);
+          const typeAbbr = (match[2] || 'FS').toUpperCase();
+          const lagDays = match[4] ? parseInt(match[4], 10) : 0;
+
+          const depTypeMap: Record<string, string> = {
+            'FS': 'finish-to-start',
+            'SS': 'start-to-start',
+            'FF': 'finish-to-finish',
+            'SF': 'start-to-finish',
+          };
+
+          const dependsOnTaskId = csvIndexToTaskId.get(predIndex);
+          if (!dependsOnTaskId || dependsOnTaskId === taskId) continue;
+
+          try {
+            await storage.createTaskDependency({
+              taskId,
+              dependsOnTaskId,
+              dependencyType: depTypeMap[typeAbbr] || 'finish-to-start',
+              lagDays,
+            });
+            dependenciesCreated++;
+          } catch (depErr: any) {
+            if (!depErr?.message?.includes('duplicate') && !depErr?.message?.includes('unique')) {
+              console.error('Error creating dependency:', depErr);
+            }
+          }
         }
       }
 
       res.json({
-        message: `Import complete: ${created} tasks created, ${updated} tasks updated, ${skipped} rows skipped`,
+        message: `Import complete: ${created} tasks created, ${updated} tasks updated, ${skipped} rows skipped, ${dependenciesCreated} dependencies created`,
         created,
         updated,
         skipped,
+        dependenciesCreated,
       });
     } catch (err) {
       console.error('CSV import error:', err);
