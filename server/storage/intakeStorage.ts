@@ -191,7 +191,8 @@ export async function convertMppImportToProject(
 
   const taskIdMapping: Map<number, number> = new Map();
   
-  for (const importedTask of importedTasks) {
+  for (let i = 0; i < importedTasks.length; i++) {
+    const importedTask = importedTasks[i];
     const startDate = importedTask.startDate || today;
     const endDate = importedTask.finishDate || 
       (importedTask.durationDays 
@@ -217,6 +218,7 @@ export async function convertMppImportToProject(
       status: importedTask.percentComplete === 100 ? "Completed" : 
               importedTask.percentComplete && importedTask.percentComplete > 0 ? "In Progress" : "Not Started",
       outlineLevel: importedTask.outlineLevel || 1,
+      taskIndex: i + 1,
       isSummary,
       isMilestone,
       taskType,
@@ -362,7 +364,8 @@ export async function syncMppImportToProject(
   const matchedExistingIds = new Set<number>();
   const taskIdMapping = new Map<number, number>();
 
-  for (const importedTask of importedTasks) {
+  for (let i = 0; i < importedTasks.length; i++) {
+    const importedTask = importedTasks[i];
     const startDate = importedTask.startDate || today;
     const endDate = importedTask.finishDate || 
       (importedTask.durationDays 
@@ -387,6 +390,7 @@ export async function syncMppImportToProject(
       status: importedTask.percentComplete === 100 ? "Completed" : 
               importedTask.percentComplete && importedTask.percentComplete > 0 ? "In Progress" : "Not Started",
       outlineLevel: importedTask.outlineLevel || 1,
+      taskIndex: i + 1,
       isSummary,
       isMilestone,
       taskType,

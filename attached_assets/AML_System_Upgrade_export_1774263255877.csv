@@ -1,0 +1,11 @@
+Index,WBS,Outline Level,Name,Type,Start Date,End Date,Duration (days),% Complete,Status,Priority,Assigned To,Description
+0,0,0,AML System Upgrade,Project,2026-01-15,2026-09-12,172,20,Planning,Critical,,Upgrading anti-money laundering detection with ML capabilities
+1,1,1,Current State Assessment,Task,2026-02-14,2026-05-15,65,100,Completed,Medium,"Emily Rodriguez, Michael Chen",Document existing AML processes and gaps
+2,2,1,Vendor Selection,Task,2026-02-14,2026-05-15,65,60,In Progress,Medium,"Emily Rodriguez, John Smith",Evaluate and select AML platform vendor
+3,3,1,task first,Task,2026-03-16,2026-03-16,0.25,0,Not Started,Medium,,
+4,4,1,task two,Task,2026-03-10,2026-03-10,0.25,0,Not Started,Medium,,
+5,5,1,task third,Task,2026-03-11,2026-04-14,25,0,Not Started,Medium,,
+6,6,1,summ 1,Summary,2026-03-23,2026-05-01,30,0,Not Started,Medium,,
+7,6.1,2,    sub 1,Task,2026-03-23,2026-04-03,10,0,Not Started,Medium,,
+8,6.2,2,    sub 2,Task,2026-04-06,2026-05-01,20,0,Not Started,Medium,,
+9,6.3,2,    sub 3,Task,2026-05-04,2026-05-28,19,0,Not Started,Medium,,
