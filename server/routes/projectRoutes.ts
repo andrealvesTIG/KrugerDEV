@@ -3105,9 +3105,10 @@ export function registerProjectRoutes(app: Express) {
       
       // If healthReason is provided or health changed, update the timestamp and record history
       const healthChanged = input.health && input.health !== existing.health;
-      const healthReasonProvided = input.healthReason !== undefined && input.healthReason !== null && input.healthReason.trim() !== '';
+      const healthReasonChanged = input.healthReason !== undefined && input.healthReason !== null && 
+        input.healthReason.trim() !== '' && input.healthReason.trim() !== (existing.healthReason || '').trim();
       
-      if (healthReasonProvided || healthChanged) {
+      if (healthReasonChanged || healthChanged) {
         sanitizedInput.healthReasonUpdatedAt = new Date();
         
         // Get user name for history record
