@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { format, differenceInDays, isAfter, isBefore } from "date-fns";
-import type { Project, Risk, Issue, ProjectFinancial, Task, ChangeRequest, ProjectDocument, Milestone } from "@shared/schema";
+import type { Project, Risk, Issue, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle2, Circle, Clock, Target, TrendingUp, Users, DollarSign, Calendar, Flag, FileText, GitPullRequest, ChevronDown, ChevronUp } from "lucide-react";
@@ -13,7 +13,6 @@ interface ProjectStatusReportProps {
   issues: Issue[];
   financials: ProjectFinancial[];
   tasks: Task[];
-  milestones?: Milestone[];
   changeRequests?: ChangeRequest[];
   documents?: ProjectDocument[];
   executiveSummary?: string;
@@ -63,7 +62,6 @@ export function ProjectStatusReport({
   issues,
   financials,
   tasks,
-  milestones = [],
   changeRequests = [],
   documents = [],
   executiveSummary
@@ -152,21 +150,10 @@ export function ProjectStatusReport({
   }, [risks, issues]);
 
   const majorMilestones = useMemo(() => {
-    const taskMilestones = tasks
-      .filter(t => t.isMilestone && !t.deletedAt && t.dueDate)
-      .map(t => ({ id: `task-${t.id}`, title: t.title, dueDate: t.dueDate!, status: t.status, progress: t.progress || 0 }));
-    const standaloneMilestones = milestones
-      .filter(m => !m.deletedAt && m.dueDate)
-      .map(m => ({ id: `ms-${m.id}`, title: m.title, dueDate: m.dueDate!, status: m.completed ? "Completed" : (m.status === "Done" ? "Completed" : m.status || "Not Started"), progress: m.completed ? 100 : 0 }));
-    const seen = new Set<string>();
-    const combined = [...taskMilestones, ...standaloneMilestones].filter(m => {
-      const key = m.title.toLowerCase().trim();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-    return combined.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-  }, [tasks, milestones]);
+    return tasks
+      .filter(t => t.isMilestone && !t.deletedAt && (t.endDate || t.startDate))
+      .sort((a, b) => new Date(a.endDate || a.startDate!).getTime() - new Date(b.endDate || b.startDate!).getTime());
+  }, [tasks]);
 
   const timelineData = useMemo(() => {
     if (!project.startDate || !project.endDate) return null;
@@ -179,7 +166,7 @@ export function ProjectStatusReport({
     const progressPercent = Math.min((elapsedDays / totalDays) * 100, 100);
     
     const milestonesOnTimeline = majorMilestones.map(m => {
-      const mDate = new Date(m.dueDate!);
+      const mDate = new Date((m.endDate || m.startDate)!);
       const position = Math.max(0, Math.min(100, (differenceInDays(mDate, start) / totalDays) * 100));
       const isComplete = m.status === "Completed" || m.progress === 100;
       const isPast = isBefore(mDate, today);
@@ -199,10 +186,11 @@ export function ProjectStatusReport({
     };
   }, [project.startDate, project.endDate, majorMilestones]);
 
-  const getMilestoneStatus = (m: { status: string | null; progress: number; dueDate: string }) => {
-    if (m.status === "Completed" || m.progress === 100) return "Complete";
-    if (m.dueDate) {
-      const dueDate = new Date(m.dueDate);
+  const getMilestoneStatus = (task: Task) => {
+    if (task.status === "Completed" || task.progress === 100) return "Complete";
+    const date = task.endDate || task.startDate;
+    if (date) {
+      const dueDate = new Date(date);
       const today = new Date();
       if (dueDate < today) return "At Risk";
     }
@@ -529,7 +517,7 @@ export function ProjectStatusReport({
                           <tr key={milestone.id} className="border-b border-border last:border-0">
                             <td className="py-2 pr-2">{milestone.title}</td>
                             <td className="py-2 pr-2 text-muted-foreground">
-                              {milestone.dueDate ? format(new Date(milestone.dueDate), "MMM d, yyyy") : "—"}
+                              {(milestone.endDate || milestone.startDate) ? format(new Date((milestone.endDate || milestone.startDate)!), "MMM d, yyyy") : "—"}
                             </td>
                             <td className={cn("py-2 text-right font-medium", getMilestoneStatusColor(status))}>
                               {status}

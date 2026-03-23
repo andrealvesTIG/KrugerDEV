@@ -1446,7 +1446,6 @@ export default function ProjectDetails() {
               issues={projectIssues || []}
               financials={financials || []}
               tasks={projectTasks || []}
-              milestones={projectMilestones || []}
               changeRequests={projectChangeRequests || []}
               documents={projectDocuments || []}
             />
@@ -1473,7 +1472,6 @@ export default function ProjectDetails() {
         issues={projectIssues || []}
         financials={financials || []}
         tasks={projectTasks || []}
-        milestones={projectMilestones || []}
         changeRequests={projectChangeRequests || []}
         documents={projectDocuments || []}
       />

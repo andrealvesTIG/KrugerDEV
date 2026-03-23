@@ -1,6 +1,6 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { format, differenceInDays } from "date-fns";
-import type { Project, Risk, Issue, ProjectFinancial, Task, ChangeRequest, ProjectDocument, Milestone } from "@shared/schema";
+import type { Project, Risk, Issue, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
 
 const styles = StyleSheet.create({
   page: {
@@ -442,7 +442,6 @@ interface ProjectStatusReportPDFProps {
   issues: Issue[];
   financials: ProjectFinancial[];
   tasks: Task[];
-  milestones?: Milestone[];
   changeRequests?: ChangeRequest[];
   documents?: ProjectDocument[];
   executiveSummary?: string;
@@ -468,7 +467,6 @@ export function ProjectStatusReportPDF({
   issues,
   financials,
   tasks,
-  milestones: standaloneMilestones = [],
   changeRequests = [],
   documents = [],
   executiveSummary,
@@ -502,29 +500,16 @@ export function ProjectStatusReportPDF({
     ...openIssues.slice(0, 2).map((i) => ({ type: "issue" as const, title: i.title, priority: i.priority })),
   ].slice(0, 5);
 
-  const allMilestones = (() => {
-    const taskMilestones = tasks
-      .filter((t) => t.isMilestone && !t.deletedAt && t.dueDate)
-      .map(t => ({ id: `task-${t.id}`, title: t.title, dueDate: t.dueDate!, status: t.status, progress: t.progress || 0 }));
-    const smMilestones = standaloneMilestones
-      .filter(m => !m.deletedAt && m.dueDate)
-      .map(m => ({ id: `ms-${m.id}`, title: m.title, dueDate: m.dueDate!, status: m.completed ? "Completed" : (m.status === "Done" ? "Completed" : m.status || "Not Started"), progress: m.completed ? 100 : 0 }));
-    const seen = new Set<string>();
-    return [...taskMilestones, ...smMilestones]
-      .filter(m => {
-        const key = m.title.toLowerCase().trim();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-  })();
+  const allMilestones = tasks
+    .filter((t) => t.isMilestone && !t.deletedAt && (t.endDate || t.startDate))
+    .sort((a, b) => new Date(a.endDate || a.startDate!).getTime() - new Date(b.endDate || b.startDate!).getTime());
   const majorMilestones = allMilestones.slice(0, 8);
 
-  const getMilestoneStatus = (m: { status: string | null; progress: number; dueDate: string }) => {
-    if (m.status === "Completed" || m.progress === 100) return "Complete";
-    if (m.dueDate) {
-      const dueDate = new Date(m.dueDate);
+  const getMilestoneStatus = (task: Task) => {
+    if (task.status === "Completed" || task.progress === 100) return "Complete";
+    const date = task.endDate || task.startDate;
+    if (date) {
+      const dueDate = new Date(date);
       const today = new Date();
       if (dueDate < today) return "At Risk";
     }
@@ -756,7 +741,7 @@ export function ProjectStatusReportPDF({
                     <View key={milestone.id} style={styles.milestoneRow}>
                       <Text style={styles.milestoneTitle}>{milestone.title}</Text>
                       <Text style={styles.milestoneDate}>
-                        {milestone.dueDate ? format(new Date(milestone.dueDate), "MMM d, yyyy") : "—"}
+                        {(milestone.endDate || milestone.startDate) ? format(new Date((milestone.endDate || milestone.startDate)!), "MMM d, yyyy") : "—"}
                       </Text>
                       <Text
                         style={[
