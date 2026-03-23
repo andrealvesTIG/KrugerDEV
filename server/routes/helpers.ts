@@ -364,7 +364,7 @@ function parseCsv(csvContent: string): Array<{
   const durationCol = findColumn(['duration']);
   const percentCol = findColumn(['percent', '%', 'complete']);
   const wbsCol = findColumn(['wbs']);
-  const outlineLevelCol = findColumn(['outline level', 'outline_level', 'level']);
+  const outlineLevelCol = findColumn(['outline level', 'outline_level', 'outlinelevel']);
   const typeCol = findColumn(['type']);
   const priorityCol = findColumn(['priority']);
   const assignedCol = findColumn(['assigned', 'resource']);
@@ -373,7 +373,8 @@ function parseCsv(csvContent: string): Array<{
   const parentStack: { taskId: number; level: number }[] = [];
 
   parseResult.data.forEach((row: any, index: number) => {
-    const taskName = nameCol ? row[nameCol]?.trim() : '';
+    const rawName = nameCol ? row[nameCol] || '' : '';
+    const taskName = rawName.trim();
     
     if (!taskName) return;
     
@@ -407,6 +408,11 @@ function parseCsv(csvContent: string): Array<{
     if (outlineLevelCol && row[outlineLevelCol]) {
       const parsed = parseInt(row[outlineLevelCol]);
       if (!isNaN(parsed) && parsed >= 1) outlineLevel = parsed;
+    } else if (rawName !== taskName) {
+      const leadingSpaces = rawName.length - rawName.trimStart().length;
+      if (leadingSpaces > 0) {
+        outlineLevel = Math.floor(leadingSpaces / 4) + 1;
+      }
     }
 
     const isSummary = typeValue === 'summary';

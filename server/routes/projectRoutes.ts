@@ -3454,12 +3454,24 @@ export function registerProjectRoutes(app: Express) {
       <PercentWorkComplete>${project.completionPercentage || 0}</PercentWorkComplete>
     </Task>`;
         
+        // Compute WBS values based on hierarchy for XML export
+        const xmlWbsCounters: number[] = [];
+        const computeXmlWbs = (outlineLevel: number): string => {
+          const lvlIdx = outlineLevel - 1;
+          while (xmlWbsCounters.length <= lvlIdx) xmlWbsCounters.push(0);
+          xmlWbsCounters[lvlIdx]++;
+          xmlWbsCounters.length = outlineLevel;
+          return xmlWbsCounters.join('.');
+        };
+
         // Add tasks
         tasks.forEach((task, index) => {
           taskUid++;
           const taskStart = task.startDate ? new Date(task.startDate).toISOString() : projectStart;
           const taskEnd = task.endDate ? new Date(task.endDate).toISOString() : taskStart;
           const duration = task.durationDays ?? Math.max(1, calculateDuration(new Date(taskStart), new Date(taskEnd)));
+          const level = task.outlineLevel || 1;
+          const wbs = task.wbs || computeXmlWbs(level);
           
           taskXml += `
     <Task>
@@ -3469,15 +3481,15 @@ export function registerProjectRoutes(app: Express) {
       <Type>0</Type>
       <IsNull>0</IsNull>
       <CreateDate>${task.createdAt ? new Date(task.createdAt).toISOString() : now}</CreateDate>
-      <WBS>${String(index + 1)}</WBS>
-      <OutlineNumber>${index + 1}</OutlineNumber>
-      <OutlineLevel>1</OutlineLevel>
+      <WBS>${escapeXml(wbs)}</WBS>
+      <OutlineNumber>${escapeXml(wbs)}</OutlineNumber>
+      <OutlineLevel>${level}</OutlineLevel>
       <Priority>500</Priority>
       <Start>${taskStart}</Start>
       <Finish>${taskEnd}</Finish>
       <Duration>PT${duration * 8}H0M0S</Duration>
       <DurationFormat>7</DurationFormat>
-      <Summary>0</Summary>
+      <Summary>${task.isSummary ? 1 : 0}</Summary>
       <Milestone>${task.isMilestone ? 1 : 0}</Milestone>
       <PercentComplete>${task.progress || 0}</PercentComplete>
       <PercentWorkComplete>${task.progress || 0}</PercentWorkComplete>
