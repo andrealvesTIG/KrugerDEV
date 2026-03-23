@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useLayoutEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { Menu, X, Mail, Loader2, CheckCircle, ChevronRight, Shield, Users, BarChart3, Clock, Target, ArrowRight, Zap, TrendingUp, Eye, Brain, FileText, LayoutDashboard, Lightbulb, Award, Sparkles, CalendarDays, Camera, ExternalLink, MapPin, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -105,6 +105,21 @@ const whyAttendeesCare = [
 ];
 
 export default function UnCon2026LandingPage() {
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const had = root.classList.contains("dark");
+    if (had) {
+      root.classList.remove("dark");
+      root.classList.add("light");
+    }
+    return () => {
+      if (had) {
+        root.classList.remove("light");
+        root.classList.add("dark");
+      }
+    };
+  }, []);
+
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

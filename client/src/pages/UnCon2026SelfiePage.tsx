@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
 import { useSearch } from "wouter";
 import { Camera, Share2, Linkedin, Twitter, Copy, CheckCircle, Loader2, RotateCcw, ArrowRight, FileText, Download, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,21 @@ import pmiPmogaLogo from "@assets/pmi-logo-DQ-6QQ___1773339567528.png";
 type Step = "form" | "camera" | "result";
 
 export default function UnCon2026SelfiePage() {
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const had = root.classList.contains("dark");
+    if (had) {
+      root.classList.remove("dark");
+      root.classList.add("light");
+    }
+    return () => {
+      if (had) {
+        root.classList.remove("light");
+        root.classList.add("dark");
+      }
+    };
+  }, []);
+
   const search = useSearch();
   const params = new URLSearchParams(search);
   const interviewer = params.get("interviewer") || "";
