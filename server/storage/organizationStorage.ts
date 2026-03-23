@@ -49,6 +49,11 @@ export async function getOrganization(id: number): Promise<Organization | undefi
   return org;
 }
 
+export async function getOrganizationBySlug(slug: string): Promise<Organization | undefined> {
+  const [org] = await db.select().from(organizations).where(eq(organizations.slug, slug));
+  return org;
+}
+
 export async function createOrganization(org: InsertOrganization): Promise<Organization> {
   const [newOrg] = await db.insert(organizations).values(org).returning();
   return newOrg;

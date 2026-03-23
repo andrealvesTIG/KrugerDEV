@@ -171,148 +171,150 @@ export async function convertMppImportToProject(
   if (validEndDates.length > 0) {
     projectEndDate = validEndDates.sort().reverse()[0];
   }
-  
-  const [newProject] = await db.insert(projects).values({
-    organizationId: projectData.organizationId,
-    portfolioId: projectData.portfolioId && projectData.portfolioId > 0 ? projectData.portfolioId : null,
-    name: projectData.name,
-    description: projectData.description || mppImportRecord.fileName,
-    status: projectData.status || "Initiation",
-    priority: projectData.priority || "Medium",
-    startDate: projectStartDate,
-    endDate: projectEndDate,
-    health: "Green",
-    budget: "0",
-    completionPercentage: 0,
-    source: "imported",
-    sourceFileName: mppImportRecord.fileName,
-    sourceFileUrl: mppImportRecord.fileUrl,
-  }).returning();
 
-  const taskIdMapping: Map<number, number> = new Map();
-  
-  for (let i = 0; i < importedTasks.length; i++) {
-    const importedTask = importedTasks[i];
-    const startDate = importedTask.startDate || today;
-    const endDate = importedTask.finishDate || 
-      (importedTask.durationDays 
-        ? formatDateStr(calculateEndDate(new Date(startDate), importedTask.durationDays))
-        : defaultEndDate);
-
-    const isSummary = importedTask.isSummary || false;
-    const isMilestone = importedTask.isMilestone || false;
-    const taskType = isSummary ? "Summary" : isMilestone ? "Milestone" : "Work";
-    const workHoursStr = importedTask.workHours ? importedTask.workHours.toString() : null;
-    const actualWorkHoursStr = importedTask.actualWorkHours ? importedTask.actualWorkHours.toString() : null;
-    const remainingWorkHoursStr = importedTask.remainingWorkHours ? importedTask.remainingWorkHours.toString() : null;
-
-    const [newTask] = await db.insert(tasks).values({
-      projectId: newProject.id,
-      name: importedTask.taskName,
-      wbs: importedTask.wbs || undefined,
-      description: importedTask.notes || undefined,
-      startDate,
-      endDate,
-      durationDays: importedTask.durationDays,
-      progress: importedTask.percentComplete || 0,
-      status: importedTask.percentComplete === 100 ? "Completed" : 
-              importedTask.percentComplete && importedTask.percentComplete > 0 ? "In Progress" : "Not Started",
-      outlineLevel: importedTask.outlineLevel || 1,
-      taskIndex: i + 1,
-      isSummary,
-      isMilestone,
-      taskType,
-      estimatedHours: workHoursStr,
-      actualHours: actualWorkHoursStr,
-      remainingHours: remainingWorkHoursStr,
-      parentId: null,
+  return await db.transaction(async (tx) => {
+    const [newProject] = await tx.insert(projects).values({
+      organizationId: projectData.organizationId,
+      portfolioId: projectData.portfolioId && projectData.portfolioId > 0 ? projectData.portfolioId : null,
+      name: projectData.name,
+      description: projectData.description || mppImportRecord.fileName,
+      status: projectData.status || "Initiation",
+      priority: projectData.priority || "Medium",
+      startDate: projectStartDate,
+      endDate: projectEndDate,
+      health: "Green",
+      budget: "0",
+      completionPercentage: 0,
+      source: "imported",
+      sourceFileName: mppImportRecord.fileName,
+      sourceFileUrl: mppImportRecord.fileUrl,
     }).returning();
 
-    if (importedTask.taskId) {
-      taskIdMapping.set(importedTask.taskId, newTask.id);
-    }
-  }
+    const taskIdMapping: Map<number, number> = new Map();
+    
+    for (let i = 0; i < importedTasks.length; i++) {
+      const importedTask = importedTasks[i];
+      const startDate = importedTask.startDate || today;
+      const endDate = importedTask.finishDate || 
+        (importedTask.durationDays 
+          ? formatDateStr(calculateEndDate(new Date(startDate), importedTask.durationDays))
+          : defaultEndDate);
 
-  for (const importedTask of importedTasks) {
-    if (importedTask.parentTaskId && importedTask.taskId) {
+      const isSummary = importedTask.isSummary || false;
+      const isMilestone = importedTask.isMilestone || false;
+      const taskType = isSummary ? "Summary" : isMilestone ? "Milestone" : "Work";
+      const workHoursStr = importedTask.workHours ? importedTask.workHours.toString() : null;
+      const actualWorkHoursStr = importedTask.actualWorkHours ? importedTask.actualWorkHours.toString() : null;
+      const remainingWorkHoursStr = importedTask.remainingWorkHours ? importedTask.remainingWorkHours.toString() : null;
+
+      const [newTask] = await tx.insert(tasks).values({
+        projectId: newProject.id,
+        name: importedTask.taskName,
+        wbs: importedTask.wbs || undefined,
+        description: importedTask.notes || undefined,
+        startDate,
+        endDate,
+        durationDays: importedTask.durationDays,
+        progress: importedTask.percentComplete || 0,
+        status: importedTask.percentComplete === 100 ? "Completed" : 
+                importedTask.percentComplete && importedTask.percentComplete > 0 ? "In Progress" : "Not Started",
+        outlineLevel: importedTask.outlineLevel || 1,
+        taskIndex: i + 1,
+        isSummary,
+        isMilestone,
+        taskType,
+        estimatedHours: workHoursStr,
+        actualHours: actualWorkHoursStr,
+        remainingHours: remainingWorkHoursStr,
+        parentId: null,
+      }).returning();
+
+      if (importedTask.taskId) {
+        taskIdMapping.set(importedTask.taskId, newTask.id);
+      }
+    }
+
+    for (const importedTask of importedTasks) {
+      if (importedTask.parentTaskId && importedTask.taskId) {
+        const newTaskId = taskIdMapping.get(importedTask.taskId);
+        const newParentId = taskIdMapping.get(importedTask.parentTaskId);
+        
+        if (newTaskId && newParentId) {
+          await tx.update(tasks)
+            .set({ parentId: newParentId })
+            .where(eq(tasks.id, newTaskId));
+        }
+      }
+    }
+
+    for (const importedTask of importedTasks) {
+      if (!importedTask.taskId) continue;
       const newTaskId = taskIdMapping.get(importedTask.taskId);
-      const newParentId = taskIdMapping.get(importedTask.parentTaskId);
-      
-      if (newTaskId && newParentId) {
-        await db.update(tasks)
-          .set({ parentId: newParentId })
-          .where(eq(tasks.id, newTaskId));
+      if (!newTaskId) continue;
+
+      let predecessorList: Array<{ predecessorTaskId: number; type: string; lagDays: number }> = [];
+      if (importedTask.predecessors) {
+        try {
+          predecessorList = typeof importedTask.predecessors === 'string' 
+            ? JSON.parse(importedTask.predecessors) 
+            : [];
+        } catch (e) {
+          predecessorList = [];
+        }
+      }
+
+      for (const pred of predecessorList) {
+        const depTaskId = taskIdMapping.get(pred.predecessorTaskId);
+        if (!depTaskId) continue;
+
+        const typeMap: Record<string, string> = {
+          'FS': 'finish-to-start',
+          'SS': 'start-to-start',
+          'FF': 'finish-to-finish',
+          'SF': 'start-to-finish',
+        };
+
+        try {
+          await tx.insert(taskDependencies).values({
+            taskId: newTaskId,
+            dependsOnTaskId: depTaskId,
+            dependencyType: typeMap[pred.type] || 'finish-to-start',
+            lagDays: pred.lagDays || 0,
+          });
+        } catch (depError) {
+          console.log(`Skipped duplicate dependency: task ${newTaskId} -> ${depTaskId}`);
+        }
       }
     }
-  }
 
-  for (const importedTask of importedTasks) {
-    if (!importedTask.taskId) continue;
-    const newTaskId = taskIdMapping.get(importedTask.taskId);
-    if (!newTaskId) continue;
+    const actualTaskCount = importedTasks.length;
+    await tx.update(mppImports)
+      .set({ projectId: newProject.id, status: "converted", taskCount: actualTaskCount })
+      .where(eq(mppImports.id, importId));
 
-    let predecessorList: Array<{ predecessorTaskId: number; type: string; lagDays: number }> = [];
-    if (importedTask.predecessors) {
-      try {
-        predecessorList = typeof importedTask.predecessors === 'string' 
-          ? JSON.parse(importedTask.predecessors) 
-          : [];
-      } catch (e) {
-        predecessorList = [];
-      }
-    }
-
-    for (const pred of predecessorList) {
-      const depTaskId = taskIdMapping.get(pred.predecessorTaskId);
-      if (!depTaskId) continue;
-
-      const typeMap: Record<string, string> = {
-        'FS': 'finish-to-start',
-        'SS': 'start-to-start',
-        'FF': 'finish-to-finish',
-        'SF': 'start-to-finish',
-      };
-
-      try {
-        await db.insert(taskDependencies).values({
-          taskId: newTaskId,
-          dependsOnTaskId: depTaskId,
-          dependencyType: typeMap[pred.type] || 'finish-to-start',
-          lagDays: pred.lagDays || 0,
-        });
-      } catch (depError) {
-        console.log(`Skipped duplicate dependency: task ${newTaskId} -> ${depTaskId}`);
-      }
-    }
-  }
-
-  const actualTaskCount = importedTasks.length;
-  await db.update(mppImports)
-    .set({ projectId: newProject.id, status: "converted", taskCount: actualTaskCount })
-    .where(eq(mppImports.id, importId));
-
-  const leafTasks = importedTasks.filter(t => !t.isSummary);
-  const avgProgress = leafTasks.length > 0
-    ? Math.round(leafTasks.reduce((sum, t) => sum + (t.percentComplete || 0), 0) / leafTasks.length)
-    : 0;
-  
-  let derivedStatus = projectData.status || "Initiation";
-  if (avgProgress >= 100) {
-    derivedStatus = "Closing";
-  } else if (avgProgress > 0) {
-    derivedStatus = "Execution";
-  } else {
-    const hasAnyProgress = leafTasks.some(t => (t.percentComplete || 0) > 0);
-    if (hasAnyProgress) {
+    const leafTasks = importedTasks.filter(t => !t.isSummary);
+    const avgProgress = leafTasks.length > 0
+      ? Math.round(leafTasks.reduce((sum, t) => sum + (t.percentComplete || 0), 0) / leafTasks.length)
+      : 0;
+    
+    let derivedStatus = projectData.status || "Initiation";
+    if (avgProgress >= 100) {
+      derivedStatus = "Closing";
+    } else if (avgProgress > 0) {
       derivedStatus = "Execution";
+    } else {
+      const hasAnyProgress = leafTasks.some(t => (t.percentComplete || 0) > 0);
+      if (hasAnyProgress) {
+        derivedStatus = "Execution";
+      }
     }
-  }
 
-  await db.update(projects)
-    .set({ completionPercentage: avgProgress, status: derivedStatus })
-    .where(eq(projects.id, newProject.id));
+    await tx.update(projects)
+      .set({ completionPercentage: avgProgress, status: derivedStatus })
+      .where(eq(projects.id, newProject.id));
 
-  return { project: newProject, taskCount: importedTasks.length };
+    return { project: newProject, taskCount: importedTasks.length };
+  });
 }
 
 export async function syncMppImportToProject(

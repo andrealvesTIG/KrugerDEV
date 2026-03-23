@@ -100,6 +100,7 @@ export interface IOrganizationStorage {
   getDeactivatedOrganizations(): Promise<Organization[]>;
   getAllOrganizations(): Promise<Organization[]>;
   getOrganization(id: number): Promise<Organization | undefined>;
+  getOrganizationBySlug(slug: string): Promise<Organization | undefined>;
   createOrganization(org: InsertOrganization): Promise<Organization>;
   updateOrganization(id: number, updates: Partial<InsertOrganization>): Promise<Organization>;
   deactivateOrganization(id: number, deactivatedBy: string): Promise<Organization>;

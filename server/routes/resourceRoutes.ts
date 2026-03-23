@@ -422,7 +422,18 @@ export function registerResourceRoutes(app: Express) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
       
-      const updated = await storage.updateResource(id, req.body);
+      const { displayName, email, title, department, skills, hourlyRate, isActive, notes } = req.body;
+      const safeUpdate: Record<string, any> = {};
+      if (displayName !== undefined) safeUpdate.displayName = displayName;
+      if (email !== undefined) safeUpdate.email = email;
+      if (title !== undefined) safeUpdate.title = title;
+      if (department !== undefined) safeUpdate.department = department;
+      if (skills !== undefined) safeUpdate.skills = skills;
+      if (hourlyRate !== undefined) safeUpdate.hourlyRate = hourlyRate;
+      if (isActive !== undefined) safeUpdate.isActive = isActive;
+      if (notes !== undefined) safeUpdate.notes = notes;
+
+      const updated = await storage.updateResource(id, safeUpdate);
       res.json(updated);
     } catch (err) {
       const classified = classifyError(err);
@@ -909,7 +920,19 @@ export function registerResourceRoutes(app: Express) {
 
   app.patch('/api/organizations/:orgId/resource-skills/:id', async (req, res) => {
     try {
-      const skill = await storage.updateResourceSkill(Number(req.params.id), req.body);
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgId = Number(req.params.orgId);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const { skillName, proficiencyLevel, yearsOfExperience, certified } = req.body;
+      const safeUpdate: Record<string, any> = {};
+      if (skillName !== undefined) safeUpdate.skillName = skillName;
+      if (proficiencyLevel !== undefined) safeUpdate.proficiencyLevel = proficiencyLevel;
+      if (yearsOfExperience !== undefined) safeUpdate.yearsOfExperience = yearsOfExperience;
+      if (certified !== undefined) safeUpdate.certified = certified;
+      const skill = await storage.updateResourceSkill(Number(req.params.id), safeUpdate);
       res.json(skill);
     } catch (err) {
       console.error("Error updating resource skill:", err);
@@ -920,6 +943,12 @@ export function registerResourceRoutes(app: Express) {
 
   app.delete('/api/organizations/:orgId/resource-skills/:id', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgId = Number(req.params.orgId);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
       await storage.removeResourceSkill(Number(req.params.id));
       res.json({ success: true });
     } catch (err) {
@@ -975,7 +1004,20 @@ export function registerResourceRoutes(app: Express) {
 
   app.patch('/api/organizations/:orgId/resource-availability/:id', async (req, res) => {
     try {
-      const entry = await storage.updateResourceAvailability(Number(req.params.id), req.body);
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgId = Number(req.params.orgId);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const { startDate, endDate, availableHoursPerDay, availabilityType, notes } = req.body;
+      const safeUpdate: Record<string, any> = {};
+      if (startDate !== undefined) safeUpdate.startDate = startDate;
+      if (endDate !== undefined) safeUpdate.endDate = endDate;
+      if (availableHoursPerDay !== undefined) safeUpdate.availableHoursPerDay = availableHoursPerDay;
+      if (availabilityType !== undefined) safeUpdate.availabilityType = availabilityType;
+      if (notes !== undefined) safeUpdate.notes = notes;
+      const entry = await storage.updateResourceAvailability(Number(req.params.id), safeUpdate);
       res.json(entry);
     } catch (err) {
       console.error("Error updating resource availability:", err);
@@ -986,6 +1028,12 @@ export function registerResourceRoutes(app: Express) {
 
   app.delete('/api/organizations/:orgId/resource-availability/:id', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgId = Number(req.params.orgId);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
       await storage.removeResourceAvailability(Number(req.params.id));
       res.json({ success: true });
     } catch (err) {

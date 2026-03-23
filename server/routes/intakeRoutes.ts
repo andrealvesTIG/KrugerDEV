@@ -99,7 +99,7 @@ export function registerIntakeRoutes(app: Express) {
       // Record usage after successful creation
       if (userId) {
         const { recordResourceUsage, METER_CODES } = await import("../services/billing");
-        await recordResourceUsage(userId, METER_CODES.INTAKES, intake.id, 1, organizationId);
+        await recordResourceUsage(userId, METER_CODES.INTAKES, intake.id, 1, input.organizationId);
       }
       
       res.status(201).json(intake);
@@ -122,11 +122,22 @@ export function registerIntakeRoutes(app: Express) {
       const existing = await storage.getProjectIntake(id);
       if (!existing) return res.status(404).json({ message: "Project intake not found" });
       
-      // Check user has access to the organization this intake belongs to
       if (existing.organizationId) {
         const accessibleOrgIds = await getUserOrgIds(userId);
         if (!accessibleOrgIds.includes(existing.organizationId)) {
           return res.status(403).json({ message: "You don't have access to this organization" });
+        }
+
+        const isSubmitter = existing.submitterId === userId;
+        if (!isSubmitter) {
+          const memberships = await storage.getOrganizationMembers(existing.organizationId);
+          const userMembership = memberships.find(m => m.userId === userId);
+          const isOrgAdmin = userMembership && (userMembership.role === 'org_admin' || userMembership.role === 'owner');
+          const user = await storage.getUser(userId);
+          const isSuperAdmin = hasAdminAccess(user);
+          if (!isOrgAdmin && !isSuperAdmin) {
+            return res.status(403).json({ message: "Only the submitter or an admin can modify this intake" });
+          }
         }
       }
       
@@ -151,11 +162,22 @@ export function registerIntakeRoutes(app: Express) {
       const existing = await storage.getProjectIntake(id);
       if (!existing) return res.status(404).json({ message: "Project intake not found" });
       
-      // Check user has access to the organization this intake belongs to
       if (existing.organizationId) {
         const accessibleOrgIds = await getUserOrgIds(userId);
         if (!accessibleOrgIds.includes(existing.organizationId)) {
           return res.status(403).json({ message: "You don't have access to this organization" });
+        }
+
+        const isSubmitter = existing.submitterId === userId;
+        if (!isSubmitter) {
+          const memberships = await storage.getOrganizationMembers(existing.organizationId);
+          const userMembership = memberships.find(m => m.userId === userId);
+          const isOrgAdmin = userMembership && (userMembership.role === 'org_admin' || userMembership.role === 'owner');
+          const user = await storage.getUser(userId);
+          const isSuperAdmin = hasAdminAccess(user);
+          if (!isOrgAdmin && !isSuperAdmin) {
+            return res.status(403).json({ message: "Only the submitter or an admin can delete this intake" });
+          }
         }
       }
       

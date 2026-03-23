@@ -159,16 +159,13 @@ export function registerTimesheetRoutes(app: Express) {
       const resources = await storage.getResources(organizationId);
       let userResource = resources.find(r => r.userId === userId);
 
-      // If no resource linked by userId, try to auto-link by email
       if (!userResource) {
         const user = await storage.getUser(userId);
         if (user?.email) {
-          // Find resource by matching email (even if linked to different user)
           const resourceByEmail = resources.find(r => 
-            r.email?.toLowerCase() === user.email?.toLowerCase()
+            r.email?.toLowerCase() === user.email?.toLowerCase() && !r.userId
           );
           if (resourceByEmail) {
-            // Auto-link or re-link resource to current user
             await storage.updateResource(resourceByEmail.id, { userId });
             userResource = { ...resourceByEmail, userId };
             console.log(`Auto-linked resource ${resourceByEmail.id} to user ${userId} by email ${user.email}`);
@@ -214,16 +211,13 @@ export function registerTimesheetRoutes(app: Express) {
       const resources = await storage.getResources(organizationId);
       let userResource = resources.find(r => r.userId === userId);
 
-      // If no resource linked by userId, try to auto-link by email
       if (!userResource) {
         const user = await storage.getUser(userId);
         if (user?.email) {
-          // Find resource by matching email (even if linked to different user)
           const resourceByEmail = resources.find(r => 
-            r.email?.toLowerCase() === user.email?.toLowerCase()
+            r.email?.toLowerCase() === user.email?.toLowerCase() && !r.userId
           );
           if (resourceByEmail) {
-            // Auto-link or re-link resource to current user
             await storage.updateResource(resourceByEmail.id, { userId });
             userResource = { ...resourceByEmail, userId };
             console.log(`Auto-linked resource ${resourceByEmail.id} to user ${userId} by email ${user.email}`);

@@ -91,6 +91,14 @@ export function registerOrganizationRoutes(app: Express) {
       
       const { name, slug, description } = req.body;
       const safeOwnerId = userId!;
+
+      if (slug) {
+        const existingOrg = await storage.getOrganizationBySlug(slug);
+        if (existingOrg) {
+          return res.status(409).json({ message: "This organization URL slug is already taken. Please choose a different one." });
+        }
+      }
+
       const org = await storage.createOrganization({ name, slug, description, ownerId: safeOwnerId });
       await storage.addOrganizationMember({ 
         organizationId: org.id, 

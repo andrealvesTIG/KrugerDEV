@@ -8,6 +8,7 @@ import {
   classifyError,
   getUserIdFromRequest,
   hasAdminAccess,
+  userHasOrgAccess,
 } from "./helpers";
 
 export async function registerBillingRoutes(app: Express) {
@@ -65,7 +66,7 @@ export async function registerBillingRoutes(app: Express) {
 
   // Get subscription - supports both user and org-based subscriptions
   app.get('/api/billing/subscription', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -80,8 +81,10 @@ export async function registerBillingRoutes(app: Express) {
       
       let subscription = null;
       
-      // If orgId is explicitly provided, only show that org's subscription (no fallback)
       if (orgId) {
+        if (!await userHasOrgAccess(userId, orgId)) {
+          return res.status(403).json({ message: "Access denied" });
+        }
         subscription = await billingProvider.getSubscriptionForOrg(orgId);
         if (!subscription) {
           // Auto-create a free subscription for organizations without one
@@ -109,7 +112,7 @@ export async function registerBillingRoutes(app: Express) {
 
   // Get usage summary (credits-based)
   app.get('/api/billing/usage', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -122,8 +125,10 @@ export async function registerBillingRoutes(app: Express) {
       
       let subscription;
       
-      // If orgId is explicitly provided, only show that org's data (no fallback)
       if (orgId) {
+        if (!await userHasOrgAccess(userId, orgId)) {
+          return res.status(403).json({ message: "Access denied" });
+        }
         subscription = await billingProvider.getSubscriptionForOrg(orgId);
         if (!subscription) {
           // Auto-create a free subscription for organizations without one

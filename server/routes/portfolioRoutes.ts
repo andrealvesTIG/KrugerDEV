@@ -62,11 +62,24 @@ export function registerPortfolioRoutes(app: Express) {
   });
 
   app.get(api.portfolios.get.path, async (req, res) => {
-    const portfolio = await storage.getPortfolio(Number(req.params.id));
-    if (!portfolio) {
-      return res.status(404).json({ message: 'Portfolio not found' });
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+      const portfolio = await storage.getPortfolio(Number(req.params.id));
+      if (!portfolio) {
+        return res.status(404).json({ message: 'Portfolio not found' });
+      }
+
+      if (!await userHasOrgAccess(userId, portfolio.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      res.json(portfolio);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error fetching portfolio' : classified.message });
     }
-    res.json(portfolio);
   });
 
   app.post(api.portfolios.create.path, async (req, res) => {

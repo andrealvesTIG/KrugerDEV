@@ -665,6 +665,7 @@ export default function Simulation() {
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const runStepRef = useRef<() => void>(() => {});
   
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>("all");
   const [timeHorizon, setTimeHorizon] = useState("3months");
@@ -963,6 +964,8 @@ export default function Simulation() {
     });
   }, [risks, scenario, timeHorizon]);
 
+  runStepRef.current = runSimulationStep;
+
   const startSimulation = useCallback(() => {
     if (simState.currentStep === 0) {
       initializeSimulation();
@@ -971,8 +974,8 @@ export default function Simulation() {
     setSimState(prev => ({ ...prev, isRunning: true, isPaused: false }));
     
     const intervalMs = 1000 / simState.speed;
-    intervalRef.current = setInterval(runSimulationStep, intervalMs);
-  }, [initializeSimulation, runSimulationStep, simState.speed, simState.currentStep]);
+    intervalRef.current = setInterval(() => runStepRef.current(), intervalMs);
+  }, [initializeSimulation, simState.speed, simState.currentStep]);
 
   const pauseSimulation = useCallback(() => {
     if (intervalRef.current) {
@@ -1005,9 +1008,9 @@ export default function Simulation() {
     setSimState(prev => ({ ...prev, speed: newSpeed }));
     if (simState.isRunning && intervalRef.current) {
       clearInterval(intervalRef.current);
-      intervalRef.current = setInterval(runSimulationStep, 1000 / newSpeed);
+      intervalRef.current = setInterval(() => runStepRef.current(), 1000 / newSpeed);
     }
-  }, [simState.isRunning, runSimulationStep]);
+  }, [simState.isRunning]);
 
   useEffect(() => {
     return () => {

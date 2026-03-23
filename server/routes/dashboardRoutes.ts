@@ -222,9 +222,15 @@ export function registerDashboardRoutes(app: Express) {
   // Get all resource assignments (dashboard)
   app.get('/api/resource-assignments', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
       const organizationId = Number(req.query.organizationId);
       if (!organizationId) {
         return res.status(400).json({ message: "organizationId is required" });
+      }
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
       }
       const allAssignments = await storage.getAllTaskResourceAssignments(organizationId);
       res.json(allAssignments);
@@ -238,11 +244,16 @@ export function registerDashboardRoutes(app: Express) {
   // Get dashboard utilization data
   app.get('/api/dashboard/utilization', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
       const organizationId = Number(req.query.organizationId);
       if (!organizationId) {
         return res.status(400).json({ message: "organizationId is required" });
       }
-      // Return empty utilization data - can be extended with timesheet aggregation
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
       res.json([]);
     } catch (err) {
       console.error("Error fetching utilization:", err);
