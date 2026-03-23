@@ -431,7 +431,7 @@ export function Sidebar() {
                 <SelectValue placeholder="Select organization" />
               </div>
             </SelectTrigger>
-            <SelectContent className="z-[60]">
+            <SelectContent className="z-[60] max-h-[240px] overflow-y-auto">
               {organizations.map(org => (
                 <SelectItem key={org.id} value={org.id.toString()} data-testid={`mobile-org-item-${org.id}`}>
                   {org.name}
