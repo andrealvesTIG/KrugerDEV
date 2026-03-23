@@ -438,8 +438,12 @@ export default function ProjectDetails() {
     if (!projectTasks || projectTasks.length === 0) {
       return project?.completionPercentage || 0;
     }
-    const totalProgress = projectTasks.reduce((sum, t) => sum + (t.progress || 0), 0);
-    return Math.round(totalProgress / projectTasks.length);
+    const leafTasks = projectTasks.filter(t => !t.isSummary && !t.isMilestone);
+    if (leafTasks.length === 0) {
+      return project?.completionPercentage || 0;
+    }
+    const totalProgress = leafTasks.reduce((sum, t) => sum + (t.progress || 0), 0);
+    return Math.round(totalProgress / leafTasks.length);
   }, [projectTasks, project?.completionPercentage]);
 
   const autoSwitchedForProjectRef = useRef<number | null>(null);
