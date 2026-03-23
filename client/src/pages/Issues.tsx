@@ -1280,7 +1280,7 @@ export default function Issues() {
       case "title":
         return (
           <div
-            className="cursor-pointer px-1 py-0.5 rounded hover:bg-muted/60 min-h-[28px] flex items-center text-sm truncate font-medium text-primary hover:underline"
+            className="cursor-pointer px-1 py-0.5 rounded hover:bg-muted/60 min-h-[28px] flex items-center text-sm truncate font-medium text-primary hover:underline max-w-[300px]"
             onClick={() => openEditDialog(issue)}
             title={issue.title}
           >
