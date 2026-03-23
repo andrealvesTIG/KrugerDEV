@@ -70,7 +70,7 @@ export function ProjectStatusReport({
   const [showAllMilestones, setShowAllMilestones] = useState(false);
 
   const taskStats = useMemo(() => {
-    const leafTasks = tasks.filter(t => !t.isSummary);
+    const leafTasks = tasks.filter(t => !t.isSummary && !t.isMilestone);
     const completed = leafTasks.filter(t => t.status === "Completed").length;
     const inProgress = leafTasks.filter(t => t.status === "In Progress").length;
     const notStarted = leafTasks.filter(t => t.status === "Not Started" || (!t.status && t.progress === 0)).length;
