@@ -291,10 +291,13 @@ export function useUpdateTaskDependency() {
 
 export function useRemoveTaskDependency() {
   return useMutation({
-    mutationFn: ({ taskId, dependsOnTaskId }: { taskId: number; dependsOnTaskId: number }) =>
+    mutationFn: ({ taskId, dependsOnTaskId }: { taskId: number; dependsOnTaskId: number; projectId?: number }) =>
       apiRequest('DELETE', `/api/tasks/${taskId}/dependencies/${dependsOnTaskId}`),
     onSuccess: (_, variables) => {
       queryClient.refetchQueries({ queryKey: ['/api/tasks', variables.taskId, 'dependencies'] });
+      if (variables.projectId) {
+        queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+      }
     },
   });
 }

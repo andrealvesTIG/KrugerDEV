@@ -1814,6 +1814,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       let propagatedTasks: { taskId: number; newStartDate: string; newEndDate: string }[] = [];
       if (dependentTaskForDates) {
         propagatedTasks = await propagateScheduleForProject(dependentTaskForDates.projectId);
+        await rollUpParentTasks(dependentTaskForDates.projectId);
       }
 
       res.status(201).json({ 
@@ -1878,7 +1879,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const taskId = Number(req.params.id);
     const dependsOnTaskId = Number(req.params.dependsOnTaskId);
+    const dependentTask = await storage.getTask(taskId);
     await storage.deleteTaskDependency(taskId, dependsOnTaskId);
+    if (dependentTask) {
+      await propagateScheduleForProject(dependentTask.projectId);
+      await rollUpParentTasks(dependentTask.projectId);
+    }
     res.status(204).send();
   });
 

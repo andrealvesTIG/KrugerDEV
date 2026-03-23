@@ -516,7 +516,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             }
             for (const change of removedDeps) {
               removeDependency.mutate(
-                { taskId: editingTask.id, dependsOnTaskId: change.dependsOnTaskId },
+                { taskId: editingTask.id, dependsOnTaskId: change.dependsOnTaskId, projectId },
                 { onSuccess: onDepComplete, onError: onDepError }
               );
             }
