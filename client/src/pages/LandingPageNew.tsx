@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useLayoutEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { Check, Menu, X, Mail, Loader2, CheckCircle, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,21 @@ const valueProps = [
 ];
 
 export default function LandingPageNew() {
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const had = root.classList.contains("dark");
+    if (had) {
+      root.classList.remove("dark");
+      root.classList.add("light");
+    }
+    return () => {
+      if (had) {
+        root.classList.remove("light");
+        root.classList.add("dark");
+      }
+    };
+  }, []);
+
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
