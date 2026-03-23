@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { and } from "drizzle-orm";
-import { resources } from "@shared/schema";
+import { resources, insertProjectIntakeSchema } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -71,13 +71,10 @@ export function registerIntakeRoutes(app: Express) {
         return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
       }
       
-      const { 
-        organizationId, projectName, submitterId, description, fundingSource,
-        portfolioId, businessUnit, programName
-      } = req.body;
+      const input = insertProjectIntakeSchema.parse(req.body);
       
-      if (!organizationId || !projectName) {
-        return res.status(400).json({ message: "organizationId and projectName are required" });
+      if (!await userHasOrgAccess(userId, input.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
       }
 
       // Check intake limit before creation
@@ -94,16 +91,9 @@ export function registerIntakeRoutes(app: Express) {
       }
 
       const intake = await storage.createProjectIntake({
-        organizationId,
-        projectName,
-        submitterId,
-        description,
-        fundingSource,
-        portfolioId,
-        businessUnit,
-        programName,
-        status: 'draft',
-        currentStep: 'intake_capture',
+        ...input,
+        status: input.status || 'draft',
+        currentStep: input.currentStep || 'intake_capture',
       });
       
       // Record usage after successful creation
