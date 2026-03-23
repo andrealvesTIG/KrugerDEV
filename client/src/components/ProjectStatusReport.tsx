@@ -75,8 +75,7 @@ export function ProjectStatusReport({
     const inProgress = leafTasks.filter(t => t.status === "In Progress").length;
     const notStarted = leafTasks.filter(t => t.status === "Not Started" || (!t.status && t.progress === 0)).length;
     const total = leafTasks.length || 1;
-    const totalProgress = tasks.reduce((sum, t) => sum + (t.progress || 0), 0);
-    const overallCompletion = tasks.length > 0 ? Math.round(totalProgress / tasks.length) : 0;
+    const overallCompletion = project.completionPercentage ?? (leafTasks.length > 0 ? Math.round(leafTasks.reduce((sum, t) => sum + (t.progress || 0), 0) / leafTasks.length) : 0);
     return {
       completed,
       inProgress,
@@ -87,7 +86,7 @@ export function ProjectStatusReport({
       notStartedPercent: (notStarted / total) * 100,
       overallCompletion
     };
-  }, [tasks]);
+  }, [tasks, project.completionPercentage]);
 
   const taskChartData = useMemo(() => [
     { name: "Completed", value: taskStats.completed, color: COLORS.completed },
