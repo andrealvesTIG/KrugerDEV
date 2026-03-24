@@ -3399,20 +3399,20 @@ export default function Timesheets() {
 
   // Calculate total hours from local gridData for real-time updates (only current week's dates)
   const totalHoursThisWeek = useMemo(() => {
-    // Create a set of valid date keys for the current view
     const validDateKeys = new Set(dates.map(d => formatDateKey(d)));
     let total = 0;
     for (const taskId in gridData) {
       for (const dateKey in gridData[taskId]) {
-        // Only count hours for dates in the current week view
         if (validDateKeys.has(dateKey)) {
           const hours = parseFloat(gridData[taskId][dateKey]?.hours || "0");
           if (!isNaN(hours)) total += hours;
         }
       }
     }
+    const nonProjectHours = nonProjectTimeEntries.reduce((sum, { entry }) => sum + Number(entry.hours || 0), 0);
+    total += nonProjectHours;
     return total;
-  }, [gridData, dates]);
+  }, [gridData, dates, nonProjectTimeEntries]);
   
   const weeklyTarget = Number(timesheetSettings?.overtimeThreshold ?? 40);
   const isOvertime = totalHoursThisWeek > weeklyTarget;
