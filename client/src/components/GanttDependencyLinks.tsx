@@ -58,7 +58,18 @@ function getBarRect(
   showBaseline: boolean = false,
   cumulativeYOffset: number = 0
 ): BarRect | null {
-  if (!task.startDate || !task.endDate) return null;
+  const barTop = 4;
+  const barHeight = showBaseline && task.baselineStartDate && task.baselineEndDate ? 16 : 20;
+  const yCenter = headerHeight + cumulativeYOffset + barTop + (barHeight / 2);
+
+  if (!task.startDate || !task.endDate) {
+    return {
+      xStart: 0,
+      xEnd: MIN_BAR_WIDTH,
+      yCenter,
+      rowIndex: taskIndex
+    };
+  }
   
   const start = parseISO(task.startDate);
   const end = parseISO(task.endDate);
@@ -72,10 +83,6 @@ function getBarRect(
   
   const xStart = Math.max(0, rawXStart);
   const xEnd = Math.max(xStart + MIN_BAR_WIDTH, rawXEnd);
-  
-  const barTop = 4;
-  const barHeight = showBaseline && task.baselineStartDate && task.baselineEndDate ? 16 : 20;
-  const yCenter = headerHeight + cumulativeYOffset + barTop + (barHeight / 2);
   
   return {
     xStart,
