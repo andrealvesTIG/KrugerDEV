@@ -3346,14 +3346,20 @@ export function registerProjectRoutes(app: Express) {
         }
 
         // Generate CSV with task indentation reflecting outline hierarchy
-        const headers = ['Index', 'WBS', 'Outline Level', 'Name', 'Type', 'Start Date', 'End Date', 'Duration (days)', '% Complete', 'Status', 'Priority', 'Assigned To', 'Predecessors', 'Description'];
+        const headers = ['Index', 'WBS', 'Outline Level', 'Parent Task Index', 'Name', 'Type', 'Start Date', 'End Date', 'Duration (days)', '% Complete', 'Status', 'Priority', 'Assigned To', 'Predecessors', 'Description'];
         const rows: string[][] = [];
+
+        const taskIdToCsvIndex = new Map<number, number>();
+        tasks.forEach((task, index) => {
+          taskIdToCsvIndex.set(task.id, index + 1);
+        });
         
         // Add project as first row
         rows.push([
           '0',
           '0',
           '0',
+          '',
           project.name || '',
           'Project',
           project.startDate || '',
@@ -3377,6 +3383,8 @@ export function registerProjectRoutes(app: Express) {
           return wbsCounters.join('.');
         };
 
+        const parentStack: { level: number; csvIndex: number }[] = [];
+
         // Add tasks with indentation
         tasks.forEach((task, index) => {
           const level = task.outlineLevel || 1;
@@ -3384,10 +3392,33 @@ export function registerProjectRoutes(app: Express) {
           const wbs = task.wbs || computeWbs(level);
           const taskType = task.isSummary ? 'Summary' : task.isMilestone ? 'Milestone' : 'Task';
           const predecessorStr = taskPredecessors.get(task.id)?.join(';') || '';
+          const csvIndex = index + 1;
+
+          let parentCsvIndex = '';
+          if (task.parentTaskId && taskIdToCsvIndex.has(task.parentTaskId)) {
+            parentCsvIndex = String(taskIdToCsvIndex.get(task.parentTaskId));
+          } else if (level > 1) {
+            while (parentStack.length > 0 && parentStack[parentStack.length - 1].level >= level) {
+              parentStack.pop();
+            }
+            if (parentStack.length > 0) {
+              parentCsvIndex = String(parentStack[parentStack.length - 1].csvIndex);
+            }
+          }
+
+          if (task.isSummary) {
+            parentStack.push({ level, csvIndex });
+          } else {
+            while (parentStack.length > 0 && parentStack[parentStack.length - 1].level >= level) {
+              parentStack.pop();
+            }
+          }
+
           rows.push([
-            String(index + 1),
+            String(csvIndex),
             wbs,
             String(level),
+            parentCsvIndex,
             indent + (task.name || ''),
             taskType,
             task.startDate || '',

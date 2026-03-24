@@ -2394,6 +2394,10 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
       const csvIndexToTaskId = new Map<number, number>();
       const pendingDependencies: { csvIndex: number; predecessorsStr: string }[] = [];
+      const pendingParentLinks: { csvIndex: number; parentTaskIndexStr: string }[] = [];
+      const hasParentTaskIndexColumn = rows.length > 0 && 'Parent Task Index' in rows[0];
+      const hasOutlineLevelColumn = rows.length > 0 && 'Outline Level' in rows[0];
+      const outlineLevelParentStack: { level: number; csvIndex: number }[] = [];
 
       for (const row of rows) {
         const name = (row['Name'] || '').trim();
@@ -2415,8 +2419,27 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         const description = (row['Description'] || '').trim();
         const wbs = (row['WBS'] || '').trim();
         const predecessorsStr = (row['Predecessors'] || '').trim();
+        const outlineLevelStr = (row['Outline Level'] || '').trim();
+        let parentTaskIndexStr = (row['Parent Task Index'] || '').trim();
 
         const isMilestone = type === 'Milestone';
+        const isSummary = type === 'Summary';
+        const outlineLevel = outlineLevelStr ? parseInt(outlineLevelStr, 10) : undefined;
+
+        if (!parentTaskIndexStr && hasOutlineLevelColumn && outlineLevel && outlineLevel > 1 && !isNaN(csvIndex)) {
+          while (outlineLevelParentStack.length > 0 && outlineLevelParentStack[outlineLevelParentStack.length - 1].level >= outlineLevel) {
+            outlineLevelParentStack.pop();
+          }
+          if (outlineLevelParentStack.length > 0) {
+            parentTaskIndexStr = String(outlineLevelParentStack[outlineLevelParentStack.length - 1].csvIndex);
+          }
+        }
+        if (isSummary && !isNaN(csvIndex) && outlineLevel) {
+          while (outlineLevelParentStack.length > 0 && outlineLevelParentStack[outlineLevelParentStack.length - 1].level >= outlineLevel) {
+            outlineLevelParentStack.pop();
+          }
+          outlineLevelParentStack.push({ level: outlineLevel, csvIndex });
+        }
         const durationDays = durationStr ? parseFloat(durationStr) : undefined;
         const progress = progressStr ? parseInt(progressStr, 10) : undefined;
 
@@ -2441,6 +2464,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
           if (isMilestone !== existingTask.isMilestone) updates.isMilestone = isMilestone;
           if (wbs && wbs !== (existingTask.wbs || '')) updates.wbs = wbs;
           if (name !== existingTask.name) updates.name = name;
+          if (outlineLevel !== undefined && !isNaN(outlineLevel) && outlineLevel !== (existingTask.outlineLevel || 1)) updates.outlineLevel = outlineLevel;
+          if (isSummary !== (existingTask.isSummary || false)) updates.isSummary = isSummary;
 
           if (Object.keys(updates).length > 0) {
             await storage.updateTask(existingTask.id, updates);
@@ -2450,6 +2475,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
           }
           if (!isNaN(csvIndex)) csvIndexToTaskId.set(csvIndex, existingTask.id);
           if (predecessorsStr) pendingDependencies.push({ csvIndex, predecessorsStr });
+          if (parentTaskIndexStr) pendingParentLinks.push({ csvIndex, parentTaskIndexStr });
         } else {
           const today = new Date().toISOString().split('T')[0];
           const resolvedStartDate = isValidDate(startDate) ? startDate : today;
@@ -2465,6 +2491,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
             startDate: resolvedStartDate,
             endDate: resolvedEndDate,
             isMilestone,
+            isSummary,
           };
           if (description) taskData.description = description;
           if (durationDays !== undefined && !isNaN(durationDays)) taskData.durationDays = durationDays;
@@ -2473,11 +2500,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
           if (taskPriority) taskData.priority = taskPriority;
           if (assignee) taskData.assignee = assignee;
           if (wbs) taskData.wbs = wbs;
+          if (outlineLevel !== undefined && !isNaN(outlineLevel)) taskData.outlineLevel = outlineLevel;
 
           const newTask = await storage.createTask(taskData);
           created++;
           if (!isNaN(csvIndex)) csvIndexToTaskId.set(csvIndex, newTask.id);
           if (predecessorsStr) pendingDependencies.push({ csvIndex, predecessorsStr });
+          if (parentTaskIndexStr) pendingParentLinks.push({ csvIndex, parentTaskIndexStr });
         }
       }
 
@@ -2531,12 +2560,29 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         }
       }
 
+      let parentLinksSet = 0;
+      for (const { csvIndex, parentTaskIndexStr } of pendingParentLinks) {
+        const taskId = csvIndexToTaskId.get(csvIndex);
+        if (!taskId) continue;
+        const parentIndex = parseInt(parentTaskIndexStr, 10);
+        if (isNaN(parentIndex)) continue;
+        const parentTaskId = csvIndexToTaskId.get(parentIndex);
+        if (!parentTaskId || parentTaskId === taskId) continue;
+        try {
+          await storage.updateTask(taskId, { parentTaskId });
+          parentLinksSet++;
+        } catch (parentErr: any) {
+          console.error('Error setting parent task link:', parentErr);
+        }
+      }
+
       res.json({
-        message: `Import complete: ${created} tasks created, ${updated} tasks updated, ${skipped} rows skipped, ${dependenciesCreated} dependencies created`,
+        message: `Import complete: ${created} tasks created, ${updated} tasks updated, ${skipped} rows skipped, ${dependenciesCreated} dependencies created, ${parentLinksSet} parent links set`,
         created,
         updated,
         skipped,
         dependenciesCreated,
+        parentLinksSet,
       });
     } catch (err) {
       console.error('CSV import error:', err);
