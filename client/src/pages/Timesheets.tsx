@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { useSidebarState } from "@/components/layout/Sidebar";
@@ -2950,6 +2951,7 @@ export default function Timesheets() {
   const { data: isActiveDelegate } = useIsActiveDelegate(currentOrganization?.id ?? null);
   const isTimesheetAdmin = currentResource?.isApprover || isOrgAdmin || isActiveDelegate;
 
+  const queryClient = useQueryClient();
   const bulkUpsert = useBulkUpsertTimesheetEntries();
   const submitWeek = useSubmitTimesheetWeek();
 
@@ -3109,7 +3111,7 @@ export default function Timesheets() {
         };
       }
     }
-    handleSave(formattedData);
+    handleSave(formattedData, { silent: true });
   }, [gridData, dates, currentOrganization, currentResource, hasChanges]);
 
   const navigateDate = (direction: "prev" | "next") => {
@@ -3145,7 +3147,8 @@ export default function Timesheets() {
     });
   };
 
-  const handleSave = async (data: Record<string, Record<string, { hours: number; notes: string; id?: number }>>) => {
+  const handleSave = async (data: Record<string, Record<string, { hours: number; notes: string; id?: number }>>, options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
     if (!currentOrganization || !currentResource) return;
 
     const entriesToUpsert: (InsertTimesheetEntry & { id?: number })[] = [];
@@ -3177,11 +3180,13 @@ export default function Timesheets() {
     }
 
     if (missingNotesCount > 0 && missingNotesCount === entriesToUpsert.length) {
-      toast({ 
-        title: "Notes Required", 
-        description: "All timesheet entries with hours require notes. Please add notes to each entry before saving.",
-        variant: "destructive" 
-      });
+      if (!silent) {
+        toast({ 
+          title: "Notes Required", 
+          description: "All timesheet entries with hours require notes. Please add notes to each entry before saving.",
+          variant: "destructive" 
+        });
+      }
       return;
     }
 
@@ -3193,7 +3198,7 @@ export default function Timesheets() {
         })
       : entriesToUpsert;
 
-    if (missingNotesCount > 0) {
+    if (missingNotesCount > 0 && !silent) {
       toast({ 
         title: "Notes Required", 
         description: `${missingNotesCount} entries are missing required notes and will be skipped.`,
@@ -3228,53 +3233,59 @@ export default function Timesheets() {
         });
       }
 
-      if (validationErrors.length > 0) {
-        const noteErrors = validationErrors.filter((e: any) => e.message?.includes('Notes') || e.message?.includes('notes'));
-        const hourErrors = validationErrors.filter((e: any) => e.message?.includes('hour') || e.message?.includes('Hours'));
-        const assignErrors = validationErrors.filter((e: any) => e.message?.includes('assigned'));
-        const blockedErrors = validationErrors.filter((e: any) => e.message?.includes('blocked'));
-        const closedErrors = validationErrors.filter((e: any) => e.message?.includes('closed'));
-        const otherSkipped = validationErrors.length - noteErrors.length - hourErrors.length - assignErrors.length - blockedErrors.length - closedErrors.length;
-        
-        let desc = `${savedEntries.length} entries saved.`;
-        if (noteErrors.length > 0) desc += ` ${noteErrors.length} rejected: notes required.`;
-        if (hourErrors.length > 0) desc += ` ${hourErrors.length} rejected: weekly hour limit exceeded.`;
-        if (assignErrors.length > 0) desc += ` ${assignErrors.length} rejected: not assigned to task.`;
-        if (blockedErrors.length > 0) desc += ` ${blockedErrors.length} rejected: task/project blocked.`;
-        if (closedErrors.length > 0) desc += ` ${closedErrors.length} rejected: date in closed period.`;
-        if (otherSkipped > 0) desc += ` ${otherSkipped} skipped due to other validation errors.`;
-        
-        toast({ title: "Partially Saved", description: desc, variant: "destructive" });
-      } else if (savedEntries.length < validEntries.length) {
-        const skipped = validEntries.length - savedEntries.length;
-        toast({ 
-          title: "Partially Saved", 
-          description: `${savedEntries.length} entries saved, ${skipped} could not be saved (may be locked, in a closed period, or already submitted)`,
-          variant: "destructive"
-        });
-      } else {
-        toast({ title: "Saved", description: "Your timesheet has been saved" });
+      if (!silent) {
+        queryClient.invalidateQueries({ queryKey: ["/api/timesheets"] });
+
+        if (validationErrors.length > 0) {
+          const noteErrors = validationErrors.filter((e: any) => e.message?.includes('Notes') || e.message?.includes('notes'));
+          const hourErrors = validationErrors.filter((e: any) => e.message?.includes('hour') || e.message?.includes('Hours'));
+          const assignErrors = validationErrors.filter((e: any) => e.message?.includes('assigned'));
+          const blockedErrors = validationErrors.filter((e: any) => e.message?.includes('blocked'));
+          const closedErrors = validationErrors.filter((e: any) => e.message?.includes('closed'));
+          const otherSkipped = validationErrors.length - noteErrors.length - hourErrors.length - assignErrors.length - blockedErrors.length - closedErrors.length;
+          
+          let desc = `${savedEntries.length} entries saved.`;
+          if (noteErrors.length > 0) desc += ` ${noteErrors.length} rejected: notes required.`;
+          if (hourErrors.length > 0) desc += ` ${hourErrors.length} rejected: weekly hour limit exceeded.`;
+          if (assignErrors.length > 0) desc += ` ${assignErrors.length} rejected: not assigned to task.`;
+          if (blockedErrors.length > 0) desc += ` ${blockedErrors.length} rejected: task/project blocked.`;
+          if (closedErrors.length > 0) desc += ` ${closedErrors.length} rejected: date in closed period.`;
+          if (otherSkipped > 0) desc += ` ${otherSkipped} skipped due to other validation errors.`;
+          
+          toast({ title: "Partially Saved", description: desc, variant: "destructive" });
+        } else if (savedEntries.length < validEntries.length) {
+          const skipped = validEntries.length - savedEntries.length;
+          toast({ 
+            title: "Partially Saved", 
+            description: `${savedEntries.length} entries saved, ${skipped} could not be saved (may be locked, in a closed period, or already submitted)`,
+            variant: "destructive"
+          });
+        } else {
+          toast({ title: "Saved", description: "Your timesheet has been saved" });
+        }
       }
 
       setHasChanges(false);
     } catch (err: any) {
-      const errorData = err?.data || {};
-      if (errorData?.errors?.length > 0) {
-        const noteErrors = errorData.errors.filter((e: any) => e.message?.includes('Notes') || e.message?.includes('notes'));
-        const assignErrors = errorData.errors.filter((e: any) => e.message?.includes('assigned'));
-        const blockedErrors = errorData.errors.filter((e: any) => e.message?.includes('blocked'));
-        const closedErrors = errorData.errors.filter((e: any) => e.message?.includes('closed'));
-        
-        let description = "";
-        if (noteErrors.length > 0) description = "Notes are required for all timesheet entries with hours. Please add notes to each entry.";
-        else if (assignErrors.length > 0) description = "You are not assigned to one or more tasks. Contact your manager.";
-        else if (blockedErrors.length > 0) description = "One or more tasks/projects are blocked for timesheet entries.";
-        else if (closedErrors.length > 0) description = "One or more dates are in a closed period.";
-        else description = errorData.message || "Failed to save timesheet";
-        
-        toast({ title: "Validation Failed", description, variant: "destructive" });
-      } else {
-        toast({ title: "Error", description: err?.message || "Failed to save timesheet", variant: "destructive" });
+      if (!silent) {
+        const errorData = err?.data || {};
+        if (errorData?.errors?.length > 0) {
+          const noteErrors = errorData.errors.filter((e: any) => e.message?.includes('Notes') || e.message?.includes('notes'));
+          const assignErrors = errorData.errors.filter((e: any) => e.message?.includes('assigned'));
+          const blockedErrors = errorData.errors.filter((e: any) => e.message?.includes('blocked'));
+          const closedErrors = errorData.errors.filter((e: any) => e.message?.includes('closed'));
+          
+          let description = "";
+          if (noteErrors.length > 0) description = "Notes are required for all timesheet entries with hours. Please add notes to each entry.";
+          else if (assignErrors.length > 0) description = "You are not assigned to one or more tasks. Contact your manager.";
+          else if (blockedErrors.length > 0) description = "One or more tasks/projects are blocked for timesheet entries.";
+          else if (closedErrors.length > 0) description = "One or more dates are in a closed period.";
+          else description = errorData.message || "Failed to save timesheet";
+          
+          toast({ title: "Validation Failed", description, variant: "destructive" });
+        } else {
+          toast({ title: "Error", description: err?.message || "Failed to save timesheet", variant: "destructive" });
+        }
       }
     }
   };

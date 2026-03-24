@@ -180,14 +180,10 @@ export function useRejectTimesheetEntry() {
 }
 
 export function useBulkUpsertTimesheetEntries() {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (entries: (InsertTimesheetEntry & { id?: number })[]) => {
       const response = await apiRequest("POST", "/api/timesheets/bulk", { entries });
       return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/timesheets"] });
     },
   });
 }
