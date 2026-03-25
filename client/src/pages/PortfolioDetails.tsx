@@ -2914,7 +2914,6 @@ function KeyDatesTab({ portfolioId }: { portfolioId: number }) {
           </div>
         </CardContent>
       </Card>
-      )}
 
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) { setDialogOpen(false); resetForm(); } }}>
         <DialogContent className="sm:max-w-[500px]">
