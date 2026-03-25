@@ -262,6 +262,7 @@ export function useAddTaskDependency() {
       queryClient.refetchQueries({ queryKey: ['/api/tasks', variables.taskId, 'dependencies'] });
       if (variables.projectId) {
         queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+        queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'dependencies'] });
       }
     },
   });
@@ -284,6 +285,7 @@ export function useUpdateTaskDependency() {
       queryClient.refetchQueries({ queryKey: ['/api/tasks', variables.taskId, 'dependencies'] });
       if (variables.projectId) {
         queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+        queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'dependencies'] });
       }
     },
   });
@@ -297,6 +299,7 @@ export function useRemoveTaskDependency() {
       queryClient.refetchQueries({ queryKey: ['/api/tasks', variables.taskId, 'dependencies'] });
       if (variables.projectId) {
         queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+        queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'dependencies'] });
       }
     },
   });
@@ -306,7 +309,7 @@ export function useProjectDependencies(projectId: number) {
   return useQuery<TaskDependency[]>({
     queryKey: ['/api/projects', projectId, 'dependencies'],
     queryFn: async () => {
-      const res = await fetch(`/api/projects/${projectId}/dependencies`);
+      const res = await fetch(`/api/projects/${projectId}/dependencies`, { credentials: "include" });
       if (!res.ok) throw new Error('Failed to fetch project dependencies');
       return res.json();
     },

@@ -2205,7 +2205,7 @@ function ProjectGanttView({
         }).catch(() => undoErrorRollback(lastAction));
         break;
       case 'addDependency':
-        removeDependency.mutate({ taskId: lastAction.taskId, dependsOnTaskId: lastAction.dependsOnTaskId }, {
+        removeDependency.mutate({ taskId: lastAction.taskId, dependsOnTaskId: lastAction.dependsOnTaskId, projectId: lastAction.projectId }, {
           onSuccess: () => toast({ title: "Undone", description: "Dependency removed" }),
           onError: () => undoErrorRollback(lastAction),
         });
@@ -2258,7 +2258,7 @@ function ProjectGanttView({
         });
         break;
       case 'removeDependency':
-        removeDependency.mutate({ taskId: lastAction.taskId, dependsOnTaskId: lastAction.dependsOnTaskId }, {
+        removeDependency.mutate({ taskId: lastAction.taskId, dependsOnTaskId: lastAction.dependsOnTaskId, projectId: lastAction.projectId }, {
           onSuccess: () => toast({ title: "Redone", description: "Dependency removed" }),
           onError: () => redoErrorRollback(lastAction),
         });
@@ -2876,6 +2876,7 @@ function ProjectGanttView({
         await removeDependency.mutateAsync({
           taskId: dep.taskId,
           dependsOnTaskId: dep.dependsOnTaskId,
+          projectId,
         });
         pushActionToUndoStack({ type: 'removeDependency', taskId: dep.taskId, dependsOnTaskId: dep.dependsOnTaskId, projectId });
         successCount++;
