@@ -1,8 +1,9 @@
 import { db } from "../db";
 import {
-  portfolios, projects, issues, tasks, customPortfolioProjects,
+  portfolios, projects, issues, tasks, customPortfolioProjects, portfolioKeyDates,
   type Portfolio, type InsertPortfolio, type UpdatePortfolioRequest,
   type Risk, type Issue, type Milestone,
+  type PortfolioKeyDate, type InsertPortfolioKeyDate, type UpdatePortfolioKeyDateRequest,
 } from "@shared/schema";
 import { eq, and, isNull, inArray } from "drizzle-orm";
 
@@ -97,6 +98,39 @@ export async function getPortfolioIssues(portfolioId: number): Promise<(Issue & 
   return allIssues.map(i => ({ ...i, projectName: projectMap.get(i.projectId!) || '' }));
 }
 
+export async function getPortfolioKeyDates(portfolioId: number): Promise<PortfolioKeyDate[]> {
+  return await db.select().from(portfolioKeyDates).where(
+    and(eq(portfolioKeyDates.portfolioId, portfolioId), isNull(portfolioKeyDates.deletedAt))
+  );
+}
+
+export async function getPortfolioKeyDate(id: number): Promise<PortfolioKeyDate | undefined> {
+  const [keyDate] = await db.select().from(portfolioKeyDates).where(
+    and(eq(portfolioKeyDates.id, id), isNull(portfolioKeyDates.deletedAt))
+  );
+  return keyDate;
+}
+
+export async function createPortfolioKeyDate(data: InsertPortfolioKeyDate): Promise<PortfolioKeyDate> {
+  const [created] = await db.insert(portfolioKeyDates).values(data).returning();
+  return created;
+}
+
+export async function updatePortfolioKeyDate(id: number, updates: UpdatePortfolioKeyDateRequest): Promise<PortfolioKeyDate> {
+  const [updated] = await db.update(portfolioKeyDates)
+    .set({ ...updates, updatedAt: new Date() })
+    .where(eq(portfolioKeyDates.id, id))
+    .returning();
+  return updated;
+}
+
+export async function deletePortfolioKeyDate(id: number, deletedBy?: string): Promise<void> {
+  await db.update(portfolioKeyDates)
+    .set({ deletedAt: new Date(), deletedBy: deletedBy || null })
+    .where(eq(portfolioKeyDates.id, id));
+}
+
+/** @deprecated Use getPortfolioKeyDates instead. This function reads task milestones from the tasks table for backward compatibility. */
 export async function getPortfolioMilestones(portfolioId: number): Promise<(Milestone & { projectName: string })[]> {
   const portfolioProjs = await getPortfolioProjects(portfolioId);
   const projectIds = portfolioProjs.map(p => p.id);

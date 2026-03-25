@@ -54,7 +54,7 @@ export interface RiskAssessmentReport {
 function buildPortfolioSystemPrompt(config: RiskAssessmentConfig): string {
   const t = config.thresholds;
   const cats = config.categories.length > 0 ? config.categories.join(", ") : "Schedule Risk, Budget Risk, Resource Risk, Technical Risk, Scope Risk";
-  let prompt = `You are an expert portfolio risk analyst performing a comprehensive risk assessment for a project portfolio. Analyze the provided portfolio data including projects, risks, issues, milestones, and financial information.
+  let prompt = `You are an expert portfolio risk analyst performing a comprehensive risk assessment for a project portfolio. Analyze the provided portfolio data including projects, risks, issues, key dates, and financial information.
 
 Return a JSON object with this exact structure:
 {
@@ -126,7 +126,7 @@ export async function generatePortfolioRiskAssessment(
 
   const risks = await storage.getPortfolioRisks(portfolioId);
   const issues = await storage.getPortfolioIssues(portfolioId);
-  const milestones = await storage.getPortfolioMilestones(portfolioId);
+  const keyDates = await storage.getPortfolioKeyDates(portfolioId);
 
   const tasksByProject: Record<number, any[]> = {};
   for (const project of portfolioProjects) {
@@ -179,12 +179,12 @@ export async function generatePortfolioRiskAssessment(
       status: i.status,
       projectName: i.projectName,
     })),
-    milestones: milestones.map(m => ({
-      title: m.title,
-      dueDate: m.dueDate,
-      status: m.status,
-      completed: m.completed,
-      projectName: m.projectName,
+    keyDates: keyDates.map(kd => ({
+      title: kd.title,
+      date: kd.date,
+      keyDateType: kd.keyDateType,
+      status: kd.status,
+      completed: kd.completed,
     })),
     summary: {
       totalProjects: portfolioProjects.length,
@@ -199,7 +199,7 @@ export async function generatePortfolioRiskAssessment(
       openRisks: risks.filter(r => r.status === 'Open' || r.status === 'Identified' || r.status === 'In Mitigation').length,
       mitigatedRisks: risks.filter(r => r.status === 'Mitigated' || r.status === 'Closed' || r.status === 'Accepted').length,
       openIssues: issues.filter(i => i.status === 'Open' || i.status === 'In Progress').length,
-      overdueMilestones: milestones.filter(m => !m.completed && m.dueDate && new Date(m.dueDate) < new Date()).length,
+      overdueKeyDates: keyDates.filter(kd => !kd.completed && kd.date && new Date(kd.date) < new Date()).length,
     },
   };
 

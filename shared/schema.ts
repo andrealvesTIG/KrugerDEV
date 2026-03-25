@@ -209,6 +209,29 @@ export const portfolios = pgTable("portfolios", {
   isCustom: boolean("is_custom").default(false), // Custom portfolios can include projects from any portfolio
 });
 
+// Portfolio Key Dates - important dates tracked at the portfolio level
+export const portfolioKeyDates = pgTable("portfolio_key_dates", {
+  id: serial("id").primaryKey(),
+  portfolioId: integer("portfolio_id").references(() => portfolios.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  keyDateType: text("key_date_type").default("Deadline"),
+  date: date("date").notNull(),
+  status: text("status").default("Upcoming"),
+  completed: boolean("completed").default(false),
+  notes: text("notes"),
+  organizationId: integer("organization_id").references(() => organizations.id),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
+}, (table) => [
+  index("portfolio_key_dates_portfolio_id_idx").on(table.portfolioId),
+  index("portfolio_key_dates_organization_id_idx").on(table.organizationId),
+]);
+
 // Custom Portfolio Projects - junction table for custom portfolios
 export const customPortfolioProjects = pgTable("custom_portfolio_projects", {
   id: serial("id").primaryKey(),
@@ -1591,6 +1614,8 @@ export const insertRiskSchema = baseRiskSchema.extend({
 });
 /** @deprecated Renamed to Portfolio Key Dates. Schema kept for backward compatibility. */
 export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true });
+export const insertPortfolioKeyDateSchema = createInsertSchema(portfolioKeyDates).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true, deletedBy: true, isDemo: true });
+export const updatePortfolioKeyDateSchema = insertPortfolioKeyDateSchema.pick({ title: true, description: true, keyDateType: true, date: true, status: true, completed: true, notes: true }).partial();
 // Extend to handle date strings for escalatedAt field
 const baseIssueSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
 export const insertIssueSchema = baseIssueSchema.extend({
@@ -1660,10 +1685,12 @@ export type InsertProject = z.infer<typeof insertProjectSchema>;
 
 /** @deprecated Renamed to PortfolioKeyDate. Alias kept for backward compatibility. */
 export type Milestone = typeof milestones.$inferSelect;
-export type PortfolioKeyDate = Milestone;
 /** @deprecated Renamed to InsertPortfolioKeyDate. Alias kept for backward compatibility. */
 export type InsertMilestone = z.infer<typeof insertMilestoneSchema>;
-export type InsertPortfolioKeyDate = InsertMilestone;
+
+export type PortfolioKeyDate = typeof portfolioKeyDates.$inferSelect;
+export type InsertPortfolioKeyDate = z.infer<typeof insertPortfolioKeyDateSchema>;
+export type UpdatePortfolioKeyDateRequest = Partial<InsertPortfolioKeyDate>;
 
 export type Issue = typeof issues.$inferSelect;
 export type InsertIssue = z.infer<typeof insertIssueSchema>;
@@ -1765,12 +1792,10 @@ export type UpdateProjectRequest = Partial<InsertProject> & {
 export type CreateRiskRequest = InsertRisk;
 export type UpdateRiskRequest = Partial<InsertRisk>;
 
-/** @deprecated Renamed to CreatePortfolioKeyDateRequest. Alias kept for backward compatibility. */
+/** @deprecated Use InsertPortfolioKeyDate from the portfolioKeyDates table instead. */
 export type CreateMilestoneRequest = InsertMilestone;
-export type CreatePortfolioKeyDateRequest = CreateMilestoneRequest;
-/** @deprecated Renamed to UpdatePortfolioKeyDateRequest. Alias kept for backward compatibility. */
+/** @deprecated Use UpdatePortfolioKeyDateRequest from the portfolioKeyDates table instead. */
 export type UpdateMilestoneRequest = Partial<InsertMilestone>;
-export type UpdatePortfolioKeyDateRequest = UpdateMilestoneRequest;
 
 export type CreateIssueRequest = InsertIssue;
 export type UpdateIssueRequest = Partial<InsertIssue>;

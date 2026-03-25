@@ -8,6 +8,10 @@ import {
   usePortfolioRisks, 
   usePortfolioIssues,
   usePortfolioMilestones,
+  usePortfolioKeyDates,
+  useCreatePortfolioKeyDate,
+  useUpdatePortfolioKeyDate,
+  useDeletePortfolioKeyDate,
   type PortfolioRisk,
   type PortfolioIssue
 } from "@/hooks/use-portfolio-details";
@@ -241,6 +245,9 @@ export default function PortfolioDetails() {
           <TabsTrigger value="issues" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
             Issues
           </TabsTrigger>
+          <TabsTrigger value="key-dates" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
+            Key Dates
+          </TabsTrigger>
           <TabsTrigger value="dashboard" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
             Dashboard
           </TabsTrigger>
@@ -280,6 +287,9 @@ export default function PortfolioDetails() {
           <TabsContent value="issues">
             <IssuesTab portfolioId={id} />
           </TabsContent>
+          <TabsContent value="key-dates">
+            <KeyDatesTab portfolioId={id} />
+          </TabsContent>
           <TabsContent value="dashboard">
             <DashboardTab portfolioId={id} metrics={metrics} onNavigate={setActiveTab} />
           </TabsContent>
@@ -303,7 +313,7 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
   });
 
   const { data: issuesData } = usePortfolioIssues(portfolioId);
-  const { data: milestonesData } = usePortfolioMilestones(portfolioId);
+  const { data: keyDatesData } = usePortfolioKeyDates(portfolioId);
 
   const openIssues = useMemo(() => {
     if (!issuesData) return [];
@@ -316,15 +326,15 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
       .slice(0, 5);
   }, [issuesData]);
 
-  const upcomingMilestones = useMemo(() => {
-    if (!milestonesData) return [];
+  const upcomingKeyDates = useMemo(() => {
+    if (!keyDatesData) return [];
     const now = new Date();
     now.setHours(0, 0, 0, 0);
-    return milestonesData
-      .filter((m: any) => !m.completed && m.dueDate)
-      .sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+    return keyDatesData
+      .filter((kd: any) => !kd.completed && kd.date)
+      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .slice(0, 5);
-  }, [milestonesData]);
+  }, [keyDatesData]);
 
   const recentAssessment = useMemo(() => {
     if (!latestAssessment?.riskScore || !latestAssessment?.generatedAt) return null;
@@ -527,39 +537,43 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
                 <p className="text-sm text-muted-foreground">Total</p>
               </div>
             </div>
-            {upcomingMilestones.length > 0 && (
+            {upcomingKeyDates.length > 0 && (
               <div className="border-t pt-3 space-y-2">
-                {upcomingMilestones.map((ms: any) => {
+                {upcomingKeyDates.map((kd: any) => {
                   const now = new Date();
                   now.setHours(0, 0, 0, 0);
-                  const due = new Date(ms.dueDate);
+                  const due = new Date(kd.date);
                   const diffDays = Math.round((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
                   const isOverdue = diffDays < 0;
                   const isUrgent = diffDays >= 0 && diffDays <= 7;
 
-                  const statusColors: Record<string, string> = {
-                    "In Progress": "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
-                    "To Do": "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-                    Backlog: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
-                    Delayed: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+                  const keyDateStatusColors: Record<string, string> = {
+                    Upcoming: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+                    "At Risk": "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+                    Overdue: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+                    Completed: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
                   };
 
                   return (
-                    <div key={ms.id} className="flex items-start gap-2 p-2 rounded-md hover:bg-muted/50 transition-colors">
+                    <div key={kd.id} className="flex items-start gap-2 p-2 rounded-md hover:bg-muted/50 transition-colors">
                       <Target className={cn("h-3.5 w-3.5 mt-0.5 flex-shrink-0", isOverdue ? "text-rose-500" : isUrgent ? "text-amber-500" : "text-muted-foreground")} />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-sm font-medium truncate">{ms.title}</span>
-                          {ms.status && ms.status !== "Backlog" && (
-                            <Badge className={cn("text-[10px] px-1.5 py-0 h-4", statusColors[ms.status] || "bg-muted")}>
-                              {ms.status}
+                          <span className="text-sm font-medium truncate">{kd.title}</span>
+                          {kd.status && kd.status !== "Upcoming" && (
+                            <Badge className={cn("text-[10px] px-1.5 py-0 h-4", keyDateStatusColors[kd.status] || "bg-muted")}>
+                              {kd.status}
+                            </Badge>
+                          )}
+                          {kd.keyDateType && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                              {kd.keyDateType}
                             </Badge>
                           )}
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[11px] text-muted-foreground truncate">{ms.projectName}</span>
                           <span className={cn("text-[11px] font-medium", isOverdue ? "text-rose-500" : isUrgent ? "text-amber-500" : "text-muted-foreground")}>
-                            · {isOverdue ? `${Math.abs(diffDays)}d overdue` : diffDays === 0 ? "Due today" : `Due in ${diffDays}d`}
+                            {isOverdue ? `${Math.abs(diffDays)}d overdue` : diffDays === 0 ? "Due today" : `Due in ${diffDays}d`}
                           </span>
                           <span className="text-[11px] text-muted-foreground">
                             · {format(due, "MMM d, yyyy")}
@@ -2513,6 +2527,377 @@ function PortfolioTasksTab({ portfolioId, organizationId }: { portfolioId: numbe
   );
 }
 
+const KEY_DATE_TYPES = ["Deadline", "Governance", "Deliverable", "Phase Gate", "External", "Payment", "Review", "Go Live", "Other"] as const;
+const KEY_DATE_STATUSES = ["Upcoming", "At Risk", "Overdue", "Completed"] as const;
+
+function KeyDatesTab({ portfolioId }: { portfolioId: number }) {
+  const { data: keyDates, isLoading } = usePortfolioKeyDates(portfolioId);
+  const createMutation = useCreatePortfolioKeyDate(portfolioId);
+  const updateMutation = useUpdatePortfolioKeyDate(portfolioId);
+  const deleteMutation = useDeletePortfolioKeyDate(portfolioId);
+  const { toast } = useToast();
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingKeyDate, setEditingKeyDate] = useState<any>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    keyDateType: "Deadline",
+    date: "",
+    status: "Upcoming",
+    notes: "",
+  });
+
+  const resetForm = () => {
+    setFormData({ title: "", description: "", keyDateType: "Deadline", date: "", status: "Upcoming", notes: "" });
+    setEditingKeyDate(null);
+  };
+
+  const openCreate = () => {
+    resetForm();
+    setDialogOpen(true);
+  };
+
+  const openEdit = (kd: any) => {
+    setEditingKeyDate(kd);
+    setFormData({
+      title: kd.title || "",
+      description: kd.description || "",
+      keyDateType: kd.keyDateType || "Deadline",
+      date: kd.date ? kd.date.split("T")[0] : "",
+      status: kd.status || "Upcoming",
+      notes: kd.notes || "",
+    });
+    setDialogOpen(true);
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.title.trim() || !formData.date) {
+      toast({ title: "Title and date are required", variant: "destructive" });
+      return;
+    }
+    try {
+      if (editingKeyDate) {
+        await updateMutation.mutateAsync({ id: editingKeyDate.id, ...formData });
+        toast({ title: "Key date updated" });
+      } else {
+        await createMutation.mutateAsync(formData);
+        toast({ title: "Key date created" });
+      }
+      setDialogOpen(false);
+      resetForm();
+    } catch {
+      toast({ title: "Failed to save key date", variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteMutation.mutateAsync(id);
+      toast({ title: "Key date deleted" });
+      setDeleteConfirmId(null);
+    } catch {
+      toast({ title: "Failed to delete key date", variant: "destructive" });
+    }
+  };
+
+  const handleToggleComplete = async (kd: any) => {
+    const newCompleted = !kd.completed;
+    await updateMutation.mutateAsync({
+      id: kd.id,
+      completed: newCompleted,
+      status: newCompleted ? "Completed" : "Upcoming",
+    });
+  };
+
+  const filteredKeyDates = useMemo(() => {
+    if (!keyDates) return [];
+    let filtered = [...keyDates];
+    if (searchQuery) {
+      const q = normalizeSearch(searchQuery);
+      filtered = filtered.filter(kd => 
+        normalizeSearch(kd.title || "").includes(q) || 
+        normalizeSearch(kd.description || "").includes(q)
+      );
+    }
+    if (filterType !== "all") {
+      filtered = filtered.filter(kd => kd.keyDateType === filterType);
+    }
+    if (filterStatus !== "all") {
+      filtered = filtered.filter(kd => kd.status === filterStatus);
+    }
+    return filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [keyDates, searchQuery, filterType, filterStatus]);
+
+  if (isLoading) {
+    return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search key dates..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              {KEY_DATE_TYPES.map(t => (
+                <SelectItem key={t} value={t}>{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              {KEY_DATE_STATUSES.map(s => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button onClick={openCreate} size="sm">
+          <Plus className="h-4 w-4 mr-1" />
+          Add Key Date
+        </Button>
+      </div>
+
+      {filteredKeyDates.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-lg font-medium mb-1">No key dates found</p>
+            <p className="text-sm text-muted-foreground mb-4">
+              {keyDates?.length === 0 ? "Add portfolio-level key dates to track important deadlines and milestones." : "No key dates match your filters."}
+            </p>
+            {keyDates?.length === 0 && (
+              <Button onClick={openCreate} size="sm">
+                <Plus className="h-4 w-4 mr-1" />
+                Add First Key Date
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10"></TableHead>
+                <TableHead>Title</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-10"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredKeyDates.map((kd) => {
+                const now = new Date();
+                now.setHours(0, 0, 0, 0);
+                const dateVal = new Date(kd.date);
+                const diffDays = Math.round((dateVal.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                const isOverdue = !kd.completed && diffDays < 0;
+
+                const statusColorMap: Record<string, string> = {
+                  Upcoming: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+                  "At Risk": "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+                  Overdue: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+                  Completed: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+                };
+
+                return (
+                  <TableRow key={kd.id} className={cn(kd.completed && "opacity-60")}>
+                    <TableCell>
+                      <Checkbox
+                        checked={!!kd.completed}
+                        onCheckedChange={() => handleToggleComplete(kd)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <p className={cn("font-medium text-sm", kd.completed && "line-through")}>{kd.title}</p>
+                        {kd.description && (
+                          <p className="text-xs text-muted-foreground truncate max-w-xs">{kd.description}</p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">{kd.keyDateType}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <span className={cn("text-sm", isOverdue && "text-rose-500 font-medium")}>
+                        {format(dateVal, "MMM d, yyyy")}
+                      </span>
+                      {!kd.completed && (
+                        <p className={cn("text-xs", isOverdue ? "text-rose-500" : diffDays <= 7 ? "text-amber-500" : "text-muted-foreground")}>
+                          {isOverdue ? `${Math.abs(diffDays)}d overdue` : diffDays === 0 ? "Today" : `In ${diffDays}d`}
+                        </p>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={cn("text-xs", statusColorMap[kd.status || "Upcoming"] || "bg-muted")}>
+                        {kd.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openEdit(kd)}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => setDeleteConfirmId(kd.id)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
+
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) { setDialogOpen(false); resetForm(); } }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>{editingKeyDate ? "Edit Key Date" : "Add Key Date"}</DialogTitle>
+            <DialogDescription>
+              {editingKeyDate ? "Update the portfolio key date details." : "Create a new portfolio-level key date."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Title *</Label>
+              <Input
+                value={formData.title}
+                onChange={(e) => setFormData(f => ({ ...f, title: e.target.value }))}
+                placeholder="e.g., Phase 1 Go-Live"
+              />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea
+                value={formData.description}
+                onChange={(e) => setFormData(f => ({ ...f, description: e.target.value }))}
+                placeholder="Optional description..."
+                rows={2}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Date *</Label>
+                <Input
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData(f => ({ ...f, date: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Type</Label>
+                <Select value={formData.keyDateType} onValueChange={(v) => setFormData(f => ({ ...f, keyDateType: v }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {KEY_DATE_TYPES.map(t => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Status</Label>
+              <Select value={formData.status} onValueChange={(v) => setFormData(f => ({ ...f, status: v }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {KEY_DATE_STATUSES.map(s => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Notes</Label>
+              <Textarea
+                value={formData.notes}
+                onChange={(e) => setFormData(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Additional notes..."
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>Cancel</Button>
+            <Button 
+              onClick={handleSubmit} 
+              disabled={createMutation.isPending || updateMutation.isPending}
+            >
+              {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              {editingKeyDate ? "Update" : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteConfirmId !== null} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Delete Key Date</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this key date? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>Cancel</Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 function DashboardTab({ portfolioId, metrics, onNavigate }: { 
   portfolioId: number; 
   metrics: any;
@@ -2520,7 +2905,7 @@ function DashboardTab({ portfolioId, metrics, onNavigate }: {
 }) {
   const { data: projects } = usePortfolioProjects(portfolioId);
   const { data: risks } = usePortfolioRisks(portfolioId);
-  const { data: milestones } = usePortfolioMilestones(portfolioId);
+  const { data: keyDates } = usePortfolioKeyDates(portfolioId);
 
   const healthData = [
     { name: "Healthy", value: metrics.healthCounts.green, color: "#10b981" },
@@ -2568,8 +2953,8 @@ function DashboardTab({ portfolioId, metrics, onNavigate }: {
     return acc;
   }, {} as Record<string, number>) || {};
 
-  const upcomingMilestones = milestones?.filter(m => !m.completed)
-    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+  const upcomingKeyDates = keyDates?.filter(kd => !kd.completed)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .slice(0, 5) || [];
 
   return (
@@ -2802,18 +3187,20 @@ function DashboardTab({ portfolioId, metrics, onNavigate }: {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {upcomingMilestones.map(m => (
-                <div key={m.id} className="flex items-center justify-between p-2 rounded-lg border" data-testid={`milestone-${m.id}`}>
+              {upcomingKeyDates.map(kd => (
+                <div key={kd.id} className="flex items-center justify-between p-2 rounded-lg border" data-testid={`key-date-${kd.id}`}>
                   <div>
-                    <p className="font-medium text-sm">{m.title}</p>
-                    <p className="text-xs text-muted-foreground">{m.projectName}</p>
+                    <p className="font-medium text-sm">{kd.title}</p>
+                    {kd.keyDateType && (
+                      <p className="text-xs text-muted-foreground">{kd.keyDateType}</p>
+                    )}
                   </div>
                   <Badge variant="outline" className="text-xs">
-                    {format(new Date(m.dueDate), 'MMM d')}
+                    {format(new Date(kd.date), 'MMM d')}
                   </Badge>
                 </div>
               ))}
-              {upcomingMilestones.length === 0 && (
+              {upcomingKeyDates.length === 0 && (
                 <div className="text-center py-4 text-muted-foreground text-sm">
                   No upcoming key dates
                 </div>

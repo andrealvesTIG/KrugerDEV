@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { z } from "zod";
-import { issues, projects, portfolios } from "@shared/schema";
+import { issues, projects, portfolios, insertPortfolioKeyDateSchema, updatePortfolioKeyDateSchema } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -313,6 +313,108 @@ export function registerPortfolioRoutes(app: Express) {
     } catch (err) {
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get portfolio key dates' : classified.message });
+    }
+  });
+
+  // --- Portfolio Key Dates (new table) ---
+  app.get('/api/portfolios/:id/key-dates', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const portfolioId = Number(req.params.id);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
+      if (!await userHasOrgAccess(userId, portfolio.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const keyDates = await storage.getPortfolioKeyDates(portfolioId);
+      res.json(keyDates);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get portfolio key dates' : classified.message });
+    }
+  });
+
+  app.post('/api/portfolios/:id/key-dates', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      requireEmailVerified(req);
+      const portfolioId = Number(req.params.id);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
+      if (!await userHasOrgAccess(userId, portfolio.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const parsed = insertPortfolioKeyDateSchema.safeParse({
+        ...req.body,
+        portfolioId,
+        organizationId: portfolio.organizationId,
+        createdBy: userId,
+      });
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Invalid key date data', errors: formatZodErrors(parsed.error) });
+      }
+      const keyDate = await storage.createPortfolioKeyDate(parsed.data);
+      logUserActivity(userId, 'portfolio_key_date_created', { portfolioId, keyDateId: keyDate.id });
+      res.status(201).json(keyDate);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create portfolio key date' : classified.message });
+    }
+  });
+
+  app.patch('/api/portfolios/:id/key-dates/:keyDateId', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      requireEmailVerified(req);
+      const portfolioId = Number(req.params.id);
+      const keyDateId = Number(req.params.keyDateId);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
+      if (!await userHasOrgAccess(userId, portfolio.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const existing = await storage.getPortfolioKeyDate(keyDateId);
+      if (!existing || existing.portfolioId !== portfolioId) {
+        return res.status(404).json({ message: 'Key date not found' });
+      }
+      const parsed = updatePortfolioKeyDateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Invalid key date data', errors: formatZodErrors(parsed.error) });
+      }
+      const updated = await storage.updatePortfolioKeyDate(keyDateId, parsed.data);
+      logUserActivity(userId, 'portfolio_key_date_updated', { portfolioId, keyDateId });
+      res.json(updated);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update portfolio key date' : classified.message });
+    }
+  });
+
+  app.delete('/api/portfolios/:id/key-dates/:keyDateId', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      requireEmailVerified(req);
+      const portfolioId = Number(req.params.id);
+      const keyDateId = Number(req.params.keyDateId);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
+      if (!await userHasOrgAccess(userId, portfolio.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const existing = await storage.getPortfolioKeyDate(keyDateId);
+      if (!existing || existing.portfolioId !== portfolioId) {
+        return res.status(404).json({ message: 'Key date not found' });
+      }
+      await storage.deletePortfolioKeyDate(keyDateId, userId);
+      logUserActivity(userId, 'portfolio_key_date_deleted', { portfolioId, keyDateId });
+      res.status(204).send();
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete portfolio key date' : classified.message });
     }
   });
 
@@ -811,7 +913,7 @@ export function registerPortfolioRoutes(app: Express) {
       const projects = await storage.getPortfolioProjects(portfolioId);
       const risks = await storage.getPortfolioRisks(portfolioId);
       const issues = await storage.getPortfolioIssues(portfolioId);
-      const milestones = await storage.getPortfolioMilestones(portfolioId);
+      const keyDates = await storage.getPortfolioKeyDates(portfolioId);
       
       // Calculate metrics
       const totalBudget = projects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
@@ -826,7 +928,7 @@ export function registerPortfolioRoutes(app: Express) {
       const openRisks = risks.filter(r => r.status === 'Open').length;
       const highRisks = risks.filter(r => r.probability === 'High' || r.impact === 'High').length;
       const openIssues = issues.filter(i => i.status === 'Open' || i.status === 'In Progress').length;
-      const upcomingMilestones = milestones.filter(m => !m.completed).length;
+      const upcomingKeyDates = keyDates.filter(kd => !kd.completed).length;
       
       res.json({
         portfolio,
@@ -840,8 +942,8 @@ export function registerPortfolioRoutes(app: Express) {
           highRisks,
           issueCount: issues.length,
           openIssues,
-          milestoneCount: milestones.length,
-          upcomingMilestones,
+          milestoneCount: keyDates.length,
+          upcomingMilestones: upcomingKeyDates,
         }
       });
     } catch (err) {

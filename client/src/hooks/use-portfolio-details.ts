@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import type { Portfolio, Project, Risk, Issue, Milestone } from "@shared/schema";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { Portfolio, Project, Risk, Issue, Milestone, PortfolioKeyDate } from "@shared/schema";
 
 export interface PortfolioOverview {
   portfolio: Portfolio;
@@ -73,6 +73,68 @@ export function usePortfolioMilestones(portfolioId: number) {
     queryKey: ['/api/portfolios', portfolioId, 'milestones'],
     queryFn: () => fetchJson(`/api/portfolios/${portfolioId}/milestones`),
     enabled: portfolioId > 0,
+  });
+}
+
+export function usePortfolioKeyDates(portfolioId: number) {
+  return useQuery<PortfolioKeyDate[]>({
+    queryKey: ['/api/portfolios', portfolioId, 'key-dates'],
+    queryFn: () => fetchJson(`/api/portfolios/${portfolioId}/key-dates`),
+    enabled: portfolioId > 0,
+  });
+}
+
+export function useCreatePortfolioKeyDate(portfolioId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: Partial<PortfolioKeyDate>) => {
+      const res = await fetch(`/api/portfolios/${portfolioId}/key-dates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Failed to create key date');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios', portfolioId, 'key-dates'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios', portfolioId, 'overview'] });
+    },
+  });
+}
+
+export function useUpdatePortfolioKeyDate(portfolioId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: Partial<PortfolioKeyDate> & { id: number }) => {
+      const res = await fetch(`/api/portfolios/${portfolioId}/key-dates/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Failed to update key date');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios', portfolioId, 'key-dates'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios', portfolioId, 'overview'] });
+    },
+  });
+}
+
+export function useDeletePortfolioKeyDate(portfolioId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (keyDateId: number) => {
+      const res = await fetch(`/api/portfolios/${portfolioId}/key-dates/${keyDateId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Failed to delete key date');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios', portfolioId, 'key-dates'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios', portfolioId, 'overview'] });
+    },
   });
 }
 

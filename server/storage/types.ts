@@ -9,6 +9,7 @@ import type {
   Project, InsertProject, UpdateProjectRequest,
   Risk, InsertRisk, UpdateRiskRequest,
   Milestone, InsertMilestone, UpdateMilestoneRequest,
+  PortfolioKeyDate, InsertPortfolioKeyDate, UpdatePortfolioKeyDateRequest,
   Issue, InsertIssue, UpdateIssueRequest,
   Task, InsertTask, UpdateTaskRequest,
   TaskChangeLog, InsertTaskChangeLog,
@@ -140,6 +141,11 @@ export interface IPortfolioStorage {
   getLatestRiskAssessmentsForOrg(organizationId: number): Promise<PortfolioRiskAssessment[]>;
   getPortfolioRiskAssessmentByShareToken(shareToken: string): Promise<PortfolioRiskAssessment | undefined>;
   getPortfolioRiskAssessmentHistory(portfolioId: number): Promise<Pick<PortfolioRiskAssessment, 'id' | 'riskScore' | 'generatedAt'>[]>;
+  getPortfolioKeyDates(portfolioId: number): Promise<PortfolioKeyDate[]>;
+  getPortfolioKeyDate(id: number): Promise<PortfolioKeyDate | undefined>;
+  createPortfolioKeyDate(data: InsertPortfolioKeyDate): Promise<PortfolioKeyDate>;
+  updatePortfolioKeyDate(id: number, updates: UpdatePortfolioKeyDateRequest): Promise<PortfolioKeyDate>;
+  deletePortfolioKeyDate(id: number, deletedBy?: string): Promise<void>;
 }
 
 export interface IProjectStorage {
