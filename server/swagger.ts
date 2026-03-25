@@ -1983,7 +1983,7 @@ const spec = {
     // ======================== PROJECTS ========================
     '/projects': {
       get: op('Projects', 'List projects', {
-        parameters: [qInt('orgId', true, 'Organization ID'), qInt('portfolioId', false, 'Filter by portfolio'), qStr('status', false, 'Filter by status')],
+        parameters: [qInt('organizationId', false, 'Filter by organization'), qInt('portfolioId', false, 'Filter by portfolio'), qStr('isInternal', false, 'Filter by internal status (true/false)'), qInt('page', false, 'Page number for pagination'), qInt('pageSize', false, 'Page size (default 10)')],
         responses: { ...r200('List of projects', arrOf('Project')), ...authRes },
       }),
       post: op('Projects', 'Create a new project', {
