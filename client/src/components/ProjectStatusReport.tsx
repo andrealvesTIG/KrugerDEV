@@ -584,7 +584,7 @@ export function ProjectStatusReport({
             <div className="space-y-0 divide-y divide-border">
               {changeRequests.slice(0, 5).map((cr) => (
                 <div key={cr.id} className="py-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                  <span className="min-w-0 truncate w-full sm:w-auto sm:flex-1">{cr.title || 'Untitled change request'}</span>
+                  <span className="min-w-0 break-words w-full sm:w-auto sm:flex-1">{cr.title || 'Untitled change request'}</span>
                   <span className="text-muted-foreground capitalize text-xs shrink-0">{cr.type?.replace('_', ' ') || 'Scope'}</span>
                   <Badge variant="outline" className={cn(
                     "text-xs shrink-0",
@@ -620,8 +620,8 @@ export function ProjectStatusReport({
             </h2>
             <div className="space-y-0 divide-y divide-border">
               {documents.slice(0, 5).map((doc) => (
-                <div key={doc.id} className="py-2 flex items-center justify-between gap-2 text-sm">
-                  <span className="min-w-0 truncate">{doc.title || 'Untitled document'}</span>
+                <div key={doc.id} className="py-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-sm">
+                  <span className="min-w-0 break-words w-full sm:w-auto sm:flex-1">{doc.title || 'Untitled document'}</span>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-muted-foreground capitalize text-xs">{doc.category?.replace('_', ' ') || 'General'}</span>
                     <span className="text-xs text-muted-foreground">v{doc.version || '1.0'}</span>
