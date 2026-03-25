@@ -228,7 +228,7 @@ function SortableTab({ tab, isAdmin, isReorderMode, activeSubmenu, onSubmenuChan
       <div
         ref={setNodeRef}
         style={style}
-        className="flex items-center"
+        className="flex items-center shrink-0"
         {...(canDrag ? { ...attributes, ...listeners } : {})}
       >
         {canDrag && (
@@ -256,7 +256,7 @@ function SortableTab({ tab, isAdmin, isReorderMode, activeSubmenu, onSubmenuChan
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center"
+      className="flex items-center shrink-0"
       {...(canDrag ? { ...attributes, ...listeners } : {})}
     >
       {canDrag && (
@@ -590,7 +590,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="w-full flex items-center h-auto gap-1 bg-muted/50 p-1 rounded-lg overflow-x-auto scrollbar-none" data-testid="dashboard-tabs">
+      <div className="w-full flex items-center h-auto gap-1 bg-muted/50 p-1 rounded-lg overflow-x-auto scrollbar-none" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }} data-testid="dashboard-tabs">
         <DndContext
           sensors={isOrgAdmin && isReorderMode ? activeSensors : noSensors}
           collisionDetection={closestCenter}
