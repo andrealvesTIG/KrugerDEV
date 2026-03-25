@@ -12,6 +12,25 @@ import cron from "node-cron";
 import { checkAndSendDueReports } from "./services/scheduledReports";
 import { runScheduledReminders } from "./services/timesheetReminderEngine";
 
+process.on('uncaughtException', (err) => {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes('Converting circular structure to JSON') || msg.includes('pg-pool')) {
+    console.error('[process] Database pool connection error (recovered):', msg);
+  } else {
+    console.error('[process] Uncaught exception:', msg);
+    process.exit(1);
+  }
+});
+
+process.on('unhandledRejection', (reason) => {
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  if (msg.includes('Converting circular structure to JSON') || msg.includes('pg-pool')) {
+    console.error('[process] Database pool rejection (recovered):', msg);
+  } else {
+    console.error('[process] Unhandled rejection:', msg);
+  }
+});
+
 const app = express();
 
 // Cookie parser middleware (for OAuth state fallback)
