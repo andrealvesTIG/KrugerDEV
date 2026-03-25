@@ -148,7 +148,7 @@ export function StatusReportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col w-[calc(100vw-2rem)] sm:w-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
@@ -207,15 +207,16 @@ export function StatusReportDialog({
               </p>
             </div>
 
-            <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/50">
-              <FileText className="h-10 w-10 text-muted-foreground" />
-              <div className="flex-1">
-                <p className="font-medium">{project.name}_Comprehensive_Status_Report.pdf</p>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-4 border rounded-lg bg-muted/50">
+              <FileText className="h-10 w-10 text-muted-foreground shrink-0 hidden sm:block" />
+              <div className="flex-1 min-w-0">
+                <p className="font-medium truncate text-sm sm:text-base">{project.name}_Comprehensive_Status_Report.pdf</p>
                 <p className="text-sm text-muted-foreground">PDF Document</p>
               </div>
               <Button 
                 onClick={handleDownloadPdf} 
                 disabled={isGeneratingPdf}
+                className="w-full sm:w-auto shrink-0"
                 data-testid="button-download-pdf"
               >
                 {isGeneratingPdf ? (
