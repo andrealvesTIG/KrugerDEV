@@ -11,6 +11,7 @@ import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useResour
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { useSidebarState } from "@/components/layout/Sidebar";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useForm, Controller } from "react-hook-form";
 import { useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -278,6 +279,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   // Sidebar is w-72 (288px) when expanded, w-20 (80px) when collapsed
   const { isCollapsed, setIsCollapsed: setSidebarCollapsed } = useSidebarState();
   const sidebarWasCollapsed = useRef(false);
+  const isMobile = useIsMobile();
   const sidebarWidth = isCollapsed ? 80 : 288;
 
   useEffect(() => {
@@ -577,7 +579,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
         "space-y-4",
         isFullscreen && "fixed top-14 right-0 bottom-0 z-40 bg-background p-4 flex flex-col overflow-hidden"
       )}
-      style={isFullscreen ? { left: sidebarWidth } : undefined}
+      style={isFullscreen ? { left: isMobile ? 0 : sidebarWidth } : undefined}
     >
       {/* Planner project banner */}
       {isPlannerProject && (
