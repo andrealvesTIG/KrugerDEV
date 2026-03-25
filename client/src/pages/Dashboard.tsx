@@ -238,11 +238,11 @@ function SortableTab({ tab, isAdmin, isReorderMode, activeSubmenu, onSubmenuChan
           variant="ghost"
           size="sm"
           onClick={() => onSubmenuChange(tab.id)}
-          className={`flex items-center gap-2 h-9 px-3 rounded-lg transition-colors ${isActive ? 'bg-background shadow-sm' : 'hover:bg-background/50'}`}
+          className={`flex items-center gap-1 sm:gap-2 h-auto sm:h-9 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors ${isActive ? 'bg-background shadow-sm' : 'hover:bg-background/50'}`}
           data-testid={`tab-${tab.id}`}
         >
-          <Sparkles className="h-4 w-4" />
-          <span className="hidden sm:inline truncate max-w-32">{tab.label}</span>
+          <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+          <span className="text-[11px] sm:text-sm truncate max-w-20 sm:max-w-32">{tab.label}</span>
         </Button>
       </div>
     );
@@ -267,12 +267,12 @@ function SortableTab({ tab, isAdmin, isReorderMode, activeSubmenu, onSubmenuChan
           <Button
             variant="ghost"
             size="sm"
-            className={`flex items-center gap-1.5 h-9 px-3 rounded-lg transition-colors ${isActive ? 'bg-background shadow-sm' : 'hover:bg-background/50'}`}
+            className={`flex items-center gap-1 sm:gap-1.5 h-auto sm:h-9 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors ${isActive ? 'bg-background shadow-sm' : 'hover:bg-background/50'}`}
             data-testid={`tab-${tab.id}`}
           >
-            <Icon className="h-4 w-4" />
-            <span className="hidden sm:inline">{tab.label}</span>
-            <ChevronDown className="h-3 w-3 opacity-50" />
+            <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            <span className="text-[11px] sm:text-sm truncate max-w-16 sm:max-w-none">{tab.label}</span>
+            <ChevronDown className="h-3 w-3 opacity-50 shrink-0" />
           </Button>
         </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-48 max-w-[300px]">
