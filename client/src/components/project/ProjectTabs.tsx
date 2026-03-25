@@ -3342,19 +3342,20 @@ export function InvoicesTab({ projectId, organizationId, contractTotal }: { proj
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2">
+      <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <CardTitle>Invoices</CardTitle>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {dynamics365Status?.configured && (
             <Button 
               variant="outline" 
+              size="sm"
               onClick={() => setIsDynamicsImportOpen(true)} 
               data-testid="button-import-dynamics"
             >
               <Download className="h-4 w-4 mr-2" /> Import from Dynamics
             </Button>
           )}
-          <Button onClick={() => { setEditingInvoice(null); setUploadedFile(null); setIsDialogOpen(true); }} data-testid="button-add-invoice">
+          <Button size="sm" onClick={() => { setEditingInvoice(null); setUploadedFile(null); setIsDialogOpen(true); }} data-testid="button-add-invoice">
             <Plus className="h-4 w-4 mr-2" /> Add Invoice
           </Button>
         </div>
