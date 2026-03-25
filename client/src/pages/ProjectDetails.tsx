@@ -3191,11 +3191,11 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
             </div>
             <div>
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Health Status</Label>
-              <div className="flex flex-wrap rounded-md border border-border bg-muted/30 p-0.5 min-h-[2rem] items-center" data-testid="toggle-project-health">
+              <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted/30 p-1" data-testid="toggle-project-health">
                 {[
-                  { value: 'Green', bg: 'bg-emerald-500', bgLight: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300' },
-                  { value: 'Yellow', bg: 'bg-amber-500', bgLight: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300' },
-                  { value: 'Red', bg: 'bg-rose-500', bgLight: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300' },
+                  { value: 'Green', label: 'Green', bg: 'bg-emerald-500', bgLight: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', ring: 'ring-emerald-500/30' },
+                  { value: 'Yellow', label: 'Yellow', bg: 'bg-amber-500', bgLight: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', ring: 'ring-amber-500/30' },
+                  { value: 'Red', label: 'Red', bg: 'bg-rose-500', bgLight: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300', ring: 'ring-rose-500/30' },
                 ].map((option) => {
                   const isSelected = project.health === option.value;
                   return (
@@ -3204,13 +3204,18 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
                       type="button"
                       onClick={() => handleHealthChange(option.value)}
                       className={cn(
-                        "flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all",
-                        isSelected ? `${option.bgLight} ${option.text}` : "text-muted-foreground hover:bg-muted/80"
+                        "flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all",
+                        isSelected
+                          ? `${option.bgLight} ${option.text} ring-2 ${option.ring} shadow-sm`
+                          : "text-muted-foreground hover:bg-muted/80"
                       )}
                       data-testid={`health-option-${option.value.toLowerCase()}`}
                     >
-                      <span className={cn("w-1.5 h-1.5 rounded-full", isSelected ? option.bg : "bg-muted-foreground/30")} />
-                      {option.value}
+                      <span className={cn(
+                        "w-2.5 h-2.5 rounded-full transition-all shrink-0",
+                        isSelected ? `${option.bg} shadow-sm` : "bg-muted-foreground/30"
+                      )} />
+                      {option.label}
                     </button>
                   );
                 })}
