@@ -381,7 +381,7 @@ export default function RadarCanvas({
       const cx = w / 2 + panOffset.x;
       const cy = h / 2 + panOffset.y;
       const radius = getRadius(w, h);
-      const clipRadius = baseRadius(w, h);
+      const clipRadius = zoom > 1 ? Math.max(radius, Math.max(w, h)) : baseRadius(w, h);
 
       const dt = timestamp - lastTimeRef.current;
       lastTimeRef.current = timestamp;
@@ -839,10 +839,10 @@ export default function RadarCanvas({
     (px: number, py: number) => {
       const cx = dims.width / 2 + panOffset.x;
       const cy = dims.height / 2 + panOffset.y;
-      const cr = baseRadius(dims.width, dims.height);
+      const cr = zoom > 1 ? Math.max(getRadius(dims.width, dims.height), Math.max(dims.width, dims.height)) : baseRadius(dims.width, dims.height);
       return Math.abs(px - cx) <= cr + 40 && Math.abs(py - cy) <= cr + 40;
     },
-    [dims, panOffset]
+    [dims, panOffset, zoom]
   );
 
   const handleMouseMove = useCallback(
