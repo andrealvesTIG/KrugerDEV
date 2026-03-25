@@ -2701,221 +2701,219 @@ function KeyDatesTab({ portfolioId }: { portfolioId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search key dates..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle>Key Dates</CardTitle>
+            <CardDescription>Portfolio-level key dates and deadlines</CardDescription>
           </div>
-          <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              {KEY_DATE_TYPES.map(t => (
-                <SelectItem key={t} value={t}>{t}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              {KEY_DATE_STATUSES.map(s => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <Button onClick={openCreate} size="sm">
-          <Plus className="h-4 w-4 mr-1" />
-          Add Key Date
-        </Button>
-      </div>
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Key Date
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-2 mb-4">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search key dates..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {KEY_DATE_TYPES.map(t => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                {KEY_DATE_STATUSES.map(s => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-      {filteredKeyDates.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium mb-1">No key dates found</p>
-            <p className="text-sm text-muted-foreground mb-4">
-              {keyDates?.length === 0 ? "Add portfolio-level key dates to track important deadlines and milestones." : "No key dates match your filters."}
-            </p>
-            {keyDates?.length === 0 && (
-              <Button onClick={openCreate} size="sm">
-                <Plus className="h-4 w-4 mr-1" />
-                Add First Key Date
-              </Button>
+          <div className="rounded-md border">
+            <table className="w-full">
+              <thead className="bg-muted/50">
+                <tr className="border-b">
+                  <th className="p-3 w-10"></th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">
+                    <button onClick={() => handleSort("title")} className="flex items-center hover:text-foreground transition-colors">
+                      Key Date <SortIcon field="title" />
+                    </button>
+                  </th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">
+                    <button onClick={() => handleSort("keyDateType")} className="flex items-center hover:text-foreground transition-colors">
+                      Type <SortIcon field="keyDateType" />
+                    </button>
+                  </th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">
+                    <button onClick={() => handleSort("date")} className="flex items-center hover:text-foreground transition-colors">
+                      Date <SortIcon field="date" />
+                    </button>
+                  </th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">
+                    <button onClick={() => handleSort("status")} className="flex items-center hover:text-foreground transition-colors">
+                      Status <SortIcon field="status" />
+                    </button>
+                  </th>
+                  <th className="p-3 w-10"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredKeyDates.map((kd) => {
+                  const now = new Date();
+                  now.setHours(0, 0, 0, 0);
+                  const dateVal = new Date(kd.date);
+                  const diffDays = Math.round((dateVal.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                  const isOverdue = !kd.completed && diffDays < 0;
+
+                  const statusColorMap: Record<string, string> = {
+                    Upcoming: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+                    "At Risk": "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+                    Overdue: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+                    Completed: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+                  };
+
+                  const isEditingThis = (field: string) => editingCell?.id === kd.id && editingCell?.field === field;
+
+                  return (
+                    <tr key={kd.id} className={cn("border-b hover:bg-muted/30 transition-colors", kd.completed && "opacity-60")}>
+                      <td className="p-3">
+                        <Checkbox
+                          checked={!!kd.completed}
+                          onCheckedChange={() => handleToggleComplete(kd)}
+                        />
+                      </td>
+                      <td className="p-3 max-w-[250px]">
+                        {isEditingThis("title") ? (
+                          <Input
+                            value={editingValue}
+                            onChange={(e) => setEditingValue(e.target.value)}
+                            onBlur={saveInlineEdit}
+                            onKeyDown={handleInlineKeyDown}
+                            autoFocus
+                            className="h-8 text-sm"
+                          />
+                        ) : (
+                          <div className="cursor-pointer group min-w-0" onDoubleClick={() => startInlineEdit(kd, "title")}>
+                            <p className={cn("font-medium truncate group-hover:text-primary", kd.completed && "line-through")}>{kd.title}</p>
+                            {kd.description && (
+                              <p className="text-sm text-muted-foreground truncate">{kd.description}</p>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {isEditingThis("keyDateType") ? (
+                          <Select value={editingValue} onValueChange={(v) => { setEditingValue(v); setTimeout(() => { updateMutation.mutateAsync({ id: kd.id, keyDateType: v }).catch(() => toast({ title: "Failed to update", variant: "destructive" })); setEditingCell(null); }, 0); }}>
+                            <SelectTrigger className="h-8 text-xs w-[130px]" autoFocus>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {KEY_DATE_TYPES.map(t => (
+                                <SelectItem key={t} value={t}>{t}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Badge variant="outline" className="text-xs cursor-pointer hover:border-primary" onDoubleClick={() => startInlineEdit(kd, "keyDateType")}>{kd.keyDateType}</Badge>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {isEditingThis("date") ? (
+                          <Input
+                            type="date"
+                            value={editingValue}
+                            onChange={(e) => setEditingValue(e.target.value)}
+                            onBlur={saveInlineEdit}
+                            onKeyDown={handleInlineKeyDown}
+                            autoFocus
+                            className="h-8 text-sm w-[150px]"
+                          />
+                        ) : (
+                          <div className="cursor-pointer group" onDoubleClick={() => startInlineEdit(kd, "date")}>
+                            <span className={cn("text-sm group-hover:text-primary", isOverdue && "text-rose-500 font-medium")}>
+                              {format(dateVal, "MMM d, yyyy")}
+                            </span>
+                            {!kd.completed && (
+                              <p className={cn("text-xs", isOverdue ? "text-rose-500" : diffDays <= 7 ? "text-amber-500" : "text-muted-foreground")}>
+                                {isOverdue ? `${Math.abs(diffDays)}d overdue` : diffDays === 0 ? "Today" : `In ${diffDays}d`}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {isEditingThis("status") ? (
+                          <Select value={editingValue} onValueChange={(v) => { setEditingValue(v); setTimeout(() => { updateMutation.mutateAsync({ id: kd.id, status: v, completed: v === "Completed" }).catch(() => toast({ title: "Failed to update", variant: "destructive" })); setEditingCell(null); }, 0); }}>
+                            <SelectTrigger className="h-8 text-xs w-[130px]" autoFocus>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {KEY_DATE_STATUSES.map(s => (
+                                <SelectItem key={s} value={s}>{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Badge className={cn("text-xs cursor-pointer hover:ring-2 hover:ring-primary/30", statusColorMap[kd.status || "Upcoming"] || "bg-muted")} onDoubleClick={() => startInlineEdit(kd, "status")}>
+                            {kd.status}
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEdit(kd)}>
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => setDeleteConfirmId(kd.id)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {filteredKeyDates.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                {keyDates?.length === 0 
+                  ? "No key dates yet. Click \"Add Key Date\" to track important deadlines and milestones."
+                  : "No key dates match your filters."}
+              </div>
             )}
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10"></TableHead>
-                <TableHead>
-                  <button onClick={() => handleSort("title")} className="flex items-center hover:text-foreground transition-colors font-medium">
-                    Title <SortIcon field="title" />
-                  </button>
-                </TableHead>
-                <TableHead>
-                  <button onClick={() => handleSort("keyDateType")} className="flex items-center hover:text-foreground transition-colors font-medium">
-                    Type <SortIcon field="keyDateType" />
-                  </button>
-                </TableHead>
-                <TableHead>
-                  <button onClick={() => handleSort("date")} className="flex items-center hover:text-foreground transition-colors font-medium">
-                    Date <SortIcon field="date" />
-                  </button>
-                </TableHead>
-                <TableHead>
-                  <button onClick={() => handleSort("status")} className="flex items-center hover:text-foreground transition-colors font-medium">
-                    Status <SortIcon field="status" />
-                  </button>
-                </TableHead>
-                <TableHead className="w-10"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredKeyDates.map((kd) => {
-                const now = new Date();
-                now.setHours(0, 0, 0, 0);
-                const dateVal = new Date(kd.date);
-                const diffDays = Math.round((dateVal.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-                const isOverdue = !kd.completed && diffDays < 0;
-
-                const statusColorMap: Record<string, string> = {
-                  Upcoming: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-                  "At Risk": "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-                  Overdue: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
-                  Completed: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-                };
-
-                const isEditingThis = (field: string) => editingCell?.id === kd.id && editingCell?.field === field;
-
-                return (
-                  <TableRow key={kd.id} className={cn(kd.completed && "opacity-60")}>
-                    <TableCell>
-                      <Checkbox
-                        checked={!!kd.completed}
-                        onCheckedChange={() => handleToggleComplete(kd)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {isEditingThis("title") ? (
-                        <Input
-                          value={editingValue}
-                          onChange={(e) => setEditingValue(e.target.value)}
-                          onBlur={saveInlineEdit}
-                          onKeyDown={handleInlineKeyDown}
-                          autoFocus
-                          className="h-8 text-sm"
-                        />
-                      ) : (
-                        <div className="cursor-pointer group" onDoubleClick={() => startInlineEdit(kd, "title")}>
-                          <p className={cn("font-medium text-sm group-hover:text-primary", kd.completed && "line-through")}>{kd.title}</p>
-                          {kd.description && (
-                            <p className="text-xs text-muted-foreground truncate max-w-xs">{kd.description}</p>
-                          )}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {isEditingThis("keyDateType") ? (
-                        <Select value={editingValue} onValueChange={(v) => { setEditingValue(v); setTimeout(() => { updateMutation.mutateAsync({ id: kd.id, keyDateType: v }).catch(() => toast({ title: "Failed to update", variant: "destructive" })); setEditingCell(null); }, 0); }}>
-                          <SelectTrigger className="h-8 text-xs w-[130px]" autoFocus>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {KEY_DATE_TYPES.map(t => (
-                              <SelectItem key={t} value={t}>{t}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Badge variant="outline" className="text-xs cursor-pointer hover:border-primary" onDoubleClick={() => startInlineEdit(kd, "keyDateType")}>{kd.keyDateType}</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {isEditingThis("date") ? (
-                        <Input
-                          type="date"
-                          value={editingValue}
-                          onChange={(e) => setEditingValue(e.target.value)}
-                          onBlur={saveInlineEdit}
-                          onKeyDown={handleInlineKeyDown}
-                          autoFocus
-                          className="h-8 text-sm w-[150px]"
-                        />
-                      ) : (
-                        <div className="cursor-pointer group" onDoubleClick={() => startInlineEdit(kd, "date")}>
-                          <span className={cn("text-sm group-hover:text-primary", isOverdue && "text-rose-500 font-medium")}>
-                            {format(dateVal, "MMM d, yyyy")}
-                          </span>
-                          {!kd.completed && (
-                            <p className={cn("text-xs", isOverdue ? "text-rose-500" : diffDays <= 7 ? "text-amber-500" : "text-muted-foreground")}>
-                              {isOverdue ? `${Math.abs(diffDays)}d overdue` : diffDays === 0 ? "Today" : `In ${diffDays}d`}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {isEditingThis("status") ? (
-                        <Select value={editingValue} onValueChange={(v) => { setEditingValue(v); setTimeout(() => { updateMutation.mutateAsync({ id: kd.id, status: v, completed: v === "Completed" }).catch(() => toast({ title: "Failed to update", variant: "destructive" })); setEditingCell(null); }, 0); }}>
-                          <SelectTrigger className="h-8 text-xs w-[130px]" autoFocus>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {KEY_DATE_STATUSES.map(s => (
-                              <SelectItem key={s} value={s}>{s}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Badge className={cn("text-xs cursor-pointer hover:ring-2 hover:ring-primary/30", statusColorMap[kd.status || "Upcoming"] || "bg-muted")} onDoubleClick={() => startInlineEdit(kd, "status")}>
-                          {kd.status}
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openEdit(kd)}>
-                            <Pencil className="h-4 w-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => setDeleteConfirmId(kd.id)}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </Card>
+          </div>
+        </CardContent>
+      </Card>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) { setDialogOpen(false); resetForm(); } }}>
