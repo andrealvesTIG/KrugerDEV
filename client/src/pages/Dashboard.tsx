@@ -587,10 +587,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className={cn(
-        "w-full flex items-center h-auto gap-1 bg-muted/50 p-1 rounded-lg",
-        !isReorderMode && "overflow-x-auto scrollbar-none"
-      )} style={!isReorderMode ? { WebkitOverflowScrolling: 'touch' } : undefined} data-testid="dashboard-tabs">
+      <div className="w-full flex flex-wrap items-center h-auto gap-1 bg-muted/50 p-1 rounded-lg" data-testid="dashboard-tabs">
         {isReorderMode ? (
           <DndContext
             sensors={activeSensors}
@@ -615,7 +612,7 @@ export default function Dashboard() {
           </DndContext>
         ) : (
           visibleTabs.map((tab) => (
-            <div key={tab.id} className="flex items-center shrink-0">
+            <div key={tab.id} className="flex items-center">
               <TabContent tab={tab} activeSubmenu={activeSubmenu} onSubmenuChange={handleSubmenuChange} />
             </div>
           ))
