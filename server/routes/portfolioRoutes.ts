@@ -339,7 +339,10 @@ export function registerPortfolioRoutes(app: Express) {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
-      requireEmailVerified(req);
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
       const portfolioId = Number(req.params.id);
       const portfolio = await storage.getPortfolio(portfolioId);
       if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
@@ -368,7 +371,10 @@ export function registerPortfolioRoutes(app: Express) {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
-      requireEmailVerified(req);
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
       const portfolioId = Number(req.params.id);
       const keyDateId = Number(req.params.keyDateId);
       const portfolio = await storage.getPortfolio(portfolioId);
@@ -397,7 +403,10 @@ export function registerPortfolioRoutes(app: Express) {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
-      requireEmailVerified(req);
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
       const portfolioId = Number(req.params.id);
       const keyDateId = Number(req.params.keyDateId);
       const portfolio = await storage.getPortfolio(portfolioId);
