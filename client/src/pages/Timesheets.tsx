@@ -377,6 +377,9 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   const tableContainerRef = useRef<HTMLDivElement | null>(null);
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
+  const hasChangesRef = useRef(hasChanges);
+  hasChangesRef.current = hasChanges;
+
   // Undo history
   const [undoHistory, setUndoHistory] = useState<Record<string, Record<string, { hours: string; notes: string; id?: number }>>[]>([]);
   const isUndoingRef = useRef(false);
@@ -616,7 +619,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
               id: serverId
             };
             changed = true;
-          } else if (!hasChanges) {
+          } else if (!hasChangesRef.current) {
             const cell = data[task.id][dateKey];
             if (cell.hours !== serverHours || cell.notes !== serverNotes || cell.id !== serverId) {
               data[task.id][dateKey] = {
@@ -638,7 +641,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
       
       return changed ? data : prevGridData;
     });
-  }, [entries, assignedTasks, dates, setGridData, hasChanges]);
+  }, [entries, assignedTasks, dates, setGridData]);
 
   const handleHoursChange = (taskId: number, dateKey: string, value: string) => {
     // Allow only numbers and one decimal point
