@@ -3233,8 +3233,10 @@ export default function Timesheets() {
         });
       }
 
+      setHasChanges(false);
+
       if (!silent) {
-        queryClient.invalidateQueries({ queryKey: ["/api/timesheets"] });
+        await queryClient.invalidateQueries({ queryKey: ["/api/timesheets"] });
 
         if (validationErrors.length > 0) {
           const noteErrors = validationErrors.filter((e: any) => e.message?.includes('Notes') || e.message?.includes('notes'));
@@ -3264,8 +3266,6 @@ export default function Timesheets() {
           toast({ title: "Saved", description: "Your timesheet has been saved" });
         }
       }
-
-      setHasChanges(false);
     } catch (err: any) {
       if (!silent) {
         const errorData = err?.data || {};
