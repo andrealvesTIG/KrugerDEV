@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from "react";
-import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { ZoomIn, ZoomOut, Maximize2, Minimize2 } from "lucide-react";
 
 export type HorizontalMetric = "riskScore" | "impactScore" | "probability" | "costExposureNorm";
 
@@ -189,6 +189,25 @@ export default function RadarCanvas({
   } | null>(null);
   const [dims, setDims] = useState({ width: 800, height: 600 });
   const [zoom, setZoom] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFsChange);
+    return () => document.removeEventListener("fullscreenchange", handleFsChange);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      el.requestFullscreen();
+    }
+  }, []);
 
   const prevScoresRef = useRef<Map<string, number>>(new Map());
   const pulseRef = useRef<Map<string, number>>(new Map());
@@ -813,7 +832,7 @@ export default function RadarCanvas({
     : "bg-white/80 border-slate-300/50 text-slate-600 hover:bg-slate-100 hover:text-green-600";
 
   return (
-    <div ref={containerRef} className="relative w-full h-full flex items-center justify-center">
+    <div ref={containerRef} className={`relative w-full h-full flex items-center justify-center ${isFullscreen ? (isDark ? "bg-[#0f172a]" : "bg-slate-100") : ""}`}>
       <canvas
         ref={canvasRef}
         onMouseMove={handleMouseMove}
@@ -822,6 +841,13 @@ export default function RadarCanvas({
         onWheel={handleWheel}
       />
       <div className="absolute top-2 right-2 flex flex-col gap-1 z-40">
+        <button
+          onClick={toggleFullscreen}
+          className={`p-1.5 rounded border transition-colors ${zoomBtnCls}`}
+          title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+        >
+          {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+        </button>
         <button
           onClick={() => setZoom((z) => clamp(z + 0.2, 0.5, 3))}
           className={`p-1.5 rounded border transition-colors ${zoomBtnCls}`}
@@ -841,7 +867,7 @@ export default function RadarCanvas({
           className={`p-1.5 rounded border transition-colors ${zoomBtnCls}`}
           title="Reset Zoom"
         >
-          <Maximize2 className="w-3.5 h-3.5" />
+          <span className={`text-[9px] font-bold ${isDark ? "text-slate-300" : "text-slate-600"}`}>1:1</span>
         </button>
         <div className={`text-[9px] text-center font-mono mt-0.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
           {Math.round(zoom * 100)}%

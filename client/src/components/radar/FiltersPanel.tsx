@@ -56,7 +56,12 @@ export default function FiltersPanel({ filters, onChange, projects, portfolios, 
     onChange({ ...filters, ...partial });
   };
 
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.innerWidth < 768;
+    }
+    return false;
+  });
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const animRef = useRef<number>(0);
