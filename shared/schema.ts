@@ -320,8 +320,8 @@ export const healthStatusHistory = pgTable("health_status_history", {
 // Note: Risks are now consolidated into the issues table with itemType = "risk"
 // The 'risks' table is deprecated - use issues with itemType filter instead
 
-// Milestones
-/** @deprecated Use tasks table with isMilestone=true instead. This table is kept for backward compatibility but is no longer read from or written to. All milestone data has been migrated to the tasks table. */
+// Portfolio Key Dates (formerly Milestones)
+/** @deprecated Use tasks table with isMilestone=true instead. This table is kept for backward compatibility but is no longer read from or written to. All portfolio key date data has been migrated to the tasks table. */
 export const milestones = pgTable("milestones", {
   id: serial("id").primaryKey(),
   projectId: integer("project_id").references(() => projects.id).notNull(),
@@ -1589,6 +1589,7 @@ const baseRiskSchema = createInsertSchema(issues).omit({ id: true, createdAt: tr
 export const insertRiskSchema = baseRiskSchema.extend({
   escalatedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),
 });
+/** @deprecated Renamed to Portfolio Key Dates. Schema kept for backward compatibility. */
 export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true });
 // Extend to handle date strings for escalatedAt field
 const baseIssueSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
@@ -1657,8 +1658,12 @@ export type CustomPortfolioProject = typeof customPortfolioProjects.$inferSelect
 export type Project = typeof projects.$inferSelect;
 export type InsertProject = z.infer<typeof insertProjectSchema>;
 
+/** @deprecated Renamed to PortfolioKeyDate. Alias kept for backward compatibility. */
 export type Milestone = typeof milestones.$inferSelect;
+export type PortfolioKeyDate = Milestone;
+/** @deprecated Renamed to InsertPortfolioKeyDate. Alias kept for backward compatibility. */
 export type InsertMilestone = z.infer<typeof insertMilestoneSchema>;
+export type InsertPortfolioKeyDate = InsertMilestone;
 
 export type Issue = typeof issues.$inferSelect;
 export type InsertIssue = z.infer<typeof insertIssueSchema>;
@@ -1760,8 +1765,12 @@ export type UpdateProjectRequest = Partial<InsertProject> & {
 export type CreateRiskRequest = InsertRisk;
 export type UpdateRiskRequest = Partial<InsertRisk>;
 
+/** @deprecated Renamed to CreatePortfolioKeyDateRequest. Alias kept for backward compatibility. */
 export type CreateMilestoneRequest = InsertMilestone;
+export type CreatePortfolioKeyDateRequest = CreateMilestoneRequest;
+/** @deprecated Renamed to UpdatePortfolioKeyDateRequest. Alias kept for backward compatibility. */
 export type UpdateMilestoneRequest = Partial<InsertMilestone>;
+export type UpdatePortfolioKeyDateRequest = UpdateMilestoneRequest;
 
 export type CreateIssueRequest = InsertIssue;
 export type UpdateIssueRequest = Partial<InsertIssue>;
