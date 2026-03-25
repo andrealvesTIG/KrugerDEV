@@ -13,7 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -228,7 +227,7 @@ export function TeamReviewDashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-3">
-          <ScrollArea className="max-h-[500px]">
+          <div className="max-h-[calc(100vh-22rem)] overflow-y-auto">
             <div className="space-y-2">
               {filteredTeam.map((member) => {
                 const compliance = Math.round((member.totalHours / 40) * 100);
@@ -299,7 +298,7 @@ export function TeamReviewDashboard() {
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
         </CardContent>
       </Card>
 
