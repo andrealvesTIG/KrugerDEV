@@ -258,11 +258,11 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
           {sortedSteps.map((step, index) => (
             <div
               key={step.stepKey}
-              className={`flex items-center justify-between p-4 rounded-lg border hover-elevate ${step.isActive === false ? 'opacity-50' : ''}`}
+              className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-lg border hover-elevate overflow-hidden ${step.isActive === false ? 'opacity-50' : ''}`}
               data-testid={`workflow-step-${step.stepKey}`}
             >
-              <div className="flex items-center gap-4">
-                <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex flex-col gap-1 shrink-0">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -288,17 +288,17 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
                     </svg>
                   </Button>
                 </div>
-                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-medium text-sm">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-medium text-sm shrink-0">
                   {index + 1}
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{step.label}</span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium truncate">{step.label}</span>
                     {step.isActive === false && (
                       <Badge variant="outline" className="text-xs">Disabled</Badge>
                     )}
                   </div>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-sm text-muted-foreground line-clamp-2">
                     {step.description || "No description"}
                   </div>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -317,7 +317,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                 <Switch
                   checked={step.isActive !== false}
                   onCheckedChange={() => handleToggleActive(step)}
