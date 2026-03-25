@@ -242,7 +242,7 @@ function SortableTab({ tab, isAdmin, isReorderMode, activeSubmenu, onSubmenuChan
           data-testid={`tab-${tab.id}`}
         >
           <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
-          <span className="text-[11px] sm:text-sm truncate max-w-20 sm:max-w-32">{tab.label}</span>
+          <span className="text-[11px] sm:text-sm whitespace-nowrap">{tab.label}</span>
         </Button>
       </div>
     );
@@ -271,7 +271,7 @@ function SortableTab({ tab, isAdmin, isReorderMode, activeSubmenu, onSubmenuChan
             data-testid={`tab-${tab.id}`}
           >
             <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
-            <span className="text-[11px] sm:text-sm truncate max-w-16 sm:max-w-none">{tab.label}</span>
+            <span className="text-[11px] sm:text-sm whitespace-nowrap">{tab.label}</span>
             <ChevronDown className="h-3 w-3 opacity-50 shrink-0" />
           </Button>
         </DropdownMenuTrigger>
@@ -590,7 +590,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="w-full flex flex-wrap items-center h-auto gap-1 bg-muted/50 p-1 rounded-lg" data-testid="dashboard-tabs">
+      <div className="w-full flex items-center h-auto gap-1 bg-muted/50 p-1 rounded-lg overflow-x-auto scrollbar-none" data-testid="dashboard-tabs">
         <DndContext
           sensors={isOrgAdmin && isReorderMode ? activeSensors : noSensors}
           collisionDetection={closestCenter}
