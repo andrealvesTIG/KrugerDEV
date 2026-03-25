@@ -190,6 +190,11 @@ export default function RadarCanvas({
   const [dims, setDims] = useState({ width: 800, height: 600 });
   const [zoom, setZoom] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const isPanningRef = useRef(false);
+  const panStartRef = useRef({ x: 0, y: 0 });
+  const panStartOffsetRef = useRef({ x: 0, y: 0 });
+  const didPanRef = useRef(false);
 
   useEffect(() => {
     const handleFsChange = () => {
@@ -208,6 +213,85 @@ export default function RadarCanvas({
       el.requestFullscreen();
     }
   }, []);
+
+  const handlePanMove = useCallback((clientX: number, clientY: number) => {
+    if (!isPanningRef.current) return;
+    const dx = clientX - panStartRef.current.x;
+    const dy = clientY - panStartRef.current.y;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      didPanRef.current = true;
+    }
+    setPanOffset({
+      x: panStartOffsetRef.current.x + dx,
+      y: panStartOffsetRef.current.y + dy,
+    });
+  }, []);
+
+  const handlePanEnd = useCallback(() => {
+    isPanningRef.current = false;
+  }, []);
+
+  useEffect(() => {
+    const onWindowMouseMove = (e: MouseEvent) => {
+      if (isPanningRef.current) {
+        handlePanMove(e.clientX, e.clientY);
+      }
+    };
+    const onWindowMouseUp = () => {
+      if (isPanningRef.current) {
+        handlePanEnd();
+      }
+    };
+    window.addEventListener("mousemove", onWindowMouseMove);
+    window.addEventListener("mouseup", onWindowMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onWindowMouseMove);
+      window.removeEventListener("mouseup", onWindowMouseUp);
+    };
+  }, [handlePanMove, handlePanEnd]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (e.button !== 0) return;
+    if (zoom <= 1) return;
+    isPanningRef.current = true;
+    didPanRef.current = false;
+    panStartRef.current = { x: e.clientX, y: e.clientY };
+    panStartOffsetRef.current = { ...panOffset };
+  }, [zoom, panOffset]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1 && zoom > 1) {
+        e.preventDefault();
+        isPanningRef.current = true;
+        didPanRef.current = false;
+        panStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        panStartOffsetRef.current = { ...panOffset };
+      }
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 1 && isPanningRef.current) {
+        e.preventDefault();
+        handlePanMove(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+    const onTouchEnd = () => {
+      handlePanEnd();
+    };
+
+    canvas.addEventListener("touchstart", onTouchStart, { passive: false });
+    canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+    canvas.addEventListener("touchend", onTouchEnd);
+
+    return () => {
+      canvas.removeEventListener("touchstart", onTouchStart);
+      canvas.removeEventListener("touchmove", onTouchMove);
+      canvas.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [zoom, panOffset, handlePanMove, handlePanEnd]);
 
   const prevScoresRef = useRef<Map<string, number>>(new Map());
   const pulseRef = useRef<Map<string, number>>(new Map());
@@ -294,8 +378,8 @@ export default function RadarCanvas({
 
       const w = dims.width;
       const h = dims.height;
-      const cx = w / 2;
-      const cy = h / 2;
+      const cx = w / 2 + panOffset.x;
+      const cy = h / 2 + panOffset.y;
       const radius = getRadius(w, h);
       const clipRadius = baseRadius(w, h);
 
@@ -742,7 +826,7 @@ export default function RadarCanvas({
 
       animRef.current = requestAnimationFrame(draw);
     },
-    [signals, dims, isDark, accent, labelColor, tickColor, gridAlpha, axisAlpha, sweepTrailAlpha, sweepLineAlpha, borderAlpha, centerLabel, zoom, horizontalMetric, maxCostExposure, stars, clouds]
+    [signals, dims, isDark, accent, labelColor, tickColor, gridAlpha, axisAlpha, sweepTrailAlpha, sweepLineAlpha, borderAlpha, centerLabel, zoom, horizontalMetric, maxCostExposure, stars, clouds, panOffset]
   );
 
   useEffect(() => {
@@ -753,23 +837,25 @@ export default function RadarCanvas({
 
   const isInClip = useCallback(
     (px: number, py: number) => {
-      const cx = dims.width / 2;
-      const cy = dims.height / 2;
+      const cx = dims.width / 2 + panOffset.x;
+      const cy = dims.height / 2 + panOffset.y;
       const cr = baseRadius(dims.width, dims.height);
       return Math.abs(px - cx) <= cr + 40 && Math.abs(py - cy) <= cr + 40;
     },
-    [dims]
+    [dims, panOffset]
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (isPanningRef.current) return;
+
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
-      const cx = dims.width / 2;
-      const cy = dims.height / 2;
+      const cx = dims.width / 2 + panOffset.x;
+      const cy = dims.height / 2 + panOffset.y;
       const radius = getRadius(dims.width, dims.height);
 
       let found: RiskSignal | null = null;
@@ -790,21 +876,23 @@ export default function RadarCanvas({
         canvas.style.cursor = "pointer";
       } else {
         setTooltip(null);
-        canvas.style.cursor = "default";
+        canvas.style.cursor = zoom > 1 ? "grab" : "default";
       }
     },
-    [signals, dims, zoom, isInClip, horizontalMetric]
+    [signals, dims, zoom, isInClip, horizontalMetric, panOffset]
   );
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (didPanRef.current) return;
+
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
-      const cx = dims.width / 2;
-      const cy = dims.height / 2;
+      const cx = dims.width / 2 + panOffset.x;
+      const cy = dims.height / 2 + panOffset.y;
       const radius = getRadius(dims.width, dims.height);
 
       let hit = false;
@@ -821,7 +909,7 @@ export default function RadarCanvas({
       }
       if (!hit) onSignalClick(null);
     },
-    [signals, dims, onSignalClick, zoom, isInClip, horizontalMetric]
+    [signals, dims, onSignalClick, zoom, isInClip, horizontalMetric, panOffset]
   );
 
   const tooltipBg = isDark ? "bg-slate-900/95 border-green-500/30 shadow-green-500/10" : "bg-white/95 border-green-600/30 shadow-green-600/10";
@@ -835,10 +923,12 @@ export default function RadarCanvas({
     <div ref={containerRef} className={`relative w-full h-full flex items-center justify-center ${isFullscreen ? (isDark ? "bg-[#0f172a]" : "bg-slate-100") : ""}`}>
       <canvas
         ref={canvasRef}
+        onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onClick={handleClick}
         onMouseLeave={() => setTooltip(null)}
         onWheel={handleWheel}
+        style={{ cursor: zoom > 1 ? "grab" : "default" }}
       />
       <div className="absolute top-2 right-2 flex flex-col gap-1 z-40">
         <button
@@ -863,9 +953,9 @@ export default function RadarCanvas({
           <ZoomOut className="w-3.5 h-3.5" />
         </button>
         <button
-          onClick={() => setZoom(1)}
+          onClick={() => { setZoom(1); setPanOffset({ x: 0, y: 0 }); }}
           className={`p-1.5 rounded border transition-colors ${zoomBtnCls}`}
-          title="Reset Zoom"
+          title="Reset Zoom & Pan"
         >
           <span className={`text-[9px] font-bold ${isDark ? "text-slate-300" : "text-slate-600"}`}>1:1</span>
         </button>
