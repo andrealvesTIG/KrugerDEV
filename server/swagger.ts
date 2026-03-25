@@ -112,6 +112,10 @@ const spec = {
     { name: 'Scoring & Benefits', description: 'Project scoring, benefits, decisions, lessons learned' },
     { name: 'Recycle Bin', description: 'Soft-deleted item management' },
     { name: 'Search', description: 'Global search' },
+    { name: 'Training', description: 'Training modules, lessons, quizzes, and progress' },
+    { name: 'Approval Delegations', description: 'Approval delegation management' },
+    { name: 'Rejection Templates', description: 'Timesheet rejection templates' },
+    { name: 'Timesheet Compliance', description: 'Timesheet compliance and SLA metrics' },
     { name: 'Other', description: 'Miscellaneous endpoints' },
   ],
   components: {
@@ -156,6 +160,8 @@ const spec = {
           dashboardHiddenTabs: { type: 'array', items: { type: 'string' }, nullable: true, description: 'Tab IDs hidden in overflow menu' },
           billingHidden: { type: 'boolean', description: 'Whether billing section is hidden' },
           riskAssessmentConfig: { type: 'object', nullable: true, description: 'AI risk assessment configuration (model, temperature, thresholds, etc.)' },
+          schedulingDefaults: { type: 'object', nullable: true, description: 'Default scheduling settings (dependency type, lag days)', properties: { defaultDependencyType: { type: 'string', enum: ['FS', 'SS', 'FF', 'SF'] }, defaultLagDays: { type: 'integer' } } },
+          timesheetPolicies: { type: 'object', nullable: true, description: 'Timesheet policy configuration (mandatory notes, overtime threshold, min/max hours, grace period)' },
           deactivatedAt: { type: 'string', format: 'date-time', nullable: true, description: 'Soft delete timestamp' },
           deactivatedBy: { type: 'string', nullable: true, description: 'User ID who deactivated' },
           createdAt: { type: 'string', format: 'date-time' },
@@ -1979,7 +1985,13 @@ const spec = {
     '/projects': {
       get: op('Projects', 'List projects', {
         parameters: [qInt('organizationId', false, 'Filter by organization'), qInt('portfolioId', false, 'Filter by portfolio'), qStr('isInternal', false, 'Filter by internal status (true/false)'), qInt('page', false, 'Page number for pagination'), qInt('pageSize', false, 'Page size (default 10)')],
-        responses: { ...r200('List of projects', arrOf('Project')), ...authRes },
+        responses: {
+          '200': {
+            description: 'List of projects. When page param is provided, returns paginated object { projects, total, page, pageSize }. Otherwise returns array.',
+            content: json({ oneOf: [arrOf('Project'), { type: 'object', properties: { projects: arrOf('Project'), total: { type: 'integer' }, page: { type: 'integer' }, pageSize: { type: 'integer' } } }] }),
+          },
+          ...authRes,
+        },
       }),
       post: op('Projects', 'Create a new project', {
         requestBody: body(ref('ProjectRequest')),
@@ -2985,13 +2997,14 @@ const spec = {
     '/mpp-imports/{id}/convert': {
       post: op('MPP Imports', 'Convert imported tasks to project tasks', {
         parameters: [pathId()],
-        requestBody: body({ type: 'object', properties: { projectId: { type: 'integer' } } }, false),
+        requestBody: body({ type: 'object', properties: { name: { type: 'string' }, portfolioId: { type: 'integer' }, description: { type: 'string' }, status: { type: 'string' }, priority: { type: 'string' } } }, false),
         responses: { ...r200('Tasks converted'), ...createRes },
       }),
     },
     '/mpp-imports/{id}/sync': {
       post: op('MPP Imports', 'Sync imported tasks with existing project', {
         parameters: [pathId()],
+        requestBody: body({ type: 'object', properties: { projectId: { type: 'integer' }, syncMode: { type: 'string', enum: ['merge', 'replace'] } } }),
         responses: { ...r200('Tasks synced'), ...createRes },
       }),
     },
@@ -3651,6 +3664,261 @@ const spec = {
       delete: op('Other', 'Stop acting as another user', {
         parameters: [pathId('orgId')],
         responses: { ...r200('Stopped impersonation'), ...fullRes },
+      }),
+    },
+    '/contact-sales': {
+      post: op('Other', 'Submit contact sales form', {
+        security: [],
+        requestBody: body({ type: 'object', properties: { name: { type: 'string' }, email: { type: 'string' }, company: { type: 'string' }, message: { type: 'string' } } }),
+        responses: { ...r200('Form submitted'), ...e400 },
+      }),
+    },
+
+    // ======================== TRAINING ========================
+    '/training/modules': {
+      get: op('Training', 'List all active training modules', {
+        responses: { ...r200('Training modules list'), ...authRes },
+      }),
+    },
+    '/admin/training/modules': {
+      get: op('Training', 'List all training modules (admin)', {
+        responses: { ...r200('All modules'), ...stdRes },
+      }),
+      post: op('Training', 'Create training module (admin)', {
+        requestBody: body({ type: 'object', properties: { moduleKey: { type: 'string' }, name: { type: 'string' }, subtitle: { type: 'string' }, certPrefix: { type: 'string' }, sortOrder: { type: 'integer' }, isActive: { type: 'boolean' } } }),
+        responses: { ...r201('Module created'), ...createRes },
+      }),
+    },
+    '/admin/training/modules/{id}': {
+      put: op('Training', 'Update training module (admin)', {
+        parameters: [pathId()],
+        requestBody: body({ type: 'object', properties: { moduleKey: { type: 'string' }, name: { type: 'string' }, subtitle: { type: 'string' }, certPrefix: { type: 'string' }, sortOrder: { type: 'integer' }, isActive: { type: 'boolean' } } }, false),
+        responses: { ...r200('Module updated'), ...updateRes },
+      }),
+      delete: op('Training', 'Delete training module (admin)', {
+        parameters: [pathId()],
+        responses: { ...r200('Module deleted'), ...fullRes },
+      }),
+    },
+    '/admin/training/modules/{moduleId}/lessons': {
+      get: op('Training', 'List lessons for module (admin)', {
+        parameters: [pathId('moduleId')],
+        responses: { ...r200('Lessons list'), ...fullRes },
+      }),
+    },
+    '/admin/training/lessons': {
+      post: op('Training', 'Create lesson (admin)', {
+        requestBody: body({ type: 'object', properties: { moduleId: { type: 'integer' }, lessonKey: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' }, videoTitle: { type: 'string' }, videoDescription: { type: 'string' }, keyConcepts: { type: 'array', items: { type: 'string' } }, sortOrder: { type: 'integer' }, isActive: { type: 'boolean' } } }),
+        responses: { ...r201('Lesson created'), ...createRes },
+      }),
+    },
+    '/admin/training/lessons/{id}': {
+      put: op('Training', 'Update lesson (admin)', {
+        parameters: [pathId()],
+        requestBody: body({ type: 'object', properties: { moduleId: { type: 'integer' }, lessonKey: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' }, videoTitle: { type: 'string' }, videoDescription: { type: 'string' }, keyConcepts: { type: 'array', items: { type: 'string' } }, sortOrder: { type: 'integer' }, isActive: { type: 'boolean' } } }, false),
+        responses: { ...r200('Lesson updated'), ...updateRes },
+      }),
+      delete: op('Training', 'Delete lesson (admin)', {
+        parameters: [pathId()],
+        responses: { ...r200('Lesson deleted'), ...fullRes },
+      }),
+    },
+    '/admin/training/lessons/{lessonId}/questions': {
+      get: op('Training', 'List quiz questions for lesson (admin)', {
+        parameters: [pathId('lessonId')],
+        responses: { ...r200('Questions list'), ...fullRes },
+      }),
+    },
+    '/admin/training/questions': {
+      post: op('Training', 'Create quiz question (admin)', {
+        requestBody: body({ type: 'object', properties: { lessonId: { type: 'integer' }, questionKey: { type: 'string' }, scenario: { type: 'string' }, options: { type: 'array', items: { type: 'string' } }, correctIndex: { type: 'integer' }, explanation: { type: 'string' }, sortOrder: { type: 'integer' }, isActive: { type: 'boolean' } } }),
+        responses: { ...r201('Question created'), ...createRes },
+      }),
+    },
+    '/admin/training/questions/{id}': {
+      put: op('Training', 'Update quiz question (admin)', {
+        parameters: [pathId()],
+        requestBody: body({ type: 'object', properties: { lessonId: { type: 'integer' }, questionKey: { type: 'string' }, scenario: { type: 'string' }, options: { type: 'array', items: { type: 'string' } }, correctIndex: { type: 'integer' }, explanation: { type: 'string' }, sortOrder: { type: 'integer' }, isActive: { type: 'boolean' } } }, false),
+        responses: { ...r200('Question updated'), ...updateRes },
+      }),
+      delete: op('Training', 'Delete quiz question (admin)', {
+        parameters: [pathId()],
+        responses: { ...r200('Question deleted'), ...fullRes },
+      }),
+    },
+    '/admin/training/reorder': {
+      put: op('Training', 'Reorder training modules and lessons (admin)', {
+        requestBody: body({ type: 'object', properties: { modules: { type: 'array', items: { type: 'object' } } } }),
+        responses: { ...r200('Reordered'), ...stdRes },
+      }),
+    },
+    '/admin/training/seed': {
+      post: op('Training', 'Seed training data (admin)', {
+        responses: { ...r200('Training data seeded'), ...stdRes },
+      }),
+    },
+    '/admin/training/seed-from-static': {
+      post: op('Training', 'Seed training data from static content (admin)', {
+        responses: { ...r200('Training data seeded from static'), ...stdRes },
+      }),
+    },
+
+    // ======================== APPROVAL DELEGATIONS ========================
+    '/approval-delegations': {
+      get: op('Approval Delegations', 'List approval delegations', {
+        parameters: [qInt('organizationId', true, 'Organization ID')],
+        responses: { ...r200('Delegations list'), ...authRes },
+      }),
+      post: op('Approval Delegations', 'Create approval delegation', {
+        requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, delegateId: { type: 'integer' }, startDate: { type: 'string', format: 'date' }, endDate: { type: 'string', format: 'date' } } }),
+        responses: { ...r201('Delegation created'), ...inputRes },
+      }),
+    },
+    '/approval-delegations/{id}/revoke': {
+      post: op('Approval Delegations', 'Revoke an approval delegation', {
+        parameters: [pathId()],
+        requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' } } }),
+        responses: { ...r200('Delegation revoked'), ...fullRes },
+      }),
+    },
+    '/approval-delegations/is-delegate': {
+      get: op('Approval Delegations', 'Check if current user is a delegate', {
+        parameters: [qInt('organizationId', true, 'Organization ID')],
+        responses: { ...r200('Delegate status'), ...authRes },
+      }),
+    },
+
+    // ======================== REJECTION TEMPLATES ========================
+    '/rejection-templates': {
+      get: op('Rejection Templates', 'List rejection templates', {
+        parameters: [qInt('organizationId', true, 'Organization ID')],
+        responses: { ...r200('Templates list'), ...authRes },
+      }),
+      post: op('Rejection Templates', 'Create rejection template', {
+        requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, name: { type: 'string' }, text: { type: 'string' }, category: { type: 'string' } } }),
+        responses: { ...r201('Template created'), ...inputRes },
+      }),
+    },
+    '/rejection-templates/{id}': {
+      put: op('Rejection Templates', 'Update rejection template', {
+        parameters: [pathId()],
+        requestBody: body({ type: 'object', properties: { name: { type: 'string' }, text: { type: 'string' }, category: { type: 'string' }, sortOrder: { type: 'integer' } } }, false),
+        responses: { ...r200('Template updated'), ...updateRes },
+      }),
+      delete: op('Rejection Templates', 'Delete rejection template', {
+        parameters: [pathId()],
+        responses: { ...r200('Template deleted'), ...fullRes },
+      }),
+    },
+
+    // ======================== TIMESHEET COMPLIANCE & SLA ========================
+    '/timesheet-compliance': {
+      get: op('Timesheet Compliance', 'Get timesheet compliance report', {
+        parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true, 'Start date (YYYY-MM-DD)'), qStr('endDate', true, 'End date (YYYY-MM-DD)'), qInt('projectId', false, 'Filter by project'), qInt('resourceId', false, 'Filter by resource'), qStr('department', false, 'Filter by department')],
+        responses: { ...r200('Compliance data'), ...authRes },
+      }),
+    },
+    '/timesheets/sla-metrics': {
+      get: op('Timesheet Compliance', 'Get timesheet SLA metrics', {
+        parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true, 'Start date (YYYY-MM-DD)'), qStr('endDate', true, 'End date (YYYY-MM-DD)')],
+        responses: { ...r200('SLA metrics'), ...authRes },
+      }),
+    },
+    '/timesheets/team-review': {
+      get: op('Timesheet Compliance', 'Get team review dashboard data', {
+        parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true, 'Start date (YYYY-MM-DD)'), qStr('endDate', true, 'End date (YYYY-MM-DD)')],
+        responses: { ...r200('Team review data'), ...authRes },
+      }),
+    },
+    '/timesheets/proxy': {
+      post: op('Timesheets', 'Create proxy timesheet entry (admin)', {
+        requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, targetResourceId: { type: 'integer' }, taskId: { type: 'integer' }, projectId: { type: 'integer' }, entryDate: { type: 'string', format: 'date' }, hours: { type: 'number' }, notes: { type: 'string' } } }),
+        responses: { ...r201('Proxy entry created'), ...createRes },
+      }),
+    },
+
+    // ======================== DASHBOARD EXTENSIONS ========================
+    '/dashboard/summary': {
+      get: op('Dashboards', 'Get executive dashboard summary', {
+        parameters: [qInt('organizationId', true, 'Organization ID')],
+        responses: { ...r200('Dashboard summary'), ...authRes },
+      }),
+    },
+    '/dashboard/{type}/export': {
+      post: op('Dashboards', 'Export dashboard data', {
+        parameters: [pathStr('type')],
+        requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, filters: { type: 'object' } } }),
+        responses: { ...r200('Export data'), ...fullRes },
+      }),
+    },
+    '/dashboard/{type}/share': {
+      post: op('Dashboards', 'Share dashboard', {
+        parameters: [pathStr('type')],
+        requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, recipients: { type: 'array', items: { type: 'string' } } } }),
+        responses: { ...r200('Dashboard shared'), ...fullRes },
+      }),
+    },
+
+    // ======================== ORGANIZATION EXTENSIONS ========================
+    '/organizations/{id}/logo/upload': {
+      post: op('Organizations', 'Upload organization logo', {
+        parameters: [pathId()],
+        requestBody: { required: true, content: { 'multipart/form-data': { schema: { type: 'object', properties: { logo: { type: 'string', format: 'binary' } } } } } },
+        responses: { ...r200('Logo uploaded'), ...fullRes },
+      }),
+    },
+    '/organizations/{id}/directory/search': {
+      get: op('Organizations', 'Search organization directory', {
+        parameters: [pathId(), qStr('q', false, 'Search query')],
+        responses: { ...r200('Directory results'), ...fullRes },
+      }),
+    },
+    '/organizations/{id}/access-requests/my-status': {
+      get: op('Organization Members', 'Check own access request status', {
+        parameters: [pathId()],
+        responses: { ...r200('Access request status'), ...authRes },
+      }),
+    },
+
+    // ======================== USER EXTENSIONS ========================
+    '/users/{userId}/avatar/upload': {
+      post: op('Users', 'Upload user avatar', {
+        parameters: [pathId('userId')],
+        requestBody: { required: true, content: { 'multipart/form-data': { schema: { type: 'object', properties: { avatar: { type: 'string', format: 'binary' } } } } } },
+        responses: { ...r200('Avatar uploaded'), ...fullRes },
+      }),
+    },
+    '/users/{userId}/profile-analytics': {
+      get: op('Users', 'Get user profile analytics', {
+        parameters: [pathId('userId')],
+        responses: { ...r200('Profile analytics data'), ...idRes },
+      }),
+    },
+    '/users/{userId}/badge-card.png': {
+      get: op('Users', 'Get user badge card image', {
+        parameters: [pathId('userId')],
+        responses: { ...r200('Badge card PNG image'), ...idRes },
+      }),
+    },
+
+    // ======================== ADMIN MONITORING ========================
+    '/admin/monitoring/activity-ledger': {
+      get: op('Monitoring', 'Get admin activity ledger', {
+        parameters: [qInt('organizationId', false, 'Filter by organization'), qStr('type', false, 'Filter by activity type')],
+        responses: { ...r200('Activity ledger'), ...stdRes },
+      }),
+    },
+    '/admin/organizations/credit-usage': {
+      get: op('Monitoring', 'Get organization credit usage', {
+        responses: { ...r200('Credit usage data'), ...stdRes },
+      }),
+    },
+
+    // ======================== DATAVERSE IMPORT ========================
+    '/dataverse/import': {
+      post: op('MPP Imports', 'Import from Dataverse', {
+        requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, projectId: { type: 'integer' } } }),
+        responses: { ...r200('Import completed'), ...inputRes },
       }),
     },
   },
