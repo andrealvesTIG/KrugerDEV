@@ -1291,7 +1291,7 @@ const spec = {
     // ======================== USERS ========================
     '/users': {
       get: op('Users', 'List all users', {
-        parameters: [qInt('orgId', true, 'Organization ID')],
+        parameters: [qInt('organizationId', false, 'Filter by organization')],
         responses: { ...r200('List of users', arrOf('User')), ...authRes },
       }),
     },
@@ -1778,31 +1778,26 @@ const spec = {
     // ======================== EXTERNAL SHARES ========================
     '/external-shares': {
       get: op('External Shares', 'List external shares', {
-        parameters: [qInt('orgId', true)],
         responses: { ...r200('External shares'), ...authRes },
       }),
     },
     '/external-projects': {
       get: op('External Shares', 'List externally shared projects', {
-        parameters: [qInt('orgId', true)],
         responses: { ...r200('External projects'), ...authRes },
       }),
     },
     '/external-tasks': {
       get: op('External Shares', 'List externally shared tasks', {
-        parameters: [qInt('orgId', true)],
         responses: { ...r200('External tasks'), ...authRes },
       }),
     },
     '/external-risks': {
       get: op('External Shares', 'List externally shared risks', {
-        parameters: [qInt('orgId', true)],
         responses: { ...r200('External risks'), ...authRes },
       }),
     },
     '/external-issues': {
       get: op('External Shares', 'List externally shared issues', {
-        parameters: [qInt('orgId', true)],
         responses: { ...r200('External issues'), ...authRes },
       }),
     },
@@ -1831,7 +1826,7 @@ const spec = {
     // ======================== SEARCH ========================
     '/search': {
       get: op('Search', 'Global search', {
-        parameters: [qStr('q', true, 'Search query'), qInt('orgId', true)],
+        parameters: [qStr('q', true, 'Search query'), qInt('organizationId', false, 'Filter by organization')],
         responses: { ...r200('Search results'), ...authRes },
       }),
     },
@@ -1839,7 +1834,7 @@ const spec = {
     // ======================== PORTFOLIOS ========================
     '/portfolios': {
       get: op('Portfolios', 'List portfolios', {
-        parameters: [qInt('orgId', true, 'Organization ID')],
+        parameters: [qInt('organizationId', false, 'Filter by organization')],
         responses: { ...r200('List of portfolios', arrOf('Portfolio')), ...authRes },
       }),
       post: op('Portfolios', 'Create a new portfolio', {
@@ -2060,7 +2055,7 @@ const spec = {
     },
     '/tasks': {
       get: op('Tasks', 'List all tasks', {
-        parameters: [qInt('orgId', true), qInt('projectId'), qStr('status'), qInt('limit'), qInt('offset')],
+        parameters: [qInt('organizationId', false, 'Filter by organization'), qInt('limit', false, 'Max results (default 100)'), qInt('offset', false, 'Offset for pagination'), qStr('startDateFrom', false, 'Filter tasks starting after date'), qStr('startDateTo', false, 'Filter tasks starting before date'), qStr('endDateFrom', false, 'Filter tasks ending after date'), qStr('endDateTo', false, 'Filter tasks ending before date'), qStr('overdue', false, 'Filter overdue tasks (true/false)'), qStr('today', false, 'Reference date for overdue calc (YYYY-MM-DD)'), qStr('sortBy', false, 'Sort field'), qStr('sortOrder', false, 'Sort direction (asc/desc)')],
         responses: { ...r200('Tasks list', { type: 'object', properties: { tasks: arrOf('Task'), total: { type: 'integer' }, hasMore: { type: 'boolean' } } }), ...authRes },
       }),
       post: op('Tasks', 'Create a new task', {
@@ -2172,7 +2167,7 @@ const spec = {
     },
     '/milestones': {
       get: op('Milestones', 'List all task milestones (legacy)', {
-        parameters: [qInt('orgId', true)],
+        parameters: [qInt('organizationId', false, 'Filter by organization')],
         responses: { ...r200('Task milestones list', arrOf('Milestone')), ...authRes },
         deprecated: true,
         description: 'Legacy endpoint. For portfolio-level key dates, use /portfolios/{id}/key-dates.',
@@ -2209,7 +2204,7 @@ const spec = {
     },
     '/risks': {
       get: op('Risks', 'List all risks', {
-        parameters: [qInt('orgId', true)],
+        parameters: [qInt('organizationId', true, 'Organization ID')],
         responses: { ...r200('Risks list', arrOf('Risk')), ...authRes },
       }),
       post: op('Risks', 'Create a new risk', {
@@ -2255,7 +2250,7 @@ const spec = {
     },
     '/issues': {
       get: op('Issues', 'List all issues', {
-        parameters: [qInt('orgId', true)],
+        parameters: [qInt('organizationId', false, 'Filter by organization')],
         responses: { ...r200('Issues list', arrOf('Issue')), ...authRes },
       }),
       post: op('Issues', 'Create a new issue', {
@@ -2357,7 +2352,7 @@ const spec = {
     // ======================== RESOURCES ========================
     '/resources': {
       get: op('Resources', 'List resources', {
-        parameters: [qInt('orgId', true)],
+        parameters: [qInt('organizationId', true, 'Organization ID')],
         responses: { ...r200('Resources list', arrOf('Resource')), ...authRes },
       }),
       post: op('Resources', 'Create a new resource', {
@@ -2367,7 +2362,7 @@ const spec = {
     },
     '/resources/duplicates': {
       get: op('Resources', 'Find duplicate resources', {
-        parameters: [qInt('orgId', true)],
+        parameters: [qInt('organizationId', true, 'Organization ID')],
         responses: { ...r200('Duplicate groups'), ...authRes },
       }),
     },
@@ -2500,7 +2495,7 @@ const spec = {
     },
     '/resource-assignments': {
       get: op('Resources', 'Get all resource assignments', {
-        parameters: [qInt('orgId', true)],
+        parameters: [qInt('organizationId', true, 'Organization ID')],
         responses: { ...r200('All assignments'), ...authRes },
       }),
     },
@@ -2528,7 +2523,7 @@ const spec = {
     },
     '/dashboard/utilization': {
       get: op('Resources', 'Get utilization dashboard data', {
-        parameters: [qInt('orgId', true)],
+        parameters: [qInt('organizationId', true, 'Organization ID')],
         responses: { ...r200('Utilization dashboard'), ...authRes },
       }),
     },
@@ -2536,7 +2531,7 @@ const spec = {
     // ======================== TIMESHEETS ========================
     '/timesheets': {
       get: op('Timesheets', 'List timesheet entries', {
-        parameters: [qInt('orgId', true), qStr('startDate'), qStr('endDate'), qStr('status')],
+        parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true, 'Start date (YYYY-MM-DD)'), qStr('endDate', true, 'End date (YYYY-MM-DD)')],
         responses: { ...r200('Timesheet entries', arrOf('TimesheetEntry')), ...authRes },
       }),
       post: op('Timesheets', 'Create timesheet entry', {
@@ -2574,7 +2569,7 @@ const spec = {
     },
     '/timesheets/team': {
       get: op('Timesheets', 'Get team timesheet report', {
-        parameters: [qInt('orgId', true), qStr('startDate'), qStr('endDate')],
+        parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true, 'Start date (YYYY-MM-DD)'), qStr('endDate', true, 'End date (YYYY-MM-DD)')],
         responses: { ...r200('Team report'), ...authRes },
       }),
     },
@@ -2591,7 +2586,7 @@ const spec = {
     },
     '/timesheets/approval': {
       get: op('Timesheets', 'Get entries pending approval', {
-        parameters: [qInt('orgId', true)],
+        parameters: [qInt('organizationId', true, 'Organization ID'), qStr('status', false, 'Filter by status')],
         responses: { ...r200('Pending approvals'), ...authRes },
       }),
     },
@@ -2610,7 +2605,7 @@ const spec = {
     },
     '/timesheet-periods': {
       get: op('Timesheets', 'List timesheet periods', {
-        parameters: [qInt('orgId', true)],
+        parameters: [qInt('organizationId', true, 'Organization ID')],
         responses: { ...r200('Timesheet periods', arrOf('TimesheetPeriod')), ...authRes },
       }),
       post: op('Timesheets', 'Create timesheet period', {
@@ -2620,7 +2615,7 @@ const spec = {
     },
     '/timesheet-periods/closed': {
       get: op('Timesheets', 'List closed timesheet periods', {
-        parameters: [qInt('orgId', true)],
+        parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true, 'Start date (YYYY-MM-DD)'), qStr('endDate', true, 'End date (YYYY-MM-DD)')],
         responses: { ...r200('Closed periods'), ...authRes },
       }),
     },
@@ -2649,7 +2644,7 @@ const spec = {
     },
     '/non-project-time': {
       get: op('Timesheets', 'List non-project time entries', {
-        parameters: [qInt('orgId', true)],
+        parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true, 'Start date (YYYY-MM-DD)'), qStr('endDate', true, 'End date (YYYY-MM-DD)')],
         responses: { ...r200('Non-project time entries'), ...authRes },
       }),
       post: op('Timesheets', 'Create non-project time entry', {
@@ -2670,7 +2665,7 @@ const spec = {
     },
     '/time-categories': {
       get: op('Timesheets', 'List time categories', {
-        parameters: [qInt('orgId', true)],
+        parameters: [qInt('organizationId', true, 'Organization ID')],
         responses: { ...r200('Time categories'), ...authRes },
       }),
       post: op('Timesheets', 'Create time category', {
@@ -2906,7 +2901,7 @@ const spec = {
     // ======================== PROJECT INTAKES ========================
     '/project-intakes': {
       get: op('Project Intakes', 'List project intakes', {
-        parameters: [qInt('orgId', true), qStr('status')],
+        parameters: [qInt('organizationId', true, 'Organization ID'), qStr('status', false, 'Filter by status')],
         responses: { ...r200('Intakes list', arrOf('ProjectIntake')), ...authRes },
       }),
       post: op('Project Intakes', 'Create a new intake', {
@@ -2971,7 +2966,7 @@ const spec = {
     // ======================== MPP IMPORTS ========================
     '/mpp-imports': {
       get: op('MPP Imports', 'List MS Project imports', {
-        parameters: [qInt('orgId', true)],
+        parameters: [qInt('organizationId', true, 'Organization ID')],
         responses: { ...r200('Import list', arrOf('MppImport')), ...authRes },
       }),
     },
@@ -3246,7 +3241,7 @@ const spec = {
     // ======================== DASHBOARDS ========================
     '/custom-dashboards': {
       get: op('Dashboards', 'List custom dashboards', {
-        parameters: [qInt('orgId', true)],
+        parameters: [qInt('organizationId', true, 'Organization ID')],
         responses: { ...r200('Dashboards list', arrOf('CustomDashboard')), ...authRes },
       }),
       post: op('Dashboards', 'Create custom dashboard', {
@@ -3432,7 +3427,6 @@ const spec = {
     },
     '/project-field-definitions': {
       get: op('Custom Tabs', 'Get all project field definitions', {
-        parameters: [qInt('orgId', true)],
         responses: { ...r200('Field definitions'), ...authRes },
       }),
     },
@@ -3644,7 +3638,7 @@ const spec = {
     },
     '/home/recent-activity': {
       get: op('Other', 'Get recent activity feed', {
-        parameters: [qInt('orgId', true)],
+        parameters: [qInt('organizationId', false, 'Filter by organization')],
         responses: { ...r200('Recent activity'), ...authRes },
       }),
     },
