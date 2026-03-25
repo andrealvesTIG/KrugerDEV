@@ -3191,7 +3191,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
             </div>
             <div>
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Health Status</Label>
-              <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted/30 p-1" data-testid="toggle-project-health">
+              <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted/30 p-1" data-testid="toggle-project-health">
                 {[
                   { value: 'Green', label: 'Green', bg: 'bg-emerald-500', bgLight: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', ring: 'ring-emerald-500/30' },
                   { value: 'Yellow', label: 'Yellow', bg: 'bg-amber-500', bgLight: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', ring: 'ring-amber-500/30' },
