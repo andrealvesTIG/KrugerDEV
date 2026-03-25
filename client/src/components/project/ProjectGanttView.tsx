@@ -3699,8 +3699,8 @@ function ProjectGanttView({
         "p-0 flex flex-col",
         isFullscreen && "h-full flex-1"
       )}>
-        <div data-gantt-toolbar="true" className="flex items-center justify-between gap-4 p-3 border-b bg-muted/30 flex-wrap flex-shrink-0">
-          <div className="flex items-center gap-2">
+        <div data-gantt-toolbar="true" className="flex items-center justify-between gap-2 sm:gap-4 p-3 border-b bg-muted/30 flex-wrap flex-shrink-0">
+          <div className="flex items-center gap-2 flex-wrap">
             {!hideTimeline && (
               <span className="text-sm font-medium text-muted-foreground">
                 View: {zoomLabels[zoomLevel]}
@@ -3710,7 +3710,7 @@ function ProjectGanttView({
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-1">
                   <Columns3 className="h-3.5 w-3.5" />
-                  Columns
+                  <span className="hidden sm:inline">Columns</span>
                   <ChevronDown className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
@@ -3745,7 +3745,7 @@ function ProjectGanttView({
               data-testid="button-reorder-columns"
             >
               <ArrowUpDown className="h-3.5 w-3.5" />
-              Reorder
+              <span className="hidden sm:inline">Reorder</span>
             </Button>
             <Button 
               variant="outline" 
@@ -3755,7 +3755,7 @@ function ProjectGanttView({
               data-testid="button-baseline-schedule"
             >
               <Flag className="h-3.5 w-3.5" />
-              Baseline Schedule
+              <span className="hidden sm:inline">Baseline Schedule</span>
             </Button>
             <div className="flex items-center border rounded-md">
               <Tooltip>
@@ -3778,7 +3778,7 @@ function ProjectGanttView({
               </Tooltip>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <div className="flex items-center gap-2">
               <Switch
                 checked={showProjectSummary}
@@ -3786,7 +3786,7 @@ function ProjectGanttView({
                 data-testid="toggle-show-project-summary"
               />
               <Label className="text-xs text-muted-foreground cursor-pointer" onClick={() => setShowProjectSummary(!showProjectSummary)}>
-                Project Summary
+                <span className="hidden sm:inline">Project </span>Summary
               </Label>
             </div>
             <div className="flex items-center gap-2">
@@ -3796,7 +3796,7 @@ function ProjectGanttView({
                 data-testid="toggle-show-critical-path"
               />
               <Label className="text-xs text-muted-foreground cursor-pointer" onClick={() => setShowCriticalPath(!showCriticalPath)}>
-                Critical Path
+                Critical<span className="hidden sm:inline"> Path</span>
               </Label>
             </div>
             <Tooltip>
@@ -3810,7 +3810,7 @@ function ProjectGanttView({
                   className="gap-1"
                 >
                   <RefreshCw className={cn("h-3.5 w-3.5", isRecalculating && "animate-spin")} />
-                  <span className="text-xs">Refresh Schedule</span>
+                  <span className="hidden sm:inline text-xs">Refresh Schedule</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Recalculate all task dates based on dependencies</TooltipContent>
