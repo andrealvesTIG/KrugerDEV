@@ -140,9 +140,22 @@ export function registerProjectItemRoutes(app: Express) {
   });
 
   app.delete(api.risks.delete.path, async (req, res) => {
-    const userId = getUserIdFromRequest(req);
-    await storage.softDeleteItem('risk', Number(req.params.id), userId!);
-    res.status(204).send();
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const riskId = Number(req.params.id);
+      const risk = await storage.getRisk(riskId);
+      if (!risk) return res.status(404).json({ message: "Risk not found" });
+      const project = await storage.getProject(risk.projectId);
+      if (project && !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      await storage.softDeleteItem('risk', riskId, userId);
+      res.status(204).send();
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error deleting risk" : classified.message });
+    }
   });
 
   // Risk History
@@ -165,9 +178,15 @@ export function registerProjectItemRoutes(app: Express) {
   // Convert Risk to Issue
   app.post('/api/risks/:id/convert-to-issue', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const riskId = Number(req.params.id);
       const risk = await storage.getRisk(riskId);
       if (!risk) return res.status(404).json({ message: "Risk not found" });
+      const riskProject = await storage.getProject(risk.projectId);
+      if (riskProject && !await userHasOrgAccess(userId, riskProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       
       const converted = await storage.convertRiskToIssue(riskId);
       if (!converted) {
@@ -175,7 +194,6 @@ export function registerProjectItemRoutes(app: Express) {
       }
       
       // Log the conversion in change logs
-      const userId = getUserIdFromRequest(req);
       const user = userId ? await storage.getUser(userId) : null;
       await storage.createIssueChangeLog({
         issueId: riskId,
@@ -315,14 +333,18 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   app.post(api.milestones.create.path, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       
-      // Require email verification before creating
       const emailCheck = await requireEmailVerified(userId);
       if (!emailCheck.verified) {
         return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
       }
       
       const input = api.milestones.create.input.parse(req.body);
+      const project = await storage.getProject(input.projectId);
+      if (project && !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       const milestone = await storage.createMilestone(input);
       res.status(201).json(milestone);
     } catch (err) {
@@ -333,8 +355,17 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
   app.put(api.milestones.update.path, async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const milestoneId = Number(req.params.id);
+      const existing = await storage.getMilestone(milestoneId);
+      if (!existing) return res.status(404).json({ message: "Milestone not found" });
+      const project = await storage.getProject(existing.projectId);
+      if (project && !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       const input = api.milestones.update.input.parse(req.body);
-      const updated = await storage.updateMilestone(Number(req.params.id), input);
+      const updated = await storage.updateMilestone(milestoneId, input);
       res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
@@ -344,9 +375,22 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   app.delete(api.milestones.delete.path, async (req, res) => {
-    const userId = getUserIdFromRequest(req);
-    await storage.softDeleteItem('milestone', Number(req.params.id), userId!);
-    res.status(204).send();
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const milestoneId = Number(req.params.id);
+      const existing = await storage.getMilestone(milestoneId);
+      if (!existing) return res.status(404).json({ message: "Milestone not found" });
+      const project = await storage.getProject(existing.projectId);
+      if (project && !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      await storage.softDeleteItem('milestone', milestoneId, userId);
+      res.status(204).send();
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error deleting milestone" : classified.message });
+    }
   });
 
   // --- Issues ---
@@ -849,6 +893,16 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
     }
     
+    for (const task of allTasks) {
+      if (task.isSummary && !childrenByParent.has(task.id)) {
+        batchUpdates.push({
+          id: task.id,
+          isSummary: false,
+          taskType: task.isMilestone ? 'Milestone' : 'Work',
+        });
+      }
+    }
+
     if (batchUpdates.length > 0) {
       await storage.batchUpdateTaskFields(batchUpdates);
     }
@@ -907,6 +961,10 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const task = await storage.getTask(taskId);
       if (!task) {
         return res.status(404).json({ message: "Task not found" });
+      }
+      const taskProject = await storage.getProject(task.projectId);
+      if (taskProject && !await userHasOrgAccess(userId, taskProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
       const [enriched] = await enrichTasksWithTimesheetHours([task]);
       res.json(enriched);
@@ -2004,6 +2062,11 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
     }
 
+    if (topoOrder.length < allTaskIds.size) {
+      const cycleTaskIds = [...allTaskIds].filter(id => !topoOrder.includes(id));
+      console.warn(`Circular dependency detected among task IDs: ${cycleTaskIds.join(', ')}`);
+    }
+
     for (const taskId of topoOrder) {
       const deps = predecessorDeps.get(taskId);
       if (!deps || deps.length === 0) continue;
@@ -2158,15 +2221,15 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         return a.id - b.id;
       });
       
-      // Assign sequential taskIndex
-      for (let i = 0; i < sortedTasks.length; i++) {
-        const task = sortedTasks[i];
-        if (task.taskIndex !== i + 1) {
-          await storage.updateTask(task.id, { taskIndex: i + 1 });
+      await db.transaction(async (tx) => {
+        for (let i = 0; i < sortedTasks.length; i++) {
+          const task = sortedTasks[i];
+          if (task.taskIndex !== i + 1) {
+            await tx.update(tasks).set({ taskIndex: i + 1 }).where(eq(tasks.id, task.id));
+          }
         }
-      }
+      });
       
-      // Recalculate WBS and roll up parent tasks
       await recalculateProjectWBS(projectId);
       await rollUpParentTasks(projectId);
       
@@ -2200,30 +2263,22 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         tasksToUpdate = allTasks.filter(t => taskIds.includes(t.id));
       }
       
-      // Update baseline dates for each task
-      const updates = await Promise.all(
-        tasksToUpdate.map(async (task) => {
+      let updateCount = 0;
+      await db.transaction(async (tx) => {
+        for (const task of tasksToUpdate) {
           if (clearBaseline) {
-            return storage.updateTask(task.id, {
-              baselineStartDate: null,
-              baselineEndDate: null,
-            });
-          } else {
-            // Only set baseline if task has valid dates
-            if (task.startDate && task.endDate) {
-              return storage.updateTask(task.id, {
-                baselineStartDate: task.startDate,
-                baselineEndDate: task.endDate,
-              });
-            }
-            return task;
+            await tx.update(tasks).set({ baselineStartDate: null, baselineEndDate: null }).where(eq(tasks.id, task.id));
+            updateCount++;
+          } else if (task.startDate && task.endDate) {
+            await tx.update(tasks).set({ baselineStartDate: task.startDate, baselineEndDate: task.endDate }).where(eq(tasks.id, task.id));
+            updateCount++;
           }
-        })
-      );
+        }
+      });
       
       res.json({ 
         message: clearBaseline ? "Baseline cleared" : "Baseline set",
-        updatedCount: updates.length 
+        updatedCount: updateCount 
       });
     } catch (err) {
       console.error('Error updating baselines:', err);

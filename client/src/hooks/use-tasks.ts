@@ -119,8 +119,8 @@ export function useCreateTask() {
       return res.json();
     },
     onSuccess: (_, variables) => {
-      queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
-      queryClient.refetchQueries({ queryKey: ['/api/tasks'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'], exact: false });
     },
   });
 }
@@ -132,8 +132,8 @@ export function useUpdateTask() {
       return res.json() as Promise<Task & { datesCorrectedByDependency?: boolean }>;
     },
     onSuccess: (_, variables) => {
-      queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
-      queryClient.refetchQueries({ queryKey: ['/api/tasks'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'], exact: false });
     },
   });
 }
@@ -151,8 +151,8 @@ export function useBulkUpdateTasks() {
       return res.json() as Promise<{ updatedCount: number }>;
     },
     onSuccess: (_, variables) => {
-      queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
-      queryClient.refetchQueries({ queryKey: ['/api/tasks'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'], exact: false });
     },
   });
 }
@@ -165,8 +165,8 @@ export function useBulkDeleteTasks() {
       return res.json() as Promise<{ deletedCount: number }>;
     },
     onSuccess: (_, variables) => {
-      queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
-      queryClient.refetchQueries({ queryKey: ['/api/tasks'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'], exact: false });
     },
   });
 }
@@ -176,8 +176,8 @@ export function useDeleteTask() {
     mutationFn: ({ id }: { id: number; projectId: number }) =>
       apiRequest('DELETE', `/api/tasks/${id}`),
     onSuccess: (_, variables) => {
-      queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
-      queryClient.refetchQueries({ queryKey: ['/api/tasks'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'], exact: false });
     },
   });
 }

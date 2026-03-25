@@ -2595,7 +2595,15 @@ export function registerTimesheetRoutes(app: Express) {
         return res.status(403).json({ message: 'Admin access required' });
       }
 
-      const updated = await storage.updateTimeCategory(id, req.body);
+      const { name, description, code, color, isActive, isBillable } = req.body;
+      const safeUpdate: Record<string, any> = {};
+      if (name !== undefined) safeUpdate.name = name;
+      if (description !== undefined) safeUpdate.description = description;
+      if (code !== undefined) safeUpdate.code = code;
+      if (color !== undefined) safeUpdate.color = color;
+      if (isActive !== undefined) safeUpdate.isActive = isActive;
+      if (isBillable !== undefined) safeUpdate.isBillable = isBillable;
+      const updated = await storage.updateTimeCategory(id, safeUpdate);
       res.json(updated);
     } catch (error) {
       console.error('Error updating time category:', error);

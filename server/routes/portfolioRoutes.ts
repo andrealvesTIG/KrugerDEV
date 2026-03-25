@@ -318,7 +318,7 @@ export function registerPortfolioRoutes(app: Express) {
 
   app.post('/api/portfolios/:id/risk-assessment', async (req, res) => {
     try {
-      const userId = req.session?.userId || (req.user as any)?.id;
+      const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const portfolioId = Number(req.params.id);
@@ -406,7 +406,7 @@ export function registerPortfolioRoutes(app: Express) {
 
   app.get('/api/portfolios/:id/risk-assessment/latest', async (req, res) => {
     try {
-      const userId = req.session?.userId || (req.user as any)?.id;
+      const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const portfolioId = Number(req.params.id);
@@ -435,7 +435,7 @@ export function registerPortfolioRoutes(app: Express) {
 
   app.get('/api/portfolios/:id/risk-assessment/history', async (req, res) => {
     try {
-      const userId = req.session?.userId || (req.user as any)?.id;
+      const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const portfolioId = Number(req.params.id);
@@ -457,7 +457,7 @@ export function registerPortfolioRoutes(app: Express) {
 
   app.get('/api/portfolio-risk-assessments/org/:orgId', async (req, res) => {
     try {
-      const userId = req.session?.userId || (req.user as any)?.id;
+      const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const orgId = Number(req.params.orgId);
@@ -487,7 +487,7 @@ export function registerPortfolioRoutes(app: Express) {
 
   app.get('/api/project-risk-assessments/org/:orgId', async (req, res) => {
     try {
-      const userId = req.session?.userId || (req.user as any)?.id;
+      const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const orgId = Number(req.params.orgId);
@@ -565,7 +565,7 @@ export function registerPortfolioRoutes(app: Express) {
 
   app.get('/api/portfolios/:id/risk-assessment/:assessmentId/pdf', async (req, res) => {
     try {
-      const userId = req.session?.userId || (req.user as any)?.id;
+      const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const portfolioId = Number(req.params.id);
@@ -594,7 +594,7 @@ export function registerPortfolioRoutes(app: Express) {
 
   app.post('/api/projects/:id/risk-assessment', async (req, res) => {
     try {
-      const userId = req.session?.userId || (req.user as any)?.id;
+      const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const projectId = Number(req.params.id);
@@ -682,7 +682,7 @@ export function registerPortfolioRoutes(app: Express) {
 
   app.get('/api/projects/:id/risk-assessment/latest', async (req, res) => {
     try {
-      const userId = req.session?.userId || (req.user as any)?.id;
+      const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const projectId = Number(req.params.id);
@@ -706,7 +706,7 @@ export function registerPortfolioRoutes(app: Express) {
 
   app.get('/api/projects/:id/risk-assessment/history', async (req, res) => {
     try {
-      const userId = req.session?.userId || (req.user as any)?.id;
+      const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const projectId = Number(req.params.id);
@@ -776,7 +776,7 @@ export function registerPortfolioRoutes(app: Express) {
 
   app.get('/api/projects/:id/risk-assessment/:assessmentId/pdf', async (req, res) => {
     try {
-      const userId = req.session?.userId || (req.user as any)?.id;
+      const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const assessment = await storage.getLatestProjectRiskAssessment(Number(req.params.id));

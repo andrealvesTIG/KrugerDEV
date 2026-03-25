@@ -209,6 +209,7 @@ export async function bulkUpdateTasks(taskIds: number[], updates: UpdateTaskRequ
 
 export async function bulkSoftDeleteTasks(taskIds: number[], userId: string): Promise<number> {
   if (taskIds.length === 0) return 0;
+  await db.update(tasks).set({ parentId: null }).where(inArray(tasks.parentId, taskIds));
   const now = new Date();
   const updated = await db.update(tasks)
     .set({ deletedAt: now, deletedBy: userId })
@@ -321,6 +322,7 @@ export async function getTaskResourceAssignmentsByOrgId(organizationId: number):
 }
 
 export async function deleteTask(id: number): Promise<void> {
+  await db.update(tasks).set({ parentId: null }).where(eq(tasks.parentId, id));
   await db.delete(taskDependencies).where(eq(taskDependencies.taskId, id));
   await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, id));
   await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, id));

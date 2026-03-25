@@ -745,7 +745,18 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const id = parseInt(req.params.id);
-      const field = await storage.updateCustomFieldDefinition(id, req.body);
+      const { fieldName, fieldType, fieldLabel, description, isRequired, options, defaultValue, displayOrder, isActive } = req.body;
+      const safeUpdate: Record<string, any> = {};
+      if (fieldName !== undefined) safeUpdate.fieldName = fieldName;
+      if (fieldType !== undefined) safeUpdate.fieldType = fieldType;
+      if (fieldLabel !== undefined) safeUpdate.fieldLabel = fieldLabel;
+      if (description !== undefined) safeUpdate.description = description;
+      if (isRequired !== undefined) safeUpdate.isRequired = isRequired;
+      if (options !== undefined) safeUpdate.options = options;
+      if (defaultValue !== undefined) safeUpdate.defaultValue = defaultValue;
+      if (displayOrder !== undefined) safeUpdate.displayOrder = displayOrder;
+      if (isActive !== undefined) safeUpdate.isActive = isActive;
+      const field = await storage.updateCustomFieldDefinition(id, safeUpdate);
       res.json(field);
     } catch (error) {
       console.error('Error updating custom field:', error);
@@ -940,7 +951,15 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const id = parseInt(req.params.id);
-      const tab = await storage.updateCustomProjectTab(id, req.body);
+      const { name, label, icon, displayOrder, isActive, isDefault } = req.body;
+      const safeUpdate: Record<string, any> = {};
+      if (name !== undefined) safeUpdate.name = name;
+      if (label !== undefined) safeUpdate.label = label;
+      if (icon !== undefined) safeUpdate.icon = icon;
+      if (displayOrder !== undefined) safeUpdate.displayOrder = displayOrder;
+      if (isActive !== undefined) safeUpdate.isActive = isActive;
+      if (isDefault !== undefined) safeUpdate.isDefault = isDefault;
+      const tab = await storage.updateCustomProjectTab(id, safeUpdate);
       res.json(tab);
     } catch (error) {
       console.error('Error updating custom tab:', error);
@@ -1019,7 +1038,14 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const id = parseInt(req.params.id);
-      const section = await storage.updateCustomTabSection(id, req.body);
+      const { name, label, displayOrder, isCollapsible, isDefaultCollapsed } = req.body;
+      const safeUpdate: Record<string, any> = {};
+      if (name !== undefined) safeUpdate.name = name;
+      if (label !== undefined) safeUpdate.label = label;
+      if (displayOrder !== undefined) safeUpdate.displayOrder = displayOrder;
+      if (isCollapsible !== undefined) safeUpdate.isCollapsible = isCollapsible;
+      if (isDefaultCollapsed !== undefined) safeUpdate.isDefaultCollapsed = isDefaultCollapsed;
+      const section = await storage.updateCustomTabSection(id, safeUpdate);
       res.json(section);
     } catch (error) {
       console.error('Error updating custom tab section:', error);
@@ -1098,7 +1124,18 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const id = parseInt(req.params.id);
-      const field = await storage.updateCustomTabField(id, req.body);
+      const { fieldName, fieldType, fieldLabel, description, isRequired, options, defaultValue, displayOrder, isActive } = req.body;
+      const safeUpdate: Record<string, any> = {};
+      if (fieldName !== undefined) safeUpdate.fieldName = fieldName;
+      if (fieldType !== undefined) safeUpdate.fieldType = fieldType;
+      if (fieldLabel !== undefined) safeUpdate.fieldLabel = fieldLabel;
+      if (description !== undefined) safeUpdate.description = description;
+      if (isRequired !== undefined) safeUpdate.isRequired = isRequired;
+      if (options !== undefined) safeUpdate.options = options;
+      if (defaultValue !== undefined) safeUpdate.defaultValue = defaultValue;
+      if (displayOrder !== undefined) safeUpdate.displayOrder = displayOrder;
+      if (isActive !== undefined) safeUpdate.isActive = isActive;
+      const field = await storage.updateCustomTabField(id, safeUpdate);
       res.json(field);
     } catch (error) {
       console.error('Error updating custom tab field:', error);
@@ -1186,7 +1223,15 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const id = parseInt(req.params.id);
-      const criteria = await storage.updateProjectScoringCriteria(id, req.body);
+      const { name, description, weight, maxScore, category, isActive } = req.body;
+      const safeUpdate: Record<string, any> = {};
+      if (name !== undefined) safeUpdate.name = name;
+      if (description !== undefined) safeUpdate.description = description;
+      if (weight !== undefined) safeUpdate.weight = weight;
+      if (maxScore !== undefined) safeUpdate.maxScore = maxScore;
+      if (category !== undefined) safeUpdate.category = category;
+      if (isActive !== undefined) safeUpdate.isActive = isActive;
+      const criteria = await storage.updateProjectScoringCriteria(id, safeUpdate);
       res.json(criteria);
     } catch (error) {
       console.error('Error updating scoring criteria:', error);
@@ -1304,7 +1349,18 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const id = parseInt(req.params.id);
-      const benefit = await storage.updateProjectBenefit(id, req.body);
+      const { title, description, category, expectedValue, actualValue, status, measurementMethod, targetDate, notes } = req.body;
+      const safeUpdate: Record<string, any> = {};
+      if (title !== undefined) safeUpdate.title = title;
+      if (description !== undefined) safeUpdate.description = description;
+      if (category !== undefined) safeUpdate.category = category;
+      if (expectedValue !== undefined) safeUpdate.expectedValue = expectedValue;
+      if (actualValue !== undefined) safeUpdate.actualValue = actualValue;
+      if (status !== undefined) safeUpdate.status = status;
+      if (measurementMethod !== undefined) safeUpdate.measurementMethod = measurementMethod;
+      if (targetDate !== undefined) safeUpdate.targetDate = targetDate;
+      if (notes !== undefined) safeUpdate.notes = notes;
+      const benefit = await storage.updateProjectBenefit(id, safeUpdate);
       res.json(benefit);
     } catch (error) {
       console.error('Error updating project benefit:', error);
@@ -1372,7 +1428,19 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const id = parseInt(req.params.id);
-      const decision = await storage.updateProjectDecision(id, req.body);
+      const { title, description, status, priority, decisionDate, decisionMaker, rationale, alternatives, impact, notes } = req.body;
+      const safeUpdate: Record<string, any> = {};
+      if (title !== undefined) safeUpdate.title = title;
+      if (description !== undefined) safeUpdate.description = description;
+      if (status !== undefined) safeUpdate.status = status;
+      if (priority !== undefined) safeUpdate.priority = priority;
+      if (decisionDate !== undefined) safeUpdate.decisionDate = decisionDate;
+      if (decisionMaker !== undefined) safeUpdate.decisionMaker = decisionMaker;
+      if (rationale !== undefined) safeUpdate.rationale = rationale;
+      if (alternatives !== undefined) safeUpdate.alternatives = alternatives;
+      if (impact !== undefined) safeUpdate.impact = impact;
+      if (notes !== undefined) safeUpdate.notes = notes;
+      const decision = await storage.updateProjectDecision(id, safeUpdate);
       res.json(decision);
     } catch (error) {
       console.error('Error updating project decision:', error);
@@ -1459,7 +1527,18 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const id = parseInt(req.params.id);
-      const lesson = await storage.updateLessonLearned(id, req.body);
+      const { title, description, category, impact, recommendations, status, dateIdentified, approvedBy, notes } = req.body;
+      const safeUpdate: Record<string, any> = {};
+      if (title !== undefined) safeUpdate.title = title;
+      if (description !== undefined) safeUpdate.description = description;
+      if (category !== undefined) safeUpdate.category = category;
+      if (impact !== undefined) safeUpdate.impact = impact;
+      if (recommendations !== undefined) safeUpdate.recommendations = recommendations;
+      if (status !== undefined) safeUpdate.status = status;
+      if (dateIdentified !== undefined) safeUpdate.dateIdentified = dateIdentified;
+      if (approvedBy !== undefined) safeUpdate.approvedBy = approvedBy;
+      if (notes !== undefined) safeUpdate.notes = notes;
+      const lesson = await storage.updateLessonLearned(id, safeUpdate);
       res.json(lesson);
     } catch (error) {
       console.error('Error updating lesson learned:', error);

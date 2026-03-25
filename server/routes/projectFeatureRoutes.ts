@@ -235,7 +235,18 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (docProject && !await userHasOrgAccess(userId, docProject.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
-      const document = await storage.updateProjectDocument(id, req.body);
+      const { name, description, fileUrl, fileType, fileSize, category, version, status, tags } = req.body;
+      const safeUpdate: Record<string, any> = {};
+      if (name !== undefined) safeUpdate.name = name;
+      if (description !== undefined) safeUpdate.description = description;
+      if (fileUrl !== undefined) safeUpdate.fileUrl = fileUrl;
+      if (fileType !== undefined) safeUpdate.fileType = fileType;
+      if (fileSize !== undefined) safeUpdate.fileSize = fileSize;
+      if (category !== undefined) safeUpdate.category = category;
+      if (version !== undefined) safeUpdate.version = version;
+      if (status !== undefined) safeUpdate.status = status;
+      if (tags !== undefined) safeUpdate.tags = tags;
+      const document = await storage.updateProjectDocument(id, safeUpdate);
       res.json(document);
     } catch (err) {
       console.error("Error updating document:", err);
@@ -668,7 +679,19 @@ export function registerProjectFeatureRoutes(app: Express) {
         return res.status(403).json({ message: "Access denied" });
       }
       
-      const updated = await storage.updateProjectInvoice(invoiceId, req.body);
+      const { invoiceNumber, description, amount, currency, status, issueDate, dueDate, paidDate, notes, lineItems } = req.body;
+      const safeUpdate: Record<string, any> = {};
+      if (invoiceNumber !== undefined) safeUpdate.invoiceNumber = invoiceNumber;
+      if (description !== undefined) safeUpdate.description = description;
+      if (amount !== undefined) safeUpdate.amount = amount;
+      if (currency !== undefined) safeUpdate.currency = currency;
+      if (status !== undefined) safeUpdate.status = status;
+      if (issueDate !== undefined) safeUpdate.issueDate = issueDate;
+      if (dueDate !== undefined) safeUpdate.dueDate = dueDate;
+      if (paidDate !== undefined) safeUpdate.paidDate = paidDate;
+      if (notes !== undefined) safeUpdate.notes = notes;
+      if (lineItems !== undefined) safeUpdate.lineItems = lineItems;
+      const updated = await storage.updateProjectInvoice(invoiceId, safeUpdate);
       res.json(updated);
     } catch (err) {
       console.error("Error updating invoice:", err);
@@ -1285,7 +1308,18 @@ export function registerProjectFeatureRoutes(app: Express) {
       const existing = await storage.getCostItem(id);
       if (!existing) return res.status(404).json({ message: "Cost item not found" });
       
-      const updated = await storage.updateCostItem(id, req.body);
+      const { name, description, category, estimatedCost, actualCost, status, startDate, endDate, notes } = req.body;
+      const safeUpdate: Record<string, any> = {};
+      if (name !== undefined) safeUpdate.name = name;
+      if (description !== undefined) safeUpdate.description = description;
+      if (category !== undefined) safeUpdate.category = category;
+      if (estimatedCost !== undefined) safeUpdate.estimatedCost = estimatedCost;
+      if (actualCost !== undefined) safeUpdate.actualCost = actualCost;
+      if (status !== undefined) safeUpdate.status = status;
+      if (startDate !== undefined) safeUpdate.startDate = startDate;
+      if (endDate !== undefined) safeUpdate.endDate = endDate;
+      if (notes !== undefined) safeUpdate.notes = notes;
+      const updated = await storage.updateCostItem(id, safeUpdate);
       res.json(updated);
     } catch (err) {
       console.error("Error updating cost item:", err);
