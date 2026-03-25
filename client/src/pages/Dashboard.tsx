@@ -204,36 +204,12 @@ interface SortableTabProps {
   onSubmenuChange: (submenuId: string) => void;
 }
 
-function SortableTab({ tab, isAdmin, isReorderMode, activeSubmenu, onSubmenuChange }: SortableTabProps) {
-  const canDrag = isAdmin && isReorderMode;
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: tab.id, disabled: !canDrag });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    cursor: canDrag ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
-  };
-
+function TabContent({ tab, activeSubmenu, onSubmenuChange, showGrip }: { tab: UnifiedTab; activeSubmenu: string; onSubmenuChange: (id: string) => void; showGrip?: boolean }) {
   if (tab.type === 'custom') {
     const isActive = activeSubmenu === tab.id;
     return (
-      <div
-        ref={setNodeRef}
-        style={style}
-        className="flex items-center shrink-0"
-        {...(canDrag ? { ...attributes, ...listeners } : {})}
-      >
-        {canDrag && (
-          <GripVertical className="h-4 w-4 text-muted-foreground mr-1" />
-        )}
+      <>
+        {showGrip && <GripVertical className="h-4 w-4 text-muted-foreground mr-1" />}
         <Button
           variant="ghost"
           size="sm"
@@ -244,24 +220,16 @@ function SortableTab({ tab, isAdmin, isReorderMode, activeSubmenu, onSubmenuChan
           <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
           <span className="text-[11px] sm:text-sm whitespace-nowrap">{tab.label}</span>
         </Button>
-      </div>
+      </>
     );
   }
 
   const Icon = tab.icon!;
   const isActive = activeSubmenu.startsWith(tab.id);
-  const currentSubmenu = tab.submenus?.find(s => s.id === activeSubmenu);
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="flex items-center shrink-0"
-      {...(canDrag ? { ...attributes, ...listeners } : {})}
-    >
-      {canDrag && (
-        <GripVertical className="h-4 w-4 text-muted-foreground mr-1" />
-      )}
+    <>
+      {showGrip && <GripVertical className="h-4 w-4 text-muted-foreground mr-1" />}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -296,6 +264,37 @@ function SortableTab({ tab, isAdmin, isReorderMode, activeSubmenu, onSubmenuChan
             })}
           </DropdownMenuContent>
       </DropdownMenu>
+    </>
+  );
+}
+
+function SortableTab({ tab, isAdmin, isReorderMode, activeSubmenu, onSubmenuChange }: SortableTabProps) {
+  const canDrag = isAdmin && isReorderMode;
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: tab.id, disabled: !canDrag });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    cursor: isDragging ? 'grabbing' : 'grab',
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center shrink-0"
+      {...attributes}
+      {...listeners}
+    >
+      <TabContent tab={tab} activeSubmenu={activeSubmenu} onSubmenuChange={onSubmenuChange} showGrip />
     </div>
   );
 }
@@ -493,8 +492,6 @@ export default function Dashboard() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
-  const noSensors = useSensors();
-
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -590,28 +587,39 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="w-full flex items-center h-auto gap-1 bg-muted/50 p-1 rounded-lg overflow-x-auto scrollbar-none" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }} data-testid="dashboard-tabs">
-        <DndContext
-          sensors={isOrgAdmin && isReorderMode ? activeSensors : noSensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={visibleTabs.map(t => t.id)}
-            strategy={horizontalListSortingStrategy}
+      <div className={cn(
+        "w-full flex items-center h-auto gap-1 bg-muted/50 p-1 rounded-lg",
+        !isReorderMode && "overflow-x-auto scrollbar-none"
+      )} style={!isReorderMode ? { WebkitOverflowScrolling: 'touch' } : undefined} data-testid="dashboard-tabs">
+        {isReorderMode ? (
+          <DndContext
+            sensors={activeSensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
           >
-            {visibleTabs.map((tab) => (
-              <SortableTab
-                key={tab.id}
-                tab={tab}
-                isAdmin={isOrgAdmin}
-                isReorderMode={isReorderMode}
-                activeSubmenu={activeSubmenu}
-                onSubmenuChange={handleSubmenuChange}
-              />
-            ))}
-          </SortableContext>
-        </DndContext>
+            <SortableContext
+              items={visibleTabs.map(t => t.id)}
+              strategy={horizontalListSortingStrategy}
+            >
+              {visibleTabs.map((tab) => (
+                <SortableTab
+                  key={tab.id}
+                  tab={tab}
+                  isAdmin={isOrgAdmin}
+                  isReorderMode={isReorderMode}
+                  activeSubmenu={activeSubmenu}
+                  onSubmenuChange={handleSubmenuChange}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
+        ) : (
+          visibleTabs.map((tab) => (
+            <div key={tab.id} className="flex items-center shrink-0">
+              <TabContent tab={tab} activeSubmenu={activeSubmenu} onSubmenuChange={handleSubmenuChange} />
+            </div>
+          ))
+        )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
