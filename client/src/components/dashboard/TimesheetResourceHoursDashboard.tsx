@@ -5,7 +5,6 @@ import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useAuth } from "@/hooks/use-auth";
 import { useCurrentUserResource, useTeamTimesheetEntries, useTimesheetEntries } from "@/hooks/use-timesheets";
-import { useQuery } from "@tanstack/react-query";
 import { DashboardActionBar } from "./DashboardActionBar";
 import { DashboardFilters, getDefaultFilters, type DashboardFilterState } from "./DashboardFilters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,8 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Loader2, Clock, Users, TrendingUp, Target, BarChart3, AlertCircle, CheckCircle2, Eye } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from "recharts";
-import type { TimesheetEntry } from "@shared/schema";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, PieChart, Pie, Cell } from "recharts";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 
 const COLORS = {

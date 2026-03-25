@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, DollarSign, Shield, Calculator, Save, Lightbulb, Filter, ClipboardCheck, Users, Gavel, ChevronsUpDown } from "lucide-react";
+import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, Shield, Calculator, Save, Lightbulb, Gavel, ChevronsUpDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { ProjectIntake, Portfolio } from "@shared/schema";

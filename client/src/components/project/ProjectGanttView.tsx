@@ -1,10 +1,10 @@
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { DndContext, DragEndEvent, closestCorners, useSensor, useSensors, PointerSensor, DragOverlay } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, closestCorners, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { format, addDays, differenceInDays, parseISO, isAfter, isBefore, startOfDay, eachDayOfInterval, startOfMonth, endOfMonth } from "date-fns";
+import { format, addDays, differenceInDays, parseISO, eachDayOfInterval, startOfMonth, endOfMonth } from "date-fns";
 import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, calculateStartDateFromEndAndDuration, parseDurationInput, formatDuration } from "@/lib/workingDays";
 import { calculateCPM, type CPMResult } from "@/lib/cpm";
 import { useUpdateTask, useCreateTask, useDeleteTask, useAddTaskDependency, useRemoveTaskDependency, useReorderTask, useProjectDependencies, useBulkUpdateTasks, useBulkDeleteTasks } from "@/hooks/use-tasks";
@@ -35,8 +35,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Trash2, Pencil, Check, X, GripVertical, Users, Flag, Columns3, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ListTodo, Search, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown, Undo2, Redo2, FolderKanban, RefreshCw, Focus, Link2, Link as LinkIcon, IndentIncrease, IndentDecrease, Type, Lock as LockIcon, Calendar as CalendarIcon } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, Check, X, GripVertical, Users, Flag, Columns3, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, Search, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown, Undo2, Redo2, FolderKanban, RefreshCw, Focus, Link2, Link as LinkIcon, IndentIncrease, IndentDecrease, Type, Lock as LockIcon, Calendar as CalendarIcon } from "lucide-react";
 
 export { type ZoomLevel, type GanttColumn, type GanttColumnConfig, GANTT_COLUMNS, COLUMN_CATEGORIES, DEFAULT_GANTT_COLUMNS };
 

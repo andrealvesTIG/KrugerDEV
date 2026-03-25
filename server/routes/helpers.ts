@@ -14,6 +14,11 @@ import * as os from "os";
 import * as crypto from "crypto";
 import OpenAI from "openai";
 
+const openai = new OpenAI({
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+});
+
 const ENCRYPTION_KEY = (() => {
   if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
   if (process.env.NODE_ENV === 'production') {
@@ -42,11 +47,6 @@ function decryptApiKey(ciphertext: string, cryptoMod?: typeof crypto): string {
   return decrypted;
 }
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
-
 // Configure multer for file uploads (memory storage)
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -62,10 +62,9 @@ const upload = multer({
   }
 });
 
-// Configure multer for image uploads (avatars, logos)
 const imageUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit for images
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (allowedTypes.includes(file.mimetype)) {

@@ -5,9 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Loader2, CreditCard, Check, Zap, Users, FileText, FolderKanban, CheckSquare, Sparkles, AlertTriangle, ArrowRight, Plus, Wallet, Gift, Share2, DollarSign, Copy, UserPlus, TrendingUp, Clock, CheckCircle2, History, XCircle, Receipt, Calendar, Minus } from "lucide-react";
+import { Loader2, CreditCard, Check, Zap, Users, FileText, FolderKanban, CheckSquare, Sparkles, AlertTriangle, Plus, Wallet, DollarSign, UserPlus, Clock, CheckCircle2, History, XCircle, Receipt, Calendar, Minus } from "lucide-react";
 import { SiPaypal } from "react-icons/si";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
@@ -17,7 +15,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import PayPalSubscriptionButton from "@/components/PayPalSubscriptionButton";
-import type { Plan, Subscription, UsageRollup } from "@shared/schema";
+import type { Plan, Subscription } from "@shared/schema";
 
 interface CycleUsageRollup {
   meterCode: string;

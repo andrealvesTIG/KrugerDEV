@@ -6,20 +6,18 @@ import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { DashboardActionBar } from "./DashboardActionBar";
 import { DashboardFilters, getDefaultFilters, type DashboardFilterState } from "./DashboardFilters";
-import { ProjectCardCompact, ProjectCardCompactSkeleton } from "./ProjectCardCompact";
+import { ProjectCardCompact } from "./ProjectCardCompact";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Loader2, Briefcase, AlertTriangle, TrendingUp, CheckCircle2, 
   FileInput, Clock, Upload, PenTool, DollarSign,
   FolderKanban, ArrowRight, Activity, Target, BarChart3
 } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, LineChart, Line, Area, AreaChart } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { isWithinInterval, parseISO } from "date-fns";
 import type { ProjectIntake, Risk, Issue } from "@shared/schema";
 

@@ -8,7 +8,7 @@ import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
 import { useAuth } from "@/hooks/use-auth";
-import { useUpdateIssueResourceAssignments, useIssueResourceAssignments, useAllIssueResourceAssignments, useResources } from "@/hooks/use-resources";
+import { useUpdateIssueResourceAssignments, useIssueResourceAssignments, useAllIssueResourceAssignments } from "@/hooks/use-resources";
 import type { IssueResourceAssignment, Resource } from "@shared/schema";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
@@ -23,14 +23,13 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Search, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, MoreVertical, Pencil, Users, AlertTriangle, History, ChevronDown, ChevronUp, ArrowUpToLine, ArrowDownFromLine, Settings2, Check, X, Download, Upload, FileSpreadsheet } from "lucide-react";
+import { Loader2, Search, Plus, Trash2, Bug, MoreVertical, Pencil, AlertTriangle, History, ChevronDown, ChevronUp, ArrowUpToLine, ArrowDownFromLine, Settings2, X, Download, Upload, FileSpreadsheet } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useForm, Controller } from "react-hook-form";
-import { type Issue } from "@shared/schema";
+import type { Issue } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
-import { exportIssuesToFile, parseImportFile, generateTemplate, type ImportedIssue, type ImportResult } from "@/lib/issuesExportImport";
-import { motion } from "framer-motion";
+import { exportIssuesToFile, parseImportFile, generateTemplate, type ImportResult } from "@/lib/issuesExportImport";
 import { Link } from "wouter";
 
 type ColumnKey = 

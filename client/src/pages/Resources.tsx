@@ -10,26 +10,25 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, GitMerge, ArrowRight, Check, ExternalLink, ClipboardList, ChevronDown, ChevronRight, FolderKanban, Building2, Layers, Wrench, Calendar, Clock, Percent, X, FileText, Target, ListTodo, User, Grid3X3, LayoutList, ZoomIn, ZoomOut, Maximize2, BarChart3, TrendingUp, CalendarDays, Sparkles, AlertTriangle, Lightbulb, ArrowUpDown, Loader2, RefreshCw } from "lucide-react";
+import { Plus, Search, Users, Pencil, Trash2, DollarSign, MoreVertical, Download, Upload, GitMerge, ArrowRight, Check, ExternalLink, ClipboardList, ChevronDown, ChevronRight, FolderKanban, Building2, Layers, Wrench, Calendar, Clock, Percent, FileText, Target, ListTodo, User, Grid3X3, LayoutList, ZoomIn, ZoomOut, Maximize2, BarChart3, TrendingUp, CalendarDays, Sparkles, AlertTriangle, Lightbulb, ArrowUpDown, Loader2, RefreshCw } from "lucide-react";
 import CapacityPlanningView from "@/components/resources/CapacityPlanningView";
 import WorkloadDashboard from "@/components/resources/WorkloadDashboard";
 import AvailabilityCalendar from "@/components/resources/AvailabilityCalendar";
 import DemandForecast from "@/components/resources/DemandForecast";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import ExcelJS from "exceljs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import type { InsertResource, Resource } from "@shared/schema";
+import type { Resource } from "@shared/schema";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
-import { format, startOfWeek, endOfWeek, addWeeks, isWithinInterval, parseISO, differenceInDays, startOfDay, endOfDay, addDays, startOfMonth, endOfMonth, addMonths, startOfQuarter, endOfQuarter, addQuarters, startOfYear, endOfYear, addYears, min, max } from "date-fns";
+import { format, startOfWeek, endOfWeek, addWeeks, parseISO, differenceInDays, startOfDay, endOfDay, addDays, startOfMonth, endOfMonth, addMonths, startOfQuarter, endOfQuarter, addQuarters, startOfYear, endOfYear, addYears, min, max } from "date-fns";
 import {
   Table,
   TableBody,

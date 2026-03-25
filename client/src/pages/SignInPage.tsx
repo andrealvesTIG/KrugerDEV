@@ -64,9 +64,7 @@ import { useQuery } from "@tanstack/react-query";
 import { HoneypotField } from "@/components/HoneypotField";
 import { LandingFooter } from "@/components/layout/LandingFooter";
 import { PublicFeatureComparison } from "@/components/PublicFeatureComparison";
-import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
-import logoIcon from "@assets/FridayReportAI_logo_F-symbol_1770231051194.png";
 // Video served from public folder for production compatibility
 import demoVideo from "@assets/30_sec_video_1771015821657.mp4";
 

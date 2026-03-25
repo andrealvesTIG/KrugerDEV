@@ -1,6 +1,6 @@
 import { ReactNode, useState, useMemo, useRef, useEffect } from "react";
 import { normalizeSearch } from "@/lib/utils";
-import { Sidebar, SidebarProvider, useSidebarState, logoIcon, logoBlack, logoWhite } from "./Sidebar";
+import { Sidebar, SidebarProvider, useSidebarState, logoBlack, logoWhite } from "./Sidebar";
 import { useTheme } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
@@ -11,7 +11,6 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Link, useLocation } from "wouter";
 import { SearchCommand } from "./SearchCommand";
 import { QuickAddMenu } from "./QuickAddMenu";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
