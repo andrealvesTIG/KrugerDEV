@@ -692,10 +692,10 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       )}
       {/* MS Project imported project banner */}
       {isMsProjectImported && (
-        <div className="flex items-center justify-between p-3 rounded-lg border bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800">
-          <div className="flex items-center gap-3">
-            <img src={msprojectLogoPath} alt="Microsoft Project" className="h-6 w-6" />
-            <div>
+        <div className="p-3 rounded-lg border bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 space-y-3">
+          <div className="flex items-start gap-3">
+            <img src={msprojectLogoPath} alt="Microsoft Project" className="h-6 w-6 shrink-0 mt-0.5" />
+            <div className="min-w-0">
               <span className="font-medium text-emerald-800 dark:text-emerald-200">Microsoft Project Task Management Options:</span>
               <div className="mt-1 space-y-0.5"> 
                 <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">1. Re-Import – Edit tasks in MS Project (view-only in FridayReport)</p>
@@ -703,7 +703,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"
