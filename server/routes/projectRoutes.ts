@@ -437,8 +437,6 @@ export function registerProjectRoutes(app: Express) {
         }
 
         if (userIdSet.size > 0) {
-          console.log(`Planner import: Found ${userIdSet.size} assigned users`);
-          
           // Fetch existing resources for matching
           const existingResources = await storage.getResources(Number(organizationId));
           const resourcesByEmail = new Map(existingResources.filter(r => r.email).map(r => [r.email!.toLowerCase(), r]));
@@ -462,8 +460,6 @@ export function registerProjectRoutes(app: Express) {
                 const userName = userData.displayName || 'Unknown User';
                 const userEmail = userData.mail || userData.userPrincipalName || null;
                 
-                console.log(`Planner import: User ${msUserId} - Name: ${userName}, Email: ${userEmail}`);
-
                 // Try to match existing resource by email first, then by name
                 let matchedResource = userEmail ? resourcesByEmail.get(userEmail.toLowerCase()) : null;
                 if (!matchedResource) {
@@ -472,7 +468,6 @@ export function registerProjectRoutes(app: Express) {
 
                 if (matchedResource) {
                   userResourceMap.set(msUserId, matchedResource.id);
-                  console.log(`Planner import: Matched resource: ${userName} (ID: ${matchedResource.id})`);
                 } else {
                   // Create new resource
                   const newResource = await storage.createResource({
@@ -491,13 +486,10 @@ export function registerProjectRoutes(app: Express) {
                   resourcesByName.set(userName.toLowerCase(), newResource);
 
                   resourcesImported++;
-                  console.log(`Planner import: Created resource: ${userName} (ID: ${newResource.id}, Email: ${userEmail})`);
                 }
-              } else {
-                console.log(`Planner import: Failed to fetch user ${msUserId}: ${userResponse.status}`);
               }
             } catch (userErr) {
-              console.log(`Planner import: Error fetching user ${msUserId}:`, userErr);
+              console.error(`Planner import: Error fetching user ${msUserId}:`, userErr);
             }
           }
 
@@ -516,9 +508,8 @@ export function registerProjectRoutes(app: Express) {
                       resourceId: resourceId,
                     });
                     assignedPairs.add(pairKey);
-                    console.log(`Planner import: Assigned resource ${resourceId} to task ${task.id}`);
                   } catch (assignErr) {
-                    console.log(`Planner import: Failed to assign resource:`, assignErr);
+                    console.error("Planner import: Failed to assign resource:", assignErr);
                   }
                 }
               }
@@ -526,7 +517,7 @@ export function registerProjectRoutes(app: Express) {
           }
         }
       } catch (resourceErr) {
-        console.log("Planner import: Error importing resources:", resourceErr);
+        console.error("Planner import: Error importing resources:", resourceErr);
         // Continue without failing - resources are optional
       }
 
@@ -591,7 +582,7 @@ export function registerProjectRoutes(app: Express) {
           dataverseOrgId = whoAmI.OrganizationId || null;
         }
       } catch (err) {
-        console.log("Failed to fetch WhoAmI for org ID:", err);
+        console.error("Failed to fetch WhoAmI for org ID:", err);
       }
 
       // Get tenant ID from user profile
@@ -674,11 +665,8 @@ export function registerProjectRoutes(app: Express) {
           });
           
           if (tasksResponse.ok) {
-            console.log(`Import: Successfully fetched tasks using field set ${fi}${oi === 0 ? ' with displaysequence ordering' : ' without ordering'}`);
             successfulFetch = true;
             break;
-          } else {
-            console.log(`Import: Field set ${fi} with orderBy[${oi}] failed (status ${tasksResponse.status}), trying next...`);
           }
         }
       }
@@ -697,7 +685,6 @@ export function registerProjectRoutes(app: Express) {
         return seqA - seqB;
       });
       
-      console.log(`Import: Sorted ${dataverseTasks.length} tasks by displaysequence for proper row ordering`);
 
       // Calculate project dates from tasks using available schedule data
       const today = new Date().toISOString().split('T')[0];
@@ -929,14 +916,11 @@ export function registerProjectRoutes(app: Express) {
             teamApiUrlIndex = i;
             break;
           }
-          console.log(`Import: Team API attempt ${i + 1} failed (status ${teamResponse.status}), trying next...`);
         }
 
         if (teamResponse && teamFetched) {
           const teamData = await teamResponse.json();
           const teamMembers = teamData.value || [];
-          console.log(`Import: Found ${teamMembers.length} team members (using API variant ${teamApiUrlIndex + 1})`);
-
           // Process each team member
           for (const member of teamMembers) {
             const memberName = member.msdyn_bookableresourceid?.name || member.msdyn_name;
@@ -962,13 +946,9 @@ export function registerProjectRoutes(app: Express) {
                 );
                 if (brResponse.ok) {
                   const brData = await brResponse.json();
-                  console.log(`Import: Bookable resource data for ${memberName}:`, JSON.stringify(brData));
                   
-                  // The userId field links to the Dataverse systemuser - use it to fetch email
                   if (brData._userid_value) {
-                    console.log(`Import: Trying Dataverse systemusers with userId ${brData._userid_value}`);
                     try {
-                      // Fetch email from Dataverse systemusers entity (same token works)
                       const systemUserResponse = await fetch(
                         `${environmentUrl}/api/data/v9.2/systemusers(${brData._userid_value})?$select=internalemailaddress,domainname,fullname`,
                         {
@@ -982,31 +962,13 @@ export function registerProjectRoutes(app: Express) {
                       );
                       if (systemUserResponse.ok) {
                         const systemUserData = await systemUserResponse.json();
-                        console.log(`Import: Systemuser data for ${memberName}:`, JSON.stringify(systemUserData));
                         memberEmail = systemUserData.internalemailaddress || systemUserData.domainname;
-                        if (memberEmail) {
-                          console.log(`Import: Fetched email from Dataverse systemusers for ${memberName}: ${memberEmail}`);
-                        }
-                      } else {
-                        const errorText = await systemUserResponse.text();
-                        console.log(`Import: Dataverse systemusers API failed for ${memberName}: ${systemUserResponse.status} - ${errorText}`);
                       }
                     } catch (systemUserErr) {
-                      console.log(`Import: Could not fetch systemuser details for ${memberName}:`, systemUserErr);
                     }
-                  } else {
-                    console.log(`Import: No userId in Dataverse for ${memberName} - cannot lookup email`);
                   }
-                  
-                  if (memberEmail) {
-                    console.log(`Import: Fetched email for ${memberName}: ${memberEmail}`);
-                  }
-                } else {
-                  const errorText = await brResponse.text();
-                  console.log(`Import: Bookable resource fetch failed for ${memberName}: ${brResponse.status} - ${errorText}`);
                 }
               } catch (brErr) {
-                console.log(`Import: Could not fetch bookable resource details for ${memberName}`);
               }
             }
 
@@ -1029,15 +991,12 @@ export function registerProjectRoutes(app: Express) {
               if (memberEmail && (!matchedResource.email || matchedResource.email.toLowerCase() !== memberEmail.toLowerCase())) {
                 try {
                   await storage.updateResource(matchedResource.id, { email: memberEmail });
-                  console.log(`Import: Updated resource ${memberName} with email: ${memberEmail} (was: ${matchedResource.email || 'none'})`);
                   // Update local cache
                   matchedResource.email = memberEmail;
                   resourcesByEmail.set(memberEmail.toLowerCase(), matchedResource);
                 } catch (updateErr) {
-                  console.log(`Import: Could not update email for ${memberName}`);
                 }
               }
-              console.log(`Import: Matched resource: ${memberName} (ID: ${matchedResource.id})`);
             } else {
               // Create new resource in resource pool
               try {
@@ -1125,7 +1084,6 @@ export function registerProjectRoutes(app: Express) {
                     resourceId: ourResourceId,
                   });
                   assignedPairs.add(pairKey);
-                  console.log(`Import: Assigned resource ${ourResourceId} to task ${ourTaskId}`);
                 } catch (assignErr) {
                   console.log(`Import: Failed to assign resource ${ourResourceId} to task ${ourTaskId}:`, assignErr);
                 }
@@ -1837,15 +1795,12 @@ export function registerProjectRoutes(app: Express) {
                 if (memberEmail && (!matchedResource.email || matchedResource.email.toLowerCase() !== memberEmail.toLowerCase())) {
                   try {
                     await storage.updateResource(matchedResource.id, { email: memberEmail });
-                    console.log(`Planner sync: Updated resource ${memberName} with email: ${memberEmail} (was: ${matchedResource.email || 'none'})`);
                     // Update local cache
                     matchedResource.email = memberEmail;
                     resourcesByEmail.set(memberEmail.toLowerCase(), matchedResource);
                   } catch (updateErr) {
-                    console.log(`Planner sync: Could not update email for ${memberName}`);
                   }
                 }
-                console.log(`Matched resource: ${memberName} (ID: ${matchedResource.id})`);
               } else if (project.organizationId) {
                 // Create new resource in resource pool
                 try {
@@ -1953,7 +1908,6 @@ export function registerProjectRoutes(app: Express) {
                       resourceId: ourResourceId,
                     });
                     assignedPairs.add(pairKey);
-                    console.log(`Assigned resource ${ourResourceId} to task ${ourTaskId}`);
                   } catch (assignErr) {
                     // Assignment might already exist or other error
                     console.log(`Failed to assign resource ${ourResourceId} to task ${ourTaskId}:`, assignErr);
@@ -3036,7 +2990,6 @@ export function registerProjectRoutes(app: Express) {
                       resourceId: resourceId,
                     });
                     assignedPairs.add(pairKey);
-                    console.log(`Planner sync: Assigned resource ${resourceId} to task ${task.id}`);
                   } catch (assignErr) {
                     console.log(`Planner sync: Failed to assign resource:`, assignErr);
                   }

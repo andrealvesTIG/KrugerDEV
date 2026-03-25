@@ -477,7 +477,6 @@ export async function sendScheduledReport(subscriptionId: number): Promise<boole
       })
       .where(eq(reportSubscriptions.id, subscriptionId));
     
-    console.log(`Report "${subscription.name}" sent to ${recipients.join(', ')}`);
     return true;
   } catch (error) {
     console.error(`Error sending scheduled report ${subscriptionId}:`, error);

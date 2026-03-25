@@ -20,7 +20,6 @@ async function fetchAndUploadMicrosoftPhoto(accessToken: string, userId: string)
 
     if (!response.ok) {
       if (response.status === 404) {
-        console.log("No Microsoft profile photo found for user");
         return null;
       }
       console.error("Failed to fetch Microsoft photo:", response.status, response.statusText);
@@ -206,7 +205,6 @@ export async function setupMicrosoftAuth(app: Express) {
     if (!savedState && req.cookies?.ms_oauth_state) {
       savedState = req.cookies.ms_oauth_state;
       savedNonce = req.cookies.ms_oauth_nonce;
-      console.log("Using cookie-based OAuth state (session state was lost)");
     }
     
     // Clean up session state
@@ -358,7 +356,6 @@ export async function setupMicrosoftAuth(app: Express) {
                 avatarUrl: photoUrl 
               })
               .where(eq(users.id, existingUser.id));
-            console.log(`Updated Microsoft profile photo for user: ${existingUser.email}`);
           }
         } catch (photoError) {
           console.error("Error updating Microsoft profile photo:", photoError);
@@ -366,20 +363,13 @@ export async function setupMicrosoftAuth(app: Express) {
       }
 
       try {
-        const orgResult = await ensureUserOrganization(existingUser.id, email);
-        if (orgResult.created) {
-          console.log(`Auto-created org for Microsoft user: ${existingUser.email}`);
-        }
+        await ensureUserOrganization(existingUser.id, email);
       } catch (orgError) {
         console.error("Error ensuring user organization:", orgError);
       }
 
-      // Claim any pending organization invites for this email
       try {
-        const claimedMembers = await storage.claimInvitesForUser(email, existingUser.id);
-        if (claimedMembers.length > 0) {
-          console.log(`Claimed ${claimedMembers.length} org invite(s) for Microsoft user: ${existingUser.email}`);
-        }
+        await storage.claimInvitesForUser(email, existingUser.id);
       } catch (inviteError) {
         console.error("Error claiming organization invites:", inviteError);
       }

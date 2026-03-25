@@ -1564,28 +1564,20 @@ export function registerProjectFeatureRoutes(app: Express) {
   // Sync MPP import to an existing project (update tasks)
   app.post('/api/mpp-imports/:id/sync', async (req, res) => {
     try {
-      console.log("MPP Sync request:", { params: req.params, body: req.body });
-      
       const userId = getUserIdFromRequest(req);
       if (!userId) {
-        console.log("MPP Sync: No userId");
         return res.status(401).json({ message: "Authentication required" });
       }
 
       const id = Number(req.params.id);
       const { projectId, syncMode } = req.body;
       
-      console.log("MPP Sync: parsed values", { id, projectId, syncMode });
-      
       if (!projectId) {
-        console.log("MPP Sync: No projectId");
         return res.status(400).json({ message: "projectId is required" });
       }
 
-      // Get the import to verify it exists
       const mppImport = await storage.getMppImport(id);
       if (!mppImport) {
-        console.log("MPP Sync: Import not found");
         return res.status(404).json({ message: "Import not found" });
       }
 
@@ -1615,15 +1607,8 @@ export function registerProjectFeatureRoutes(app: Express) {
         return res.status(400).json({ message: "syncMode must be 'merge' or 'replace'" });
       }
 
-      console.log("MPP Sync: Starting sync operation");
       const result = await storage.syncMppImportToProject(id, Number(projectId), {
         syncMode: syncMode || 'merge',
-      });
-
-      console.log("MPP Sync: Completed", { 
-        projectName: result.project?.name, 
-        tasksAdded: result.tasksAdded, 
-        tasksUpdated: result.tasksUpdated 
       });
 
       const response = {

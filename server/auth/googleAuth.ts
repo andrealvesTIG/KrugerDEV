@@ -52,15 +52,6 @@ function isGoogleConfigured(): boolean {
   const clientId = getGoogleClientId();
   const clientSecret = getGoogleClientSecret();
   const configured = !!(clientId && clientSecret);
-  if (configured) {
-    console.log("Google OAuth configured:", {
-      clientIdLength: clientId.length,
-      clientIdPrefix: clientId.substring(0, 10),
-      clientIdSuffix: clientId.substring(clientId.length - 20),
-      secretLength: clientSecret.length,
-      secretPrefix: clientSecret.substring(0, 4),
-    });
-  }
   return configured;
 }
 
@@ -68,7 +59,6 @@ async function fetchAndUploadGooglePhoto(photoUrl: string, userId: string): Prom
   try {
     const response = await fetch(photoUrl);
     if (!response.ok) {
-      console.log("No Google profile photo available");
       return null;
     }
 
@@ -100,7 +90,6 @@ async function fetchAndUploadGooglePhoto(photoUrl: string, userId: string): Prom
       },
     });
     
-    console.log(`Successfully uploaded Google profile photo: /objects/${objectName}`);
     return `/objects/${objectName}`;
   } catch (error) {
     console.error("Error fetching/uploading Google profile photo:", error);
@@ -186,7 +175,6 @@ export function setupGoogleAuth(app: Express) {
     if (!savedState && req.cookies?.google_oauth_state) {
       savedState = req.cookies.google_oauth_state;
       savedNonce = req.cookies.google_oauth_nonce;
-      console.log("Using cookie-based Google OAuth state (session state was lost)");
     }
     
     // Clean up session state
@@ -290,7 +278,6 @@ export function setupGoogleAuth(app: Express) {
                   avatarUrl: photoUrl 
                 })
                 .where(eq(users.id, existingUser.id));
-              console.log(`Updated Google profile photo for user: ${existingUser.email}`);
             }
           } catch (photoError) {
             console.error("Error updating Google profile photo:", photoError);

@@ -49,7 +49,6 @@ interface HoneypotData {
 
 function verifyHoneypot(data: HoneypotData): { valid: boolean; error?: string } {
   if (data.honeypot1 || data.honeypot2) {
-    console.log("Honeypot triggered - bot detected");
     return { valid: false, error: "Invalid submission detected" };
   }
   
@@ -59,7 +58,6 @@ function verifyHoneypot(data: HoneypotData): { valid: boolean; error?: string } 
     const minimumTimeMs = 500; // Reduced to 500ms to allow autofill users
     
     if (timeElapsed < minimumTimeMs) {
-      console.log(`Form submitted too quickly: ${timeElapsed}ms (minimum: ${minimumTimeMs}ms)`);
       return { valid: false, error: "Please take your time filling out the form" };
     }
   }
@@ -102,7 +100,6 @@ export async function setupAuth(app: Express) {
   app.post("/api/auth/register", async (req, res) => {
     try {
       const { email, password, firstName, lastName, honeypot1, honeypot2, formLoadTime, signupSource } = req.body;
-      console.log("Register attempt for:", email);
 
       // Verify honeypot (bot protection without external service)
       const honeypotCheck = verifyHoneypot({ honeypot1, honeypot2, formLoadTime });
@@ -159,8 +156,6 @@ export async function setupAuth(app: Express) {
         signupSource: signupSource || null,
       }).returning();
 
-      console.log("User created:", newUser.id);
-
       // Send email verification
       const appUrl = process.env.APP_URL 
         || (process.env.REPLIT_DOMAINS?.split(',')[0] 
@@ -170,11 +165,7 @@ export async function setupAuth(app: Express) {
       
       const emailSent = await sendEmailVerificationEmail(email, verifyEmailUrl);
       if (!emailSent) {
-        console.log(`\n===== EMAIL VERIFICATION LINK =====`);
-        console.log(`Email: ${email}`);
-        console.log(`Verify URL: ${verifyEmailUrl}`);
-        console.log(`Expires: ${emailVerificationExpiry.toISOString()}`);
-        console.log(`===================================\n`);
+        console.log(`[auth] Verification email not sent for ${email} (no email service)`);
       }
 
       // Track organization creation for onboarding
@@ -189,24 +180,16 @@ export async function setupAuth(app: Express) {
           organizationId = orgResult.organization.id;
           organizationName = orgResult.organization.name;
         }
-        if (orgResult.created) {
-          console.log(`Auto-created org for new user: ${email}`);
-        }
-      } catch (orgError) {
+        } catch (orgError) {
         console.error("Error ensuring user organization:", orgError);
       }
 
-      // Claim any pending organization invites for this email
       try {
-        const claimedMembers = await storage.claimInvitesForUser(email, newUser.id);
-        if (claimedMembers.length > 0) {
-          console.log(`Claimed ${claimedMembers.length} org invite(s) for new user: ${email}`);
-        }
+        await storage.claimInvitesForUser(email, newUser.id);
       } catch (inviteError) {
         console.error("Error claiming organization invites:", inviteError);
       }
 
-      // Track referral if referral code was provided
       const { referralCode } = req.body;
       if (referralCode) {
         try {
@@ -224,12 +207,9 @@ export async function setupAuth(app: Express) {
               signedUpAt: new Date(),
             });
             
-            // Update total referrals count
             await db.update(referralCodes)
               .set({ totalReferrals: (refCode.totalReferrals || 0) + 1 })
               .where(eq(referralCodes.id, refCode.id));
-            
-            console.log(`Tracked referral for new user: ${email} via code: ${referralCode}`);
           }
         } catch (refError) {
           console.error("Error tracking referral:", refError);
@@ -244,7 +224,6 @@ export async function setupAuth(app: Express) {
             console.error("Session save error:", err);
             reject(err);
           } else {
-            console.log("Session saved for user:", newUser.id);
             resolve();
           }
         });
@@ -255,7 +234,6 @@ export async function setupAuth(app: Express) {
       });
 
       const { passwordHash: _, emailVerificationToken: _evt, emailVerificationExpiry: _eve, ...userWithoutPassword } = newUser;
-      console.log("Sending response for user:", newUser.id);
       return res.json({
         ...userWithoutPassword,
         isNewUser: true,
@@ -273,7 +251,6 @@ export async function setupAuth(app: Express) {
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password, honeypot1, honeypot2, formLoadTime } = req.body;
-      console.log("Login attempt for:", email);
 
       // Verify honeypot (bot protection without external service)
       const honeypotCheck = verifyHoneypot({ honeypot1, honeypot2, formLoadTime });
@@ -295,23 +272,14 @@ export async function setupAuth(app: Express) {
         return res.status(401).json({ message: "Invalid email or password" });
       }
 
-      console.log("Password verified for user:", user.id);
-
       try {
-        const orgResult = await ensureUserOrganization(user.id, email);
-        if (orgResult.created) {
-          console.log(`Auto-created org for existing user: ${email}`);
-        }
+        await ensureUserOrganization(user.id, email);
       } catch (orgError) {
         console.error("Error ensuring user organization:", orgError);
       }
 
-      // Claim any pending organization invites for this email
       try {
-        const claimedMembers = await storage.claimInvitesForUser(email, user.id);
-        if (claimedMembers.length > 0) {
-          console.log(`Claimed ${claimedMembers.length} org invite(s) for existing user: ${email}`);
-        }
+        await storage.claimInvitesForUser(email, user.id);
       } catch (inviteError) {
         console.error("Error claiming organization invites:", inviteError);
       }
@@ -324,14 +292,12 @@ export async function setupAuth(app: Express) {
             console.error("Session save error:", err);
             reject(err);
           } else {
-            console.log("Session saved for user:", user.id, "sessionId:", req.sessionID);
             resolve();
           }
         });
       });
 
       const { passwordHash: _, emailVerificationToken: _evt, emailVerificationExpiry: _eve, ...userWithoutPassword } = user;
-      console.log("Sending login response for user:", user.id);
       return res.json(userWithoutPassword);
     } catch (error) {
       console.error("Login error:", error);
@@ -352,7 +318,6 @@ export async function setupAuth(app: Express) {
 
   // Get current user
   app.get("/api/auth/user", async (req, res) => {
-    console.log("Auth check - sessionID:", req.sessionID, "userId:", req.session.userId);
     if (!req.session.userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -422,7 +387,6 @@ export async function setupAuth(app: Express) {
       const newHash = await hashPassword(password);
       await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, user.id));
 
-      console.log(`Password set up for user: ${user.email}`);
       res.json({ success: true, message: "Password has been set up successfully." });
     } catch (error) {
       console.error("Setup password error:", error);
@@ -476,11 +440,7 @@ export async function setupAuth(app: Express) {
       
       if (!emailSent) {
         // If email service not configured, log for development
-        console.log(`\n===== PASSWORD RESET LINK =====`);
-        console.log(`Email: ${email}`);
-        console.log(`Reset URL: ${resetUrl}`);
-        console.log(`Expires: ${expiresAt.toISOString()}`);
-        console.log(`===============================\n`);
+        console.log(`[auth] Password reset email not sent for ${email} (no email service)`);
       }
 
       res.json({ message: "If an account exists with this email, a reset link has been sent." });
@@ -572,7 +532,6 @@ export async function setupAuth(app: Express) {
   app.post("/api/auth/magic-link/request", async (req, res) => {
     try {
       const { email, honeypot1, honeypot2, formLoadTime, signupSource } = req.body;
-      console.log("Magic link request for:", email);
 
       // Verify honeypot (bot protection without external service)
       const honeypotCheck = verifyHoneypot({ honeypot1, honeypot2, formLoadTime });
@@ -647,7 +606,7 @@ export async function setupAuth(app: Express) {
       const emailSent = await sendMagicLinkEmail(normalizedEmail, verifyUrl);
       
       if (!emailSent) {
-        console.log("Magic link email not sent (no email service configured)");
+        console.log("[auth] Magic link email not sent (no email service)");
       }
 
       res.json({ 
@@ -748,7 +707,6 @@ export async function setupAuth(app: Express) {
         signupSource,
       }).returning();
 
-      console.log("User created via magic link:", newUser.id);
 
       sendWelcomeEmail(magicToken.email, newUser.firstName || null).catch(err => {
         console.error("Failed to send welcome email for magic link user:", err);
@@ -801,7 +759,6 @@ export async function setupAuth(app: Express) {
   app.post("/api/auth/passwordless/request", async (req, res) => {
     try {
       const { email, honeypot1, honeypot2, formLoadTime, termsAccepted, signupSource } = req.body;
-      console.log("Passwordless auth request for:", email);
 
       // Verify honeypot (bot protection without external service)
       const honeypotCheck = verifyHoneypot({ honeypot1, honeypot2, formLoadTime });
@@ -848,7 +805,6 @@ export async function setupAuth(app: Express) {
 
       if (existingUser) {
         // Existing user - send sign-in email
-        console.log("Passwordless: existing user found, sending sign-in email");
         
         await db.insert(magicLinkTokens).values({
           email: normalizedEmail,
@@ -861,11 +817,10 @@ export async function setupAuth(app: Express) {
         const emailSent = await sendPasswordlessSignInEmail(normalizedEmail, existingUser.firstName || "there", verifyUrl);
         
         if (!emailSent) {
-          console.log("Passwordless sign-in email not sent (no email service configured)");
+          console.log("[auth] Passwordless sign-in email not sent (no email service)");
         }
       } else {
         // New user - send sign-up email (like magic link flow)
-        console.log("Passwordless: new user, sending sign-up email");
         
         await db.insert(magicLinkTokens).values({
           email: normalizedEmail,
@@ -879,7 +834,7 @@ export async function setupAuth(app: Express) {
         const emailSent = await sendMagicLinkEmail(normalizedEmail, verifyUrl);
         
         if (!emailSent) {
-          console.log("Passwordless sign-up email not sent (no email service configured)");
+          console.log("[auth] Passwordless sign-up email not sent (no email service)");
         }
       }
 
@@ -944,7 +899,6 @@ export async function setupAuth(app: Express) {
       // Mark token as used
       await db.update(magicLinkTokens).set({ usedAt: new Date() }).where(eq(magicLinkTokens.id, magicToken.id));
 
-      console.log("Passwordless sign-in successful for user:", existingUser.id);
 
       // Create session
       req.session.userId = existingUser.id;
@@ -999,7 +953,6 @@ export async function setupAuth(app: Express) {
         })
         .where(eq(users.id, user.id));
 
-      console.log("Email verified for user:", user.id);
 
       res.json({ 
         success: true, 
@@ -1048,11 +1001,7 @@ export async function setupAuth(app: Express) {
       const emailSent = await sendEmailVerificationEmail(user.email, verifyEmailUrl);
       
       if (!emailSent) {
-        console.log(`\n===== EMAIL VERIFICATION LINK =====`);
-        console.log(`Email: ${user.email}`);
-        console.log(`Verify URL: ${verifyEmailUrl}`);
-        console.log(`Expires: ${emailVerificationExpiry.toISOString()}`);
-        console.log(`===================================\n`);
+        console.log(`[auth] Verification email not sent for ${user.email} (no email service)`);
       }
 
       res.json({ success: true, message: "Verification email sent" });
@@ -1189,7 +1138,6 @@ export async function setupAuth(app: Express) {
         
         currentUser = newUser;
         isNewUser = true;
-        console.log(`Auto-created user account for ${magicToken.email} via resource invite`);
 
         sendWelcomeEmail(magicToken.email.toLowerCase(), firstName || null).catch(err => {
           console.error("Failed to send welcome email for resource invite user:", err);
@@ -1210,7 +1158,6 @@ export async function setupAuth(app: Express) {
             console.error("Session save error during resource invite:", err);
             reject(err);
           } else {
-            console.log("Session saved for user:", currentUser.id, "sessionId:", req.sessionID);
             resolve();
           }
         });
@@ -1257,7 +1204,6 @@ export async function setupAuth(app: Express) {
             : false;
           
           if (!hasLinkedResource) {
-            console.log(`No pending invite found for ${currentUser.email} in org ${metadata.organizationId}`);
             return res.status(400).json({
               message: "No pending invitation found for your email in this organization. The invitation may have already been used or expired."
             });
@@ -1268,7 +1214,6 @@ export async function setupAuth(app: Express) {
         const { checkSeatLimit } = await import("../services/billing");
         const seatCheck = await checkSeatLimit(metadata.organizationId, 1);
         if (!seatCheck.allowed) {
-          console.log(`Seat limit reached for org ${metadata.organizationId}: ${seatCheck.currentSeats}/${seatCheck.maxSeats}`);
           return res.status(400).json({
             message: `${organizationName} has reached its seat limit. Please ask an administrator to upgrade the plan or add more seats.`,
             seatLimitReached: true
@@ -1281,9 +1226,6 @@ export async function setupAuth(app: Express) {
           userId: currentUser.id,
           role: 'team_member'
         });
-        console.log(`Added user ${currentUser.id} to organization ${metadata.organizationId} as team_member`);
-      } else {
-        console.log(`User ${currentUser.id} is already a member of organization ${metadata.organizationId}`);
       }
       
       // Update any pending invites to mark as accepted
@@ -1320,7 +1262,6 @@ export async function setupAuth(app: Express) {
           
           if (Object.keys(updates).length > 0) {
             await storage.updateResource(metadata.resourceId, updates);
-            console.log(`Updated resource ${metadata.resourceId}: linked to user ${currentUser.id}, invited projects: ${updates.invitedProjectIds || resource.invitedProjectIds}`);
           }
         }
       }
@@ -1330,7 +1271,6 @@ export async function setupAuth(app: Express) {
         .set({ usedAt: new Date() })
         .where(eq(magicLinkTokens.id, magicToken.id));
 
-      console.log(`Resource invite accepted for user: ${currentUser.id} (new user: ${isNewUser}), joined org: ${metadata.organizationId}`);
 
       res.json({ 
         success: true,

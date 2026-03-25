@@ -443,8 +443,6 @@ export class MockBillingProvider implements BillingProvider {
     requestId: string;
   }): Promise<RecordUsageResult> {
     const units = params.units || 1;
-    console.log(`[USAGE] Recording ${units} units for meter ${params.meterCode}, subscription ${params.subscriptionId}`);
-
     const [existingEvent] = await db
       .select()
       .from(usageEvents)
@@ -452,23 +450,18 @@ export class MockBillingProvider implements BillingProvider {
       .limit(1);
 
     if (existingEvent) {
-      console.log(`[USAGE] Event already exists: ${existingEvent.id}`);
       return { success: true, usageEventId: existingEvent.id };
     }
 
     const [meter] = await db.select().from(meters).where(eq(meters.code, params.meterCode)).limit(1);
     if (!meter) {
-      console.log(`[USAGE] Meter not found: ${params.meterCode}`);
       return { success: false, error: `Meter not found: ${params.meterCode}` };
     }
-    console.log(`[USAGE] Found meter: ${meter.id} (${meter.code})`);
 
     const billingInstance = this;
     return await db.transaction(async (tx) => {
       const checkResult = await billingInstance.checkLimit(params.subscriptionId, params.meterCode, units, tx as any);
-      console.log(`[USAGE] Check limit result:`, checkResult);
       if (!checkResult.allowed) {
-        console.log(`[USAGE] Limit check failed: ${checkResult.reason}`);
         return { success: false, error: checkResult.reason } as RecordUsageResult;
       }
 
@@ -875,41 +868,28 @@ export async function recordCreditUsage(
   orgId?: number | null
 ): Promise<void> {
   try {
-    console.log(`[CREDITS] Recording credit usage for user ${userId}, resource ${resourceType}, id ${resourceId}, orgId ${orgId}`);
-    
-    // If an orgId is provided, try to use the organization's subscription first
     let subscription = null;
     if (orgId) {
       subscription = await billingProvider.getSubscriptionForOrg(orgId);
-      if (subscription) {
-        console.log(`[CREDITS] Found ORG subscription ${subscription.id} for org ${orgId}`);
-      }
     }
     
-    // Fall back to user's personal subscription if no org subscription
     if (!subscription) {
       subscription = await billingProvider.getSubscriptionForUser(userId);
-      if (subscription) {
-        console.log(`[CREDITS] Found USER subscription ${subscription.id} for user ${userId}`);
-      }
     }
     
     if (!subscription) {
-      console.log(`[CREDITS] No subscription found for user ${userId} or org ${orgId}`);
       return;
     }
 
     const creditCost = await getResourceCreditCost(resourceType);
-    console.log(`[CREDITS] Credit cost for ${resourceType}: ${creditCost} (hundredths)`);
     
-    const result = await billingProvider.recordUsage({
+    await billingProvider.recordUsage({
       subscriptionId: subscription.id,
       meterCode: "credits",
       units: creditCost,
       actorUserId: userId,
       requestId: `${resourceType}_${resourceId}_${Date.now()}`,
     });
-    console.log(`[CREDITS] Record usage result:`, result);
   } catch (error) {
     console.error("[CREDITS] Error recording credit usage:", error);
   }

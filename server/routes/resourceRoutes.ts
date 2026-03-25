@@ -600,12 +600,7 @@ export function registerResourceRoutes(app: Express) {
       );
       
       if (!emailSent) {
-        console.log(`\n===== RESOURCE INVITATION LINK =====`);
-        console.log(`Email: ${normalizedEmail}`);
-        console.log(`Organization: ${org.name}`);
-        console.log(`Invite URL: ${magicLinkUrl}`);
-        console.log(`Expires: ${expiresAt.toISOString()}`);
-        console.log(`====================================\n`);
+        console.log(`[auth] Resource invite email not sent for ${normalizedEmail} (no email service)`);
       }
       
       // Assign the new resource to the task if taskId was provided
@@ -616,7 +611,6 @@ export function registerResourceRoutes(app: Express) {
           const currentResourceIds = currentAssignments.map(a => a.resourceId);
           if (!currentResourceIds.includes(resource.id)) {
             await storage.updateTaskResourceAssignments(taskId, [...currentResourceIds, resource.id]);
-            console.log(`Assigned resource ${resource.id} to task ${taskId}`);
           }
         } catch (assignErr) {
           console.error("Failed to auto-assign resource to task:", assignErr);

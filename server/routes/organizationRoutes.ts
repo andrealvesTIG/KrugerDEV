@@ -614,7 +614,6 @@ export function registerOrganizationRoutes(app: Express) {
       const results = await Promise.all(sendPromises);
       const sent = results.filter(r => r.success).length;
       const failed = results.filter(r => !r.success).length;
-      console.log(`Upgrade offer sent by ${adminUser.email}: ${sent} sent, ${failed} failed, targets: ${userIds.join(', ')}`);
       res.json({ sent, failed, results });
     } catch (err) {
       console.error("Error sending upgrade offers:", err);

@@ -477,7 +477,6 @@ function parseDate(dateStr: string): string | undefined {
 async function seedDatabase() {
   const portfolios = await storage.getPortfolios();
   if (portfolios.length === 0) {
-    console.log("Seeding database with software development demo data...");
     
     const orgs = await storage.getOrganizations();
     const seedOrgId = orgs.length > 0 ? orgs[0].id : null;
@@ -1097,7 +1096,6 @@ async function seedDatabase() {
       costExposure: "7000",
     });
 
-    console.log("Database seeded with software development demo data successfully.");
   }
 }
 

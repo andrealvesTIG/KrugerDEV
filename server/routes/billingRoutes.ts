@@ -1132,7 +1132,6 @@ export async function registerBillingRoutes(app: Express) {
         await capturePaypalOrder(req, res);
       });
       
-      console.log("[routes] PayPal routes registered successfully");
       
       // PayPal Subscription routes
       const { 
@@ -1264,7 +1263,6 @@ export async function registerBillingRoutes(app: Express) {
           const { access_token } = await tokenRes.json();
 
           // STEP 1: Fetch ALL existing plans from PayPal
-          console.log("[PayPal Sync] Fetching existing plans from PayPal...");
           const existingPlansRes = await fetch(`${PAYPAL_API_BASE}/v1/billing/plans?page_size=20&total_required=true`, {
             method: "GET",
             headers: {
@@ -1277,9 +1275,6 @@ export async function registerBillingRoutes(app: Express) {
           if (existingPlansRes.ok) {
             const data = await existingPlansRes.json();
             paypalPlans = data.plans || [];
-            console.log(`[PayPal Sync] Found ${paypalPlans.length} plans in PayPal`);
-          } else {
-            console.log("[PayPal Sync] Could not fetch existing plans, will create new ones");
           }
 
           // STEP 2: Fetch details for each PayPal plan to get pricing
@@ -1306,7 +1301,6 @@ export async function registerBillingRoutes(app: Express) {
                     price: price ? parseFloat(price) : null,
                     priceCents: price ? Math.round(parseFloat(price) * 100) : null,
                   });
-                  console.log(`[PayPal Sync] Plan ${pp.id}: ${pp.name} - $${price}`);
                 }
               } catch (e) {
                 console.error(`[PayPal Sync] Error fetching plan details for ${pp.id}:`, e);
@@ -1343,7 +1337,6 @@ export async function registerBillingRoutes(app: Express) {
                   oldPaypalPlanId: dbPlan.paypalPlanId,
                   price: `$${(dbPlan.monthlyPriceCents / 100).toFixed(2)}`
                 });
-                console.log(`[PayPal Sync] Updated ${dbPlan.code}: ${dbPlan.paypalPlanId} -> ${matchingPaypalPlan.id}`);
               } else {
                 results.push({ 
                   planCode: dbPlan.code, 
@@ -1353,7 +1346,6 @@ export async function registerBillingRoutes(app: Express) {
               }
             } else {
               // No matching plan found - need to create one
-              console.log(`[PayPal Sync] No matching PayPal plan for ${dbPlan.code} at $${(dbPlan.monthlyPriceCents / 100).toFixed(2)}`);
               
               // Create product if needed
               if (!productId) {
@@ -1423,7 +1415,6 @@ export async function registerBillingRoutes(app: Express) {
             }
           }
 
-          console.log("[PayPal Sync] Sync complete:", results);
           res.json({ success: true, productId, paypalPlansFound: paypalPlanDetails.length, plans: results });
         } catch (error) {
           console.error("Failed to sync PayPal plans:", error);
@@ -1518,7 +1509,6 @@ export async function registerBillingRoutes(app: Express) {
               }
               
               const paypalSub = await subRes.json();
-              console.log(`[PayPal Activation] Subscription ${paypalSubscriptionId} status: ${paypalSub.status}, plan_id: ${paypalSub.plan_id}`);
               
               // Verify the subscription is active/approved/pending
               // APPROVAL_PENDING: User approved but first payment not yet processed
@@ -1535,21 +1525,12 @@ export async function registerBillingRoutes(app: Express) {
               
               // Derive plan from PayPal's plan_id (server-side, ignore URL param to prevent spoofing)
               const paypalPlanIdFromSub = paypalSub.plan_id;
-              console.log(`[PayPal Activation] PayPal subscription ${paypalSubscriptionId} has plan_id: ${paypalPlanIdFromSub}, requested planCode: ${planCode}`);
               
               if (paypalPlanIdFromSub) {
                 const [matchingPlan] = await db.select().from(plans).where(eq(plans.paypalPlanId, paypalPlanIdFromSub));
                 if (matchingPlan) {
                   verifiedPlan = matchingPlan;
-                  console.log(`[PayPal Activation] Matched to plan ${matchingPlan.code} (id: ${matchingPlan.id})`);
-                  if (planCode && matchingPlan.code !== planCode) {
-                    console.log(`[PayPal Activation] Note: requested ${planCode} but PayPal subscription is for ${matchingPlan.code}`);
-                  }
                 } else {
-                  console.log(`[PayPal Activation] No plan found in database with paypalPlanId: ${paypalPlanIdFromSub}`);
-                  // Log all plans for debugging
-                  const allPlans = await db.select().from(plans);
-                  console.log(`[PayPal Activation] Available plans:`, allPlans.map(p => ({ code: p.code, paypalPlanId: p.paypalPlanId })));
                   
                   // Return detailed error to help debug
                   return res.status(400).json({
@@ -1568,7 +1549,6 @@ export async function registerBillingRoutes(app: Express) {
                   if (!requestedPlan.paypalPlanId) {
                     // Plan has no PayPal ID set, allow fallback
                     verifiedPlan = requestedPlan;
-                    console.log(`[PayPal Activation] Fallback to plan ${requestedPlan.code} (no paypalPlanId set)`);
                   } else if (paypalPlanIdFromSub && requestedPlan.paypalPlanId !== paypalPlanIdFromSub) {
                     // Plan has a different paypalPlanId - this could be sandbox/live mismatch
                     console.error(`[PayPal Activation] Plan mismatch: ${planCode} has DB paypalPlanId=${requestedPlan.paypalPlanId} but PayPal returned ${paypalPlanIdFromSub}`);
@@ -1709,7 +1689,6 @@ export async function registerBillingRoutes(app: Express) {
       app.post("/api/webhooks/paypal", async (req, res) => {
         try {
           const { event_type, resource, create_time } = req.body;
-          console.log("[PayPal Webhook] Received event:", event_type);
 
           // Handle subscription payment events
           if (event_type === "PAYMENT.SALE.COMPLETED" || event_type === "BILLING.SUBSCRIPTION.PAYMENT.COMPLETED") {
@@ -1755,7 +1734,6 @@ export async function registerBillingRoutes(app: Express) {
                     metadata: { event_type, resource_id: resource?.id },
                     createdAt: new Date(create_time || Date.now()),
                   });
-                  console.log(`[PayPal Webhook] Recorded payment of $${(amountCents / 100).toFixed(2)} for subscription ${subscription.sub.id}`);
                 }
               }
             }
@@ -1798,7 +1776,6 @@ export async function registerBillingRoutes(app: Express) {
                   metadata: { event_type, resource_id: resource?.id },
                   createdAt: new Date(create_time || Date.now()),
                 });
-                console.log(`[PayPal Webhook] Recorded failed payment for subscription ${subscription.sub.id}`);
               }
             }
           }
@@ -1812,12 +1789,9 @@ export async function registerBillingRoutes(app: Express) {
         }
       });
 
-      console.log("[routes] PayPal Subscription routes registered successfully");
     } catch (error) {
       console.warn("[routes] PayPal routes not registered - credentials may be invalid:", error);
     }
-  } else {
-    console.log("[routes] PayPal routes not registered - credentials not configured");
   }
 
 
