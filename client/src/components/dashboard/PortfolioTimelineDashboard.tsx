@@ -392,7 +392,7 @@ export function PortfolioTimelineDashboard() {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Project Timeline Details</CardTitle>
           <CardDescription className="text-xs">
-            Schedule status and milestone tracking
+            Schedule status and key date tracking
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -806,7 +806,7 @@ export function MonitoringTab() {
     const raw = match[1];
     const labels: Record<string, string> = {
       'projects': 'Project', 'portfolios': 'Portfolio', 'tasks': 'Task',
-      'risks': 'Risk', 'issues': 'Issue', 'milestones': 'Milestone',
+      'risks': 'Risk', 'issues': 'Issue', 'milestones': 'Key Date',
       'organizations': 'Organization', 'users': 'User', 'resources': 'Resource',
       'timesheets': 'Timesheet', 'invoices': 'Invoice', 'notifications': 'Notification',
       'billing': 'Billing', 'consents': 'Consent', 'help-tickets': 'Help Ticket',
@@ -1087,7 +1087,7 @@ export function MonitoringTab() {
                   <SelectItem value="tasks">Tasks</SelectItem>
                   <SelectItem value="risks">Risks</SelectItem>
                   <SelectItem value="issues">Issues</SelectItem>
-                  <SelectItem value="milestones">Milestones</SelectItem>
+                  <SelectItem value="milestones">Key Dates</SelectItem>
                   <SelectItem value="organizations">Organizations</SelectItem>
                   <SelectItem value="resources">Resources</SelectItem>
                   <SelectItem value="billing">Billing</SelectItem>

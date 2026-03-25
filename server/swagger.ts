@@ -78,7 +78,7 @@ const spec = {
     { name: 'Portfolios', description: 'Portfolio CRUD, risk assessments' },
     { name: 'Projects', description: 'Project CRUD, history, import/export' },
     { name: 'Tasks', description: 'Task CRUD, dependencies, history, reorder' },
-    { name: 'Milestones', description: 'Milestone CRUD' },
+    { name: 'Milestones', description: 'Portfolio Key Dates CRUD' },
     { name: 'Risks', description: 'Risk CRUD, assignments, history' },
     { name: 'Issues', description: 'Issue CRUD, assignments, history, escalation' },
     { name: 'Project Financials', description: 'Project financial records' },
@@ -1800,9 +1800,9 @@ const spec = {
       }),
     },
     '/portfolios/{id}/milestones': {
-      get: op('Portfolios', 'List milestones across portfolio projects', {
+      get: op('Portfolios', 'List portfolio key dates across portfolio projects', {
         parameters: [pathId()],
-        responses: { ...r200('Portfolio milestones', arrOf('Milestone')), ...idRes },
+        responses: { ...r200('Portfolio key dates', arrOf('Milestone')), ...idRes },
       }),
     },
     '/portfolios/{id}/risk-assessment': {
@@ -2045,30 +2045,30 @@ const spec = {
 
     // ======================== MILESTONES ========================
     '/projects/{projectId}/milestones': {
-      get: op('Milestones', 'List milestones for a project', {
+      get: op('Milestones', 'List portfolio key dates for a project', {
         parameters: [pathId('projectId')],
-        responses: { ...r200('Project milestones', arrOf('Milestone')), ...idRes },
+        responses: { ...r200('Project key dates', arrOf('Milestone')), ...idRes },
       }),
     },
     '/milestones': {
-      get: op('Milestones', 'List all milestones', {
+      get: op('Milestones', 'List all portfolio key dates', {
         parameters: [qInt('orgId', true)],
-        responses: { ...r200('Milestones list', arrOf('Milestone')), ...authRes },
+        responses: { ...r200('Portfolio key dates list', arrOf('Milestone')), ...authRes },
       }),
-      post: op('Milestones', 'Create a new milestone', {
+      post: op('Milestones', 'Create a new portfolio key date', {
         requestBody: body(ref('Milestone')),
-        responses: { ...r201('Milestone created', ref('Milestone')), ...inputRes },
+        responses: { ...r201('Portfolio key date created', ref('Milestone')), ...inputRes },
       }),
     },
     '/milestones/{id}': {
-      put: op('Milestones', 'Update milestone', {
+      put: op('Milestones', 'Update portfolio key date', {
         parameters: [pathId()],
         requestBody: body(ref('Milestone')),
-        responses: { ...r200('Milestone updated'), ...updateRes },
+        responses: { ...r200('Portfolio key date updated'), ...updateRes },
       }),
-      delete: op('Milestones', 'Delete milestone', {
+      delete: op('Milestones', 'Delete portfolio key date', {
         parameters: [pathId()],
-        responses: { ...r204('Milestone deleted'), ...fullRes },
+        responses: { ...r204('Portfolio key date deleted'), ...fullRes },
       }),
     },
 
@@ -2909,10 +2909,10 @@ const spec = {
       }),
     },
     '/analytics/milestones': {
-      get: op('Analytics', 'Get milestones data for Power BI', {
+      get: op('Analytics', 'Get portfolio key dates data for Power BI', {
         security: [{ basicAuth: [] }, { bearerAuth: [] }],
         parameters: [qInt('organizationId', false, 'Organization ID (optional with Bearer token)')],
-        responses: { ...r200('Milestones analytics data', arrOf('Milestone')), ...e401 },
+        responses: { ...r200('Portfolio key dates analytics data', arrOf('Milestone')), ...e401 },
       }),
     },
     '/analytics/intakes': {

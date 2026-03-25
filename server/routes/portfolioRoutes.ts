@@ -312,7 +312,7 @@ export function registerPortfolioRoutes(app: Express) {
       res.json(milestones);
     } catch (err) {
       const classified = classifyError(err);
-      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get portfolio milestones' : classified.message });
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get portfolio key dates' : classified.message });
     }
   });
 

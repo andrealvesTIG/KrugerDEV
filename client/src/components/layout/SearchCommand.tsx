@@ -375,7 +375,7 @@ export function SearchCommand() {
     addGroup("Tasks", "task");
     addGroup("Issues", "issue");
     addGroup("Risks", "risk");
-    addGroup("Milestones", "milestone");
+    addGroup("Portfolio Key Dates", "milestone");
     addGroup("User Guide", "userGuide");
     return groups;
   }, [flatResults]);

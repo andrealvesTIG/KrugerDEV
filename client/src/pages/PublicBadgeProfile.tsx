@@ -150,7 +150,7 @@ export default function PublicBadgeProfile() {
     { label: "Tasks Completed", value: stats.tasksCompleted, icon: CheckCircle2, color: "text-green-500" },
     { label: "Risks Managed", value: stats.risksManaged, icon: Shield, color: "text-red-500" },
     { label: "Issues Handled", value: stats.issuesHandled, icon: AlertTriangle, color: "text-amber-500" },
-    { label: "Milestones", value: stats.milestonesOwned, icon: Flag, color: "text-cyan-500" },
+    { label: "Key Dates", value: stats.milestonesOwned, icon: Flag, color: "text-cyan-500" },
     { label: "Portfolios", value: stats.portfoliosManaged, icon: Layers, color: "text-indigo-500" },
   ];
 

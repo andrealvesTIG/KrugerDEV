@@ -350,7 +350,7 @@ export function OrganizationsTab() {
       if (s.tasks) parts.push(`${s.tasks} tasks`);
       if (s.risks) parts.push(`${s.risks} risks`);
       if (s.issues) parts.push(`${s.issues} issues`);
-      if (s.milestones) parts.push(`${s.milestones} milestones`);
+      if (s.milestones) parts.push(`${s.milestones} key dates`);
       if (s.financials) parts.push(`${s.financials} financials`);
       if (s.changeRequests) parts.push(`${s.changeRequests} change requests`);
       if (s.documents) parts.push(`${s.documents} documents`);
@@ -1013,7 +1013,7 @@ export function OrganizationsTab() {
                     {([
                       { key: 'portfolios', label: 'Portfolios', desc: 'Strategic groupings' },
                       { key: 'projects', label: 'Projects', desc: 'With timelines & budgets' },
-                      { key: 'tasks', label: 'Tasks', desc: 'Work items & milestones' },
+                      { key: 'tasks', label: 'Tasks', desc: 'Work items & key dates' },
                       { key: 'issues', label: 'Issues', desc: 'Bugs & enhancements' },
                       { key: 'risks', label: 'Risks', desc: 'Risk register entries' },
                       { key: 'assignments', label: 'Assignments', desc: 'Resource-to-task links' },
@@ -1102,7 +1102,7 @@ export function OrganizationsTab() {
               Remove Demo Data
             </DialogTitle>
             <DialogDescription>
-              This will permanently delete all <strong>demo-generated</strong> data for <strong>{deleteDemoDataOrg?.name}</strong>, including portfolios, projects, tasks, risks, issues, milestones, financials, change requests, documents, benefits, decisions, assignments, timesheets, resources, and intakes.
+              This will permanently delete all <strong>demo-generated</strong> data for <strong>{deleteDemoDataOrg?.name}</strong>, including portfolios, projects, tasks, risks, issues, key dates, financials, change requests, documents, benefits, decisions, assignments, timesheets, resources, and intakes.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg bg-muted border p-4 space-y-2">

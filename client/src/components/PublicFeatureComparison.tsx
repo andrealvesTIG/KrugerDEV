@@ -99,7 +99,7 @@ const extendedFeatures: FeatureRow[] = [
   { name: "Demand vs. supply forecast", values: ["yes","yes","no","no","no","no","no"] },
   { name: "Shareable risk assessment links", values: ["yes","no","no","no","no","no","no"] },
   { name: "Project intake workflow", values: ["yes","no","no","partial","no","no","no"] },
-  { name: "Milestone tracking", values: ["yes","yes","no","yes","yes","yes","yes"] },
+  { name: "Portfolio key date tracking", values: ["yes","yes","no","yes","yes","yes","yes"] },
   { name: "Lessons learned module", values: ["yes","no","no","no","no","no","no"] },
   { name: "Report subscriptions (email)", values: ["yes","yes","no","yes","no","yes","no"] },
   { name: "Analytics API (Power BI)", values: ["yes","yes","no","yes","no","no","no"] },

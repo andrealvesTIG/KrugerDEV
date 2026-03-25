@@ -268,7 +268,7 @@ export function StatusReportDialog({
                 <li>Schedule Progress</li>
                 <li>Financial Summary</li>
                 <li>Key Risks & Issues</li>
-                <li>Major Milestones</li>
+                <li>Major Key Dates</li>
               </ul>
             </div>
 

@@ -330,7 +330,7 @@ const UserGuidePDF = () => (
         <Text style={pdfStyles.sectionSubtitle}>Introduction to FridayReport.AI</Text>
         <Text style={pdfStyles.paragraph}>
           FridayReport.AI is an enterprise-grade Project Portfolio Management application designed to help teams 
-          track projects, portfolios, risks, milestones, and issues efficiently. The application follows 
+          track projects, portfolios, risks, portfolio key dates, and issues efficiently. The application follows 
           modern design principles inspired by tools like Linear and Asana.
         </Text>
         <Text style={pdfStyles.heading}>Key Capabilities:</Text>
@@ -456,7 +456,7 @@ const UserGuidePDF = () => (
         </View>
         <View style={pdfStyles.listRow}>
           <View style={pdfStyles.bulletPoint} />
-          <Text style={pdfStyles.listItem}>Milestones Tab: Define key project milestones</Text>
+          <Text style={pdfStyles.listItem}>Key Dates Tab: Define portfolio key dates</Text>
         </View>
         <View style={pdfStyles.listRow}>
           <View style={pdfStyles.bulletPoint} />
@@ -879,7 +879,7 @@ const UserGuidePDF = () => (
         </View>
         <View style={pdfStyles.listRow}>
           <View style={pdfStyles.bulletPoint} />
-          <Text style={pdfStyles.listItem}>Risks & Milestones: 1 credit each</Text>
+          <Text style={pdfStyles.listItem}>Risks & Key Dates: 1 credit each</Text>
         </View>
       </View>
       <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
@@ -1179,7 +1179,7 @@ export default function UserGuide() {
                 <CardContent className="space-y-4">
                   <p className="text-muted-foreground">
                     FridayReport.AI is an enterprise-grade Project Portfolio Management application designed to help teams 
-                    track projects, portfolios, risks, milestones, and issues efficiently. The application follows 
+                    track projects, portfolios, risks, portfolio key dates, and issues efficiently. The application follows 
                     modern design principles inspired by tools like Linear and Asana.
                   </p>
                   
@@ -1444,7 +1444,7 @@ export default function UserGuide() {
                     <Badge variant="outline" className="gap-1"><BarChart3 className="h-3 w-3" /> Overview</Badge>
                     <Badge variant="outline" className="gap-1"><CheckSquare className="h-3 w-3" /> Tasks</Badge>
                     <Badge variant="outline" className="gap-1"><AlertTriangle className="h-3 w-3" /> Risks</Badge>
-                    <Badge variant="outline" className="gap-1"><Milestone className="h-3 w-3" /> Milestones</Badge>
+                    <Badge variant="outline" className="gap-1"><Milestone className="h-3 w-3" /> Key Dates</Badge>
                     <Badge variant="outline" className="gap-1"><CircleDot className="h-3 w-3" /> Issues</Badge>
                   </div>
 
@@ -1463,7 +1463,7 @@ export default function UserGuide() {
                     </li>
                     <li className="flex items-start gap-2">
                       <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
-                      <span><strong>Milestones:</strong> Define key project milestones with Scrum board</span>
+                      <span><strong>Key Dates:</strong> Define portfolio key dates with Scrum board</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
@@ -2688,7 +2688,7 @@ export default function UserGuide() {
                       <BarChart3 className="h-5 w-5 text-primary mt-0.5 shrink-0" />
                       <div>
                         <h5 className="font-medium text-foreground">Analytics API (Power BI)</h5>
-                        <p className="text-sm text-muted-foreground">REST API endpoints secured with API keys for connecting Power BI or other analytics tools. Access projects, portfolios, risks, issues, milestones, and summary data programmatically.</p>
+                        <p className="text-sm text-muted-foreground">REST API endpoints secured with API keys for connecting Power BI or other analytics tools. Access projects, portfolios, risks, issues, key dates, and summary data programmatically.</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
@@ -3035,7 +3035,7 @@ export default function UserGuide() {
                     </li>
                     <li className="flex items-start gap-2">
                       <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
-                      <span><strong>Risks & Milestones:</strong> 1 credit each</span>
+                      <span><strong>Risks & Key Dates:</strong> 1 credit each</span>
                     </li>
                   </ul>
 

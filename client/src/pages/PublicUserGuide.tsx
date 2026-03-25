@@ -292,7 +292,7 @@ export default function PublicUserGuide() {
                   <li><strong className="text-slate-200">Project Details:</strong> Capture all essential project information including objectives, scope, and stakeholders</li>
                   <li><strong className="text-slate-200">Gantt Charts:</strong> Visualize project schedules with interactive timeline views</li>
                   <li><strong className="text-slate-200">Task Management:</strong> Break down work into manageable tasks with dependencies</li>
-                  <li><strong className="text-slate-200">Milestones:</strong> Track key deliverables and project phases</li>
+                  <li><strong className="text-slate-200">Portfolio Key Dates:</strong> Track important dates for your portfolios</li>
                   <li><strong className="text-slate-200">Status Updates:</strong> Generate automated status reports with AI assistance</li>
                   <li><strong className="text-slate-200">Budget Tracking:</strong> Monitor project costs and budget utilization</li>
                 </ul>
@@ -535,7 +535,7 @@ export default function PublicUserGuide() {
                 <p>Visualize project schedules and milestones:</p>
                 <ul className="list-disc list-inside space-y-2 text-slate-400">
                   <li><strong className="text-slate-200">Calendar Views:</strong> Month, week, and day views</li>
-                  <li><strong className="text-slate-200">Milestones:</strong> Key dates and deliverables</li>
+                  <li><strong className="text-slate-200">Key Dates:</strong> Portfolio key dates and deliverables</li>
                   <li><strong className="text-slate-200">Task Deadlines:</strong> Upcoming due dates</li>
                   <li><strong className="text-slate-200">Filtering:</strong> View by project, portfolio, or resource</li>
                 </ul>

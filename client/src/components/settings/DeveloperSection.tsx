@@ -508,7 +508,7 @@ export function DeveloperSection() {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mt-4">
               {[
                 'Organizations', 'Portfolios', 'Projects', 'Intakes',
-                'Tasks', 'Milestones', 'Risks', 'Issues',
+                'Tasks', 'Key Dates', 'Risks', 'Issues',
                 'Resources', 'Timesheets', 'Invoices', 'Analytics'
               ].map((endpoint) => (
                 <Badge key={endpoint} variant="secondary" className="justify-center py-1">

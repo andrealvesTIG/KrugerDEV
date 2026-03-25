@@ -145,7 +145,7 @@ export function DemoDataSection({ organizationId, orgName }: { organizationId: n
           Generate Demo Data
         </CardTitle>
         <CardDescription>
-          Create sample portfolios, projects, tasks, risks, milestones, and issues to explore the application.
+          Create sample portfolios, projects, tasks, risks, portfolio key dates, and issues to explore the application.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -228,7 +228,7 @@ export function DemoDataSection({ organizationId, orgName }: { organizationId: n
           <ul className="text-sm text-muted-foreground space-y-1">
             <li>2 Portfolios with descriptions</li>
             <li>4-6 Projects with budgets, statuses, and health indicators</li>
-            <li>Tasks, Risks, Milestones, and Issues for each project</li>
+            <li>Tasks, Risks, Key Dates, and Issues for each project</li>
             <li>Financial line items with budget vs actual tracking</li>
             <li>4 Intake pipeline items with various workflow statuses</li>
             <li>5 Resources with skills and departments</li>
@@ -289,7 +289,7 @@ export function DemoDataSection({ organizationId, orgName }: { organizationId: n
           <DialogHeader>
             <DialogTitle>Remove Demo Data</DialogTitle>
             <DialogDescription>
-              Are you sure you want to remove all demo data from {orgName}? This will delete all demo portfolios, projects, tasks, risks, milestones, issues, intakes, resources, and financial records.
+              Are you sure you want to remove all demo data from {orgName}? This will delete all demo portfolios, projects, tasks, risks, key dates, issues, intakes, resources, and financial records.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -2170,7 +2170,7 @@ function ProjectTimeline({
                 </div>
                 <div className="flex items-center gap-1.5">
                   <div className="w-[10px] h-[10px] rotate-45 bg-purple-500 border-2 border-purple-700" />
-                  <span>Milestone</span>
+                  <span>Key Date</span>
                 </div>
                 {timelineRange.todayInRange && (
                   <div className="flex items-center gap-1.5">
@@ -2243,7 +2243,7 @@ function ProjectTimeline({
                   </Button>
                 )}
                 <span className="text-muted-foreground/70">
-                  {visibleEvents.length} milestone{visibleEvents.length !== 1 ? 's' : ''}
+                  {visibleEvents.length} key date{visibleEvents.length !== 1 ? 's' : ''}
                   {nonHiddenEvents.length > visibleEvents.length && !showAllMilestones && ` of ${nonHiddenEvents.length}`}
                   {hiddenEvents.length > 0 && ` (${hiddenEvents.length} hidden)`}
                 </span>

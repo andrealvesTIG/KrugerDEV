@@ -509,7 +509,7 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="h-5 w-5" />
-                Milestones
+                Key Dates
               </CardTitle>
               <Badge variant="secondary" className="text-xs">
                 {metrics.upcomingMilestones} upcoming
@@ -571,7 +571,7 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
                 })}
                 {metrics.upcomingMilestones > 5 && (
                   <p className="text-xs text-muted-foreground text-center pt-1">
-                    +{metrics.upcomingMilestones - 5} more upcoming milestones
+                    +{metrics.upcomingMilestones - 5} more upcoming key dates
                   </p>
                 )}
               </div>
@@ -2797,7 +2797,7 @@ function DashboardTab({ portfolioId, metrics, onNavigate }: {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
-              Upcoming Milestones
+              Upcoming Key Dates
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -2815,7 +2815,7 @@ function DashboardTab({ portfolioId, metrics, onNavigate }: {
               ))}
               {upcomingMilestones.length === 0 && (
                 <div className="text-center py-4 text-muted-foreground text-sm">
-                  No upcoming milestones
+                  No upcoming key dates
                 </div>
               )}
             </div>

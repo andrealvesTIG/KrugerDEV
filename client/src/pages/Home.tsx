@@ -510,7 +510,7 @@ export default function Home() {
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-foreground">Quick Start with Sample Data</div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Generate sample portfolios, projects, tasks, and milestones so you can explore the platform right away.
+                      Generate sample portfolios, projects, tasks, and key dates so you can explore the platform right away.
                     </p>
                   </div>
                   <Button
@@ -1053,7 +1053,7 @@ export default function Home() {
         {upcomingMilestones.length > 0 && (
           <Card className="border-0 shadow-sm" data-testid="card-upcoming-milestones">
             <CardHeader className="px-4 py-2">
-              <CardTitle className="text-sm font-semibold">Upcoming Milestones</CardTitle>
+              <CardTitle className="text-sm font-semibold">Upcoming Key Dates</CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-3 pt-0">
               <div className="space-y-1.5">

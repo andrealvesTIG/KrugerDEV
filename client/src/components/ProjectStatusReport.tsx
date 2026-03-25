@@ -324,7 +324,7 @@ export function ProjectStatusReport({
                   <div className="w-0.5 h-3 bg-red-500" /> Today
                 </span>
                 <span className="flex items-center gap-1">
-                  <Flag className="h-3 w-3 text-yellow-500 fill-yellow-500" /> Milestone
+                  <Flag className="h-3 w-3 text-yellow-500 fill-yellow-500" /> Key Date
                 </span>
               </div>
               <span>{taskStats.overallCompletion}% Complete</span>
@@ -351,7 +351,7 @@ export function ProjectStatusReport({
                     {showAllMilestones ? (
                       <>Show less <ChevronUp className="h-3 w-3" /></>
                     ) : (
-                      <>Show all {timelineData.milestones.length} milestones <ChevronDown className="h-3 w-3" /></>
+                      <>Show all {timelineData.milestones.length} key dates <ChevronDown className="h-3 w-3" /></>
                     )}
                   </button>
                 )}
@@ -503,7 +503,7 @@ export function ProjectStatusReport({
           <div className="border rounded-lg p-4">
             <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
               <Flag className="h-5 w-5 text-primary" />
-              Major Milestones
+              Major Key Dates
             </h2>
             <div className="space-y-2">
               {majorMilestones.length > 0 ? (
@@ -534,7 +534,7 @@ export function ProjectStatusReport({
                       {showAllMilestones ? (
                         <>Show less <ChevronUp className="h-3 w-3" /></>
                       ) : (
-                        <>Show all {majorMilestones.length} milestones <ChevronDown className="h-3 w-3" /></>
+                        <>Show all {majorMilestones.length} key dates <ChevronDown className="h-3 w-3" /></>
                       )}
                     </button>
                   )}

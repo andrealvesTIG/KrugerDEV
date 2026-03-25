@@ -59,7 +59,7 @@ export default function Calendar() {
       if (event.type === 'task') {
         tab = 'tasks';
       } else if (event.type === 'milestone') {
-        tab = 'summary'; // Milestones are shown in summary
+        tab = 'summary'; // Key dates are shown in summary
       }
       setLocation(`/projects/${event.projectId}?tab=${tab}`);
     }
@@ -269,7 +269,7 @@ export default function Calendar() {
           <CalendarIcon className="h-8 w-8 text-primary" />
           <div>
             <h1 className="text-3xl font-display font-bold text-foreground">Calendar</h1>
-            <p className="text-muted-foreground">View milestones, tasks, and deadlines</p>
+            <p className="text-muted-foreground">View key dates, tasks, and deadlines</p>
           </div>
         </div>
 
@@ -292,7 +292,7 @@ export default function Calendar() {
             </div>
             <div>
               <div className="text-2xl font-bold">{orgMilestones.filter(m => m.dueDate).length}</div>
-              <div className="text-xs text-muted-foreground">Milestones</div>
+              <div className="text-xs text-muted-foreground">Key Dates</div>
             </div>
           </CardContent>
         </Card>
@@ -382,7 +382,7 @@ export default function Calendar() {
                   data-testid="filter-milestones"
                 >
                   <Target className="h-3 w-3" />
-                  Milestones
+                  Key Dates
                 </Button>
                 <Button
                   variant={eventFilter === "task" ? "default" : "ghost"}

@@ -87,7 +87,7 @@ const lessons: Lesson[] = [
         scenario:
           "A new PMO analyst asks you what the primary outputs of the schedule management planning process are. Which answer is most complete?",
         options: [
-          "A Gantt chart and a list of milestones.",
+          "A Gantt chart and a list of key dates.",
           "The schedule management plan, which documents the scheduling methodology, tool selection, level of accuracy, units of measure, control thresholds, and performance measurement rules.",
           "A resource histogram and a staffing plan.",
           "A risk register and an issue log.",

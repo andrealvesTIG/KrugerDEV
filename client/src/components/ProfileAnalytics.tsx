@@ -356,7 +356,7 @@ export default function ProfileAnalytics() {
     { label: "Tasks Completed", value: stats.tasksCompleted, icon: CheckCircle2, color: "text-green-500", bg: "bg-green-500/10" },
     { label: "Issues Assigned", value: stats.issuesAssigned, icon: AlertTriangle, color: "text-amber-500", bg: "bg-amber-500/10" },
     { label: "Risks Managed", value: stats.risksAssigned, icon: Shield, color: "text-red-500", bg: "bg-red-500/10" },
-    { label: "Milestones Owned", value: stats.milestonesOwned, icon: Flag, color: "text-cyan-500", bg: "bg-cyan-500/10" },
+    { label: "Key Dates Owned", value: stats.milestonesOwned, icon: Flag, color: "text-cyan-500", bg: "bg-cyan-500/10" },
     { label: "Portfolios", value: stats.portfoliosManaged, icon: Layers, color: "text-indigo-500", bg: "bg-indigo-500/10" },
     { label: "Sessions", value: stats.totalLogins, icon: Activity, color: "text-emerald-500", bg: "bg-emerald-500/10" },
   ];

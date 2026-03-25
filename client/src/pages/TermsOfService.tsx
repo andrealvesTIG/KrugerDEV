@@ -37,7 +37,7 @@ export default function TermsOfService() {
         <section>
           <h2 className="text-xl font-semibold mb-3">2. Description of Service</h2>
           <p className="text-muted-foreground">
-            FridayReport.AI is a project portfolio management platform that helps organizations track projects, portfolios, risks, milestones, and issues. The Service includes features for data visualization, reporting, and team collaboration.
+            FridayReport.AI is a project portfolio management platform that helps organizations track projects, portfolios, risks, portfolio key dates, and issues. The Service includes features for data visualization, reporting, and team collaboration.
           </p>
         </section>
         

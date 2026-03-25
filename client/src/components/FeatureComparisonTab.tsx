@@ -184,7 +184,7 @@ const categories: Category[] = [
       { name: "Change request management", values: ["yes","no","no","no","no","no","partial"] },
       { name: "Project intake / demand management", values: ["yes","no","no","partial","no","no","no"] },
       { name: "Intake workflow steps (configurable)", values: ["yes","no","no","no","no","no","no"] },
-      { name: "Milestone tracking", values: ["yes","yes","no","yes","yes","yes","yes"] },
+      { name: "Portfolio key date tracking", values: ["yes","yes","no","yes","yes","yes","yes"] },
       { name: "Lessons learned module", values: ["yes","no","no","no","no","no","no"] },
       { name: "Project comments / collaboration", values: ["yes","partial","yes","yes","yes","yes","yes"] },
       { name: "Project documents management", values: ["yes","partial","no","yes","yes","yes","yes"] },

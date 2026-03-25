@@ -50,7 +50,7 @@ function getActionLabel(type: string) {
     case "create_task": return "Task";
     case "create_risk": return "Risk";
     case "create_issue": return "Issue";
-    case "create_milestone": return "Milestone";
+    case "create_milestone": return "Portfolio Key Date";
     case "create_resource": return "Resource";
     case "assign_to_me": return "Assignment";
     default: return type;
@@ -384,8 +384,8 @@ export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonPro
                     id="ai-prompt"
                     data-testid="textarea-ai-prompt"
                     placeholder={scopedProjectId
-                      ? "Examples:\n\u2022 Create tasks for design, development, and testing\n\u2022 Generate risks for this project\n\u2022 Add milestones for the key deliverables\n\u2022 Create issues for known blockers..."
-                      : "Examples:\n\u2022 Create a mobile app project with tasks for design, development, and testing\n\u2022 Add 5 team members for a software development team\n\u2022 Generate risks for a cloud migration initiative\n\u2022 Create milestones for a product launch..."}
+                      ? "Examples:\n\u2022 Create tasks for design, development, and testing\n\u2022 Generate risks for this project\n\u2022 Add key dates for the key deliverables\n\u2022 Create issues for known blockers..."
+                      : "Examples:\n\u2022 Create a mobile app project with tasks for design, development, and testing\n\u2022 Add 5 team members for a software development team\n\u2022 Generate risks for a cloud migration initiative\n\u2022 Create key dates for a product launch..."}
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
                     className="min-h-[140px]"

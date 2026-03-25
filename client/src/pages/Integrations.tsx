@@ -1444,7 +1444,7 @@ export default function Integrations() {
                   { name: 'Portfolios', endpoint: '/api/analytics/portfolios', desc: 'Portfolio summaries' },
                   { name: 'Risks', endpoint: '/api/analytics/risks', desc: 'Project risks' },
                   { name: 'Issues', endpoint: '/api/analytics/issues', desc: 'Project issues' },
-                  { name: 'Milestones', endpoint: '/api/analytics/milestones', desc: 'Milestone data' },
+                  { name: 'Key Dates', endpoint: '/api/analytics/milestones', desc: 'Portfolio key date data' },
                   { name: 'Summary', endpoint: '/api/analytics/summary', desc: 'Organization KPIs' },
                 ].map((item) => (
                   <div key={item.endpoint} className="flex items-center justify-between gap-2 p-2 rounded-md bg-background border">

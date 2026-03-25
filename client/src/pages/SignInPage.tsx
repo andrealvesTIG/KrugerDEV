@@ -94,7 +94,7 @@ const features = [
   {
     icon: Calendar,
     title: "Gantt & Timeline Views",
-    description: "Visualize project schedules with interactive Gantt charts and milestone tracking."
+    description: "Visualize project schedules with interactive Gantt charts and key date tracking."
   },
   {
     icon: FileCheck,

@@ -627,7 +627,7 @@ export function ProjectStatusReportPDF({
               </View>
               <View style={styles.timelineLegendItem}>
                 <View style={[styles.timelineLegendBox, { backgroundColor: "#f59e0b", width: 0, height: 0, borderLeftWidth: 5, borderRightWidth: 5, borderBottomWidth: 10, borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomColor: "#f59e0b" }]} />
-                <Text style={styles.timelineLegendText}>Milestone</Text>
+                <Text style={styles.timelineLegendText}>Key Date</Text>
               </View>
             </View>
             {majorMilestones.length > 0 && (
@@ -730,9 +730,9 @@ export function ProjectStatusReportPDF({
 
         <View style={styles.twoColumn}>
           <View style={[styles.column, styles.card]}>
-            <Text style={styles.sectionTitle}>Major Milestones</Text>
+            <Text style={styles.sectionTitle}>Major Key Dates</Text>
             {majorMilestones.length === 0 ? (
-              <Text style={styles.text}>No milestones defined</Text>
+              <Text style={styles.text}>No key dates defined</Text>
             ) : (
               <>
                 {majorMilestones.map((milestone) => {
@@ -757,7 +757,7 @@ export function ProjectStatusReportPDF({
                 })}
                 {allMilestones.length > majorMilestones.length && (
                   <Text style={{ fontSize: 8, color: "#9ca3af", marginTop: 4 }}>
-                    + {allMilestones.length - majorMilestones.length} more milestone{allMilestones.length - majorMilestones.length !== 1 ? "s" : ""}
+                    + {allMilestones.length - majorMilestones.length} more key date{allMilestones.length - majorMilestones.length !== 1 ? "s" : ""}
                   </Text>
                 )}
               </>
@@ -847,7 +847,7 @@ export function ProjectStatusReportPDF({
           </View>
           <View style={styles.statBox}>
             <Text style={styles.statValue}>{allMilestones.length}</Text>
-            <Text style={styles.statLabel}>Milestones</Text>
+            <Text style={styles.statLabel}>Key Dates</Text>
           </View>
           <View style={styles.statBox}>
             <Text style={[styles.statValue, styles.statValueOrange]}>{openRisks.length}</Text>

@@ -642,7 +642,7 @@ export function CustomDashboard({ dashboardId, onDelete }: CustomDashboardProps)
                 );
               })}
               {upcomingMilestones.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">No upcoming milestones</p>
+                <p className="text-sm text-muted-foreground text-center py-4">No upcoming key dates</p>
               )}
             </div>
           </CardContent>
