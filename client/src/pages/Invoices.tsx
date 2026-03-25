@@ -345,10 +345,10 @@ export default function Invoices() {
                   return (
                     <div
                       key={invoice.id}
-                      className="flex items-center justify-between py-4 gap-4"
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-4 gap-3"
                       data-testid={`invoice-row-${invoice.id}`}
                     >
-                      <div className="flex items-start gap-4 min-w-0 flex-1">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
                         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 flex-shrink-0">
                           <Receipt className="h-5 w-5 text-primary" />
                         </div>
@@ -378,17 +378,17 @@ export default function Invoices() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4 flex-shrink-0">
-                        <div className="text-right">
+                      <div className="flex items-center gap-3 flex-shrink-0 pl-[52px] sm:pl-0">
+                        <div className="text-left sm:text-right">
                           <div className="font-semibold">{formatCurrency(invoice.amount, invoice.currency || "USD")}</div>
                         </div>
-                        <Badge className={cn("flex items-center gap-1", statusColors[invoice.status || "Draft"])}>
+                        <Badge className={cn("flex items-center gap-1 whitespace-nowrap", statusColors[invoice.status || "Draft"])}>
                           <StatusIcon className="h-3 w-3" />
                           {invoice.status || "Draft"}
                         </Badge>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" data-testid={`button-invoice-menu-${invoice.id}`}>
+                            <Button variant="ghost" size="icon" className="shrink-0" data-testid={`button-invoice-menu-${invoice.id}`}>
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -418,12 +418,13 @@ export default function Invoices() {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Create New Invoice</DialogTitle>
             <DialogDescription>Add a new invoice to track payments and billing</DialogDescription>
           </DialogHeader>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4 overflow-hidden">
+            <div className="space-y-4 overflow-y-auto pr-1">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="projectId">Project *</Label>
@@ -530,7 +531,8 @@ export default function Invoices() {
                 <Input {...form.register("vendorEmail")} type="email" placeholder="vendor@email.com" data-testid="input-vendor-email" />
               </div>
             </div>
-            <DialogFooter>
+            </div>
+            <DialogFooter className="shrink-0 pt-2 border-t">
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={createInvoice.isPending} data-testid="button-submit-invoice">
                 {createInvoice.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -542,12 +544,13 @@ export default function Invoices() {
       </Dialog>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Edit Invoice</DialogTitle>
             <DialogDescription>Update invoice details</DialogDescription>
           </DialogHeader>
-          <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+          <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="flex flex-col gap-4 overflow-hidden">
+            <div className="space-y-4 overflow-y-auto pr-1">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="invoiceNumber">Invoice Number</Label>
@@ -633,7 +636,8 @@ export default function Invoices() {
                 <Input {...editForm.register("vendorEmail")} type="email" placeholder="vendor@email.com" data-testid="input-edit-vendor-email" />
               </div>
             </div>
-            <DialogFooter>
+            </div>
+            <DialogFooter className="shrink-0 pt-2 border-t">
               <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={updateInvoice.isPending} data-testid="button-update-invoice">
                 {updateInvoice.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
