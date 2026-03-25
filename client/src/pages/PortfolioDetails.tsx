@@ -522,18 +522,18 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
                 Key Dates
               </CardTitle>
               <Badge variant="secondary" className="text-xs">
-                {metrics.upcomingMilestones} upcoming
+                {metrics.upcomingKeyDates} upcoming
               </Badge>
             </div>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between mb-3">
               <div>
-                <p className="text-3xl font-bold">{metrics.upcomingMilestones}</p>
+                <p className="text-3xl font-bold">{metrics.upcomingKeyDates}</p>
                 <p className="text-sm text-muted-foreground">Upcoming</p>
               </div>
               <div className="text-right">
-                <p className="text-xl font-semibold text-muted-foreground">{metrics.milestoneCount}</p>
+                <p className="text-xl font-semibold text-muted-foreground">{metrics.keyDateCount}</p>
                 <p className="text-sm text-muted-foreground">Total</p>
               </div>
             </div>
@@ -583,9 +583,9 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
                     </div>
                   );
                 })}
-                {metrics.upcomingMilestones > 5 && (
+                {metrics.upcomingKeyDates > 5 && (
                   <p className="text-xs text-muted-foreground text-center pt-1">
-                    +{metrics.upcomingMilestones - 5} more upcoming key dates
+                    +{metrics.upcomingKeyDates - 5} more upcoming key dates
                   </p>
                 )}
               </div>

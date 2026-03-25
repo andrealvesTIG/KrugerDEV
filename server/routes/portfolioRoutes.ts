@@ -942,8 +942,8 @@ export function registerPortfolioRoutes(app: Express) {
           highRisks,
           issueCount: issues.length,
           openIssues,
-          milestoneCount: keyDates.length,
-          upcomingMilestones: upcomingKeyDates,
+          keyDateCount: keyDates.length,
+          upcomingKeyDates: upcomingKeyDates,
         }
       });
     } catch (err) {

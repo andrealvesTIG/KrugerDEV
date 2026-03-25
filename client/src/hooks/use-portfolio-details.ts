@@ -13,8 +13,8 @@ export interface PortfolioOverview {
     highRisks: number;
     issueCount: number;
     openIssues: number;
-    milestoneCount: number;
-    upcomingMilestones: number;
+    keyDateCount: number;
+    upcomingKeyDates: number;
   };
 }
 
