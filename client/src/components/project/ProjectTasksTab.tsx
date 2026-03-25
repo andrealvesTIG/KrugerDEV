@@ -279,6 +279,18 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const { isCollapsed, setIsCollapsed: setSidebarCollapsed } = useSidebarState();
   const sidebarWasCollapsed = useRef(false);
   const sidebarWidth = isCollapsed ? 80 : 288;
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSidebarCollapsed(sidebarWasCollapsed.current);
+        setIsFullscreen(false);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [isFullscreen, setSidebarCollapsed]);
   
   const filteredTasks = useMemo(() => {
     if (!tasks) return [];
@@ -563,7 +575,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       data-schedule-export="true"
       className={cn(
         "space-y-4",
-        isFullscreen && "fixed top-0 right-0 bottom-0 z-40 bg-background p-4 flex flex-col overflow-hidden"
+        isFullscreen && "fixed top-14 right-0 bottom-0 z-40 bg-background p-4 flex flex-col overflow-hidden"
       )}
       style={isFullscreen ? { left: sidebarWidth } : undefined}
     >
