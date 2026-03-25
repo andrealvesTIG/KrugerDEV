@@ -396,6 +396,7 @@ export interface IMiscStorage {
     decisions: number;
     timesheets: number;
     assignments: number;
+    keyDates: number;
   }>;
   getDeletedItems(organizationId: number): Promise<RecycleBinItem[]>;
   softDeleteItem(type: RecycleBinItemType, id: number, userId: string, organizationId?: number): Promise<boolean>;

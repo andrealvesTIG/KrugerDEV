@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and, sql, inArray } from "drizzle-orm";
-import { users, taskResourceAssignments, issues, resources, tasks, projects, portfolios, organizationMembers, type Task } from "@shared/schema";
+import { users, taskResourceAssignments, issues, resources, tasks, projects, portfolios, portfolioKeyDates, organizationMembers, type Task } from "@shared/schema";
 import type { User } from "@shared/models/auth";
 import {
   classifyError,
@@ -454,12 +454,15 @@ Create a JSON object with this exact structure:
             { "category": "CapEx|OpEx", "lineItem": "Line item name", "description": "Description", "budgetAmount": "100000", "plannedAmount": "90000", "actualAmount": "45000", "notes": "Notes" }
           ]
         }
+      ],
+      "keyDates": [
+        { "title": "Key date title", "description": "Description", "keyDateType": "Deadline|Milestone|Review", "daysFromNow": 30, "status": "Upcoming|At Risk|Completed" }
       ]
     }
   ]
 }
 
-Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, milestones, and issues realistic for the ${customIndustry} industry. Include realistic budget amounts and varied project statuses.`;
+Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 keyDates. Make project names, tasks, risks, milestones, issues, and key dates realistic for the ${customIndustry} industry. Include realistic budget amounts and varied project statuses.`;
 
         try {
           const response = await openai.chat.completions.create({
@@ -505,6 +508,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         intakes: 0,
         assignments: 0,
         timesheets: 0,
+        keyDates: 0,
       };
       
       const sanitizeBudget = (value: any) => {
@@ -524,6 +528,27 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           isDemo: true,
         });
         stats.portfolios++;
+        
+        if (portfolioTemplate.keyDates) {
+          for (const keyDateTemplate of portfolioTemplate.keyDates) {
+            const keyDate = new Date(today);
+            keyDate.setDate(keyDate.getDate() + keyDateTemplate.daysFromNow);
+            
+            await db.insert(portfolioKeyDates).values({
+              portfolioId: portfolio.id,
+              organizationId,
+              title: keyDateTemplate.title,
+              description: keyDateTemplate.description,
+              keyDateType: keyDateTemplate.keyDateType,
+              date: keyDate.toISOString().split('T')[0],
+              status: keyDateTemplate.status,
+              completed: keyDateTemplate.status === 'Completed',
+              createdBy: userId || undefined,
+              isDemo: true,
+            });
+            stats.keyDates++;
+          }
+        }
         
         for (const projectTemplate of portfolioTemplate.projects) {
           if (!selectedTypes.has('projects')) continue;

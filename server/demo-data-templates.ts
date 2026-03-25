@@ -117,6 +117,13 @@ export interface DemoDataTemplate {
         alternatives?: string;
       }>;
     }>;
+    keyDates?: Array<{
+      title: string;
+      description: string;
+      keyDateType: string;
+      daysFromNow: number;
+      status: string;
+    }>;
   }>;
 }
 
@@ -209,6 +216,12 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
             ],
           },
         ],
+        keyDates: [
+          { title: 'Cloud Migration Cutover', description: 'Final cutover window for production workloads to cloud', keyDateType: 'Milestone', daysFromNow: 75, status: 'Upcoming' },
+          { title: 'AI POC Board Review', description: 'Executive board review of AI document processing proof of concept', keyDateType: 'Review', daysFromNow: 50, status: 'Upcoming' },
+          { title: 'Data Center Lease Expiry', description: 'Current data center lease expires — all workloads must be migrated', keyDateType: 'Deadline', daysFromNow: 180, status: 'Upcoming' },
+          { title: 'Q1 Budget Submission', description: 'Annual budget submission for next fiscal year technology spend', keyDateType: 'Deadline', daysFromNow: -15, status: 'Completed' },
+        ],
       },
       {
         name: 'Security & Compliance',
@@ -242,6 +255,11 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
               { category: 'OpEx', lineItem: 'Security Consulting', description: 'Zero trust architecture consulting', budgetAmount: '180000', plannedAmount: '160000', actualAmount: '95000', notes: 'Phase 2 in progress' },
             ],
           },
+        ],
+        keyDates: [
+          { title: 'SOC 2 Type II Audit', description: 'Annual SOC 2 Type II compliance audit by external auditors', keyDateType: 'Deadline', daysFromNow: 90, status: 'Upcoming' },
+          { title: 'Zero Trust Phase 2 Go-Live', description: 'Conditional access enforcement for all applications', keyDateType: 'Milestone', daysFromNow: 95, status: 'Upcoming' },
+          { title: 'Penetration Test Report Due', description: 'Third-party penetration test results and remediation plan', keyDateType: 'Deadline', daysFromNow: 30, status: 'At Risk' },
         ],
       },
     ],
@@ -333,6 +351,12 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
             ],
           },
         ],
+        keyDates: [
+          { title: 'HIPAA Annual Assessment', description: 'Annual HIPAA security risk assessment deadline', keyDateType: 'Deadline', daysFromNow: 60, status: 'Upcoming' },
+          { title: 'Patient Portal Go-Live', description: 'Launch of redesigned patient portal for all departments', keyDateType: 'Milestone', daysFromNow: 120, status: 'Upcoming' },
+          { title: 'Telehealth Pilot Review', description: 'Steering committee review of telehealth pilot outcomes', keyDateType: 'Review', daysFromNow: 95, status: 'Upcoming' },
+          { title: 'EHR Integration Freeze', description: 'Code freeze for EHR integration ahead of go-live', keyDateType: 'Deadline', daysFromNow: 105, status: 'Upcoming' },
+        ],
       },
       {
         name: 'Clinical Operations',
@@ -365,6 +389,10 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
               { category: 'CapEx', lineItem: 'Infrastructure', description: 'ML training infrastructure', budgetAmount: '80000', plannedAmount: '75000', actualAmount: '60000', notes: 'GPU cluster provisioned' },
             ],
           },
+        ],
+        keyDates: [
+          { title: 'OR Utilization Target Review', description: 'Quarterly review of operating room utilization improvements', keyDateType: 'Review', daysFromNow: 35, status: 'Upcoming' },
+          { title: 'Joint Commission Readiness', description: 'Joint Commission accreditation readiness assessment', keyDateType: 'Deadline', daysFromNow: 150, status: 'Upcoming' },
         ],
       },
     ],
@@ -452,6 +480,11 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
             ],
           },
         ],
+        keyDates: [
+          { title: 'Mobile App Launch Date', description: 'Production release of redesigned mobile banking app', keyDateType: 'Milestone', daysFromNow: 45, status: 'At Risk' },
+          { title: 'PSD2 Compliance Deadline', description: 'Regulatory deadline for PSD2 Strong Customer Authentication', keyDateType: 'Deadline', daysFromNow: 60, status: 'Upcoming' },
+          { title: 'Quarterly Board Presentation', description: 'Digital banking progress report to board of directors', keyDateType: 'Review', daysFromNow: 20, status: 'Upcoming' },
+        ],
       },
       {
         name: 'Risk & Compliance',
@@ -483,6 +516,11 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
               { category: 'OpEx', lineItem: 'Consulting', description: 'Implementation partner services', budgetAmount: '800000', plannedAmount: '700000', actualAmount: '100000', notes: 'Discovery phase complete' },
             ],
           },
+        ],
+        keyDates: [
+          { title: 'Regulatory Filing Deadline', description: 'Annual AML program effectiveness report submission', keyDateType: 'Deadline', daysFromNow: 45, status: 'Upcoming' },
+          { title: 'AML Vendor Decision', description: 'Final vendor selection decision and contract execution', keyDateType: 'Milestone', daysFromNow: 35, status: 'Upcoming' },
+          { title: 'OCC Examination Prep', description: 'Preparation complete for OCC regulatory examination', keyDateType: 'Deadline', daysFromNow: 120, status: 'Upcoming' },
         ],
       },
     ],
@@ -564,6 +602,11 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
             ],
           },
         ],
+        keyDates: [
+          { title: 'Black Friday Readiness', description: 'All platform changes frozen and load-tested for Black Friday', keyDateType: 'Deadline', daysFromNow: 120, status: 'Upcoming' },
+          { title: 'Headless Commerce Soft Launch', description: 'Limited traffic rollout to new headless platform', keyDateType: 'Milestone', daysFromNow: 90, status: 'Upcoming' },
+          { title: 'CDP Go-Live Decision', description: 'Go/no-go decision for customer data platform launch', keyDateType: 'Review', daysFromNow: 55, status: 'Upcoming' },
+        ],
       },
       {
         name: 'Supply Chain',
@@ -597,6 +640,10 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
               { category: 'OpEx', lineItem: 'Implementation', description: 'Integration development', budgetAmount: '400000', plannedAmount: '380000', actualAmount: '220000', notes: 'Phase 2 in progress' },
             ],
           },
+        ],
+        keyDates: [
+          { title: 'Warehouse Integration Complete', description: 'All distribution centers connected to central inventory', keyDateType: 'Milestone', daysFromNow: 25, status: 'Upcoming' },
+          { title: 'Holiday Season Code Freeze', description: 'No changes to inventory systems during peak season', keyDateType: 'Deadline', daysFromNow: 110, status: 'Upcoming' },
         ],
       },
     ],
@@ -680,6 +727,12 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
             ],
           },
         ],
+        keyDates: [
+          { title: 'Plant B Sensor Deployment', description: 'Complete IoT sensor installation in Plant B facility', keyDateType: 'Milestone', daysFromNow: 35, status: 'Upcoming' },
+          { title: 'Annual Maintenance Shutdown', description: 'Planned production shutdown for equipment maintenance and upgrades', keyDateType: 'Deadline', daysFromNow: 90, status: 'Upcoming' },
+          { title: 'Digital Twin Platform Decision', description: 'Final selection and contract for digital twin platform vendor', keyDateType: 'Milestone', daysFromNow: 30, status: 'At Risk' },
+          { title: 'Industry 4.0 Maturity Assessment', description: 'External assessment of smart factory maturity level', keyDateType: 'Review', daysFromNow: 60, status: 'Upcoming' },
+        ],
       },
       {
         name: 'Quality Excellence',
@@ -713,6 +766,11 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
               { category: 'OpEx', lineItem: 'AI Development', description: 'Model training and integration', budgetAmount: '250000', plannedAmount: '230000', actualAmount: '150000', notes: 'Training ongoing' },
             ],
           },
+        ],
+        keyDates: [
+          { title: 'CV Model Accuracy Milestone', description: 'Computer vision model must achieve 99% defect detection accuracy', keyDateType: 'Milestone', daysFromNow: 30, status: 'Upcoming' },
+          { title: 'ISO 9001 Recertification', description: 'ISO 9001 quality management system recertification audit', keyDateType: 'Deadline', daysFromNow: 75, status: 'Upcoming' },
+          { title: 'Quality System Go-Live', description: 'Automated inspection system deployed across all production lines', keyDateType: 'Milestone', daysFromNow: 80, status: 'Upcoming' },
         ],
       },
     ],

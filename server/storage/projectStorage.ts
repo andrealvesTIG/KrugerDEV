@@ -11,7 +11,7 @@ import {
   simulationEvents, mppImports, projectIntakes,
   notifications, projectInvoices, invoiceNotes,
   timesheetEntries, resourceSkills, resourceAvailability,
-  portfolioRiskAssessments,
+  portfolioRiskAssessments, portfolioKeyDates,
   legacyRisks, legacyRiskChangeLogs, legacyRiskResourceAssignments,
   type Project, type InsertProject, type UpdateProjectRequest,
   type Risk, type InsertRisk, type UpdateRiskRequest,
@@ -468,13 +468,13 @@ export async function deleteAllDemoDataForOrganization(organizationId: number): 
   portfolios: number; projects: number; tasks: number; risks: number; milestones: number;
   issues: number; financials: number; intakes: number; resources: number;
   changeRequests: number; documents: number; benefits: number; decisions: number;
-  timesheets: number; assignments: number;
+  timesheets: number; assignments: number; keyDates: number;
 }> {
   const stats = {
     portfolios: 0, projects: 0, tasks: 0, risks: 0, milestones: 0,
     issues: 0, financials: 0, intakes: 0, resources: 0,
     changeRequests: 0, documents: 0, benefits: 0, decisions: 0,
-    timesheets: 0, assignments: 0,
+    timesheets: 0, assignments: 0, keyDates: 0,
   };
 
   const allProjects = await db.select().from(projects)
@@ -644,6 +644,9 @@ export async function deleteAllDemoDataForOrganization(organizationId: number): 
       .where(eq(projects.portfolioId, portfolio.id));
     
     if (Number(remainingProjects[0]?.count || 0) === 0) {
+      const deletedKeyDates = await db.delete(portfolioKeyDates)
+        .where(eq(portfolioKeyDates.portfolioId, portfolio.id)).returning();
+      stats.keyDates += deletedKeyDates.length;
       await db.delete(portfolioRiskAssessments).where(eq(portfolioRiskAssessments.portfolioId, portfolio.id));
       await db.delete(notifications).where(eq(notifications.portfolioId, portfolio.id));
       await db.delete(portfolios).where(eq(portfolios.id, portfolio.id));
