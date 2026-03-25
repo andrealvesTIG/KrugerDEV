@@ -82,89 +82,140 @@ function BusinessProcessFlow({
   const isCurrentlyLocked = isProjectStatusLocked(currentStatus);
   
   return (
-    <div className="flex items-center justify-between">
-      {PROJECT_STAGES.map((stage, index) => {
-          const isCompleted = index < currentIndex;
-          const isCurrent = index === currentIndex;
-          const isUpcoming = index > currentIndex;
-          const isTerminalStage = (stage as any).isTerminal;
-          
-          // When project is locked, allow clicking on non-terminal stages to reopen
-          // When unlocked, allow clicking on any stage including terminal
-          const isClickDisabled = isCurrent; // Only disable clicking current status
-          
-          return (
-            <div key={stage.value} className="flex items-center flex-1">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => !isClickDisabled && onStatusChange(stage.value)}
-                    disabled={isClickDisabled}
-                    className={cn(
-                      "flex flex-col items-center gap-1 group transition-all",
-                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-md p-2",
-                      isClickDisabled 
-                        ? "cursor-default" 
-                        : "cursor-pointer"
-                    )}
-                    data-testid={`status-stage-${stage.value.toLowerCase()}`}
-                  >
-                    <div className={cn(
-                      "w-10 h-10 rounded-full flex items-center justify-center transition-all border-2",
-                      isCompleted && "bg-primary border-primary text-primary-foreground",
-                      isCurrent && !isTerminalStage && "bg-primary border-primary text-primary-foreground ring-4 ring-primary/20",
-                      isCurrent && isTerminalStage && "bg-amber-600 border-amber-600 text-white ring-4 ring-amber-600/20",
-                      isUpcoming && !isTerminalStage && "bg-muted border-muted-foreground/30 text-muted-foreground group-hover:border-primary/50 group-hover:bg-muted/80",
-                      isUpcoming && isTerminalStage && "bg-muted border-amber-500/30 text-amber-600 group-hover:border-amber-500/50 group-hover:bg-amber-50 dark:group-hover:bg-amber-950/20",
-                      // When locked, show green hover on non-terminal stages to indicate reopening
-                      isCurrentlyLocked && !isTerminalStage && !isCurrent && "group-hover:border-emerald-500/50 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-950/20"
-                    )}>
-                      {isTerminalStage ? (
-                        <LockIcon className="h-5 w-5" />
-                      ) : isCompleted ? (
-                        <CheckCircle2 className="h-5 w-5" />
-                      ) : isCurrent ? (
-                        <span className="text-sm font-bold">{index + 1}</span>
-                      ) : (
-                        <Circle className="h-5 w-5" />
+    <>
+      <div className="hidden sm:flex items-center justify-between">
+        {PROJECT_STAGES.map((stage, index) => {
+            const isCompleted = index < currentIndex;
+            const isCurrent = index === currentIndex;
+            const isUpcoming = index > currentIndex;
+            const isTerminalStage = (stage as any).isTerminal;
+            const isClickDisabled = isCurrent;
+            
+            return (
+              <div key={stage.value} className="flex items-center flex-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => !isClickDisabled && onStatusChange(stage.value)}
+                      disabled={isClickDisabled}
+                      className={cn(
+                        "flex flex-col items-center gap-1 group transition-all",
+                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-md p-2",
+                        isClickDisabled 
+                          ? "cursor-default" 
+                          : "cursor-pointer"
                       )}
-                    </div>
-                    <span className={cn(
-                      "text-xs font-medium transition-colors",
-                      isCurrent && isTerminalStage && "text-amber-600",
-                      (isCompleted || isCurrent) && !isTerminalStage && "text-foreground",
-                      isUpcoming && "text-muted-foreground group-hover:text-foreground",
-                      isCurrentlyLocked && !isTerminalStage && !isCurrent && "group-hover:text-emerald-600"
-                    )}>
-                      {stage.label}
-                    </span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="font-medium">{stage.label}</p>
-                  <p className="text-xs text-muted-foreground">{stage.description}</p>
-                  {isCurrentlyLocked && !isTerminalStage ? (
-                    <p className="text-xs text-emerald-600 mt-1">Click to reopen project at this stage</p>
-                  ) : isTerminalStage && !isCurrent ? (
-                    <p className="text-xs text-amber-600 mt-1">Setting this will lock the project</p>
-                  ) : isCurrent ? (
-                    <p className="text-xs text-muted-foreground mt-1">Current status</p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground mt-1">Click to set status</p>
-                  )}
-                </TooltipContent>
-              </Tooltip>
-              
-              {index < PROJECT_STAGES.length - 1 && (
+                      data-testid={`status-stage-${stage.value.toLowerCase()}`}
+                    >
+                      <div className={cn(
+                        "w-10 h-10 rounded-full flex items-center justify-center transition-all border-2",
+                        isCompleted && "bg-primary border-primary text-primary-foreground",
+                        isCurrent && !isTerminalStage && "bg-primary border-primary text-primary-foreground ring-4 ring-primary/20",
+                        isCurrent && isTerminalStage && "bg-amber-600 border-amber-600 text-white ring-4 ring-amber-600/20",
+                        isUpcoming && !isTerminalStage && "bg-muted border-muted-foreground/30 text-muted-foreground group-hover:border-primary/50 group-hover:bg-muted/80",
+                        isUpcoming && isTerminalStage && "bg-muted border-amber-500/30 text-amber-600 group-hover:border-amber-500/50 group-hover:bg-amber-50 dark:group-hover:bg-amber-950/20",
+                        isCurrentlyLocked && !isTerminalStage && !isCurrent && "group-hover:border-emerald-500/50 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-950/20"
+                      )}>
+                        {isTerminalStage ? (
+                          <LockIcon className="h-5 w-5" />
+                        ) : isCompleted ? (
+                          <CheckCircle2 className="h-5 w-5" />
+                        ) : isCurrent ? (
+                          <span className="text-sm font-bold">{index + 1}</span>
+                        ) : (
+                          <Circle className="h-5 w-5" />
+                        )}
+                      </div>
+                      <span className={cn(
+                        "text-xs font-medium transition-colors",
+                        isCurrent && isTerminalStage && "text-amber-600",
+                        (isCompleted || isCurrent) && !isTerminalStage && "text-foreground",
+                        isUpcoming && "text-muted-foreground group-hover:text-foreground",
+                        isCurrentlyLocked && !isTerminalStage && !isCurrent && "group-hover:text-emerald-600"
+                      )}>
+                        {stage.label}
+                      </span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="font-medium">{stage.label}</p>
+                    <p className="text-xs text-muted-foreground">{stage.description}</p>
+                    {isCurrentlyLocked && !isTerminalStage ? (
+                      <p className="text-xs text-emerald-600 mt-1">Click to reopen project at this stage</p>
+                    ) : isTerminalStage && !isCurrent ? (
+                      <p className="text-xs text-amber-600 mt-1">Setting this will lock the project</p>
+                    ) : isCurrent ? (
+                      <p className="text-xs text-muted-foreground mt-1">Current status</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-1">Click to set status</p>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+                
+                {index < PROJECT_STAGES.length - 1 && (
+                  <div className={cn(
+                    "flex-1 h-1 mx-2 rounded-full transition-colors",
+                    index < currentIndex ? "bg-primary" : "bg-muted-foreground/20"
+                  )} />
+                )}
+              </div>
+            );
+          })}
+      </div>
+
+      <div className="sm:hidden grid grid-cols-4 gap-2">
+        {PROJECT_STAGES.map((stage, index) => {
+            const isCompleted = index < currentIndex;
+            const isCurrent = index === currentIndex;
+            const isUpcoming = index > currentIndex;
+            const isTerminalStage = (stage as any).isTerminal;
+            const isClickDisabled = isCurrent;
+            
+            return (
+              <button
+                key={stage.value}
+                onClick={() => !isClickDisabled && onStatusChange(stage.value)}
+                disabled={isClickDisabled}
+                className={cn(
+                  "flex flex-col items-center gap-1 group transition-all rounded-md p-1.5",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                  isClickDisabled ? "cursor-default" : "cursor-pointer"
+                )}
+                data-testid={`status-stage-mobile-${stage.value.toLowerCase()}`}
+              >
                 <div className={cn(
-                  "flex-1 h-1 mx-2 rounded-full transition-colors",
-                  index < currentIndex ? "bg-primary" : "bg-muted-foreground/20"
-                )} />
-              )}
-            </div>
-          );
-        })}
-    </div>
+                  "w-8 h-8 rounded-full flex items-center justify-center transition-all border-2",
+                  isCompleted && "bg-primary border-primary text-primary-foreground",
+                  isCurrent && !isTerminalStage && "bg-primary border-primary text-primary-foreground ring-2 ring-primary/20",
+                  isCurrent && isTerminalStage && "bg-amber-600 border-amber-600 text-white ring-2 ring-amber-600/20",
+                  isUpcoming && !isTerminalStage && "bg-muted border-muted-foreground/30 text-muted-foreground",
+                  isUpcoming && isTerminalStage && "bg-muted border-amber-500/30 text-amber-600",
+                  isCurrentlyLocked && !isTerminalStage && !isCurrent && "group-hover:border-emerald-500/50"
+                )}>
+                  {isTerminalStage ? (
+                    <LockIcon className="h-4 w-4" />
+                  ) : isCompleted ? (
+                    <CheckCircle2 className="h-4 w-4" />
+                  ) : isCurrent ? (
+                    <span className="text-xs font-bold">{index + 1}</span>
+                  ) : (
+                    <Circle className="h-4 w-4" />
+                  )}
+                </div>
+                <span className={cn(
+                  "text-[10px] font-medium transition-colors text-center leading-tight",
+                  isCurrent && isTerminalStage && "text-amber-600",
+                  (isCompleted || isCurrent) && !isTerminalStage && "text-foreground",
+                  isUpcoming && "text-muted-foreground",
+                  isCurrentlyLocked && !isTerminalStage && !isCurrent && "group-hover:text-emerald-600"
+                )}>
+                  {stage.label}
+                </span>
+              </button>
+            );
+          })}
+      </div>
+    </>
   );
 }
 
