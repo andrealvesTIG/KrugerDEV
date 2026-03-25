@@ -631,7 +631,8 @@ export function registerProjectFeatureRoutes(app: Express) {
         ? `${user.firstName} ${user.lastName}` 
         : user?.email || 'Unknown';
       
-      // Convert amount to string if it's a number (for numeric DB column)
+      const emptyToNull = (v: any) => (v === '' || v === undefined) ? null : v;
+      
       const invoiceData = {
         ...req.body,
         projectId,
@@ -639,6 +640,9 @@ export function registerProjectFeatureRoutes(app: Express) {
         createdBy: userId,
         createdByName: userName,
         amount: req.body.amount !== undefined ? String(req.body.amount) : undefined,
+        invoiceDate: emptyToNull(req.body.invoiceDate),
+        dueDate: emptyToNull(req.body.dueDate),
+        paidDate: emptyToNull(req.body.paidDate),
       };
       
       // Use upsert for external imports to prevent duplicates
@@ -679,16 +683,16 @@ export function registerProjectFeatureRoutes(app: Express) {
         return res.status(403).json({ message: "Access denied" });
       }
       
-      const { invoiceNumber, description, amount, currency, status, issueDate, dueDate, paidDate, notes, lineItems } = req.body;
+      const { invoiceNumber, description, amount, currency, status, invoiceDate, dueDate, paidDate, notes, lineItems } = req.body;
       const safeUpdate: Record<string, any> = {};
       if (invoiceNumber !== undefined) safeUpdate.invoiceNumber = invoiceNumber;
       if (description !== undefined) safeUpdate.description = description;
       if (amount !== undefined) safeUpdate.amount = amount;
       if (currency !== undefined) safeUpdate.currency = currency;
       if (status !== undefined) safeUpdate.status = status;
-      if (issueDate !== undefined) safeUpdate.issueDate = issueDate;
-      if (dueDate !== undefined) safeUpdate.dueDate = dueDate;
-      if (paidDate !== undefined) safeUpdate.paidDate = paidDate;
+      if (invoiceDate !== undefined) safeUpdate.invoiceDate = invoiceDate || null;
+      if (dueDate !== undefined) safeUpdate.dueDate = dueDate || null;
+      if (paidDate !== undefined) safeUpdate.paidDate = paidDate || null;
       if (notes !== undefined) safeUpdate.notes = notes;
       if (lineItems !== undefined) safeUpdate.lineItems = lineItems;
       const updated = await storage.updateProjectInvoice(invoiceId, safeUpdate);
