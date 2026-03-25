@@ -78,7 +78,8 @@ const spec = {
     { name: 'Portfolios', description: 'Portfolio CRUD, risk assessments' },
     { name: 'Projects', description: 'Project CRUD, history, import/export' },
     { name: 'Tasks', description: 'Task CRUD, dependencies, history, reorder' },
-    { name: 'Milestones', description: 'Portfolio Key Dates CRUD' },
+    { name: 'Portfolio Key Dates', description: 'Portfolio-level key dates CRUD (new portfolio_key_dates table)' },
+    { name: 'Milestones', description: 'Task milestones (legacy, reads from tasks table with isMilestone=true)' },
     { name: 'Risks', description: 'Risk CRUD, assignments, history' },
     { name: 'Issues', description: 'Issue CRUD, assignments, history, escalation' },
     { name: 'Project Financials', description: 'Project financial records' },
@@ -426,6 +427,7 @@ const spec = {
       },
       Milestone: {
         type: 'object',
+        description: 'Legacy task milestone (from tasks table with isMilestone=true). For portfolio-level key dates, use PortfolioKeyDate instead.',
         properties: {
           id: { type: 'integer' },
           projectId: { type: 'integer' },
@@ -454,6 +456,43 @@ const spec = {
           isDemo: { type: 'boolean' },
         },
         required: ['id', 'projectId', 'title', 'dueDate', 'completed', 'status', 'priority', 'isDemo'],
+      },
+      PortfolioKeyDate: {
+        type: 'object',
+        description: 'Portfolio-level key date. Stored in the portfolio_key_dates table, completely separate from task milestones.',
+        properties: {
+          id: { type: 'integer' },
+          portfolioId: { type: 'integer', description: 'The portfolio this key date belongs to' },
+          title: { type: 'string' },
+          description: { type: 'string', nullable: true },
+          keyDateType: { type: 'string', enum: ['Deadline', 'Governance', 'Deliverable', 'Phase Gate', 'External', 'Payment', 'Review', 'Go Live', 'Other'], description: 'Type of key date' },
+          date: { type: 'string', format: 'date', description: 'The key date' },
+          status: { type: 'string', enum: ['Upcoming', 'At Risk', 'Overdue', 'Completed'] },
+          completed: { type: 'boolean' },
+          notes: { type: 'string', nullable: true },
+          organizationId: { type: 'integer', nullable: true },
+          createdBy: { type: 'string', nullable: true, description: 'User ID of creator' },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+          deletedAt: { type: 'string', format: 'date-time', nullable: true },
+          deletedBy: { type: 'string', nullable: true },
+          isDemo: { type: 'boolean' },
+        },
+        required: ['id', 'portfolioId', 'title', 'date'],
+      },
+      PortfolioKeyDateRequest: {
+        type: 'object',
+        description: 'Request body for creating or updating a portfolio key date.',
+        properties: {
+          title: { type: 'string' },
+          description: { type: 'string', nullable: true },
+          keyDateType: { type: 'string', enum: ['Deadline', 'Governance', 'Deliverable', 'Phase Gate', 'External', 'Payment', 'Review', 'Go Live', 'Other'] },
+          date: { type: 'string', format: 'date' },
+          status: { type: 'string', enum: ['Upcoming', 'At Risk', 'Overdue', 'Completed'] },
+          completed: { type: 'boolean' },
+          notes: { type: 'string', nullable: true },
+        },
+        required: ['title', 'date'],
       },
       Risk: {
         type: 'object',
@@ -1800,9 +1839,33 @@ const spec = {
       }),
     },
     '/portfolios/{id}/milestones': {
-      get: op('Portfolios', 'List portfolio key dates across portfolio projects', {
+      get: op('Portfolios', 'List task milestones across portfolio projects (legacy)', {
         parameters: [pathId()],
-        responses: { ...r200('Portfolio key dates', arrOf('Milestone')), ...idRes },
+        responses: { ...r200('Task milestones from projects in this portfolio', arrOf('Milestone')), ...idRes },
+        deprecated: true,
+        description: 'Legacy endpoint that reads task milestones (isMilestone=true) from the tasks table. For portfolio-level key dates, use /portfolios/{id}/key-dates instead.',
+      }),
+    },
+    '/portfolios/{id}/key-dates': {
+      get: op('Portfolio Key Dates', 'List portfolio key dates', {
+        parameters: [pathId()],
+        responses: { ...r200('Portfolio key dates', arrOf('PortfolioKeyDate')), ...idRes },
+      }),
+      post: op('Portfolio Key Dates', 'Create a portfolio key date', {
+        parameters: [pathId()],
+        requestBody: body(ref('PortfolioKeyDateRequest')),
+        responses: { ...r201('Key date created', ref('PortfolioKeyDate')), ...createRes },
+      }),
+    },
+    '/portfolios/{id}/key-dates/{keyDateId}': {
+      patch: op('Portfolio Key Dates', 'Update a portfolio key date', {
+        parameters: [pathId(), pathId('keyDateId')],
+        requestBody: body(ref('PortfolioKeyDateRequest'), false),
+        responses: { ...r200('Key date updated', ref('PortfolioKeyDate')), ...updateRes },
+      }),
+      delete: op('Portfolio Key Dates', 'Delete a portfolio key date', {
+        parameters: [pathId(), pathId('keyDateId')],
+        responses: { ...r204('Key date deleted'), ...fullRes },
       }),
     },
     '/portfolios/{id}/risk-assessment': {
@@ -2043,32 +2106,42 @@ const spec = {
       }),
     },
 
-    // ======================== MILESTONES ========================
+    // ======================== MILESTONES (Legacy - Task Milestones) ========================
     '/projects/{projectId}/milestones': {
-      get: op('Milestones', 'List portfolio key dates for a project', {
+      get: op('Milestones', 'List task milestones for a project (legacy)', {
         parameters: [pathId('projectId')],
-        responses: { ...r200('Project key dates', arrOf('Milestone')), ...idRes },
+        responses: { ...r200('Project task milestones', arrOf('Milestone')), ...idRes },
+        deprecated: true,
+        description: 'Legacy endpoint. Task milestones are tasks with isMilestone=true. For portfolio-level key dates, use /portfolios/{id}/key-dates.',
       }),
     },
     '/milestones': {
-      get: op('Milestones', 'List all portfolio key dates', {
+      get: op('Milestones', 'List all task milestones (legacy)', {
         parameters: [qInt('orgId', true)],
-        responses: { ...r200('Portfolio key dates list', arrOf('Milestone')), ...authRes },
+        responses: { ...r200('Task milestones list', arrOf('Milestone')), ...authRes },
+        deprecated: true,
+        description: 'Legacy endpoint. For portfolio-level key dates, use /portfolios/{id}/key-dates.',
       }),
-      post: op('Milestones', 'Create a new portfolio key date', {
+      post: op('Milestones', 'Create a task milestone (legacy)', {
         requestBody: body(ref('Milestone')),
-        responses: { ...r201('Portfolio key date created', ref('Milestone')), ...inputRes },
+        responses: { ...r201('Task milestone created', ref('Milestone')), ...inputRes },
+        deprecated: true,
+        description: 'Legacy endpoint. For portfolio-level key dates, use POST /portfolios/{id}/key-dates.',
       }),
     },
     '/milestones/{id}': {
-      put: op('Milestones', 'Update portfolio key date', {
+      put: op('Milestones', 'Update task milestone (legacy)', {
         parameters: [pathId()],
         requestBody: body(ref('Milestone')),
-        responses: { ...r200('Portfolio key date updated'), ...updateRes },
+        responses: { ...r200('Task milestone updated'), ...updateRes },
+        deprecated: true,
+        description: 'Legacy endpoint. For portfolio-level key dates, use PATCH /portfolios/{id}/key-dates/{keyDateId}.',
       }),
-      delete: op('Milestones', 'Delete portfolio key date', {
+      delete: op('Milestones', 'Delete task milestone (legacy)', {
         parameters: [pathId()],
-        responses: { ...r204('Portfolio key date deleted'), ...fullRes },
+        responses: { ...r204('Task milestone deleted'), ...fullRes },
+        deprecated: true,
+        description: 'Legacy endpoint. For portfolio-level key dates, use DELETE /portfolios/{id}/key-dates/{keyDateId}.',
       }),
     },
 
@@ -2909,10 +2982,12 @@ const spec = {
       }),
     },
     '/analytics/milestones': {
-      get: op('Analytics', 'Get portfolio key dates data for Power BI', {
+      get: op('Analytics', 'Get task milestones data for Power BI (legacy)', {
         security: [{ basicAuth: [] }, { bearerAuth: [] }],
         parameters: [qInt('organizationId', false, 'Organization ID (optional with Bearer token)')],
-        responses: { ...r200('Portfolio key dates analytics data', arrOf('Milestone')), ...e401 },
+        responses: { ...r200('Task milestones analytics data', arrOf('Milestone')), ...e401 },
+        deprecated: true,
+        description: 'Legacy endpoint returning task milestones. For portfolio key dates, use the /portfolios/{id}/key-dates endpoints.',
       }),
     },
     '/analytics/intakes': {
