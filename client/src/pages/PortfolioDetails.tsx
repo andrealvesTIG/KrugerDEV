@@ -36,7 +36,7 @@ import {
   CheckCircle2, FolderOpen, TrendingUp, BarChart3, ArrowRight,
   Calendar, Users, Briefcase, AlertCircle, ChevronLeft, ChevronRight, List, GanttChart, Plus, Search, X,
   Star, Award, FileCheck, Pencil, Trash2, Check, MoreHorizontal, MoreVertical, ArrowUpToLine,
-  Shield, Share2, Download, FileText, Sparkles, RefreshCw, ExternalLink
+  Shield, Share2, Download, FileText, Sparkles, RefreshCw, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown
 } from "lucide-react";
 import { format, addDays, differenceInDays, parseISO, startOfMonth, eachDayOfInterval } from "date-fns";
 import { cn, normalizeSearch } from "@/lib/utils";
@@ -2543,6 +2543,53 @@ function KeyDatesTab({ portfolioId }: { portfolioId: number }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [sortField, setSortField] = useState<"title" | "keyDateType" | "date" | "status">("date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [editingCell, setEditingCell] = useState<{ id: number; field: string } | null>(null);
+  const [editingValue, setEditingValue] = useState<string>("");
+
+  const handleSort = (field: "title" | "keyDateType" | "date" | "status") => {
+    if (sortField === field) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
+
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortField !== field) return <ArrowUpDown className="h-3.5 w-3.5 ml-1 text-muted-foreground/50" />;
+    return sortDir === "asc" ? <ArrowUp className="h-3.5 w-3.5 ml-1" /> : <ArrowDown className="h-3.5 w-3.5 ml-1" />;
+  };
+
+  const startInlineEdit = (kd: any, field: string) => {
+    setEditingCell({ id: kd.id, field });
+    if (field === "date") {
+      setEditingValue(kd.date ? kd.date.split("T")[0] : "");
+    } else {
+      setEditingValue(kd[field] || "");
+    }
+  };
+
+  const saveInlineEdit = async () => {
+    if (!editingCell) return;
+    const { id, field } = editingCell;
+    try {
+      await updateMutation.mutateAsync({ id, [field]: editingValue });
+    } catch {
+      toast({ title: "Failed to update", variant: "destructive" });
+    }
+    setEditingCell(null);
+  };
+
+  const cancelInlineEdit = () => {
+    setEditingCell(null);
+  };
+
+  const handleInlineKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") { e.preventDefault(); saveInlineEdit(); }
+    if (e.key === "Escape") { cancelInlineEdit(); }
+  };
 
   const [formData, setFormData] = useState({
     title: "",
@@ -2631,8 +2678,22 @@ function KeyDatesTab({ portfolioId }: { portfolioId: number }) {
     if (filterStatus !== "all") {
       filtered = filtered.filter(kd => kd.status === filterStatus);
     }
-    return filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [keyDates, searchQuery, filterType, filterStatus]);
+    const statusOrder: Record<string, number> = { "Overdue": 0, "At Risk": 1, "Upcoming": 2, "Completed": 3 };
+    filtered.sort((a, b) => {
+      let cmp = 0;
+      if (sortField === "title") {
+        cmp = (a.title || "").localeCompare(b.title || "");
+      } else if (sortField === "keyDateType") {
+        cmp = (a.keyDateType || "").localeCompare(b.keyDateType || "");
+      } else if (sortField === "date") {
+        cmp = new Date(a.date).getTime() - new Date(b.date).getTime();
+      } else if (sortField === "status") {
+        cmp = (statusOrder[a.status || "Upcoming"] ?? 2) - (statusOrder[b.status || "Upcoming"] ?? 2);
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return filtered;
+  }, [keyDates, searchQuery, filterType, filterStatus, sortField, sortDir]);
 
   if (isLoading) {
     return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
@@ -2702,10 +2763,26 @@ function KeyDatesTab({ portfolioId }: { portfolioId: number }) {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10"></TableHead>
-                <TableHead>Title</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>
+                  <button onClick={() => handleSort("title")} className="flex items-center hover:text-foreground transition-colors font-medium">
+                    Title <SortIcon field="title" />
+                  </button>
+                </TableHead>
+                <TableHead>
+                  <button onClick={() => handleSort("keyDateType")} className="flex items-center hover:text-foreground transition-colors font-medium">
+                    Type <SortIcon field="keyDateType" />
+                  </button>
+                </TableHead>
+                <TableHead>
+                  <button onClick={() => handleSort("date")} className="flex items-center hover:text-foreground transition-colors font-medium">
+                    Date <SortIcon field="date" />
+                  </button>
+                </TableHead>
+                <TableHead>
+                  <button onClick={() => handleSort("status")} className="flex items-center hover:text-foreground transition-colors font-medium">
+                    Status <SortIcon field="status" />
+                  </button>
+                </TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
@@ -2724,6 +2801,8 @@ function KeyDatesTab({ portfolioId }: { portfolioId: number }) {
                   Completed: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
                 };
 
+                const isEditingThis = (field: string) => editingCell?.id === kd.id && editingCell?.field === field;
+
                 return (
                   <TableRow key={kd.id} className={cn(kd.completed && "opacity-60")}>
                     <TableCell>
@@ -2733,30 +2812,81 @@ function KeyDatesTab({ portfolioId }: { portfolioId: number }) {
                       />
                     </TableCell>
                     <TableCell>
-                      <div>
-                        <p className={cn("font-medium text-sm", kd.completed && "line-through")}>{kd.title}</p>
-                        {kd.description && (
-                          <p className="text-xs text-muted-foreground truncate max-w-xs">{kd.description}</p>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">{kd.keyDateType}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <span className={cn("text-sm", isOverdue && "text-rose-500 font-medium")}>
-                        {format(dateVal, "MMM d, yyyy")}
-                      </span>
-                      {!kd.completed && (
-                        <p className={cn("text-xs", isOverdue ? "text-rose-500" : diffDays <= 7 ? "text-amber-500" : "text-muted-foreground")}>
-                          {isOverdue ? `${Math.abs(diffDays)}d overdue` : diffDays === 0 ? "Today" : `In ${diffDays}d`}
-                        </p>
+                      {isEditingThis("title") ? (
+                        <Input
+                          value={editingValue}
+                          onChange={(e) => setEditingValue(e.target.value)}
+                          onBlur={saveInlineEdit}
+                          onKeyDown={handleInlineKeyDown}
+                          autoFocus
+                          className="h-8 text-sm"
+                        />
+                      ) : (
+                        <div className="cursor-pointer group" onDoubleClick={() => startInlineEdit(kd, "title")}>
+                          <p className={cn("font-medium text-sm group-hover:text-primary", kd.completed && "line-through")}>{kd.title}</p>
+                          {kd.description && (
+                            <p className="text-xs text-muted-foreground truncate max-w-xs">{kd.description}</p>
+                          )}
+                        </div>
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge className={cn("text-xs", statusColorMap[kd.status || "Upcoming"] || "bg-muted")}>
-                        {kd.status}
-                      </Badge>
+                      {isEditingThis("keyDateType") ? (
+                        <Select value={editingValue} onValueChange={(v) => { setEditingValue(v); setTimeout(() => { updateMutation.mutateAsync({ id: kd.id, keyDateType: v }).catch(() => toast({ title: "Failed to update", variant: "destructive" })); setEditingCell(null); }, 0); }}>
+                          <SelectTrigger className="h-8 text-xs w-[130px]" autoFocus>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {KEY_DATE_TYPES.map(t => (
+                              <SelectItem key={t} value={t}>{t}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Badge variant="outline" className="text-xs cursor-pointer hover:border-primary" onDoubleClick={() => startInlineEdit(kd, "keyDateType")}>{kd.keyDateType}</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isEditingThis("date") ? (
+                        <Input
+                          type="date"
+                          value={editingValue}
+                          onChange={(e) => setEditingValue(e.target.value)}
+                          onBlur={saveInlineEdit}
+                          onKeyDown={handleInlineKeyDown}
+                          autoFocus
+                          className="h-8 text-sm w-[150px]"
+                        />
+                      ) : (
+                        <div className="cursor-pointer group" onDoubleClick={() => startInlineEdit(kd, "date")}>
+                          <span className={cn("text-sm group-hover:text-primary", isOverdue && "text-rose-500 font-medium")}>
+                            {format(dateVal, "MMM d, yyyy")}
+                          </span>
+                          {!kd.completed && (
+                            <p className={cn("text-xs", isOverdue ? "text-rose-500" : diffDays <= 7 ? "text-amber-500" : "text-muted-foreground")}>
+                              {isOverdue ? `${Math.abs(diffDays)}d overdue` : diffDays === 0 ? "Today" : `In ${diffDays}d`}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isEditingThis("status") ? (
+                        <Select value={editingValue} onValueChange={(v) => { setEditingValue(v); setTimeout(() => { updateMutation.mutateAsync({ id: kd.id, status: v, completed: v === "Completed" }).catch(() => toast({ title: "Failed to update", variant: "destructive" })); setEditingCell(null); }, 0); }}>
+                          <SelectTrigger className="h-8 text-xs w-[130px]" autoFocus>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {KEY_DATE_STATUSES.map(s => (
+                              <SelectItem key={s} value={s}>{s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Badge className={cn("text-xs cursor-pointer hover:ring-2 hover:ring-primary/30", statusColorMap[kd.status || "Upcoming"] || "bg-muted")} onDoubleClick={() => startInlineEdit(kd, "status")}>
+                          {kd.status}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
