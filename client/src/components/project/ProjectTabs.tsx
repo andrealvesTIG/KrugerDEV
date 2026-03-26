@@ -2106,11 +2106,11 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
   const handleAddCriteria = async () => {
     try {
       await createCriteria.mutateAsync({ organizationId, data: newCriteria });
-      toast({ title: "Criterion added" });
+      toast({ title: "Criteria added" });
       setShowAddCriteria(false);
       setNewCriteria({ name: '', description: '', category: 'Strategic', weight: '1', minScore: 0, maxScore: 10 });
     } catch {
-      toast({ title: "Error", description: "Failed to add criterion", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to add criteria", variant: "destructive" });
     }
   };
 
@@ -2136,9 +2136,9 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
   const handleDeleteCriteria = async (id: number) => {
     try {
       await deleteCriteria.mutateAsync({ id, organizationId });
-      toast({ title: "Criterion deleted" });
+      toast({ title: "Criteria deleted" });
     } catch {
-      toast({ title: "Error", description: "Failed to delete criterion", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to delete criteria", variant: "destructive" });
     }
   };
 
@@ -2167,7 +2167,7 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
       <CardHeader className="flex flex-row items-center justify-between gap-2">
         <CardTitle>Project Scoring</CardTitle>
         <Button size="sm" onClick={() => setShowAddCriteria(true)} data-testid="button-add-criteria">
-          <Plus className="h-4 w-4 mr-1" /> Add Criterion
+          <Plus className="h-4 w-4 mr-1" /> Add Criteria
         </Button>
       </CardHeader>
       <CardContent>
@@ -2257,7 +2257,7 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
 
         {activeCriteria.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">
-            No scoring criteria defined. Click "Add Criterion" to create one.
+            No scoring criteria defined. Click "Add Criteria" to create one.
           </div>
         )}
       </CardContent>
