@@ -221,15 +221,15 @@ export function ProjectStatusReport({
 
   return (
     <div className="bg-background" data-testid="project-status-report">
-      <div className="bg-primary text-primary-foreground p-6 rounded-t-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">PROJECT STATUS REPORT</h1>
-            <p className="text-primary-foreground/80 text-lg mt-1">{project.name}</p>
+      <div className="bg-primary text-primary-foreground p-4 sm:p-6 rounded-t-lg">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-bold">PROJECT STATUS REPORT</h1>
+            <p className="text-primary-foreground/80 text-sm sm:text-lg mt-1 break-words">{project.name}</p>
           </div>
-          <div className="text-right">
-            <p className="text-primary-foreground/80">{format(new Date(), "MMMM d, yyyy")}</p>
-            <div className="flex items-center gap-2 mt-1 justify-end">
+          <div className="sm:text-right shrink-0">
+            <p className="text-primary-foreground/80 text-sm">{format(new Date(), "MMMM d, yyyy")}</p>
+            <div className="flex items-center gap-2 mt-1 sm:justify-end flex-wrap">
               <Badge variant="secondary" className="bg-primary-foreground/20 text-primary-foreground border-0">
                 {project.status}
               </Badge>
@@ -244,14 +244,14 @@ export function ProjectStatusReport({
         </div>
       </div>
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
+          <div className="min-w-0">
             <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
-              <Target className="h-5 w-5 text-primary" />
+              <Target className="h-5 w-5 text-primary shrink-0" />
               Executive Summary
             </h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">
+            <p className="text-sm text-muted-foreground leading-relaxed break-words">
               {executiveSummary || project.description || "No executive summary provided for this project."}
             </p>
           </div>
@@ -274,7 +274,7 @@ export function ProjectStatusReport({
               Project Timeline
             </h2>
             
-            <div className="flex items-center justify-between text-sm mb-2">
+            <div className="flex flex-wrap items-center justify-between text-xs sm:text-sm mb-2 gap-1">
               <span className="font-medium">{format(timelineData.start, "MMM d, yyyy")}</span>
               <span className="text-muted-foreground">{timelineData.daysRemaining} days remaining</span>
               <span className="font-medium">{format(timelineData.end, "MMM d, yyyy")}</span>
@@ -312,34 +312,35 @@ export function ProjectStatusReport({
               ))}
             </div>
 
-            <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
-              <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center justify-between mt-2 text-xs text-muted-foreground gap-y-1">
+              <div className="flex items-center flex-wrap gap-x-4 gap-y-1">
                 <span className="flex items-center gap-1">
-                  <div className="w-3 h-3 bg-primary rounded" /> Completed
+                  <div className="w-3 h-3 bg-primary rounded shrink-0" /> Completed
                 </span>
                 <span className="flex items-center gap-1">
-                  <div className="w-3 h-3 bg-primary/30 rounded" /> Time Passed
+                  <div className="w-3 h-3 bg-primary/30 rounded shrink-0" /> Time Passed
                 </span>
                 <span className="flex items-center gap-1">
-                  <div className="w-0.5 h-3 bg-red-500" /> Today
+                  <div className="w-0.5 h-3 bg-red-500 shrink-0" /> Today
                 </span>
-                <span className="flex items-center gap-1">
-                  <Flag className="h-3 w-3 text-yellow-500 fill-yellow-500" /> Key Date
+                <span className="flex items-center gap-1"> 
+                  <Flag className="h-3 w-3 text-yellow-500 fill-yellow-500" /> Key Date 
+                  <Flag className="h-3 w-3 text-yellow-500 fill-yellow-500 shrink-0" /> Milestone 
                 </span>
               </div>
-              <span>{taskStats.overallCompletion}% Complete</span>
+              <span className="shrink-0">{taskStats.overallCompletion}% Complete</span>
             </div>
 
             {timelineData.milestones.length > 0 && (
               <div className="mt-4">
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   {(showAllMilestones ? timelineData.milestones : timelineData.milestones.slice(0, MILESTONE_PREVIEW_COUNT)).map(m => (
-                    <div key={m.id} className="flex items-center gap-2 text-xs">
+                    <div key={m.id} className="flex items-center gap-2 text-xs min-w-0">
                       <Flag className={cn(
                         "h-3 w-3 shrink-0",
                         m.isComplete ? "text-green-500" : m.isAtRisk ? "text-red-500" : "text-yellow-500"
                       )} />
-                      <span className="truncate">{m.title}</span>
+                      <span className="truncate min-w-0">{m.title}</span>
                     </div>
                   ))}
                 </div>
@@ -508,24 +509,24 @@ export function ProjectStatusReport({
             <div className="space-y-2">
               {majorMilestones.length > 0 ? (
                 <>
-                  <table className="w-full text-sm">
-                    <tbody>
-                      {(showAllMilestones ? majorMilestones : majorMilestones.slice(0, MILESTONE_PREVIEW_COUNT)).map((milestone) => {
-                        const status = getMilestoneStatus(milestone);
-                        return (
-                          <tr key={milestone.id} className="border-b border-border last:border-0">
-                            <td className="py-2 pr-2">{milestone.title}</td>
-                            <td className="py-2 pr-2 text-muted-foreground">
-                              {(milestone.endDate || milestone.startDate) ? format(new Date((milestone.endDate || milestone.startDate)!), "MMM d, yyyy") : "—"}
-                            </td>
-                            <td className={cn("py-2 text-right font-medium", getMilestoneStatusColor(status))}>
+                  <div className="space-y-0 divide-y divide-border">
+                    {(showAllMilestones ? majorMilestones : majorMilestones.slice(0, MILESTONE_PREVIEW_COUNT)).map((milestone) => {
+                      const status = getMilestoneStatus(milestone);
+                      return (
+                        <div key={milestone.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                          <span className="min-w-0 truncate">{milestone.title}</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-muted-foreground text-xs sm:text-sm">
+                              {(milestone.endDate || milestone.startDate) ? format(new Date((milestone.endDate || milestone.startDate)!), "MMM d") : "—"}
+                            </span>
+                            <span className={cn("font-medium text-xs sm:text-sm", getMilestoneStatusColor(status))}>
                               {status}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                   {majorMilestones.length > MILESTONE_PREVIEW_COUNT && (
                     <button
                       onClick={() => setShowAllMilestones(!showAllMilestones)}
@@ -557,7 +558,7 @@ export function ProjectStatusReport({
                     )}>
                       {item.type === "risk" ? "Risk" : "Issue"}
                     </Badge>
-                    <span className="text-sm">{item.title}</span>
+                    <span className="text-sm min-w-0 break-words">{item.title}</span>
                     <Badge variant="secondary" className={cn(
                       "ml-auto text-xs shrink-0",
                       item.priority === "High" || item.priority === "Critical" ? "bg-red-100 text-red-700" : 
@@ -581,47 +582,31 @@ export function ProjectStatusReport({
               <GitPullRequest className="h-5 w-5 text-primary" />
               Change Requests ({changeRequests.length})
             </h2>
-            <div className="space-y-2">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="py-2 text-left font-medium">Title</th>
-                    <th className="py-2 text-left font-medium">Type</th>
-                    <th className="py-2 text-left font-medium">Status</th>
-                    <th className="py-2 text-left font-medium">Priority</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {changeRequests.slice(0, 5).map((cr) => (
-                    <tr key={cr.id} className="border-b border-border last:border-0">
-                      <td className="py-2 pr-2">{cr.title || 'Untitled change request'}</td>
-                      <td className="py-2 pr-2 capitalize">{cr.type?.replace('_', ' ') || 'Scope'}</td>
-                      <td className="py-2 pr-2">
-                        <Badge variant="outline" className={cn(
-                          "text-xs",
-                          cr.status === "approved" ? "border-green-500 text-green-600" :
-                          cr.status === "rejected" ? "border-red-500 text-red-600" :
-                          cr.status === "implemented" ? "border-blue-500 text-blue-600" :
-                          "border-yellow-500 text-yellow-600"
-                        )}>
-                          {cr.status?.replace('_', ' ') || 'pending'}
-                        </Badge>
-                      </td>
-                      <td className="py-2">
-                        <Badge variant="secondary" className={cn(
-                          "text-xs",
-                          cr.priority === "high" || cr.priority === "critical" ? "bg-red-100 text-red-700" :
-                          cr.priority === "medium" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-700"
-                        )}>
-                          {cr.priority || 'normal'}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-0 divide-y divide-border">
+              {changeRequests.slice(0, 5).map((cr) => (
+                <div key={cr.id} className="py-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                  <span className="min-w-0 break-words w-full sm:w-auto sm:flex-1">{cr.title || 'Untitled change request'}</span>
+                  <span className="text-muted-foreground capitalize text-xs shrink-0">{cr.type?.replace('_', ' ') || 'Scope'}</span>
+                  <Badge variant="outline" className={cn(
+                    "text-xs shrink-0",
+                    cr.status === "approved" ? "border-green-500 text-green-600" :
+                    cr.status === "rejected" ? "border-red-500 text-red-600" :
+                    cr.status === "implemented" ? "border-blue-500 text-blue-600" :
+                    "border-yellow-500 text-yellow-600"
+                  )}>
+                    {cr.status?.replace('_', ' ') || 'pending'}
+                  </Badge>
+                  <Badge variant="secondary" className={cn(
+                    "text-xs shrink-0",
+                    cr.priority === "high" || cr.priority === "critical" ? "bg-red-100 text-red-700" :
+                    cr.priority === "medium" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-700"
+                  )}>
+                    {cr.priority || 'normal'}
+                  </Badge>
+                </div>
+              ))}
               {changeRequests.length > 5 && (
-                <p className="text-xs text-muted-foreground mt-2">+ {changeRequests.length - 5} more change requests</p>
+                <p className="text-xs text-muted-foreground pt-2">+ {changeRequests.length - 5} more change requests</p>
               )}
             </div>
           </div>
@@ -634,52 +619,43 @@ export function ProjectStatusReport({
               <FileText className="h-5 w-5 text-primary" />
               Project Documents ({documents.length})
             </h2>
-            <div className="space-y-2">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="py-2 text-left font-medium">Title</th>
-                    <th className="py-2 text-left font-medium">Category</th>
-                    <th className="py-2 text-left font-medium">Version</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {documents.slice(0, 5).map((doc) => (
-                    <tr key={doc.id} className="border-b border-border last:border-0">
-                      <td className="py-2 pr-2">{doc.title || 'Untitled document'}</td>
-                      <td className="py-2 pr-2 capitalize">{doc.category?.replace('_', ' ') || 'General'}</td>
-                      <td className="py-2">{doc.version || '1.0'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-0 divide-y divide-border">
+              {documents.slice(0, 5).map((doc) => (
+                <div key={doc.id} className="py-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-sm">
+                  <span className="min-w-0 break-words w-full sm:w-auto sm:flex-1">{doc.title || 'Untitled document'}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-muted-foreground capitalize text-xs">{doc.category?.replace('_', ' ') || 'General'}</span>
+                    <span className="text-xs text-muted-foreground">v{doc.version || '1.0'}</span>
+                  </div>
+                </div>
+              ))}
               {documents.length > 5 && (
-                <p className="text-xs text-muted-foreground mt-2">+ {documents.length - 5} more documents</p>
+                <p className="text-xs text-muted-foreground pt-2">+ {documents.length - 5} more documents</p>
               )}
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="border rounded-lg p-4 text-center">
-            <span className="text-3xl font-bold text-primary">{taskStats.total}</span>
-            <span className="text-sm text-muted-foreground block">Total Tasks</span>
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 sm:gap-4">
+          <div className="border rounded-lg p-3 sm:p-4 text-center">
+            <span className="text-xl sm:text-3xl font-bold text-primary">{taskStats.total}</span>
+            <span className="text-xs sm:text-sm text-muted-foreground block">Total Tasks</span>
           </div>
-          <div className="border rounded-lg p-4 text-center">
-            <span className="text-3xl font-bold text-green-600">{taskStats.overallCompletion}%</span>
-            <span className="text-sm text-muted-foreground block">Complete</span>
+          <div className="border rounded-lg p-3 sm:p-4 text-center">
+            <span className="text-xl sm:text-3xl font-bold text-green-600">{taskStats.overallCompletion}%</span>
+            <span className="text-xs sm:text-sm text-muted-foreground block">Complete</span>
           </div>
-          <div className="border rounded-lg p-4 text-center">
-            <span className="text-3xl font-bold text-blue-600">{majorMilestones.length}</span>
-            <span className="text-sm text-muted-foreground block">Milestones</span>
+          <div className="border rounded-lg p-3 sm:p-4 text-center">
+            <span className="text-xl sm:text-3xl font-bold text-blue-600">{majorMilestones.length}</span>
+            <span className="text-xs sm:text-sm text-muted-foreground block">Milestones</span>
           </div>
-          <div className="border rounded-lg p-4 text-center">
-            <span className="text-3xl font-bold text-orange-600">{riskStats.total}</span>
-            <span className="text-sm text-muted-foreground block">Open Risks</span>
+          <div className="border rounded-lg p-3 sm:p-4 text-center">
+            <span className="text-xl sm:text-3xl font-bold text-orange-600">{riskStats.total}</span>
+            <span className="text-xs sm:text-sm text-muted-foreground block">Open Risks</span>
           </div>
-          <div className="border rounded-lg p-4 text-center">
-            <span className="text-3xl font-bold text-red-600">{issueStats.total}</span>
-            <span className="text-sm text-muted-foreground block">Open Issues</span>
+          <div className="border rounded-lg p-3 sm:p-4 text-center">
+            <span className="text-xl sm:text-3xl font-bold text-red-600">{issueStats.total}</span>
+            <span className="text-xs sm:text-sm text-muted-foreground block">Open Issues</span>
           </div>
         </div>
       </div>

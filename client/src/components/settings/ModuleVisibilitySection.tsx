@@ -503,17 +503,17 @@ export function ModuleVisibilitySection({ organization }: { organization: Organi
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
               <CardTitle className="flex items-center gap-2">
-                <LayoutDashboard className="h-5 w-5" />
+                <LayoutDashboard className="h-5 w-5 shrink-0" />
                 Menu Structure
               </CardTitle>
               <CardDescription>
                 Organize menu groups and items. Drag items between groups to reorganize.
               </CardDescription>
             </div>
-            <Button onClick={() => setShowAddGroup(true)} size="sm" data-testid="button-add-group">
+            <Button onClick={() => setShowAddGroup(true)} size="sm" className="shrink-0" data-testid="button-add-group">
               <Plus className="h-4 w-4 mr-1" />
               Add Group
             </Button>
@@ -531,12 +531,12 @@ export function ModuleVisibilitySection({ organization }: { organization: Organi
               {structure.map((group, groupIndex) => (
                 <div 
                   key={group.id} 
-                  className="border rounded-lg overflow-visible"
+                  className="border rounded-lg overflow-x-hidden"
                   data-testid={`group-${group.id}`}
                 >
-                  <div className="flex items-center justify-between p-3 bg-muted/50 border-b">
-                    <div className="flex items-center gap-3">
-                      <div className="flex flex-col gap-0.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-muted/50 border-b">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex flex-col gap-0.5 shrink-0">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -558,46 +558,48 @@ export function ModuleVisibilitySection({ organization }: { organization: Organi
                           <ChevronDown className="h-3 w-3" />
                         </Button>
                       </div>
-                      <div className={`p-2 rounded-md ${group.hidden ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'}`}>
+                      <div className={`p-2 rounded-md shrink-0 ${group.hidden ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'}`}>
                         <Folder className="h-4 w-4" />
                       </div>
-                      <div>
-                        <div className="font-medium flex items-center gap-2">
-                          {group.name}
-                          {group.isDefault && <Badge variant="outline" className="text-xs">Default</Badge>}
-                          {group.hidden && <Badge variant="secondary" className="text-xs">Hidden</Badge>}
+                      <div className="min-w-0">
+                        <div className="font-medium flex items-center gap-2 flex-wrap">
+                          <span className="truncate">{group.name}</span>
+                          {group.isDefault && <Badge variant="outline" className="text-xs shrink-0">Default</Badge>}
+                          {group.hidden && <Badge variant="secondary" className="text-xs shrink-0">Hidden</Badge>}
                         </div>
                         <div className="text-sm text-muted-foreground">{group.items.length} items</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setShowAddLink(group.id)}
-                        data-testid={`button-add-link-${group.id}`}
-                      >
-                        <LinkIcon className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => { setEditingGroup(group); setNewGroupName(group.name); }}
-                        data-testid={`button-edit-group-${group.id}`}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      {!group.isDefault && (
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <div className="flex items-center">
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setDeleteGroup(group)}
-                          data-testid={`button-delete-group-${group.id}`}
+                          onClick={() => setShowAddLink(group.id)}
+                          data-testid={`button-add-link-${group.id}`}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <LinkIcon className="h-4 w-4" />
                         </Button>
-                      )}
-                      <div className="flex items-center gap-2 ml-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => { setEditingGroup(group); setNewGroupName(group.name); }}
+                          data-testid={`button-edit-group-${group.id}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        {!group.isDefault && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setDeleteGroup(group)}
+                            data-testid={`button-delete-group-${group.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 ml-1">
                         <span className="text-muted-foreground text-xs whitespace-nowrap">Collapsed</span>
                         <Switch
                           checked={!!group.collapsedByDefault}
@@ -606,7 +608,7 @@ export function ModuleVisibilitySection({ organization }: { organization: Organi
                           data-testid={`switch-group-collapsed-${group.id}`}
                         />
                       </div>
-                      <div className="flex items-center gap-2 ml-2">
+                      <div className="flex items-center gap-2 ml-1">
                         <span className="text-muted-foreground">
                           {group.hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </span>
@@ -644,23 +646,23 @@ export function ModuleVisibilitySection({ organization }: { organization: Organi
                             return (
                               <SortableItem key={itemId} id={itemId}>
                                 <div 
-                                  className="flex items-center justify-between p-3 rounded-lg border mb-2 bg-background cursor-grab active:cursor-grabbing"
+                                  className="flex items-center justify-between gap-2 p-3 rounded-lg border mb-2 bg-background cursor-grab active:cursor-grabbing overflow-hidden"
                                   data-testid={`item-${itemId}`}
                                 >
-                                  <div className="flex items-center gap-3">
-                                    <GripVertical className="h-4 w-4 text-muted-foreground" />
-                                    <div className={`p-2 rounded-md ${isHidden ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'}`}>
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                                    <div className={`p-2 rounded-md shrink-0 ${isHidden ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'}`}>
                                       <Icon className="h-4 w-4" />
                                     </div>
-                                    <div>
+                                    <div className="min-w-0">
                                       <div className="font-medium flex items-center gap-2">
-                                        {moduleInfo?.name || item.key}
-                                        {isHidden && <Badge variant="secondary" className="text-xs">Hidden</Badge>}
+                                        <span className="truncate">{moduleInfo?.name || item.key}</span>
+                                        {isHidden && <Badge variant="secondary" className="text-xs shrink-0">Hidden</Badge>}
                                       </div>
-                                      <div className="text-sm text-muted-foreground">{moduleInfo?.description || 'Module'}</div>
+                                      <div className="text-sm text-muted-foreground truncate">{moduleInfo?.description || 'Module'}</div>
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 shrink-0">
                                     <span className="text-muted-foreground">
                                       {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                     </span>
@@ -678,24 +680,24 @@ export function ModuleVisibilitySection({ organization }: { organization: Organi
                             return (
                               <SortableItem key={itemId} id={itemId}>
                                 <div 
-                                  className="flex items-center justify-between p-3 rounded-lg border mb-2 bg-background cursor-grab active:cursor-grabbing"
+                                  className="flex items-center justify-between gap-2 p-3 rounded-lg border mb-2 bg-background cursor-grab active:cursor-grabbing overflow-hidden"
                                   data-testid={`item-${itemId}`}
                                 >
-                                  <div className="flex items-center gap-3">
-                                    <GripVertical className="h-4 w-4 text-muted-foreground" />
-                                    <div className={`p-2 rounded-md ${isHidden ? 'bg-muted text-muted-foreground' : 'bg-accent text-accent-foreground'}`}>
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                                    <div className={`p-2 rounded-md shrink-0 ${isHidden ? 'bg-muted text-muted-foreground' : 'bg-accent text-accent-foreground'}`}>
                                       <ExternalLink className="h-4 w-4" />
                                     </div>
-                                    <div>
+                                    <div className="min-w-0">
                                       <div className="font-medium flex items-center gap-2">
-                                        {item.label}
-                                        <Badge variant="outline" className="text-xs">Link</Badge>
-                                        {isHidden && <Badge variant="secondary" className="text-xs">Hidden</Badge>}
+                                        <span className="truncate">{item.label}</span>
+                                        <Badge variant="outline" className="text-xs shrink-0">Link</Badge>
+                                        {isHidden && <Badge variant="secondary" className="text-xs shrink-0">Hidden</Badge>}
                                       </div>
                                       <div className="text-sm text-muted-foreground truncate max-w-[200px]">{item.url}</div>
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-1">
+                                  <div className="flex items-center gap-1 shrink-0">
                                     <Button
                                       variant="ghost"
                                       size="icon"
@@ -717,7 +719,7 @@ export function ModuleVisibilitySection({ organization }: { organization: Organi
                                     >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
-                                    <div className="flex items-center gap-2 ml-2">
+                                    <div className="flex items-center gap-2 ml-1">
                                       <span className="text-muted-foreground">
                                         {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                       </span>

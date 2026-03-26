@@ -204,75 +204,43 @@ interface SortableTabProps {
   onSubmenuChange: (submenuId: string) => void;
 }
 
-function SortableTab({ tab, isAdmin, isReorderMode, activeSubmenu, onSubmenuChange }: SortableTabProps) {
-  const canDrag = isAdmin && isReorderMode;
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: tab.id, disabled: !canDrag });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    cursor: canDrag ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
-  };
-
+function TabContent({ tab, activeSubmenu, onSubmenuChange, showGrip }: { tab: UnifiedTab; activeSubmenu: string; onSubmenuChange: (id: string) => void; showGrip?: boolean }) {
   if (tab.type === 'custom') {
     const isActive = activeSubmenu === tab.id;
     return (
-      <div
-        ref={setNodeRef}
-        style={style}
-        className="flex items-center"
-        {...(canDrag ? { ...attributes, ...listeners } : {})}
-      >
-        {canDrag && (
-          <GripVertical className="h-4 w-4 text-muted-foreground mr-1" />
-        )}
+      <>
+        {showGrip && <GripVertical className="h-4 w-4 text-muted-foreground mr-1" />}
         <Button
           variant="ghost"
           size="sm"
           onClick={() => onSubmenuChange(tab.id)}
-          className={`flex items-center gap-2 h-9 px-3 rounded-lg transition-colors ${isActive ? 'bg-background shadow-sm' : 'hover:bg-background/50'}`}
+          className={`flex items-center gap-1 sm:gap-2 h-auto sm:h-9 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors ${isActive ? 'bg-background shadow-sm' : 'hover:bg-background/50'}`}
           data-testid={`tab-${tab.id}`}
         >
-          <Sparkles className="h-4 w-4" />
-          <span className="hidden sm:inline truncate max-w-32">{tab.label}</span>
+          <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+          <span className="text-[11px] sm:text-sm whitespace-nowrap">{tab.label}</span>
         </Button>
-      </div>
+      </>
     );
   }
 
   const Icon = tab.icon!;
   const isActive = activeSubmenu.startsWith(tab.id);
-  const currentSubmenu = tab.submenus?.find(s => s.id === activeSubmenu);
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="flex items-center"
-      {...(canDrag ? { ...attributes, ...listeners } : {})}
-    >
-      {canDrag && (
-        <GripVertical className="h-4 w-4 text-muted-foreground mr-1" />
-      )}
+    <>
+      {showGrip && <GripVertical className="h-4 w-4 text-muted-foreground mr-1" />}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="sm"
-            className={`flex items-center gap-1.5 h-9 px-3 rounded-lg transition-colors ${isActive ? 'bg-background shadow-sm' : 'hover:bg-background/50'}`}
+            className={`flex items-center gap-1 sm:gap-1.5 h-auto sm:h-9 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors ${isActive ? 'bg-background shadow-sm' : 'hover:bg-background/50'}`}
             data-testid={`tab-${tab.id}`}
           >
-            <Icon className="h-4 w-4" />
-            <span className="hidden sm:inline">{tab.label}</span>
-            <ChevronDown className="h-3 w-3 opacity-50" />
+            <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            <span className="text-[11px] sm:text-sm whitespace-nowrap">{tab.label}</span>
+            <ChevronDown className="h-3 w-3 opacity-50 shrink-0" />
           </Button>
         </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-48 max-w-[300px]">
@@ -296,6 +264,37 @@ function SortableTab({ tab, isAdmin, isReorderMode, activeSubmenu, onSubmenuChan
             })}
           </DropdownMenuContent>
       </DropdownMenu>
+    </>
+  );
+}
+
+function SortableTab({ tab, isAdmin, isReorderMode, activeSubmenu, onSubmenuChange }: SortableTabProps) {
+  const canDrag = isAdmin && isReorderMode;
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: tab.id, disabled: !canDrag });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    cursor: isDragging ? 'grabbing' : 'grab',
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center shrink-0"
+      {...attributes}
+      {...listeners}
+    >
+      <TabContent tab={tab} activeSubmenu={activeSubmenu} onSubmenuChange={onSubmenuChange} showGrip />
     </div>
   );
 }
@@ -493,8 +492,6 @@ export default function Dashboard() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
-  const noSensors = useSensors();
-
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -591,27 +588,35 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="w-full flex flex-wrap items-center h-auto gap-1 bg-muted/50 p-1 rounded-lg" data-testid="dashboard-tabs">
-        <DndContext
-          sensors={isOrgAdmin && isReorderMode ? activeSensors : noSensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={visibleTabs.map(t => t.id)}
-            strategy={horizontalListSortingStrategy}
+        {isReorderMode ? (
+          <DndContext
+            sensors={activeSensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
           >
-            {visibleTabs.map((tab) => (
-              <SortableTab
-                key={tab.id}
-                tab={tab}
-                isAdmin={isOrgAdmin}
-                isReorderMode={isReorderMode}
-                activeSubmenu={activeSubmenu}
-                onSubmenuChange={handleSubmenuChange}
-              />
-            ))}
-          </SortableContext>
-        </DndContext>
+            <SortableContext
+              items={visibleTabs.map(t => t.id)}
+              strategy={horizontalListSortingStrategy}
+            >
+              {visibleTabs.map((tab) => (
+                <SortableTab
+                  key={tab.id}
+                  tab={tab}
+                  isAdmin={isOrgAdmin}
+                  isReorderMode={isReorderMode}
+                  activeSubmenu={activeSubmenu}
+                  onSubmenuChange={handleSubmenuChange}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
+        ) : (
+          visibleTabs.map((tab) => (
+            <div key={tab.id} className="flex items-center">
+              <TabContent tab={tab} activeSubmenu={activeSubmenu} onSubmenuChange={handleSubmenuChange} />
+            </div>
+          ))
+        )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

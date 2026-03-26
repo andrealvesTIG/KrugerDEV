@@ -74,7 +74,7 @@ function ProjectsPagination({ currentPage, totalPages, totalItems, pageSize, onP
   };
 
   return (
-    <div className="flex items-center justify-between px-2 py-4 text-sm">
+    <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-between px-2 py-4 text-sm">
       <span className="text-muted-foreground">
         Showing {startItem}–{endItem} of {totalItems} projects
       </span>

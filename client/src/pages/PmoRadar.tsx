@@ -658,19 +658,19 @@ export default function PmoRadar() {
 
   return (
     <div className={`flex flex-col h-full w-full ${pageBg}`}>
-      <div className={`flex items-center justify-between px-4 py-2 border-b shrink-0 ${headerBg}`}>
-        <div className="flex items-center gap-3">
-          <Radio className={`w-5 h-5 animate-pulse ${titleColor}`} />
+      <div className={`flex flex-wrap items-center justify-between gap-2 px-3 md:px-4 py-2 border-b shrink-0 ${headerBg}`}>
+        <div className="flex items-center gap-2 md:gap-3 min-w-0">
+          <Radio className={`w-4 h-4 md:w-5 md:h-5 animate-pulse shrink-0 ${titleColor}`} />
           <Tooltip>
             <TooltipTrigger asChild>
-              <h1 className={`text-lg font-semibold tracking-wider uppercase cursor-default ${titleColor}`}>
+              <h1 className={`text-sm md:text-lg font-semibold tracking-wider uppercase cursor-default ${titleColor}`}>
                 PMO Radar
               </h1>
             </TooltipTrigger>
             <TooltipContent side="bottom"><p>Risk scanning radar — dots represent risks positioned by time and severity</p></TooltipContent>
           </Tooltip>
           {timeProjectionMonths > 0 && (
-            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded border text-[11px] ${isDark ? "bg-amber-500/10 border-amber-500/30" : "bg-amber-50 border-amber-300"}`}>
+            <div className={`hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded border text-[11px] ${isDark ? "bg-amber-500/10 border-amber-500/30" : "bg-amber-50 border-amber-300"}`}>
               <span className={`font-semibold ${isDark ? "text-amber-400" : "text-amber-600"}`}>
                 {projectedDateStr}
               </span>
@@ -685,7 +685,7 @@ export default function PmoRadar() {
                 <button
                   type="button"
                   onClick={() => setCostChartsExpanded(!costChartsExpanded)}
-                  className={`flex items-center gap-1.5 px-2 py-1 rounded border text-[11px] font-medium cursor-pointer select-none transition-colors ${
+                  className={`hidden md:flex items-center gap-1.5 px-2 py-1 rounded border text-[11px] font-medium cursor-pointer select-none transition-colors ${
                     costChartsExpanded
                       ? isDark ? "bg-green-500/15 border-green-500/30 text-green-400" : "bg-green-50 border-green-300 text-green-700"
                       : isDark ? "bg-slate-800/60 border-slate-600/30 text-slate-400 hover:text-slate-300" : "bg-slate-100 border-slate-300 text-slate-500 hover:text-slate-600"
@@ -699,35 +699,35 @@ export default function PmoRadar() {
             </Tooltip>
           )}
         </div>
-        <div className="flex items-center gap-3 text-xs">
+        <div className="flex items-center gap-1.5 md:gap-3 text-xs overflow-x-auto">
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${isDark ? "bg-slate-800/80" : "bg-slate-100"} cursor-default`}>
-                <span className={`text-sm font-bold ${statLabel}`}>{stats.total}</span>
-                <span className={`text-xs ${statLabel} opacity-70`}>Total Signals</span>
+              <div className={`flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1 md:py-1.5 rounded-md ${isDark ? "bg-slate-800/80" : "bg-slate-100"} cursor-default`}>
+                <span className={`text-xs md:text-sm font-bold ${statLabel}`}>{stats.total}</span>
+                <span className={`hidden sm:inline text-xs ${statLabel} opacity-70`}>Total Signals</span>
               </div>
             </TooltipTrigger>
             <TooltipContent side="bottom"><p>Total active risk signals on the radar</p></TooltipContent>
           </Tooltip>
 
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${isDark ? "bg-slate-800/80" : "bg-slate-100"}`}>
+          <div className={`flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1 md:py-1.5 rounded-md ${isDark ? "bg-slate-800/80" : "bg-slate-100"}`}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="text-red-500 font-bold text-sm cursor-default">{stats.high} <span className="font-medium opacity-80 text-xs">High</span></span>
+                <span className="text-red-500 font-bold text-xs md:text-sm cursor-default">{stats.high} <span className="hidden sm:inline font-medium opacity-80 text-xs">High</span></span>
               </TooltipTrigger>
               <TooltipContent side="bottom"><p>High severity risks (score &gt; 70)</p></TooltipContent>
             </Tooltip>
             <span className={`text-xs ${statLabel} opacity-40`}>/</span>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="text-yellow-500 font-bold text-sm cursor-default">{stats.medium} <span className="font-medium opacity-80 text-xs">Med</span></span>
+                <span className="text-yellow-500 font-bold text-xs md:text-sm cursor-default">{stats.medium} <span className="hidden sm:inline font-medium opacity-80 text-xs">Med</span></span>
               </TooltipTrigger>
               <TooltipContent side="bottom"><p>Medium severity risks (score 31-70)</p></TooltipContent>
             </Tooltip>
             <span className={`text-xs ${statLabel} opacity-40`}>/</span>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="text-green-500 font-bold text-sm cursor-default">{stats.low} <span className="font-medium opacity-80 text-xs">Low</span></span>
+                <span className="text-green-500 font-bold text-xs md:text-sm cursor-default">{stats.low} <span className="hidden sm:inline font-medium opacity-80 text-xs">Low</span></span>
               </TooltipTrigger>
               <TooltipContent side="bottom"><p>Low severity risks (score &le; 30)</p></TooltipContent>
             </Tooltip>
@@ -737,7 +737,7 @@ export default function PmoRadar() {
             <>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${isDark ? "bg-slate-800/80" : "bg-slate-100"} cursor-default`}>
+                  <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-md ${isDark ? "bg-slate-800/80" : "bg-slate-100"} cursor-default`}>
                     <span className={`text-xs ${statLabel} opacity-70`}>Cost Exposure</span>
                     <span className={`font-bold text-sm ${accentGreen}`}>{formatCompactCurrency(stats.costExposureFuture)}</span>
                   </div>
@@ -747,7 +747,7 @@ export default function PmoRadar() {
               {stats.costExposurePast > 0 && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md cursor-default ${isDark ? "bg-red-950/40 border border-red-500/20" : "bg-red-50 border border-red-200"}`}>
+                    <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-md cursor-default ${isDark ? "bg-red-950/40 border border-red-500/20" : "bg-red-50 border border-red-200"}`}>
                       <span className="text-xs text-red-400 opacity-80">Overdue Exposure</span>
                       <span className="font-bold text-sm text-red-500">{formatCompactCurrency(stats.costExposurePast)}</span>
                     </div>
@@ -862,7 +862,7 @@ export default function PmoRadar() {
           onHorizontalMetricChange={setHorizontalMetric}
         />
 
-        <div className="flex-1 relative p-2 min-w-0">
+        <div className="flex-1 relative p-1 md:p-2 min-w-0 min-h-[300px]">
           <RadarCanvas signals={filteredSignals} onSignalClick={(s) => setSelectedSignal(s)} isDark={isDark} centerLabel={centerLabel} horizontalMetric={horizontalMetric} maxCostExposure={maxCostExposure} />
         </div>
 

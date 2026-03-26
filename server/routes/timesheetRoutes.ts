@@ -401,14 +401,14 @@ export function registerTimesheetRoutes(app: Express) {
       }
 
       const assignments = await storage.getTaskResourceAssignments(taskId);
-      const isAssigned = assignments.some(a => a.resourceId === userResource.id);
+      const isAssignedViaResource = assignments.some(a => a.resourceId === userResource.id);
+      const task = await storage.getTask(taskId);
+      const isOwner = task?.ownerId === userId;
       
-      if (!isAssigned) {
+      if (!isAssignedViaResource && !isOwner) {
         return res.status(403).json({ message: 'You are not assigned to this task' });
       }
 
-      // Check if task or project is blocked for timesheet entries
-      const task = await storage.getTask(taskId);
       if (task?.timesheetBlocked) {
         return res.status(403).json({ message: 'Timesheet entries are blocked for this task' });
       }
@@ -485,8 +485,15 @@ export function registerTimesheetRoutes(app: Express) {
           return taskAssignmentCache[taskId];
         }
         const assignments = await storage.getTaskResourceAssignments(taskId);
-        taskAssignmentCache[taskId] = assignments.some(a => a.resourceId === userResource.id);
-        return taskAssignmentCache[taskId];
+        const isAssignedViaResource = assignments.some(a => a.resourceId === userResource.id);
+        if (isAssignedViaResource) {
+          taskAssignmentCache[taskId] = true;
+          return true;
+        }
+        const task = await storage.getTask(taskId);
+        const isOwner = task?.ownerId === userId;
+        taskAssignmentCache[taskId] = isOwner;
+        return isOwner;
       };
 
       const taskBlockedCache: Record<number, boolean> = {};
