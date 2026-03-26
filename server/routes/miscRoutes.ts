@@ -341,10 +341,15 @@ export async function registerMiscRoutes(app: Express) {
         return res.status(400).json({ message: 'Organization ID required' });
       }
 
+      const orgId = Number(organizationId);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
       const dashboards = await db
         .select()
         .from(customDashboards)
-        .where(eq(customDashboards.organizationId, Number(organizationId)))
+        .where(eq(customDashboards.organizationId, orgId))
         .orderBy(desc(customDashboards.createdAt));
 
       res.json(dashboards);
@@ -373,6 +378,10 @@ export async function registerMiscRoutes(app: Express) {
         return res.status(404).json({ message: 'Dashboard not found' });
       }
 
+      if (!await userHasOrgAccess(userId, dashboard.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
       res.json(dashboard);
     } catch (error) {
       console.error('Error fetching custom dashboard:', error);
@@ -394,10 +403,15 @@ export async function registerMiscRoutes(app: Express) {
         return res.status(400).json({ message: 'Organization ID, name, and config are required' });
       }
 
+      const orgId = Number(organizationId);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
       const [newDashboard] = await db
         .insert(customDashboards)
         .values({
-          organizationId: Number(organizationId),
+          organizationId: orgId,
           userId,
           name,
           description: description || '',
@@ -426,6 +440,11 @@ export async function registerMiscRoutes(app: Express) {
         return res.status(400).json({ message: 'Description and organization ID required' });
       }
 
+      const orgId = Number(organizationId);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
       const { generateDashboardConfig } = await import('../services/dashboardAI');
       const { name, config } = await generateDashboardConfig(description);
 
@@ -433,7 +452,7 @@ export async function registerMiscRoutes(app: Express) {
       const [newDashboard] = await db
         .insert(customDashboards)
         .values({
-          organizationId: Number(organizationId),
+          organizationId: orgId,
           userId,
           name,
           description,
@@ -458,8 +477,16 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const dashboardId = Number(req.params.id);
-      const { name, config } = req.body;
 
+      const [existing] = await db.select().from(customDashboards).where(eq(customDashboards.id, dashboardId));
+      if (!existing) {
+        return res.status(404).json({ message: 'Dashboard not found' });
+      }
+      if (!await userHasOrgAccess(userId, existing.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      const { name, config } = req.body;
       const [updated] = await db
         .update(customDashboards)
         .set({
@@ -469,10 +496,6 @@ export async function registerMiscRoutes(app: Express) {
         })
         .where(eq(customDashboards.id, dashboardId))
         .returning();
-
-      if (!updated) {
-        return res.status(404).json({ message: 'Dashboard not found' });
-      }
 
       res.json(updated);
     } catch (error) {
@@ -491,7 +514,15 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const dashboardId = Number(req.params.id);
-      
+
+      const [existing] = await db.select().from(customDashboards).where(eq(customDashboards.id, dashboardId));
+      if (!existing) {
+        return res.status(404).json({ message: 'Dashboard not found' });
+      }
+      if (!await userHasOrgAccess(userId, existing.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
       await db
         .delete(customDashboards)
         .where(eq(customDashboards.id, dashboardId));
@@ -724,9 +755,18 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const organizationId = parseInt(req.params.organizationId);
+      const { fieldName, fieldType, fieldLabel, description, isRequired, options, defaultValue, displayOrder, isActive } = req.body;
       const field = await storage.createCustomFieldDefinition({
-        ...req.body,
-        organizationId
+        organizationId,
+        fieldName,
+        fieldType,
+        fieldLabel,
+        description,
+        isRequired,
+        options,
+        defaultValue,
+        displayOrder,
+        isActive,
       });
       res.status(201).json(field);
     } catch (error) {
@@ -774,6 +814,11 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const id = parseInt(req.params.id);
+      const existing = await storage.getCustomFieldDefinition(id);
+      if (!existing) return res.status(404).json({ message: 'Custom field not found' });
+      if (!await userHasOrgAccess(userId, existing.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
       await storage.deleteCustomFieldDefinition(id);
       res.status(204).send();
     } catch (error) {
@@ -977,6 +1022,11 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const id = parseInt(req.params.id);
+      const existing = await storage.getCustomProjectTab(id);
+      if (!existing) return res.status(404).json({ message: 'Custom tab not found' });
+      if (!await userHasOrgAccess(userId, existing.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
       await storage.deleteCustomProjectTab(id);
       res.status(204).send();
     } catch (error) {
@@ -1063,6 +1113,12 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const id = parseInt(req.params.id);
+      const existing = await storage.getCustomTabSection(id);
+      if (!existing) return res.status(404).json({ message: 'Section not found' });
+      const parentTab = await storage.getCustomProjectTab(existing.tabId);
+      if (parentTab && !await userHasOrgAccess(userId, parentTab.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
       await storage.deleteCustomTabSection(id);
       res.status(204).send();
     } catch (error) {
@@ -1153,6 +1209,15 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const id = parseInt(req.params.id);
+      const existing = await storage.getCustomTabField(id);
+      if (!existing) return res.status(404).json({ message: 'Field not found' });
+      const parentSection = await storage.getCustomTabSection(existing.sectionId);
+      if (parentSection) {
+        const parentTab = await storage.getCustomProjectTab(parentSection.tabId);
+        if (parentTab && !await userHasOrgAccess(userId, parentTab.organizationId)) {
+          return res.status(403).json({ message: 'Access denied to this organization' });
+        }
+      }
       await storage.deleteCustomTabField(id);
       res.status(204).send();
     } catch (error) {

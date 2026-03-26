@@ -1,6 +1,7 @@
 import { db } from "../db";
 import {
   portfolios, projects, issues, tasks, customPortfolioProjects, portfolioKeyDates,
+  portfolioRiskAssessments,
   type Portfolio, type InsertPortfolio, type UpdatePortfolioRequest,
   type Risk, type Issue, type Milestone,
   type PortfolioKeyDate, type InsertPortfolioKeyDate, type UpdatePortfolioKeyDateRequest,
@@ -37,7 +38,13 @@ export async function updatePortfolio(id: number, updates: UpdatePortfolioReques
 }
 
 export async function deletePortfolio(id: number): Promise<void> {
-  await db.delete(portfolios).where(eq(portfolios.id, id));
+  await db.transaction(async (tx) => {
+    await tx.delete(portfolioKeyDates).where(eq(portfolioKeyDates.portfolioId, id));
+    await tx.delete(portfolioRiskAssessments).where(eq(portfolioRiskAssessments.portfolioId, id));
+    await tx.delete(customPortfolioProjects).where(eq(customPortfolioProjects.portfolioId, id));
+    await tx.update(projects).set({ portfolioId: null }).where(eq(projects.portfolioId, id));
+    await tx.delete(portfolios).where(eq(portfolios.id, id));
+  });
 }
 
 export async function getPortfolioProjects(portfolioId: number): Promise<(typeof projects.$inferSelect)[]> {

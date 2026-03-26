@@ -1041,7 +1041,7 @@ export function registerResourceRoutes(app: Express) {
 
   app.post('/api/organizations/:orgId/resource-optimization', async (req, res) => {
     try {
-      const userId = req.session?.userId || (req.user as any)?.id;
+      const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
       const orgId = Number(req.params.orgId);
       const memberships = await storage.getUserOrganizations(userId);

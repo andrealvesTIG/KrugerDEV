@@ -209,13 +209,17 @@ export async function bulkUpdateTasks(taskIds: number[], updates: UpdateTaskRequ
 
 export async function bulkSoftDeleteTasks(taskIds: number[], userId: string): Promise<number> {
   if (taskIds.length === 0) return 0;
-  await db.update(tasks).set({ parentId: null }).where(inArray(tasks.parentId, taskIds));
-  const now = new Date();
-  const updated = await db.update(tasks)
-    .set({ deletedAt: now, deletedBy: userId })
-    .where(inArray(tasks.id, taskIds))
-    .returning();
-  return updated.length;
+  return await db.transaction(async (tx) => {
+    await tx.update(tasks).set({ parentId: null }).where(inArray(tasks.parentId, taskIds));
+    await tx.delete(taskDependencies).where(inArray(taskDependencies.taskId, taskIds));
+    await tx.delete(taskDependencies).where(inArray(taskDependencies.dependsOnTaskId, taskIds));
+    const now = new Date();
+    const updated = await tx.update(tasks)
+      .set({ deletedAt: now, deletedBy: userId })
+      .where(inArray(tasks.id, taskIds))
+      .returning();
+    return updated.length;
+  });
 }
 
 export async function batchUpdateTaskWbs(updates: Array<{ id: number; wbs: string }>): Promise<void> {
@@ -322,11 +326,15 @@ export async function getTaskResourceAssignmentsByOrgId(organizationId: number):
 }
 
 export async function deleteTask(id: number): Promise<void> {
-  await db.update(tasks).set({ parentId: null }).where(eq(tasks.parentId, id));
-  await db.delete(taskDependencies).where(eq(taskDependencies.taskId, id));
-  await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, id));
-  await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, id));
-  await db.delete(tasks).where(eq(tasks.id, id));
+  await db.transaction(async (tx) => {
+    await tx.update(tasks).set({ parentId: null }).where(eq(tasks.parentId, id));
+    await tx.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, id));
+    await tx.delete(taskDependencies).where(eq(taskDependencies.taskId, id));
+    await tx.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, id));
+    await tx.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, id));
+    await tx.delete(notifications).where(eq(notifications.taskId, id));
+    await tx.delete(tasks).where(eq(tasks.id, id));
+  });
 }
 
 export async function deleteAllTasksForProject(projectId: number): Promise<void> {

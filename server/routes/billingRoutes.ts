@@ -220,7 +220,7 @@ export async function registerBillingRoutes(app: Express) {
 
   // Get AI operation credit costs for frontend warnings
   app.get('/api/billing/ai-costs', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -336,7 +336,7 @@ export async function registerBillingRoutes(app: Express) {
 
   // Get billing/payment history
   app.get('/api/billing/history', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -361,7 +361,7 @@ export async function registerBillingRoutes(app: Express) {
   });
 
   app.get('/api/billing/cycle-history', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -443,7 +443,7 @@ export async function registerBillingRoutes(app: Express) {
 
   // Get credit usage ledger - detailed history of all credit transactions
   app.get('/api/billing/credit-ledger', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -553,7 +553,7 @@ export async function registerBillingRoutes(app: Express) {
 
   // Enterprise plan inquiry - sends email to both user and sales
   app.post('/api/billing/enterprise-inquiry', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -594,7 +594,7 @@ export async function registerBillingRoutes(app: Express) {
 
   // Create subscription
   app.post('/api/billing/subscription', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -624,7 +624,7 @@ export async function registerBillingRoutes(app: Express) {
 
   // Change plan
   app.patch('/api/billing/subscription/:id/plan', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -652,7 +652,7 @@ export async function registerBillingRoutes(app: Express) {
 
   // Create a new plan (super admin only)
   app.post('/api/admin/plans', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -728,7 +728,7 @@ export async function registerBillingRoutes(app: Express) {
 
   // Reorder plans (super admin only) - MUST be before :id route
   app.put('/api/admin/plans/reorder', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -762,7 +762,7 @@ export async function registerBillingRoutes(app: Express) {
 
   // Update a plan (super admin only)
   app.put('/api/admin/plans/:id', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -802,7 +802,7 @@ export async function registerBillingRoutes(app: Express) {
 
   // Initialize extra seat prices for plans (super admin only)
   app.post('/api/admin/plans/init-extra-seat-prices', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -845,7 +845,7 @@ export async function registerBillingRoutes(app: Express) {
 
   // Delete a plan (super admin only)
   app.delete('/api/admin/plans/:id', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -878,7 +878,7 @@ export async function registerBillingRoutes(app: Express) {
 
   // Get plan meter rules
   app.get('/api/admin/plans/:id/rules', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -922,7 +922,7 @@ export async function registerBillingRoutes(app: Express) {
 
   // Create plan meter rule
   app.post('/api/admin/plans/:planId/rules', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -963,7 +963,7 @@ export async function registerBillingRoutes(app: Express) {
 
   // Update plan meter rule
   app.put('/api/admin/plans/:planId/rules/:ruleId', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -1000,7 +1000,7 @@ export async function registerBillingRoutes(app: Express) {
   
   // Get all credit costs
   app.get('/api/admin/credit-costs', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -1025,7 +1025,7 @@ export async function registerBillingRoutes(app: Express) {
 
   // Update a credit cost
   app.put('/api/admin/credit-costs/:resourceType', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -1069,7 +1069,7 @@ export async function registerBillingRoutes(app: Express) {
 
   // Get plan credits summary (for plan management UI)
   app.get('/api/admin/plans/:id/credits', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
+    const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }

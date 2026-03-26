@@ -162,13 +162,17 @@ export async function updateResource(id: number, updates: UpdateResourceRequest)
 }
 
 export async function deleteResource(id: number): Promise<void> {
-  await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.resourceId, id));
-  await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.resourceId, id));
-  await db.delete(resourceSkills).where(eq(resourceSkills.resourceId, id));
-  await db.delete(resourceAvailability).where(eq(resourceAvailability.resourceId, id));
-  await db.delete(timesheetEntries).where(eq(timesheetEntries.resourceId, id));
-  await db.delete(nonProjectTimeEntries).where(eq(nonProjectTimeEntries.resourceId, id));
-  await db.delete(resources).where(eq(resources.id, id));
+  await db.transaction(async (tx) => {
+    await tx.update(projects).set({ managerResourceId: null }).where(eq(projects.managerResourceId, id));
+    await tx.update(projects).set({ sponsorResourceId: null }).where(eq(projects.sponsorResourceId, id));
+    await tx.delete(taskResourceAssignments).where(eq(taskResourceAssignments.resourceId, id));
+    await tx.delete(issueResourceAssignments).where(eq(issueResourceAssignments.resourceId, id));
+    await tx.delete(resourceSkills).where(eq(resourceSkills.resourceId, id));
+    await tx.delete(resourceAvailability).where(eq(resourceAvailability.resourceId, id));
+    await tx.delete(timesheetEntries).where(eq(timesheetEntries.resourceId, id));
+    await tx.delete(nonProjectTimeEntries).where(eq(nonProjectTimeEntries.resourceId, id));
+    await tx.delete(resources).where(eq(resources.id, id));
+  });
 }
 
 export async function mergeResources(primaryId: number, secondaryId: number): Promise<Resource> {
@@ -179,79 +183,81 @@ export async function mergeResources(primaryId: number, secondaryId: number): Pr
     throw new Error("One or both resources not found");
   }
   
-  const existingTaskAssignments = await db.select()
-    .from(taskResourceAssignments)
-    .where(eq(taskResourceAssignments.resourceId, primaryId));
-  const existingTaskIds = new Set(existingTaskAssignments.map(a => a.taskId));
-  
-  const secondaryTaskAssignments = await db.select()
-    .from(taskResourceAssignments)
-    .where(eq(taskResourceAssignments.resourceId, secondaryId));
-  
-  for (const assignment of secondaryTaskAssignments) {
-    if (!existingTaskIds.has(assignment.taskId)) {
-      await db.update(taskResourceAssignments)
-        .set({ resourceId: primaryId })
-        .where(and(
-          eq(taskResourceAssignments.taskId, assignment.taskId),
-          eq(taskResourceAssignments.resourceId, secondaryId)
-        ));
-    } else {
-      await db.delete(taskResourceAssignments)
-        .where(and(
-          eq(taskResourceAssignments.taskId, assignment.taskId),
-          eq(taskResourceAssignments.resourceId, secondaryId)
-        ));
+  return await db.transaction(async (tx) => {
+    const existingTaskAssignments = await tx.select()
+      .from(taskResourceAssignments)
+      .where(eq(taskResourceAssignments.resourceId, primaryId));
+    const existingTaskIds = new Set(existingTaskAssignments.map(a => a.taskId));
+    
+    const secondaryTaskAssignments = await tx.select()
+      .from(taskResourceAssignments)
+      .where(eq(taskResourceAssignments.resourceId, secondaryId));
+    
+    for (const assignment of secondaryTaskAssignments) {
+      if (!existingTaskIds.has(assignment.taskId)) {
+        await tx.update(taskResourceAssignments)
+          .set({ resourceId: primaryId })
+          .where(and(
+            eq(taskResourceAssignments.taskId, assignment.taskId),
+            eq(taskResourceAssignments.resourceId, secondaryId)
+          ));
+      } else {
+        await tx.delete(taskResourceAssignments)
+          .where(and(
+            eq(taskResourceAssignments.taskId, assignment.taskId),
+            eq(taskResourceAssignments.resourceId, secondaryId)
+          ));
+      }
     }
-  }
-  
-  const existingIssueAssignments = await db.select()
-    .from(issueResourceAssignments)
-    .where(eq(issueResourceAssignments.resourceId, primaryId));
-  const existingIssueIds = new Set(existingIssueAssignments.map(a => a.issueId));
-  
-  const secondaryIssueAssignments = await db.select()
-    .from(issueResourceAssignments)
-    .where(eq(issueResourceAssignments.resourceId, secondaryId));
-  
-  for (const assignment of secondaryIssueAssignments) {
-    if (!existingIssueIds.has(assignment.issueId)) {
-      await db.update(issueResourceAssignments)
-        .set({ resourceId: primaryId })
-        .where(and(
-          eq(issueResourceAssignments.issueId, assignment.issueId),
-          eq(issueResourceAssignments.resourceId, secondaryId)
-        ));
-    } else {
-      await db.delete(issueResourceAssignments)
-        .where(and(
-          eq(issueResourceAssignments.issueId, assignment.issueId),
-          eq(issueResourceAssignments.resourceId, secondaryId)
-        ));
+    
+    const existingIssueAssignments = await tx.select()
+      .from(issueResourceAssignments)
+      .where(eq(issueResourceAssignments.resourceId, primaryId));
+    const existingIssueIds = new Set(existingIssueAssignments.map(a => a.issueId));
+    
+    const secondaryIssueAssignments = await tx.select()
+      .from(issueResourceAssignments)
+      .where(eq(issueResourceAssignments.resourceId, secondaryId));
+    
+    for (const assignment of secondaryIssueAssignments) {
+      if (!existingIssueIds.has(assignment.issueId)) {
+        await tx.update(issueResourceAssignments)
+          .set({ resourceId: primaryId })
+          .where(and(
+            eq(issueResourceAssignments.issueId, assignment.issueId),
+            eq(issueResourceAssignments.resourceId, secondaryId)
+          ));
+      } else {
+        await tx.delete(issueResourceAssignments)
+          .where(and(
+            eq(issueResourceAssignments.issueId, assignment.issueId),
+            eq(issueResourceAssignments.resourceId, secondaryId)
+          ));
+      }
     }
-  }
-  
-  const updates: Partial<Resource> = {};
-  if (!primary.email && secondary.email) updates.email = secondary.email;
-  if (!primary.title && secondary.title) updates.title = secondary.title;
-  if (!primary.department && secondary.department) updates.department = secondary.department;
-  if (!primary.skills && secondary.skills) updates.skills = secondary.skills;
-  if (!primary.hourlyRate && secondary.hourlyRate) updates.hourlyRate = secondary.hourlyRate;
-  if (!primary.notes && secondary.notes) updates.notes = secondary.notes;
-  if (!primary.userId && secondary.userId) updates.userId = secondary.userId;
-  
-  if (Object.keys(updates).length > 0) {
-    await db.update(resources).set(updates).where(eq(resources.id, primaryId));
-  }
-  
-  if (secondary.userId) {
-    await db.update(resources).set({ userId: null }).where(eq(resources.id, secondaryId));
-  }
-  
-  await db.delete(resources).where(eq(resources.id, secondaryId));
-  
-  const [updated] = await db.select().from(resources).where(eq(resources.id, primaryId));
-  return updated;
+    
+    const updates: Partial<Resource> = {};
+    if (!primary.email && secondary.email) updates.email = secondary.email;
+    if (!primary.title && secondary.title) updates.title = secondary.title;
+    if (!primary.department && secondary.department) updates.department = secondary.department;
+    if (!primary.skills && secondary.skills) updates.skills = secondary.skills;
+    if (!primary.hourlyRate && secondary.hourlyRate) updates.hourlyRate = secondary.hourlyRate;
+    if (!primary.notes && secondary.notes) updates.notes = secondary.notes;
+    if (!primary.userId && secondary.userId) updates.userId = secondary.userId;
+    
+    if (Object.keys(updates).length > 0) {
+      await tx.update(resources).set(updates).where(eq(resources.id, primaryId));
+    }
+    
+    if (secondary.userId) {
+      await tx.update(resources).set({ userId: null }).where(eq(resources.id, secondaryId));
+    }
+    
+    await tx.delete(resources).where(eq(resources.id, secondaryId));
+    
+    const [updated] = await tx.select().from(resources).where(eq(resources.id, primaryId));
+    return updated;
+  });
 }
 
 export async function getResourceSkills(resourceId: number): Promise<ResourceSkill[]> {

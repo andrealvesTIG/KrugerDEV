@@ -282,6 +282,7 @@ export function registerProjectFeatureRoutes(app: Express) {
   app.get('/api/projects/:projectId/comments', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
       const projectId = Number(req.params.projectId);
       
       // Verify project exists and user has access
@@ -452,6 +453,7 @@ export function registerProjectFeatureRoutes(app: Express) {
   app.get('/api/projects/:projectId/billable-status-comments', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
       const projectId = Number(req.params.projectId);
       
       const project = await storage.getProject(projectId);
@@ -459,7 +461,7 @@ export function registerProjectFeatureRoutes(app: Express) {
         return res.status(404).json({ message: "Project not found" });
       }
       
-      if (userId) {
+      {
         const accessibleOrgIds = await getUserOrgIds(userId);
         if (!accessibleOrgIds.includes(project.organizationId)) {
           return res.status(404).json({ message: "Project not found" });
@@ -531,6 +533,7 @@ export function registerProjectFeatureRoutes(app: Express) {
   app.get('/api/projects/:projectId/health-status-history', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
       const projectId = Number(req.params.projectId);
       
       const project = await storage.getProject(projectId);
@@ -538,7 +541,7 @@ export function registerProjectFeatureRoutes(app: Express) {
         return res.status(404).json({ message: "Project not found" });
       }
       
-      if (userId) {
+      {
         const accessibleOrgIds = await getUserOrgIds(userId);
         if (!accessibleOrgIds.includes(project.organizationId)) {
           return res.status(404).json({ message: "Project not found" });
@@ -1927,7 +1930,9 @@ export function registerProjectFeatureRoutes(app: Express) {
               const bucketName = pathParts[1];
               const objectName = pathParts.slice(2).join('/');
               const bucket = objectStorageClient.bucket(bucketName);
-              await bucket.file(objectName).delete().catch(() => {});
+              await bucket.file(objectName).delete().catch((err: any) => {
+                console.error('Failed to delete file from storage:', objectName, err?.message || err);
+              });
             }
           } else {
             const normalizedUrl = template.storedFileUrl.replace(/^\/+/, '');
@@ -2188,7 +2193,9 @@ export function registerProjectFeatureRoutes(app: Express) {
               const bucketName = pathParts[1];
               const objectName = pathParts.slice(2).join('/');
               const bucket = objectStorageClient.bucket(bucketName);
-              await bucket.file(objectName).delete().catch(() => {});
+              await bucket.file(objectName).delete().catch((err: any) => {
+                console.error('Failed to delete file from storage:', objectName, err?.message || err);
+              });
             }
           } else {
             const normalizedOldUrl = oldFileUrl.replace(/^\/+/, '');

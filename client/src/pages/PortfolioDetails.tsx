@@ -2285,6 +2285,11 @@ function PortfolioTasksTab({ portfolioId, organizationId }: { portfolioId: numbe
       });
       setIsFetchingBatch(false);
       setInitialLoading(false);
+    }).catch((err) => {
+      if (cancelled) return;
+      console.error('Error fetching portfolio tasks:', err);
+      setIsFetchingBatch(false);
+      setInitialLoading(false);
     });
 
     return () => { cancelled = true; };
