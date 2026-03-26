@@ -481,12 +481,12 @@ export async function getProjectScoringCriterion(id: number): Promise<ProjectSco
   return criteria;
 }
 
-export async function createProjectScoringCriteria_fn(criteria: InsertProjectScoringCriteria): Promise<ProjectScoringCriteria> {
+export async function createProjectScoringCriteria(criteria: InsertProjectScoringCriteria): Promise<ProjectScoringCriteria> {
   const [created] = await db.insert(projectScoringCriteria).values(criteria).returning();
   return created;
 }
 
-export async function updateProjectScoringCriteria_fn(id: number, updates: Partial<InsertProjectScoringCriteria>): Promise<ProjectScoringCriteria> {
+export async function updateProjectScoringCriteria(id: number, updates: Partial<InsertProjectScoringCriteria>): Promise<ProjectScoringCriteria> {
   const [updated] = await db.update(projectScoringCriteria)
     .set(updates)
     .where(eq(projectScoringCriteria.id, id))
@@ -494,7 +494,7 @@ export async function updateProjectScoringCriteria_fn(id: number, updates: Parti
   return updated;
 }
 
-export async function deleteProjectScoringCriteria_fn(id: number): Promise<void> {
+export async function deleteProjectScoringCriteria(id: number): Promise<void> {
   await db.update(projectScoringCriteria)
     .set({ isActive: false })
     .where(eq(projectScoringCriteria.id, id));
