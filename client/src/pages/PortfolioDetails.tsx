@@ -12,6 +12,8 @@ import {
   useCreatePortfolioKeyDate,
   useUpdatePortfolioKeyDate,
   useDeletePortfolioKeyDate,
+  usePortfolioScoringRollup,
+  useUpdatePortfolioScoringConfig,
   type PortfolioRisk,
   type PortfolioIssue
 } from "@/hooks/use-portfolio-details";
@@ -251,6 +253,9 @@ export default function PortfolioDetails() {
           <TabsTrigger value="dashboard" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
             Dashboard
           </TabsTrigger>
+          <TabsTrigger value="scoring" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
+            Scoring
+          </TabsTrigger>
         </TabsList>
 
         <div className="mt-6">
@@ -292,6 +297,9 @@ export default function PortfolioDetails() {
           </TabsContent>
           <TabsContent value="dashboard">
             <DashboardTab portfolioId={id} metrics={metrics} onNavigate={setActiveTab} />
+          </TabsContent>
+          <TabsContent value="scoring">
+            <PortfolioScoringTab portfolioId={id} />
           </TabsContent>
         </div>
       </Tabs>
@@ -3353,4 +3361,219 @@ const statusColors = {
   Resolved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
   Closed: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
 };
+
+const aggregationMethodLabels: Record<string, string> = {
+  'average': 'Average',
+  'sum': 'Sum',
+  'max': 'Maximum',
+  'min': 'Minimum',
+  'weighted-average': 'Weighted Average (by Budget)',
+};
+
+function PortfolioScoringTab({ portfolioId }: { portfolioId: number }) {
+  const { data: rollup, isLoading } = usePortfolioScoringRollup(portfolioId);
+  const updateConfig = useUpdatePortfolioScoringConfig();
+  const { toast } = useToast();
+  const [expandedCriteria, setExpandedCriteria] = useState<Set<number>>(new Set());
+
+  const toggleExpanded = (criteriaId: number) => {
+    setExpandedCriteria(prev => {
+      const next = new Set(prev);
+      if (next.has(criteriaId)) next.delete(criteriaId);
+      else next.add(criteriaId);
+      return next;
+    });
+  };
+
+  const handleAggregationChange = async (criteriaId: number, method: string) => {
+    try {
+      await updateConfig.mutateAsync({ portfolioId, criteriaId, aggregationMethod: method });
+      toast({ title: "Aggregation method updated" });
+    } catch {
+      toast({ title: "Error", description: "Failed to update aggregation method", variant: "destructive" });
+    }
+  };
+
+  if (isLoading) {
+    return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  }
+
+  if (!rollup || rollup.criteria.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="rounded-full bg-slate-50 dark:bg-slate-800 p-4 mb-4">
+            <BarChart3 className="h-8 w-8 text-slate-400" />
+          </div>
+          <h3 className="text-lg font-medium">No Scoring Criteria</h3>
+          <p className="text-muted-foreground mt-1 max-w-sm">
+            Define scoring criteria at the organization level first, then score individual projects. Portfolio scores are automatically rolled up from project scores.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const getScoreColor = (score: number | null, max: number) => {
+    if (score === null) return "text-muted-foreground";
+    const pct = score / max;
+    if (pct >= 0.7) return "text-emerald-600 dark:text-emerald-400";
+    if (pct >= 0.4) return "text-amber-600 dark:text-amber-400";
+    return "text-rose-600 dark:text-rose-400";
+  };
+
+  const getScoreBarColor = (score: number | null, max: number) => {
+    if (score === null) return "bg-muted";
+    const pct = score / max;
+    if (pct >= 0.7) return "bg-emerald-500";
+    if (pct >= 0.4) return "bg-amber-500";
+    return "bg-rose-500";
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Portfolio Scoring Rollup</CardTitle>
+              <CardDescription>
+                Aggregated scores from {rollup.projectCount} project{rollup.projectCount !== 1 ? 's' : ''} in this portfolio
+              </CardDescription>
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-muted-foreground">Overall Weighted Score</div>
+              <div className={cn("text-3xl font-bold", getScoreColor(rollup.overallScore, 10))}>
+                {rollup.overallScore !== null ? rollup.overallScore.toFixed(2) : 'N/A'}
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+
+      <div className="space-y-4">
+        {rollup.criteria.map(criterion => {
+          const isExpanded = expandedCriteria.has(criterion.criteriaId);
+          const maxScore = criterion.maxScore || 10;
+          const barWidth = criterion.aggregatedScore !== null ? (criterion.aggregatedScore / maxScore) * 100 : 0;
+
+          return (
+            <Card key={criterion.criteriaId}>
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-medium">{criterion.criteriaName}</h4>
+                      {criterion.criteriaCategory && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          {criterion.criteriaCategory}
+                        </Badge>
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        Weight: {criterion.criteriaWeight || '1'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {criterion.scoredProjectCount} of {criterion.totalProjectCount} projects scored
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 shrink-0">
+                    <Select
+                      value={criterion.aggregationMethod}
+                      onValueChange={(v) => handleAggregationChange(criterion.criteriaId, v)}
+                    >
+                      <SelectTrigger className="w-[200px] h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(aggregationMethodLabels).map(([value, label]) => (
+                          <SelectItem key={value} value={value} className="text-xs">{label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <div className={cn("text-2xl font-bold min-w-[60px] text-right", getScoreColor(criterion.aggregatedScore, maxScore))}>
+                      {criterion.aggregatedScore !== null ? criterion.aggregatedScore.toFixed(1) : '—'}
+                    </div>
+                    <span className="text-sm text-muted-foreground">/ {maxScore}</span>
+                  </div>
+                </div>
+
+                <div className="h-2 bg-muted rounded-full overflow-hidden mb-3">
+                  <div
+                    className={cn("h-full rounded-full transition-all duration-500", getScoreBarColor(criterion.aggregatedScore, maxScore))}
+                    style={{ width: `${Math.min(barWidth, 100)}%` }}
+                  />
+                </div>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => toggleExpanded(criterion.criteriaId)}
+                >
+                  {isExpanded ? 'Hide' : 'Show'} Project Breakdown
+                  {isExpanded ? <ArrowUp className="ml-1 h-3 w-3" /> : <ArrowDown className="ml-1 h-3 w-3" />}
+                </Button>
+
+                {isExpanded && (
+                  <div className="mt-3 border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Project</TableHead>
+                          <TableHead className="w-[100px] text-center">Score</TableHead>
+                          <TableHead className="w-[200px]">Progress</TableHead>
+                          <TableHead>Justification</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {criterion.projectBreakdown.map(pb => (
+                          <TableRow key={pb.projectId}>
+                            <TableCell>
+                              <Link href={`/projects/${pb.projectId}`} className="font-medium hover:text-primary transition-colors">
+                                {pb.projectName}
+                              </Link>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {pb.score !== null ? (
+                                <span className={cn("font-bold", getScoreColor(pb.score, maxScore))}>
+                                  {pb.score}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground italic text-xs">Not scored</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {pb.score !== null ? (
+                                <div className="h-1.5 bg-muted rounded-full overflow-hidden w-full">
+                                  <div
+                                    className={cn("h-full rounded-full", getScoreBarColor(pb.score, maxScore))}
+                                    style={{ width: `${(pb.score / maxScore) * 100}%` }}
+                                  />
+                                </div>
+                              ) : (
+                                <div className="h-1.5 bg-muted rounded-full" />
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-xs text-muted-foreground line-clamp-1">
+                                {pb.justification || '—'}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 

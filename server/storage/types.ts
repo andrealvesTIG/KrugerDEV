@@ -61,6 +61,9 @@ import type {
   ApiToken, InsertApiToken,
   ProjectTemplate, InsertProjectTemplate,
   ProjectTemplateItem, InsertProjectTemplateItem,
+  ProjectScoringCriteria, InsertProjectScoringCriteria,
+  ProjectScore, InsertProjectScore,
+  PortfolioScoringConfig,
 } from "@shared/schema";
 import type { BillingTransaction, InsertBillingTransaction } from "@shared/models/billing";
 
@@ -446,6 +449,20 @@ export interface IMiscStorage {
   updateCustomTabField(id: number, updates: Partial<InsertCustomTabField>): Promise<CustomTabField>;
   deleteCustomTabField(id: number): Promise<void>;
   getFullCustomProjectTab(tabId: number): Promise<{ tab: CustomProjectTab; sections: (CustomTabSection & { fields: CustomTabField[] })[] } | undefined>;
+  getProjectScoringCriteria(organizationId: number): Promise<ProjectScoringCriteria[]>;
+  getProjectScoringCriterion(id: number): Promise<ProjectScoringCriteria | undefined>;
+  createProjectScoringCriteria(criteria: InsertProjectScoringCriteria): Promise<ProjectScoringCriteria>;
+  updateProjectScoringCriteria(id: number, updates: Partial<InsertProjectScoringCriteria>): Promise<ProjectScoringCriteria>;
+  deleteProjectScoringCriteria(id: number): Promise<void>;
+  getProjectScores(projectId: number): Promise<ProjectScore[]>;
+  getProjectScore(id: number): Promise<ProjectScore | undefined>;
+  createProjectScore(score: InsertProjectScore): Promise<ProjectScore>;
+  updateProjectScore(id: number, updates: Partial<InsertProjectScore>): Promise<ProjectScore>;
+  deleteProjectScore(id: number): Promise<void>;
+  upsertProjectScore(projectId: number, criteriaId: number, score: number, justification: string | null, scoredBy: string | null): Promise<ProjectScore>;
+  getPortfolioScoringConfig(portfolioId: number): Promise<PortfolioScoringConfig[]>;
+  upsertPortfolioScoringConfig(portfolioId: number, criteriaId: number, aggregationMethod: string): Promise<PortfolioScoringConfig>;
+  getAllProjectScoresForProjects(projectIds: number[]): Promise<ProjectScore[]>;
 }
 
 export interface IStorage extends

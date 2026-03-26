@@ -2187,6 +2187,20 @@ export const insertProjectScoreSchema = createInsertSchema(projectScores).omit({
 export type InsertProjectScore = z.infer<typeof insertProjectScoreSchema>;
 export type ProjectScore = typeof projectScores.$inferSelect;
 
+// Portfolio Scoring Config - per-portfolio overrides for how project scores are aggregated
+export const portfolioScoringConfig = pgTable("portfolio_scoring_config", {
+  id: serial("id").primaryKey(),
+  portfolioId: integer("portfolio_id").references(() => portfolios.id).notNull(),
+  criteriaId: integer("criteria_id").references(() => projectScoringCriteria.id).notNull(),
+  aggregationMethod: text("aggregation_method").default("average").notNull(), // average, sum, max, min, weighted-average
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("portfolio_scoring_config_portfolio_criteria_idx").on(table.portfolioId, table.criteriaId),
+]);
+
+export type PortfolioScoringConfig = typeof portfolioScoringConfig.$inferSelect;
+
 // Project Benefits - track expected and realized benefits
 export const projectBenefits = pgTable("project_benefits", {
   id: serial("id").primaryKey(),

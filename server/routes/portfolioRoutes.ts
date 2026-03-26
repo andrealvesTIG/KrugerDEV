@@ -961,4 +961,146 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
+  app.get('/api/portfolios/:id/scoring-rollup', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const portfolioId = Number(req.params.id);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
+      if (!await userHasOrgAccess(userId, portfolio.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const portfolioProjects = await storage.getPortfolioProjects(portfolioId);
+      const projectIds = portfolioProjects.map(p => p.id);
+      const criteria = await storage.getProjectScoringCriteria(portfolio.organizationId!);
+      const allScores = await storage.getAllProjectScoresForProjects(projectIds);
+      const config = await storage.getPortfolioScoringConfig(portfolioId);
+
+      const configMap = new Map(config.map(c => [c.criteriaId, c.aggregationMethod]));
+
+      const rollup = criteria.map(criterion => {
+        const criteriaScores = allScores.filter(s => s.criteriaId === criterion.id);
+        const aggregationMethod = configMap.get(criterion.id) || 'average';
+
+        const projectBreakdown = portfolioProjects.map(project => {
+          const score = criteriaScores.find(s => s.projectId === project.id);
+          return {
+            projectId: project.id,
+            projectName: project.name,
+            score: score?.score ?? null,
+            justification: score?.justification ?? null,
+          };
+        });
+
+        const validScores = projectBreakdown.filter(p => p.score !== null).map(p => p.score as number);
+        let aggregatedScore: number | null = null;
+
+        if (validScores.length > 0) {
+          switch (aggregationMethod) {
+            case 'sum':
+              aggregatedScore = validScores.reduce((a, b) => a + b, 0);
+              break;
+            case 'max':
+              aggregatedScore = Math.max(...validScores);
+              break;
+            case 'min':
+              aggregatedScore = Math.min(...validScores);
+              break;
+            case 'weighted-average': {
+              let totalWeightedScore = 0;
+              let totalWeight = 0;
+              for (const pb of projectBreakdown) {
+                if (pb.score !== null) {
+                  const project = portfolioProjects.find(p => p.id === pb.projectId);
+                  const weight = Number(project?.budget || 1);
+                  totalWeightedScore += pb.score * weight;
+                  totalWeight += weight;
+                }
+              }
+              aggregatedScore = totalWeight > 0 ? Math.round((totalWeightedScore / totalWeight) * 100) / 100 : null;
+              break;
+            }
+            case 'average':
+            default:
+              aggregatedScore = Math.round((validScores.reduce((a, b) => a + b, 0) / validScores.length) * 100) / 100;
+              break;
+          }
+        }
+
+        return {
+          criteriaId: criterion.id,
+          criteriaName: criterion.name,
+          criteriaCategory: criterion.category,
+          criteriaWeight: criterion.weight,
+          maxScore: criterion.maxScore,
+          aggregationMethod,
+          aggregatedScore,
+          scoredProjectCount: validScores.length,
+          totalProjectCount: portfolioProjects.length,
+          projectBreakdown,
+        };
+      });
+
+      let overallScore: number | null = null;
+      const scoredCriteria = rollup.filter(r => r.aggregatedScore !== null);
+      if (scoredCriteria.length > 0) {
+        let totalWeighted = 0;
+        let totalWeight = 0;
+        for (const r of scoredCriteria) {
+          const weight = parseFloat(String(r.criteriaWeight)) || 1;
+          totalWeighted += r.aggregatedScore! * weight;
+          totalWeight += weight;
+        }
+        overallScore = totalWeight > 0 ? Math.round((totalWeighted / totalWeight) * 100) / 100 : null;
+      }
+
+      res.json({
+        portfolioId,
+        portfolioName: portfolio.name,
+        projectCount: portfolioProjects.length,
+        overallScore,
+        criteria: rollup,
+      });
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get portfolio scoring rollup' : classified.message });
+    }
+  });
+
+  app.put('/api/portfolios/:id/scoring-config', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const portfolioId = Number(req.params.id);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
+      if (!await userHasOrgAccess(userId, portfolio.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const { criteriaId, aggregationMethod } = req.body;
+      if (!criteriaId || !aggregationMethod) {
+        return res.status(400).json({ message: 'criteriaId and aggregationMethod are required' });
+      }
+
+      const validMethods = ['average', 'sum', 'max', 'min', 'weighted-average'];
+      if (!validMethods.includes(aggregationMethod)) {
+        return res.status(400).json({ message: `Invalid aggregation method. Must be one of: ${validMethods.join(', ')}` });
+      }
+
+      const criterion = await storage.getProjectScoringCriterion(criteriaId);
+      if (!criterion || criterion.organizationId !== portfolio.organizationId) {
+        return res.status(400).json({ message: 'Invalid criteria for this portfolio' });
+      }
+
+      const result = await storage.upsertPortfolioScoringConfig(portfolioId, criteriaId, aggregationMethod);
+      res.json(result);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update scoring config' : classified.message });
+    }
+  });
+
 }

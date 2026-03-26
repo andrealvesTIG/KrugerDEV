@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import type { Portfolio, Project, Risk, Issue, Milestone, PortfolioKeyDate } from "@shared/schema";
 
 export interface PortfolioOverview {
@@ -148,5 +149,54 @@ export function usePortfolioEscalatedItems(portfolioId: number) {
     queryKey: ['/api/portfolios', portfolioId, 'escalated-items'],
     queryFn: () => fetchJson(`/api/portfolios/${portfolioId}/escalated-items`),
     enabled: portfolioId > 0,
+  });
+}
+
+export interface PortfolioScoringProjectBreakdown {
+  projectId: number;
+  projectName: string;
+  score: number | null;
+  justification: string | null;
+}
+
+export interface PortfolioScoringCriteriaRollup {
+  criteriaId: number;
+  criteriaName: string;
+  criteriaCategory: string | null;
+  criteriaWeight: string | null;
+  maxScore: number | null;
+  aggregationMethod: string;
+  aggregatedScore: number | null;
+  scoredProjectCount: number;
+  totalProjectCount: number;
+  projectBreakdown: PortfolioScoringProjectBreakdown[];
+}
+
+export interface PortfolioScoringRollup {
+  portfolioId: number;
+  portfolioName: string;
+  projectCount: number;
+  overallScore: number | null;
+  criteria: PortfolioScoringCriteriaRollup[];
+}
+
+export function usePortfolioScoringRollup(portfolioId: number) {
+  return useQuery<PortfolioScoringRollup>({
+    queryKey: ['/api/portfolios', portfolioId, 'scoring-rollup'],
+    queryFn: () => fetchJson(`/api/portfolios/${portfolioId}/scoring-rollup`),
+    enabled: portfolioId > 0,
+  });
+}
+
+export function useUpdatePortfolioScoringConfig() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ portfolioId, criteriaId, aggregationMethod }: { portfolioId: number; criteriaId: number; aggregationMethod: string }) => {
+      const res = await apiRequest('PUT', `/api/portfolios/${portfolioId}/scoring-config`, { criteriaId, aggregationMethod });
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios', variables.portfolioId, 'scoring-rollup'] });
+    },
   });
 }

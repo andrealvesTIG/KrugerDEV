@@ -6,7 +6,7 @@ import {
   userConsents,
   customFieldDefinitions, projectCustomFieldValues,
   customProjectTabs, customTabSections, customTabFields,
-  projectScoringCriteria, projectScores,
+  projectScoringCriteria, projectScores, portfolioScoringConfig,
   projectBenefits, projectDecisions, lessonsLearned,
   portfolioRiskAssessments, projectRiskAssessments,
   apiTokens, users,
@@ -27,6 +27,7 @@ import {
   type CustomTabField, type InsertCustomTabField,
   type ProjectScoringCriteria, type InsertProjectScoringCriteria,
   type ProjectScore, type InsertProjectScore,
+  type PortfolioScoringConfig,
   type ProjectBenefit, type InsertProjectBenefit,
   type ProjectDecision, type InsertProjectDecision,
   type LessonLearned, type InsertLessonLearned,
@@ -817,4 +818,39 @@ export async function createProjectTemplateItems(items: InsertProjectTemplateIte
 
 export async function deleteProjectTemplateItems(templateId: number): Promise<void> {
   await db.delete(projectTemplateItems).where(eq(projectTemplateItems.templateId, templateId));
+}
+
+export async function getPortfolioScoringConfig(portfolioId: number): Promise<PortfolioScoringConfig[]> {
+  return await db.select().from(portfolioScoringConfig)
+    .where(eq(portfolioScoringConfig.portfolioId, portfolioId));
+}
+
+export async function upsertPortfolioScoringConfig(
+  portfolioId: number, criteriaId: number, aggregationMethod: string
+): Promise<PortfolioScoringConfig> {
+  const existing = await db.select().from(portfolioScoringConfig)
+    .where(and(
+      eq(portfolioScoringConfig.portfolioId, portfolioId),
+      eq(portfolioScoringConfig.criteriaId, criteriaId)
+    ));
+
+  if (existing.length > 0) {
+    const [updated] = await db.update(portfolioScoringConfig)
+      .set({ aggregationMethod, updatedAt: new Date() })
+      .where(eq(portfolioScoringConfig.id, existing[0].id))
+      .returning();
+    return updated;
+  } else {
+    const [created] = await db.insert(portfolioScoringConfig)
+      .values({ portfolioId, criteriaId, aggregationMethod })
+      .returning();
+    return created;
+  }
+}
+
+export async function getAllProjectScoresForProjects(projectIds: number[]): Promise<ProjectScore[]> {
+  if (projectIds.length === 0) return [];
+  const { inArray } = await import("drizzle-orm");
+  return await db.select().from(projectScores)
+    .where(inArray(projectScores.projectId, projectIds));
 }
