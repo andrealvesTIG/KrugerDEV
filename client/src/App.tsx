@@ -188,18 +188,18 @@ function Router() {
         <Switch>
           <Route path="/dashboard"><DashboardRedirect /></Route>
           <GuardedRoute path="/dashboards" component={Dashboard} moduleKey="dashboard" />
-          <GuardedRoute path="/portfolios" component={Portfolios} moduleKey="portfolios" />
           <Route path="/portfolios/:id">
             <ModuleGuard moduleKey="portfolios"><PortfolioDetails /></ModuleGuard>
           </Route>
-          <GuardedRoute path="/projects" component={Projects} moduleKey="projects" />
+          <GuardedRoute path="/portfolios" component={Portfolios} moduleKey="portfolios" />
           <Route path="/projects/:id">
             <ModuleGuard moduleKey="projects"><ProjectDetails /></ModuleGuard>
           </Route>
-          <GuardedRoute path="/intakes" component={ProjectIntakes} moduleKey="intakes" />
+          <GuardedRoute path="/projects" component={Projects} moduleKey="projects" />
           <Route path="/intakes/:id">
             <ModuleGuard moduleKey="intakes"><IntakeDetails /></ModuleGuard>
           </Route>
+          <GuardedRoute path="/intakes" component={ProjectIntakes} moduleKey="intakes" />
           <GuardedRoute path="/tasks" component={Tasks} moduleKey="tasks" />
           <GuardedRoute path="/issues" component={Issues} moduleKey="issues" />
           <GuardedRoute path="/simulation" component={Simulation} moduleKey="simulation" />
@@ -208,10 +208,10 @@ function Router() {
           <GuardedRoute path="/invoices" component={Invoices} moduleKey="invoices" />
           <GuardedRoute path="/templates" component={Templates} moduleKey="templates" />
           <GuardedRoute path="/timesheets" component={Timesheets} moduleKey="timesheets" />
-          <GuardedRoute path="/resources" component={Resources} moduleKey="resources" />
           <Route path="/resources/:id">
             <ModuleGuard moduleKey="resources"><ResourceDetails /></ModuleGuard>
           </Route>
+          <GuardedRoute path="/resources" component={Resources} moduleKey="resources" />
           <GuardedRoute path="/calendar" component={Calendar} moduleKey="calendar" />
           <GuardedRoute path="/integrations" component={Integrations} moduleKey="integrations" />
           <Route path="/billing" component={Billing} />
