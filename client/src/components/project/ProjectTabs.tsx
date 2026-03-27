@@ -2170,7 +2170,26 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
   }
 
   const activeCriteria = criteria?.filter(c => c.isActive) || [];
-  
+
+  const savedScoreMap = useMemo(() => {
+    const map: Record<number, { score: number; justification: string }> = {};
+    if (scores) {
+      scores.forEach(s => {
+        map[s.criteriaId] = { score: s.score, justification: s.justification || '' };
+      });
+    }
+    return map;
+  }, [scores]);
+
+  const hasUnsavedChanges = (criteriaId: number): boolean => {
+    const local = localScores[criteriaId];
+    const saved = savedScoreMap[criteriaId];
+    if (!local && !saved) return false;
+    if (!saved) return local?.score !== 0 || (local?.justification || '') !== '';
+    if (!local) return false;
+    return local.score !== saved.score || local.justification !== saved.justification;
+  };
+
   const calculateTotalScore = () => {
     let totalWeighted = 0;
     let totalWeight = 0;
@@ -2238,8 +2257,10 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
         )}
 
         <div className="space-y-4">
-          {activeCriteria.map(c => (
-            <Card key={c.id} className="p-4">
+          {activeCriteria.map(c => {
+            const unsaved = hasUnsavedChanges(c.id);
+            return (
+            <Card key={c.id} className={cn("p-4", unsaved && "ring-2 ring-amber-400/50 border-amber-400")}>
               <div className="flex justify-between items-start mb-2">
                 <div>
                   <div className="font-medium">{c.name}</div>
@@ -2306,12 +2327,18 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
                     data-testid={`input-justification-${c.id}`}
                   />
                 </div>
-                <Button size="sm" className="mt-2" onClick={() => handleSaveScore(c.id)} data-testid={`button-save-score-${c.id}`}>
-                  Save Score
-                </Button>
+                <div className="flex items-center gap-3 mt-2">
+                  <Button size="sm" variant={unsaved ? "default" : "outline"} onClick={() => handleSaveScore(c.id)} data-testid={`button-save-score-${c.id}`}>
+                    Save Score
+                  </Button>
+                  {unsaved && (
+                    <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">Unsaved changes</span>
+                  )}
+                </div>
               </div>
             </Card>
-          ))}
+            );
+          })}
         </div>
 
         {activeCriteria.length === 0 && (
