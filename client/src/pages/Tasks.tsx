@@ -1283,57 +1283,60 @@ function GroupedTasksView({
           >
             <div className="flex items-center gap-3">
               {expandedGroups.has(group.id) ? (
-                <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                <ChevronDown className="h-5 w-5 text-muted-foreground flex-shrink-0" />
               ) : (
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
               )}
               {group.icon === "portfolio" ? (
-                <Briefcase className="h-5 w-5 text-primary" />
+                <Briefcase className="h-5 w-5 text-primary flex-shrink-0" />
               ) : group.icon === "resource" ? (
-                <UserIcon className="h-5 w-5 text-primary" />
+                <UserIcon className="h-5 w-5 text-primary flex-shrink-0" />
               ) : (
-                <FolderKanban className="h-5 w-5 text-primary" />
+                <FolderKanban className="h-5 w-5 text-primary flex-shrink-0" />
               )}
-              <CardTitle className="text-lg truncate flex-1" title={group.name}>{group.name}</CardTitle>
-              {group.source && group.icon === "project" && group.projectId && (
-                <Link
-                  href={`/projects/${group.projectId}`}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Badge 
-                    variant="outline" 
-                    className={cn(
-                      "ml-2 text-xs gap-1 cursor-pointer hover:opacity-80 transition-opacity",
-                      group.source === "planner" && "border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-300",
-                      group.source === "planner_premium" && "border-purple-300 text-purple-700 dark:border-purple-700 dark:text-purple-300",
-                      group.source === "imported" && "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300"
-                    )}
+              <div className="flex flex-col min-w-0 flex-1">
+                <CardTitle className="text-lg break-words" title={group.name}>{group.name}</CardTitle>
+                {group.source && group.icon === "project" && group.projectId && (
+                  <Link
+                    href={`/projects/${group.projectId}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-1 w-fit"
                   >
-                    {group.source === "planner" && (
-                      <>
-                        <img src={plannerLogoPath} alt="Planner" className="h-3 w-3" />
-                        <Cloud className="h-2.5 w-2.5 text-indigo-500" />
-                        Planner
-                      </>
-                    )}
-                    {group.source === "planner_premium" && (
-                      <>
-                        <img src={plannerLogoPath} alt="Planner Premium" className="h-3 w-3" />
-                        <Crown className="h-2.5 w-2.5 text-purple-500" />
-                        Premium
-                      </>
-                    )}
-                    {group.source === "imported" && (
-                      <>
-                        <img src={msprojectLogoPath} alt="MS Project" className="h-3 w-3" />
-                        <FileSpreadsheet className="h-2.5 w-2.5 text-emerald-500" />
-                        MS Project
-                      </>
-                    )}
-                  </Badge>
-                </Link>
-              )}
-              <Badge variant="secondary" className="ml-auto">
+                    <Badge 
+                      variant="outline" 
+                      className={cn(
+                        "text-xs gap-1 cursor-pointer hover:opacity-80 transition-opacity",
+                        group.source === "planner" && "border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-300",
+                        group.source === "planner_premium" && "border-purple-300 text-purple-700 dark:border-purple-700 dark:text-purple-300",
+                        group.source === "imported" && "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300"
+                      )}
+                    >
+                      {group.source === "planner" && (
+                        <>
+                          <img src={plannerLogoPath} alt="Planner" className="h-3 w-3" />
+                          <Cloud className="h-2.5 w-2.5 text-indigo-500" />
+                          Planner
+                        </>
+                      )}
+                      {group.source === "planner_premium" && (
+                        <>
+                          <img src={plannerLogoPath} alt="Planner Premium" className="h-3 w-3" />
+                          <Crown className="h-2.5 w-2.5 text-purple-500" />
+                          Premium
+                        </>
+                      )}
+                      {group.source === "imported" && (
+                        <>
+                          <img src={msprojectLogoPath} alt="MS Project" className="h-3 w-3" />
+                          <FileSpreadsheet className="h-2.5 w-2.5 text-emerald-500" />
+                          MS Project
+                        </>
+                      )}
+                    </Badge>
+                  </Link>
+                )}
+              </div>
+              <Badge variant="secondary" className="ml-auto flex-shrink-0">
                 {group.tasks.length} {group.tasks.length === 1 ? "task" : "tasks"}
               </Badge>
             </div>
@@ -1584,7 +1587,7 @@ function GanttTaskRow({
           <Link 
             href={`/projects/${task.projectId}`}
             onClick={(e) => e.stopPropagation()}
-            className="text-[10px] text-muted-foreground truncate hover:text-primary hover:underline block ml-5"
+            className="text-[10px] text-muted-foreground break-words hover:text-primary hover:underline block ml-5"
             data-testid={`link-project-${task.projectId}`}
           >
             {getProjectName(task.projectId)}
@@ -2520,7 +2523,7 @@ function DraggableTaskCard({
           <Link 
             href={`/projects/${task.projectId}`}
             onClick={(e) => e.stopPropagation()}
-            className="text-xs text-muted-foreground mt-1 hover:text-primary hover:underline block truncate"
+            className="text-xs text-muted-foreground mt-1 hover:text-primary hover:underline block break-words"
             title={getProjectName(task.projectId)}
             data-testid={`kanban-link-project-${task.projectId}`}
           >
