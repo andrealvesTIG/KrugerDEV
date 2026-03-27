@@ -354,7 +354,7 @@ export default function PartnerProgramPage() {
               { icon: BookOpen, title: "Sales & Marketing Resources", description: "Access co-branded materials, case studies, and demo environments to help you close deals faster." },
               { icon: HeadphonesIcon, title: "Dedicated Partner Support", description: "Get priority access to our support team, plus a dedicated partner manager for strategic accounts." },
               { icon: Award, title: "Certification Program", description: "Become a certified FridayReport.AI partner. Stand out with credentials that demonstrate your expertise." },
-              { icon: BarChart3, title: "Partner Dashboard", description: "Track referrals, commissions, and client engagement through your personalized partner portal." },
+              { icon: BarChart3, title: "Transparent Tracking", description: "Stay informed on referrals, commissions, and client engagement with regular partner reports." },
               { icon: Globe, title: "Community & Events", description: "Join our partner community, attend exclusive events, and connect with PMO leaders worldwide." },
             ].map((item, i) => (
               <motion.div key={i} variants={fadeUp}>
