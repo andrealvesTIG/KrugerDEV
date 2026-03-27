@@ -170,6 +170,13 @@ export default function IndustryLandingPage({ config }: { config: IndustryConfig
             <IndustrySolutionsMenu currentPath={config.routePath} />
             <Button
               variant="ghost"
+              className="text-sm font-medium"
+              onClick={() => setLocation("/partners")}
+            >
+              Partners
+            </Button>
+            <Button
+              variant="ghost"
               onClick={() => setLocation(`/auth?source=${config.slug}`)}
             >
               Log in
@@ -196,6 +203,13 @@ export default function IndustryLandingPage({ config }: { config: IndustryConfig
         <div className="sm:hidden border-b border-border bg-background px-6 py-4 flex flex-col gap-3 sticky top-[65px] z-40">
           <IndustrySolutionsMobileLinks onNavigate={() => setMobileMenuOpen(false)} />
           <div className="border-t border-border pt-3 flex flex-col gap-3">
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => { setLocation("/partners"); setMobileMenuOpen(false); }}
+            >
+              Partners
+            </Button>
             <Button
               variant="ghost"
               className="w-full justify-start"

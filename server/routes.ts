@@ -27,6 +27,7 @@ import { registerIntakeRoutes } from "./routes/intakeRoutes";
 import { registerTimesheetRoutes } from "./routes/timesheetRoutes";
 import { registerAnalyticsRoutes } from "./routes/analyticsRoutes";
 import { registerCrossProjectReferenceRoutes } from "./routes/crossProjectReferenceRoutes";
+import { registerPartnerRoutes } from "./routes/partnerRoutes";
 import { seedDatabase } from "./routes/helpers";
 
 export async function registerRoutes(
@@ -96,6 +97,7 @@ export async function registerRoutes(
   registerTimesheetRoutes(app);
   registerAnalyticsRoutes(app);
   registerCrossProjectReferenceRoutes(app);
+  registerPartnerRoutes(app);
 
   seedTrainingDataIfEmpty().catch(err => {
     console.error('[training] Failed to seed training data:', err.message);

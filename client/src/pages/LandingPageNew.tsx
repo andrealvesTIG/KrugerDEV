@@ -170,6 +170,14 @@ export default function LandingPageNew() {
           <EventsMenu currentPath="/signup" />
           <Button
             variant="ghost"
+            className="text-sm font-medium"
+            onClick={() => setLocation("/partners")}
+            data-testid="button-partners"
+          >
+            Partners
+          </Button>
+          <Button
+            variant="ghost"
             onClick={() => setLocation("/auth?source=signup")}
             data-testid="button-login"
           >
@@ -197,6 +205,14 @@ export default function LandingPageNew() {
           <IndustrySolutionsMobileLinks onNavigate={() => setMobileMenuOpen(false)} />
           <EventsMobileLinks onNavigate={() => setMobileMenuOpen(false)} />
           <div className="border-t border-border pt-3 flex flex-col gap-3">
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => { setLocation("/partners"); setMobileMenuOpen(false); }}
+              data-testid="button-partners-mobile"
+            >
+              Partners
+            </Button>
             <Button
               variant="ghost"
               className="w-full justify-start"

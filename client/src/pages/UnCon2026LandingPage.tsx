@@ -241,6 +241,13 @@ export default function UnCon2026LandingPage() {
             <EventsMenu currentPath="/uncon2026" />
             <Button
               variant="ghost"
+              className="text-sm font-medium"
+              onClick={() => setLocation("/partners")}
+            >
+              Partners
+            </Button>
+            <Button
+              variant="ghost"
               onClick={() => setLocation("/auth?source=uncon2026")}
             >
               Log in
@@ -267,6 +274,13 @@ export default function UnCon2026LandingPage() {
         <div className="sm:hidden border-b border-border bg-background px-6 py-4 flex flex-col gap-3 sticky top-[65px] z-40">
           <EventsMobileLinks onNavigate={() => setMobileMenuOpen(false)} />
           <div className="border-t border-border pt-3 flex flex-col gap-3">
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => { setLocation("/partners"); setMobileMenuOpen(false); }}
+            >
+              Partners
+            </Button>
             <Button
               variant="ghost"
               className="w-full justify-start"

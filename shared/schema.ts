@@ -2889,3 +2889,24 @@ export type ProjectTemplate = typeof projectTemplates.$inferSelect;
 export type InsertProjectTemplate = z.infer<typeof insertProjectTemplateSchema>;
 export type ProjectTemplateItem = typeof projectTemplateItems.$inferSelect;
 export type InsertProjectTemplateItem = z.infer<typeof insertProjectTemplateItemSchema>;
+
+export const partnerApplications = pgTable("partner_applications", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  company: text("company"),
+  partnerType: text("partner_type").notNull(),
+  message: text("message"),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPartnerApplicationSchema = createInsertSchema(partnerApplications).omit({
+  id: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type PartnerApplication = typeof partnerApplications.$inferSelect;
+export type InsertPartnerApplication = z.infer<typeof insertPartnerApplicationSchema>;
