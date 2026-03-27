@@ -2165,12 +2165,6 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
     }
   };
 
-  if (loadingCriteria || loadingScores) {
-    return <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-  }
-
-  const activeCriteria = criteria?.filter(c => c.isActive) || [];
-
   const savedScoreMap = useMemo(() => {
     const map: Record<number, { score: number; justification: string }> = {};
     if (scores) {
@@ -2180,6 +2174,12 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
     }
     return map;
   }, [scores]);
+
+  if (loadingCriteria || loadingScores) {
+    return <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  }
+
+  const activeCriteria = criteria?.filter(c => c.isActive) || [];
 
   const hasUnsavedChanges = (criteriaId: number): boolean => {
     const local = localScores[criteriaId];
