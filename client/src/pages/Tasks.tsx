@@ -1281,64 +1281,66 @@ function GroupedTasksView({
             className="cursor-pointer py-3 hover-elevate"
             onClick={() => toggleGroup(group.id)}
           >
-            <div className="flex items-center gap-3">
-              {expandedGroups.has(group.id) ? (
-                <ChevronDown className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-              ) : (
-                <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-              )}
-              {group.icon === "portfolio" ? (
-                <Briefcase className="h-5 w-5 text-primary flex-shrink-0" />
-              ) : group.icon === "resource" ? (
-                <UserIcon className="h-5 w-5 text-primary flex-shrink-0" />
-              ) : (
-                <FolderKanban className="h-5 w-5 text-primary flex-shrink-0" />
-              )}
-              <div className="flex flex-col min-w-0 flex-1">
-                <CardTitle className="text-lg break-words" title={group.name}>{group.name}</CardTitle>
-                {group.source && group.icon === "project" && group.projectId && (
-                  <Link
-                    href={`/projects/${group.projectId}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="mt-1 w-fit"
-                  >
-                    <Badge 
-                      variant="outline" 
-                      className={cn(
-                        "text-xs gap-1 cursor-pointer hover:opacity-80 transition-opacity",
-                        group.source === "planner" && "border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-300",
-                        group.source === "planner_premium" && "border-purple-300 text-purple-700 dark:border-purple-700 dark:text-purple-300",
-                        group.source === "imported" && "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300"
-                      )}
-                    >
-                      {group.source === "planner" && (
-                        <>
-                          <img src={plannerLogoPath} alt="Planner" className="h-3 w-3" />
-                          <Cloud className="h-2.5 w-2.5 text-indigo-500" />
-                          Planner
-                        </>
-                      )}
-                      {group.source === "planner_premium" && (
-                        <>
-                          <img src={plannerLogoPath} alt="Planner Premium" className="h-3 w-3" />
-                          <Crown className="h-2.5 w-2.5 text-purple-500" />
-                          Premium
-                        </>
-                      )}
-                      {group.source === "imported" && (
-                        <>
-                          <img src={msprojectLogoPath} alt="MS Project" className="h-3 w-3" />
-                          <FileSpreadsheet className="h-2.5 w-2.5 text-emerald-500" />
-                          MS Project
-                        </>
-                      )}
-                    </Badge>
-                  </Link>
-                )}
+            <div className="flex flex-col gap-1">
+              <div className="flex items-start gap-2">
+                <div className="flex items-center gap-2 pt-0.5 flex-shrink-0">
+                  {expandedGroups.has(group.id) ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  {group.icon === "portfolio" ? (
+                    <Briefcase className="h-4 w-4 text-primary" />
+                  ) : group.icon === "resource" ? (
+                    <UserIcon className="h-4 w-4 text-primary" />
+                  ) : (
+                    <FolderKanban className="h-4 w-4 text-primary" />
+                  )}
+                </div>
+                <CardTitle className="text-base leading-snug flex-1" title={group.name}>{group.name}</CardTitle>
+                <Badge variant="secondary" className="flex-shrink-0 mt-0.5">
+                  {group.tasks.length} {group.tasks.length === 1 ? "task" : "tasks"}
+                </Badge>
               </div>
-              <Badge variant="secondary" className="ml-auto flex-shrink-0">
-                {group.tasks.length} {group.tasks.length === 1 ? "task" : "tasks"}
-              </Badge>
+              {group.source && group.icon === "project" && group.projectId && (
+                <Link
+                  href={`/projects/${group.projectId}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="ml-[40px] w-fit"
+                >
+                  <Badge 
+                    variant="outline" 
+                    className={cn(
+                      "text-xs gap-1 cursor-pointer hover:opacity-80 transition-opacity",
+                      group.source === "planner" && "border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-300",
+                      group.source === "planner_premium" && "border-purple-300 text-purple-700 dark:border-purple-700 dark:text-purple-300",
+                      group.source === "imported" && "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300"
+                    )}
+                  >
+                    {group.source === "planner" && (
+                      <>
+                        <img src={plannerLogoPath} alt="Planner" className="h-3 w-3" />
+                        <Cloud className="h-2.5 w-2.5 text-indigo-500" />
+                        Planner
+                      </>
+                    )}
+                    {group.source === "planner_premium" && (
+                      <>
+                        <img src={plannerLogoPath} alt="Planner Premium" className="h-3 w-3" />
+                        <Crown className="h-2.5 w-2.5 text-purple-500" />
+                        Premium
+                      </>
+                    )}
+                    {group.source === "imported" && (
+                      <>
+                        <img src={msprojectLogoPath} alt="MS Project" className="h-3 w-3" />
+                        <FileSpreadsheet className="h-2.5 w-2.5 text-emerald-500" />
+                        MS Project
+                      </>
+                    )}
+                  </Badge>
+                </Link>
+              )}
             </div>
           </CardHeader>
           {expandedGroups.has(group.id) && (
