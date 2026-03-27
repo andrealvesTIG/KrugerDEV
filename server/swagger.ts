@@ -109,7 +109,7 @@ const spec = {
     { name: 'Help Tickets', description: 'Support ticket management' },
     { name: 'Monitoring', description: 'Admin monitoring endpoints' },
     { name: 'External Shares', description: 'Cross-org sharing' },
-    { name: 'Scoring & Benefits', description: 'Project scoring, benefits, decisions, lessons learned' },
+    { name: 'Scoring & Benefits', description: 'Project scoring criteria, project scores (with portfolio rollup aggregation), benefits tracking, decisions, and lessons learned' },
     { name: 'Recycle Bin', description: 'Soft-deleted item management' },
     { name: 'Search', description: 'Global search' },
     { name: 'Training', description: 'Training modules, lessons, quizzes, and progress' },
@@ -1260,9 +1260,73 @@ const spec = {
           id: { type: 'integer' },
           organizationId: { type: 'integer' },
           name: { type: 'string' },
-          weight: { type: 'number' },
+          description: { type: 'string', nullable: true },
+          category: { type: 'string', nullable: true, description: 'Strategic, Financial, Risk, Resource, Technical' },
+          weight: { type: 'string', nullable: true, description: 'Numeric weight stored as string (default "1")' },
+          minScore: { type: 'integer', default: 0 },
+          maxScore: { type: 'integer', default: 10 },
+          scoringGuidelines: { type: 'string', nullable: true, description: 'Instructions for scoring' },
+          displayOrder: { type: 'integer', default: 0 },
+          isActive: { type: 'boolean', default: true },
+          createdAt: { type: 'string', format: 'date-time' },
+          createdBy: { type: 'string', nullable: true },
         },
         required: ['id', 'organizationId', 'name'],
+        example: { id: 1, organizationId: 1, name: 'Strategic Alignment', category: 'Strategic', weight: '2.5', maxScore: 10, isActive: true },
+      },
+      ScoringCriterionRequest: {
+        type: 'object',
+        description: 'Input schema for creating or updating a scoring criterion.',
+        properties: {
+          organizationId: { type: 'integer' },
+          name: { type: 'string' },
+          description: { type: 'string', nullable: true },
+          category: { type: 'string', nullable: true, description: 'Strategic, Financial, Risk, Resource, Technical' },
+          weight: { type: 'string', nullable: true, description: 'Numeric weight (default "1")' },
+          minScore: { type: 'integer', default: 0 },
+          maxScore: { type: 'integer', default: 10 },
+          scoringGuidelines: { type: 'string', nullable: true },
+          displayOrder: { type: 'integer' },
+          isActive: { type: 'boolean' },
+        },
+        required: ['organizationId', 'name'],
+      },
+      ProjectScore: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          projectId: { type: 'integer' },
+          criteriaId: { type: 'integer' },
+          score: { type: 'integer', description: 'Score value (typically 0-10)' },
+          justification: { type: 'string', nullable: true, description: 'Rationale for the score' },
+          scoredAt: { type: 'string', format: 'date-time' },
+          scoredBy: { type: 'string', nullable: true },
+        },
+        required: ['id', 'projectId', 'criteriaId', 'score'],
+        example: { id: 1, projectId: 100, criteriaId: 1, score: 8, justification: 'Strong strategic alignment with Q2 objectives' },
+      },
+      ProjectScoreRequest: {
+        type: 'object',
+        description: 'Input schema for saving a project score. Uses upsert: if a score already exists for this project+criterion, it is updated.',
+        properties: {
+          criterionId: { type: 'integer', description: 'Scoring criterion ID' },
+          score: { type: 'integer', description: 'Score value (typically 0 to maxScore)' },
+          justification: { type: 'string', nullable: true, description: 'Rationale for the score' },
+        },
+        required: ['criterionId', 'score'],
+      },
+      PortfolioScoringConfig: {
+        type: 'object',
+        description: 'Per-portfolio override for how project scores are aggregated per criterion.',
+        properties: {
+          id: { type: 'integer' },
+          portfolioId: { type: 'integer' },
+          criteriaId: { type: 'integer' },
+          aggregationMethod: { type: 'string', enum: ['average', 'sum', 'max', 'min', 'weighted-average'], description: 'How project scores are combined for this criterion' },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
+        required: ['id', 'portfolioId', 'criteriaId', 'aggregationMethod'],
       },
       ReportSubscription: {
         type: 'object',
@@ -2070,6 +2134,7 @@ const spec = {
     },
     '/portfolios/{id}/scoring-rollup': {
       get: op('Portfolios', 'Get portfolio scoring rollup', {
+        description: 'Aggregates project-level scores into a portfolio-wide view. Each criterion shows an aggregated score (using the configured aggregation method), a project breakdown, and weighted contribution. The overall score is calculated as: (Σ(aggregatedScore/maxScore × weight) / Σweight) × 10. Also includes key date compliance metrics computed from portfolio key dates.',
         parameters: [pathId()],
         responses: { ...r200('Scoring rollup', { type: 'object', properties: {
           portfolioId: { type: 'integer' },
@@ -2106,9 +2171,13 @@ const spec = {
     },
     '/portfolios/{id}/scoring-config': {
       put: op('Portfolios', 'Update portfolio scoring aggregation config', {
+        description: 'Set the aggregation method for a specific criterion within this portfolio. Uses upsert: creates a config record if none exists for this portfolio+criterion pair. The aggregation method determines how individual project scores are combined in the scoring rollup.',
         parameters: [pathId()],
-        requestBody: body({ type: 'object', properties: { criteriaId: { type: 'integer' }, aggregationMethod: { type: 'string', enum: ['average', 'sum', 'max', 'min', 'weighted-average'] } } }),
-        responses: { ...r200('Scoring config updated'), ...updateRes },
+        requestBody: body({ type: 'object', properties: {
+          criteriaId: { type: 'integer', description: 'Scoring criterion ID' },
+          aggregationMethod: { type: 'string', enum: ['average', 'sum', 'max', 'min', 'weighted-average'], description: 'How project scores are aggregated. "weighted-average" uses project budget as weight.' },
+        }, required: ['criteriaId', 'aggregationMethod'] }),
+        responses: { ...r200('Scoring config updated', ref('PortfolioScoringConfig')), ...updateRes },
       }),
     },
     '/portfolios/{id}/risk-assessment': {
@@ -3743,15 +3812,15 @@ const spec = {
       }),
       post: op('Scoring & Benefits', 'Create scoring criterion', {
         parameters: [pathId('organizationId')],
-        requestBody: body(ref('ScoringCriterion')),
-        responses: { ...r201('Criterion created'), ...createRes },
+        requestBody: body(ref('ScoringCriterionRequest')),
+        responses: { ...r201('Criterion created', ref('ScoringCriterion')), ...createRes },
       }),
     },
     '/scoring-criteria/{id}': {
       put: op('Scoring & Benefits', 'Update scoring criterion', {
         parameters: [pathId()],
-        requestBody: body(ref('ScoringCriterion')),
-        responses: { ...r200('Criterion updated'), ...updateRes },
+        requestBody: body(ref('ScoringCriterionRequest'), false),
+        responses: { ...r200('Criterion updated', ref('ScoringCriterion')), ...updateRes },
       }),
       delete: op('Scoring & Benefits', 'Delete scoring criterion', {
         parameters: [pathId()],
@@ -3760,13 +3829,15 @@ const spec = {
     },
     '/projects/{projectId}/scores': {
       get: op('Scoring & Benefits', 'Get project scores', {
+        description: 'Returns all saved scores for a project, including criterion details. Scores are persisted per-criterion and flow into the portfolio scoring rollup.',
         parameters: [pathId('projectId')],
-        responses: { ...r200('Project scores'), ...idRes },
+        responses: { ...r200('Project scores', arrOf('ProjectScore')), ...idRes },
       }),
-      post: op('Scoring & Benefits', 'Add project score', {
+      post: op('Scoring & Benefits', 'Save project score', {
+        description: 'Upsert a score for a project on a specific criterion. If a score already exists for this project+criterion pair, it is updated. Saved scores automatically appear in the portfolio scoring rollup.',
         parameters: [pathId('projectId')],
-        requestBody: body({ type: 'object', properties: { criterionId: { type: 'integer' }, score: { type: 'number' } } }),
-        responses: { ...r201('Score added'), ...createRes },
+        requestBody: body(ref('ProjectScoreRequest')),
+        responses: { ...r201('Score saved', ref('ProjectScore')), ...createRes },
       }),
     },
     '/project-scores/{id}': {
