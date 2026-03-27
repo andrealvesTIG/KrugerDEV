@@ -292,6 +292,7 @@ export function MonitoringTab() {
     if (subTab === 'performance') refetchPerf();
     if (subTab === 'database') refetchDb();
     if (subTab === 'organizations') refetchOrg();
+    if (subTab === 'marketing') queryClient.invalidateQueries({ queryKey: ["/api/admin/selfie-leads"] });
     toast({ title: "Data refreshed" });
   };
 
