@@ -2332,7 +2332,18 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
                     Save Score
                   </Button>
                   {unsaved && (
-                    <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">Unsaved changes</span>
+                    <>
+                      <Button size="sm" variant="ghost" onClick={() => {
+                        const saved = savedScoreMap[c.id];
+                        setLocalScores(prev => ({
+                          ...prev,
+                          [c.id]: saved ? { ...saved } : { score: 0, justification: '' }
+                        }));
+                      }}>
+                        Reset
+                      </Button>
+                      <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">Unsaved changes</span>
+                    </>
                   )}
                 </div>
               </div>
