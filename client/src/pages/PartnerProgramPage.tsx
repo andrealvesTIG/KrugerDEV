@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import {
   Menu, X, CheckCircle, ArrowRight, Handshake,
@@ -20,6 +20,21 @@ import { EventsMenu, EventsMobileLinks } from "@/components/EventsMenu";
 import { motion, useInView } from "framer-motion";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
+
+function useForceLightTheme() {
+  useEffect(() => {
+    const root = window.document.documentElement;
+    const hadDark = root.classList.contains("dark");
+    const hadLight = root.classList.contains("light");
+    root.classList.remove("dark");
+    root.classList.add("light");
+    return () => {
+      root.classList.remove("light");
+      if (hadDark) root.classList.add("dark");
+      else if (hadLight) root.classList.add("light");
+    };
+  }, []);
+}
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -108,6 +123,7 @@ const stats = [
 ];
 
 export default function PartnerProgramPage() {
+  useForceLightTheme();
   const [, setLocation] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [formData, setFormData] = useState({

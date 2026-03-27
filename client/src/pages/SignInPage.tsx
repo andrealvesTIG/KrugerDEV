@@ -353,6 +353,9 @@ export default function SignInPage() {
                 <img src={logoWhite} alt="FridayReport.AI" className="h-6 sm:h-7 flex-shrink-0" />
               </div>
               <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+                <Link href="/partners" className="hidden sm:inline text-slate-200 hover:text-orange-400 text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-partners">
+                  Partners
+                </Link>
                 <Link href="/auth?source=signin" className="text-slate-200 hover:text-white text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-login">
                   Login
                 </Link>
@@ -397,6 +400,13 @@ export default function SignInPage() {
                         className="block text-sm font-medium text-slate-200 hover:text-orange-400 hover:bg-slate-700/40 rounded-md px-3 py-2.5 transition-colors"
                       >
                         User Guide
+                      </Link>
+                      <Link
+                        href="/partners"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="block text-sm font-medium text-slate-200 hover:text-orange-400 hover:bg-slate-700/40 rounded-md px-3 py-2.5 transition-colors"
+                      >
+                        Partners
                       </Link>
                     </div>
                   </div>
