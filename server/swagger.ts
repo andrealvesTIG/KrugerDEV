@@ -2579,6 +2579,23 @@ const spec = {
         responses: { ...r200('Tasks reindexed'), ...createRes },
       }),
     },
+    '/projects/{projectId}/tasks/baseline': {
+      post: op('Tasks', 'Set or clear task baseline dates', {
+        description: 'Captures a baseline snapshot of task dates for schedule variance tracking. When clearBaseline is false (default), copies each task\'s current startDate/endDate into baselineStartDate/baselineEndDate. When clearBaseline is true, nulls out the baseline fields. If taskIds is provided, only those tasks are updated; otherwise all project tasks are included.',
+        parameters: [pathId('projectId')],
+        requestBody: body({ type: 'object', properties: {
+          taskIds: { type: 'array', items: { type: 'integer' }, description: 'Specific task IDs to baseline. If omitted, all project tasks are baselined.' },
+          clearBaseline: { type: 'boolean', description: 'If true, clears baseline dates instead of setting them. Defaults to false.' },
+        } }, false),
+        responses: {
+          ...r200('Baseline result', { type: 'object', properties: {
+            message: { type: 'string' },
+            updatedCount: { type: 'integer' },
+          } }),
+          ...idRes,
+        },
+      }),
+    },
 
     // ======================== MILESTONES (Legacy - Task Milestones) ========================
     '/projects/{projectId}/milestones': {
@@ -2847,6 +2864,38 @@ const spec = {
       get: op('Resources', 'Get resource issue assignments', {
         parameters: [pathId()],
         responses: { ...r200('Issue assignments'), ...idRes },
+      }),
+    },
+    '/resources/assignments': {
+      get: op('Resources', 'Get all resource assignments across projects', {
+        description: 'Returns task-level resource assignments for the organization, joining tasks, projects, portfolios, and resources. Each record includes assignment details (allocation, role) plus denormalized task, project, portfolio, and resource fields.',
+        parameters: [qInt('organizationId', true, 'Organization ID (required)')],
+        responses: {
+          ...r200('Resource assignments', { type: 'array', items: { type: 'object', properties: {
+            assignmentId: { type: 'integer' },
+            taskId: { type: 'integer' },
+            resourceId: { type: 'integer' },
+            allocationPercentage: { type: 'number', nullable: true },
+            role: { type: 'string', nullable: true },
+            taskName: { type: 'string' },
+            taskStatus: { type: 'string', nullable: true },
+            taskProgress: { type: 'integer', nullable: true },
+            taskStartDate: { type: 'string', format: 'date', nullable: true },
+            taskEndDate: { type: 'string', format: 'date', nullable: true },
+            taskEstimatedHours: { type: 'string', nullable: true },
+            projectId: { type: 'integer' },
+            projectName: { type: 'string' },
+            projectStatus: { type: 'string', nullable: true },
+            portfolioId: { type: 'integer', nullable: true },
+            portfolioName: { type: 'string', nullable: true },
+            resourceName: { type: 'string', nullable: true },
+            resourceEmail: { type: 'string', nullable: true },
+            resourceTitle: { type: 'string', nullable: true },
+            resourceDepartment: { type: 'string', nullable: true },
+            resourceSkills: { type: 'string', nullable: true },
+          } } }),
+          ...e400, ...stdRes,
+        },
       }),
     },
     '/tasks/{taskId}/resources': {
@@ -4159,6 +4208,21 @@ const spec = {
       get: op('Project Templates', 'Preview what applying a template would produce', {
         parameters: [pathId()],
         responses: { ...r200('Template preview', { type: 'object', properties: { tasks: { type: 'array', items: { type: 'object' } }, milestones: { type: 'array', items: { type: 'object' } }, resources: { type: 'array', items: { type: 'object' } } } }), ...idRes },
+      }),
+    },
+    '/project-templates/{id}/create-project': {
+      post: op('Project Templates', 'Create a project from a template', {
+        description: 'Creates a new project populated with tasks from the template. Template items are copied as tasks, preserving parent-child hierarchy and milestone flags. If startDate is provided, all task dates are shifted relative to that date (offset from the earliest template item date). Requires email verification.',
+        parameters: [pathId()],
+        requestBody: body({ type: 'object', properties: {
+          name: { type: 'string', description: 'Project name (required)' },
+          portfolioId: { type: 'integer', nullable: true, description: 'Portfolio to assign the project to. Must belong to the same organization as the template.' },
+          description: { type: 'string', nullable: true, description: 'Project description. Falls back to template description if omitted.' },
+          status: { type: 'string', nullable: true, description: 'Initial project status. Defaults to Initiation.' },
+          priority: { type: 'string', nullable: true, description: 'Project priority. Defaults to Medium.' },
+          startDate: { type: 'string', format: 'date', nullable: true, description: 'Project start date (YYYY-MM-DD). If provided, template task dates are shifted relative to this date.' },
+        }, required: ['name'] }),
+        responses: { ...r201('Project created from template', ref('Project')), ...createRes, ...e404 },
       }),
     },
 
