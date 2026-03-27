@@ -65,7 +65,7 @@ const spec = {
   info: {
     title: 'FridayReport.AI API',
     version: '1.0.0',
-    description: 'Enterprise Project Portfolio Management API Documentation',
+    description: 'Enterprise Project Portfolio Management API. Manage portfolios, projects, tasks, risks, issues, resources, timesheets, billing, and more. Supports session-based auth (browser), Basic auth (email + API key for Power BI/analytics), and Bearer token auth (organization-scoped). Base path: /api.',
     contact: { name: 'FridayReport.AI Support', email: 'support@fridayreport.ai' },
   },
   servers: [{ url: '/api', description: 'API Server' }],
@@ -116,6 +116,8 @@ const spec = {
     { name: 'Approval Delegations', description: 'Approval delegation management' },
     { name: 'Rejection Templates', description: 'Timesheet rejection templates' },
     { name: 'Timesheet Compliance', description: 'Timesheet compliance and SLA metrics' },
+    { name: 'Project Templates', description: 'Reusable project templates from files or existing projects' },
+    { name: 'Referrals', description: 'Referral code management, tracking, and payouts' },
     { name: 'Other', description: 'Miscellaneous endpoints' },
   ],
   components: {
@@ -167,6 +169,7 @@ const spec = {
           createdAt: { type: 'string', format: 'date-time' },
         },
         required: ['id', 'name', 'slug', 'createdAt'],
+        example: { id: 1, name: 'Acme Corp', slug: 'acme-corp', description: 'Enterprise organization', createdAt: '2025-01-15T10:00:00Z' },
       },
       Portfolio: {
         type: 'object',
@@ -198,6 +201,7 @@ const spec = {
           isCustom: { type: 'boolean', default: false, description: 'Custom portfolios can include projects from any portfolio' },
         },
         required: ['id', 'organizationId', 'name'],
+        example: { id: 1, organizationId: 1, name: 'Digital Transformation', status: 'Active', healthScore: 'Green' },
       },
       PortfolioRequest: {
         type: 'object',
@@ -293,6 +297,7 @@ const spec = {
           timesheetBlocked: { type: 'boolean', default: false },
         },
         required: ['id', 'organizationId', 'name', 'status', 'priority', 'budget'],
+        example: { id: 1, organizationId: 1, name: 'Website Redesign', status: 'Execution', priority: 'High', budget: 50000, completionPercentage: 45, health: 'Green', startDate: '2025-03-01', endDate: '2025-09-30' },
       },
       ProjectRequest: {
         type: 'object',
@@ -400,6 +405,7 @@ const spec = {
           isDemo: { type: 'boolean', default: false },
         },
         required: ['id', 'projectId', 'name'],
+        example: { id: 1, projectId: 1, name: 'Design wireframes', status: 'In Progress', priority: 'High', progress: 60, startDate: '2025-04-01', endDate: '2025-04-15', durationDays: 10 },
       },
       TaskRequest: {
         type: 'object',
@@ -453,7 +459,8 @@ const spec = {
       },
       Milestone: {
         type: 'object',
-        description: 'Legacy task milestone (from tasks table with isMilestone=true). For portfolio-level key dates, use PortfolioKeyDate instead.',
+        deprecated: true,
+        description: 'DEPRECATED: Legacy task milestone (from tasks table with isMilestone=true). For portfolio-level key dates, use PortfolioKeyDate instead.',
         properties: {
           id: { type: 'integer' },
           projectId: { type: 'integer' },
@@ -488,7 +495,8 @@ const spec = {
       },
       MilestoneRequest: {
         type: 'object',
-        description: 'Request body for creating or updating a task milestone (legacy milestones table). Fields with defaults (completed, status, priority) are optional on create.',
+        deprecated: true,
+        description: 'DEPRECATED: Request body for creating or updating a task milestone (legacy milestones table). Fields with defaults (completed, status, priority) are optional on create.',
         properties: {
           projectId: { type: 'integer' },
           milestoneNumber: { type: 'string', nullable: true },
@@ -1290,6 +1298,96 @@ const spec = {
         },
         required: ['id', 'organizationId', 'name'],
       },
+      ProjectTemplate: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          organizationId: { type: 'integer' },
+          name: { type: 'string' },
+          description: { type: 'string', nullable: true },
+          fileName: { type: 'string', nullable: true },
+          fileType: { type: 'string', nullable: true, enum: ['xml', 'csv', 'mpp'] },
+          fileUrl: { type: 'string', nullable: true },
+          createdBy: { type: 'string', nullable: true },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
+        required: ['id', 'organizationId', 'name'],
+        example: { id: 1, organizationId: 1, name: 'Agile Sprint Template', description: 'Standard 2-week sprint', fileName: 'sprint.xml', fileType: 'xml' },
+      },
+      TimesheetAuditLog: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          organizationId: { type: 'integer' },
+          entryId: { type: 'integer', nullable: true },
+          action: { type: 'string' },
+          actorId: { type: 'string' },
+          targetUserId: { type: 'string', nullable: true },
+          before: { type: 'object', nullable: true },
+          after: { type: 'object', nullable: true },
+          metadata: { type: 'object', nullable: true },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+        required: ['id', 'organizationId', 'action', 'actorId'],
+      },
+      TimesheetComment: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          entryId: { type: 'integer' },
+          organizationId: { type: 'integer' },
+          userId: { type: 'string' },
+          text: { type: 'string' },
+          commentType: { type: 'string', nullable: true },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+        required: ['id', 'entryId', 'userId', 'text'],
+      },
+      TimesheetReminderSettings: {
+        type: 'object',
+        properties: {
+          organizationId: { type: 'integer' },
+          enabled: { type: 'boolean' },
+          emailEnabled: { type: 'boolean' },
+          notificationEnabled: { type: 'boolean' },
+          submissionReminderDays: { type: 'array', items: { type: 'integer' } },
+          approvalReminderDays: { type: 'integer' },
+          escalationThresholdDays: { type: 'integer' },
+          frequencyCap: { type: 'integer' },
+          digestEnabled: { type: 'boolean' },
+          digestDay: { type: 'integer' },
+          scheduledHour: { type: 'integer', minimum: 0, maximum: 23 },
+          scheduledMinute: { type: 'integer', enum: [0, 15, 30, 45] },
+        },
+        required: ['organizationId'],
+      },
+      TimesheetSettings: {
+        type: 'object',
+        properties: {
+          organizationId: { type: 'integer' },
+          minWeeklyHours: { type: 'string' },
+          maxWeeklyHours: { type: 'string' },
+          overtimeThreshold: { type: 'string' },
+          gracePeriodDays: { type: 'integer' },
+          mandatoryNotes: { type: 'boolean' },
+        },
+        required: ['organizationId'],
+      },
+      ReferralCode: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          userId: { type: 'integer' },
+          code: { type: 'string' },
+          commissionPercent: { type: 'number' },
+          isActive: { type: 'boolean' },
+          totalReferrals: { type: 'integer' },
+          totalEarningsCents: { type: 'integer' },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+        required: ['id', 'userId', 'code'],
+      },
     },
   },
   security: [{ sessionAuth: [] }, { bearerAuth: [] }],
@@ -1359,6 +1457,18 @@ const spec = {
       delete: op('Users', 'Delete a user', {
         parameters: [pathId('userId')],
         responses: { ...r200('User deleted'), ...fullRes },
+      }),
+    },
+    '/users/{userId}/public-profile': {
+      get: op('Users', 'Get user public profile', {
+        parameters: [pathId('userId')],
+        responses: { ...r200('Public profile data', { type: 'object', properties: { user: ref('User'), stats: { type: 'object' }, score: { type: 'number' } } }), ...idRes },
+      }),
+    },
+    '/users/{userId}/badges/{badgeId}/image.png': {
+      get: op('Users', 'Get user badge image', {
+        parameters: [pathId('userId'), pathId('badgeId')],
+        responses: { '200': { description: 'Badge PNG image', content: { 'image/png': { schema: { type: 'string', format: 'binary' } } } }, ...idRes },
       }),
     },
 
@@ -1453,6 +1563,29 @@ const spec = {
       get: op('Organizations', 'Get all task assignments for organization', {
         parameters: [pathId()],
         responses: { ...r200('Task assignments'), ...idRes },
+      }),
+    },
+    '/organizations/{id}/full-task-assignments': {
+      get: op('Organizations', 'Get all task assignments with resource details', {
+        parameters: [pathId()],
+        responses: { ...r200('Task assignments with resources'), ...idRes },
+      }),
+    },
+    '/organizations/{id}/issue-assignments': {
+      get: op('Organizations', 'Get all issue resource assignments', {
+        parameters: [pathId()],
+        responses: { ...r200('Issue assignments'), ...idRes },
+      }),
+    },
+    '/organizations/{id}/scheduling-defaults': {
+      get: op('Organizations', 'Get organization scheduling defaults', {
+        parameters: [pathId()],
+        responses: { ...r200('Scheduling defaults', { type: 'object', properties: { defaultDependencyType: { type: 'string', enum: ['FS', 'SS', 'FF', 'SF'] }, defaultLagDays: { type: 'integer' } } }), ...idRes },
+      }),
+      put: op('Organizations', 'Update organization scheduling defaults', {
+        parameters: [pathId()],
+        requestBody: body({ type: 'object', properties: { defaultDependencyType: { type: 'string', enum: ['FS', 'SS', 'FF', 'SF'] }, defaultLagDays: { type: 'integer' } } }),
+        responses: { ...r200('Scheduling defaults updated'), ...updateRes },
       }),
     },
 
@@ -1718,6 +1851,11 @@ const spec = {
         responses: { ...r200('Cost updated'), ...createRes },
       }),
     },
+    '/admin/users/activity-counts': {
+      get: op('Admin', 'Get user activity counts', {
+        responses: { ...r200('Activity counts per user'), ...stdRes },
+      }),
+    },
     '/admin/monitoring/overview': {
       get: op('Monitoring', 'System overview dashboard', {
         responses: { ...r200('System overview'), ...stdRes },
@@ -1924,6 +2062,25 @@ const spec = {
         responses: { ...r204('Key date deleted'), ...fullRes },
       }),
     },
+    '/portfolios/{id}/escalated-items': {
+      get: op('Portfolios', 'Get escalated risks and issues for portfolio', {
+        parameters: [pathId()],
+        responses: { ...r200('Escalated items', { type: 'object', properties: { risks: arrOf('Risk'), issues: arrOf('Issue') } }), ...idRes },
+      }),
+    },
+    '/portfolios/{id}/scoring-rollup': {
+      get: op('Portfolios', 'Get portfolio scoring rollup', {
+        parameters: [pathId()],
+        responses: { ...r200('Scoring rollup', { type: 'object', properties: { portfolioId: { type: 'integer' }, overallScore: { type: 'number' }, criteria: { type: 'array', items: { type: 'object' } } } }), ...idRes },
+      }),
+    },
+    '/portfolios/{id}/scoring-config': {
+      put: op('Portfolios', 'Update portfolio scoring aggregation config', {
+        parameters: [pathId()],
+        requestBody: body({ type: 'object', properties: { criteriaId: { type: 'integer' }, aggregationMethod: { type: 'string', enum: ['average', 'sum', 'max', 'min', 'weighted-average'] } } }),
+        responses: { ...r200('Scoring config updated'), ...updateRes },
+      }),
+    },
     '/portfolios/{id}/risk-assessment': {
       post: op('Portfolios', 'Run AI risk assessment for portfolio', {
         parameters: [pathId()],
@@ -2055,6 +2212,50 @@ const spec = {
           },
           ...fullRes,
         },
+      }),
+    },
+    '/projects/import-csv': {
+      post: op('Projects', 'Import project from CSV file', {
+        requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' }, organizationId: { type: 'integer' }, portfolioId: { type: 'integer', nullable: true } } } } } },
+        responses: { ...r201('Project imported', ref('Project')), ...createRes },
+      }),
+    },
+    '/projects/{id}/make-editable': {
+      post: op('Projects', 'Convert read-only project to editable', {
+        parameters: [pathId()],
+        responses: { ...r200('Project is now editable', ref('Project')), ...updateRes },
+      }),
+    },
+    '/projects/{id}/sync-planner': {
+      post: op('Projects', 'Sync project data to/from planner view', {
+        parameters: [pathId()],
+        responses: { ...r200('Planner synced'), ...updateRes },
+      }),
+    },
+    '/projects/{id}/tasks-baseline': {
+      post: op('Projects', 'Create a baseline snapshot of current task data', {
+        parameters: [pathId()],
+        requestBody: body({ type: 'object', properties: { name: { type: 'string' }, description: { type: 'string', nullable: true } } }),
+        responses: { ...r201('Baseline created'), ...createRes },
+      }),
+    },
+    '/projects/{id}/status-report': {
+      post: op('Projects', 'Generate AI status report for project', {
+        parameters: [pathId()],
+        responses: { ...r201('Status report generated', { type: 'object', properties: { id: { type: 'integer' }, content: { type: 'string' }, generatedAt: { type: 'string', format: 'date-time' } } }), ...createRes },
+      }),
+    },
+    '/projects/{id}/risks/pdf': {
+      get: op('Projects', 'Export project risk register as PDF', {
+        parameters: [pathId()],
+        responses: { '200': { description: 'Risk register PDF', content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } } } }, ...idRes },
+      }),
+    },
+    '/projects/{id}/share': {
+      post: op('Projects', 'Share project with users or generate share link', {
+        parameters: [pathId()],
+        requestBody: body({ type: 'object', properties: { emails: { type: 'array', items: { type: 'string' } }, permission: { type: 'string', enum: ['view', 'edit'] } } }),
+        responses: { ...r200('Project shared'), ...createRes },
       }),
     },
 
@@ -2250,6 +2451,18 @@ const spec = {
         parameters: [pathId('riskId')],
         requestBody: body({ type: 'object', properties: { resourceIds: { type: 'array', items: { type: 'integer' } } } }),
         responses: { ...r200('Assignments updated'), ...updateRes },
+      }),
+    },
+    '/risks/ai-mitigation': {
+      post: op('Risks', 'Generate AI mitigation suggestions for a risk', {
+        requestBody: body({ type: 'object', properties: { riskId: { type: 'integer' }, context: { type: 'string', nullable: true } }, required: ['riskId'] }),
+        responses: { ...r200('AI mitigation suggestions', { type: 'object', properties: { suggestions: { type: 'array', items: { type: 'string' } } } }), ...createRes },
+      }),
+    },
+    '/risks/{id}/convert-to-issue': {
+      post: op('Risks', 'Convert a risk to an issue', {
+        parameters: [pathId()],
+        responses: { ...r200('Risk converted to issue', ref('Issue')), ...updateRes },
       }),
     },
 
@@ -2694,6 +2907,54 @@ const spec = {
       delete: op('Timesheets', 'Delete time category', {
         parameters: [pathId()],
         responses: { ...r200('Category deleted'), ...fullRes },
+      }),
+    },
+    '/timesheet-audit-log': {
+      get: op('Timesheets', 'Get timesheet audit log', {
+        parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', false, 'Filter from date'), qStr('endDate', false, 'Filter to date'), qStr('action', false, 'Filter by action'), qInt('page', false, 'Page number'), qInt('pageSize', false, 'Page size')],
+        responses: { ...r200('Audit log entries', { type: 'object', properties: { logs: arrOf('TimesheetAuditLog'), total: { type: 'integer' }, page: { type: 'integer' }, pageSize: { type: 'integer' } } }), ...authRes },
+      }),
+    },
+    '/timesheet-comments': {
+      get: op('Timesheets', 'List timesheet comments for an entry', {
+        parameters: [qInt('entryId', true, 'Timesheet entry ID')],
+        responses: { ...r200('Comments', arrOf('TimesheetComment')), ...authRes },
+      }),
+      post: op('Timesheets', 'Add a comment to a timesheet entry', {
+        requestBody: body({ type: 'object', properties: { entryId: { type: 'integer' }, text: { type: 'string' }, commentType: { type: 'string', nullable: true } }, required: ['entryId', 'text'] }),
+        responses: { ...r201('Comment created', ref('TimesheetComment')), ...inputRes },
+      }),
+    },
+    '/timesheet-reminder': {
+      get: op('Timesheets', 'Get timesheet reminder settings', {
+        parameters: [qInt('organizationId', true, 'Organization ID')],
+        responses: { ...r200('Reminder settings', ref('TimesheetReminderSettings')), ...authRes },
+      }),
+      put: op('Timesheets', 'Update timesheet reminder settings', {
+        requestBody: body(ref('TimesheetReminderSettings')),
+        responses: { ...r200('Reminder settings updated'), ...inputRes },
+      }),
+    },
+    '/timesheet-reminder/send': {
+      post: op('Timesheets', 'Send timesheet reminders now', {
+        requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' } }, required: ['organizationId'] }),
+        responses: { ...r200('Reminders sent'), ...inputRes },
+      }),
+    },
+    '/timesheets/bulk-approve': {
+      post: op('Timesheets', 'Bulk approve multiple timesheet entries', {
+        requestBody: body({ type: 'object', properties: { entryIds: { type: 'array', items: { type: 'integer' } } }, required: ['entryIds'] }),
+        responses: { ...r200('Entries approved', { type: 'object', properties: { approved: { type: 'integer' }, failed: { type: 'integer' } } }), ...inputRes },
+      }),
+    },
+    '/timesheet-settings': {
+      get: op('Timesheets', 'Get timesheet settings', {
+        parameters: [qInt('organizationId', true, 'Organization ID')],
+        responses: { ...r200('Timesheet settings', ref('TimesheetSettings')), ...authRes },
+      }),
+      put: op('Timesheets', 'Update timesheet settings', {
+        requestBody: body(ref('TimesheetSettings')),
+        responses: { ...r200('Settings updated'), ...inputRes },
       }),
     },
 
@@ -3639,6 +3900,132 @@ const spec = {
       post: op('Help Tickets', 'Submit a help ticket', {
         requestBody: body(ref('HelpTicket')),
         responses: { ...r201('Ticket submitted', ref('HelpTicket')), ...inputRes },
+      }),
+    },
+
+    // ======================== PROJECT TEMPLATES ========================
+    '/project-templates': {
+      get: op('Project Templates', 'List project templates', {
+        parameters: [qInt('organizationId', true, 'Organization ID')],
+        responses: { ...r200('Project templates', arrOf('ProjectTemplate')), ...authRes },
+      }),
+      post: op('Project Templates', 'Create a project template', {
+        requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' }, organizationId: { type: 'integer' }, file: { type: 'string', format: 'binary' } }, required: ['name', 'organizationId'] } } } },
+        responses: { ...r201('Template created', ref('ProjectTemplate')), ...inputRes },
+      }),
+    },
+    '/project-templates/from-project': {
+      post: op('Project Templates', 'Create a template from an existing project', {
+        requestBody: body({ type: 'object', properties: { projectId: { type: 'integer' }, name: { type: 'string' }, description: { type: 'string', nullable: true } }, required: ['projectId', 'name'] }),
+        responses: { ...r201('Template created from project', ref('ProjectTemplate')), ...inputRes },
+      }),
+    },
+    '/project-templates/{id}': {
+      get: op('Project Templates', 'Get project template by ID', {
+        parameters: [pathId()],
+        responses: { ...r200('Template details', ref('ProjectTemplate')), ...idRes },
+      }),
+      put: op('Project Templates', 'Update a project template', {
+        parameters: [pathId()],
+        requestBody: body({ type: 'object', properties: { name: { type: 'string' }, description: { type: 'string', nullable: true } } }),
+        responses: { ...r200('Template updated'), ...updateRes },
+      }),
+      delete: op('Project Templates', 'Delete a project template', {
+        parameters: [pathId()],
+        responses: { ...r204('Template deleted'), ...fullRes },
+      }),
+    },
+    '/project-templates/{id}/apply': {
+      post: op('Project Templates', 'Apply a template to create a new project', {
+        parameters: [pathId()],
+        requestBody: body({ type: 'object', properties: { projectName: { type: 'string' }, portfolioId: { type: 'integer', nullable: true }, organizationId: { type: 'integer' } }, required: ['projectName', 'organizationId'] }),
+        responses: { ...r201('Project created from template', ref('Project')), ...createRes },
+      }),
+    },
+    '/project-templates/{id}/preview': {
+      get: op('Project Templates', 'Preview what applying a template would produce', {
+        parameters: [pathId()],
+        responses: { ...r200('Template preview', { type: 'object', properties: { tasks: { type: 'array', items: { type: 'object' } }, milestones: { type: 'array', items: { type: 'object' } }, resources: { type: 'array', items: { type: 'object' } } } }), ...idRes },
+      }),
+    },
+
+    // ======================== REFERRALS ========================
+    '/referral-code': {
+      get: op('Referrals', 'Get current user referral code', {
+        responses: { ...r200('Referral code', ref('ReferralCode')), ...authRes },
+      }),
+      post: op('Referrals', 'Create or regenerate referral code', {
+        responses: { ...r201('Referral code created', ref('ReferralCode')), ...authRes },
+      }),
+    },
+    '/referral-code/validate/{code}': {
+      get: op('Referrals', 'Validate a referral code', {
+        security: [],
+        parameters: [{ name: 'code', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { ...r200('Validation result', { type: 'object', properties: { valid: { type: 'boolean' }, referrerName: { type: 'string', nullable: true } } }), ...e400 },
+      }),
+    },
+    '/referral-stats': {
+      get: op('Referrals', 'Get referral statistics for current user', {
+        responses: { ...r200('Referral stats', { type: 'object', properties: { totalReferrals: { type: 'integer' }, pendingPayouts: { type: 'integer' }, totalEarningsCents: { type: 'integer' }, referrals: { type: 'array', items: { type: 'object' } } } }), ...authRes },
+      }),
+    },
+    '/referral-payouts': {
+      get: op('Referrals', 'List referral payouts', {
+        responses: { ...r200('Payouts list'), ...authRes },
+      }),
+    },
+    '/admin/referral-payouts': {
+      get: op('Referrals', 'Admin list all pending referral payouts', {
+        responses: { ...r200('All pending payouts'), ...stdRes },
+      }),
+      post: op('Referrals', 'Admin process referral payout', {
+        requestBody: body({ type: 'object', properties: { payoutId: { type: 'integer' }, status: { type: 'string', enum: ['approved', 'rejected'] } }, required: ['payoutId', 'status'] }),
+        responses: { ...r200('Payout processed'), ...createRes },
+      }),
+    },
+
+    // ======================== PLANNER ========================
+    '/planner/import': {
+      post: op('Projects', 'Import tasks from Microsoft Planner', {
+        requestBody: body({ type: 'object', properties: { planId: { type: 'string' }, projectId: { type: 'integer' }, organizationId: { type: 'integer' } }, required: ['planId', 'projectId'] }),
+        responses: { ...r201('Planner tasks imported'), ...createRes },
+      }),
+    },
+
+    // ======================== UNCON2026 ========================
+    '/uncon2026/selfie': {
+      get: op('Other', 'Get UNCON2026 selfie for current user', {
+        responses: { ...r200('Selfie data', { type: 'object', properties: { id: { type: 'integer' }, imageUrl: { type: 'string' }, createdAt: { type: 'string', format: 'date-time' } } }), ...authRes },
+      }),
+      post: op('Other', 'Upload UNCON2026 selfie', {
+        requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { image: { type: 'string', format: 'binary' } }, required: ['image'] } } } },
+        responses: { ...r201('Selfie uploaded'), ...createRes },
+      }),
+      delete: op('Other', 'Delete UNCON2026 selfie', {
+        responses: { ...r204('Selfie deleted'), ...authRes },
+      }),
+    },
+    '/uncon2026/selfie/all': {
+      get: op('Other', 'Get all UNCON2026 selfies (gallery)', {
+        security: [],
+        responses: { ...r200('All selfies', { type: 'array', items: { type: 'object', properties: { id: { type: 'integer' }, userId: { type: 'string' }, imageUrl: { type: 'string' } } } }) },
+      }),
+    },
+    '/uncon2026/selfie/collage': {
+      get: op('Other', 'Get UNCON2026 selfie collage image', {
+        security: [],
+        responses: { '200': { description: 'Collage image', content: { 'image/png': { schema: { type: 'string', format: 'binary' } } } } },
+      }),
+    },
+    '/uncon2026/selfie/{id}': {
+      get: op('Other', 'Get specific UNCON2026 selfie by ID', {
+        parameters: [pathId()],
+        responses: { ...r200('Selfie data'), ...idRes },
+      }),
+      delete: op('Other', 'Delete specific UNCON2026 selfie (admin)', {
+        parameters: [pathId()],
+        responses: { ...r204('Selfie deleted'), ...fullRes },
       }),
     },
 
