@@ -2172,17 +2172,19 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
   const activeCriteria = criteria?.filter(c => c.isActive) || [];
   
   const calculateTotalScore = () => {
-    let totalWeightedScore = 0;
+    let totalWeighted = 0;
     let totalWeight = 0;
     activeCriteria.forEach(c => {
       const score = localScores[c.id]?.score;
       if (score !== undefined) {
         const weight = parseFloat(String(c.weight)) || 1;
-        totalWeightedScore += score * weight;
+        const maxScore = c.maxScore || 10;
+        const normalizedScore = score / maxScore;
+        totalWeighted += normalizedScore * weight;
         totalWeight += weight;
       }
     });
-    return totalWeight > 0 ? (totalWeightedScore / totalWeight).toFixed(2) : 'N/A';
+    return totalWeight > 0 ? ((totalWeighted / totalWeight) * 10).toFixed(2) : 'N/A';
   };
 
   return (
