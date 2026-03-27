@@ -17,6 +17,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { HoneypotField } from "@/components/HoneypotField";
 import { IndustrySolutionsMenu, IndustrySolutionsMobileLinks } from "@/components/IndustrySolutionsMenu";
 import { EventsMenu, EventsMobileLinks } from "@/components/EventsMenu";
+import { LandingFooter } from "@/components/layout/LandingFooter";
 import { motion, useInView } from "framer-motion";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
@@ -563,16 +564,7 @@ export default function PartnerProgramPage() {
         </section>
       </main>
 
-      <footer className="border-t border-border bg-muted/30 px-6 md:px-12 lg:px-20 py-8">
-        <div className="max-w-[1400px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <img src={logoBlack} alt="FridayReport.AI" className="h-6 object-contain dark:invert" />
-          <div className="flex items-center gap-6 text-sm text-muted-foreground">
-            <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>
-            <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
-            <Link href="/signup" className="hover:text-foreground transition-colors">Sign Up</Link>
-          </div>
-        </div>
-      </footer>
+      <LandingFooter />
     </div>
   );
 }
