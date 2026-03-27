@@ -13,7 +13,7 @@ import { useIssueResourceAssignments, useUpdateIssueResourceAssignments } from "
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
 import { useChangeRequests, useCreateChangeRequest, useUpdateChangeRequest, useDeleteChangeRequest } from "@/hooks/use-change-requests";
 import { useProjectDocuments, useCreateProjectDocument, useUpdateProjectDocument, useDeleteProjectDocument } from "@/hooks/use-project-documents";
-import { useScoringCriteria, useCreateScoringCriteria, useDeleteScoringCriteria, useProjectScores, useSaveProjectScore, useProjectBenefits, useCreateProjectBenefit, useUpdateProjectBenefit, useDeleteProjectBenefit, useProjectDecisions, useCreateProjectDecision, useUpdateProjectDecision, useDeleteProjectDecision } from "@/hooks/use-project-features";
+import { useScoringCriteria, useCreateScoringCriteria, useUpdateScoringCriteria, useDeleteScoringCriteria, useProjectScores, useSaveProjectScore, useProjectBenefits, useCreateProjectBenefit, useUpdateProjectBenefit, useDeleteProjectBenefit, useProjectDecisions, useCreateProjectDecision, useUpdateProjectDecision, useDeleteProjectDecision } from "@/hooks/use-project-features";
 import { useLessonsLearned, useCreateLessonLearned, useUpdateLessonLearned, useDeleteLessonLearned } from "@/hooks/use-lessons-learned";
 import { insertIssueSchema } from "@shared/schema";
 import type { Issue, ProjectFinancial, ChangeRequest, ProjectDocument, Risk, Task, ProjectInvoice, InvoiceNote } from "@shared/schema";
@@ -2085,6 +2085,7 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
   const { data: criteria, isLoading: loadingCriteria } = useScoringCriteria(organizationId);
   const { data: scores, isLoading: loadingScores } = useProjectScores(projectId);
   const createCriteria = useCreateScoringCriteria();
+  const updateCriteria = useUpdateScoringCriteria();
   const deleteCriteria = useDeleteScoringCriteria();
   const saveScore = useSaveProjectScore();
   const { toast } = useToast();
@@ -2092,6 +2093,8 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
   const [showAddCriteria, setShowAddCriteria] = useState(false);
   const [newCriteria, setNewCriteria] = useState({ name: '', description: '', category: 'Strategic', weight: '1', minScore: 0, maxScore: 10 });
   const [localScores, setLocalScores] = useState<Record<number, { score: number; justification: string }>>({});
+  const [editingWeightId, setEditingWeightId] = useState<number | null>(null);
+  const [editingWeightValue, setEditingWeightValue] = useState('');
 
   useEffect(() => {
     if (scores) {
@@ -2139,6 +2142,26 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
       toast({ title: "Criteria deleted" });
     } catch {
       toast({ title: "Error", description: "Failed to delete criteria", variant: "destructive" });
+    }
+  };
+
+  const startEditWeight = (c: { id: number; weight: string | null }) => {
+    setEditingWeightId(c.id);
+    setEditingWeightValue(String(c.weight || '1'));
+  };
+
+  const handleSaveWeight = async (criteriaId: number) => {
+    const parsed = parseFloat(editingWeightValue);
+    if (isNaN(parsed) || parsed <= 0) {
+      toast({ title: "Invalid weight", description: "Weight must be a positive number", variant: "destructive" });
+      return;
+    }
+    try {
+      await updateCriteria.mutateAsync({ id: criteriaId, organizationId, data: { weight: editingWeightValue } });
+      toast({ title: "Weight updated" });
+      setEditingWeightId(null);
+    } catch {
+      toast({ title: "Error", description: "Failed to update weight", variant: "destructive" });
     }
   };
 
@@ -2219,7 +2242,41 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
                 <div>
                   <div className="font-medium">{c.name}</div>
                   <div className="text-sm text-muted-foreground">{c.description}</div>
-                  <Badge variant="secondary" className="mt-1">{c.category}</Badge>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant="secondary">{c.category}</Badge>
+                    {editingWeightId === c.id ? (
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground">Weight:</span>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min="0.1"
+                          value={editingWeightValue}
+                          onChange={e => setEditingWeightValue(e.target.value)}
+                          className="h-6 w-16 text-xs px-1"
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleSaveWeight(c.id);
+                            if (e.key === 'Escape') setEditingWeightId(null);
+                          }}
+                          autoFocus
+                        />
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleSaveWeight(c.id)}>
+                          <Check className="h-3 w-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingWeightId(null)}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <button
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                        onClick={() => startEditWeight(c)}
+                      >
+                        Weight: {c.weight || '1'}
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => handleDeleteCriteria(c.id)} data-testid={`button-delete-criteria-${c.id}`}>
                   <Trash2 className="h-4 w-4" />
