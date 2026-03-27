@@ -323,7 +323,7 @@ export default function Calendar() {
       {/* Navigation controls */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Button 
                 variant="outline" 
@@ -348,23 +348,23 @@ export default function Calendar() {
               >
                 Today
               </Button>
+
+              <AnimatePresence mode="wait">
+                <motion.h2
+                  key={getTitle()}
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="text-xl font-semibold text-foreground whitespace-nowrap"
+                >
+                  {getTitle()}
+                </motion.h2>
+              </AnimatePresence>
             </div>
 
-            <AnimatePresence mode="wait">
-              <motion.h2
-                key={getTitle()}
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="text-xl font-semibold text-foreground"
-              >
-                {getTitle()}
-              </motion.h2>
-            </AnimatePresence>
-
             {/* Filter and Jump controls */}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center border rounded-lg p-1 gap-1">
+            <div className="flex items-center gap-2 overflow-x-auto">
+              <div className="flex items-center border rounded-lg p-1 gap-1 shrink-0">
                 <Button
                   variant={eventFilter === "all" ? "default" : "ghost"}
                   size="sm"
@@ -378,7 +378,7 @@ export default function Calendar() {
                   variant={eventFilter === "milestone" ? "default" : "ghost"}
                   size="sm"
                   onClick={() => setEventFilter("milestone")}
-                  className="h-7 px-2 text-xs gap-1"
+                  className="h-7 px-2 text-xs gap-1 whitespace-nowrap"
                   data-testid="filter-milestones"
                 >
                   <Target className="h-3 w-3" />
@@ -409,7 +409,7 @@ export default function Calendar() {
                 variant="outline"
                 size="sm"
                 onClick={jumpToNearestEvent}
-                className="h-7 gap-1"
+                className="h-7 gap-1 shrink-0 whitespace-nowrap"
                 data-testid="button-jump-nearest"
                 disabled={filteredEvents.length === 0}
               >
