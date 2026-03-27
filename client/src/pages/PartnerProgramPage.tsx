@@ -20,6 +20,11 @@ import { EventsMenu, EventsMobileLinks } from "@/components/EventsMenu";
 import { motion, useInView } from "framer-motion";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
+import pmiLogo from "@assets/pmi-logo-DQ-6QQ___1773339567528.png";
+import pmogaLogo from "@assets/pmoga-logo.png";
+import ipmaLogo from "@assets/ipma-logo.png";
+import apmLogo from "@assets/apm-logo.svg";
+import aipmLogo from "@assets/aipm-logo.png";
 
 function useForceLightTheme() {
   useEffect(() => {
@@ -108,11 +113,11 @@ const partnerTypes = [
 ];
 
 const communityOrgs = [
-  { name: "PMI", description: "Project Management Institute" },
-  { name: "PMO GA", description: "PMO Global Alliance" },
-  { name: "IPMA", description: "International Project Management Association" },
-  { name: "APM", description: "Association for Project Management" },
-  { name: "AIPM", description: "Australian Institute of Project Management" },
+  { name: "PMI", description: "Project Management Institute", logo: pmiLogo },
+  { name: "PMO GA", description: "PMO Global Alliance", logo: pmogaLogo },
+  { name: "IPMA", description: "International Project Management Association", logo: ipmaLogo },
+  { name: "APM", description: "Association for Project Management", logo: apmLogo },
+  { name: "AIPM", description: "Australian Institute of Project Management", logo: aipmLogo },
 ];
 
 const stats = [
@@ -400,11 +405,15 @@ export default function PartnerProgramPage() {
                 </p>
               </motion.div>
             </AnimatedSection>
-            <AnimatedSection className="flex flex-wrap items-center justify-center gap-8 md:gap-14">
+            <AnimatedSection className="flex flex-wrap items-center justify-center gap-10 md:gap-16">
               {communityOrgs.map((org, i) => (
-                <motion.div key={i} variants={fadeUp} className="text-center">
-                  <div className="text-lg font-bold text-white/90">{org.name}</div>
-                  <div className="text-xs text-slate-400 mt-0.5">{org.description}</div>
+                <motion.div key={i} variants={fadeUp} className="flex flex-col items-center gap-2">
+                  <img
+                    src={org.logo}
+                    alt={`${org.name} - ${org.description}`}
+                    className="h-10 md:h-12 w-auto object-contain brightness-0 invert opacity-80 hover:opacity-100 transition-opacity duration-300"
+                  />
+                  <div className="text-[11px] text-slate-400 mt-1">{org.description}</div>
                 </motion.div>
               ))}
             </AnimatedSection>
