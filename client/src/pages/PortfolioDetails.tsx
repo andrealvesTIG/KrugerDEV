@@ -3585,12 +3585,24 @@ function PortfolioScoringTab({ portfolioId }: { portfolioId: number }) {
                   </div>
                 </div>
 
-                <div className="h-2 bg-muted rounded-full overflow-hidden mb-3">
+                <div className="h-2 bg-muted rounded-full overflow-hidden mb-2">
                   <div
                     className={cn("h-full rounded-full transition-all duration-500", getScoreBarColor(criterion.aggregatedScore, maxScore))}
                     style={{ width: `${Math.min(barWidth, 100)}%` }}
                   />
                 </div>
+
+                {criterion.aggregatedScore !== null && (() => {
+                  const weight = parseFloat(String(criterion.criteriaWeight)) || 1;
+                  const normalized = criterion.aggregatedScore! / maxScore;
+                  const totalWeight = rollup.criteria.reduce((sum, c) => sum + (c.aggregatedScore !== null ? (parseFloat(String(c.criteriaWeight)) || 1) : 0), 0);
+                  const contributionPct = totalWeight > 0 ? (normalized * weight / totalWeight) * 100 : 0;
+                  return (
+                    <div className="text-xs text-muted-foreground mb-3">
+                      Weighted contribution: {(normalized * weight).toFixed(2)} / {totalWeight.toFixed(1)} ({contributionPct.toFixed(1)}% of overall score)
+                    </div>
+                  );
+                })()}
 
                 <Button
                   variant="ghost"
