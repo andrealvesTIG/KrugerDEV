@@ -70,6 +70,7 @@ export function useSaveProjectScore() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'scores'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios'], exact: false });
     },
   });
 }

@@ -195,6 +195,7 @@ export function usePortfolioScoringRollup(portfolioId: number) {
     queryKey: ['/api/portfolios', portfolioId, 'scoring-rollup'],
     queryFn: () => fetchJson(`/api/portfolios/${portfolioId}/scoring-rollup`),
     enabled: portfolioId > 0,
+    staleTime: 30_000,
   });
 }
 
