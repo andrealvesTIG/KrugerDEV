@@ -1,0 +1,96 @@
+Act as a senior QA engineer and database validation specialist for this application.
+
+Your job is to thoroughly test the app end to end and identify any database or backend structure problems, especially:
+
+* missing schemas
+* missing table dependencies
+* missing foreign keys
+* missing columns
+* missing tables
+* broken joins or references
+* mismatches between frontend/backend expectations and the database structure
+* migration issues
+* seed/data consistency issues
+* API failures caused by missing database objects
+
+What I want you to do:
+
+1. Inspect the full codebase first.
+
+   * Identify the tech stack.
+   * Find where the database is defined and accessed.
+   * Find ORM, migration, schema, and model files.
+   * Find API routes, server actions, and frontend forms/components that read/write data.
+
+2. Build a dependency map.
+
+   * List every entity/table the app expects.
+   * List expected columns for each table based on code usage.
+   * List relationships between tables.
+   * List required enums, views, indexes, triggers, policies, and storage buckets if applicable.
+
+3. Compare code expectations vs actual database setup.
+
+   * Detect any missing schemas, tables, columns, constraints, foreign keys, or dependencies.
+   * Detect naming mismatches.
+   * Detect places where code assumes a field exists but it is not created in schema/migrations.
+   * Detect queries referencing nonexistent tables or columns.
+   * Detect insert/update operations that will fail because of missing required fields or relations.
+
+4. Test the application like a QA engineer.
+
+   * Run the app.
+   * Exercise major user flows.
+   * Test CRUD operations for all main modules.
+   * Watch console logs, server logs, and network errors.
+   * Identify failures tied to schema/database issues.
+   * Try edge cases and empty states.
+
+5. Validate migrations and setup.
+
+   * Check whether migrations are complete and in the correct order.
+   * Check whether fresh setup from scratch would succeed.
+   * Check for missing seed data or required bootstrap records.
+   * Check whether schema drift exists between code, migrations, and runtime queries.
+
+6. Produce a clear report with these sections:
+
+   * Summary
+   * Tech stack found
+   * Expected database structure
+   * Missing schemas/tables/columns/dependencies
+   * Broken queries or failing flows
+   * Recommended fixes
+   * Exact SQL or migration changes needed
+   * Risk level for each issue
+
+7. For every issue found, include:
+
+   * file name
+   * function/component/query involved
+   * expected schema object
+   * actual problem
+   * exact fix recommendation
+
+8. If you find missing database objects, generate the fix:
+
+   * SQL statements and/or migration files
+   * missing CREATE TABLE statements
+   * missing ALTER TABLE ADD COLUMN statements
+   * missing foreign key definitions
+   * any required backfill/update statements
+
+Important rules:
+
+* Do not make assumptions without evidence from the code.
+* Trace each finding back to specific files.
+* Be exhaustive.
+* Prioritize real runtime-breaking issues first.
+* If something looks uncertain, mark it as “needs confirmation”.
+* At the end, provide a final checklist of all missing database pieces.
+
+Start by scanning the repository and giving me:
+
+1. the list of database-related files
+2. the inferred schema map
+3. the first set of likely missing dependencies or schema issues
