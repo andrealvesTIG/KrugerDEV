@@ -2071,7 +2071,37 @@ const spec = {
     '/portfolios/{id}/scoring-rollup': {
       get: op('Portfolios', 'Get portfolio scoring rollup', {
         parameters: [pathId()],
-        responses: { ...r200('Scoring rollup', { type: 'object', properties: { portfolioId: { type: 'integer' }, overallScore: { type: 'number' }, criteria: { type: 'array', items: { type: 'object' } } } }), ...idRes },
+        responses: { ...r200('Scoring rollup', { type: 'object', properties: {
+          portfolioId: { type: 'integer' },
+          portfolioName: { type: 'string' },
+          projectCount: { type: 'integer' },
+          overallScore: { type: 'number', nullable: true, description: 'Normalized weighted score on a 0-10 scale. Each criterion aggregatedScore is divided by its maxScore before weighting.' },
+          keyDateCompliance: { type: 'object', description: 'Computed compliance metrics from portfolio key dates', properties: {
+            total: { type: 'integer', description: 'Total number of active key dates' },
+            completed: { type: 'integer', description: 'Key dates marked completed' },
+            overdue: { type: 'integer', description: 'Key dates past due and not completed' },
+            atRisk: { type: 'integer', description: 'Key dates flagged as at risk' },
+            upcoming: { type: 'integer', description: 'Key dates on track (not overdue, at risk, or completed)' },
+            complianceRate: { type: 'number', nullable: true, description: 'Percentage of key dates on track or completed (0-100). Null if no key dates exist.' },
+          } },
+          criteria: { type: 'array', items: { type: 'object', properties: {
+            criteriaId: { type: 'integer' },
+            criteriaName: { type: 'string' },
+            criteriaCategory: { type: 'string', nullable: true },
+            criteriaWeight: { type: 'string', nullable: true },
+            maxScore: { type: 'integer', nullable: true },
+            aggregationMethod: { type: 'string', enum: ['average', 'sum', 'max', 'min', 'weighted-average'] },
+            aggregatedScore: { type: 'number', nullable: true },
+            scoredProjectCount: { type: 'integer' },
+            totalProjectCount: { type: 'integer' },
+            projectBreakdown: { type: 'array', items: { type: 'object', properties: {
+              projectId: { type: 'integer' },
+              projectName: { type: 'string' },
+              score: { type: 'number', nullable: true },
+              justification: { type: 'string', nullable: true },
+            } } },
+          } } },
+        } }), ...idRes },
       }),
     },
     '/portfolios/{id}/scoring-config': {

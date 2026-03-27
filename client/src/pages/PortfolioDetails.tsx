@@ -3403,7 +3403,26 @@ function PortfolioScoringTab({ portfolioId }: { portfolioId: number }) {
     return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
 
-  if (!rollup || rollup.criteria.length === 0) {
+  if (!rollup) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="rounded-full bg-slate-50 dark:bg-slate-800 p-4 mb-4">
+            <BarChart3 className="h-8 w-8 text-slate-400" />
+          </div>
+          <h3 className="text-lg font-medium">No Scoring Data</h3>
+          <p className="text-muted-foreground mt-1 max-w-sm">
+            Unable to load scoring data for this portfolio.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const hasNoCriteria = rollup.criteria.length === 0;
+  const hasKeyDates = rollup.keyDateCompliance && rollup.keyDateCompliance.total > 0;
+
+  if (hasNoCriteria && !hasKeyDates) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12 text-center">
@@ -3437,26 +3456,87 @@ function PortfolioScoringTab({ portfolioId }: { portfolioId: number }) {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Portfolio Scoring Rollup</CardTitle>
-              <CardDescription>
-                Aggregated scores from {rollup.projectCount} project{rollup.projectCount !== 1 ? 's' : ''} in this portfolio
-              </CardDescription>
-            </div>
-            <div className="text-right">
-              <div className="text-sm text-muted-foreground">Overall Weighted Score</div>
-              <div className={cn("text-3xl font-bold", getScoreColor(rollup.overallScore, 10))}>
-                {rollup.overallScore !== null ? rollup.overallScore.toFixed(2) : 'N/A'}
+      {!hasNoCriteria && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Portfolio Scoring Rollup</CardTitle>
+                <CardDescription>
+                  Aggregated scores from {rollup.projectCount} project{rollup.projectCount !== 1 ? 's' : ''} in this portfolio
+                </CardDescription>
+              </div>
+              <div className="text-right">
+                <div className="text-sm text-muted-foreground">Overall Weighted Score</div>
+                <div className={cn("text-3xl font-bold", getScoreColor(rollup.overallScore, 10))}>
+                  {rollup.overallScore !== null ? rollup.overallScore.toFixed(2) : 'N/A'}
+                </div>
               </div>
             </div>
-          </div>
-        </CardHeader>
-      </Card>
+          </CardHeader>
+        </Card>
+      )}
 
-      <div className="space-y-4">
+      {rollup.keyDateCompliance && rollup.keyDateCompliance.total > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Key Date Compliance</CardTitle>
+            <CardDescription>
+              {rollup.keyDateCompliance.total} key date{rollup.keyDateCompliance.total !== 1 ? 's' : ''} tracked
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                <div>
+                  <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{rollup.keyDateCompliance.completed}</div>
+                  <div className="text-xs text-muted-foreground">Completed</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-rose-500" />
+                <div>
+                  <div className="text-lg font-bold text-rose-600 dark:text-rose-400">{rollup.keyDateCompliance.overdue}</div>
+                  <div className="text-xs text-muted-foreground">Overdue</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-500" />
+                <div>
+                  <div className="text-lg font-bold text-amber-600 dark:text-amber-400">{rollup.keyDateCompliance.atRisk}</div>
+                  <div className="text-xs text-muted-foreground">At Risk</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-blue-500" />
+                <div>
+                  <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{rollup.keyDateCompliance.upcoming}</div>
+                  <div className="text-xs text-muted-foreground">Upcoming</div>
+                </div>
+              </div>
+            </div>
+            {rollup.keyDateCompliance.complianceRate !== null && (
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-muted-foreground">Compliance Rate</span>
+                  <span className={cn("text-sm font-bold", rollup.keyDateCompliance.complianceRate >= 70 ? "text-emerald-600 dark:text-emerald-400" : rollup.keyDateCompliance.complianceRate >= 40 ? "text-amber-600 dark:text-amber-400" : "text-rose-600 dark:text-rose-400")}>
+                    {rollup.keyDateCompliance.complianceRate}%
+                  </span>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className={cn("h-full rounded-full transition-all duration-500", rollup.keyDateCompliance.complianceRate >= 70 ? "bg-emerald-500" : rollup.keyDateCompliance.complianceRate >= 40 ? "bg-amber-500" : "bg-rose-500")}
+                    style={{ width: `${Math.min(rollup.keyDateCompliance.complianceRate, 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {!hasNoCriteria && <div className="space-y-4">
         {rollup.criteria.map(criterion => {
           const isExpanded = expandedCriteria.has(criterion.criteriaId);
           const maxScore = criterion.maxScore || 10;
@@ -3577,7 +3657,7 @@ function PortfolioScoringTab({ portfolioId }: { portfolioId: number }) {
             </Card>
           );
         })}
-      </div>
+      </div>}
     </div>
   );
 }

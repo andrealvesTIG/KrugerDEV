@@ -172,11 +172,21 @@ export interface PortfolioScoringCriteriaRollup {
   projectBreakdown: PortfolioScoringProjectBreakdown[];
 }
 
+export interface KeyDateCompliance {
+  total: number;
+  completed: number;
+  overdue: number;
+  atRisk: number;
+  upcoming: number;
+  complianceRate: number | null;
+}
+
 export interface PortfolioScoringRollup {
   portfolioId: number;
   portfolioName: string;
   projectCount: number;
   overallScore: number | null;
+  keyDateCompliance: KeyDateCompliance;
   criteria: PortfolioScoringCriteriaRollup[];
 }
 

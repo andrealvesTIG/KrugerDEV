@@ -1050,17 +1050,56 @@ export function registerPortfolioRoutes(app: Express) {
         let totalWeight = 0;
         for (const r of scoredCriteria) {
           const weight = parseFloat(String(r.criteriaWeight)) || 1;
-          totalWeighted += r.aggregatedScore! * weight;
+          const maxScore = r.maxScore || 10;
+          let normalizedScore = r.aggregatedScore! / maxScore;
+          if (r.aggregationMethod === 'sum') {
+            normalizedScore = Math.min(normalizedScore, 1.0);
+          }
+          totalWeighted += normalizedScore * weight;
           totalWeight += weight;
         }
-        overallScore = totalWeight > 0 ? Math.round((totalWeighted / totalWeight) * 100) / 100 : null;
+        overallScore = totalWeight > 0 ? Math.round((totalWeighted / totalWeight) * 10 * 100) / 100 : null;
       }
+
+      const keyDates = await storage.getPortfolioKeyDates(portfolioId);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const total = keyDates.length;
+
+      let completedCount = 0;
+      let overdueCount = 0;
+      let atRiskCount = 0;
+      let upcomingCount = 0;
+
+      for (const kd of keyDates) {
+        if (kd.completed || kd.status === 'Completed') {
+          completedCount++;
+        } else if (kd.status === 'Overdue' || (kd.date && new Date(new Date(kd.date).toDateString()) < today)) {
+          overdueCount++;
+        } else if (kd.status === 'At Risk') {
+          atRiskCount++;
+        } else {
+          upcomingCount++;
+        }
+      }
+
+      const complianceRate = total > 0 ? Math.round(((completedCount + upcomingCount) / total) * 10000) / 100 : null;
+
+      const keyDateCompliance = {
+        total,
+        completed: completedCount,
+        overdue: overdueCount,
+        atRisk: atRiskCount,
+        upcoming: upcomingCount,
+        complianceRate,
+      };
 
       res.json({
         portfolioId,
         portfolioName: portfolio.name,
         projectCount: portfolioProjects.length,
         overallScore,
+        keyDateCompliance,
         criteria: rollup,
       });
     } catch (err) {
