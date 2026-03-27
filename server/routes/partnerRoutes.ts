@@ -11,7 +11,7 @@ const partnerApplicationRequestSchema = z.object({
   message: z.string().max(2000).optional(),
   honeypot1: z.string().default(""),
   honeypot2: z.string().default(""),
-  formLoadTime: z.number(),
+  formLoadTime: z.number().optional(),
 });
 
 const ipSubmissionTracker = new Map<string, number[]>();
@@ -51,9 +51,11 @@ export function registerPartnerRoutes(app: Express) {
         return res.status(200).json({ success: true });
       }
 
-      const elapsed = Date.now() - formLoadTime;
-      if (elapsed < 500) {
-        return res.status(200).json({ success: true });
+      if (formLoadTime) {
+        const elapsed = Date.now() - formLoadTime;
+        if (elapsed < 500) {
+          return res.status(200).json({ success: true });
+        }
       }
 
       await db.insert(partnerApplications).values({

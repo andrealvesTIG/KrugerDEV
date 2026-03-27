@@ -208,6 +208,13 @@ export default function PartnerProgramPage() {
           <div className="border-t border-border pt-3 flex flex-col gap-3">
             <Button
               variant="ghost"
+              className="w-full justify-start text-primary"
+              onClick={() => { setMobileMenuOpen(false); }}
+            >
+              Partners
+            </Button>
+            <Button
+              variant="ghost"
               className="w-full justify-start"
               onClick={() => { setLocation("/auth?source=partners"); setMobileMenuOpen(false); }}
             >
