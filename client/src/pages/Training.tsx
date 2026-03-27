@@ -317,12 +317,12 @@ export default function Training() {
         <TrainingBadgesBar modules={modules} />
 
         <Tabs defaultValue={roles[0].id} className="w-full">
-          <TabsList className="mb-6 w-full justify-start">
+          <TabsList className="mb-6 w-full justify-start overflow-x-auto">
             {roles.map((role) => {
               const Icon = role.icon;
               return (
-                <TabsTrigger key={role.id} value={role.id} className="flex items-center gap-2">
-                  <Icon className="h-4 w-4" />
+                <TabsTrigger key={role.id} value={role.id} className="flex items-center gap-2 whitespace-nowrap">
+                  <Icon className="h-4 w-4 shrink-0" />
                   {role.name}
                 </TabsTrigger>
               );

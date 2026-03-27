@@ -433,7 +433,8 @@ export default function Calendar() {
               transition={{ duration: 0.2 }}
             >
               {viewType === "month" && (
-                <div className="rounded-lg overflow-hidden">
+                <div className="rounded-lg overflow-x-auto">
+                  <div className="min-w-[600px]">
                   {/* Weekday headers */}
                   <div className="grid grid-cols-7 bg-muted border-b">
                     {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
@@ -493,11 +494,13 @@ export default function Calendar() {
                       );
                     })}
                   </div>
+                  </div>
                 </div>
               )}
 
               {viewType === "week" && (
-                <div className="rounded-lg overflow-hidden">
+                <div className="rounded-lg overflow-x-auto">
+                  <div className="min-w-[600px]">
                   {/* Weekday headers with dates */}
                   <div className="grid grid-cols-7 bg-muted border-b">
                     {daysToDisplay.map(day => (
@@ -563,6 +566,7 @@ export default function Calendar() {
                         </div>
                       );
                     })}
+                  </div>
                   </div>
                 </div>
               )}
