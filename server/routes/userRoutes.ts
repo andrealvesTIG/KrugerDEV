@@ -284,7 +284,8 @@ export function registerUserRoutes(app: Express) {
       }
       const { unconSelfieLeads } = await import("@shared/schema");
       const page = Math.max(1, Number(req.query.page) || 1);
-      const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+      const exportAll = req.query.export === 'true';
+      const limit = exportAll ? 10000 : Math.min(100, Math.max(1, Number(req.query.limit) || 50));
       const offset = (page - 1) * limit;
       const [countResult] = await db.select({ count: sql`count(*)::int` }).from(unconSelfieLeads);
       const total = countResult?.count ?? 0;

@@ -98,7 +98,7 @@ export function MarketingTab() {
 
   const exportToExcel = async () => {
     try {
-      const allRes = await fetch(`/api/admin/selfie-leads?page=1&limit=10000`, { credentials: "include" });
+      const allRes = await fetch(`/api/admin/selfie-leads?page=1&export=true`, { credentials: "include" });
       if (!allRes.ok) throw new Error("Failed to fetch all leads");
       const allData: SelfieLeadsResponse = await allRes.json();
       const headers = ["Name", "Email", "Interviewer", "Date & Time"];
