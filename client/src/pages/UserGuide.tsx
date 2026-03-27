@@ -1380,6 +1380,40 @@ export default function UserGuide() {
                       description="Remove portfolios that are no longer needed (requires admin permissions)"
                     />
                   </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Portfolio Scoring Rollup:</h4>
+                  <p className="text-muted-foreground">
+                    The Scoring tab on each portfolio automatically aggregates project-level scores into a portfolio-wide view.
+                    Scores are rolled up from individual projects using configurable aggregation methods.
+                  </p>
+                  <div className="space-y-3">
+                    <ActionItem 
+                      icon={BarChart3}
+                      title="Overall Weighted Score"
+                      description="Each criterion's aggregated score is normalized by its max score, multiplied by its weight, and combined into a single 0-10 overall score"
+                    />
+                    <ActionItem 
+                      icon={Sliders}
+                      title="Aggregation Methods"
+                      description="Choose how project scores are combined per criterion: Average, Sum, Min, Max, or Weighted Average (by project budget)"
+                    />
+                    <ActionItem 
+                      icon={TrendingUp}
+                      title="Weighted Contribution"
+                      description="Each criterion card shows its weighted contribution and percentage of the overall score, making the weight impact transparent"
+                    />
+                    <ActionItem 
+                      icon={Eye}
+                      title="Project Breakdown"
+                      description="Expand any criterion to see individual project scores, progress bars, and justification notes"
+                    />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Key Date Compliance:</h4>
+                  <p className="text-muted-foreground">
+                    The Scoring tab also tracks key date compliance across all projects in the portfolio. 
+                    Key dates are categorized as Completed, Overdue, At Risk, or Upcoming, with an overall compliance rate percentage.
+                  </p>
                 </CardContent>
               </Card>
             </section>
@@ -1559,7 +1593,7 @@ export default function UserGuide() {
                     <ActionItem 
                       icon={Plus}
                       title="Add Scoring Criterion"
-                      description="Navigate to project details, select the 'More' dropdown, then choose 'Scoring'. Click 'Add Criterion' to create a new scoring category"
+                      description="Navigate to project details, select the 'More' dropdown, then choose 'Scoring'. Click 'Add Criteria' to create a new scoring category"
                     />
                     <ActionItem 
                       icon={Sliders}
@@ -1569,9 +1603,29 @@ export default function UserGuide() {
                     <ActionItem 
                       icon={BarChart3}
                       title="Score Projects"
-                      description="Use the slider to set scores (0-10) for each criterion and add justification notes"
+                      description="Use the slider to set scores (0-10) for each criterion and add justification notes. Click 'Save Score' to persist each score"
                     />
                   </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Inline Editing:</h4>
+                  <div className="space-y-3">
+                    <ActionItem 
+                      icon={Edit}
+                      title="Edit Category"
+                      description="Click the category badge on any criterion card to change its category via a dropdown selector. The change saves immediately"
+                    />
+                    <ActionItem 
+                      icon={Edit}
+                      title="Edit Weight"
+                      description="Click the weight label on any criterion card to edit its weight inline. Press Enter to save or Escape to cancel"
+                    />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Unsaved Changes:</h4>
+                  <p className="text-muted-foreground">
+                    When you adjust the score slider or justification without saving, the criteria card highlights with an amber border 
+                    and an "Unsaved changes" label appears next to the Save button. Use the Reset button to revert to the last saved values.
+                  </p>
 
                   <h4 className="font-semibold text-foreground mt-4">Scoring Categories:</h4>
                   <div className="flex flex-wrap gap-2">
@@ -1584,9 +1638,10 @@ export default function UserGuide() {
 
                   <h4 className="font-semibold text-foreground mt-4">Weighted Total Score:</h4>
                   <p className="text-muted-foreground">
-                    The system automatically calculates a weighted total score based on all criteria scores 
-                    multiplied by their respective weights. This provides an objective overall project score 
-                    for comparison and prioritization.
+                    The system calculates a weighted total score by normalizing each criterion's score by its maximum, 
+                    multiplying by its weight, and combining into a single 0-10 scale. This provides an objective 
+                    overall project score for comparison and prioritization. Saved project scores automatically 
+                    flow into the portfolio-level Scoring Rollup.
                   </p>
                 </CardContent>
               </Card>

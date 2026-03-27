@@ -696,11 +696,12 @@ export default function PublicUserGuide() {
               <CardContent className="p-6 space-y-4 text-slate-300">
                 <p>Use scoring models to objectively evaluate and prioritize projects:</p>
                 <ul className="list-disc list-inside space-y-2 text-slate-400">
-                  <li><strong className="text-slate-200">Scoring Criteria:</strong> Define weighted criteria like strategic alignment, ROI, risk, and feasibility</li>
-                  <li><strong className="text-slate-200">Scoring Templates:</strong> Create reusable scoring models for different project types</li>
-                  <li><strong className="text-slate-200">Multi-Reviewer:</strong> Allow multiple stakeholders to score and aggregate results</li>
-                  <li><strong className="text-slate-200">Ranking:</strong> Automatically rank projects based on composite scores</li>
-                  <li><strong className="text-slate-200">What-If Analysis:</strong> Simulate different weighting scenarios to see impact on priorities</li>
+                  <li><strong className="text-slate-200">Scoring Criteria:</strong> Define weighted criteria across categories (Strategic, Financial, Risk, Resource, Technical) with configurable weights</li>
+                  <li><strong className="text-slate-200">Inline Editing:</strong> Click category badges and weight labels to edit them directly on the scoring card</li>
+                  <li><strong className="text-slate-200">Score & Justify:</strong> Use sliders to set scores (0-10) per criterion with justification notes. Unsaved changes are highlighted with an amber indicator and a Reset button</li>
+                  <li><strong className="text-slate-200">Weighted Total:</strong> Scores are normalized by max score, weighted, and combined into a single 0-10 scale for objective comparison</li>
+                  <li><strong className="text-slate-200">Portfolio Rollup:</strong> Saved project scores automatically aggregate into the portfolio Scoring Rollup with configurable aggregation methods (Average, Sum, Min, Max, Weighted Average) and weighted contribution breakdowns</li>
+                  <li><strong className="text-slate-200">Key Date Compliance:</strong> Portfolio scoring also tracks key date compliance across projects, categorizing dates as Completed, Overdue, At Risk, or Upcoming</li>
                 </ul>
               </CardContent>
             </Card>
