@@ -111,8 +111,8 @@ const partnerTypes = [
 ];
 
 const communityOrgs = [
-  { name: "PMI", description: "Project Management Institute", logo: pmiLogo },
-  { name: "PMO GA", description: "PMO Global Alliance", logo: pmogaLogo },
+  { name: "PMI", description: "Project Management Institute", logo: pmiLogo, url: "https://www.pmi.org" },
+  { name: "PMO GA", description: "PMO Global Alliance", logo: pmogaLogo, url: "https://pmoga.pmi.org" },
 ];
 
 const stats = [
@@ -403,12 +403,14 @@ export default function PartnerProgramPage() {
             <AnimatedSection className="flex flex-wrap items-center justify-center gap-10 md:gap-16">
               {communityOrgs.map((org, i) => (
                 <motion.div key={i} variants={fadeUp} className="flex flex-col items-center gap-2">
-                  <img
-                    src={org.logo}
-                    alt={`${org.name} - ${org.description}`}
-                    className="h-10 md:h-12 w-auto object-contain brightness-0 invert opacity-80 hover:opacity-100 transition-opacity duration-300"
-                  />
-                  <div className="text-[11px] text-slate-400 mt-1">{org.description}</div>
+                  <a href={org.url} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-2">
+                    <img
+                      src={org.logo}
+                      alt={`${org.name} - ${org.description}`}
+                      className="h-10 md:h-12 w-auto object-contain brightness-0 invert opacity-80 hover:opacity-100 transition-opacity duration-300"
+                    />
+                    <div className="text-[11px] text-slate-400 mt-1">{org.description}</div>
+                  </a>
                 </motion.div>
               ))}
             </AnimatedSection>
