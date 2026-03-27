@@ -274,6 +274,23 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
+  app.get('/api/admin/selfie-leads', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const user = await storage.getUser(userId);
+      if (!user || !hasAdminAccess(user)) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      const { unconSelfieLeads } = await import("@shared/schema");
+      const leads = await db.select().from(unconSelfieLeads).orderBy(desc(unconSelfieLeads.createdAt));
+      res.json(leads);
+    } catch (err) {
+      console.error("Error fetching selfie leads:", err);
+      res.status(500).json({ message: "Failed to fetch selfie leads" });
+    }
+  });
+
   // Profile analytics - engagement stats, ranking, and badges
   app.get('/api/users/:userId/profile-analytics', async (req, res) => {
     try {

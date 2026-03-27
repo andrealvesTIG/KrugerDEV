@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { AnalyticsTab } from "./AnalyticsTab";
+import { MarketingTab } from "./MarketingTab";
   import { useQuery, useMutation } from "@tanstack/react-query";
   import { queryClient, apiRequest } from "@/lib/queryClient";
   import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -10,7 +11,7 @@ import { AnalyticsTab } from "./AnalyticsTab";
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
   import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-  import { Loader2, Trash2, RefreshCw, Activity, AlertTriangle, BarChart3, Database, Server, CheckCircle, XCircle, Zap, Clock, FileText, Globe, Cpu, HardDrive, Search, RotateCcw, ChevronDown, ChevronRight, TrendingUp, Eye, Wifi, WifiOff, ArrowUp, ArrowDown, Monitor, X, Users, Building2, UserPlus, Plus, Edit, CreditCard, Wallet, Settings2 } from "lucide-react";
+  import { Loader2, Trash2, RefreshCw, Activity, AlertTriangle, BarChart3, Database, Server, CheckCircle, XCircle, Zap, Clock, FileText, Globe, Cpu, HardDrive, Search, RotateCcw, ChevronDown, ChevronRight, TrendingUp, Eye, Wifi, WifiOff, ArrowUp, ArrowDown, Monitor, X, Users, Building2, UserPlus, Plus, Edit, CreditCard, Wallet, Settings2, Megaphone } from "lucide-react";
   import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
   import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
   import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -140,7 +141,7 @@ interface OrgUsage {
   planDistribution: Array<{ plan_name: string; plan_code: string; org_count: number }>;
 }
 
-type MonitoringSubTab = 'overview' | 'api-logs' | 'users' | 'features' | 'performance' | 'database' | 'organizations' | 'analytics';
+type MonitoringSubTab = 'overview' | 'api-logs' | 'users' | 'features' | 'performance' | 'database' | 'organizations' | 'analytics' | 'marketing';
 
 export function MonitoringTab() {
   const { toast } = useToast();
@@ -2057,6 +2058,16 @@ export function MonitoringTab() {
               <Building2 className="h-4 w-4 mr-1" />
               Orgs
             </Button>
+            <Button
+              variant={subTab === 'marketing' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSubTab('marketing')}
+              data-testid="btn-subtab-marketing"
+              className="whitespace-nowrap"
+            >
+              <Megaphone className="h-4 w-4 mr-1" />
+              Marketing
+            </Button>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={handleRefresh} data-testid="btn-refresh-monitoring" className="shrink-0">
@@ -2072,6 +2083,7 @@ export function MonitoringTab() {
       {subTab === 'database' && renderDatabase()}
       {subTab === 'organizations' && renderOrgUsage()}
       {subTab === 'analytics' && <AnalyticsTab />}
+      {subTab === 'marketing' && <MarketingTab />}
     </div>
   );
 }
