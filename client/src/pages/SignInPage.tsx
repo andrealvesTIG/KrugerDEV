@@ -353,11 +353,11 @@ export default function SignInPage() {
                 <img src={logoWhite} alt="FridayReport.AI" className="h-6 sm:h-7 flex-shrink-0" />
               </div>
               <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-                <Link href="/partners" className="hidden sm:inline text-slate-200 hover:text-orange-400 text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-partners">
-                  Partners
-                </Link>
                 <Link href="/auth?source=signin" className="text-slate-200 hover:text-white text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-login">
                   Login
+                </Link>
+                <Link href="/partners" className="hidden sm:inline text-slate-200 hover:text-orange-400 text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-partners">
+                  Partners
                 </Link>
                 <Button onClick={scrollToSignIn} size="sm" className="bg-orange-500 hover:bg-orange-400 text-white font-semibold text-xs sm:text-sm px-3 sm:px-4 shadow-lg shadow-orange-500/30" data-testid="button-nav-get-started">
                   <span className="hidden sm:inline">Get Started Free</span>
