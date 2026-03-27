@@ -23,9 +23,6 @@ import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import pmiLogo from "@assets/pmi-logo-DQ-6QQ___1773339567528.png";
 import pmogaLogo from "@assets/pmoga-logo.png";
-import ipmaLogo from "@assets/ipma-logo.png";
-import apmLogo from "@assets/apm-logo.svg";
-import aipmLogo from "@assets/aipm-logo.png";
 
 function useForceLightTheme() {
   useEffect(() => {
@@ -116,9 +113,6 @@ const partnerTypes = [
 const communityOrgs = [
   { name: "PMI", description: "Project Management Institute", logo: pmiLogo },
   { name: "PMO GA", description: "PMO Global Alliance", logo: pmogaLogo },
-  { name: "IPMA", description: "International Project Management Association", logo: ipmaLogo },
-  { name: "APM", description: "Association for Project Management", logo: apmLogo },
-  { name: "AIPM", description: "Australian Institute of Project Management", logo: aipmLogo },
 ];
 
 const stats = [
