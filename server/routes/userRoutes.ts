@@ -302,13 +302,14 @@ export function registerUserRoutes(app: Express) {
         .orderBy(desc(unconSelfieLeads.createdAt))
         .limit(limit)
         .offset(offset);
+      const [globalCount] = await db.select({ count: sql`count(*)::int` }).from(unconSelfieLeads);
       const [uniqueEmails] = await db.select({ count: sql`count(DISTINCT lower(${unconSelfieLeads.email}))::int` }).from(unconSelfieLeads);
       const [uniqueInterviewers] = await db.select({ count: sql`count(DISTINCT lower(${unconSelfieLeads.interviewer}))::int` }).from(unconSelfieLeads).where(sql`${unconSelfieLeads.interviewer} IS NOT NULL`);
       res.json({
         leads,
         pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
         summary: {
-          totalLeads: total,
+          totalLeads: globalCount?.count ?? 0,
           uniqueEmails: uniqueEmails?.count ?? 0,
           uniqueInterviewers: uniqueInterviewers?.count ?? 0,
         },

@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Loader2, Download, Search, Users, Camera, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
 
 interface SelfieLead {
@@ -34,6 +35,7 @@ export function MarketingTab() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const { toast } = useToast();
   const pageSize = 50;
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -128,7 +130,7 @@ export function MarketingTab() {
         `selfie-leads-${format(new Date(), "yyyy-MM-dd")}.xlsx`
       );
     } catch {
-      console.error("Failed to export selfie leads");
+      toast({ title: "Export failed", description: "Could not export selfie leads. Please try again.", variant: "destructive" });
     }
   };
 
