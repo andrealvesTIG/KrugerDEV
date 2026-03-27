@@ -29,6 +29,7 @@ export type RiskSignal = {
   dueDate: string | null;
   status: string;
   itemType: "risk" | "issue";
+  isSimulated?: boolean;
 };
 
 interface RadarCanvasProps {
@@ -560,9 +561,14 @@ export default function RadarCanvas({
           ctx.shadowBlur = 16;
         }
 
-        ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+        ctx.fillStyle = signal.isSimulated
+          ? `rgba(${r},${g},${b},${alpha * 0.5})`
+          : `rgba(${r},${g},${b},${alpha})`;
         ctx.strokeStyle = `rgba(${r},${g},${b},${alpha * 0.8})`;
-        ctx.lineWidth = isOverdue ? 2.5 : 1.5;
+        ctx.lineWidth = isOverdue ? 2.5 : signal.isSimulated ? 2 : 1.5;
+        if (signal.isSimulated) {
+          ctx.setLineDash([3, 3]);
+        }
         if (signal.itemType === "issue") {
           ctx.beginPath();
           ctx.arc(pos.x, pos.y, dotRadius * scale, 0, Math.PI * 2);
@@ -577,6 +583,9 @@ export default function RadarCanvas({
           ctx.closePath();
           ctx.fill();
           ctx.stroke();
+        }
+        if (signal.isSimulated) {
+          ctx.setLineDash([]);
         }
         ctx.shadowBlur = 0;
 

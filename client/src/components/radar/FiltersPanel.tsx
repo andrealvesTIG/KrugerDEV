@@ -2,6 +2,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -9,8 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FastForward, RotateCcw, Play, Pause, SkipBack, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { FastForward, RotateCcw, Play, Pause, SkipBack, PanelLeftClose, PanelLeftOpen, Save, FolderOpen, Trash2, Check, X, Layers } from "lucide-react";
 import { type HorizontalMetric, HORIZONTAL_METRICS } from "./RadarCanvas";
+import { type SimulationScenario, loadScenarios, saveScenario, deleteScenario } from "@/lib/simulationScenarios";
 
 export type RadarFilters = {
   minRiskScore: number;
@@ -22,6 +26,12 @@ export type RadarFilters = {
   itemType: string;
 };
 
+export interface SimulationSummary {
+  closedCount: number;
+  newCount: number;
+  escalatedCount: number;
+}
+
 interface FiltersPanelProps {
   filters: RadarFilters;
   onChange: (filters: RadarFilters) => void;
@@ -32,6 +42,14 @@ interface FiltersPanelProps {
   onTimeProjectionChange: (months: number) => void;
   horizontalMetric: HorizontalMetric;
   onHorizontalMetricChange: (metric: HorizontalMetric) => void;
+  generateNewItems?: boolean;
+  onGenerateNewItemsChange?: (val: boolean) => void;
+  simulationSummary?: SimulationSummary;
+  reportStats?: { total: number; high: number; medium: number; low: number; costTotal: number };
+  orgId?: number;
+  activeScenarioId?: string | null;
+  onScenarioLoad?: (scenario: SimulationScenario) => void;
+  onScenarioChange?: (id: string | null) => void;
 }
 
 const SIGNAL_TYPES = [
@@ -44,14 +62,18 @@ const SIGNAL_TYPES = [
   { value: "scope", label: "Scope" },
 ];
 
+const WEEK_IN_MONTHS = 7 / 30.44;
+const MAX_WEEKS = Math.round(12 / WEEK_IN_MONTHS);
+
 const PLAYBACK_SPEEDS = [
-  { value: 0.5, label: "0.5x" },
   { value: 1, label: "1x" },
   { value: 2, label: "2x" },
   { value: 4, label: "4x" },
+  { value: 8, label: "8x" },
+  { value: 16, label: "16x" },
 ];
 
-export default function FiltersPanel({ filters, onChange, projects, portfolios, isDark, timeProjectionMonths, onTimeProjectionChange, horizontalMetric, onHorizontalMetricChange }: FiltersPanelProps) {
+export default function FiltersPanel({ filters, onChange, projects, portfolios, isDark, timeProjectionMonths, onTimeProjectionChange, horizontalMetric, onHorizontalMetricChange, generateNewItems = true, onGenerateNewItemsChange, simulationSummary, reportStats, orgId, activeScenarioId, onScenarioLoad, onScenarioChange }: FiltersPanelProps) {
   const update = (partial: Partial<RadarFilters>) => {
     onChange({ ...filters, ...partial });
   };
@@ -64,43 +86,118 @@ export default function FiltersPanel({ filters, onChange, projects, portfolios, 
   });
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const animRef = useRef<number>(0);
-  const lastFrameRef = useRef<number>(0);
+
+  const [scenarios, setScenarios] = useState<SimulationScenario[]>(() => orgId ? loadScenarios(orgId) : []);
+  const [showSaveForm, setShowSaveForm] = useState(false);
+  const [showScenarioList, setShowScenarioList] = useState(false);
+  const [scenarioName, setScenarioName] = useState("");
+  const [scenarioDescription, setScenarioDescription] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const refreshScenarios = useCallback(() => {
+    if (orgId) {
+      setScenarios(loadScenarios(orgId));
+    } else {
+      setScenarios([]);
+    }
+  }, [orgId]);
+
+  useEffect(() => {
+    refreshScenarios();
+    onScenarioChange?.(null);
+  }, [orgId]);
+
+  const getPortfolioName = useCallback(() => {
+    if (filters.portfolioId === "all") return "All Portfolios";
+    const p = portfolios.find(p => String(p.id) === filters.portfolioId);
+    return p?.name || "Unknown";
+  }, [filters.portfolioId, portfolios]);
+
+  const getProjectName = useCallback(() => {
+    if (filters.projectId === "all") return "All Projects";
+    const p = projects.find(p => String(p.id) === filters.projectId);
+    return p?.name || "Unknown";
+  }, [filters.projectId, projects]);
+
+  const handleSaveScenario = () => {
+    if (!scenarioName.trim() || !orgId) return;
+    const newScenario = saveScenario(orgId, {
+      name: scenarioName.trim(),
+      description: scenarioDescription.trim(),
+      portfolioName: getPortfolioName(),
+      projectName: getProjectName(),
+      timeProjectionMonths,
+      generateNewItems,
+      filters,
+      summary: {
+        totalSignals: reportStats?.total ?? 0,
+        closedCount: simulationSummary?.closedCount ?? 0,
+        escalatedCount: simulationSummary?.escalatedCount ?? 0,
+        newCount: simulationSummary?.newCount ?? 0,
+        highCount: reportStats?.high ?? 0,
+        mediumCount: reportStats?.medium ?? 0,
+        lowCount: reportStats?.low ?? 0,
+        costExposure: reportStats?.costTotal ?? 0,
+      },
+    });
+    onScenarioChange?.(newScenario.id);
+    setScenarioName("");
+    setScenarioDescription("");
+    setShowSaveForm(false);
+    refreshScenarios();
+  };
+
+  const handleLoadScenario = (scenario: SimulationScenario) => {
+    onScenarioLoad?.(scenario);
+    onScenarioChange?.(scenario.id);
+    setShowScenarioList(false);
+  };
+
+  const handleDeleteScenario = (id: string) => {
+    if (!orgId) return;
+    deleteScenario(orgId, id);
+    if (activeScenarioId === id) onScenarioChange?.(null);
+    setDeletingId(null);
+    refreshScenarios();
+  };
+  const animRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const monthRef = useRef(timeProjectionMonths);
+  const currentWeekRef = useRef(0);
 
   useEffect(() => {
     monthRef.current = timeProjectionMonths;
+    currentWeekRef.current = Math.round(timeProjectionMonths / WEEK_IN_MONTHS);
   }, [timeProjectionMonths]);
 
-  const tick = useCallback((timestamp: number) => {
-    if (lastFrameRef.current === 0) lastFrameRef.current = timestamp;
-    const delta = (timestamp - lastFrameRef.current) / 1000;
-    lastFrameRef.current = timestamp;
+  const currentWeek = Math.round(timeProjectionMonths / WEEK_IN_MONTHS);
 
-    const increment = delta * playbackSpeed * 0.5;
-    const next = monthRef.current + increment;
-
-    if (next >= 12) {
+  const stepToNextWeek = useCallback(() => {
+    const nextWeek = currentWeekRef.current + 1;
+    if (nextWeek > MAX_WEEKS) {
       onTimeProjectionChange(12);
       setIsPlaying(false);
       return;
     }
 
-    onTimeProjectionChange(Math.round(next * 10) / 10);
-    animRef.current = requestAnimationFrame(tick);
+    const nextMonths = Math.round(nextWeek * WEEK_IN_MONTHS * 10) / 10;
+    currentWeekRef.current = nextWeek;
+    onTimeProjectionChange(Math.min(nextMonths, 12));
+
+    const intervalMs = Math.max(50, 800 / playbackSpeed);
+    animRef.current = setTimeout(stepToNextWeek, intervalMs);
   }, [playbackSpeed, onTimeProjectionChange]);
 
   useEffect(() => {
     if (isPlaying) {
-      lastFrameRef.current = 0;
-      animRef.current = requestAnimationFrame(tick);
+      const intervalMs = Math.max(50, 800 / playbackSpeed);
+      animRef.current = setTimeout(stepToNextWeek, intervalMs);
     } else {
-      if (animRef.current) cancelAnimationFrame(animRef.current);
+      if (animRef.current) clearTimeout(animRef.current);
     }
     return () => {
-      if (animRef.current) cancelAnimationFrame(animRef.current);
+      if (animRef.current) clearTimeout(animRef.current);
     };
-  }, [isPlaying, tick]);
+  }, [isPlaying, stepToNextWeek, playbackSpeed]);
 
   const handlePlayPause = () => {
     if (timeProjectionMonths >= 12) {
@@ -118,7 +215,9 @@ export default function FiltersPanel({ filters, onChange, projects, portfolios, 
 
   const handleSliderChange = ([val]: number[]) => {
     setIsPlaying(false);
-    onTimeProjectionChange(val);
+    const snappedWeek = Math.round(val / WEEK_IN_MONTHS);
+    const snappedMonths = Math.round(snappedWeek * WEEK_IN_MONTHS * 10) / 10;
+    onTimeProjectionChange(Math.min(snappedMonths, 12));
   };
 
   const panelBg = isDark ? "bg-slate-900/80 border-r border-green-500/10" : "bg-white/90 border-r border-green-600/10";
@@ -176,7 +275,7 @@ export default function FiltersPanel({ filters, onChange, projects, portfolios, 
         <div className="flex items-center justify-between mb-2">
           <Label className={`text-xs font-semibold flex items-center gap-1.5 ${projectionActive ? projectionAccent : labelCls}`}>
             <FastForward className="w-3.5 h-3.5" />
-            Time Projection: {timeProjectionMonths === 0 ? "Now" : `+${timeProjectionMonths.toFixed(1)}mo`}
+            Time Projection: {timeProjectionMonths === 0 ? "Now" : `+${timeProjectionMonths % 1 === 0 ? timeProjectionMonths : timeProjectionMonths.toFixed(1)}mo (Wk ${currentWeek})`}
           </Label>
           {projectionActive && !isPlaying && (
             <button
@@ -243,7 +342,192 @@ export default function FiltersPanel({ filters, onChange, projects, portfolios, 
         </div>
         {isPlaying && (
           <div className={`text-[10px] mt-1 text-center ${projectionAccent}`}>
-            Playing timeline at {playbackSpeed}x speed...
+            Simulating week {currentWeek} of {MAX_WEEKS} at {playbackSpeed}x...
+          </div>
+        )}
+
+        {onGenerateNewItemsChange && projectionActive && (
+          <div className="flex items-center justify-between mt-3">
+            <Label className={`text-[11px] ${labelCls}`}>Generate New Items</Label>
+            <Switch
+              checked={generateNewItems}
+              onCheckedChange={onGenerateNewItemsChange}
+            />
+          </div>
+        )}
+
+        {simulationSummary && projectionActive && (simulationSummary.closedCount > 0 || simulationSummary.newCount > 0 || simulationSummary.escalatedCount > 0) && (
+          <div className={`mt-3 rounded-md p-2 text-[10px] space-y-1 ${isDark ? "bg-slate-800/60 border border-slate-700/50" : "bg-slate-100 border border-slate-200"}`}>
+            <div className={`font-semibold uppercase tracking-wider mb-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+              Simulation Summary
+            </div>
+            {simulationSummary.closedCount > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className={`w-1.5 h-1.5 rounded-full ${isDark ? "bg-green-400" : "bg-green-500"}`} />
+                <span className={isDark ? "text-green-400" : "text-green-600"}>
+                  {simulationSummary.closedCount} closed/mitigated
+                </span>
+              </div>
+            )}
+            {simulationSummary.newCount > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className={`w-1.5 h-1.5 rounded-full ${isDark ? "bg-cyan-400" : "bg-cyan-500"}`} />
+                <span className={isDark ? "text-cyan-400" : "text-cyan-600"}>
+                  {simulationSummary.newCount} new emerged
+                </span>
+              </div>
+            )}
+            {simulationSummary.escalatedCount > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className={`w-1.5 h-1.5 rounded-full ${isDark ? "bg-red-400" : "bg-red-500"}`} />
+                <span className={isDark ? "text-red-400" : "text-red-600"}>
+                  {simulationSummary.escalatedCount} escalated
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className={`space-y-2 border-t pt-4 ${legendBorder}`}>
+        <div className="flex items-center justify-between">
+          <Label className={`text-xs font-semibold flex items-center gap-1.5 ${labelCls}`}>
+            <Layers className="w-3.5 h-3.5" />
+            Scenarios
+          </Label>
+          <div className="flex gap-1">
+            <button
+              onClick={() => { setShowSaveForm(!showSaveForm); setShowScenarioList(false); }}
+              className={`p-1 rounded transition-colors ${isDark ? "hover:bg-slate-700 text-slate-400" : "hover:bg-slate-200 text-slate-500"}`}
+              title="Save Current Scenario"
+            >
+              <Save className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => { setShowScenarioList(!showScenarioList); setShowSaveForm(false); refreshScenarios(); }}
+              className={`p-1 rounded transition-colors ${isDark ? "hover:bg-slate-700 text-slate-400" : "hover:bg-slate-200 text-slate-500"}`}
+              title="Load Scenario"
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {activeScenarioId && scenarios.find(s => s.id === activeScenarioId) && (
+          <div className={`rounded-md p-2 text-[10px] flex items-center justify-between ${isDark ? "bg-green-500/10 border border-green-500/20" : "bg-green-50 border border-green-200"}`}>
+            <div>
+              <span className={`font-semibold ${isDark ? "text-green-400" : "text-green-700"}`}>
+                {scenarios.find(s => s.id === activeScenarioId)?.name}
+              </span>
+            </div>
+            <button
+              onClick={() => onScenarioChange?.(null)}
+              className={`p-0.5 rounded ${isDark ? "hover:bg-slate-700 text-slate-400" : "hover:bg-slate-200 text-slate-500"}`}
+              title="Deselect scenario"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+
+        {showSaveForm && (
+          <div className={`rounded-md p-2.5 space-y-2 ${isDark ? "bg-slate-800/80 border border-slate-700/50" : "bg-slate-50 border border-slate-200"}`}>
+            <Input
+              value={scenarioName}
+              onChange={(e) => setScenarioName(e.target.value)}
+              placeholder="Scenario name"
+              className={`text-xs h-7 ${isDark ? "bg-slate-900 border-slate-600" : "bg-white border-slate-300"}`}
+            />
+            <Textarea
+              value={scenarioDescription}
+              onChange={(e) => setScenarioDescription(e.target.value)}
+              placeholder="Description (optional)"
+              className={`text-xs min-h-[40px] resize-none ${isDark ? "bg-slate-900 border-slate-600" : "bg-white border-slate-300"}`}
+              rows={2}
+            />
+            <div className={`text-[9px] space-y-0.5 ${subText}`}>
+              <div>Portfolio: {getPortfolioName()}</div>
+              <div>Project: {getProjectName()}</div>
+              <div>Projection: +{timeProjectionMonths % 1 === 0 ? timeProjectionMonths : timeProjectionMonths.toFixed(1)} months</div>
+              {reportStats && <div>Signals: {reportStats.total} | Cost: {new Intl.NumberFormat("en", { notation: "compact", style: "currency", currency: "USD" }).format(reportStats.costTotal)}</div>}
+            </div>
+            <div className="flex gap-1.5 justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[10px] px-2"
+                onClick={() => { setShowSaveForm(false); setScenarioName(""); setScenarioDescription(""); }}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="h-6 text-[10px] px-2"
+                onClick={handleSaveScenario}
+                disabled={!scenarioName.trim()}
+              >
+                <Check className="w-3 h-3 mr-1" />
+                Save
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {showScenarioList && (
+          <div className={`rounded-md overflow-hidden border ${isDark ? "border-slate-700/50" : "border-slate-200"}`}>
+            {scenarios.length === 0 ? (
+              <div className={`p-3 text-center text-[10px] ${subText}`}>No saved scenarios</div>
+            ) : (
+              <div className="max-h-[200px] overflow-y-auto">
+                {scenarios.map(s => (
+                  <div
+                    key={s.id}
+                    className={`p-2 border-b last:border-b-0 cursor-pointer transition-colors ${
+                      s.id === activeScenarioId
+                        ? isDark ? "bg-green-500/10 border-green-500/20" : "bg-green-50 border-green-200"
+                        : isDark ? "hover:bg-slate-800/80 border-slate-700/30" : "hover:bg-slate-50 border-slate-100"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-1">
+                      <div className="flex-1 min-w-0" onClick={() => handleLoadScenario(s)}>
+                        <div className={`text-xs font-medium truncate ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+                          {s.name}
+                        </div>
+                        {s.description && (
+                          <div className={`text-[9px] mt-0.5 truncate ${subText}`}>{s.description}</div>
+                        )}
+                        <div className={`text-[9px] mt-1 flex flex-wrap gap-x-2 ${subText}`}>
+                          <span>{s.portfolioName}</span>
+                          <span>+{s.timeProjectionMonths % 1 === 0 ? s.timeProjectionMonths : s.timeProjectionMonths.toFixed(1)}mo</span>
+                          <span>{new Date(s.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}</span>
+                        </div>
+                        <div className={`text-[9px] flex gap-x-2 ${subText}`}>
+                          <span>{s.summary.totalSignals} signals</span>
+                          <span className="text-red-400">{s.summary.highCount} high</span>
+                          {s.summary.costExposure > 0 && <span>{new Intl.NumberFormat("en", { notation: "compact", style: "currency", currency: "USD" }).format(s.summary.costExposure)}</span>}
+                        </div>
+                      </div>
+                      <div className="shrink-0">
+                        {deletingId === s.id ? (
+                          <div className="flex gap-0.5">
+                            <button onClick={() => handleDeleteScenario(s.id)} className="p-0.5 rounded text-red-500 hover:bg-red-500/10" title="Confirm delete">
+                              <Check className="w-3 h-3" />
+                            </button>
+                            <button onClick={() => setDeletingId(null)} className={`p-0.5 rounded ${isDark ? "text-slate-400 hover:bg-slate-700" : "text-slate-500 hover:bg-slate-200"}`} title="Cancel">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setDeletingId(s.id)} className={`p-0.5 rounded ${isDark ? "text-slate-500 hover:text-red-400 hover:bg-slate-700" : "text-slate-400 hover:text-red-500 hover:bg-slate-100"}`} title="Delete scenario">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -415,6 +699,10 @@ export default function FiltersPanel({ filters, onChange, projects, portfolios, 
           <div className="flex items-center gap-2">
             <span className={`w-4 h-1 rounded ${isDark ? "bg-slate-500/50" : "bg-slate-400/50"}`} />
             <span className={`text-[10px] ${subText}`}>Opacity = Confidence</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`w-2.5 h-2.5 rounded-full border-2 border-dashed ${isDark ? "border-cyan-400/60" : "border-cyan-500/60"}`} />
+            <span className={`text-[10px] ${subText}`}>Simulated (projected)</span>
           </div>
         </div>
       </div>

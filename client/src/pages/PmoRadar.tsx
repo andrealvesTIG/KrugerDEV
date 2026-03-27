@@ -10,8 +10,8 @@ import { useUpdateIssue, useDeleteIssue, useIssueHistory } from "@/hooks/use-iss
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments } from "@/hooks/use-resources";
 import { useTheme } from "@/components/theme-provider";
 import { useToast } from "@/hooks/use-toast";
-import { Radio, Loader2, History, ChevronUp, ChevronDown } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, LineChart, Line, CartesianGrid, ReferenceLine, Area, AreaChart } from "recharts";
+import { Radio, Loader2, History, ChevronUp, ChevronDown, FileText } from "lucide-react";
+import { ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip, CartesianGrid, ReferenceLine, Area, AreaChart } from "recharts";
 import { Link } from "wouter";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -22,8 +22,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import RadarCanvas, { type RiskSignal, type HorizontalMetric } from "@/components/radar/RadarCanvas";
-import FiltersPanel, { type RadarFilters } from "@/components/radar/FiltersPanel";
+import FiltersPanel, { type RadarFilters, type SimulationSummary } from "@/components/radar/FiltersPanel";
 import DetailsDrawer from "@/components/radar/DetailsDrawer";
+import { runSimulation, runExposureSimulation } from "@/lib/simulationEngine";
+import { type SimulationScenario } from "@/lib/simulationScenarios";
+import SimulationReportDialog from "@/components/radar/SimulationReportDialog";
 import { EditRiskDialog, type RiskFormData } from "@/components/EditRiskDialog";
 
 const PROBABILITY_MAP: Record<string, number> = {
@@ -253,6 +256,15 @@ export default function PmoRadar() {
   const [issueResourceIds, setIssueResourceIds] = useState<number[]>([]);
   const [showIssueHistory, setShowIssueHistory] = useState(false);
   const [costChartsExpanded, setCostChartsExpanded] = useState(false);
+  const [generateNewItems, setGenerateNewItems] = useState(true);
+  const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
+
+  const handleScenarioLoad = useCallback((scenario: SimulationScenario) => {
+    setFilters(scenario.filters);
+    setTimeProjectionMonths(scenario.timeProjectionMonths);
+    setGenerateNewItems(scenario.generateNewItems);
+  }, []);
+  const [simulationReportOpen, setSimulationReportOpen] = useState(false);
 
   const { toast } = useToast();
   const updateRisk = useUpdateRisk();
@@ -341,6 +353,15 @@ export default function PmoRadar() {
     return m;
   }, [projectsData]);
 
+  const projectBudgetMap = useMemo(() => {
+    const m = new Map<number, number>();
+    projectsData.forEach((p: any) => {
+      const budget = parseFloat(p.budget) || 0;
+      if (budget > 0) m.set(p.id, budget);
+    });
+    return m;
+  }, [projectsData]);
+
   const portfolioNamesMap = useMemo(() => {
     const m = new Map<number, string>();
     portfolios.forEach((p: any) => m.set(p.id, p.name));
@@ -379,66 +400,63 @@ export default function PmoRadar() {
     return d;
   }, [currentTime, projectionOffsetDays]);
 
+  const simulationResult = useMemo(() => {
+    return runSimulation(allSignals, timeProjectionMonths, generateNewItems);
+  }, [allSignals, timeProjectionMonths, generateNewItems]);
+
   const projectedSignals = useMemo(() => {
-    if (projectionOffsetDays === 0) return allSignals;
-    return allSignals.map((s) => {
-      const projected = s.timeOffsetDays - projectionOffsetDays;
-      const isAlreadyResolved = s.status === "Closed" || s.status === "Mitigated";
+    const sigs = simulationResult.signals;
+    if (timeProjectionMonths === 0) return sigs;
+    const maxCost = Math.max(1, ...sigs.map(s => s.costExposureRaw));
+    return sigs.map(s => ({
+      ...s,
+      costExposureNorm: maxCost > 0 ? Math.round((s.costExposureRaw / maxCost) * 100) : 0,
+    }));
+  }, [simulationResult, timeProjectionMonths]);
 
-      if (isAlreadyResolved) {
-        return { ...s, timeOffsetDays: projected };
-      }
+  const simulationSummary: SimulationSummary = useMemo(() => ({
+    closedCount: simulationResult.closedCount,
+    newCount: simulationResult.newCount,
+    escalatedCount: simulationResult.escalatedCount,
+  }), [simulationResult]);
 
-      const h = hashId(parseInt(s.id) + 7777);
-      const resolveMonth = 1 + h * 10;
-      const fate = hashId(parseInt(s.id) + 3333);
-
-      if (timeProjectionMonths >= resolveMonth) {
-        const monthsPastResolve = timeProjectionMonths - resolveMonth;
-
-        if (fate < 0.35) {
-          const fadeProgress = Math.min(monthsPastResolve / 1.5, 1);
-          return {
-            ...s,
-            timeOffsetDays: projected,
-            status: "Closed",
-            riskScore: Math.round(s.riskScore * (1 - fadeProgress)),
-            confidence: s.confidence * (1 - fadeProgress * 0.8),
-          };
-        } else if (fate < 0.7) {
-          return {
-            ...s,
-            timeOffsetDays: Math.max(projected, -85),
-            status: "Mitigated",
-            riskScore: Math.max(5, Math.round(s.riskScore * 0.3)),
-          };
-        }
-      }
-
-      return {
-        ...s,
-        timeOffsetDays: Math.max(projected, -85),
-      };
-    }).filter((s) => {
-      if ((s.status === "Closed") && s.confidence <= 0.05) return false;
-      return true;
+  const reportStats = useMemo(() => {
+    const sigs = projectedSignals;
+    const total = sigs.length;
+    const high = sigs.filter(s => s.riskScore > 70).length;
+    const medium = sigs.filter(s => s.riskScore > 30 && s.riskScore <= 70).length;
+    const low = sigs.filter(s => s.riskScore <= 30).length;
+    let costTotal = 0;
+    sigs.forEach(s => {
+      const ce = s.costExposure ?? 0;
+      if (ce > 0 && s.status !== "Closed" && s.status !== "Mitigated") costTotal += ce;
     });
-  }, [allSignals, projectionOffsetDays, timeProjectionMonths]);
+    return { total, high, medium, low, costTotal };
+  }, [projectedSignals]);
+
+  const applyBaseFilters = useCallback((s: EnrichedSignal) => {
+    if (filters.itemType !== "all" && s.itemType !== filters.itemType) return false;
+    if (s.riskScore < filters.minRiskScore) return false;
+    if (filters.highRiskOnly && s.riskScore <= 70) return false;
+    if (filters.signalType !== "all" && s.type !== filters.signalType) return false;
+    if (filters.projectId !== "all" && String(s.projectId) !== filters.projectId) return false;
+    if (filters.portfolioId !== "all") {
+      if (!s.portfolioId || String(s.portfolioId) !== filters.portfolioId) return false;
+    }
+    return true;
+  }, [filters]);
+
+  const baseFilteredSignals = useMemo(() => {
+    return allSignals.filter(applyBaseFilters);
+  }, [allSignals, applyBaseFilters]);
 
   const filteredSignals = useMemo(() => {
     return projectedSignals.filter((s: EnrichedSignal) => {
-      if (filters.itemType !== "all" && s.itemType !== filters.itemType) return false;
-      if (s.riskScore < filters.minRiskScore) return false;
+      if (!applyBaseFilters(s)) return false;
       if (filters.futureOnly && s.timeOffsetDays < 0) return false;
-      if (filters.highRiskOnly && s.riskScore <= 70) return false;
-      if (filters.signalType !== "all" && s.type !== filters.signalType) return false;
-      if (filters.projectId !== "all" && String(s.projectId) !== filters.projectId) return false;
-      if (filters.portfolioId !== "all") {
-        if (!s.portfolioId || String(s.portfolioId) !== filters.portfolioId) return false;
-      }
       return true;
     });
-  }, [projectedSignals, filters]);
+  }, [projectedSignals, filters, applyBaseFilters]);
 
   const stats = useMemo(() => {
     const total = filteredSignals.length;
@@ -460,118 +478,11 @@ export default function PmoRadar() {
   }, [filteredSignals]);
 
   const costChartData = useMemo(() => {
-    let highCost = 0, medCost = 0, lowCost = 0;
-    const projectCosts = new Map<string, number>();
-
-    filteredSignals.forEach((s) => {
-      const ce = s.costExposure ?? 0;
-      if (ce <= 0) return;
-      if (s.riskScore > 70) highCost += ce;
-      else if (s.riskScore > 30) medCost += ce;
-      else lowCost += ce;
-
-      const pName = s.project || "Unknown";
-      projectCosts.set(pName, (projectCosts.get(pName) || 0) + ce);
-    });
-
-    const bySeverity = [
-      { name: "High", value: highCost, color: "#ef4444" },
-      { name: "Medium", value: medCost, color: "#eab308" },
-      { name: "Low", value: lowCost, color: "#22c55e" },
-    ].filter((d) => d.value > 0);
-
-    const futureVsOverdue = [
-      { name: "Future", value: stats.costExposureFuture, color: "#22c55e" },
-      { name: "Overdue", value: stats.costExposurePast, color: "#ef4444" },
-    ].filter((d) => d.value > 0);
-
-    const monthBuckets = new Map<string, number>();
-    filteredSignals.forEach((s) => {
-      const ce = s.costExposure ?? 0;
-      if (ce <= 0 || !s.dueDate) return;
-      const d = new Date(s.dueDate);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      monthBuckets.set(key, (monthBuckets.get(key) || 0) + ce);
-    });
-    const costOverTime = Array.from(monthBuckets.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([month, value]) => {
-        const [y, m] = month.split("-");
-        return { month: `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(m) - 1]} ${y.slice(2)}`, value };
-      });
-
-    const now = new Date();
-    const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    const pastFutureTimeline: { month: string; past: number; future: number; isNow: boolean }[] = [];
-    let minOffset = 0, maxOffset = 0;
-    filteredSignals.forEach((s) => {
-      if (!s.dueDate || (s.costExposure ?? 0) <= 0) return;
-      const d = new Date(s.dueDate);
-      const offset = (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth());
-      if (offset < minOffset) minOffset = offset;
-      if (offset > maxOffset) maxOffset = offset;
-    });
-    minOffset = Math.min(minOffset, -3);
-    maxOffset = Math.max(maxOffset, 3);
-    const tlBuckets = new Map<number, { past: number; future: number }>();
-    filteredSignals.forEach((s) => {
-      const ce = s.costExposure ?? 0;
-      if (ce <= 0 || !s.dueDate) return;
-      const d = new Date(s.dueDate);
-      const offset = (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth());
-      const bucket = tlBuckets.get(offset) || { past: 0, future: 0 };
-      if (offset < 0) bucket.past += ce;
-      else bucket.future += ce;
-      tlBuckets.set(offset, bucket);
-    });
-    for (let o = minOffset; o <= maxOffset; o++) {
-      const d = new Date(now.getFullYear(), now.getMonth() + o, 1);
-      const label = `${monthNames[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
-      const bucket = tlBuckets.get(o) || { past: 0, future: 0 };
-      pastFutureTimeline.push({ month: label, past: Math.round(bucket.past), future: Math.round(bucket.future), isNow: o === 0 });
-    }
-
     const maxSimMonths = Math.max(12, Math.ceil(timeProjectionMonths) + 3);
-    const exposureOverSim: { month: string; total: number; overdue: number }[] = [];
-    for (let m = 0; m <= maxSimMonths; m += 1) {
-      let totalCost = 0;
-      let overdueCost = 0;
-      const offsetDays = Math.round(m * 30.44);
-      filteredSignals.forEach((s) => {
-        const ce = s.costExposure ?? 0;
-        if (ce <= 0) return;
+    const exposureOverSim = runExposureSimulation(baseFilteredSignals, maxSimMonths, generateNewItems, projectBudgetMap);
 
-        const isAlreadyResolved = s.status === "Closed" || s.status === "Mitigated";
-        if (isAlreadyResolved) return;
-
-        const numericId = parseInt(s.id.replace(/^(issue|risk)-/, "")) || 0;
-        const h = hashId(numericId + 7777);
-        const resolveMonth = 1 + h * 10;
-        const fate = hashId(numericId + 3333);
-
-        let effectiveCost = ce;
-        if (m >= resolveMonth) {
-          if (fate < 0.35) {
-            const monthsPastResolve = m - resolveMonth;
-            const fadeProgress = Math.min(monthsPastResolve / 1.5, 1);
-            if (fadeProgress >= 1) return;
-            effectiveCost = ce * (1 - fadeProgress);
-          } else if (fate < 0.7) {
-            effectiveCost = ce * 0.3;
-          }
-        }
-        totalCost += effectiveCost;
-
-        const projectedOffset = s.timeOffsetDays - offsetDays;
-        if (projectedOffset < 0) {
-          overdueCost += effectiveCost;
-        }
-      });
-      exposureOverSim.push({ month: `+${m}mo`, total: Math.round(totalCost), overdue: Math.round(overdueCost) });
-    }
-
-    return { bySeverity, futureVsOverdue, costOverTime, pastFutureTimeline, exposureOverSim };
-  }, [filteredSignals, stats, timeProjectionMonths]);
+    return { exposureOverSim };
+  }, [timeProjectionMonths, baseFilteredSignals, generateNewItems, projectBudgetMap]);
 
   const handleEditSignal = useCallback((signal: RiskSignal) => {
     if (signal.itemType === "issue") {
@@ -628,8 +539,8 @@ export default function PmoRadar() {
   }, [editingRisk, updateRisk, updateRiskResources, selectedResourceIds, toast, currentOrganization]);
 
   function formatCompactCurrency(val: number): string {
-    if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
-    if (val >= 1_000) return `$${(val / 1_000).toFixed(0)}K`;
+    if (val >= 1_000_000) { const v = val / 1_000_000; return `$${v % 1 === 0 ? v : v.toFixed(1)}M`; }
+    if (val >= 1_000) { const v = val / 1_000; return `$${v % 1 === 0 ? v : v.toFixed(1)}K`; }
     return `$${val.toLocaleString()}`;
   }
 
@@ -675,11 +586,11 @@ export default function PmoRadar() {
                 {projectedDateStr}
               </span>
               <span className={isDark ? "text-amber-500/70" : "text-amber-500"}>
-                +{timeProjectionMonths.toFixed(1)}mo
+                +{timeProjectionMonths % 1 === 0 ? timeProjectionMonths : timeProjectionMonths.toFixed(1)}mo
               </span>
             </div>
           )}
-          {showCostTiles && (costChartData.costOverTime.length > 0 || costChartData.futureVsOverdue.length > 0) && (
+          {showCostTiles && costChartData.exposureOverSim.length > 1 && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -696,6 +607,23 @@ export default function PmoRadar() {
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom"><p>{costChartsExpanded ? "Hide" : "Show"} cost exposure charts</p></TooltipContent>
+            </Tooltip>
+          )}
+          {timeProjectionMonths > 0 && simulationResult.log.length > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => setSimulationReportOpen(true)}
+                  className={`hidden md:flex items-center gap-1.5 px-2 py-1 rounded border text-[11px] font-medium cursor-pointer select-none transition-colors ${
+                    isDark ? "bg-blue-500/15 border-blue-500/30 text-blue-400 hover:bg-blue-500/25" : "bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100"
+                  }`}
+                >
+                  <FileText className="h-3 w-3" />
+                  Report
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom"><p>View simulation report and export PDF</p></TooltipContent>
             </Tooltip>
           )}
         </div>
@@ -760,91 +688,125 @@ export default function PmoRadar() {
         </div>
       </div>
 
-      {showCostTiles && (costChartData.costOverTime.length > 0 || costChartData.futureVsOverdue.length > 0) && (
+      {showCostTiles && costChartData.exposureOverSim.length > 1 && (
         <div
           className={`shrink-0 border-b overflow-hidden transition-all duration-300 ease-in-out ${isDark ? "bg-slate-900/40 border-green-500/10" : "bg-white/60 border-green-600/10"}`}
-          style={{ height: costChartsExpanded ? 190 : 0, opacity: costChartsExpanded ? 1 : 0 }}
+          style={{ height: costChartsExpanded ? 210 : 0, opacity: costChartsExpanded ? 1 : 0 }}
         >
-            <div className="flex gap-4 h-full px-4 pb-3">
-              <div className="flex-1 min-w-0">
-                <div className={`text-[11px] font-semibold uppercase tracking-wide mb-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                  Exposure by Due Date
-                </div>
-                <ResponsiveContainer width="100%" height="85%">
-                  <BarChart data={costChartData.costOverTime} margin={{ top: 8, right: 12, bottom: 4, left: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#e2e8f0"} />
-                    <XAxis dataKey="month" tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 9 }} axisLine={false} tickLine={false} interval={Math.max(0, Math.floor(costChartData.costOverTime.length / 6) - 1)} />
-                    <YAxis tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatCompactCurrency(v)} width={45} />
-                    <RechartsTooltip
-                      formatter={(value: number) => [formatCompactCurrency(value), "Exposure"]}
-                      contentStyle={{ backgroundColor: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, borderRadius: 6, fontSize: 12 }}
-                      labelStyle={{ color: isDark ? "#e2e8f0" : "#1e293b" }}
-                    />
-                    <Bar dataKey="value" radius={[3, 3, 0, 0]} barSize={18} fill={isDark ? "#22d3ee" : "#0891b2"} fillOpacity={isDark ? 0.7 : 0.8} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className={`w-px shrink-0 ${isDark ? "bg-slate-700/50" : "bg-slate-200"}`} />
-
-              <div className="flex-1 min-w-0">
-                <div className={`text-[11px] font-semibold uppercase tracking-wide mb-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                  Exposure Timeline
-                </div>
-                <ResponsiveContainer width="100%" height="85%">
-                  <BarChart data={costChartData.pastFutureTimeline} margin={{ top: 8, right: 12, bottom: 4, left: 10 }} stackOffset="sign">
-                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#e2e8f0"} />
-                    <XAxis dataKey="month" tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 9 }} axisLine={false} tickLine={false} interval={Math.max(0, Math.floor(costChartData.pastFutureTimeline.length / 7) - 1)} />
-                    <YAxis tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatCompactCurrency(v)} width={45} />
-                    <RechartsTooltip
-                      formatter={(value: number, name: string) => [formatCompactCurrency(value), name === "past" ? "Overdue" : "Future"]}
-                      contentStyle={{ backgroundColor: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, borderRadius: 6, fontSize: 12 }}
-                      labelStyle={{ color: isDark ? "#e2e8f0" : "#1e293b" }}
-                    />
-                    {(() => { const nowEntry = costChartData.pastFutureTimeline.find(e => e.isNow); return nowEntry ? <ReferenceLine x={nowEntry.month} stroke={isDark ? "#f59e0b" : "#d97706"} strokeDasharray="4 3" strokeWidth={1.5} label={{ value: "NOW", position: "top", fill: isDark ? "#f59e0b" : "#d97706", fontSize: 9, fontWeight: 700 }} /> : null; })()}
-                    <Bar dataKey="past" name="past" stackId="a" fill="#ef4444" fillOpacity={isDark ? 0.7 : 0.8} radius={[3, 3, 0, 0]} barSize={14} />
-                    <Bar dataKey="future" name="future" stackId="a" fill={isDark ? "#22d3ee" : "#0891b2"} fillOpacity={isDark ? 0.7 : 0.8} radius={[3, 3, 0, 0]} barSize={14} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              {costChartData.exposureOverSim.length > 1 && (
-                <>
-                  <div className={`w-px shrink-0 ${isDark ? "bg-slate-700/50" : "bg-slate-200"}`} />
-                  <div className="flex-1 min-w-0">
+            <div className="flex gap-3 h-full px-4 pb-3">
+                  <div className="flex-1 min-w-[180px]">
                     <div className={`text-[11px] font-semibold uppercase tracking-wide mb-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                      Exposure Over Simulation
+                      Exposure Cost (Cumulative)
                     </div>
                     <ResponsiveContainer width="100%" height="85%">
                       <AreaChart data={costChartData.exposureOverSim} margin={{ top: 8, right: 12, bottom: 4, left: 10 }}>
                         <defs>
-                          <linearGradient id="exposureGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={isDark ? "#22d3ee" : "#0891b2"} stopOpacity={0.3} />
-                            <stop offset="95%" stopColor={isDark ? "#22d3ee" : "#0891b2"} stopOpacity={0.02} />
+                          <linearGradient id="existingExpGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={isDark ? "#f59e0b" : "#d97706"} stopOpacity={0.35} />
+                            <stop offset="95%" stopColor={isDark ? "#f59e0b" : "#d97706"} stopOpacity={0.03} />
                           </linearGradient>
-                          <linearGradient id="overdueGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.25} />
-                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0.02} />
+                          <linearGradient id="simulatedExpGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={isDark ? "#a78bfa" : "#7c3aed"} stopOpacity={0.3} />
+                            <stop offset="95%" stopColor={isDark ? "#a78bfa" : "#7c3aed"} stopOpacity={0.03} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#e2e8f0"} />
                         <XAxis dataKey="month" tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 9 }} axisLine={false} tickLine={false} interval={Math.max(0, Math.floor(costChartData.exposureOverSim.length / 6) - 1)} />
-                        <YAxis tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatCompactCurrency(v)} width={45} />
+                        <YAxis tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatCompactCurrency(v)} width={50} />
                         <RechartsTooltip
-                          formatter={(value: number, name: string) => [formatCompactCurrency(value), name === "total" ? "Total Exposure" : "Overdue Exposure"]}
-                          contentStyle={{ backgroundColor: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, borderRadius: 6, fontSize: 12 }}
+                          formatter={(value: number, name: string) => {
+                            const labels: Record<string, string> = { existingExposure: "Existing", simulatedExposure: "Simulated", totalExposure: "Total" };
+                            return [formatCompactCurrency(value), labels[name] || name];
+                          }}
+                          contentStyle={{ backgroundColor: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, borderRadius: 6, fontSize: 11 }}
                           labelStyle={{ color: isDark ? "#e2e8f0" : "#1e293b" }}
                         />
                         {timeProjectionMonths > 0 && (
-                          <ReferenceLine x={`+${Math.round(timeProjectionMonths)}mo`} stroke={isDark ? "#f59e0b" : "#d97706"} strokeDasharray="4 3" strokeWidth={1.5} label={{ value: `+${timeProjectionMonths.toFixed(1)}mo`, position: "top", fill: isDark ? "#f59e0b" : "#d97706", fontSize: 9, fontWeight: 600 }} />
+                          <ReferenceLine x={`+${Math.round(timeProjectionMonths)}mo`} stroke={isDark ? "#f59e0b" : "#d97706"} strokeDasharray="4 3" strokeWidth={1.5} label={{ value: `+${timeProjectionMonths % 1 === 0 ? timeProjectionMonths : timeProjectionMonths.toFixed(1)}mo`, position: "top", fill: isDark ? "#f59e0b" : "#d97706", fontSize: 9, fontWeight: 600 }} />
                         )}
-                        <Area type="monotone" dataKey="total" name="total" stroke={isDark ? "#22d3ee" : "#0891b2"} strokeWidth={2} fill="url(#exposureGrad)" dot={false} activeDot={{ fill: isDark ? "#22d3ee" : "#0891b2", r: 4, stroke: isDark ? "#0f172a" : "#fff", strokeWidth: 2 }} />
-                        <Area type="monotone" dataKey="overdue" name="overdue" stroke="#ef4444" strokeWidth={1.5} fill="url(#overdueGrad)" dot={false} activeDot={{ fill: "#ef4444", r: 3, stroke: isDark ? "#0f172a" : "#fff", strokeWidth: 2 }} strokeDasharray="4 2" />
+                        <Area type="monotone" dataKey="existingExposure" name="existingExposure" stackId="exposure" stroke={isDark ? "#f59e0b" : "#d97706"} strokeWidth={1.5} fill="url(#existingExpGrad)" dot={false} activeDot={{ fill: isDark ? "#f59e0b" : "#d97706", r: 3, stroke: isDark ? "#0f172a" : "#fff", strokeWidth: 2 }} />
+                        {generateNewItems && <Area type="monotone" dataKey="simulatedExposure" name="simulatedExposure" stackId="exposure" stroke={isDark ? "#a78bfa" : "#7c3aed"} strokeWidth={1.5} fill="url(#simulatedExpGrad)" dot={false} activeDot={{ fill: isDark ? "#a78bfa" : "#7c3aed", r: 3, stroke: isDark ? "#0f172a" : "#fff", strokeWidth: 2 }} strokeDasharray="3 3" />}
+                        <Area type="monotone" dataKey="totalExposure" name="totalExposure" stroke={isDark ? "#22d3ee" : "#0891b2"} strokeWidth={2} fill="none" dot={false} activeDot={{ fill: isDark ? "#22d3ee" : "#0891b2", r: 4, stroke: isDark ? "#0f172a" : "#fff", strokeWidth: 2 }} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
-                </>
-              )}
+
+                  <div className={`w-px shrink-0 ${isDark ? "bg-slate-700/50" : "bg-slate-200"}`} />
+                  <div className="flex-1 min-w-[180px]">
+                    <div className={`text-[11px] font-semibold uppercase tracking-wide mb-1 flex items-center gap-2 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                      Budget vs Cumulative Exposure
+                      {costChartData.exposureOverSim[0]?.projectCost > 0 && (
+                        <span className={`text-[9px] font-normal px-1.5 py-0.5 rounded ${isDark ? "bg-blue-500/10 text-blue-400" : "bg-blue-50 text-blue-600"}`}>
+                          Budget: {formatCompactCurrency(costChartData.exposureOverSim[0].projectCost)}
+                        </span>
+                      )}
+                    </div>
+                    <ResponsiveContainer width="100%" height="85%">
+                      <AreaChart data={costChartData.exposureOverSim} margin={{ top: 8, right: 12, bottom: 4, left: 10 }}>
+                        <defs>
+                          <linearGradient id="cumExpGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={isDark ? "#f59e0b" : "#d97706"} stopOpacity={0.35} />
+                            <stop offset="95%" stopColor={isDark ? "#f59e0b" : "#d97706"} stopOpacity={0.03} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#e2e8f0"} />
+                        <XAxis dataKey="month" tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 9 }} axisLine={false} tickLine={false} interval={Math.max(0, Math.floor(costChartData.exposureOverSim.length / 6) - 1)} />
+                        <YAxis tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatCompactCurrency(v)} width={50} />
+                        <RechartsTooltip
+                          formatter={(value: number, name: string) => {
+                            const labels: Record<string, string> = { cumulativeExposure: "Cumulative Exposure", projectCost: "Project Budget" };
+                            return [formatCompactCurrency(value), labels[name] || name];
+                          }}
+                          contentStyle={{ backgroundColor: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, borderRadius: 6, fontSize: 11 }}
+                          labelStyle={{ color: isDark ? "#e2e8f0" : "#1e293b" }}
+                        />
+                        {timeProjectionMonths > 0 && (
+                          <ReferenceLine x={`+${Math.round(timeProjectionMonths)}mo`} stroke={isDark ? "#f59e0b" : "#d97706"} strokeDasharray="4 3" strokeWidth={1.5} label={{ value: `+${timeProjectionMonths % 1 === 0 ? timeProjectionMonths : timeProjectionMonths.toFixed(1)}mo`, position: "top", fill: isDark ? "#f59e0b" : "#d97706", fontSize: 9, fontWeight: 600 }} />
+                        )}
+                        {costChartData.exposureOverSim[0]?.projectCost > 0 && (
+                          <ReferenceLine y={costChartData.exposureOverSim[0].projectCost} stroke={isDark ? "#3b82f6" : "#2563eb"} strokeDasharray="6 3" strokeWidth={2} label={{ value: `Budget: ${formatCompactCurrency(costChartData.exposureOverSim[0].projectCost)}`, position: "insideTopRight", fill: isDark ? "#3b82f6" : "#2563eb", fontSize: 9, fontWeight: 600 }} />
+                        )}
+                        <Area type="monotone" dataKey="cumulativeExposure" name="cumulativeExposure" stroke={isDark ? "#f59e0b" : "#d97706"} strokeWidth={2} fill="url(#cumExpGrad)" dot={false} activeDot={{ fill: isDark ? "#f59e0b" : "#d97706", r: 4, stroke: isDark ? "#0f172a" : "#fff", strokeWidth: 2 }} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className={`w-px shrink-0 ${isDark ? "bg-slate-700/50" : "bg-slate-200"}`} />
+                  <div className="flex-1 min-w-[180px]">
+                    <div className={`text-[11px] font-semibold uppercase tracking-wide mb-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                      Risk vs Issues Exposure
+                    </div>
+                    <ResponsiveContainer width="100%" height="85%">
+                      <AreaChart data={costChartData.exposureOverSim} margin={{ top: 8, right: 12, bottom: 4, left: 10 }}>
+                        <defs>
+                          <linearGradient id="riskTypeGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={isDark ? "#f97316" : "#ea580c"} stopOpacity={0.3} />
+                            <stop offset="95%" stopColor={isDark ? "#f97316" : "#ea580c"} stopOpacity={0.03} />
+                          </linearGradient>
+                          <linearGradient id="issueTypeGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={isDark ? "#3b82f6" : "#2563eb"} stopOpacity={0.3} />
+                            <stop offset="95%" stopColor={isDark ? "#3b82f6" : "#2563eb"} stopOpacity={0.03} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#e2e8f0"} />
+                        <XAxis dataKey="month" tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 9 }} axisLine={false} tickLine={false} interval={Math.max(0, Math.floor(costChartData.exposureOverSim.length / 6) - 1)} />
+                        <YAxis tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatCompactCurrency(v)} width={50} />
+                        <RechartsTooltip
+                          formatter={(value: number, name: string) => {
+                            const labels: Record<string, string> = { riskTypeExposure: "Risks", issueTypeExposure: "Issues" };
+                            return [formatCompactCurrency(value), labels[name] || name];
+                          }}
+                          contentStyle={{ backgroundColor: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`, borderRadius: 6, fontSize: 11 }}
+                          labelStyle={{ color: isDark ? "#e2e8f0" : "#1e293b" }}
+                        />
+                        {timeProjectionMonths > 0 && (
+                          <ReferenceLine x={`+${Math.round(timeProjectionMonths)}mo`} stroke={isDark ? "#f59e0b" : "#d97706"} strokeDasharray="4 3" strokeWidth={1.5} label={{ value: `+${timeProjectionMonths % 1 === 0 ? timeProjectionMonths : timeProjectionMonths.toFixed(1)}mo`, position: "top", fill: isDark ? "#f59e0b" : "#d97706", fontSize: 9, fontWeight: 600 }} />
+                        )}
+                        <Area type="monotone" dataKey="riskTypeExposure" name="riskTypeExposure" stroke={isDark ? "#f97316" : "#ea580c"} strokeWidth={2} fill="url(#riskTypeGrad)" dot={false} activeDot={{ fill: isDark ? "#f97316" : "#ea580c", r: 4, stroke: isDark ? "#0f172a" : "#fff", strokeWidth: 2 }} />
+                        <Area type="monotone" dataKey="issueTypeExposure" name="issueTypeExposure" stroke={isDark ? "#3b82f6" : "#2563eb"} strokeWidth={2} fill="url(#issueTypeGrad)" dot={false} activeDot={{ fill: isDark ? "#3b82f6" : "#2563eb", r: 4, stroke: isDark ? "#0f172a" : "#fff", strokeWidth: 2 }} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
             </div>
         </div>
       )}
@@ -860,6 +822,14 @@ export default function PmoRadar() {
           onTimeProjectionChange={setTimeProjectionMonths}
           horizontalMetric={horizontalMetric}
           onHorizontalMetricChange={setHorizontalMetric}
+          generateNewItems={generateNewItems}
+          onGenerateNewItemsChange={setGenerateNewItems}
+          simulationSummary={simulationSummary}
+          reportStats={reportStats}
+          orgId={currentOrganization?.id}
+          activeScenarioId={activeScenarioId}
+          onScenarioLoad={handleScenarioLoad}
+          onScenarioChange={setActiveScenarioId}
         />
 
         <div className="flex-1 relative p-1 md:p-2 min-w-0 min-h-[300px]">
@@ -1110,6 +1080,20 @@ export default function PmoRadar() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <SimulationReportDialog
+        open={simulationReportOpen}
+        onOpenChange={setSimulationReportOpen}
+        log={simulationResult.log}
+        summary={simulationSummary}
+        timeProjectionMonths={timeProjectionMonths}
+        projectedDate={projectedDate}
+        totalSignals={reportStats.total}
+        totalCostExposure={reportStats.costTotal}
+        highCount={reportStats.high}
+        mediumCount={reportStats.medium}
+        lowCount={reportStats.low}
+      />
     </div>
   );
 }

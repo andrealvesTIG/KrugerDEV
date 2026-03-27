@@ -82,6 +82,11 @@ export default function DetailsDrawer({ signal, onClose, isDark, onEdit }: Detai
                 }`}>
                   {signal.itemType === "issue" ? "Issue" : "Risk"}
                 </span>
+                {signal.isSimulated && (
+                  <span className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-purple-500/20 text-purple-500 rounded border border-dashed border-purple-500/30">
+                    Simulated
+                  </span>
+                )}
                 {isOverdue && (
                   <span className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-red-500/20 text-red-500 rounded">
                     Overdue
@@ -237,7 +242,7 @@ export default function DetailsDrawer({ signal, onClose, isDark, onEdit }: Detai
               </div>
             </div>
 
-            {onEdit && (
+            {onEdit && !signal.isSimulated && (
               <button
                 onClick={() => onEdit(signal)}
                 className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
