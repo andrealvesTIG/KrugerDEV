@@ -69,6 +69,7 @@ const partnerTypes = [
   {
     id: "consulting" as const,
     title: "PMO Consulting Firms",
+    applyLabel: "Apply as Consulting Firm",
     description: "Expand your service offerings with an enterprise-grade PPM platform. Deliver more value to your clients with integrated project, portfolio, and resource management.",
     icon: Building2,
     color: "text-blue-600 dark:text-blue-400",
@@ -83,6 +84,7 @@ const partnerTypes = [
   {
     id: "independent" as const,
     title: "Independent Consultants",
+    applyLabel: "Apply as Consultant",
     description: "Differentiate your practice with a modern PMO toolset. Recommend a platform that makes your clients' project delivery measurably better.",
     icon: UserCheck,
     color: "text-emerald-600 dark:text-emerald-400",
@@ -97,6 +99,7 @@ const partnerTypes = [
   {
     id: "trainer" as const,
     title: "Trainers & Educators",
+    applyLabel: "Apply as Trainer",
     description: "Enhance your PMO and project management training programs with hands-on platform experience. Give your students real-world PPM tool proficiency.",
     icon: GraduationCap,
     color: "text-violet-600 dark:text-violet-400",
@@ -325,7 +328,7 @@ export default function PartnerProgramPage() {
                       className="w-full mt-6 bg-[#F37021] hover:bg-[#e0621a] text-white"
                       onClick={scrollToForm}
                     >
-                      Apply as {type.title.split(" ")[0]}
+                      {type.applyLabel}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   </CardContent>
