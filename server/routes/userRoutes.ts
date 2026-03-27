@@ -285,7 +285,7 @@ export function registerUserRoutes(app: Express) {
       const { unconSelfieLeads } = await import("@shared/schema");
       const page = Math.max(1, Number(req.query.page) || 1);
       const exportAll = req.query.export === 'true';
-      const limit = exportAll ? 10000 : Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+      const limit = exportAll ? 999999 : Math.min(100, Math.max(1, Number(req.query.limit) || 50));
       const offset = (page - 1) * limit;
       const searchQ = typeof req.query.search === 'string' ? req.query.search.trim() : '';
       let baseQuery = db.select().from(unconSelfieLeads);
