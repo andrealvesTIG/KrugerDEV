@@ -133,7 +133,7 @@ export function ReminderSettingsSection({ organizationId }: { organizationId: nu
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <CardTitle className="flex items-center gap-2">
               {enabled ? <Bell className="h-5 w-5" /> : <BellOff className="h-5 w-5 text-muted-foreground" />}
@@ -143,7 +143,7 @@ export function ReminderSettingsSection({ organizationId }: { organizationId: nu
               Configure automated reminders for timesheet submission, approval, and escalation policies.
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Button variant="outline" size="sm" onClick={() => setShowSendNowConfirm(true)} disabled={!enabled}>
               <Zap className="h-4 w-4 mr-1" /> Send Now
             </Button>
