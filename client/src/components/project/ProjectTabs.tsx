@@ -2095,6 +2095,7 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
   const [localScores, setLocalScores] = useState<Record<number, { score: number; justification: string }>>({});
   const [editingWeightId, setEditingWeightId] = useState<number | null>(null);
   const [editingWeightValue, setEditingWeightValue] = useState('');
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
 
   useEffect(() => {
     if (scores) {
@@ -2162,6 +2163,16 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
       setEditingWeightId(null);
     } catch {
       toast({ title: "Error", description: "Failed to update weight", variant: "destructive" });
+    }
+  };
+
+  const handleSaveCategory = async (criteriaId: number, category: string) => {
+    try {
+      await updateCriteria.mutateAsync({ id: criteriaId, organizationId, data: { category } });
+      toast({ title: "Category updated" });
+      setEditingCategoryId(null);
+    } catch {
+      toast({ title: "Error", description: "Failed to update category", variant: "destructive" });
     }
   };
 
@@ -2266,7 +2277,24 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
                   <div className="font-medium">{c.name}</div>
                   <div className="text-sm text-muted-foreground">{c.description}</div>
                   <div className="flex items-center gap-2 mt-1">
-                    <Badge variant="secondary">{c.category}</Badge>
+                    {editingCategoryId === c.id ? (
+                      <Select defaultValue={c.category || 'Strategic'} onValueChange={v => handleSaveCategory(c.id, v)}>
+                        <SelectTrigger className="h-6 w-28 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Strategic">Strategic</SelectItem>
+                          <SelectItem value="Financial">Financial</SelectItem>
+                          <SelectItem value="Risk">Risk</SelectItem>
+                          <SelectItem value="Resource">Resource</SelectItem>
+                          <SelectItem value="Technical">Technical</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <button onClick={() => setEditingCategoryId(c.id)} className="cursor-pointer">
+                        <Badge variant="secondary" className="hover:bg-secondary/80">{c.category}</Badge>
+                      </button>
+                    )}
                     {editingWeightId === c.id ? (
                       <div className="flex items-center gap-1">
                         <span className="text-xs text-muted-foreground">Weight:</span>
