@@ -178,7 +178,9 @@ export const externalShares = pgTable("external_shares", {
   sharedBy: varchar("shared_by").references(() => users.id), // Who shared it
   sharedAt: timestamp("shared_at").defaultNow(),
   revokedAt: timestamp("revoked_at"), // When access was revoked (soft delete)
-});
+}, (table) => [
+  uniqueIndex("external_shares_obj_user_idx").on(table.objectType, table.objectId, table.sharedWithUserId),
+]);
 
 // Portfolios - High level grouping of projects
 export const portfolios = pgTable("portfolios", {

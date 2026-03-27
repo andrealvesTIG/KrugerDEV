@@ -443,23 +443,14 @@ export async function getExternalShare(objectType: string, objectId: number, use
 }
 
 export async function createExternalShare(share: InsertExternalShare): Promise<ExternalShare> {
-  const existing = await getExternalShare(
-    share.objectType,
-    share.objectId,
-    share.sharedWithUserId
-  );
-  if (existing) {
-    if (existing.revokedAt) {
-      const [updated] = await db.update(externalShares)
-        .set({ revokedAt: null, accessRole: share.accessRole, sharedBy: share.sharedBy })
-        .where(eq(externalShares.id, existing.id))
-        .returning();
-      return updated;
-    }
-    return existing;
-  }
-  const [created] = await db.insert(externalShares).values(share).returning();
-  return created;
+  const [result] = await db.insert(externalShares)
+    .values(share)
+    .onConflictDoUpdate({
+      target: [externalShares.objectType, externalShares.objectId, externalShares.sharedWithUserId],
+      set: { revokedAt: null, accessRole: share.accessRole, sharedBy: share.sharedBy },
+    })
+    .returning();
+  return result;
 }
 
 export async function revokeExternalShare(id: number): Promise<void> {

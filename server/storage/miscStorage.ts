@@ -333,17 +333,14 @@ export async function getProjectCustomFieldValue(projectId: number, fieldDefinit
 }
 
 export async function upsertProjectCustomFieldValue(value: InsertProjectCustomFieldValue): Promise<ProjectCustomFieldValue> {
-  const existing = await getProjectCustomFieldValue(value.projectId, value.fieldDefinitionId);
-  if (existing) {
-    const [updated] = await db.update(projectCustomFieldValues)
-      .set({ value: value.value, updatedAt: new Date() })
-      .where(eq(projectCustomFieldValues.id, existing.id))
-      .returning();
-    return updated;
-  } else {
-    const [created] = await db.insert(projectCustomFieldValues).values(value).returning();
-    return created;
-  }
+  const [result] = await db.insert(projectCustomFieldValues)
+    .values(value)
+    .onConflictDoUpdate({
+      target: [projectCustomFieldValues.projectId, projectCustomFieldValues.fieldDefinitionId],
+      set: { value: value.value, updatedAt: new Date() },
+    })
+    .returning();
+  return result;
 }
 
 export async function deleteProjectCustomFieldValue(projectId: number, fieldDefinitionId: number): Promise<void> {
@@ -531,28 +528,14 @@ export async function deleteProjectScore(id: number): Promise<void> {
 }
 
 export async function upsertProjectScore(projectId: number, criteriaId: number, score: number, justification: string | null, scoredBy: string | null): Promise<ProjectScore> {
-  const existing = await db.select().from(projectScores)
-    .where(and(
-      eq(projectScores.projectId, projectId),
-      eq(projectScores.criteriaId, criteriaId)
-    ));
-  
-  if (existing.length > 0) {
-    const [updated] = await db.update(projectScores)
-      .set({ score, justification, scoredBy, scoredAt: new Date() })
-      .where(eq(projectScores.id, existing[0].id))
-      .returning();
-    return updated;
-  } else {
-    const [created] = await db.insert(projectScores).values({
-      projectId,
-      criteriaId,
-      score,
-      justification,
-      scoredBy
-    }).returning();
-    return created;
-  }
+  const [result] = await db.insert(projectScores)
+    .values({ projectId, criteriaId, score, justification, scoredBy })
+    .onConflictDoUpdate({
+      target: [projectScores.projectId, projectScores.criteriaId],
+      set: { score, justification, scoredBy, scoredAt: new Date() },
+    })
+    .returning();
+  return result;
 }
 
 export async function getProjectBenefits(projectId: number): Promise<ProjectBenefit[]> {

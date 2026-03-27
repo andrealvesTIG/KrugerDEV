@@ -334,16 +334,14 @@ export async function getTimesheetSettings(organizationId: number): Promise<Time
 }
 
 export async function upsertTimesheetSettings(settings: InsertTimesheetSettings): Promise<TimesheetSettings> {
-  const existing = await getTimesheetSettings(settings.organizationId);
-  if (existing) {
-    const [updated] = await db.update(timesheetSettings)
-      .set({ ...settings, updatedAt: new Date() })
-      .where(eq(timesheetSettings.organizationId, settings.organizationId))
-      .returning();
-    return updated;
-  }
-  const [created] = await db.insert(timesheetSettings).values(settings).returning();
-  return created;
+  const [result] = await db.insert(timesheetSettings)
+    .values(settings)
+    .onConflictDoUpdate({
+      target: [timesheetSettings.organizationId],
+      set: { ...settings, updatedAt: new Date() },
+    })
+    .returning();
+  return result;
 }
 
 export async function createTimesheetAuditLog(log: InsertTimesheetAuditLog): Promise<TimesheetAuditLog> {
