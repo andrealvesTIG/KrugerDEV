@@ -448,6 +448,12 @@ async function migrate() {
 
     // Backfill tasks.organization_id from projects for any null values
     `UPDATE tasks SET organization_id = (SELECT organization_id FROM projects WHERE projects.id = tasks.project_id) WHERE organization_id IS NULL AND project_id IS NOT NULL`,
+
+    // Deduplicate external_shares before adding unique index (keep latest row per object+user)
+    `DELETE FROM external_shares WHERE id NOT IN (
+      SELECT MAX(id) FROM external_shares GROUP BY object_type, object_id, shared_with_user_id
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS external_shares_obj_user_idx ON external_shares (object_type, object_id, shared_with_user_id)`,
   ];
 
   for (const sql of migrations) {
