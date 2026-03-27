@@ -4222,7 +4222,12 @@ const spec = {
           priority: { type: 'string', nullable: true, description: 'Project priority. Defaults to Medium.' },
           startDate: { type: 'string', format: 'date', nullable: true, description: 'Project start date (YYYY-MM-DD). If provided, template task dates are shifted relative to this date.' },
         }, required: ['name'] }),
-        responses: { ...r201('Project created from template', ref('Project')), ...createRes, ...e404 },
+        responses: { ...r201('Project created from template', { type: 'object', properties: {
+          success: { type: 'boolean' },
+          project: ref('Project'),
+          taskCount: { type: 'integer', description: 'Number of tasks created from template items' },
+          message: { type: 'string' },
+        } }), ...createRes, ...e404 },
       }),
     },
 
