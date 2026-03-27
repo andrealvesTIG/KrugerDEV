@@ -279,12 +279,23 @@ export function registerUserRoutes(app: Express) {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
       const user = await storage.getUser(userId);
-      if (!user || !hasAdminAccess(user)) {
-        return res.status(403).json({ message: "Admin access required" });
+      if (!user || user.role !== 'super_admin') {
+        return res.status(403).json({ message: "Super admin access required" });
       }
       const { unconSelfieLeads } = await import("@shared/schema");
-      const leads = await db.select().from(unconSelfieLeads).orderBy(desc(unconSelfieLeads.createdAt));
-      res.json(leads);
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+      const offset = (page - 1) * limit;
+      const [countResult] = await db.select({ count: sql`count(*)::int` }).from(unconSelfieLeads);
+      const total = countResult?.count ?? 0;
+      const leads = await db.select().from(unconSelfieLeads)
+        .orderBy(desc(unconSelfieLeads.createdAt))
+        .limit(limit)
+        .offset(offset);
+      res.json({
+        leads,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      });
     } catch (err) {
       console.error("Error fetching selfie leads:", err);
       res.status(500).json({ message: "Failed to fetch selfie leads" });

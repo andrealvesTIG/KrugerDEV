@@ -20,6 +20,11 @@ interface SelfieLead {
   createdAt: string | null;
 }
 
+interface SelfieLeadsResponse {
+  leads: SelfieLead[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
 type SortField = "name" | "email" | "interviewer" | "createdAt";
 
 export function MarketingTab() {
@@ -28,12 +33,20 @@ export function MarketingTab() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const pageSize = 20;
+  const pageSize = 50;
 
-  const { data: leads = [], isLoading } = useQuery<SelfieLead[]>({
-    queryKey: ["/api/admin/selfie-leads"],
+  const { data, isLoading } = useQuery<SelfieLeadsResponse>({
+    queryKey: ["/api/admin/selfie-leads", page],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/selfie-leads?page=${page}&limit=${pageSize}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch selfie leads");
+      return res.json();
+    },
     staleTime: 0,
   });
+
+  const leads = data?.leads ?? [];
+  const pagination = data?.pagination ?? { page: 1, limit: pageSize, total: 0, totalPages: 1 };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -42,7 +55,6 @@ export function MarketingTab() {
       setSortField(field);
       setSortDir(field === "createdAt" ? "desc" : "asc");
     }
-    setPage(1);
   };
 
   const filtered = useMemo(() => {
@@ -67,8 +79,8 @@ export function MarketingTab() {
           return (a.interviewer || "").localeCompare(b.interviewer || "") * dir;
         case "createdAt": {
           const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return (da - db) * dir;
+          const db_ = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return (da - db_) * dir;
         }
         default:
           return 0;
@@ -77,13 +89,6 @@ export function MarketingTab() {
     return result;
   }, [leads, search, sortField, sortDir]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const effectivePage = Math.min(page, totalPages);
-  const paged = filtered.slice(
-    (effectivePage - 1) * pageSize,
-    effectivePage * pageSize
-  );
-
   const getPhotoUrl = (lead: SelfieLead) => {
     if (!lead.photoPath) return null;
     if (lead.photoPath.startsWith("data:")) return lead.photoPath;
@@ -91,29 +96,36 @@ export function MarketingTab() {
     return `/api/uncon2026/selfie/${lead.shareToken}/og.png`;
   };
 
-  const exportToExcel = () => {
-    const headers = ["Name", "Email", "Interviewer", "Date & Time"];
-    const rows = filtered.map((l) => [
-      l.name,
-      l.email,
-      l.interviewer || "",
-      l.createdAt
-        ? format(new Date(l.createdAt), "MMM d, yyyy h:mm a")
-        : "",
-    ]);
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    worksheet["!cols"] = [
-      { wch: 25 },
-      { wch: 30 },
-      { wch: 20 },
-      { wch: 22 },
-    ];
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Selfie Leads");
-    XLSX.writeFile(
-      workbook,
-      `selfie-leads-${format(new Date(), "yyyy-MM-dd")}.xlsx`
-    );
+  const exportToExcel = async () => {
+    try {
+      const allRes = await fetch(`/api/admin/selfie-leads?page=1&limit=10000`, { credentials: "include" });
+      if (!allRes.ok) throw new Error("Failed to fetch all leads");
+      const allData: SelfieLeadsResponse = await allRes.json();
+      const headers = ["Name", "Email", "Interviewer", "Date & Time"];
+      const rows = allData.leads.map((l) => [
+        l.name,
+        l.email,
+        l.interviewer || "",
+        l.createdAt
+          ? format(new Date(l.createdAt), "MMM d, yyyy h:mm a")
+          : "",
+      ]);
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      worksheet["!cols"] = [
+        { wch: 25 },
+        { wch: 30 },
+        { wch: 20 },
+        { wch: 22 },
+      ];
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Selfie Leads");
+      XLSX.writeFile(
+        workbook,
+        `selfie-leads-${format(new Date(), "yyyy-MM-dd")}.xlsx`
+      );
+    } catch {
+      console.error("Failed to export selfie leads");
+    }
   };
 
   const SortIcon = ({ field }: { field: SortField }) =>
@@ -142,7 +154,7 @@ export function MarketingTab() {
               <Camera className="h-4 w-4" />
               Total Selfie Leads
             </div>
-            <div className="text-2xl font-bold mt-1">{leads.length}</div>
+            <div className="text-2xl font-bold mt-1">{pagination.total}</div>
           </CardContent>
         </Card>
         <Card className="hover-elevate">
@@ -173,7 +185,7 @@ export function MarketingTab() {
         <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
             <Camera className="h-5 w-5" />
-            Selfie Leads ({filtered.length})
+            Selfie Leads ({pagination.total})
           </CardTitle>
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <div className="relative flex-1 sm:flex-none">
@@ -181,10 +193,7 @@ export function MarketingTab() {
               <Input
                 placeholder="Search by name, email, interviewer..."
                 value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 w-full sm:w-[280px] h-9"
               />
             </div>
@@ -192,7 +201,7 @@ export function MarketingTab() {
               variant="outline"
               size="sm"
               onClick={exportToExcel}
-              disabled={filtered.length === 0}
+              disabled={pagination.total === 0}
             >
               <Download className="h-4 w-4 mr-1" />
               Export Excel
@@ -234,7 +243,7 @@ export function MarketingTab() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paged.map((lead) => {
+                    {filtered.map((lead) => {
                       const photoUrl = getPhotoUrl(lead);
                       return (
                         <TableRow key={lead.id}>
@@ -281,32 +290,32 @@ export function MarketingTab() {
                 </Table>
               </div>
 
-              {totalPages > 1 && (
+              {pagination.totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4">
                   <p className="text-sm text-muted-foreground">
-                    Showing {(effectivePage - 1) * pageSize + 1}-
-                    {Math.min(effectivePage * pageSize, filtered.length)} of{" "}
-                    {filtered.length}
+                    Showing {(pagination.page - 1) * pagination.limit + 1}-
+                    {Math.min(pagination.page * pagination.limit, pagination.total)} of{" "}
+                    {pagination.total}
                   </p>
                   <div className="flex items-center gap-2">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={effectivePage <= 1}
+                      disabled={page <= 1}
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <span className="text-sm text-muted-foreground">
-                      Page {effectivePage} of {totalPages}
+                      Page {pagination.page} of {pagination.totalPages}
                     </span>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() =>
-                        setPage((p) => Math.min(totalPages, p + 1))
+                        setPage((p) => Math.min(pagination.totalPages, p + 1))
                       }
-                      disabled={effectivePage >= totalPages}
+                      disabled={page >= pagination.totalPages}
                     >
                       <ChevronRight className="h-4 w-4" />
                     </Button>
