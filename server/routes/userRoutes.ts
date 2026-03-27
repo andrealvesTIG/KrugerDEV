@@ -287,15 +287,31 @@ export function registerUserRoutes(app: Express) {
       const exportAll = req.query.export === 'true';
       const limit = exportAll ? 10000 : Math.min(100, Math.max(1, Number(req.query.limit) || 50));
       const offset = (page - 1) * limit;
-      const [countResult] = await db.select({ count: sql`count(*)::int` }).from(unconSelfieLeads);
+      const searchQ = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+      let baseQuery = db.select().from(unconSelfieLeads);
+      let countQuery = db.select({ count: sql`count(*)::int` }).from(unconSelfieLeads);
+      if (searchQ) {
+        const pattern = `%${searchQ}%`;
+        const searchCondition = sql`(${unconSelfieLeads.name} ILIKE ${pattern} OR ${unconSelfieLeads.email} ILIKE ${pattern} OR ${unconSelfieLeads.interviewer} ILIKE ${pattern})`;
+        baseQuery = baseQuery.where(searchCondition) as typeof baseQuery;
+        countQuery = countQuery.where(searchCondition) as typeof countQuery;
+      }
+      const [countResult] = await countQuery;
       const total = countResult?.count ?? 0;
-      const leads = await db.select().from(unconSelfieLeads)
+      const leads = await baseQuery
         .orderBy(desc(unconSelfieLeads.createdAt))
         .limit(limit)
         .offset(offset);
+      const [uniqueEmails] = await db.select({ count: sql`count(DISTINCT lower(${unconSelfieLeads.email}))::int` }).from(unconSelfieLeads);
+      const [uniqueInterviewers] = await db.select({ count: sql`count(DISTINCT lower(${unconSelfieLeads.interviewer}))::int` }).from(unconSelfieLeads).where(sql`${unconSelfieLeads.interviewer} IS NOT NULL`);
       res.json({
         leads,
         pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+        summary: {
+          totalLeads: total,
+          uniqueEmails: uniqueEmails?.count ?? 0,
+          uniqueInterviewers: uniqueInterviewers?.count ?? 0,
+        },
       });
     } catch (err) {
       console.error("Error fetching selfie leads:", err);

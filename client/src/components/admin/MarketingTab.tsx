@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Loader2, Download, Search, Users, Camera, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
-import { normalizeSearch } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
 interface SelfieLead {
@@ -23,22 +22,35 @@ interface SelfieLead {
 interface SelfieLeadsResponse {
   leads: SelfieLead[];
   pagination: { page: number; limit: number; total: number; totalPages: number };
+  summary: { totalLeads: number; uniqueEmails: number; uniqueInterviewers: number };
 }
 
 type SortField = "name" | "email" | "interviewer" | "createdAt";
 
 export function MarketingTab() {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const pageSize = 50;
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(debounceRef.current);
+  }, [search]);
 
   const { data, isLoading } = useQuery<SelfieLeadsResponse>({
-    queryKey: ["/api/admin/selfie-leads", page],
+    queryKey: ["/api/admin/selfie-leads", page, debouncedSearch],
     queryFn: async () => {
-      const res = await fetch(`/api/admin/selfie-leads?page=${page}&limit=${pageSize}`, { credentials: "include" });
+      const params = new URLSearchParams({ page: String(page), limit: String(pageSize) });
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      const res = await fetch(`/api/admin/selfie-leads?${params}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch selfie leads");
       return res.json();
     },
@@ -47,6 +59,7 @@ export function MarketingTab() {
 
   const leads = data?.leads ?? [];
   const pagination = data?.pagination ?? { page: 1, limit: pageSize, total: 0, totalPages: 1 };
+  const summary = data?.summary ?? { totalLeads: 0, uniqueEmails: 0, uniqueInterviewers: 0 };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -57,17 +70,8 @@ export function MarketingTab() {
     }
   };
 
-  const filtered = useMemo(() => {
-    let result = [...leads];
-    if (search.trim()) {
-      const q = normalizeSearch(search);
-      result = result.filter(
-        (l) =>
-          normalizeSearch(l.name).includes(q) ||
-          normalizeSearch(l.email).includes(q) ||
-          normalizeSearch(l.interviewer || "").includes(q)
-      );
-    }
+  const sorted = useMemo(() => {
+    const result = [...leads];
     const dir = sortDir === "asc" ? 1 : -1;
     result.sort((a, b) => {
       switch (sortField) {
@@ -87,7 +91,7 @@ export function MarketingTab() {
       }
     });
     return result;
-  }, [leads, search, sortField, sortDir]);
+  }, [leads, sortField, sortDir]);
 
   const getPhotoUrl = (lead: SelfieLead) => {
     if (!lead.photoPath) return null;
@@ -137,7 +141,7 @@ export function MarketingTab() {
       )
     ) : null;
 
-  if (isLoading) {
+  if (isLoading && !data) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -154,7 +158,7 @@ export function MarketingTab() {
               <Camera className="h-4 w-4" />
               Total Selfie Leads
             </div>
-            <div className="text-2xl font-bold mt-1">{pagination.total}</div>
+            <div className="text-2xl font-bold mt-1">{summary.totalLeads}</div>
           </CardContent>
         </Card>
         <Card className="hover-elevate">
@@ -163,9 +167,7 @@ export function MarketingTab() {
               <Users className="h-4 w-4" />
               Unique Emails
             </div>
-            <div className="text-2xl font-bold mt-1">
-              {new Set(leads.map((l) => l.email.toLowerCase())).size}
-            </div>
+            <div className="text-2xl font-bold mt-1">{summary.uniqueEmails}</div>
           </CardContent>
         </Card>
         <Card className="hover-elevate">
@@ -174,9 +176,7 @@ export function MarketingTab() {
               <Users className="h-4 w-4" />
               Interviewers
             </div>
-            <div className="text-2xl font-bold mt-1">
-              {new Set(leads.filter((l) => l.interviewer).map((l) => l.interviewer!.toLowerCase())).size}
-            </div>
+            <div className="text-2xl font-bold mt-1">{summary.uniqueInterviewers}</div>
           </CardContent>
         </Card>
       </div>
@@ -201,7 +201,7 @@ export function MarketingTab() {
               variant="outline"
               size="sm"
               onClick={exportToExcel}
-              disabled={pagination.total === 0}
+              disabled={summary.totalLeads === 0}
             >
               <Download className="h-4 w-4 mr-1" />
               Export Excel
@@ -209,7 +209,7 @@ export function MarketingTab() {
           </div>
         </CardHeader>
         <CardContent>
-          {filtered.length === 0 ? (
+          {sorted.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No selfie leads found</p>
@@ -243,7 +243,7 @@ export function MarketingTab() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filtered.map((lead) => {
+                    {sorted.map((lead) => {
                       const photoUrl = getPhotoUrl(lead);
                       return (
                         <TableRow key={lead.id}>
