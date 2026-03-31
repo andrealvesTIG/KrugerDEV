@@ -1351,7 +1351,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         hoursLogged: Math.round(hoursLoggedRaw.reduce((s, h) => s + Number(h.hours || 0), 0) * 10) / 10,
         featureUsage: featureUsageRaw.reduce((s, f) => s + (f.count || 1), 0),
         totalUsers: signupsRaw.length,
-        totalActivities: (projectChangesRaw as any[]).length + (taskChangesRaw as any[]).length,
+        totalActivities: projectChangesRaw.length + taskChangesRaw.length,
       };
 
       res.json({ cohorts: cohorts.reverse(), totals });
