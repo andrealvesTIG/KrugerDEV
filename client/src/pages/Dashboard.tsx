@@ -45,6 +45,7 @@ import {
   CustomDashboard,
   CreateCustomDashboardDialog,
   AddPowerBIDialog,
+  KpiAnalyticsDashboard,
 } from "@/components/dashboard";
 import { 
   LayoutDashboard, 
@@ -179,6 +180,14 @@ const DASHBOARD_TABS: DashboardTab[] = [
       { id: "timesheet-weekly", label: "Weekly Summary", icon: CalendarDays },
       { id: "timesheet-project", label: "Project Hours", icon: FileBarChart },
       { id: "timesheet-resource", label: "Resource Hours", icon: Timer },
+    ]
+  },
+  {
+    id: "kpi-analytics",
+    label: "KPI Analytics",
+    icon: BarChart3,
+    submenus: [
+      { id: "kpi-analytics-overview", label: "Overview", icon: BarChart3 },
     ]
   },
 ];
@@ -795,6 +804,9 @@ export default function Dashboard() {
         {activeSubmenu === 'timesheet-weekly' && <TimesheetWeeklySummaryDashboard />}
         {activeSubmenu === 'timesheet-project' && <TimesheetProjectHoursDashboard />}
         {activeSubmenu === 'timesheet-resource' && <TimesheetResourceHoursDashboard />}
+
+        {/* KPI Analytics Dashboard */}
+        {activeSubmenu === 'kpi-analytics-overview' && <KpiAnalyticsDashboard />}
         
         {/* Custom Dashboards */}
         {activeSubmenu.startsWith('custom-') && selectedCustomDashboard && (

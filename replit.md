@@ -49,6 +49,7 @@ The application features an enterprise-grade UI inspired by Linear and Asana, ut
 **Cross-Project References**: Bidirectional linking between tasks and projects across different projects within the same organization, supporting various relationship types. Integrated into the task edit dialog and project summary.
 **Database Migration & Deployment**: The build process includes schema synchronization and additional index/manual migrations.
 **Schema Integrity**: A script validates all tables, columns, and foreign keys.
+**KPI Analytics Dashboard**: A dedicated dashboard tab under Dashboards showing user activity metrics across time cohorts (Week 1-4, Month 2-3, Month 4+). Tracks tasks created/completed, projects created, issues raised/resolved, hours logged, feature usage, active users, and platform engagement. Backend endpoint at `/api/dashboard/kpi-metrics` aggregates data from tasks, projects, issues, timesheets, feature usage logs, and change logs. Frontend uses Recharts for bar charts, line charts, and area charts with a detailed breakdown table.
 
 ## External Dependencies
 
