@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { AnalyticsTab } from "./AnalyticsTab";
 import { MarketingTab } from "./MarketingTab";
+import { KpiAnalyticsTab } from "./KpiAnalyticsTab";
   import { useQuery, useMutation } from "@tanstack/react-query";
   import { queryClient, apiRequest } from "@/lib/queryClient";
   import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -141,7 +142,7 @@ interface OrgUsage {
   planDistribution: Array<{ plan_name: string; plan_code: string; org_count: number }>;
 }
 
-type MonitoringSubTab = 'overview' | 'api-logs' | 'users' | 'features' | 'performance' | 'database' | 'organizations' | 'analytics' | 'marketing';
+type MonitoringSubTab = 'overview' | 'api-logs' | 'users' | 'features' | 'performance' | 'database' | 'organizations' | 'analytics' | 'marketing' | 'kpi-analytics';
 
 export function MonitoringTab() {
   const { toast } = useToast();
@@ -2069,6 +2070,16 @@ export function MonitoringTab() {
               <Megaphone className="h-4 w-4 mr-1" />
               Marketing
             </Button>
+            <Button
+              variant={subTab === 'kpi-analytics' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSubTab('kpi-analytics')}
+              data-testid="btn-subtab-kpi-analytics"
+              className="whitespace-nowrap"
+            >
+              <TrendingUp className="h-4 w-4 mr-1" />
+              KPI Analytics
+            </Button>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={handleRefresh} data-testid="btn-refresh-monitoring" className="shrink-0">
@@ -2085,6 +2096,7 @@ export function MonitoringTab() {
       {subTab === 'organizations' && renderOrgUsage()}
       {subTab === 'analytics' && <AnalyticsTab />}
       {subTab === 'marketing' && <MarketingTab />}
+      {subTab === 'kpi-analytics' && <KpiAnalyticsTab />}
     </div>
   );
 }
