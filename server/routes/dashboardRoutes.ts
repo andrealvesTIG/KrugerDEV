@@ -1179,4 +1179,187 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
     }
   });
 
+  app.get('/api/admin/kpi-metrics', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      const [currentUser] = await db.select().from(users).where(eq(users.id, userId));
+      if (!hasAdminAccess(currentUser)) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const now = new Date();
+      const cohortBoundaries = [
+        { label: "Week 1", daysAgo: 7 },
+        { label: "Week 2", daysAgo: 14 },
+        { label: "Week 3", daysAgo: 21 },
+        { label: "Week 4", daysAgo: 28 },
+        { label: "Month 2", daysAgo: 60 },
+        { label: "Month 3", daysAgo: 90 },
+        { label: "Month 4+", daysAgo: 9999 },
+      ];
+
+      const [
+        signupsRaw,
+        tasksCreatedRaw,
+        tasksCompletedRaw,
+        projectsCreatedRaw,
+        issuesRaisedRaw,
+        issuesResolvedRaw,
+        hoursLoggedRaw,
+        featureUsageRaw,
+        activeUsersRaw,
+        projectChangesRaw,
+        taskChangesRaw,
+      ] = await Promise.all([
+        db.select({
+          createdAt: users.createdAt,
+        }).from(users),
+
+        db.select({
+          createdAt: tasks.createdAt,
+        }).from(tasks).where(sql`${tasks.deletedAt} IS NULL`),
+
+        db.select({
+          createdAt: tasks.updatedAt,
+        }).from(tasks).where(and(
+          sql`${tasks.deletedAt} IS NULL`,
+          eq(tasks.status, 'Completed')
+        )),
+
+        db.select({
+          createdAt: projects.createdAt,
+        }).from(projects).where(sql`${projects.deletedAt} IS NULL`),
+
+        db.select({
+          createdAt: issues.createdAt,
+        }).from(issues).where(and(
+          eq(issues.itemType, 'issue'),
+          sql`${issues.deletedAt} IS NULL`
+        )),
+
+        db.select({
+          resolvedDate: issues.actualResolutionDate,
+        }).from(issues).where(and(
+          eq(issues.itemType, 'issue'),
+          sql`${issues.deletedAt} IS NULL`,
+          sql`${issues.actualResolutionDate} IS NOT NULL`
+        )),
+
+        db.select({
+          hours: timesheetEntries.hours,
+          entryDate: timesheetEntries.entryDate,
+        }).from(timesheetEntries),
+
+        db.select({
+          createdAt: featureUsageLogs.createdAt,
+          count: featureUsageLogs.usageCount,
+        }).from(featureUsageLogs),
+
+        db.select({
+          changedBy: taskChangeLogs.changedBy,
+          changedAt: taskChangeLogs.changedAt,
+        }).from(taskChangeLogs).where(
+          sql`${taskChangeLogs.changedBy} IS NOT NULL`
+        ),
+
+        db.select({
+          changedAt: projectChangeLogs.changedAt,
+        }).from(projectChangeLogs),
+
+        db.select({
+          changedAt: taskChangeLogs.changedAt,
+        }).from(taskChangeLogs),
+      ]);
+
+      function getCohortIndex(date: Date | string | null): number {
+        if (!date) return cohortBoundaries.length - 1;
+        const d = typeof date === 'string' ? new Date(date) : date;
+        const daysAgo = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+        for (let i = 0; i < cohortBoundaries.length; i++) {
+          if (daysAgo < cohortBoundaries[i].daysAgo) return i;
+        }
+        return cohortBoundaries.length - 1;
+      }
+
+      const cohorts = cohortBoundaries.map(b => ({
+        label: b.label,
+        newSignups: 0,
+        tasksCreated: 0,
+        tasksCompleted: 0,
+        projectsCreated: 0,
+        issuesRaised: 0,
+        issuesResolved: 0,
+        hoursLogged: 0,
+        featureUsage: 0,
+        activeUsers: 0,
+        projectUpdates: 0,
+        taskUpdates: 0,
+      }));
+
+      for (const u of signupsRaw) {
+        cohorts[getCohortIndex(u.createdAt)].newSignups++;
+      }
+      for (const t of tasksCreatedRaw) {
+        cohorts[getCohortIndex(t.createdAt)].tasksCreated++;
+      }
+      for (const t of tasksCompletedRaw) {
+        cohorts[getCohortIndex(t.createdAt)].tasksCompleted++;
+      }
+      for (const p of projectsCreatedRaw) {
+        cohorts[getCohortIndex(p.createdAt)].projectsCreated++;
+      }
+      for (const i of issuesRaisedRaw) {
+        cohorts[getCohortIndex(i.createdAt)].issuesRaised++;
+      }
+      for (const i of issuesResolvedRaw) {
+        cohorts[getCohortIndex(i.resolvedDate)].issuesResolved++;
+      }
+      for (const h of hoursLoggedRaw) {
+        cohorts[getCohortIndex(h.entryDate)].hoursLogged += Number(h.hours || 0);
+      }
+      for (const f of featureUsageRaw) {
+        cohorts[getCohortIndex(f.createdAt)].featureUsage += f.count || 1;
+      }
+
+      const activeUserSets: Set<string>[] = cohortBoundaries.map(() => new Set());
+      for (const a of activeUsersRaw) {
+        if (a.changedBy) {
+          activeUserSets[getCohortIndex(a.changedAt)].add(a.changedBy);
+        }
+      }
+      for (let i = 0; i < cohorts.length; i++) {
+        cohorts[i].activeUsers = activeUserSets[i].size;
+      }
+
+      for (const pc of projectChangesRaw) {
+        cohorts[getCohortIndex(pc.changedAt)].projectUpdates++;
+      }
+      for (const tc of taskChangesRaw) {
+        cohorts[getCohortIndex(tc.changedAt)].taskUpdates++;
+      }
+
+      const totals = {
+        newSignups: signupsRaw.length,
+        tasksCreated: tasksCreatedRaw.length,
+        tasksCompleted: tasksCompletedRaw.length,
+        projectsCreated: projectsCreatedRaw.length,
+        issuesRaised: issuesRaisedRaw.length,
+        issuesResolved: issuesResolvedRaw.length,
+        hoursLogged: Math.round(hoursLoggedRaw.reduce((s, h) => s + Number(h.hours || 0), 0) * 10) / 10,
+        featureUsage: featureUsageRaw.reduce((s, f) => s + (f.count || 1), 0),
+        totalUsers: signupsRaw.length,
+        totalActivities: (projectChangesRaw as any[]).length + (taskChangesRaw as any[]).length,
+      };
+
+      res.json({ cohorts: cohorts.reverse(), totals });
+    } catch (err) {
+      console.error('Error fetching admin KPI metrics:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch admin KPI metrics' : classified.message });
+    }
+  });
+
 }
