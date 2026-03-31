@@ -38,9 +38,37 @@ type KpiTotals = {
   totalActivities: number;
 };
 
+type FeatureUsageData = {
+  feature: string;
+  totalRequests: number;
+  reads: number;
+  writes: number;
+  uniqueUsers: number;
+  avgDurationMs: number;
+};
+
+type ErrorHotspot = {
+  feature: string;
+  errorCount: number;
+  affectedUsers: number;
+  errorRate: number;
+  mostCommonStatus: number;
+};
+
+type FrictionTrend = {
+  week: string;
+  errors: number;
+  total: number;
+  errorRate: number;
+  activeUsers: number;
+};
+
 type AdminKpiMetricsResponse = {
   cohorts: CohortData[];
   totals: KpiTotals;
+  topFeatures: FeatureUsageData[];
+  errorHotspots: ErrorHotspot[];
+  frictionTrend: FrictionTrend[];
 };
 
 function SummaryCard({ title, value, icon: Icon, subtitle, trend }: {
@@ -136,7 +164,7 @@ export function KpiAnalyticsTab() {
     );
   }
 
-  const { cohorts, totals } = data;
+  const { cohorts, totals, topFeatures = [], errorHotspots = [], frictionTrend = [] } = data;
 
   const recentCohort = cohorts.length > 0 ? cohorts[cohorts.length - 1] : null;
   const prevCohort = cohorts.length > 1 ? cohorts[cohorts.length - 2] : null;
@@ -373,6 +401,147 @@ export function KpiAnalyticsTab() {
           </div>
         </CardContent>
       </Card>
+
+      <div className="border-t pt-6">
+        <h3 className="text-xl font-bold tracking-tight mb-1">User Behavior & Friction Analysis</h3>
+        <p className="text-muted-foreground text-sm mb-6">
+          What users do most and where they get stuck (last 30 days)
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Most Used Features</CardTitle>
+            <CardDescription>Top features by request volume and unique users (30 days)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {topFeatures.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={topFeatures.slice(0, 10)} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis type="number" className="text-xs" tick={{ fontSize: 11 }} />
+                  <YAxis dataKey="feature" type="category" width={110} className="text-xs" tick={{ fontSize: 11 }} />
+                  <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
+                  <Legend />
+                  <Bar dataKey="reads" name="Reads" fill="#6366f1" stackId="a" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="writes" name="Writes" fill="#10b981" stackId="a" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-8">No feature usage data available</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Error Rate Over Time</CardTitle>
+            <CardDescription>Weekly error rate and active users (last 90 days)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {frictionTrend.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={frictionTrend}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="week" className="text-xs" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="rate" className="text-xs" tick={{ fontSize: 11 }} unit="%" />
+                  <YAxis yAxisId="users" orientation="right" className="text-xs" tick={{ fontSize: 11 }} />
+                  <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
+                  <Legend />
+                  <Line yAxisId="rate" type="monotone" dataKey="errorRate" name="Error Rate %" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line yAxisId="users" type="monotone" dataKey="activeUsers" name="Active Users" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-8">No trend data available</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {topFeatures.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Feature Usage Details</CardTitle>
+            <CardDescription>What users do — feature breakdown with engagement depth (30 days)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-2 font-medium text-muted-foreground">Feature</th>
+                    <th className="text-right py-3 px-2 font-medium text-muted-foreground">Total Requests</th>
+                    <th className="text-right py-3 px-2 font-medium text-muted-foreground">Reads</th>
+                    <th className="text-right py-3 px-2 font-medium text-muted-foreground">Writes</th>
+                    <th className="text-right py-3 px-2 font-medium text-muted-foreground">Unique Users</th>
+                    <th className="text-right py-3 px-2 font-medium text-muted-foreground">Avg Response</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topFeatures.map((f) => (
+                    <tr key={f.feature} className="border-b last:border-0 hover:bg-muted/50">
+                      <td className="py-3 px-2 font-medium">{f.feature}</td>
+                      <td className="text-right py-3 px-2">{f.totalRequests.toLocaleString()}</td>
+                      <td className="text-right py-3 px-2">{f.reads.toLocaleString()}</td>
+                      <td className="text-right py-3 px-2">{f.writes.toLocaleString()}</td>
+                      <td className="text-right py-3 px-2">{f.uniqueUsers}</td>
+                      <td className="text-right py-3 px-2">{f.avgDurationMs}ms</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {errorHotspots.length > 0 && (
+        <Card className="border-red-200 dark:border-red-900/50">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+              Where Users Get Stuck
+            </CardTitle>
+            <CardDescription>Features with the most errors — friction points that may cause drop-off (30 days)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-2 font-medium text-muted-foreground">Feature</th>
+                    <th className="text-right py-3 px-2 font-medium text-muted-foreground">Errors</th>
+                    <th className="text-right py-3 px-2 font-medium text-muted-foreground">Affected Users</th>
+                    <th className="text-right py-3 px-2 font-medium text-muted-foreground">Error Rate</th>
+                    <th className="text-right py-3 px-2 font-medium text-muted-foreground">Common Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {errorHotspots.map((e) => (
+                    <tr key={e.feature} className="border-b last:border-0 hover:bg-muted/50">
+                      <td className="py-3 px-2 font-medium">{e.feature}</td>
+                      <td className="text-right py-3 px-2">
+                        <Badge variant="destructive" className="text-xs">{e.errorCount}</Badge>
+                      </td>
+                      <td className="text-right py-3 px-2">{e.affectedUsers}</td>
+                      <td className="text-right py-3 px-2">
+                        <span className={e.errorRate > 10 ? "text-red-500 font-semibold" : e.errorRate > 5 ? "text-amber-500" : ""}>
+                          {e.errorRate}%
+                        </span>
+                      </td>
+                      <td className="text-right py-3 px-2">
+                        <Badge variant="outline" className="text-xs">{e.mostCommonStatus}</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

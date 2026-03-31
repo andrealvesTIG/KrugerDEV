@@ -1354,7 +1354,110 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         totalActivities: projectChangesRaw.length + taskChangesRaw.length,
       };
 
-      res.json({ cohorts: cohorts.reverse(), totals });
+      const featureCaseExpr = `
+        CASE
+          WHEN path LIKE '/api/projects%' THEN 'Projects'
+          WHEN path LIKE '/api/tasks%' THEN 'Tasks'
+          WHEN path LIKE '/api/portfolios%' THEN 'Portfolios'
+          WHEN path LIKE '/api/risks%' THEN 'Risks'
+          WHEN path LIKE '/api/issues%' THEN 'Issues'
+          WHEN path LIKE '/api/timesheets%' THEN 'Timesheets'
+          WHEN path LIKE '/api/resources%' THEN 'Resources'
+          WHEN path LIKE '/api/milestones%' THEN 'Milestones'
+          WHEN path LIKE '/api/organizations%' THEN 'Organizations'
+          WHEN path LIKE '/api/users%' THEN 'Users'
+          WHEN path LIKE '/api/notifications%' THEN 'Notifications'
+          WHEN path LIKE '/api/custom-dashboards%' THEN 'Custom Dashboards'
+          WHEN path LIKE '/api/project-intakes%' THEN 'Project Intakes'
+          WHEN path LIKE '/api/chat%' THEN 'AI Chat'
+          WHEN path LIKE '/api/dashboard%' THEN 'Dashboards'
+          WHEN path LIKE '/api/gantt%' THEN 'Gantt Charts'
+          WHEN path LIKE '/api/templates%' THEN 'Templates'
+          WHEN path LIKE '/api/documents%' THEN 'Documents'
+          ELSE 'Other'
+        END`;
+
+      const [topFeaturesResult, errorHotspotsResult, frictionTrendResult] = await Promise.all([
+        db.execute(sql.raw(`
+          SELECT ${featureCaseExpr} as feature,
+            COUNT(*) as total_requests,
+            COUNT(*) FILTER (WHERE method = 'GET') as reads,
+            COUNT(*) FILTER (WHERE method != 'GET') as writes,
+            COUNT(DISTINCT user_id) as unique_users,
+            ROUND(AVG(duration)::numeric, 0) as avg_duration_ms
+          FROM api_request_logs
+          WHERE created_at >= NOW() - INTERVAL '30 days'
+            AND path NOT LIKE '/api/auth%'
+            AND path NOT LIKE '/api/billing%'
+          GROUP BY ${featureCaseExpr}
+          ORDER BY total_requests DESC
+          LIMIT 15
+        `)),
+
+        db.execute(sql.raw(`
+          WITH feature_stats AS (
+            SELECT ${featureCaseExpr} as feature,
+              COUNT(*) as total,
+              COUNT(*) FILTER (WHERE status_code >= 400 AND status_code != 401) as errors,
+              COUNT(DISTINCT user_id) FILTER (WHERE status_code >= 400 AND status_code != 401) as affected_users,
+              mode() WITHIN GROUP (ORDER BY status_code) FILTER (WHERE status_code >= 400 AND status_code != 401) as most_common_status
+            FROM api_request_logs
+            WHERE created_at >= NOW() - INTERVAL '30 days'
+              AND path NOT LIKE '/api/auth%'
+            GROUP BY ${featureCaseExpr}
+          )
+          SELECT feature, errors as error_count, affected_users,
+            ROUND(errors * 100.0 / NULLIF(total, 0), 1) as error_rate,
+            most_common_status
+          FROM feature_stats
+          WHERE errors >= 3
+          ORDER BY errors DESC
+          LIMIT 10
+        `)),
+
+        db.execute(sql.raw(`
+          SELECT
+            TO_CHAR(DATE_TRUNC('week', created_at), 'Mon DD') as week,
+            COUNT(*) FILTER (WHERE status_code >= 400 AND status_code != 401) as errors,
+            COUNT(*) as total,
+            ROUND(
+              COUNT(*) FILTER (WHERE status_code >= 400 AND status_code != 401) * 100.0 / NULLIF(COUNT(*), 0), 1
+            ) as error_rate,
+            COUNT(DISTINCT user_id) as active_users
+          FROM api_request_logs
+          WHERE created_at >= NOW() - INTERVAL '90 days'
+            AND path NOT LIKE '/api/auth%'
+          GROUP BY DATE_TRUNC('week', created_at)
+          ORDER BY DATE_TRUNC('week', created_at) ASC
+        `)),
+      ]);
+
+      const topFeatures = topFeaturesResult.rows.map((r: Record<string, unknown>) => ({
+        feature: String(r.feature || ''),
+        totalRequests: Number(r.total_requests || 0),
+        reads: Number(r.reads || 0),
+        writes: Number(r.writes || 0),
+        uniqueUsers: Number(r.unique_users || 0),
+        avgDurationMs: Number(r.avg_duration_ms || 0),
+      }));
+
+      const errorHotspots = errorHotspotsResult.rows.map((r: Record<string, unknown>) => ({
+        feature: String(r.feature || ''),
+        errorCount: Number(r.error_count || 0),
+        affectedUsers: Number(r.affected_users || 0),
+        errorRate: Number(r.error_rate || 0),
+        mostCommonStatus: Number(r.most_common_status || 0),
+      }));
+
+      const frictionTrend = frictionTrendResult.rows.map((r: Record<string, unknown>) => ({
+        week: String(r.week || ''),
+        errors: Number(r.errors || 0),
+        total: Number(r.total || 0),
+        errorRate: Number(r.error_rate || 0),
+        activeUsers: Number(r.active_users || 0),
+      }));
+
+      res.json({ cohorts: cohorts.reverse(), totals, topFeatures, errorHotspots, frictionTrend });
     } catch (err) {
       console.error('Error fetching admin KPI metrics:', err);
       const classified = classifyError(err);
