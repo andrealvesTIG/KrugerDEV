@@ -1,8 +1,8 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
-import { eq, and } from "drizzle-orm";
-import { taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, notifications } from "@shared/schema";
+import { eq, and, sql, gte, lte } from "drizzle-orm";
+import { taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, notifications, resourceAvailability } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -10,6 +10,7 @@ import {
   getUserOrgRole,
   requireEmailVerified,
 } from "./helpers";
+import { createTaskAssignmentNotification, createTaskUnassignmentNotification, createRiskAssignmentNotification } from "../services/notificationEngine";
 
 export function registerResourceRoutes(app: Express) {
   // ==================== RESOURCES ====================
@@ -709,39 +710,105 @@ export function registerResourceRoutes(app: Express) {
   // Update assignments for a task (replace all)
   app.put('/api/tasks/:taskId/resources', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+      const verified = await requireEmailVerified(userId);
+      if (!verified.verified) return res.status(403).json({ message: verified.error || 'Email verification required' });
+
       const taskId = Number(req.params.taskId);
-      const { resourceIds, allocations } = req.body;
+      const { resourceIds, allocations, expectedUpdatedAt } = req.body;
       if (!Array.isArray(resourceIds)) {
         return res.status(400).json({ message: "resourceIds must be an array" });
       }
-      
-      // Get existing assignments before update to find new ones
+
+      const task = await storage.getTask(taskId);
+      if (!task) return res.status(404).json({ message: "Task not found" });
+
+      const project = await storage.getProject(task.projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      const role = await getUserOrgRole(userId, project.organizationId);
+      if (role === 'viewer') {
+        return res.status(403).json({ message: 'Viewers cannot modify task assignments' });
+      }
+
+      if (expectedUpdatedAt) {
+        const taskUpdatedAt = task.updatedAt ? new Date(task.updatedAt).toISOString() : null;
+        const expected = new Date(expectedUpdatedAt).toISOString();
+        if (taskUpdatedAt && taskUpdatedAt !== expected) {
+          return res.status(409).json({ message: 'Task was modified by another user. Please refresh and try again.' });
+        }
+      }
+
+      const warnings: string[] = [];
+
+      if (resourceIds.length > 0 && task.startDate && task.endDate) {
+        for (const resId of resourceIds) {
+          const existingAssignments = await db.select({
+            allocationPercentage: taskResourceAssignments.allocationPercentage,
+          }).from(taskResourceAssignments)
+            .where(and(
+              eq(taskResourceAssignments.resourceId, resId),
+              sql`${taskResourceAssignments.taskId} != ${taskId}`
+            ));
+
+          const currentAlloc = allocations?.find((a: any) => a.resourceId === resId)?.allocationPercentage ?? 100;
+          const totalAlloc = existingAssignments.reduce((sum, a) => sum + (a.allocationPercentage ?? 100), 0) + currentAlloc;
+          if (totalAlloc > 100) {
+            const resource = await db.select().from(resources).where(eq(resources.id, resId)).limit(1);
+            const name = resource[0]?.displayName || `Resource #${resId}`;
+            warnings.push(`${name} is over-allocated at ${totalAlloc}%`);
+          }
+
+          const timeOff = await db.select().from(resourceAvailability)
+            .where(and(
+              eq(resourceAvailability.resourceId, resId),
+              lte(resourceAvailability.startDate, task.endDate),
+              gte(resourceAvailability.endDate, task.startDate),
+              eq(resourceAvailability.status, 'approved')
+            ));
+          if (timeOff.length > 0) {
+            const resource = await db.select().from(resources).where(eq(resources.id, resId)).limit(1);
+            const name = resource[0]?.displayName || `Resource #${resId}`;
+            warnings.push(`${name} has time-off during the task period`);
+          }
+        }
+      }
+
       const existingAssignments = await storage.getTaskResourceAssignments(taskId);
       const existingResourceIds = new Set(existingAssignments.map(a => a.resourceId));
       
-      // Pass allocations to storage (array of { resourceId, allocationPercentage })
       await storage.updateTaskResourceAssignments(taskId, resourceIds, allocations);
       const assignments = await storage.getTaskResourceAssignments(taskId);
       
-      // Create notifications for newly assigned resources
       const user = req.user as any;
       if (user) {
+        const userName = user.name || user.email || 'A team member';
         const newResourceIds = resourceIds.filter((id: number) => !existingResourceIds.has(id));
         for (const resourceId of newResourceIds) {
           try {
-            await createTaskAssignmentNotification(
-              taskId,
-              resourceId,
-              user.id,
-              user.name || user.email || 'A team member'
-            );
+            await createTaskAssignmentNotification(taskId, resourceId, user.id, userName);
           } catch (notifErr) {
             console.error('Error creating task assignment notification:', notifErr);
           }
         }
+
+        const removedResourceIds = [...existingResourceIds].filter(id => !resourceIds.includes(id));
+        for (const resourceId of removedResourceIds) {
+          try {
+            await createTaskUnassignmentNotification(taskId, resourceId, user.id, userName);
+          } catch (notifErr) {
+            console.error('Error creating task unassignment notification:', notifErr);
+          }
+        }
       }
       
-      res.json(assignments);
+      res.json({ assignments, warnings });
     } catch (err) {
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? "Error updating task assignments" : classified.message });

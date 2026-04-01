@@ -145,17 +145,32 @@ export function useAllIssueResourceAssignments(organizationId: number | null) {
 export function useUpdateTaskResourceAssignments() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ taskId, resourceIds, allocations }: { 
+    mutationFn: async ({ taskId, resourceIds, allocations, expectedUpdatedAt }: { 
       taskId: number; 
       resourceIds: number[]; 
       allocations?: { resourceId: number; allocationPercentage: number }[];
+      expectedUpdatedAt?: string;
     }) => {
-      const response = await apiRequest("PUT", `/api/tasks/${taskId}/resources`, { resourceIds, allocations });
+      const response = await fetch(`/api/tasks/${taskId}/resources`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resourceIds, allocations, expectedUpdatedAt }),
+        credentials: "include",
+      });
+      if (response.status === 409) {
+        const data = await response.json().catch(() => ({}));
+        const err = new Error(data.message || 'Task was modified by another user. Please refresh and try again.') as any;
+        err.status = 409;
+        throw err;
+      }
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to update task assignments");
+      }
       return response.json();
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks", variables.taskId, "resources"] });
-      // Also invalidate project queries since estimated hours may have been recalculated
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
     },
   });

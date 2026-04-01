@@ -6,9 +6,42 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Trash2, Building2, Upload, Image, Pencil } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Trash2, Building2, Upload, Image, Pencil, Globe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Organization } from "@shared/schema";
+
+const COMMON_TIMEZONES = [
+  "UTC",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Anchorage",
+  "Pacific/Honolulu",
+  "America/Toronto",
+  "America/Vancouver",
+  "America/Sao_Paulo",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Europe/Amsterdam",
+  "Europe/Zurich",
+  "Europe/Stockholm",
+  "Europe/Helsinki",
+  "Europe/Warsaw",
+  "Europe/Istanbul",
+  "Asia/Dubai",
+  "Asia/Kolkata",
+  "Asia/Singapore",
+  "Asia/Hong_Kong",
+  "Asia/Shanghai",
+  "Asia/Tokyo",
+  "Asia/Seoul",
+  "Australia/Sydney",
+  "Australia/Melbourne",
+  "Pacific/Auckland",
+];
 
 export function GeneralSection({ organization }: { organization: Organization }) {
   const { toast } = useToast();
@@ -48,6 +81,28 @@ export function GeneralSection({ organization }: { organization: Organization })
     },
   });
   
+  const updateTimezoneMutation = useMutation({
+    mutationFn: async (timezone: string) => {
+      const res = await apiRequest('PUT', `/api/organizations/${organization.id}`, { timezone });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user/organizations'] });
+      toast({
+        title: "Timezone updated",
+        description: "Organization timezone has been updated successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update timezone. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const updateLogoMutation = useMutation({
     mutationFn: async (logoUrl: string | null) => {
       const res = await apiRequest('PUT', `/api/organizations/${organization.id}`, { logoUrl });
@@ -225,6 +280,36 @@ export function GeneralSection({ organization }: { organization: Organization })
               {organization.id}
             </code>
           </div>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-4">
+          <div>
+            <Label className="text-base font-medium flex items-center gap-2">
+              <Globe className="h-4 w-4" />
+              Organization Timezone
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              The default timezone used for scheduling, notifications, and reports across your organization.
+            </p>
+          </div>
+          <Select
+            value={organization.timezone || "UTC"}
+            onValueChange={(value) => updateTimezoneMutation.mutate(value)}
+            disabled={updateTimezoneMutation.isPending}
+          >
+            <SelectTrigger className="max-w-md" data-testid="select-org-timezone">
+              <SelectValue placeholder="Select timezone" />
+            </SelectTrigger>
+            <SelectContent>
+              {COMMON_TIMEZONES.map((tz) => (
+                <SelectItem key={tz} value={tz}>
+                  {tz.replace(/_/g, ' ')}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <Separator />

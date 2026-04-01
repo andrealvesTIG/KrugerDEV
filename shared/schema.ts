@@ -119,6 +119,7 @@ export const organizations = pgTable("organizations", {
   billingHidden: boolean("billing_hidden").default(false),
   riskAssessmentConfig: jsonb("risk_assessment_config").$type<RiskAssessmentConfig>(),
   schedulingDefaults: jsonb("scheduling_defaults").$type<SchedulingDefaults>(),
+  timezone: text("timezone").default("UTC"),
   deactivatedAt: timestamp("deactivated_at"), // Soft delete timestamp
   deactivatedBy: varchar("deactivated_by").references(() => users.id), // Who deactivated
 });

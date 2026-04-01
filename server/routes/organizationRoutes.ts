@@ -132,8 +132,13 @@ export function registerOrganizationRoutes(app: Express) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
       
-      const { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl } = req.body;
-      const updated = await storage.updateOrganization(orgId, { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl });
+      const role = await getUserOrgRole(userId, orgId);
+      if (role !== 'org_admin') {
+        return res.status(403).json({ message: 'Only organization admins can update settings' });
+      }
+      
+      const { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl, timezone } = req.body;
+      const updated = await storage.updateOrganization(orgId, { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl, timezone });
       res.json(updated);
     } catch (err) {
       const classified = classifyError(err);

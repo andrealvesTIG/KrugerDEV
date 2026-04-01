@@ -315,7 +315,10 @@ export async function getTaskResourceAssignments(taskId: number): Promise<(TaskR
   const assignments = await db.select()
     .from(taskResourceAssignments)
     .innerJoin(resources, eq(taskResourceAssignments.resourceId, resources.id))
-    .where(eq(taskResourceAssignments.taskId, taskId));
+    .where(and(
+      eq(taskResourceAssignments.taskId, taskId),
+      isNull(resources.deletedAt)
+    ));
   
   return assignments.map(a => ({
     ...a.task_resource_assignments,
@@ -328,7 +331,10 @@ export async function getProjectTaskResourceAssignments(projectId: number): Prom
     .from(taskResourceAssignments)
     .innerJoin(resources, eq(taskResourceAssignments.resourceId, resources.id))
     .innerJoin(tasks, eq(taskResourceAssignments.taskId, tasks.id))
-    .where(eq(tasks.projectId, projectId));
+    .where(and(
+      eq(tasks.projectId, projectId),
+      isNull(resources.deletedAt)
+    ));
   
   return assignments.map(a => ({
     ...a.task_resource_assignments,
@@ -340,7 +346,10 @@ export async function getAllTaskResourceAssignments(organizationId: number): Pro
   const assignments = await db.select()
     .from(taskResourceAssignments)
     .innerJoin(resources, eq(taskResourceAssignments.resourceId, resources.id))
-    .where(eq(resources.organizationId, organizationId));
+    .where(and(
+      eq(resources.organizationId, organizationId),
+      isNull(resources.deletedAt)
+    ));
   
   return assignments.map(a => ({
     ...a.task_resource_assignments,
@@ -412,63 +421,82 @@ export async function updateTaskResourceAssignments(taskId: number, resourceIds:
   const task = await getTask(taskId);
   if (!task) return;
 
-  await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, taskId));
-  
-  const resourceIdSet = new Set(resourceIds);
-  const assignmentData: { taskId: number; resourceId: number; allocationPercentage: number }[] = [];
-  
   if (resourceIds.length > 0) {
-    for (const resourceId of resourceIds) {
-      const allocation = allocations?.find(a => a.resourceId === resourceId && resourceIdSet.has(a.resourceId));
-      assignmentData.push({ 
-        taskId, 
-        resourceId,
-        allocationPercentage: allocation?.allocationPercentage ?? 100
-      });
+    const project = await db.select().from(projects).where(eq(projects.id, task.projectId)).limit(1);
+    const orgId = project[0]?.organizationId;
+    const validResources = await db.select()
+      .from(resources)
+      .where(and(
+        inArray(resources.id, resourceIds),
+        isNull(resources.deletedAt),
+        orgId ? eq(resources.organizationId, orgId) : undefined
+      ));
+    const validIds = new Set(validResources.map(r => r.id));
+    const invalidIds = resourceIds.filter(id => !validIds.has(id));
+    if (invalidIds.length > 0) {
+      throw new Error(`Invalid resource IDs: ${invalidIds.join(', ')}. Resources must exist, belong to the same organization, and not be deleted.`);
     }
-    await db.insert(taskResourceAssignments).values(assignmentData);
   }
-  
-  if (resourceIds.length === 0) {
-    await db.update(tasks)
-      .set({ estimatedHours: null })
+
+  await db.transaction(async (tx) => {
+    await tx.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, taskId));
+    
+    const resourceIdSet = new Set(resourceIds);
+    const assignmentData: { taskId: number; resourceId: number; allocationPercentage: number }[] = [];
+    
+    if (resourceIds.length > 0) {
+      for (const resourceId of resourceIds) {
+        const allocation = allocations?.find(a => a.resourceId === resourceId && resourceIdSet.has(a.resourceId));
+        assignmentData.push({ 
+          taskId, 
+          resourceId,
+          allocationPercentage: allocation?.allocationPercentage ?? 100
+        });
+      }
+      await tx.insert(taskResourceAssignments).values(assignmentData);
+    }
+    
+    if (resourceIds.length === 0) {
+      await tx.update(tasks)
+        .set({ estimatedHours: null })
+        .where(eq(tasks.id, taskId));
+      return;
+    }
+    
+    let durationDays = task.durationDays;
+    if (durationDays == null && task.startDate && task.endDate) {
+      const start = new Date(task.startDate);
+      const end = new Date(task.endDate);
+      const diffMs = end.getTime() - start.getTime();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      durationDays = diffDays + 1;
+    }
+    
+    if (durationDays == null || durationDays <= 0) {
+      await tx.update(tasks)
+        .set({ estimatedHours: null })
+        .where(eq(tasks.id, taskId));
+      return;
+    }
+    
+    const assignedResources = await tx.select()
+      .from(resources)
+      .where(inArray(resources.id, resourceIds));
+    
+    let totalEstimatedHours = 0;
+    for (const resource of assignedResources) {
+      const assignment = assignmentData.find(a => a.resourceId === resource.id);
+      const allocationPct = assignment?.allocationPercentage ?? 100;
+      const weeklyCapacity = parseFloat(resource.weeklyCapacity || "40");
+      const dailyCapacity = weeklyCapacity / 5;
+      const resourceHours = (allocationPct / 100) * dailyCapacity * durationDays;
+      totalEstimatedHours += resourceHours;
+    }
+    
+    await tx.update(tasks)
+      .set({ estimatedHours: String(Math.round(totalEstimatedHours * 100) / 100) })
       .where(eq(tasks.id, taskId));
-    return;
-  }
-  
-  let durationDays = task.durationDays;
-  if (durationDays == null && task.startDate && task.endDate) {
-    const start = new Date(task.startDate);
-    const end = new Date(task.endDate);
-    const diffMs = end.getTime() - start.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    durationDays = diffDays + 1;
-  }
-  
-  if (durationDays == null || durationDays <= 0) {
-    await db.update(tasks)
-      .set({ estimatedHours: null })
-      .where(eq(tasks.id, taskId));
-    return;
-  }
-  
-  const assignedResources = await db.select()
-    .from(resources)
-    .where(inArray(resources.id, resourceIds));
-  
-  let totalEstimatedHours = 0;
-  for (const resource of assignedResources) {
-    const assignment = assignmentData.find(a => a.resourceId === resource.id);
-    const allocationPct = assignment?.allocationPercentage ?? 100;
-    const weeklyCapacity = parseFloat(resource.weeklyCapacity || "40");
-    const dailyCapacity = weeklyCapacity / 5;
-    const resourceHours = (allocationPct / 100) * dailyCapacity * durationDays;
-    totalEstimatedHours += resourceHours;
-  }
-  
-  await db.update(tasks)
-    .set({ estimatedHours: String(Math.round(totalEstimatedHours * 100) / 100) })
-    .where(eq(tasks.id, taskId));
+  });
 }
 
 export async function getIssueResourceAssignments(issueId: number): Promise<(IssueResourceAssignment & { resource: Resource })[]> {

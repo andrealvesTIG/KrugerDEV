@@ -411,6 +411,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   };
 
   const openEditDialog = (task: Task, tab: string = "details") => {
+    if (readOnly) return;
     setPendingDepChanges(new Map());
     setEditingTask(task);
     setActiveDialogTab(tab);

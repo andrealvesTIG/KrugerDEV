@@ -19,7 +19,7 @@ import {
   openai,
   formatZodErrors,
 } from "./helpers";
-import { createTaskAssignmentNotification, createRiskAssignmentNotification } from "../services/notificationEngine";
+import { createTaskAssignmentNotification, createRiskAssignmentNotification, createTaskFieldChangeNotification } from "../services/notificationEngine";
 import { addWorkingDays, ensureWorkingDay, calculateEndDate, calculateDuration, nextWorkingDay, formatDateStr, workingDaysBetweenExclusive } from "../lib/workingDays";
 
 export function registerProjectItemRoutes(app: Express) {
@@ -1566,7 +1566,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const prevValues: Record<string, any> = {};
       const newValues: Record<string, any> = {};
       
-      const fieldsToTrack = ['name', 'description', 'startDate', 'endDate', 'durationDays', 'progress', 'status', 'assignee'];
+      const fieldsToTrack = ['name', 'description', 'startDate', 'endDate', 'durationDays', 'progress', 'status', 'priority', 'assignee'];
       for (const field of fieldsToTrack) {
         const prev = (previousTask as any)[field];
         const curr = (updated as any)[field];
@@ -1580,15 +1580,26 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (changes.length > 0) {
         const userId = getUserIdFromRequest(req);
         const user = userId ? await storage.getUser(userId) : null;
+        const changedByName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System';
         await storage.createTaskChangeLog({
           taskId,
           changedBy: userId || null,
-          changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+          changedByName,
           changeType: 'updated',
           changeSummary: changes.join('; '),
           previousValues: JSON.stringify(prevValues),
           newValues: JSON.stringify(newValues),
         });
+
+        const notifiableFields = ['status', 'startDate', 'endDate', 'priority'];
+        const changedNotifiable = Object.keys(newValues).filter(f => notifiableFields.includes(f));
+        if (changedNotifiable.length > 0 && userId) {
+          try {
+            await createTaskFieldChangeNotification(taskId, userId, changedByName, changedNotifiable);
+          } catch (notifErr) {
+            console.error('Error creating task field change notification:', notifErr);
+          }
+        }
       }
       
       // Roll up values from children to parent tasks

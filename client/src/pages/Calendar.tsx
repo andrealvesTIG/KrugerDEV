@@ -39,6 +39,7 @@ interface CalendarEvent {
   projectName?: string;
   projectId?: number;
   status?: string;
+  assignees?: string[];
 }
 
 type EventFilter = "all" | "milestone" | "task" | "deadline";
@@ -75,6 +76,26 @@ export default function Calendar() {
     queryKey: ['/api/tasks'],
   });
   const allTasks = tasksResponse?.tasks ?? [];
+
+  const { data: allAssignments = [] } = useQuery<{ taskId: number; resourceId: number; resourceName: string }[]>({
+    queryKey: ['/api/organizations', currentOrganization?.id, 'task-assignments'],
+    enabled: !!currentOrganization?.id,
+    queryFn: async () => {
+      const response = await fetch(`/api/organizations/${currentOrganization!.id}/task-assignments`);
+      if (!response.ok) throw new Error("Failed to fetch task assignments");
+      return response.json();
+    },
+  });
+
+  const taskAssigneeMap = useMemo(() => {
+    const map: Record<number, string[]> = {};
+    for (const a of allAssignments) {
+      if (!map[a.taskId]) map[a.taskId] = [];
+      const name = a.resourceName;
+      if (name && !map[a.taskId].includes(name)) map[a.taskId].push(name);
+    }
+    return map;
+  }, [allAssignments]);
 
 
   // Create project lookup map and set of project IDs for current org
@@ -141,7 +162,8 @@ export default function Calendar() {
           type: "task",
           projectName: projectMap[t.projectId]?.name,
           projectId: t.projectId,
-          status: t.status ?? undefined
+          status: t.status ?? undefined,
+          assignees: taskAssigneeMap[t.id] || [],
         });
       }
     });
@@ -149,7 +171,7 @@ export default function Calendar() {
     // Note: Issues don't have due dates in the schema, so they're not included in the calendar
 
     return events;
-  }, [projects, orgMilestones, orgTasks, projectMap]);
+  }, [projects, orgMilestones, orgTasks, projectMap, taskAssigneeMap]);
 
   // Filter events based on selected filter
   const filteredEvents = useMemo(() => {
@@ -477,7 +499,7 @@ export default function Calendar() {
                                   "text-[10px] px-1.5 py-0.5 rounded truncate font-medium border flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity",
                                   getEventColors(event.type)
                                 )}
-                                title={`${event.title}${event.projectName ? ` - ${event.projectName}` : ''} (Click to view)`}
+                                title={`${event.title}${event.projectName ? ` - ${event.projectName}` : ''}${event.assignees?.length ? ` [${event.assignees.join(', ')}]` : ''} (Click to view)`}
                                 data-testid={`calendar-event-${event.id}`}
                               >
                                 {getEventIcon(event.type)}

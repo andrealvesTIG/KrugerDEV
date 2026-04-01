@@ -394,6 +394,84 @@ export async function createTaskAssignmentNotification(
   });
 }
 
+export async function createTaskUnassignmentNotification(
+  taskId: number,
+  resourceId: number,
+  removedByUserId: string,
+  removedByUserName: string
+): Promise<void> {
+  const task = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+  if (!task[0]) return;
+  
+  const project = await db.select().from(projects).where(eq(projects.id, task[0].projectId)).limit(1);
+  if (!project[0]) return;
+  
+  const resource = await db.select().from(resources).where(eq(resources.id, resourceId)).limit(1);
+  if (!resource[0] || !resource[0].userId) return;
+  
+  const exists = await notificationExists(resource[0].userId, 'task_unassignment', taskId, 'task', 1);
+  if (exists) return;
+  
+  await storage.createNotification({
+    userId: resource[0].userId,
+    organizationId: project[0].organizationId,
+    type: 'task_unassignment',
+    title: 'Task Unassignment',
+    message: `${removedByUserName} removed you from task "${task[0].name}" in project "${project[0].name}"`,
+    projectId: project[0].id,
+    taskId: taskId,
+    fromUserId: removedByUserId,
+    fromUserName: removedByUserName,
+    severity: 'info',
+    actionUrl: `/projects/${project[0].id}`,
+  });
+}
+
+export async function createTaskFieldChangeNotification(
+  taskId: number,
+  changedByUserId: string,
+  changedByUserName: string,
+  changedFields: string[]
+): Promise<void> {
+  const task = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+  if (!task[0]) return;
+  
+  const project = await db.select().from(projects).where(eq(projects.id, task[0].projectId)).limit(1);
+  if (!project[0]) return;
+  
+  const assignments = await db.select()
+    .from(taskResourceAssignments)
+    .innerJoin(resources, eq(taskResourceAssignments.resourceId, resources.id))
+    .where(and(
+      eq(taskResourceAssignments.taskId, taskId),
+      isNull(resources.deletedAt)
+    ));
+  
+  const fieldLabel = changedFields.join(', ');
+  
+  for (const assignment of assignments) {
+    const userId = assignment.resources.userId;
+    if (!userId || userId === changedByUserId) continue;
+    
+    const exists = await notificationExists(userId, 'task_field_change', taskId, 'task', 1);
+    if (exists) continue;
+    
+    await storage.createNotification({
+      userId,
+      organizationId: project[0].organizationId,
+      type: 'task_field_change',
+      title: 'Task Updated',
+      message: `${changedByUserName} updated ${fieldLabel} on task "${task[0].name}" in project "${project[0].name}"`,
+      projectId: project[0].id,
+      taskId: taskId,
+      fromUserId: changedByUserId,
+      fromUserName: changedByUserName,
+      severity: 'info',
+      actionUrl: `/projects/${project[0].id}`,
+    });
+  }
+}
+
 export async function createRiskAssignmentNotification(
   riskIssueId: number,
   assigneeUserId: string,
