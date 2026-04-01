@@ -820,7 +820,18 @@ export function registerResourceRoutes(app: Express) {
   // Get assignments for an issue
   app.get('/api/issues/:issueId/resources', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
       const issueId = Number(req.params.issueId);
+      const issue = await db.select().from(issues).where(eq(issues.id, issueId)).limit(1);
+      if (!issue[0]) return res.status(404).json({ message: 'Issue not found' });
+
+      const project = await storage.getProject(issue[0].projectId);
+      if (project && !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
       const assignments = await storage.getIssueResourceAssignments(issueId);
       res.json(assignments);
     } catch (err) {
@@ -832,34 +843,48 @@ export function registerResourceRoutes(app: Express) {
   // Update assignments for an issue (replace all)
   app.put('/api/issues/:issueId/resources', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+      const verified = await requireEmailVerified(userId);
+      if (!verified.verified) return res.status(403).json({ message: verified.error || 'Email verification required' });
+
       const issueId = Number(req.params.issueId);
       const { resourceIds } = req.body;
       if (!Array.isArray(resourceIds)) {
         return res.status(400).json({ message: "resourceIds must be an array" });
       }
-      
-      // Get existing assignments before update to find new ones
+
+      const issue = await db.select().from(issues).where(eq(issues.id, issueId)).limit(1);
+      if (!issue[0]) return res.status(404).json({ message: 'Issue not found' });
+
+      const project = await storage.getProject(issue[0].projectId);
+      if (!project) return res.status(404).json({ message: 'Project not found' });
+
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      const role = await getUserOrgRole(userId, project.organizationId);
+      if (role === 'viewer') {
+        return res.status(403).json({ message: 'Viewers cannot modify issue assignments' });
+      }
+
       const existingAssignments = await storage.getIssueResourceAssignments(issueId);
       const existingResourceIds = new Set(existingAssignments.map(a => a.resourceId));
       
       await storage.updateIssueResourceAssignments(issueId, resourceIds);
       const assignments = await storage.getIssueResourceAssignments(issueId);
       
-      // Create notifications for newly assigned resources
       const user = req.user as any;
       if (user) {
+        const userName = user.name || user.email || 'A team member';
         const newResourceIds = resourceIds.filter((id: number) => !existingResourceIds.has(id));
         for (const resourceId of newResourceIds) {
           try {
-            // Get the resource to find their userId
             const resource = await db.select().from(resources).where(eq(resources.id, resourceId)).limit(1);
             if (resource[0]?.userId) {
-              await createRiskAssignmentNotification(
-                issueId,
-                resource[0].userId,
-                user.id,
-                user.name || user.email || 'A team member'
-              );
+              await createRiskAssignmentNotification(issueId, resource[0].userId, user.id, userName);
             }
           } catch (notifErr) {
             console.error('Error creating issue assignment notification:', notifErr);
@@ -879,7 +904,18 @@ export function registerResourceRoutes(app: Express) {
   // Get assignments for a risk
   app.get('/api/risks/:riskId/resources', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
       const riskId = Number(req.params.riskId);
+      const risk = await db.select().from(issues).where(eq(issues.id, riskId)).limit(1);
+      if (!risk[0]) return res.status(404).json({ message: 'Risk not found' });
+
+      const project = await storage.getProject(risk[0].projectId);
+      if (project && !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
       const assignments = await storage.getRiskResourceAssignments(riskId);
       res.json(assignments);
     } catch (err) {
@@ -891,34 +927,48 @@ export function registerResourceRoutes(app: Express) {
   // Update assignments for a risk (replace all)
   app.put('/api/risks/:riskId/resources', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+      const verified = await requireEmailVerified(userId);
+      if (!verified.verified) return res.status(403).json({ message: verified.error || 'Email verification required' });
+
       const riskId = Number(req.params.riskId);
       const { resourceIds } = req.body;
       if (!Array.isArray(resourceIds)) {
         return res.status(400).json({ message: "resourceIds must be an array" });
       }
-      
-      // Get existing assignments before update to find new ones
+
+      const risk = await db.select().from(issues).where(eq(issues.id, riskId)).limit(1);
+      if (!risk[0]) return res.status(404).json({ message: 'Risk not found' });
+
+      const project = await storage.getProject(risk[0].projectId);
+      if (!project) return res.status(404).json({ message: 'Project not found' });
+
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      const role = await getUserOrgRole(userId, project.organizationId);
+      if (role === 'viewer') {
+        return res.status(403).json({ message: 'Viewers cannot modify risk assignments' });
+      }
+
       const existingAssignments = await storage.getRiskResourceAssignments(riskId);
       const existingResourceIds = new Set(existingAssignments.map(a => a.resourceId));
       
       await storage.updateRiskResourceAssignments(riskId, resourceIds);
       const assignments = await storage.getRiskResourceAssignments(riskId);
       
-      // Create notifications for newly assigned resources
       const user = req.user as any;
       if (user) {
+        const userName = user.name || user.email || 'A team member';
         const newResourceIds = resourceIds.filter((id: number) => !existingResourceIds.has(id));
         for (const resourceId of newResourceIds) {
           try {
-            // Get the resource to find their userId
             const resource = await db.select().from(resources).where(eq(resources.id, resourceId)).limit(1);
             if (resource[0]?.userId) {
-              await createRiskAssignmentNotification(
-                riskId,
-                resource[0].userId,
-                user.id,
-                user.name || user.email || 'A team member'
-              );
+              await createRiskAssignmentNotification(riskId, resource[0].userId, user.id, userName);
             }
           } catch (notifErr) {
             console.error('Error creating risk assignment notification:', notifErr);

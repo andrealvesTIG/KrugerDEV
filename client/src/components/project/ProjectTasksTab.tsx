@@ -506,7 +506,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       updateTask.mutate({ id: editingTask.id, ...taskData }, {
         onSuccess: (result) => {
           if (!inviteAssignedRef.current) {
-            updateTaskResources.mutate({ taskId: editingTask.id, resourceIds: selectedResourceIds });
+            updateTaskResources.mutate({ taskId: editingTask.id, resourceIds: selectedResourceIds, expectedUpdatedAt: editingTask.updatedAt ? new Date(editingTask.updatedAt).toISOString() : undefined });
           }
           inviteAssignedRef.current = false;
 
@@ -1473,7 +1473,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           resources={resources}
           isReadOnly={false}
           onResourceAssign={(taskId, resourceIds) => {
-            updateTaskResources.mutate({ taskId, resourceIds });
+            const task = tasks?.find(t => t.id === taskId);
+            updateTaskResources.mutate({ taskId, resourceIds, expectedUpdatedAt: task?.updatedAt ? new Date(task.updatedAt).toISOString() : undefined });
           }}
           onStatusChange={(taskId, newStatus) => {
             const task = tasks?.find(t => t.id === taskId);

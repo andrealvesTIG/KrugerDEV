@@ -881,7 +881,8 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
       updateTaskResources.mutate({ 
         taskId: task.id, 
         resourceIds: selectedResourceIds,
-        allocations: allocations.filter(a => selectedResourceIds.includes(a.resourceId))
+        allocations: allocations.filter(a => selectedResourceIds.includes(a.resourceId)),
+        expectedUpdatedAt: task.updatedAt ? new Date(task.updatedAt).toISOString() : undefined,
       });
     }
     inviteAssignedRef.current = false;

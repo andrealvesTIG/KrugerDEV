@@ -441,7 +441,8 @@ export default function Tasks() {
             updateTaskResources.mutate({ 
               taskId: editingTask.id, 
               resourceIds: selectedResourceIds,
-              allocations: resourceAllocations 
+              allocations: resourceAllocations,
+              expectedUpdatedAt: editingTask.updatedAt ? new Date(editingTask.updatedAt).toISOString() : undefined,
             });
           }
           inviteAssignedRef.current = false;
@@ -1494,12 +1495,12 @@ function GanttTaskRow({
     : "—";
 
   const handleSaveResources = () => {
-    // Only update resources if invite didn't already handle it
     if (!inviteAssignedRef.current) {
       updateTaskResources.mutate({ 
         taskId: task.id, 
         resourceIds: selectedResourceIds,
-        allocations: resourceAllocations 
+        allocations: resourceAllocations,
+        expectedUpdatedAt: task.updatedAt ? new Date(task.updatedAt).toISOString() : undefined,
       });
     }
     inviteAssignedRef.current = false;

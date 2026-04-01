@@ -167,11 +167,9 @@ export async function deleteResource(id: number): Promise<void> {
     await tx.update(projects).set({ sponsorResourceId: null }).where(eq(projects.sponsorResourceId, id));
     await tx.delete(taskResourceAssignments).where(eq(taskResourceAssignments.resourceId, id));
     await tx.delete(issueResourceAssignments).where(eq(issueResourceAssignments.resourceId, id));
-    await tx.delete(resourceSkills).where(eq(resourceSkills.resourceId, id));
-    await tx.delete(resourceAvailability).where(eq(resourceAvailability.resourceId, id));
-    await tx.delete(timesheetEntries).where(eq(timesheetEntries.resourceId, id));
-    await tx.delete(nonProjectTimeEntries).where(eq(nonProjectTimeEntries.resourceId, id));
-    await tx.delete(resources).where(eq(resources.id, id));
+    await tx.update(resources)
+      .set({ deletedAt: new Date() })
+      .where(eq(resources.id, id));
   });
 }
 
