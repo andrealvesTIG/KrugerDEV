@@ -506,6 +506,7 @@ export function Sidebar() {
                               : "text-slate-300 hover:bg-slate-800 hover:text-white"
                           )}
                           data-testid={`link-nav-${moduleDef.name.toLowerCase().replace(/\s+/g, '-')}`}
+                          data-tour={`sidebar-${item.key}`}
                         >
                           <Icon
                             className={cn(

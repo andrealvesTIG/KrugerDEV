@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useCreateTask } from "@/hooks/use-tasks";
 import { useUpdateTaskResourceAssignments, useResources } from "@/hooks/use-resources";
+import { useUserJourney } from "@/hooks/use-user-journey";
 import { useProjects } from "@/hooks/use-projects";
 import { ResourceAssignment, ResourceAllocation } from "@/components/ResourceAssignment";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
@@ -34,6 +35,7 @@ interface CreateTaskDialogProps {
 
 export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateTaskDialogProps) {
   const { toast } = useToast();
+  const { trackChecklistEvent } = useUserJourney();
   const createTask = useCreateTask();
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const { data: projects } = useProjects(organizationId ?? null);
@@ -178,6 +180,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
     createTask.mutate(taskData, {
       onSuccess: (newTask: any) => {
         if (!inviteAssignedRef.current && selectedResourceIds.length > 0 && newTask?.id) {
+          trackChecklistEvent("assign_member");
           updateTaskResources.mutate({
             taskId: newTask.id,
             resourceIds: selectedResourceIds,
@@ -189,6 +192,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
           });
         }
         inviteAssignedRef.current = false;
+        trackChecklistEvent("add_task");
         toast({ title: "Success", description: "Task created" });
         handleOpenChange(false);
       },

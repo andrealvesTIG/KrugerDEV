@@ -26,6 +26,7 @@ import { CrossProjectReferences } from "@/components/CrossProjectReferences";
 import TasksTab from "@/components/project/ProjectTasksTab";
 import RisksTab from "@/components/project/ProjectRisksTab";
 import { IssuesTab, FinancialsTab, ChangeRequestsTab, DocumentsTab, StatusReportTab, ScoringTab, BenefitsTab, DecisionsTab, LessonsLearnedTab, InvoicesTab } from "@/components/project/ProjectTabs";
+import ProjectAgentTab from "@/components/project/ProjectAgentTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -310,6 +311,7 @@ export default function ProjectDetails() {
     { id: 'documents', label: 'Documents' },
     { id: 'invoices', label: 'Invoices' },
     { id: 'status-report', label: 'Status Report' },
+    { id: 'ai-agent', label: 'AI Agent' },
   ];
   
   // All available tab IDs for ordering
@@ -1383,7 +1385,7 @@ export default function ProjectDetails() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
-                variant={['change-requests', 'documents', 'invoices', 'status-report', 'scoring', 'benefits', 'decisions', 'lessons-learned', ...customTabs.map(t => `custom-${t.id}`)].filter(t => !pinnedTabs.includes(t)).includes(activeTab) ? 'default' : 'ghost'} 
+                variant={['change-requests', 'documents', 'invoices', 'status-report', 'scoring', 'benefits', 'decisions', 'lessons-learned', 'ai-agent', ...customTabs.map(t => `custom-${t.id}`)].filter(t => !pinnedTabs.includes(t)).includes(activeTab) ? 'default' : 'ghost'} 
                 size="sm" 
                 className="rounded-lg px-4 py-2 font-medium gap-1"
                 data-testid="button-more-tabs"
@@ -1395,6 +1397,7 @@ export default function ProjectDetails() {
                  !pinnedTabs.includes(activeTab) && activeTab === 'scoring' ? 'Scoring' :
                  !pinnedTabs.includes(activeTab) && activeTab === 'benefits' ? 'Benefits' :
                  !pinnedTabs.includes(activeTab) && activeTab === 'decisions' ? 'Decisions' :
+                 !pinnedTabs.includes(activeTab) && activeTab === 'ai-agent' ? 'AI Agent' :
                  !pinnedTabs.includes(activeTab) && activeTab === 'lessons-learned' ? 'Lessons Learned' :
                  activeTab.startsWith('custom-') && !pinnedTabs.includes(activeTab) ? customTabs.find(t => `custom-${t.id}` === activeTab)?.name :
                  'More'}
@@ -1498,6 +1501,9 @@ export default function ProjectDetails() {
               changeRequests={projectChangeRequests || []}
               documents={projectDocuments || []}
             />
+          </TabsContent>
+          <TabsContent value="ai-agent">
+            <ProjectAgentTab projectId={project.id} />
           </TabsContent>
           {customTabs.map((tab) => (
             <TabsContent key={tab.id} value={`custom-${tab.id}`}>
@@ -2931,6 +2937,8 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const createPortfolio = useCreatePortfolio();
   const [managerResourceId, setManagerResourceId] = useState<number | null>(null);
+  const [sponsorResourceId, setSponsorResourceId] = useState<number | null>(null);
+  const [techLeadResourceId, setTechLeadResourceId] = useState<number | null>(null);
   const [showNewPortfolioDialog, setShowNewPortfolioDialog] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState("");
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -2990,11 +2998,33 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
       setManagerResourceId(project.managerResourceId);
     } else if (project.managerId && resources) {
       const managerResource = resources.find(r => r.userId === project.managerId);
-      if (managerResource) {
-        setManagerResourceId(managerResource.id);
-      }
+      setManagerResourceId(managerResource ? managerResource.id : null);
+    } else {
+      setManagerResourceId(null);
     }
   }, [project.managerResourceId, project.managerId, resources]);
+
+  useEffect(() => {
+    if (project.sponsorResourceId) {
+      setSponsorResourceId(project.sponsorResourceId);
+    } else if (project.businessSponsorId && resources) {
+      const sponsorResource = resources.find(r => r.userId === project.businessSponsorId);
+      setSponsorResourceId(sponsorResource ? sponsorResource.id : null);
+    } else {
+      setSponsorResourceId(null);
+    }
+  }, [project.sponsorResourceId, project.businessSponsorId, resources]);
+
+  useEffect(() => {
+    if (project.technicalLeadResourceId) {
+      setTechLeadResourceId(project.technicalLeadResourceId);
+    } else if (project.technicalLeadId && resources) {
+      const techLeadResource = resources.find(r => r.userId === project.technicalLeadId);
+      setTechLeadResourceId(techLeadResource ? techLeadResource.id : null);
+    } else {
+      setTechLeadResourceId(null);
+    }
+  }, [project.technicalLeadResourceId, project.technicalLeadId, resources]);
 
   useEffect(() => {
     setEditValues({
@@ -3355,6 +3385,42 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
                   onUpdate({ id: project.id, managerId: selectedResource?.userId || null, managerResourceId: resourceId }, {
                     onSuccess: () => { toast({ title: "Manager updated" }); queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] }); },
                     onError: () => { toast({ title: "Error", description: "Failed to update manager", variant: "destructive" }); }
+                  });
+                }}
+                placeholder="Assign"
+                className="h-8 text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Business Sponsor</Label>
+              <ResourceSelector
+                organizationId={currentOrganization?.id ?? 0}
+                projectId={project.id}
+                selectedResourceId={sponsorResourceId}
+                onSelectionChange={(resourceId) => {
+                  const selectedResource = resources?.find(r => r.id === resourceId);
+                  setSponsorResourceId(resourceId);
+                  onUpdate({ id: project.id, businessSponsorId: selectedResource?.userId || null, sponsorResourceId: resourceId }, {
+                    onSuccess: () => { toast({ title: "Business Sponsor updated" }); queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] }); },
+                    onError: () => { toast({ title: "Error", description: "Failed to update business sponsor", variant: "destructive" }); }
+                  });
+                }}
+                placeholder="Assign"
+                className="h-8 text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Technical Lead</Label>
+              <ResourceSelector
+                organizationId={currentOrganization?.id ?? 0}
+                projectId={project.id}
+                selectedResourceId={techLeadResourceId}
+                onSelectionChange={(resourceId) => {
+                  const selectedResource = resources?.find(r => r.id === resourceId);
+                  setTechLeadResourceId(resourceId);
+                  onUpdate({ id: project.id, technicalLeadId: selectedResource?.userId || null, technicalLeadResourceId: resourceId }, {
+                    onSuccess: () => { toast({ title: "Technical Lead updated" }); queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] }); },
+                    onError: () => { toast({ title: "Error", description: "Failed to update technical lead", variant: "destructive" }); }
                   });
                 }}
                 placeholder="Assign"

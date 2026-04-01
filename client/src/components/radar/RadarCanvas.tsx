@@ -633,14 +633,22 @@ export default function RadarCanvas({
         const rectX = goRight ? labelX : labelX - textW;
         const rect = { x: rectX, y: labelY - labelH / 2, w: textW, h: labelH };
 
-        let overlaps = false;
-        for (const pr of placedLabelRects) {
-          if (rect.x < pr.x + pr.w && rect.x + rect.w > pr.x && rect.y < pr.y + pr.h && rect.y + rect.h > pr.y) {
-            overlaps = true;
-            break;
+        let resolved = false;
+        for (let attempt = 0; attempt < 4; attempt++) {
+          let overlaps = false;
+          for (const pr of placedLabelRects) {
+            if (rect.x < pr.x + pr.w && rect.x + rect.w > pr.x && rect.y < pr.y + pr.h && rect.y + rect.h > pr.y) {
+              overlaps = true;
+              const shiftY = goUp ? -(pr.y + pr.h - rect.y + 2) : (pr.y + pr.h - rect.y + 2);
+              labelY += shiftY;
+              labelY = clamp(labelY, 12, h - 12);
+              rect.y = labelY - labelH / 2;
+              break;
+            }
           }
+          if (!overlaps) { resolved = true; break; }
         }
-        if (overlaps) continue;
+        if (!resolved) continue;
         placedLabelRects.push(rect);
 
         ctx.beginPath();

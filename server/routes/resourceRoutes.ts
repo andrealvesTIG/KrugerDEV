@@ -723,13 +723,6 @@ export function registerResourceRoutes(app: Express) {
       await storage.updateTaskResourceAssignments(taskId, resourceIds, allocations);
       const assignments = await storage.getTaskResourceAssignments(taskId);
       
-      // Auto-calculate estimated hours based on resource assignments
-      if (assignments.length > 0) {
-        await recalculateTaskEstimatedHours(taskId);
-      } else {
-        await storage.updateTask(taskId, { estimatedHours: null });
-      }
-      
       // Create notifications for newly assigned resources
       const user = req.user as any;
       if (user) {

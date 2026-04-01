@@ -11,6 +11,7 @@ import { sql } from "drizzle-orm";
 import cron from "node-cron";
 import { checkAndSendDueReports } from "./services/scheduledReports";
 import { runScheduledReminders } from "./services/timesheetReminderEngine";
+import { checkAndRunDueAgentActions } from "./services/projectAgentService";
 
 process.on('uncaughtException', (err) => {
   const msg = err instanceof Error ? err.message : String(err);
@@ -244,6 +245,18 @@ app.use((req, res, next) => {
         }
       });
       log("Timesheet reminder cron job started (weekdays, checks every 15 min for org-scheduled times)", "cron");
+
+      cron.schedule('*/15 * * * *', async () => {
+        try {
+          const count = await checkAndRunDueAgentActions();
+          if (count > 0) {
+            log(`AI Project Agent: executed ${count} action(s)`, "cron");
+          }
+        } catch (error) {
+          console.error("Error in project agent cron job:", error);
+        }
+      });
+      log("AI Project Agent cron job started (every 15 minutes)", "cron");
     },
   );
 })();

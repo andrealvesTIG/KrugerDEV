@@ -1,6 +1,9 @@
 import { useState, useMemo } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
+import { GettingStartedChecklist } from "@/components/GettingStartedChecklist";
+import { GuidedTour } from "@/components/GuidedTour";
+import { FirstProjectWizard } from "@/components/FirstProjectWizard";
 import { useAssignedTasks, useCurrentUserResource, useTimesheetEntries } from "@/hooks/use-timesheets";
 import { useAllIssues, useCreateIssue } from "@/hooks/use-issues";
 import { useAllMilestones } from "@/hooks/use-milestones";
@@ -395,6 +398,8 @@ export default function Home() {
 
   return (
     <PageTransition className="space-y-3 p-4">
+      <GuidedTour />
+      <FirstProjectWizard />
       <FadeIn className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-xl font-bold text-foreground" data-testid="text-greeting">
@@ -419,6 +424,8 @@ export default function Home() {
           </Button>
         </div>
       </FadeIn>
+
+      <GettingStartedChecklist />
 
       {isEmptyState && (
         <div className="space-y-4" data-testid="onboarding-section">

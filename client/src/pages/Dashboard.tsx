@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
+import { useUserJourney } from "@/hooks/use-user-journey";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -315,6 +316,11 @@ export default function Dashboard() {
   const viewParam = searchParams.get("view") as TabId | null;
   const { currentOrganization, memberships } = useOrganization();
   const { user } = useAuth();
+  const { trackChecklistEvent } = useUserJourney();
+
+  useEffect(() => {
+    trackChecklistEvent("explore_dashboard");
+  }, [trackChecklistEvent]);
   
   const [activeSubmenu, setActiveSubmenu] = useState<string>("executive-overview");
   const [showCreateDialog, setShowCreateDialog] = useState(false);

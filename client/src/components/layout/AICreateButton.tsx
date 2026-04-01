@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from "re
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
+import { useUserJourney } from "@/hooks/use-user-journey";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,7 @@ export interface AICreateButtonHandle {
 
 export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonProps>(function AICreateButton({ projectId: scopedProjectId, projectName: scopedProjectName, variant = "default" }, ref) {
   const { currentOrganization } = useOrganization();
+  const { trackChecklistEvent } = useUserJourney();
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -252,6 +254,7 @@ export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonPro
       return response.json();
     },
     onSuccess: async (data: any) => {
+      trackChecklistEvent("use_ai");
       toast({
         title: "Created Successfully",
         description: data.message || "Items created",
@@ -272,13 +275,20 @@ export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonPro
     },
   });
 
+  const hasTaskActions = previewActions.some(a => a.type === "create_task" && a.enabled);
+
   const toggleAction = (actionId: string) => {
-    setPreviewActions(prev =>
-      prev.map(a => a.id === actionId ? { ...a, enabled: !a.enabled } : a)
-    );
+    setPreviewActions(prev => {
+      const updated = prev.map(a => a.id === actionId ? { ...a, enabled: !a.enabled } : a);
+      const anyTaskEnabled = updated.some(a => a.type === "create_task" && a.enabled);
+      if (!anyTaskEnabled) {
+        return updated.map(a => a.type === "assign_to_me" ? { ...a, enabled: false } : a);
+      }
+      return updated;
+    });
   };
 
-  const enabledCount = previewActions.filter(a => a.enabled).length;
+  const enabledCount = previewActions.filter(a => a.enabled && a.type !== "assign_to_me").length;
 
   const needsProjectSelection = requiresProjectWarning && !selectedProjectId;
 
@@ -510,6 +520,7 @@ export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonPro
                       <Switch
                         checked={action.enabled}
                         onCheckedChange={() => toggleAction(action.id)}
+                        disabled={action.type === "assign_to_me" && !hasTaskActions}
                         data-testid={`switch-action-${action.id}`}
                       />
                     </div>

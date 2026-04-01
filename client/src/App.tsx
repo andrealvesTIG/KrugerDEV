@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { OrganizationProvider, useOrganization } from "@/hooks/use-organization";
+import { UserJourneyProvider } from "@/hooks/use-user-journey";
 import { ThemeProvider } from "@/components/theme-provider";
 import { OnboardingDialog } from "@/components/OnboardingDialog";
 import { TermsConsentModal } from "@/components/TermsConsentModal";
@@ -250,6 +251,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <OrganizationProvider>
+            <UserJourneyProvider>
             <Toaster />
             <Suspense fallback={<PageLoader />}>
               <Switch>
@@ -340,6 +342,7 @@ function App() {
                 </Route>
               </Switch>
             </Suspense>
+            </UserJourneyProvider>
           </OrganizationProvider>
         </TooltipProvider>
       </QueryClientProvider>

@@ -2912,3 +2912,54 @@ export const insertPartnerApplicationSchema = createInsertSchema(partnerApplicat
 });
 export type PartnerApplication = typeof partnerApplications.$inferSelect;
 export type InsertPartnerApplication = z.infer<typeof insertPartnerApplicationSchema>;
+
+export const projectAgents = pgTable("project_agents", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull().references(() => projects.id),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id),
+  enabled: boolean("enabled").notNull().default(false),
+  agendaEnabled: boolean("agenda_enabled").notNull().default(true),
+  agendaDay: integer("agenda_day").notNull().default(1),
+  agendaTime: text("agenda_time").notNull().default("09:00"),
+  taskFollowUpEnabled: boolean("task_follow_up_enabled").notNull().default(true),
+  taskFollowUpDay: integer("task_follow_up_day").notNull().default(3),
+  taskFollowUpTime: text("task_follow_up_time").notNull().default("09:00"),
+  statusReportEnabled: boolean("status_report_enabled").notNull().default(true),
+  statusReportDay: integer("status_report_day").notNull().default(5),
+  statusReportTime: text("status_report_time").notNull().default("09:00"),
+  timezone: text("timezone").notNull().default("America/New_York"),
+  lastAgendaRun: timestamp("last_agenda_run"),
+  nextAgendaRun: timestamp("next_agenda_run"),
+  lastTaskFollowUpRun: timestamp("last_task_follow_up_run"),
+  nextTaskFollowUpRun: timestamp("next_task_follow_up_run"),
+  lastStatusReportRun: timestamp("last_status_report_run"),
+  nextStatusReportRun: timestamp("next_status_report_run"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("project_agents_project_id_unique").on(table.projectId),
+  index("project_agents_org_idx").on(table.organizationId),
+  index("project_agents_next_agenda_idx").on(table.nextAgendaRun),
+  index("project_agents_next_follow_up_idx").on(table.nextTaskFollowUpRun),
+  index("project_agents_next_status_idx").on(table.nextStatusReportRun),
+]);
+
+export type ProjectAgent = typeof projectAgents.$inferSelect;
+export type InsertProjectAgent = typeof projectAgents.$inferInsert;
+
+export const projectAgentLogs = pgTable("project_agent_logs", {
+  id: serial("id").primaryKey(),
+  projectAgentId: integer("project_agent_id").notNull().references(() => projectAgents.id),
+  projectId: integer("project_id").notNull().references(() => projects.id),
+  actionType: text("action_type").notNull(),
+  subject: text("subject"),
+  recipientEmails: text("recipient_emails").array(),
+  emailPreview: text("email_preview"),
+  status: text("status").notNull().default("success"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type ProjectAgentLog = typeof projectAgentLogs.$inferSelect;
+export type InsertProjectAgentLog = typeof projectAgentLogs.$inferInsert;
