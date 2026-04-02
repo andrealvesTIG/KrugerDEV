@@ -338,7 +338,14 @@ export async function upsertTimesheetSettings(settings: InsertTimesheetSettings)
     .values(settings)
     .onConflictDoUpdate({
       target: [timesheetSettings.organizationId],
-      set: { ...settings, updatedAt: new Date() },
+      set: {
+        minWeeklyHours: settings.minWeeklyHours,
+        maxWeeklyHours: settings.maxWeeklyHours,
+        overtimeThreshold: settings.overtimeThreshold,
+        gracePeriodDays: settings.gracePeriodDays,
+        mandatoryNotes: settings.mandatoryNotes,
+        updatedAt: new Date(),
+      },
     })
     .returning();
   return result;

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,9 +48,9 @@ export function MarketingTab() {
   }, [search]);
 
   const { data, isLoading } = useQuery<SelfieLeadsResponse>({
-    queryKey: ["/api/admin/selfie-leads", page, debouncedSearch],
+    queryKey: ["/api/admin/selfie-leads", page, debouncedSearch, sortField, sortDir],
     queryFn: async () => {
-      const params = new URLSearchParams({ page: String(page), limit: String(pageSize) });
+      const params = new URLSearchParams({ page: String(page), limit: String(pageSize), sort: sortField, sortDir });
       if (debouncedSearch) params.set("search", debouncedSearch);
       const res = await fetch(`/api/admin/selfie-leads?${params}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch selfie leads");
@@ -70,30 +70,10 @@ export function MarketingTab() {
       setSortField(field);
       setSortDir(field === "createdAt" ? "desc" : "asc");
     }
+    setPage(1);
   };
 
-  const sorted = useMemo(() => {
-    const result = [...leads];
-    const dir = sortDir === "asc" ? 1 : -1;
-    result.sort((a, b) => {
-      switch (sortField) {
-        case "name":
-          return a.name.localeCompare(b.name) * dir;
-        case "email":
-          return a.email.localeCompare(b.email) * dir;
-        case "interviewer":
-          return (a.interviewer || "").localeCompare(b.interviewer || "") * dir;
-        case "createdAt": {
-          const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const db_ = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return (da - db_) * dir;
-        }
-        default:
-          return 0;
-      }
-    });
-    return result;
-  }, [leads, sortField, sortDir]);
+  const sorted = leads;
 
   const getPhotoUrl = (lead: SelfieLead) => {
     if (!lead.photoPath) return null;

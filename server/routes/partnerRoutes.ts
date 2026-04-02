@@ -18,6 +18,19 @@ const partnerApplicationRequestSchema = z.object({
 const ipSubmissionTracker = new Map<string, number[]>();
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const MAX_SUBMISSIONS_PER_WINDOW = 5;
+const RATE_LIMIT_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, timestamps] of ipSubmissionTracker.entries()) {
+    const recent = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+    if (recent.length === 0) {
+      ipSubmissionTracker.delete(ip);
+    } else {
+      ipSubmissionTracker.set(ip, recent);
+    }
+  }
+}, RATE_LIMIT_CLEANUP_INTERVAL_MS);
 
 function isRateLimited(ip: string): boolean {
   const now = Date.now();

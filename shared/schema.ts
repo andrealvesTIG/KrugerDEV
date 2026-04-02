@@ -2903,7 +2903,10 @@ export const partnerApplications = pgTable("partner_applications", {
   status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("partner_apps_email_idx").on(table.email),
+  index("partner_apps_status_idx").on(table.status),
+]);
 
 export const insertPartnerApplicationSchema = createInsertSchema(partnerApplications).omit({
   id: true,

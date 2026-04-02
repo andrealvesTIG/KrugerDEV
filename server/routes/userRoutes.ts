@@ -5,9 +5,9 @@ import * as crypto from "crypto";
 import { storage } from "../storage";
 import { db } from "../db";
 import { z } from "zod";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, asc as ascOrder, sql } from "drizzle-orm";
 import multer from "multer";
-import { users, taskResourceAssignments, issues, resources, tasks, projects, portfolios, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, type Task } from "@shared/schema";
+import { users, taskResourceAssignments, issues, resources, tasks, projects, portfolios, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, type Task, unconSelfieLeads } from "@shared/schema";
 import type { User } from "@shared/models/auth";
 import {
   classifyError,
@@ -282,12 +282,22 @@ export function registerUserRoutes(app: Express) {
       if (!user || user.role !== 'super_admin') {
         return res.status(403).json({ message: "Super admin access required" });
       }
-      const { unconSelfieLeads } = await import("@shared/schema");
       const page = Math.max(1, Number(req.query.page) || 1);
       const exportAll = req.query.export === 'true';
-      const limit = exportAll ? 999999 : Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+      const limit = exportAll ? 10000 : Math.min(100, Math.max(1, Number(req.query.limit) || 50));
       const offset = (page - 1) * limit;
       const searchQ = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+
+      const sortField = typeof req.query.sort === 'string' ? req.query.sort : 'createdAt';
+      const sortDirection = req.query.sortDir === 'asc' ? 'asc' : 'desc';
+      const validSortFields: Record<string, typeof unconSelfieLeads.name> = {
+        name: unconSelfieLeads.name,
+        email: unconSelfieLeads.email,
+        interviewer: unconSelfieLeads.interviewer,
+        createdAt: unconSelfieLeads.createdAt,
+      };
+      const sortColumn = validSortFields[sortField] || unconSelfieLeads.createdAt;
+
       let baseQuery = db.select().from(unconSelfieLeads);
       let countQuery = db.select({ count: sql`count(*)::int` }).from(unconSelfieLeads);
       if (searchQ) {
@@ -298,8 +308,9 @@ export function registerUserRoutes(app: Express) {
       }
       const [countResult] = await countQuery;
       const total = countResult?.count ?? 0;
-      const leads = await baseQuery
-        .orderBy(desc(unconSelfieLeads.createdAt))
+      const orderFn = sortDirection === 'asc' ? ascOrder : desc;
+      const leads = await (baseQuery as any)
+        .orderBy(orderFn(sortColumn))
         .limit(limit)
         .offset(offset);
       const [globalCount] = await db.select({ count: sql`count(*)::int` }).from(unconSelfieLeads);

@@ -2551,24 +2551,24 @@ export async function registerMiscRoutes(app: Express) {
       const totalUsersResult = await db.execute(sql`SELECT COUNT(*) as count FROM users`);
       const totalUsers = Number(totalUsersResult.rows[0]?.count || 0);
 
-      // New users today (EST/EDT timezone - New York)
+      // New users today (UTC)
       const newUsersTodayResult = await db.execute(sql`
         SELECT COUNT(*) as count FROM users 
-        WHERE ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York')::date = (NOW() AT TIME ZONE 'America/New_York')::date
+        WHERE created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC')
       `);
       const newUsersToday = Number(newUsersTodayResult.rows[0]?.count || 0);
 
-      // New users this week (EST/EDT timezone - New York)
+      // New users this week (UTC)
       const newUsersWeekResult = await db.execute(sql`
         SELECT COUNT(*) as count FROM users 
-        WHERE ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York')::date >= ((NOW() AT TIME ZONE 'America/New_York')::date - INTERVAL '7 days')
+        WHERE created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC') - INTERVAL '7 days'
       `);
       const newUsersThisWeek = Number(newUsersWeekResult.rows[0]?.count || 0);
 
-      // New users this month (EST/EDT timezone - New York)
+      // New users this month (UTC)
       const newUsersMonthResult = await db.execute(sql`
         SELECT COUNT(*) as count FROM users 
-        WHERE ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York')::date >= ((NOW() AT TIME ZONE 'America/New_York')::date - INTERVAL '30 days')
+        WHERE created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC') - INTERVAL '30 days'
       `);
       const newUsersThisMonth = Number(newUsersMonthResult.rows[0]?.count || 0);
 
@@ -2591,12 +2591,12 @@ export async function registerMiscRoutes(app: Express) {
       `);
       const activeUsers30d = Number(activeUsers30dResult.rows[0]?.count || 0);
 
-      // Daily new user signups (last 30 days, EST/EDT timezone - New York)
+      // Daily new user signups (last 30 days, UTC)
       const dailySignupsResult = await db.execute(sql`
-        SELECT ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York')::date as date, COUNT(*) as count 
+        SELECT created_at::date as date, COUNT(*) as count 
         FROM users 
-        WHERE ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York')::date >= ((NOW() AT TIME ZONE 'America/New_York')::date - INTERVAL '30 days')
-        GROUP BY ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York')::date 
+        WHERE created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC') - INTERVAL '30 days'
+        GROUP BY created_at::date 
         ORDER BY date ASC
       `);
 
