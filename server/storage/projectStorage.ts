@@ -726,14 +726,21 @@ export async function softDeleteItem(type: RecycleBinItemType, id: number, userI
         const [p] = await db.select().from(portfolios).where(and(eq(portfolios.id, id), eq(portfolios.organizationId, organizationId)));
         if (!p) return false;
       }
-      await db.update(portfolios).set({ deletedAt: now, deletedBy: userId }).where(eq(portfolios.id, id));
+      await db.transaction(async (tx) => {
+        await tx.update(projects).set({ portfolioId: null }).where(eq(projects.portfolioId, id));
+        await tx.update(portfolios).set({ deletedAt: now, deletedBy: userId }).where(eq(portfolios.id, id));
+      });
       break;
     case 'project':
       if (organizationId) {
         const [p] = await db.select().from(projects).where(and(eq(projects.id, id), eq(projects.organizationId, organizationId)));
         if (!p) return false;
       }
-      await db.update(projects).set({ deletedAt: now, deletedBy: userId }).where(eq(projects.id, id));
+      await db.transaction(async (tx) => {
+        await tx.update(tasks).set({ deletedAt: now }).where(and(eq(tasks.projectId, id), isNull(tasks.deletedAt)));
+        await tx.update(issues).set({ deletedAt: now }).where(and(eq(issues.projectId, id), isNull(issues.deletedAt)));
+        await tx.update(projects).set({ deletedAt: now, deletedBy: userId }).where(eq(projects.id, id));
+      });
       break;
     case 'task':
       if (organizationId) {
@@ -742,7 +749,10 @@ export async function softDeleteItem(type: RecycleBinItemType, id: number, userI
         const [p] = await db.select().from(projects).where(and(eq(projects.id, t.projectId), eq(projects.organizationId, organizationId)));
         if (!p) return false;
       }
-      await db.update(tasks).set({ deletedAt: now, deletedBy: userId }).where(eq(tasks.id, id));
+      await db.transaction(async (tx) => {
+        await tx.update(tasks).set({ parentId: null }).where(eq(tasks.parentId, id));
+        await tx.update(tasks).set({ deletedAt: now, deletedBy: userId }).where(eq(tasks.id, id));
+      });
       break;
     case 'risk':
       if (organizationId) {

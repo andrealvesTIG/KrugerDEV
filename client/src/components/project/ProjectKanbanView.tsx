@@ -152,16 +152,18 @@ function ProjectKanbanView({
   
   const isDragEnabled = groupBy === 'status';
   
+  const canDrag = isDragEnabled && !isReadOnly;
+  
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: isDragEnabled ? 8 : 999999,
+        distance: canDrag ? 8 : 999999,
       },
     })
   );
 
   const handleDragStart = (event: DragStartEvent) => {
-    if (!isDragEnabled) return;
+    if (!canDrag) return;
     const taskId = Number(event.active.id);
     const task = tasks.find(t => t.id === taskId);
     if (task) setActiveTask(task);
@@ -277,13 +279,13 @@ function ProjectKanbanView({
           </span>
         </div>
         <div className={cn("p-4", isFullscreen && "flex-1 overflow-auto")}>
-          {!isDragEnabled && (
+          {!canDrag && (
             <div className="text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded mb-3 inline-block">
-              Drag and drop is only available when grouping by Status
+              {isReadOnly ? 'Project is read-only' : 'Drag and drop is only available when grouping by Status'}
             </div>
           )}
           <DndContext 
-            sensors={isDragEnabled ? sensors : []} 
+            sensors={canDrag ? sensors : []} 
             collisionDetection={closestCorners}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
@@ -302,17 +304,17 @@ function ProjectKanbanView({
                   column={column}
                   tasks={filteredTasks.filter(t => getGroupValue(t) === column.id)}
                   onTaskClick={onTaskClick}
-                  isActiveOver={activeOverColumn === column.id && isDragEnabled}
+                  isActiveOver={activeOverColumn === column.id && canDrag}
                   resources={resources}
                   onResourceAssign={onResourceAssign}
-                  isDragEnabled={isDragEnabled}
+                  isDragEnabled={canDrag}
                   taskAssignmentsMap={taskAssignmentsMap}
                   isReadOnly={isReadOnly}
                 />
               ))}
             </div>
             <DragOverlay>
-              {activeTask && isDragEnabled && (
+              {activeTask && canDrag && (
                 <div className="opacity-80">
                   <Card className="shadow-lg border-primary">
                     <CardContent className="p-4">
