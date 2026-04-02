@@ -187,10 +187,12 @@ export async function deleteSystemProjectView(id: number): Promise<void> {
   await db.delete(systemProjectViews).where(eq(systemProjectViews.id, id));
 }
 
-export async function getNotifications(userId: string): Promise<Notification[]> {
+export async function getNotifications(userId: string, limit: number = 200, offset: number = 0): Promise<Notification[]> {
   return await db.select().from(notifications)
     .where(eq(notifications.userId, userId))
-    .orderBy(desc(notifications.createdAt));
+    .orderBy(desc(notifications.createdAt))
+    .limit(limit)
+    .offset(offset);
 }
 
 export async function getUnreadNotificationCount(userId: string): Promise<number> {

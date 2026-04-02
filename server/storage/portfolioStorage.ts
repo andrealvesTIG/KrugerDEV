@@ -39,11 +39,10 @@ export async function updatePortfolio(id: number, updates: UpdatePortfolioReques
 
 export async function deletePortfolio(id: number): Promise<void> {
   await db.transaction(async (tx) => {
-    await tx.delete(portfolioKeyDates).where(eq(portfolioKeyDates.portfolioId, id));
-    await tx.delete(portfolioRiskAssessments).where(eq(portfolioRiskAssessments.portfolioId, id));
-    await tx.delete(customPortfolioProjects).where(eq(customPortfolioProjects.portfolioId, id));
     await tx.update(projects).set({ portfolioId: null }).where(eq(projects.portfolioId, id));
-    await tx.delete(portfolios).where(eq(portfolios.id, id));
+    await tx.update(portfolios)
+      .set({ deletedAt: new Date() })
+      .where(eq(portfolios.id, id));
   });
 }
 

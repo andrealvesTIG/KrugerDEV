@@ -328,26 +328,16 @@ export async function getTaskResourceAssignmentsByOrgId(organizationId: number):
 export async function deleteTask(id: number): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.update(tasks).set({ parentId: null }).where(eq(tasks.parentId, id));
-    await tx.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, id));
-    await tx.delete(taskDependencies).where(eq(taskDependencies.taskId, id));
-    await tx.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, id));
-    await tx.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, id));
-    await tx.delete(notifications).where(eq(notifications.taskId, id));
-    await tx.delete(tasks).where(eq(tasks.id, id));
+    await tx.update(tasks)
+      .set({ deletedAt: new Date() })
+      .where(eq(tasks.id, id));
   });
 }
 
 export async function deleteAllTasksForProject(projectId: number): Promise<void> {
-  const projectTasks = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.projectId, projectId));
-  const taskIds = projectTasks.map(t => t.id);
-  
-  if (taskIds.length > 0) {
-    await db.delete(taskDependencies).where(inArray(taskDependencies.taskId, taskIds));
-    await db.delete(taskDependencies).where(inArray(taskDependencies.dependsOnTaskId, taskIds));
-    await db.delete(taskChangeLogs).where(inArray(taskChangeLogs.taskId, taskIds));
-    await db.delete(taskResourceAssignments).where(inArray(taskResourceAssignments.taskId, taskIds));
-    await db.delete(tasks).where(eq(tasks.projectId, projectId));
-  }
+  await db.update(tasks)
+    .set({ deletedAt: new Date() })
+    .where(and(eq(tasks.projectId, projectId), isNull(tasks.deletedAt)));
 }
 
 export async function getTaskChangeLogs(taskId: number): Promise<TaskChangeLog[]> {

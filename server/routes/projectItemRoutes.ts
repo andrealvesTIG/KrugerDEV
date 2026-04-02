@@ -18,6 +18,7 @@ import {
   upload,
   openai,
   formatZodErrors,
+  getUserOrgRole,
 } from "./helpers";
 import { createTaskAssignmentNotification, createRiskAssignmentNotification, createTaskFieldChangeNotification } from "../services/notificationEngine";
 import { addWorkingDays, ensureWorkingDay, calculateEndDate, calculateDuration, nextWorkingDay, formatDateStr, workingDaysBetweenExclusive } from "../lib/workingDays";
@@ -569,9 +570,25 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   app.delete(api.issues.delete.path, async (req, res) => {
-    const userId = getUserIdFromRequest(req);
-    await storage.softDeleteItem('issue', Number(req.params.id), userId!);
-    res.status(204).send();
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const issueId = Number(req.params.id);
+      const issue = await storage.getIssue(issueId);
+      if (!issue) return res.status(404).json({ message: 'Issue not found' });
+      if (!await userHasOrgAccess(userId, issue.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const role = await getUserOrgRole(userId, issue.organizationId);
+      if (role === 'viewer') {
+        return res.status(403).json({ message: 'Insufficient permissions to delete issue' });
+      }
+      await storage.softDeleteItem('issue', issueId, userId);
+      res.status(204).send();
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error deleting issue' : classified.message });
+    }
   });
 
   // Issue History

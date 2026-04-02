@@ -16,6 +16,7 @@ import {
   getTeamMemberProjectIds,
   logUserActivity,
   formatZodErrors,
+  getUserOrgRole,
 } from "./helpers";
 import { mapPlannerPriorityToProjectPriority, mapPlannerPercentToStatus, getOrgIntegration } from "../services/microsoftPlanner";
 import { mapDataversePriorityToProjectPriority, mapDataverseProgressToStatus } from "../services/microsoftDataverse";
@@ -3123,9 +3124,25 @@ export function registerProjectRoutes(app: Express) {
   });
 
   app.delete(api.projects.delete.path, async (req, res) => {
-    const userId = getUserIdFromRequest(req);
-    await storage.softDeleteItem('project', Number(req.params.id), userId!);
-    res.status(204).send();
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const projectId = Number(req.params.id);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: 'Project not found' });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const role = await getUserOrgRole(userId, project.organizationId);
+      if (role === 'viewer' || role === 'team_member') {
+        return res.status(403).json({ message: 'Insufficient permissions to delete project' });
+      }
+      await storage.softDeleteItem('project', projectId, userId);
+      res.status(204).send();
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error deleting project' : classified.message });
+    }
   });
 
   // Convert imported project to editable (native) mode

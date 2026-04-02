@@ -4050,8 +4050,10 @@ async function seedTrainingDataIfEmpty() {
         return res.status(401).json({ message: "Authentication required" });
       }
       
-      const notifications = await storage.getNotifications(userId);
-      res.json(notifications);
+      const limit = req.query.limit ? Math.min(Number(req.query.limit), 500) : 200;
+      const offset = req.query.offset ? Number(req.query.offset) : 0;
+      const notificationsList = await storage.getNotifications(userId, limit, offset);
+      res.json(notificationsList);
     } catch (err) {
       console.error("Error fetching notifications:", err);
       const classified = classifyError(err);

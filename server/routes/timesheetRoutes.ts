@@ -79,10 +79,9 @@ export function registerTimesheetRoutes(app: Express) {
 
       const entriesWithDetails = await storage.getAllTimesheetEntriesWithDetails(organizationId, startDate, endDate);
 
-      const enrichedEntries = await Promise.all(entriesWithDetails.map(async ({ entry, task, project }) => {
-        const resource = await storage.getResource(entry.resourceId);
+      const enrichedEntries = entriesWithDetails.map(({ entry, task, project, resource }) => {
         return { ...entry, task, project, resource };
-      }));
+      });
 
       res.json(enrichedEntries);
     } catch (error) {
@@ -116,23 +115,20 @@ export function registerTimesheetRoutes(app: Express) {
         return res.status(403).json({ message: 'You are not authorized to approve timesheets' });
       }
 
-      const entries = await storage.getTimesheetEntriesForApproval(organizationId, status);
+      const entriesWithDetails = await storage.getTimesheetEntriesForApprovalWithDetails(organizationId, status);
       
-      let scopedEntries = entries;
+      let scopedEntries = entriesWithDetails;
       if (!isApprover && activeDelegations.length > 0) {
         const delegatorIds = activeDelegations.map(d => d.delegatorId);
-        scopedEntries = entries.filter(entry => {
+        scopedEntries = entriesWithDetails.filter(({ entry }) => {
           const entryResource = resources.find(r => r.id === entry.resourceId);
           return entryResource?.managerId && delegatorIds.includes(entryResource.managerId);
         });
       }
 
-      const enrichedEntries = await Promise.all(scopedEntries.map(async (entry) => {
-        const task = await storage.getTask(entry.taskId);
-        const project = task ? await storage.getProject(task.projectId) : null;
-        const resource = await storage.getResource(entry.resourceId);
+      const enrichedEntries = scopedEntries.map(({ entry, task, project, resource }) => {
         return { ...entry, task, project, resource };
-      }));
+      });
 
       res.json(enrichedEntries);
     } catch (error) {

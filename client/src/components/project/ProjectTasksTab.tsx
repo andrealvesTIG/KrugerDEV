@@ -1421,7 +1421,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           projectStartDate={projectStartDate}
           projectEndDate={projectEndDate}
           hideTimeline={true}
-          isReadOnly={false}
+          isReadOnly={readOnly}
           onCreateTask={(name) => {
             const todayStr = format(new Date(), 'yyyy-MM-dd');
             createTask.mutate({
@@ -1448,7 +1448,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           isFullscreen={isFullscreen}
           projectStartDate={projectStartDate}
           projectEndDate={projectEndDate}
-          isReadOnly={false}
+          isReadOnly={readOnly}
           onCreateTask={(name) => {
             const todayStr = format(new Date(), 'yyyy-MM-dd');
             createTask.mutate({
@@ -1471,7 +1471,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           organizationId={currentOrganization?.id ?? null}
           projectId={projectId}
           resources={resources}
-          isReadOnly={false}
+          isReadOnly={readOnly}
           onResourceAssign={(taskId, resourceIds) => {
             const task = tasks?.find(t => t.id === taskId);
             updateTaskResources.mutate({ taskId, resourceIds, expectedUpdatedAt: task?.updatedAt ? new Date(task.updatedAt).toISOString() : undefined });

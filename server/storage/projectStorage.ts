@@ -22,12 +22,19 @@ import {
 } from "@shared/schema";
 import { eq, and, desc, or, isNull, isNotNull, inArray, sql } from "drizzle-orm";
 
-export async function getProjects(organizationId?: number, portfolioId?: number, isInternal?: boolean): Promise<Project[]> {
+export async function getProjects(organizationId?: number, portfolioId?: number, isInternal?: boolean, options?: { limit?: number; offset?: number }): Promise<Project[]> {
   const conditions = [isNull(projects.deletedAt)];
   if (organizationId) conditions.push(eq(projects.organizationId, organizationId));
   if (portfolioId) conditions.push(eq(projects.portfolioId, portfolioId));
   if (isInternal !== undefined) conditions.push(eq(projects.isInternal, isInternal));
-  return await db.select().from(projects).where(and(...conditions));
+  let query = db.select().from(projects).where(and(...conditions)).orderBy(desc(projects.createdAt));
+  if (options?.limit) {
+    query = query.limit(options.limit) as typeof query;
+  }
+  if (options?.offset) {
+    query = query.offset(options.offset) as typeof query;
+  }
+  return await query;
 }
 
 export async function getProject(id: number): Promise<Project | undefined> {
@@ -54,71 +61,17 @@ export async function updateProject(id: number, updates: UpdateProjectRequest): 
 }
 
 export async function deleteProject(id: number): Promise<void> {
+  const now = new Date();
   await db.transaction(async (tx) => {
-    const projectTasks = await tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.projectId, id));
-    const taskIds = projectTasks.map(t => t.id);
-    if (taskIds.length > 0) {
-      await tx.delete(timesheetEntries).where(inArray(timesheetEntries.taskId, taskIds));
-      await tx.delete(taskDependencies).where(inArray(taskDependencies.taskId, taskIds));
-      await tx.delete(taskDependencies).where(inArray(taskDependencies.dependsOnTaskId, taskIds));
-      await tx.delete(taskChangeLogs).where(inArray(taskChangeLogs.taskId, taskIds));
-      await tx.delete(taskResourceAssignments).where(inArray(taskResourceAssignments.taskId, taskIds));
-      await tx.delete(notifications).where(inArray(notifications.taskId, taskIds));
-      await tx.update(issues).set({ relatedTaskId: null }).where(inArray(issues.relatedTaskId, taskIds));
-    }
-    await tx.delete(tasks).where(eq(tasks.projectId, id));
-
-    const projectIssueRows = await tx.select({ id: issues.id }).from(issues).where(eq(issues.projectId, id));
-    const issueIds = projectIssueRows.map(i => i.id);
-    if (issueIds.length > 0) {
-      await tx.delete(issueChangeLogs).where(inArray(issueChangeLogs.issueId, issueIds));
-      await tx.delete(issueResourceAssignments).where(inArray(issueResourceAssignments.issueId, issueIds));
-    }
-    await tx.delete(issues).where(eq(issues.projectId, id));
-
-    const milestoneTaskRows = await tx.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.projectId, id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone')));
-    if (milestoneTaskRows.length > 0) {
-      await tx.delete(notifications).where(inArray(notifications.milestoneId, milestoneTaskRows.map(m => m.id)));
-    }
-    await tx.delete(milestones).where(eq(milestones.projectId, id));
-
-    await tx.delete(projectFinancials).where(eq(projectFinancials.projectId, id));
-    await tx.delete(changeRequests).where(eq(changeRequests.projectId, id));
-    await tx.delete(projectDocuments).where(eq(projectDocuments.projectId, id));
-    await tx.delete(projectBenefits).where(eq(projectBenefits.projectId, id));
-    await tx.delete(projectDecisions).where(eq(projectDecisions.projectId, id));
-    await tx.delete(lessonsLearned).where(eq(lessonsLearned.projectId, id));
-    await tx.delete(projectChangeLogs).where(eq(projectChangeLogs.projectId, id));
-    await tx.delete(healthStatusHistory).where(eq(healthStatusHistory.projectId, id));
-    await tx.delete(statusReportHistory).where(eq(statusReportHistory.projectId, id));
-    await tx.delete(billableStatusComments).where(eq(billableStatusComments.projectId, id));
-    await tx.delete(costItems).where(eq(costItems.projectId, id));
-    await tx.delete(projectCustomFieldValues).where(eq(projectCustomFieldValues.projectId, id));
-    await tx.delete(projectScores).where(eq(projectScores.projectId, id));
-    await tx.delete(projectRiskAssessments).where(eq(projectRiskAssessments.projectId, id));
-    await tx.delete(customPortfolioProjects).where(eq(customPortfolioProjects.projectId, id));
-    await tx.delete(simulationEvents).where(eq(simulationEvents.projectId, id));
-    await tx.update(mppImports).set({ projectId: null }).where(eq(mppImports.projectId, id));
-    await tx.update(projectIntakes).set({ createdProjectId: null }).where(eq(projectIntakes.createdProjectId, id));
-    await tx.delete(notifications).where(eq(notifications.projectId, id));
-    const invoiceRows = await tx.select({ id: projectInvoices.id }).from(projectInvoices).where(eq(projectInvoices.projectId, id));
-    for (const inv of invoiceRows) {
-      await tx.delete(invoiceNotes).where(eq(invoiceNotes.invoiceId, inv.id));
-    }
-    await tx.delete(projectInvoices).where(eq(projectInvoices.projectId, id));
-    const commentRows = await tx.select({ id: projectComments.id }).from(projectComments).where(eq(projectComments.projectId, id));
-    for (const c of commentRows) {
-      await tx.delete(notifications).where(eq(notifications.commentId, c.id));
-    }
-    await tx.delete(projectComments).where(eq(projectComments.projectId, id));
-    const legacyRiskRows = await tx.select({ id: legacyRisks.id }).from(legacyRisks).where(eq(legacyRisks.projectId, id));
-    for (const lr of legacyRiskRows) {
-      await tx.delete(legacyRiskChangeLogs).where(eq(legacyRiskChangeLogs.riskId, lr.id));
-      await tx.delete(legacyRiskResourceAssignments).where(eq(legacyRiskResourceAssignments.riskId, lr.id));
-    }
-    await tx.delete(legacyRisks).where(eq(legacyRisks.projectId, id));
-
-    await tx.delete(projects).where(eq(projects.id, id));
+    await tx.update(tasks)
+      .set({ deletedAt: now })
+      .where(and(eq(tasks.projectId, id), isNull(tasks.deletedAt)));
+    await tx.update(issues)
+      .set({ deletedAt: now })
+      .where(and(eq(issues.projectId, id), isNull(issues.deletedAt)));
+    await tx.update(projects)
+      .set({ deletedAt: now })
+      .where(eq(projects.id, id));
   });
 }
 
@@ -149,10 +102,9 @@ export async function updateRisk(id: number, updates: UpdateRiskRequest): Promis
 }
 
 export async function deleteRisk(id: number): Promise<void> {
-  await db.delete(notifications).where(eq(notifications.riskIssueId, id));
-  await db.delete(issueChangeLogs).where(eq(issueChangeLogs.issueId, id));
-  await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.issueId, id));
-  await db.delete(issues).where(and(eq(issues.id, id), eq(issues.itemType, 'risk')));
+  await db.update(issues)
+    .set({ deletedAt: new Date() })
+    .where(and(eq(issues.id, id), eq(issues.itemType, 'risk')));
 }
 
 export async function convertRiskToIssue(id: number): Promise<Issue | undefined> {
@@ -336,10 +288,9 @@ export async function updateIssue(id: number, updates: UpdateIssueRequest): Prom
 }
 
 export async function deleteIssue(id: number): Promise<void> {
-  await db.delete(notifications).where(eq(notifications.riskIssueId, id));
-  await db.delete(issueChangeLogs).where(eq(issueChangeLogs.issueId, id));
-  await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.issueId, id));
-  await db.delete(issues).where(eq(issues.id, id));
+  await db.update(issues)
+    .set({ deletedAt: new Date() })
+    .where(eq(issues.id, id));
 }
 
 export async function getEscalatedItemsByProjects(projectIds: number[]): Promise<Issue[]> {

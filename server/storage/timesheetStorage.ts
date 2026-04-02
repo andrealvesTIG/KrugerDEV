@@ -1,11 +1,11 @@
 import { db } from "../db";
 import {
-  timesheetEntries, tasks, projects,
+  timesheetEntries, tasks, projects, resources,
   timesheetPeriods, timesheetSettings,
   timesheetAuditLog, timeCategories, nonProjectTimeEntries,
   approvalDelegations, rejectionTemplates, timesheetComments,
   type TimesheetEntry, type InsertTimesheetEntry, type UpdateTimesheetEntryRequest,
-  type Task, type Project,
+  type Task, type Project, type Resource,
   type TimesheetPeriod, type InsertTimesheetPeriod,
   type TimesheetSettings, type InsertTimesheetSettings,
   type TimesheetAuditLog, type InsertTimesheetAuditLog,
@@ -50,15 +50,17 @@ export async function getTimesheetEntriesWithDetails(userId: string, organizatio
   return results;
 }
 
-export async function getAllTimesheetEntriesWithDetails(organizationId: number, startDate: string, endDate: string): Promise<{ entry: TimesheetEntry; task: Task; project: Project }[]> {
+export async function getAllTimesheetEntriesWithDetails(organizationId: number, startDate: string, endDate: string): Promise<{ entry: TimesheetEntry; task: Task; project: Project; resource: Resource }[]> {
   const results = await db.select({
     entry: timesheetEntries,
     task: tasks,
-    project: projects
+    project: projects,
+    resource: resources,
   })
     .from(timesheetEntries)
     .innerJoin(tasks, eq(timesheetEntries.taskId, tasks.id))
     .innerJoin(projects, eq(tasks.projectId, projects.id))
+    .innerJoin(resources, eq(timesheetEntries.resourceId, resources.id))
     .where(and(
       eq(timesheetEntries.organizationId, organizationId),
       sql`${timesheetEntries.entryDate} >= ${startDate}`,
@@ -95,6 +97,26 @@ export async function getTimesheetEntriesForApproval(organizationId: number, sta
   return await db.select().from(timesheetEntries)
     .where(and(...conditions))
     .orderBy(desc(timesheetEntries.submittedAt), timesheetEntries.userId);
+}
+
+export async function getTimesheetEntriesForApprovalWithDetails(organizationId: number, status?: string): Promise<{ entry: TimesheetEntry; task: Task | null; project: Project | null; resource: Resource | null }[]> {
+  const conditions: ReturnType<typeof eq>[] = [eq(timesheetEntries.organizationId, organizationId)];
+  if (status) {
+    conditions.push(eq(timesheetEntries.status, status));
+  }
+  const results = await db.select({
+    entry: timesheetEntries,
+    task: tasks,
+    project: projects,
+    resource: resources,
+  })
+    .from(timesheetEntries)
+    .leftJoin(tasks, eq(timesheetEntries.taskId, tasks.id))
+    .leftJoin(projects, sql`${tasks.projectId} = ${projects.id}`)
+    .leftJoin(resources, eq(timesheetEntries.resourceId, resources.id))
+    .where(and(...conditions))
+    .orderBy(desc(timesheetEntries.submittedAt), timesheetEntries.userId);
+  return results;
 }
 
 export async function getTimesheetEntry(id: number): Promise<TimesheetEntry | undefined> {

@@ -307,6 +307,7 @@ function ProjectKanbanView({
                   onResourceAssign={onResourceAssign}
                   isDragEnabled={isDragEnabled}
                   taskAssignmentsMap={taskAssignmentsMap}
+                  isReadOnly={isReadOnly}
                 />
               ))}
             </div>
@@ -337,6 +338,7 @@ function ProjectKanbanColumn({
   onResourceAssign,
   isDragEnabled,
   taskAssignmentsMap,
+  isReadOnly,
 }: { 
   column: { id: string; label: string; color: string }; 
   tasks: Task[]; 
@@ -346,6 +348,7 @@ function ProjectKanbanColumn({
   onResourceAssign?: (taskId: number, resourceIds: number[]) => void;
   isDragEnabled?: boolean;
   taskAssignmentsMap?: Map<number, number[]>;
+  isReadOnly?: boolean;
 }) {
   const { setNodeRef } = useDroppable({
     id: column.id,
@@ -379,6 +382,7 @@ function ProjectKanbanColumn({
               onResourceAssign={onResourceAssign}
               isDragEnabled={isDragEnabled}
               assignedResourceIds={taskAssignmentsMap?.get(task.id) || []}
+              isReadOnly={isReadOnly}
             />
           ))}
           {tasks.length === 0 && isDragEnabled && (
@@ -405,6 +409,7 @@ function ProjectDraggableTaskCard({
   onResourceAssign,
   isDragEnabled,
   assignedResourceIds,
+  isReadOnly,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
@@ -413,6 +418,7 @@ function ProjectDraggableTaskCard({
   onResourceAssign?: (taskId: number, resourceIds: number[]) => void;
   isDragEnabled?: boolean;
   assignedResourceIds: number[];
+  isReadOnly?: boolean;
 }) {
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const {
@@ -493,7 +499,7 @@ function ProjectDraggableTaskCard({
             ) : (
               <span className="text-[10px] text-muted-foreground">No resources</span>
             )}
-            {resources && resources.length > 0 && onResourceAssign && (
+            {resources && resources.length > 0 && onResourceAssign && !isReadOnly && (
               <DropdownMenu open={isAssignOpen} onOpenChange={setIsAssignOpen}>
                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                   <Button 

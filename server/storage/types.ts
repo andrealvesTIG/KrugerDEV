@@ -152,7 +152,7 @@ export interface IPortfolioStorage {
 }
 
 export interface IProjectStorage {
-  getProjects(organizationId?: number, portfolioId?: number, isInternal?: boolean): Promise<Project[]>;
+  getProjects(organizationId?: number, portfolioId?: number, isInternal?: boolean, options?: { limit?: number; offset?: number }): Promise<Project[]>;
   getProject(id: number): Promise<Project | undefined>;
   createProject(project: InsertProject): Promise<Project>;
   updateProject(id: number, updates: UpdateProjectRequest): Promise<Project>;
@@ -303,9 +303,10 @@ export interface IFinancialStorage {
 export interface ITimesheetStorage {
   getTimesheetEntries(userId: string, organizationId: number, startDate: string, endDate: string): Promise<TimesheetEntry[]>;
   getTimesheetEntriesWithDetails(userId: string, organizationId: number, startDate: string, endDate: string): Promise<{ entry: TimesheetEntry; task: Task; project: Project }[]>;
-  getAllTimesheetEntriesWithDetails(organizationId: number, startDate: string, endDate: string): Promise<{ entry: TimesheetEntry; task: Task; project: Project }[]>;
+  getAllTimesheetEntriesWithDetails(organizationId: number, startDate: string, endDate: string): Promise<{ entry: TimesheetEntry; task: Task; project: Project; resource: Resource }[]>;
   getTimesheetHoursByTaskIds(taskIds: number[]): Promise<Map<number, number>>;
   getTimesheetEntriesForApproval(organizationId: number, status?: string): Promise<TimesheetEntry[]>;
+  getTimesheetEntriesForApprovalWithDetails(organizationId: number, status?: string): Promise<{ entry: TimesheetEntry; task: Task | null; project: Project | null; resource: Resource | null }[]>;
   getTimesheetEntry(id: number): Promise<TimesheetEntry | undefined>;
   findTimesheetEntry(resourceId: number, taskId: number, entryDate: string): Promise<TimesheetEntry | undefined>;
   createTimesheetEntry(entry: InsertTimesheetEntry): Promise<TimesheetEntry>;
@@ -416,7 +417,7 @@ export interface IMiscStorage {
   createSystemProjectView(view: InsertSystemProjectView): Promise<SystemProjectView>;
   updateSystemProjectView(id: number, updates: UpdateSystemProjectViewRequest): Promise<SystemProjectView>;
   deleteSystemProjectView(id: number): Promise<void>;
-  getNotifications(userId: string): Promise<Notification[]>;
+  getNotifications(userId: string, limit?: number, offset?: number): Promise<Notification[]>;
   getUnreadNotificationCount(userId: string): Promise<number>;
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationRead(id: number): Promise<void>;
