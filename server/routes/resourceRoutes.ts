@@ -583,10 +583,7 @@ export function registerResourceRoutes(app: Express) {
         : 'An administrator';
       
       // Build magic link URL
-      const appUrl = process.env.APP_URL 
-        || (process.env.REPLIT_DOMAINS?.split(',')[0] 
-          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-          : 'https://fridayreport.ai');
+      const appUrl = 'https://fridayreport.ai';
       const magicLinkUrl = `${appUrl}/resource-invite?token=${token}`;
       
       // Send the resource invitation email

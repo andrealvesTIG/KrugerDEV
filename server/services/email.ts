@@ -927,9 +927,7 @@ export async function sendUpgradeOfferEmail({
   senderName: string;
 }): Promise<boolean> {
   const subject = "Unlock More with FridayReport.AI Pro";
-  const appUrl = process.env.REPLIT_DEV_DOMAIN 
-    ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
-    : process.env.APP_URL || "https://fridayreport.ai";
+  const appUrl = "https://fridayreport.ai";
 
   const sanitized = sanitizeHtmlContent(customMessage);
   const styledMessage = addInlineStylesToHtml(sanitized);

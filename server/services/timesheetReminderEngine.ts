@@ -24,9 +24,7 @@ interface ReminderResult {
 }
 
 function getAppUrl(): string {
-  return process.env.REPLIT_DOMAINS?.split(',')[0]
-    ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-    : 'https://fridayreport.ai';
+  return 'https://fridayreport.ai';
 }
 
 async function getReminderSettings(organizationId: number) {

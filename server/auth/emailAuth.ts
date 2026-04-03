@@ -157,10 +157,7 @@ export async function setupAuth(app: Express) {
       }).returning();
 
       // Send email verification
-      const appUrl = process.env.APP_URL 
-        || (process.env.REPLIT_DOMAINS?.split(',')[0] 
-          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-          : 'https://fridayreport.ai');
+      const appUrl = 'https://fridayreport.ai';
       const verifyEmailUrl = `${appUrl}/verify-email?token=${emailVerificationToken}`;
       
       const emailSent = await sendEmailVerificationEmail(email, verifyEmailUrl);
@@ -433,7 +430,7 @@ export async function setupAuth(app: Express) {
       });
 
       // Build reset URL and send email
-      const resetUrl = `${req.protocol}://${req.get("host")}/reset-password?token=${token}`;
+      const resetUrl = `https://fridayreport.ai/reset-password?token=${token}`;
       
       // Try to send email, but always return success message to prevent enumeration
       const emailSent = await sendPasswordResetEmail(email, resetUrl);
@@ -596,10 +593,7 @@ export async function setupAuth(app: Express) {
       });
 
       // Build verification URL
-      const appUrl = process.env.APP_URL 
-        || (process.env.REPLIT_DOMAINS?.split(',')[0] 
-          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-          : 'https://fridayreport.ai');
+      const appUrl = 'https://fridayreport.ai';
       const verifyUrl = `${appUrl}/auth/verify?token=${token}`;
 
       // Send email
@@ -798,10 +792,7 @@ export async function setupAuth(app: Express) {
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
       // Build app URL
-      const appUrl = process.env.APP_URL 
-        || (process.env.REPLIT_DOMAINS?.split(',')[0] 
-          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-          : 'https://fridayreport.ai');
+      const appUrl = 'https://fridayreport.ai';
 
       if (existingUser) {
         // Existing user - send sign-in email
@@ -992,10 +983,7 @@ export async function setupAuth(app: Express) {
         .where(eq(users.id, user.id));
 
       // Send verification email
-      const appUrl = process.env.APP_URL 
-        || (process.env.REPLIT_DOMAINS?.split(',')[0] 
-          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-          : 'https://fridayreport.ai');
+      const appUrl = 'https://fridayreport.ai';
       const verifyEmailUrl = `${appUrl}/verify-email?token=${emailVerificationToken}`;
       
       const emailSent = await sendEmailVerificationEmail(user.email, verifyEmailUrl);

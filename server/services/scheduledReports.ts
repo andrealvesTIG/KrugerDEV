@@ -431,9 +431,7 @@ export async function sendScheduledReport(subscriptionId: number): Promise<boole
       return false;
     }
     
-    const appUrl = process.env.REPLIT_DOMAINS?.split(',')[0] 
-      ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-      : 'https://fridayreport.ai';
+    const appUrl = 'https://fridayreport.ai';
     
     const emailHtml = generateReportEmailHtml(
       subscription.name,

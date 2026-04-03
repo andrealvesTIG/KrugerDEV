@@ -197,10 +197,7 @@ export function registerOrgMemberRoutes(app: Express) {
           const inviterName = inviter 
             ? [inviter.firstName, inviter.lastName].filter(Boolean).join(' ') || inviter.email || 'An administrator'
             : 'An administrator';
-          const appUrl = process.env.APP_URL 
-            || (process.env.REPLIT_DOMAINS?.split(',')[0] 
-              ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-              : 'https://fridayreport.ai');
+          const appUrl = 'https://fridayreport.ai';
           
           if (org) {
             await sendOrganizationInviteEmail(
@@ -279,10 +276,7 @@ export function registerOrgMemberRoutes(app: Express) {
       const inviterName = inviter 
         ? [inviter.firstName, inviter.lastName].filter(Boolean).join(' ') || inviter.email || 'An administrator'
         : 'An administrator';
-      const appUrl = process.env.APP_URL 
-        || (process.env.REPLIT_DOMAINS?.split(',')[0] 
-          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-          : 'https://fridayreport.ai');
+      const appUrl = 'https://fridayreport.ai';
       
       if (org) {
         await sendOrganizationInviteEmail(
