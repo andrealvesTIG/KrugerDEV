@@ -64,7 +64,7 @@ export async function sendEmail({
       subject: string;
       text: string;
       html: string;
-      attachments?: { filename: string; content: Buffer; content_id?: string }[];
+      attachments?: { filename: string; content: Buffer; contentId?: string }[];
     } = {
       from: fromAddress,
       to: [to],
@@ -79,12 +79,12 @@ export async function sendEmail({
     
     if (attachments && attachments.length > 0) {
       emailPayload.attachments = attachments.map(att => {
-        const mapped: { filename: string; content: Buffer; content_id?: string } = {
+        const mapped: { filename: string; content: Buffer; contentId?: string } = {
           filename: att.filename,
           content: Buffer.isBuffer(att.content) ? att.content : Buffer.from(att.content, 'base64'),
         };
         if (att.content_id) {
-          mapped.content_id = att.content_id;
+          mapped.contentId = att.content_id;
         }
         return mapped;
       });
@@ -1270,6 +1270,9 @@ export async function sendUnconSelfieFollowupEmail(email: string, firstName: str
 
   const selfieUrl = `https://fridayreport.ai/api/uncon2026/selfie/${shareToken}/og.png`;
 
+  const imageBuffer = brandedImage || rawSelfie;
+  const imageContentType = brandedImage ? 'image/png' : 'image/jpeg';
+
   const text = `Hi ${cleanFirstName},
 
 It was great meeting you at unCON in San Diego — thanks again for stopping by the FridayReport.ai booth.
@@ -1286,6 +1289,15 @@ Talk soon,
 The FridayReport.ai Team
 
 https://fridayreport.ai`;
+
+  let selfieImgHtml = '';
+  if (imageBuffer) {
+    selfieImgHtml = `<tr>
+            <td style="background-color: #17255A; padding: 0 30px 20px; text-align: center;">
+              <img src="cid:selfie-followup" alt="Our selfie from unCON" width="540" style="width: 100%; max-width: 540px; display: block; margin: 0 auto; border-radius: 8px;" />
+            </td>
+          </tr>`;
+  }
 
   const html = `<!DOCTYPE html>
 <html>
@@ -1304,13 +1316,7 @@ https://fridayreport.ai`;
               <h1 style="color: #ffffff; font-size: 22px; margin: 8px 0 0;">Fun meeting you at unCON \u{1F604}</h1>
             </td>
           </tr>
-          <tr>
-            <td style="background-color: #17255A; padding: 0 30px 20px; text-align: center;">
-              <a href="${selfieUrl}" target="_blank">
-                <img src="${selfieUrl}" alt="Our selfie from unCON" width="540" style="width: 100%; max-width: 540px; display: block; margin: 0 auto; border-radius: 8px;" />
-              </a>
-            </td>
-          </tr>
+          ${selfieImgHtml}
           <tr>
             <td style="background-color: #ffffff; padding: 30px;">
               <p style="color: #333333; font-size: 16px; line-height: 1.7; margin: 0 0 16px;">
@@ -1359,17 +1365,13 @@ https://fridayreport.ai`;
 </html>`;
 
   const emailAttachments: EmailAttachment[] = [];
-  if (brandedImage) {
+  if (imageBuffer) {
+    const ext = brandedImage ? 'png' : 'jpg';
     emailAttachments.push({
-      filename: `unCON-2026-selfie-${cleanFirstName.replace(/[^a-zA-Z0-9]/g, '-')}.png`,
-      content: brandedImage,
-      contentType: 'image/png',
-    });
-  } else if (rawSelfie) {
-    emailAttachments.push({
-      filename: `unCON-2026-selfie-${cleanFirstName.replace(/[^a-zA-Z0-9]/g, '-')}.jpg`,
-      content: rawSelfie,
-      contentType: 'image/jpeg',
+      filename: `unCON-2026-selfie-${cleanFirstName.replace(/[^a-zA-Z0-9]/g, '-')}.${ext}`,
+      content: imageBuffer,
+      contentType: imageContentType,
+      content_id: 'selfie-followup',
     });
   }
 
