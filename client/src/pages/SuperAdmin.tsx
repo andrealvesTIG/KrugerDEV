@@ -1,7 +1,7 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Building2, Users, CreditCard, Wallet, FileCheck, Activity, BarChart3, HelpCircle, ShieldAlert, Crown, GraduationCap } from "lucide-react";
+import { Loader2, Building2, Users, CreditCard, Wallet, FileCheck, Activity, BarChart3, HelpCircle, ShieldAlert, Crown, GraduationCap, MousePointerClick } from "lucide-react";
 import { OrganizationsTab } from "@/components/admin/OrganizationsTab";
 import { AllUsersTab } from "@/components/admin/AllUsersTab";
 import { PlansTab } from "@/components/admin/PlansTab";
@@ -11,6 +11,7 @@ import { MonitoringTab } from "@/components/admin/MonitoringTab";
 import { HelpTicketsTab } from "@/components/admin/HelpTicketsTab";
 import { FeatureComparisonTab } from "@/components/FeatureComparisonTab";
 import { TrainingManagementTab } from "@/components/TrainingManagementTab";
+import { UserActivityTab } from "@/components/admin/UserActivityTab";
 
 export default function SuperAdmin() {
   const { user, isLoading: authLoading } = useAuth();
@@ -89,6 +90,10 @@ export default function SuperAdmin() {
               <GraduationCap className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Training
             </TabsTrigger>
+            <TabsTrigger value="user-activity" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2" data-testid="tab-user-activity">
+              <MousePointerClick className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              User Activity
+            </TabsTrigger>
           </TabsList>
         </div>
         <div className="mt-6">
@@ -118,6 +123,9 @@ export default function SuperAdmin() {
           </TabsContent>
           <TabsContent value="training">
             <TrainingManagementTab />
+          </TabsContent>
+          <TabsContent value="user-activity">
+            <UserActivityTab />
           </TabsContent>
         </div>
       </Tabs>

@@ -28,6 +28,7 @@ import { registerTimesheetRoutes } from "./routes/timesheetRoutes";
 import { registerAnalyticsRoutes } from "./routes/analyticsRoutes";
 import { registerCrossProjectReferenceRoutes } from "./routes/crossProjectReferenceRoutes";
 import { registerPartnerRoutes } from "./routes/partnerRoutes";
+import { registerUserActivityRoutes } from "./routes/userActivityRoutes";
 import { registerProjectAgentRoutes } from "./routes/projectAgentRoutes";
 import { seedDatabase } from "./routes/helpers";
 
@@ -99,6 +100,7 @@ export async function registerRoutes(
   registerAnalyticsRoutes(app);
   registerCrossProjectReferenceRoutes(app);
   registerPartnerRoutes(app);
+  registerUserActivityRoutes(app);
   registerProjectAgentRoutes(app);
 
   seedTrainingDataIfEmpty().catch(err => {
