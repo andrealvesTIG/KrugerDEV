@@ -2823,6 +2823,7 @@ export const unconSelfieLeads = pgTable("uncon_selfie_leads", {
   interviewer: varchar("interviewer", { length: 255 }),
   photoPath: text("photo_path"),
   shareToken: varchar("share_token", { length: 64 }).notNull(),
+  followupSentAt: timestamp("followup_sent_at"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("uncon_selfie_leads_email_idx").on(table.email),

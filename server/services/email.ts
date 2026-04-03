@@ -1261,6 +1261,112 @@ export async function sendManagerWeeklyDigestEmail(
   return sendEmail({ to, subject, text, html });
 }
 
+export async function sendUnconSelfieFollowupEmail(email: string, firstName: string, brandedImage?: Buffer): Promise<boolean> {
+  const escapeHtml = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const sanitize = (str: string) => str.replace(/[\r\n\x00-\x1f\x7f]/g, '');
+  const safeFirstName = escapeHtml(firstName);
+  const cleanFirstName = sanitize(firstName);
+  const subject = "Fun meeting you at unCON \u{1F604} (selfie attached)";
+
+  const text = `Hi ${cleanFirstName},
+
+It was great meeting you at unCON in San Diego — thanks again for stopping by the FridayReport.ai booth.
+
+We had a ton of great conversations at the event, and we're really glad we got to connect with you.
+
+I've attached the selfie we took together — always fun putting faces to conversations.
+
+If you're up for it, we'd love to reconnect and pick up where we left off — whether that's around reporting, team visibility, or just swapping ideas.
+
+No pressure at all — just a casual follow-up.
+
+Talk soon,
+The FridayReport.ai Team
+
+https://fridayreport.ai`;
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #f0f0f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f0f0f0;">
+    <tr>
+      <td align="center" style="padding: 20px 0;">
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background-color: #ffffff; border: 1px solid #e0e0e0;">
+          <tr>
+            <td style="background-color: #17255A; padding: 30px 30px 20px; text-align: center;">
+              <p style="color: #D4A84A; font-size: 13px; margin: 0 0 4px; letter-spacing: 2px; font-weight: 700;">PMO unCON NORTH AMERICA 2026</p>
+              <h1 style="color: #ffffff; font-size: 22px; margin: 8px 0 0;">Fun meeting you at unCON \u{1F604}</h1>
+            </td>
+          </tr>
+          ${brandedImage ? `<tr>
+            <td style="background-color: #17255A; padding: 0 30px 20px; text-align: center;">
+              <img src="cid:selfie-followup" alt="Our selfie from unCON" width="540" style="width: 100%; max-width: 540px; display: block; margin: 0 auto; border-radius: 8px;" />
+            </td>
+          </tr>` : ''}
+          <tr>
+            <td style="background-color: #ffffff; padding: 30px;">
+              <p style="color: #333333; font-size: 16px; line-height: 1.7; margin: 0 0 16px;">
+                Hi ${safeFirstName},
+              </p>
+              <p style="color: #333333; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
+                It was great meeting you at unCON in San Diego &mdash; thanks again for stopping by the FridayReport.ai booth.
+              </p>
+              <p style="color: #333333; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
+                We had a ton of great conversations at the event, and we're really glad we got to connect with you.
+              </p>
+              <p style="color: #333333; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
+                I've attached the selfie we took together \u{1F4F8} &mdash; always fun putting faces to conversations.
+              </p>
+              <p style="color: #333333; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
+                If you're up for it, we'd love to reconnect and pick up where we left off &mdash; whether that's around reporting, team visibility, or just swapping ideas.
+              </p>
+              <p style="color: #333333; font-size: 15px; line-height: 1.7; margin: 0 0 24px;">
+                No pressure at all &mdash; just a casual follow-up.
+              </p>
+              <p style="color: #333333; font-size: 15px; line-height: 1.7; margin: 0 0 4px;">
+                Talk soon,
+              </p>
+              <p style="color: #FF751F; font-size: 15px; font-weight: 700; margin: 0;">
+                The FridayReport.ai Team
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #ffffff; padding: 0 30px 30px; text-align: center;">
+              <a href="https://fridayreport.ai" style="display: inline-block; background-color: #FF751F; color: #ffffff; text-decoration: none; padding: 14px 40px; border-radius: 8px; font-weight: 700; font-size: 16px;">Visit FridayReport.ai</a>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f8f8f8; padding: 16px 30px; text-align: center; border-top: 1px solid #e0e0e0;">
+              <p style="color: #999999; font-size: 12px; margin: 0;">
+                &copy; 2026 FridayReport.AI &mdash; Project Portfolio Management, Reimagined.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const emailAttachments: EmailAttachment[] = [];
+  if (brandedImage) {
+    emailAttachments.push({
+      filename: `unCON-2026-selfie-${cleanFirstName.replace(/[^a-zA-Z0-9]/g, '-')}.png`,
+      content: brandedImage,
+      contentType: 'image/png',
+      content_id: 'selfie-followup',
+    });
+  }
+
+  return sendEmail({ to: email, subject, text, html, attachments: emailAttachments.length > 0 ? emailAttachments : undefined });
+}
+
 export async function sendUnconSelfieThankYouEmail(email: string, userName: string, brandedImage?: Buffer): Promise<boolean> {
   const escapeHtml = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const sanitize = (str: string) => str.replace(/[\r\n\x00-\x1f\x7f]/g, '');

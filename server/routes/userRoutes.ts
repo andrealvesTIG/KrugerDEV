@@ -5,7 +5,7 @@ import * as crypto from "crypto";
 import { storage } from "../storage";
 import { db } from "../db";
 import { z } from "zod";
-import { eq, and, desc, asc as ascOrder, sql } from "drizzle-orm";
+import { eq, and, desc, asc as ascOrder, sql, inArray } from "drizzle-orm";
 import multer from "multer";
 import { users, taskResourceAssignments, issues, resources, tasks, projects, portfolios, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, type Task, unconSelfieLeads } from "@shared/schema";
 import type { User } from "@shared/models/auth";
@@ -279,8 +279,8 @@ export function registerUserRoutes(app: Express) {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
       const user = await storage.getUser(userId);
-      if (!user || user.role !== 'super_admin') {
-        return res.status(403).json({ message: "Super admin access required" });
+      if (!user || (user.role !== 'super_admin' && user.role !== 'marketing')) {
+        return res.status(403).json({ message: "Admin access required" });
       }
       const page = Math.max(1, Number(req.query.page) || 1);
       const exportAll = req.query.export === 'true';
@@ -328,6 +328,110 @@ export function registerUserRoutes(app: Express) {
     } catch (err) {
       console.error("Error fetching selfie leads:", err);
       res.status(500).json({ message: "Failed to fetch selfie leads" });
+    }
+  });
+
+  app.post('/api/admin/selfie-leads/send-followup', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const user = await storage.getUser(userId);
+      if (!user || (user.role !== 'super_admin' && user.role !== 'marketing')) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const { leadIds } = req.body;
+      if (!Array.isArray(leadIds) || leadIds.length === 0) {
+        return res.status(400).json({ message: "At least one lead ID is required" });
+      }
+      if (leadIds.length > 500) {
+        return res.status(400).json({ message: "Maximum 500 leads per batch" });
+      }
+      const validIds = leadIds.filter((id: unknown) => typeof id === 'number' && Number.isInteger(id) && id > 0);
+      if (validIds.length === 0) {
+        return res.status(400).json({ message: "No valid lead IDs provided" });
+      }
+
+      const leads = await db.select().from(unconSelfieLeads)
+        .where(inArray(unconSelfieLeads.id, validIds));
+
+      if (leads.length === 0) {
+        return res.status(404).json({ message: "No leads found for the given IDs" });
+      }
+
+      const { sendUnconSelfieFollowupEmail } = await import("../services/email");
+      const { generateSelfieOgImage } = await import("../selfie-og");
+
+      const results: { id: number; email: string; success: boolean; error?: string }[] = [];
+
+      for (const lead of leads) {
+        try {
+          const firstName = lead.name.split(/\s+/)[0] || lead.name;
+
+          let selfieBuffer: Buffer | null = null;
+          if (lead.photoPath) {
+            try {
+              if (lead.photoPath.startsWith('data:')) {
+                const base64Data = lead.photoPath.split(',')[1];
+                if (base64Data) {
+                  selfieBuffer = Buffer.from(base64Data, 'base64');
+                }
+              } else if (lead.photoPath.startsWith('local:')) {
+                const localFilename = lead.photoPath.replace('local:', '');
+                const localPath = path.resolve(process.cwd(), 'server', 'selfie-uploads', localFilename);
+                if (fs.existsSync(localPath)) {
+                  selfieBuffer = fs.readFileSync(localPath);
+                }
+              } else {
+                const { ObjectStorageService } = await import("../replit_integrations/object_storage/objectStorage");
+                const oss = new ObjectStorageService();
+                const file = await oss.getObjectEntityFile(lead.photoPath);
+                const [contents] = await file.download();
+                selfieBuffer = contents;
+              }
+            } catch (dlErr) {
+              console.error(`Failed to download selfie for lead ${lead.id}:`, dlErr);
+            }
+          }
+
+          let brandedImage: Buffer | undefined;
+          if (selfieBuffer) {
+            try {
+              brandedImage = await generateSelfieOgImage({
+                userName: lead.name,
+                interviewer: lead.interviewer,
+                selfieBuffer,
+              });
+            } catch (ogErr) {
+              console.error(`Failed to generate branded image for lead ${lead.id}:`, ogErr);
+            }
+          }
+
+          const sent = await sendUnconSelfieFollowupEmail(lead.email, firstName, brandedImage);
+          if (sent) {
+            await db.update(unconSelfieLeads)
+              .set({ followupSentAt: new Date() })
+              .where(eq(unconSelfieLeads.id, lead.id));
+          }
+          results.push({ id: lead.id, email: lead.email, success: sent });
+        } catch (leadErr: any) {
+          console.error(`Error sending followup to lead ${lead.id}:`, leadErr);
+          results.push({ id: lead.id, email: lead.email, success: false, error: leadErr.message || 'Unknown error' });
+        }
+      }
+
+      const sent = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success).length;
+
+      res.json({
+        message: `Sent ${sent} of ${results.length} emails${failed > 0 ? ` (${failed} failed)` : ''}`,
+        sent,
+        failed,
+        results,
+      });
+    } catch (err) {
+      console.error("Error sending selfie lead followup emails:", err);
+      res.status(500).json({ message: "Failed to send followup emails" });
     }
   });
 
