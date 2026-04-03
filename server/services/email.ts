@@ -1287,7 +1287,7 @@ If you're up for it, we'd love to reconnect and pick up where we left off — wh
 No pressure at all — just a casual follow-up.
 
 Talk soon,
-The FridayReport.ai Team
+FridayReport.ai Team
 
 https://fridayreport.ai`;
 
@@ -1342,7 +1342,7 @@ https://fridayreport.ai`;
                 Talk soon,
               </p>
               <p style="color: #FF751F; font-size: 15px; font-weight: 700; margin: 0;">
-                The FridayReport.ai Team
+                FridayReport.ai Team
               </p>
             </td>
           </tr>
