@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useLocation, useSearch } from "wouter";
 import { useUserJourney } from "@/hooks/use-user-journey";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -812,7 +813,7 @@ export default function Dashboard() {
         {activeSubmenu === 'timesheet-resource' && <TimesheetResourceHoursDashboard />}
 
         {/* KPI Analytics Dashboard */}
-        {activeSubmenu === 'kpi-analytics-overview' && <KpiAnalyticsDashboard />}
+        {activeSubmenu === 'kpi-analytics-overview' && <ErrorBoundary><KpiAnalyticsDashboard /></ErrorBoundary>}
         
         {/* Custom Dashboards */}
         {activeSubmenu.startsWith('custom-') && selectedCustomDashboard && (

@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { AnalyticsTab } from "./AnalyticsTab";
 import { MarketingTab } from "./MarketingTab";
 import { KpiAnalyticsTab } from "./KpiAnalyticsTab";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
   import { useQuery, useMutation } from "@tanstack/react-query";
   import { queryClient, apiRequest } from "@/lib/queryClient";
   import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -2096,7 +2097,7 @@ export function MonitoringTab() {
       {subTab === 'organizations' && renderOrgUsage()}
       {subTab === 'analytics' && <AnalyticsTab />}
       {subTab === 'marketing' && <MarketingTab />}
-      {subTab === 'kpi-analytics' && <KpiAnalyticsTab />}
+      {subTab === 'kpi-analytics' && <ErrorBoundary><KpiAnalyticsTab /></ErrorBoundary>}
     </div>
   );
 }

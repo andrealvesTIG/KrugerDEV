@@ -164,7 +164,22 @@ export function KpiAnalyticsTab() {
     );
   }
 
-  const { cohorts, totals, topFeatures = [], errorHotspots = [], frictionTrend = [] } = data;
+  const cohorts = data.cohorts ?? [];
+  const topFeatures = data.topFeatures ?? [];
+  const errorHotspots = data.errorHotspots ?? [];
+  const frictionTrend = data.frictionTrend ?? [];
+  const totals: KpiTotals = {
+    newSignups: data.totals?.newSignups ?? 0,
+    tasksCreated: data.totals?.tasksCreated ?? 0,
+    tasksCompleted: data.totals?.tasksCompleted ?? 0,
+    projectsCreated: data.totals?.projectsCreated ?? 0,
+    issuesRaised: data.totals?.issuesRaised ?? 0,
+    issuesResolved: data.totals?.issuesResolved ?? 0,
+    hoursLogged: data.totals?.hoursLogged ?? 0,
+    featureUsage: data.totals?.featureUsage ?? 0,
+    totalUsers: data.totals?.totalUsers ?? 0,
+    totalActivities: data.totals?.totalActivities ?? 0,
+  };
 
   const recentCohort = cohorts.length > 0 ? cohorts[cohorts.length - 1] : null;
   const prevCohort = cohorts.length > 1 ? cohorts[cohorts.length - 2] : null;

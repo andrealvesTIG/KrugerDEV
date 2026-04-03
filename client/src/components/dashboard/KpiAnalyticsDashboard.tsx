@@ -137,7 +137,18 @@ export function KpiAnalyticsDashboard() {
     );
   }
 
-  const { cohorts, totals } = data;
+  const cohorts = data.cohorts ?? [];
+  const totals: KpiTotals = {
+    tasksCreated: data.totals?.tasksCreated ?? 0,
+    tasksCompleted: data.totals?.tasksCompleted ?? 0,
+    projectsCreated: data.totals?.projectsCreated ?? 0,
+    issuesRaised: data.totals?.issuesRaised ?? 0,
+    issuesResolved: data.totals?.issuesResolved ?? 0,
+    hoursLogged: data.totals?.hoursLogged ?? 0,
+    featureUsage: data.totals?.featureUsage ?? 0,
+    totalMembers: data.totals?.totalMembers ?? 0,
+    totalActivities: data.totals?.totalActivities ?? 0,
+  };
 
   const recentCohort = cohorts.length > 0 ? cohorts[cohorts.length - 1] : null;
   const prevCohort = cohorts.length > 1 ? cohorts[cohorts.length - 2] : null;
