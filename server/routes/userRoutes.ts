@@ -366,7 +366,7 @@ export function registerUserRoutes(app: Express) {
 
       for (const lead of leads) {
         try {
-          const firstName = lead.name.split(/\s+/)[0] || lead.name;
+          const firstName = lead.name.trim();
 
           let selfieBuffer: Buffer | null = null;
           if (lead.photoPath) {
