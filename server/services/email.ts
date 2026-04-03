@@ -1367,11 +1367,17 @@ https://fridayreport.ai`;
   const emailAttachments: EmailAttachment[] = [];
   if (imageBuffer) {
     const ext = brandedImage ? 'png' : 'jpg';
+    const safeName = cleanFirstName.replace(/[^a-zA-Z0-9]/g, '-');
     emailAttachments.push({
-      filename: `unCON-2026-selfie-${cleanFirstName.replace(/[^a-zA-Z0-9]/g, '-')}.${ext}`,
+      filename: `selfie-inline.${ext}`,
       content: imageBuffer,
       contentType: imageContentType,
       content_id: 'selfie-followup',
+    });
+    emailAttachments.push({
+      filename: `unCON-2026-selfie-${safeName}.${ext}`,
+      content: imageBuffer,
+      contentType: imageContentType,
     });
   }
 
