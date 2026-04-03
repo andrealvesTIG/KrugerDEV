@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and, sql, inArray } from "drizzle-orm";
-import { users, taskResourceAssignments, issues, resources, tasks, projects, portfolios, portfolioKeyDates, organizationMembers, featureUsageLogs, timesheetEntries, projectChangeLogs, taskChangeLogs, issueChangeLogs, type Task } from "@shared/schema";
+import { users, taskResourceAssignments, issues, resources, tasks, projects, portfolios, portfolioKeyDates, organizationMembers, featureUsageLogs, timesheetEntries, projectChangeLogs, taskChangeLogs, issueChangeLogs, organizations, apiRequestLogs, type Task } from "@shared/schema";
 import type { User } from "@shared/models/auth";
 import {
   classifyError,
@@ -1215,6 +1215,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         taskChangesRaw,
       ] = await Promise.all([
         db.select({
+          id: users.id,
           createdAt: users.createdAt,
         }).from(users),
 
@@ -1266,6 +1267,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         ),
 
         db.select({
+          changedBy: projectChangeLogs.changedBy,
           changedAt: projectChangeLogs.changedAt,
         }).from(projectChangeLogs),
 
@@ -1353,6 +1355,166 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         totalUsers: signupsRaw.length,
         totalActivities: projectChangesRaw.length + taskChangesRaw.length,
       };
+
+      function toDate(d: Date | string | null): Date | null {
+        if (!d) return null;
+        return typeof d === 'string' ? new Date(d) : d;
+      }
+      function daysAgo(d: Date | string | null): number {
+        const dt = toDate(d);
+        if (!dt) return 99999;
+        return Math.floor((now.getTime() - dt.getTime()) / (1000 * 60 * 60 * 24));
+      }
+      function truncateToMonday(d: Date): string {
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+        const mon = new Date(d);
+        mon.setDate(diff);
+        return mon.toISOString().split('T')[0];
+      }
+
+      const newSignupsThisWeek = signupsRaw.filter(u => daysAgo(u.createdAt) < 7).length;
+
+      const allActivityEntries: { userId: string; date: Date }[] = [];
+      for (const a of activeUsersRaw) {
+        if (a.changedBy && a.changedAt) {
+          allActivityEntries.push({ userId: a.changedBy, date: toDate(a.changedAt)! });
+        }
+      }
+      for (const pc of projectChangesRaw) {
+        if (pc.changedBy && pc.changedAt) {
+          allActivityEntries.push({ userId: pc.changedBy, date: toDate(pc.changedAt)! });
+        }
+      }
+
+      const activeUsers7d = new Set<string>();
+      const activeUsers30d = new Set<string>();
+      let actions7d = 0;
+      for (const entry of allActivityEntries) {
+        const da = Math.floor((now.getTime() - entry.date.getTime()) / (1000 * 60 * 60 * 24));
+        if (da < 7) {
+          activeUsers7d.add(entry.userId);
+          actions7d++;
+        }
+        if (da < 30) {
+          activeUsers30d.add(entry.userId);
+        }
+      }
+
+      const avgActionsPerUser = activeUsers7d.size > 0
+        ? Math.round(actions7d / activeUsers7d.size)
+        : 0;
+
+      const dauMauRatio = activeUsers30d.size > 0
+        ? Math.round((activeUsers7d.size / activeUsers30d.size) * 100)
+        : 0;
+
+      const dailyActiveUsersMap = new Map<string, Set<string>>();
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        dailyActiveUsersMap.set(d.toISOString().split('T')[0], new Set());
+      }
+      for (const entry of allActivityEntries) {
+        const key = entry.date.toISOString().split('T')[0];
+        if (dailyActiveUsersMap.has(key)) {
+          dailyActiveUsersMap.get(key)!.add(entry.userId);
+        }
+      }
+      const dailyActiveUsers = Array.from(dailyActiveUsersMap.entries()).map(([date, userSet]) => ({
+        date,
+        label: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        count: userSet.size,
+      }));
+
+      const lifecycleBoundaries = [
+        { label: "Week 2", minDays: 7, maxDays: 14 },
+        { label: "Week 4", minDays: 14, maxDays: 28 },
+        { label: "Month 3", minDays: 28, maxDays: 90 },
+        { label: "Month 5", minDays: 90, maxDays: 150 },
+        { label: "Month 7-9", minDays: 150, maxDays: 270 },
+        { label: "Year 2+", minDays: 270, maxDays: 99999 },
+      ];
+
+      const userActionCounts = new Map<string, number>();
+      for (const entry of allActivityEntries) {
+        userActionCounts.set(entry.userId, (userActionCounts.get(entry.userId) || 0) + 1);
+      }
+
+      const activeUsers7dForRetention = new Set<string>();
+      for (const entry of allActivityEntries) {
+        const da = Math.floor((now.getTime() - entry.date.getTime()) / (1000 * 60 * 60 * 24));
+        if (da < 30) {
+          activeUsers7dForRetention.add(entry.userId);
+        }
+      }
+
+      const retentionByLifecycle = lifecycleBoundaries.map(lb => {
+        const usersInCohort = signupsRaw.filter(u => {
+          const da = daysAgo(u.createdAt);
+          return da >= lb.minDays && da < lb.maxDays;
+        });
+        const retainedCount = usersInCohort.filter(u =>
+          u.id && activeUsers7dForRetention.has(u.id)
+        ).length;
+        const retentionPct = usersInCohort.length > 0
+          ? Math.round((retainedCount / usersInCohort.length) * 100)
+          : 0;
+        let cohortActions = 0;
+        for (const u of usersInCohort) {
+          if (u.id) cohortActions += (userActionCounts.get(u.id) || 0);
+        }
+        return {
+          label: lb.label,
+          retentionPct,
+          avgActions: usersInCohort.length > 0
+            ? Math.round(cohortActions / usersInCohort.length)
+            : 0,
+          cohortSize: usersInCohort.length,
+        };
+      });
+
+      const overallRetention = signupsRaw.length > 0
+        ? Math.round((activeUsers7dForRetention.size / signupsRaw.length) * 100)
+        : 0;
+
+      const weeklyRetentionMap = new Map<string, { active: Set<string>; existingUsers: number }>();
+      for (let i = 11; i >= 0; i--) {
+        const weekDate = new Date(now);
+        weekDate.setDate(weekDate.getDate() - i * 7);
+        const weekKey = truncateToMonday(weekDate);
+        if (!weeklyRetentionMap.has(weekKey)) {
+          const usersExistingByWeek = signupsRaw.filter(u => {
+            const dt = toDate(u.createdAt);
+            return dt && dt <= weekDate;
+          }).length;
+          weeklyRetentionMap.set(weekKey, { active: new Set(), existingUsers: usersExistingByWeek });
+        }
+      }
+      for (const entry of allActivityEntries) {
+        const weekKey = truncateToMonday(entry.date);
+        if (weeklyRetentionMap.has(weekKey)) {
+          weeklyRetentionMap.get(weekKey)!.active.add(entry.userId);
+        }
+      }
+      const weeklyRetention = Array.from(weeklyRetentionMap.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, data]) => ({
+          week: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          retentionPct: data.existingUsers > 0 ? Math.round((data.active.size / data.existingUsers) * 100) : 0,
+          activeUsers: data.active.size,
+        }));
+
+      const prevWeekActiveUsers = new Set<string>();
+      for (const entry of allActivityEntries) {
+        const da = Math.floor((now.getTime() - entry.date.getTime()) / (1000 * 60 * 60 * 24));
+        if (da >= 7 && da < 14) {
+          prevWeekActiveUsers.add(entry.userId);
+        }
+      }
+      const retentionWoW = prevWeekActiveUsers.size > 0
+        ? Math.round(((activeUsers7d.size - prevWeekActiveUsers.size) / prevWeekActiveUsers.size) * 100)
+        : (activeUsers7d.size > 0 ? 100 : 0);
 
       const featureCaseExpr = `
         CASE
@@ -1457,7 +1619,66 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         activeUsers: Number(r.active_users || 0),
       }));
 
-      res.json({ cohorts: cohorts.reverse(), totals, topFeatures, errorHotspots, frictionTrend });
+      const [topActionsResult, orgBreakdownRaw] = await Promise.all([
+        db.execute(sql.raw(`
+          SELECT ${featureCaseExpr} as action,
+            COUNT(*) as count,
+            COUNT(DISTINCT user_id) as unique_users
+          FROM api_request_logs
+          WHERE created_at >= NOW() - INTERVAL '30 days'
+            AND method != 'GET'
+            AND path NOT LIKE '/api/auth%'
+            AND path NOT LIKE '/api/billing%'
+          GROUP BY ${featureCaseExpr}
+          ORDER BY count DESC
+          LIMIT 10
+        `)),
+        db.select({
+          orgId: organizations.id,
+          orgName: organizations.name,
+          memberCount: sql<number>`(SELECT COUNT(*) FROM organization_members WHERE organization_id = ${organizations.id})`,
+          activeCount: sql<number>`(SELECT COUNT(DISTINCT changed_by) FROM task_change_logs tcl
+            INNER JOIN tasks t ON tcl.task_id = t.id
+            INNER JOIN projects p ON t.project_id = p.id
+            WHERE p.organization_id = ${organizations.id}
+            AND tcl.changed_at >= NOW() - INTERVAL '7 days')`,
+        }).from(organizations).limit(20),
+      ]);
+
+      const topActions = topActionsResult.rows.map((r: Record<string, unknown>) => ({
+        action: String(r.action || ''),
+        count: Number(r.count || 0),
+        uniqueUsers: Number(r.unique_users || 0),
+      }));
+
+      const orgBreakdown = orgBreakdownRaw.map(o => ({
+        orgId: o.orgId,
+        orgName: o.orgName,
+        memberCount: Number(o.memberCount || 0),
+        activeCount: Number(o.activeCount || 0),
+      }));
+
+      res.json({
+        cohorts: cohorts.reverse(),
+        totals,
+        topFeatures,
+        errorHotspots,
+        frictionTrend,
+        userActivity: {
+          totalUsers: signupsRaw.length,
+          activeUsers7d: activeUsers7d.size,
+          avgActionsPerUser,
+          overallRetention,
+          newSignupsThisWeek,
+          dauMauRatio,
+          retentionWoW,
+          dailyActiveUsers,
+          retentionByLifecycle,
+          weeklyRetention,
+          topActions,
+          orgBreakdown,
+        },
+      });
     } catch (err) {
       console.error('Error fetching admin KPI metrics:', err);
       const classified = classifyError(err);

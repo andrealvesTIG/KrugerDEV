@@ -2079,7 +2079,7 @@ export function MonitoringTab() {
               className="whitespace-nowrap"
             >
               <TrendingUp className="h-4 w-4 mr-1" />
-              KPI Analytics
+              User Activity
             </Button>
           </div>
         </div>
