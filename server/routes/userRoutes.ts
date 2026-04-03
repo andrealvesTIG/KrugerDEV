@@ -409,7 +409,7 @@ export function registerUserRoutes(app: Express) {
             }
           }
 
-          const sent = await sendUnconSelfieFollowupEmail(lead.email, firstName, brandedImage, selfieBuffer);
+          const sent = await sendUnconSelfieFollowupEmail(lead.email, firstName, lead.shareToken, brandedImage, selfieBuffer);
           if (sent) {
             await db.update(unconSelfieLeads)
               .set({ followupSentAt: new Date() })

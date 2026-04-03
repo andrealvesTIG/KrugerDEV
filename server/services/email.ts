@@ -1261,12 +1261,14 @@ export async function sendManagerWeeklyDigestEmail(
   return sendEmail({ to, subject, text, html });
 }
 
-export async function sendUnconSelfieFollowupEmail(email: string, firstName: string, brandedImage?: Buffer, rawSelfie?: Buffer | null): Promise<boolean> {
+export async function sendUnconSelfieFollowupEmail(email: string, firstName: string, shareToken: string, brandedImage?: Buffer, rawSelfie?: Buffer | null): Promise<boolean> {
   const escapeHtml = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const sanitize = (str: string) => str.replace(/[\r\n\x00-\x1f\x7f]/g, '');
   const safeFirstName = escapeHtml(firstName);
   const cleanFirstName = sanitize(firstName);
   const subject = "Fun meeting you at unCON \u{1F604}";
+
+  const selfieUrl = `https://fridayreport.ai/api/uncon2026/selfie/${shareToken}/og.png`;
 
   const text = `Hi ${cleanFirstName},
 
@@ -1302,11 +1304,13 @@ https://fridayreport.ai`;
               <h1 style="color: #ffffff; font-size: 22px; margin: 8px 0 0;">Fun meeting you at unCON \u{1F604}</h1>
             </td>
           </tr>
-          ${brandedImage ? `<tr>
+          <tr>
             <td style="background-color: #17255A; padding: 0 30px 20px; text-align: center;">
-              <img src="cid:selfie-followup" alt="Our selfie from unCON" width="540" style="width: 100%; max-width: 540px; display: block; margin: 0 auto; border-radius: 8px;" />
+              <a href="${selfieUrl}" target="_blank">
+                <img src="${selfieUrl}" alt="Our selfie from unCON" width="540" style="width: 100%; max-width: 540px; display: block; margin: 0 auto; border-radius: 8px;" />
+              </a>
             </td>
-          </tr>` : ''}
+          </tr>
           <tr>
             <td style="background-color: #ffffff; padding: 30px;">
               <p style="color: #333333; font-size: 16px; line-height: 1.7; margin: 0 0 16px;">
@@ -1360,14 +1364,12 @@ https://fridayreport.ai`;
       filename: `unCON-2026-selfie-${cleanFirstName.replace(/[^a-zA-Z0-9]/g, '-')}.png`,
       content: brandedImage,
       contentType: 'image/png',
-      content_id: 'selfie-followup',
     });
   } else if (rawSelfie) {
     emailAttachments.push({
       filename: `unCON-2026-selfie-${cleanFirstName.replace(/[^a-zA-Z0-9]/g, '-')}.jpg`,
       content: rawSelfie,
       contentType: 'image/jpeg',
-      content_id: 'selfie-followup',
     });
   }
 
