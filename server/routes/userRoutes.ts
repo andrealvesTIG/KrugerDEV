@@ -390,8 +390,10 @@ export function registerUserRoutes(app: Express) {
                 selfieBuffer = contents;
               }
             } catch (dlErr) {
-              console.error(`Failed to download selfie for lead ${lead.id}:`, dlErr);
+              console.error(`[selfie-followup] Failed to download selfie for lead ${lead.id} (path: ${lead.photoPath?.substring(0, 50)}):`, dlErr);
             }
+          } else {
+            console.log(`[selfie-followup] Lead ${lead.id} has no photoPath`);
           }
 
           let brandedImage: Buffer | undefined;
@@ -403,11 +405,11 @@ export function registerUserRoutes(app: Express) {
                 selfieBuffer,
               });
             } catch (ogErr) {
-              console.error(`Failed to generate branded image for lead ${lead.id}:`, ogErr);
+              console.error(`[selfie-followup] Failed to generate branded image for lead ${lead.id}:`, ogErr);
             }
           }
 
-          const sent = await sendUnconSelfieFollowupEmail(lead.email, firstName, brandedImage);
+          const sent = await sendUnconSelfieFollowupEmail(lead.email, firstName, brandedImage, selfieBuffer);
           if (sent) {
             await db.update(unconSelfieLeads)
               .set({ followupSentAt: new Date() })

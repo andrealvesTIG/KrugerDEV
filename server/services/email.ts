@@ -1261,12 +1261,12 @@ export async function sendManagerWeeklyDigestEmail(
   return sendEmail({ to, subject, text, html });
 }
 
-export async function sendUnconSelfieFollowupEmail(email: string, firstName: string, brandedImage?: Buffer): Promise<boolean> {
+export async function sendUnconSelfieFollowupEmail(email: string, firstName: string, brandedImage?: Buffer, rawSelfie?: Buffer | null): Promise<boolean> {
   const escapeHtml = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const sanitize = (str: string) => str.replace(/[\r\n\x00-\x1f\x7f]/g, '');
   const safeFirstName = escapeHtml(firstName);
   const cleanFirstName = sanitize(firstName);
-  const subject = "Fun meeting you at unCON \u{1F604} (selfie attached)";
+  const subject = "Fun meeting you at unCON \u{1F604}";
 
   const text = `Hi ${cleanFirstName},
 
@@ -1360,6 +1360,13 @@ https://fridayreport.ai`;
       filename: `unCON-2026-selfie-${cleanFirstName.replace(/[^a-zA-Z0-9]/g, '-')}.png`,
       content: brandedImage,
       contentType: 'image/png',
+      content_id: 'selfie-followup',
+    });
+  } else if (rawSelfie) {
+    emailAttachments.push({
+      filename: `unCON-2026-selfie-${cleanFirstName.replace(/[^a-zA-Z0-9]/g, '-')}.jpg`,
+      content: rawSelfie,
+      contentType: 'image/jpeg',
       content_id: 'selfie-followup',
     });
   }
