@@ -64,7 +64,7 @@ export async function sendEmail({
       subject: string;
       text: string;
       html: string;
-      attachments?: { filename: string; content: Buffer; contentId?: string }[];
+      attachments?: { filename: string; content: Buffer; contentId?: string; contentType?: string }[];
     } = {
       from: fromAddress,
       to: [to],
@@ -79,12 +79,15 @@ export async function sendEmail({
     
     if (attachments && attachments.length > 0) {
       emailPayload.attachments = attachments.map(att => {
-        const mapped: { filename: string; content: Buffer; contentId?: string } = {
+        const mapped: { filename: string; content: Buffer; contentId?: string; contentType?: string } = {
           filename: att.filename,
           content: Buffer.isBuffer(att.content) ? att.content : Buffer.from(att.content, 'base64'),
         };
         if (att.content_id) {
           mapped.contentId = att.content_id;
+        }
+        if (att.contentType) {
+          mapped.contentType = att.contentType;
         }
         return mapped;
       });
@@ -1261,14 +1264,12 @@ export async function sendManagerWeeklyDigestEmail(
   return sendEmail({ to, subject, text, html });
 }
 
-export async function sendUnconSelfieFollowupEmail(email: string, firstName: string, shareToken: string, brandedImage?: Buffer, rawSelfie?: Buffer | null): Promise<boolean> {
+export async function sendUnconSelfieFollowupEmail(email: string, firstName: string, _shareToken: string, brandedImage?: Buffer, rawSelfie?: Buffer | null): Promise<boolean> {
   const escapeHtml = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const sanitize = (str: string) => str.replace(/[\r\n\x00-\x1f\x7f]/g, '');
   const safeFirstName = escapeHtml(firstName);
   const cleanFirstName = sanitize(firstName);
   const subject = "Fun meeting you at unCON \u{1F604}";
-
-  const selfieUrl = `https://fridayreport.ai/api/uncon2026/selfie/${shareToken}/og.png`;
 
   const imageBuffer = brandedImage || rawSelfie;
   const imageContentType = brandedImage ? 'image/png' : 'image/jpeg';
