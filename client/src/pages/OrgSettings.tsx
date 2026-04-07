@@ -4,7 +4,7 @@ import { useOrganization } from "@/hooks/use-organization";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Settings, Users, ShieldAlert, Trash2, Eye, FileText, GitBranch, Plug, Calendar, Sparkles, Building2, Zap, LayoutGrid, Columns, Code2, UserCheck, Bell } from "lucide-react";
+import { Loader2, Settings, Users, ShieldAlert, Trash2, Eye, FileText, GitBranch, Plug, Calendar, Sparkles, Building2, Zap, LayoutGrid, Columns, Code2, UserCheck, Bell, Target } from "lucide-react";
 import { ChevronDown, PanelLeftClose, PanelLeft } from "lucide-react";
 import type { Organization } from "@shared/schema";
 import IntegrationsPage from "@/pages/Integrations";
@@ -24,6 +24,7 @@ import { ReminderSettingsSection } from "@/components/settings/ReminderSettingsS
 import { RiskAssessmentConfigSection } from "@/components/settings/RiskAssessmentConfigSection";
 import { DeveloperSection } from "@/components/settings/DeveloperSection";
 import { ActAsSection } from "@/components/settings/ActAsSection";
+import { ScoringCriteriaSection } from "@/components/settings/ScoringCriteriaSection";
 
 export default function OrgSettings() {
   const { user, isLoading: authLoading } = useAuth();
@@ -99,6 +100,7 @@ const settingsTabs = [
   { value: "reminders", label: "Reminders & Escalation", icon: Bell },
   { value: "integrations", label: "Integrations", icon: Plug },
   { value: "risk-assessment", label: "Risk Assessment", icon: ShieldAlert },
+  { value: "scoring", label: "Portfolio Scoring", icon: Target },
   { value: "developer", label: "Developer", icon: Code2 },
   { value: "act-as", label: "Act As User", icon: UserCheck },
 ];
@@ -240,6 +242,9 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         </TabsContent>
         <TabsContent value="risk-assessment" className="mt-0">
           <RiskAssessmentConfigSection organizationId={currentOrganization.id} />
+        </TabsContent>
+        <TabsContent value="scoring" className="mt-0">
+          <ScoringCriteriaSection organizationId={currentOrganization.id} />
         </TabsContent>
         <TabsContent value="developer" className="mt-0">
           <DeveloperSection />
