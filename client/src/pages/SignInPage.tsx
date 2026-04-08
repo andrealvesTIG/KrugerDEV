@@ -463,20 +463,20 @@ export default function SignInPage() {
         <div className="max-w-7xl mx-auto relative">
           <div className="grid lg:grid-cols-2 gap-5 sm:gap-8 lg:gap-12 items-center">
             <div className="text-center lg:text-left max-w-xl mx-auto lg:mx-0 order-2 lg:order-1">
-              <h1 className="text-xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-white mb-2 sm:mb-3 leading-tight">
-                The Most Flexible,
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-300"> AI-First PMO Platform</span>
+              <h1 className="text-[22px] leading-7 sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-white mb-2 sm:mb-3 sm:leading-tight">
+                The Most Flexible,{" "}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-300">AI-First PMO Platform</span>
               </h1>
-              <p className="text-base sm:text-xl font-medium text-slate-100 mb-1 sm:mb-2">
+              <p className="text-sm sm:text-xl font-medium text-slate-100 mb-1 sm:mb-2">
                 Built to adapt. Designed to predict.
               </p>
-              <p className="text-xs sm:text-base text-slate-300 mb-4 sm:mb-6">FridayReport.AI brings AI-native intelligence to portfolio and project management — visualize risks across your entire portfolio in real time.</p>
+              <p className="text-xs sm:text-base text-slate-300 mb-4 sm:mb-6 leading-relaxed">FridayReport.AI brings AI-native intelligence to portfolio and project management — visualize risks across your entire portfolio in real time.</p>
               
-              <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
+              <div className="flex justify-center lg:justify-start">
                 <Button 
                   size="lg" 
                   onClick={scrollToSignIn}
-                  className="bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-400 hover:to-orange-300 text-white font-semibold px-6 sm:px-8 shadow-xl shadow-orange-500/40"
+                  className="bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-400 hover:to-orange-300 text-white font-semibold px-6 sm:px-8 shadow-xl shadow-orange-500/40 w-full sm:w-auto"
                   data-testid="button-hero-start-trial"
                 >
                   Get Started Free
@@ -484,41 +484,43 @@ export default function SignInPage() {
                 </Button>
               </div>
 
-              <div className="mt-4 sm:mt-6 flex flex-wrap gap-x-4 sm:gap-x-5 gap-y-1.5 sm:gap-y-2 justify-center lg:justify-start text-xs sm:text-sm text-slate-400">
-                <span className="flex items-center gap-1.5">
-                  <CheckCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-green-400" />
+              <div className="mt-3 sm:mt-6 flex flex-wrap gap-x-3 sm:gap-x-5 gap-y-1 sm:gap-y-2 justify-center lg:justify-start text-[11px] sm:text-sm text-slate-400">
+                <span className="flex items-center gap-1">
+                  <CheckCircle className="h-3 w-3 text-green-400 flex-shrink-0" />
                   Free forever
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <CheckCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-green-400" />
+                <span className="flex items-center gap-1">
+                  <CheckCircle className="h-3 w-3 text-green-400 flex-shrink-0" />
                   No credit card
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <CheckCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-green-400" />
-                  Setup in 5 min
+                <span className="flex items-center gap-1">
+                  <CheckCircle className="h-3 w-3 text-green-400 flex-shrink-0" />
+                  5 min setup
                 </span>
               </div>
             </div>
 
             <div className="relative order-1 lg:order-2">
-              <div className="text-center mb-2 sm:mb-3">
+              <div className="text-center mb-2 sm:mb-3 relative z-10">
                 <Badge variant="secondary" className="bg-orange-500/10 text-orange-400 border-orange-500/20 text-xs">
                   <Radio className="h-3 w-3 mr-1" />
                   AI-Powered PMO Radar
                 </Badge>
               </div>
-              <div className="absolute -inset-2 sm:-inset-3 bg-gradient-to-r from-primary/20 via-orange-500/15 to-primary/20 rounded-2xl blur-xl opacity-50" />
-              <div
-                className="relative rounded-xl border border-slate-700 shadow-2xl shadow-black/50 bg-slate-900/95 overflow-hidden h-[260px] sm:h-[420px] lg:h-[480px]"
-                data-testid="hero-radar-widget"
-              >
-                <RadarCanvas
-                  signals={DEMO_RADAR_SIGNALS}
-                  onSignalClick={handleRadarSignalClick}
-                  isDark={true}
-                  centerLabel="PORTFOLIO"
-                  readOnly={true}
-                />
+              <div className="relative">
+                <div className="absolute -inset-2 sm:-inset-3 bg-gradient-to-r from-primary/20 via-orange-500/15 to-primary/20 rounded-2xl blur-xl opacity-50" />
+                <div
+                  className="relative rounded-xl border border-slate-700 shadow-2xl shadow-black/50 bg-slate-900/95 overflow-hidden aspect-square sm:aspect-auto sm:h-[420px] lg:h-[480px]"
+                  data-testid="hero-radar-widget"
+                >
+                  <RadarCanvas
+                    signals={DEMO_RADAR_SIGNALS}
+                    onSignalClick={handleRadarSignalClick}
+                    isDark={true}
+                    centerLabel="PORTFOLIO"
+                    readOnly={true}
+                  />
+                </div>
               </div>
               <p className="text-center text-[10px] sm:text-xs text-slate-500 mt-1.5 sm:mt-2">
                 Live PMO Radar — Risk Intelligence at a Glance
