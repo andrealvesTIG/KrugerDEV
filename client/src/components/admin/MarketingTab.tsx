@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Download, Search, Users, Camera, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Mail, Send, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 interface SelfieLead {
   id: number;
@@ -171,20 +171,25 @@ export function MarketingTab() {
           ? format(new Date(l.followupSentAt), "MMM d, yyyy h:mm a")
           : "Not sent",
       ]);
-      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-      worksheet["!cols"] = [
-        { wch: 25 },
-        { wch: 30 },
-        { wch: 20 },
-        { wch: 22 },
-        { wch: 22 },
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Selfie Leads");
+      worksheet.addRow(headers);
+      rows.forEach(row => worksheet.addRow(row));
+      worksheet.columns = [
+        { width: 25 },
+        { width: 30 },
+        { width: 20 },
+        { width: 22 },
+        { width: 22 },
       ];
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Selfie Leads");
-      XLSX.writeFile(
-        workbook,
-        `selfie-leads-${format(new Date(), "yyyy-MM-dd")}.xlsx`
-      );
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `selfie-leads-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
     } catch {
       toast({ title: "Export failed", description: "Could not export selfie leads. Please try again.", variant: "destructive" });
     }

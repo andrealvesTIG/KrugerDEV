@@ -475,13 +475,13 @@ export default function Issues() {
   const projectNameMap: Record<number, string> = {};
   projects?.forEach(p => { projectNameMap[p.id] = p.name; });
 
-  const handleExport = useCallback((format: 'csv' | 'xlsx') => {
+  const handleExport = useCallback(async (format: 'csv' | 'xlsx') => {
     if (!filteredIssues || filteredIssues.length === 0) {
       toast({ title: "Nothing to export", description: "No issues or risks to export", variant: "destructive" });
       return;
     }
     const label = typeFilter === "all" ? "all" : typeFilter;
-    exportIssuesToFile(filteredIssues as any, projectNameMap, format, label);
+    await exportIssuesToFile(filteredIssues as any, projectNameMap, format, label);
     toast({ title: "Exported", description: `${filteredIssues.length} items exported as ${format.toUpperCase()}` });
   }, [filteredIssues, projectNameMap, typeFilter, toast]);
 

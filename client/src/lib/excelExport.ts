@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { format } from 'date-fns';
 
 interface TimesheetExportData {
@@ -17,10 +17,22 @@ interface ExportOptions {
   includeNotes?: boolean;
 }
 
-export function exportTimesheetToExcel(
+function downloadBuffer(buffer: ArrayBuffer | Buffer, filename: string) {
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function exportTimesheetToExcel(
   data: TimesheetExportData[],
   options: ExportOptions = {}
-): void {
+): Promise<void> {
   const {
     filename = `timesheet-export-${format(new Date(), 'yyyy-MM-dd')}`,
     sheetName = 'Timesheet',
@@ -31,7 +43,7 @@ export function exportTimesheetToExcel(
   if (includeNotes) headers.push('Notes');
 
   const rows = data.map(entry => {
-    const row = [
+    const row: (string | number)[] = [
       entry.resource,
       entry.project,
       entry.task,
@@ -48,26 +60,21 @@ export function exportTimesheetToExcel(
   if (includeNotes) totalRow.push('');
   rows.push(totalRow);
 
-  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet(sheetName);
 
-  const colWidths = [
-    { wch: 20 },
-    { wch: 25 },
-    { wch: 30 },
-    { wch: 12 },
-    { wch: 8 },
-    { wch: 12 },
-  ];
-  if (includeNotes) colWidths.push({ wch: 40 });
-  worksheet['!cols'] = colWidths;
+  worksheet.addRow(headers);
+  rows.forEach(row => worksheet.addRow(row));
 
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+  const colWidths = [20, 25, 30, 12, 8, 12];
+  if (includeNotes) colWidths.push(40);
+  worksheet.columns = colWidths.map(width => ({ width }));
 
-  XLSX.writeFile(workbook, `${filename}.xlsx`);
+  const buffer = await workbook.xlsx.writeBuffer();
+  downloadBuffer(buffer as Buffer, `${filename}.xlsx`);
 }
 
-export function exportWeeklyTimesheetToExcel(
+export async function exportWeeklyTimesheetToExcel(
   entries: Array<{
     taskName: string;
     projectName: string;
@@ -77,7 +84,7 @@ export function exportWeeklyTimesheetToExcel(
   }>,
   dates: Date[],
   options: ExportOptions = {}
-): void {
+): Promise<void> {
   const {
     filename = `weekly-timesheet-${format(new Date(), 'yyyy-MM-dd')}`,
     sheetName = 'Weekly Timesheet'
@@ -92,7 +99,7 @@ export function exportWeeklyTimesheetToExcel(
       return entry.dailyHours[dateKey] || 0;
     });
     const total = dailyValues.reduce((sum, h) => sum + h, 0);
-    
+
     return [
       entry.resourceName,
       entry.projectName,
@@ -103,34 +110,29 @@ export function exportWeeklyTimesheetToExcel(
     ];
   });
 
-  const totalsRow = ['', '', 'DAILY TOTAL'];
-  dates.forEach((d, i) => {
+  const totalsRow: (string | number)[] = ['', '', 'DAILY TOTAL'];
+  dates.forEach(d => {
     const dateKey = format(d, 'yyyy-MM-dd');
     const dailyTotal = entries.reduce((sum, entry) => sum + (entry.dailyHours[dateKey] || 0), 0);
-    totalsRow.push(dailyTotal as unknown as string);
+    totalsRow.push(dailyTotal);
   });
-  const grandTotal = entries.reduce((sum, entry) => 
+  const grandTotal = entries.reduce((sum, entry) =>
     sum + Object.values(entry.dailyHours).reduce((s, h) => s + h, 0), 0
   );
-  totalsRow.push(grandTotal as unknown as string);
+  totalsRow.push(grandTotal);
   totalsRow.push('');
-  
-  rows.push(totalsRow as (string | number)[]);
 
-  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  rows.push(totalsRow);
 
-  const colWidths = [
-    { wch: 18 },
-    { wch: 22 },
-    { wch: 28 },
-    ...dates.map(() => ({ wch: 10 })),
-    { wch: 8 },
-    { wch: 12 },
-  ];
-  worksheet['!cols'] = colWidths;
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet(sheetName);
 
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+  worksheet.addRow(headers);
+  rows.forEach(row => worksheet.addRow(row));
 
-  XLSX.writeFile(workbook, `${filename}.xlsx`);
+  const colWidths = [18, 22, 28, ...dates.map(() => 10), 8, 12];
+  worksheet.columns = colWidths.map(width => ({ width }));
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  downloadBuffer(buffer as Buffer, `${filename}.xlsx`);
 }

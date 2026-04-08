@@ -1277,7 +1277,7 @@ function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void 
     }
   };
 
-  const handleExportToExcel = () => {
+  const handleExportToExcel = async () => {
     if (!entries || entries.length === 0) return;
     
     const exportData = entries.map(entry => ({
@@ -1290,7 +1290,7 @@ function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void 
       notes: entry.notes || ""
     }));
     
-    exportTimesheetToExcel(exportData, {
+    await exportTimesheetToExcel(exportData, {
       filename: `pending-approvals-${format(new Date(), 'yyyy-MM-dd')}`,
       sheetName: 'Pending Approvals'
     });
@@ -2882,7 +2882,7 @@ export default function Timesheets() {
   const [, setLocation] = useLocation();
   const { data: timesheetSettings } = useTimesheetSettings(currentOrganization?.id || null);
 
-  const handleExportMyTimesheet = () => {
+  const handleExportMyTimesheet = async () => {
     if (!entries || entries.length === 0) {
       toast({ title: "No Data", description: "No timesheet entries to export", variant: "destructive" });
       return;
@@ -2898,7 +2898,7 @@ export default function Timesheets() {
       notes: entry.notes || ""
     }));
     
-    exportTimesheetToExcel(exportData, {
+    await exportTimesheetToExcel(exportData, {
       filename: `my-timesheet-${format(dates[0], 'yyyy-MM-dd')}-to-${format(dates[dates.length - 1], 'yyyy-MM-dd')}`,
       sheetName: 'My Timesheet'
     });

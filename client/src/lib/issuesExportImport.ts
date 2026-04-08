@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { format } from 'date-fns';
 
 interface IssueExportRow {
@@ -53,7 +53,25 @@ function formatDate(dateStr: string | null | undefined): string {
   }
 }
 
-export function exportIssuesToFile(
+function escapeCSV(val: unknown): string {
+  const str = String(val ?? '');
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function downloadFile(content: string | ArrayBuffer | Buffer, filename: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function exportIssuesToFile(
   issues: IssueExportRow[],
   projectNameMap: Record<number, string>,
   fileFormat: 'csv' | 'xlsx',
@@ -82,26 +100,29 @@ export function exportIssuesToFile(
     projectNameMap[issue.projectId] || `Project #${issue.projectId}`,
   ]);
 
-  const wsData = [headers, ...rows];
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-  const colWidths = headers.map((h, i) => {
-    const maxLen = Math.max(h.length, ...rows.map(r => String(r[i] || '').length));
-    return { wch: Math.min(Math.max(maxLen, 10), 50) };
-  });
-  ws['!cols'] = colWidths;
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Issues & Risks');
-
   const dateStamp = format(new Date(), 'yyyy-MM-dd');
   const filename = `issues-risks-${filterLabel.toLowerCase()}-${dateStamp}`;
 
   if (fileFormat === 'csv') {
-    XLSX.writeFile(wb, `${filename}.csv`, { bookType: 'csv' });
-  } else {
-    XLSX.writeFile(wb, `${filename}.xlsx`, { bookType: 'xlsx' });
+    const csvContent = [headers, ...rows].map(row => row.map(escapeCSV).join(',')).join('\n');
+    downloadFile(csvContent, `${filename}.csv`, 'text/csv;charset=utf-8;');
+    return;
   }
+
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Issues & Risks');
+
+  worksheet.addRow(headers);
+  rows.forEach(row => worksheet.addRow(row));
+
+  const colWidths = headers.map((h, i) => {
+    const maxLen = Math.max(h.length, ...rows.map(r => String(r[i] || '').length));
+    return { width: Math.min(Math.max(maxLen, 10), 50) };
+  });
+  worksheet.columns = colWidths;
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  downloadFile(buffer as Buffer, `${filename}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 }
 
 const HEADER_MAP: Record<string, string> = {
@@ -166,108 +187,181 @@ function normalizeItemType(val: string): string {
   return 'issue';
 }
 
-function normalizeValue(val: any): string {
+function normalizeValue(val: unknown): string {
   if (val === null || val === undefined) return '';
   return String(val).trim();
 }
 
-export function parseImportFile(file: File): Promise<ImportResult> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const wb = XLSX.read(data, { type: 'array' });
-        const firstSheet = wb.Sheets[wb.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(firstSheet, { defval: '' });
-
-        if (jsonData.length === 0) {
-          resolve({ items: [], errors: ['File is empty or has no data rows'], warnings: [] });
-          return;
+function parseCSVRows(text: string): string[][] {
+  const rows: string[][] = [];
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const cols: string[] = [];
+    let inQuote = false;
+    let current = '';
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuote && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuote = !inQuote;
         }
-
-        const rawHeaders = Object.keys(jsonData[0]);
-        const columnMapping: Record<string, string> = {};
-        const unmappedHeaders: string[] = [];
-
-        for (const header of rawHeaders) {
-          const normalized = header.toLowerCase().trim();
-          if (HEADER_MAP[normalized]) {
-            columnMapping[header] = HEADER_MAP[normalized];
-          } else {
-            unmappedHeaders.push(header);
-          }
-        }
-
-        const mappedFields = new Set(Object.values(columnMapping));
-        if (!mappedFields.has('title')) {
-          resolve({ items: [], errors: ['Could not find a "Title" column. Please ensure your file has a column named "Title" or "Name".'], warnings: [] });
-          return;
-        }
-
-        const items: ImportedIssue[] = [];
-        const errors: string[] = [];
-        const warnings: string[] = [];
-
-        if (unmappedHeaders.length > 0) {
-          warnings.push(`Skipped unrecognized columns: ${unmappedHeaders.join(', ')}`);
-        }
-
-        for (let i = 0; i < jsonData.length; i++) {
-          const row = jsonData[i];
-          const rowNum = i + 2;
-
-          const mapped: Record<string, string> = {};
-          for (const [rawHeader, fieldKey] of Object.entries(columnMapping)) {
-            mapped[fieldKey] = normalizeValue(row[rawHeader]);
-          }
-
-          if (!mapped.title) {
-            errors.push(`Row ${rowNum}: Missing title, skipped`);
-            continue;
-          }
-
-          const item: ImportedIssue = {
-            itemType: mapped.itemType ? normalizeItemType(mapped.itemType) : 'issue',
-            title: mapped.title,
-          };
-
-          if (mapped.description) item.description = mapped.description;
-          if (mapped.priority) item.priority = mapped.priority;
-          if (mapped.status) item.status = mapped.status;
-          if (mapped.type) item.type = mapped.type;
-          if (mapped.category) item.category = mapped.category;
-          if (mapped.severity) item.severity = mapped.severity;
-          if (mapped.assignee) item.assignee = mapped.assignee;
-          if (mapped.dueDate) item.dueDate = mapped.dueDate;
-          if (mapped.costExposure) item.costExposure = mapped.costExposure;
-          if (mapped.impactCost) item.impactCost = mapped.impactCost;
-          if (mapped.riskScore) {
-            const score = parseInt(mapped.riskScore);
-            if (!isNaN(score)) item.riskScore = score;
-          }
-          if (mapped.probability) item.probability = mapped.probability;
-          if (mapped.impact) item.impact = mapped.impact;
-          if (mapped.mitigationPlan) item.mitigationPlan = mapped.mitigationPlan;
-          if (mapped.responseStrategy) item.responseStrategy = mapped.responseStrategy;
-          if (mapped.projectName) item.projectName = mapped.projectName;
-
-          items.push(item);
-        }
-
-        resolve({ items, errors, warnings });
-      } catch (err: any) {
-        reject(new Error(`Failed to parse file: ${err.message}`));
+      } else if (ch === ',' && !inQuote) {
+        cols.push(current);
+        current = '';
+      } else {
+        current += ch;
       }
+    }
+    cols.push(current);
+    rows.push(cols);
+  }
+  return rows;
+}
+
+function processRows(jsonData: Record<string, string>[]): ImportResult {
+  if (jsonData.length === 0) {
+    return { items: [], errors: ['File is empty or has no data rows'], warnings: [] };
+  }
+
+  const rawHeaders = Object.keys(jsonData[0]);
+  const columnMapping: Record<string, string> = {};
+  const unmappedHeaders: string[] = [];
+
+  for (const header of rawHeaders) {
+    const normalized = header.toLowerCase().trim();
+    if (HEADER_MAP[normalized]) {
+      columnMapping[header] = HEADER_MAP[normalized];
+    } else {
+      unmappedHeaders.push(header);
+    }
+  }
+
+  const mappedFields = new Set(Object.values(columnMapping));
+  if (!mappedFields.has('title')) {
+    return { items: [], errors: ['Could not find a "Title" column. Please ensure your file has a column named "Title" or "Name".'], warnings: [] };
+  }
+
+  const items: ImportedIssue[] = [];
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (unmappedHeaders.length > 0) {
+    warnings.push(`Skipped unrecognized columns: ${unmappedHeaders.join(', ')}`);
+  }
+
+  for (let i = 0; i < jsonData.length; i++) {
+    const row = jsonData[i];
+    const rowNum = i + 2;
+
+    const mapped: Record<string, string> = {};
+    for (const [rawHeader, fieldKey] of Object.entries(columnMapping)) {
+      mapped[fieldKey] = normalizeValue(row[rawHeader]);
+    }
+
+    if (!mapped.title) {
+      errors.push(`Row ${rowNum}: Missing title, skipped`);
+      continue;
+    }
+
+    const item: ImportedIssue = {
+      itemType: mapped.itemType ? normalizeItemType(mapped.itemType) : 'issue',
+      title: mapped.title,
     };
 
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsArrayBuffer(file);
+    if (mapped.description) item.description = mapped.description;
+    if (mapped.priority) item.priority = mapped.priority;
+    if (mapped.status) item.status = mapped.status;
+    if (mapped.type) item.type = mapped.type;
+    if (mapped.category) item.category = mapped.category;
+    if (mapped.severity) item.severity = mapped.severity;
+    if (mapped.assignee) item.assignee = mapped.assignee;
+    if (mapped.dueDate) item.dueDate = mapped.dueDate;
+    if (mapped.costExposure) item.costExposure = mapped.costExposure;
+    if (mapped.impactCost) item.impactCost = mapped.impactCost;
+    if (mapped.riskScore) {
+      const score = parseInt(mapped.riskScore);
+      if (!isNaN(score)) item.riskScore = score;
+    }
+    if (mapped.probability) item.probability = mapped.probability;
+    if (mapped.impact) item.impact = mapped.impact;
+    if (mapped.mitigationPlan) item.mitigationPlan = mapped.mitigationPlan;
+    if (mapped.responseStrategy) item.responseStrategy = mapped.responseStrategy;
+    if (mapped.projectName) item.projectName = mapped.projectName;
+
+    items.push(item);
+  }
+
+  return { items, errors, warnings };
+}
+
+export function parseImportFile(file: File): Promise<ImportResult> {
+  return new Promise((resolve, reject) => {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+
+    if (ext === 'csv') {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const text = e.target?.result as string;
+          const csvRows = parseCSVRows(text);
+          if (csvRows.length < 2) {
+            resolve({ items: [], errors: ['File is empty or has no data rows'], warnings: [] });
+            return;
+          }
+          const headers = csvRows[0];
+          const jsonData: Record<string, string>[] = csvRows.slice(1).map(row => {
+            const obj: Record<string, string> = {};
+            headers.forEach((h, i) => { obj[h] = row[i] ?? ''; });
+            return obj;
+          });
+          resolve(processRows(jsonData));
+        } catch (err: any) {
+          reject(new Error(`Failed to parse CSV: ${err.message}`));
+        }
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsText(file);
+    } else {
+      file.arrayBuffer().then(async (arrayBuffer) => {
+        try {
+          const workbook = new ExcelJS.Workbook();
+          await workbook.xlsx.load(arrayBuffer);
+          const worksheet = workbook.worksheets[0];
+          if (!worksheet) {
+            resolve({ items: [], errors: ['No worksheet found in file'], warnings: [] });
+            return;
+          }
+
+          const headers: string[] = [];
+          worksheet.getRow(1).eachCell((cell, colNumber) => {
+            headers[colNumber - 1] = String(cell.value ?? '');
+          });
+
+          const jsonData: Record<string, string>[] = [];
+          worksheet.eachRow((row, rowNumber) => {
+            if (rowNumber === 1) return;
+            const rowObj: Record<string, string> = {};
+            headers.forEach((h, i) => {
+              const cell = row.getCell(i + 1);
+              rowObj[h] = String(cell.value ?? '');
+            });
+            jsonData.push(rowObj);
+          });
+
+          resolve(processRows(jsonData));
+        } catch (err: any) {
+          reject(new Error(`Failed to parse file: ${err.message}`));
+        }
+      }).catch(() => reject(new Error('Failed to read file')));
+    }
   });
 }
 
-export function generateTemplate(fileFormat: 'csv' | 'xlsx') {
+export async function generateTemplate(fileFormat: 'csv' | 'xlsx') {
   const headers = EXPORT_COLUMNS.map(c => c.header);
   const sampleIssue = [
     'Issue', 'Sample Issue Title', 'Description of the issue', 'High', 'Open',
@@ -279,18 +373,21 @@ export function generateTemplate(fileFormat: 'csv' | 'xlsx') {
     'Mitigation steps here', 'Mitigate', 'Project Name',
   ];
 
-  const wsData = [headers, sampleIssue, sampleRisk];
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-  const colWidths = headers.map((h) => ({ wch: Math.max(h.length + 2, 15) }));
-  ws['!cols'] = colWidths;
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Template');
-
   if (fileFormat === 'csv') {
-    XLSX.writeFile(wb, 'issues-risks-template.csv', { bookType: 'csv' });
-  } else {
-    XLSX.writeFile(wb, 'issues-risks-template.xlsx', { bookType: 'xlsx' });
+    const csvContent = [headers, sampleIssue, sampleRisk].map(row => row.map(escapeCSV).join(',')).join('\n');
+    downloadFile(csvContent, 'issues-risks-template.csv', 'text/csv;charset=utf-8;');
+    return;
   }
+
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Template');
+
+  worksheet.addRow(headers);
+  worksheet.addRow(sampleIssue);
+  worksheet.addRow(sampleRisk);
+
+  worksheet.columns = headers.map(h => ({ width: Math.max(h.length + 2, 15) }));
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  downloadFile(buffer as Buffer, 'issues-risks-template.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 }
