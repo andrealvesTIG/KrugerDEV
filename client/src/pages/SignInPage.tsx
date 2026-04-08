@@ -461,46 +461,55 @@ export default function SignInPage() {
         </div>
         
         <div className="max-w-7xl mx-auto relative">
-          <div className="text-center max-w-3xl mx-auto mb-6">
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2 leading-tight">
-              The Most Flexible,
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-300"> AI-First PMO Platform</span>
-            </h1>
-            <p className="text-lg sm:text-xl font-medium text-slate-100 mb-2">
-              Built to adapt. Designed to predict.
-            </p>
-            <p className="text-sm sm:text-base text-slate-300 mb-4 max-w-xl mx-auto">
-              FridayReport.ai brings AI-native intelligence to portfolio and project management—without forcing you into a rigid framework.
-            </p>
-            
-            <Button 
-              size="lg" 
-              onClick={scrollToSignIn}
-              className="bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-400 hover:to-orange-300 text-white font-semibold px-8 shadow-xl shadow-orange-500/40"
-              data-testid="button-hero-start-trial"
-            >
-              Get Started Free
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-          </div>
-
-          <div className="relative max-w-5xl mx-auto mt-8">
-            <div className="text-center mb-4">
-              <Badge variant="secondary" className="mb-3 bg-orange-500/10 text-orange-400 border-orange-500/20">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+            <div className="text-center lg:text-left max-w-xl mx-auto lg:mx-0">
+              <Badge variant="secondary" className="mb-4 bg-orange-500/10 text-orange-400 border-orange-500/20">
                 <Radio className="h-3 w-3 mr-1" />
-                Live PMO Radar
+                AI-Powered PMO Radar
               </Badge>
-              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-white mb-1">
-                Risk Intelligence at a Glance
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-400 max-w-lg mx-auto">
-                Visualize risks and issues across your entire portfolio in real time — prioritize what matters most
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-white mb-3 leading-tight">
+                The Most Flexible,
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-300"> AI-First PMO Platform</span>
+              </h1>
+              <p className="text-lg sm:text-xl font-medium text-slate-100 mb-2">
+                Built to adapt. Designed to predict.
               </p>
+              <p className="text-sm sm:text-base text-slate-300 mb-6">
+                FridayReport.ai brings AI-native intelligence to portfolio and project management — visualize risks across your entire portfolio in real time.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
+                <Button 
+                  size="lg" 
+                  onClick={scrollToSignIn}
+                  className="bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-400 hover:to-orange-300 text-white font-semibold px-8 shadow-xl shadow-orange-500/40"
+                  data-testid="button-hero-start-trial"
+                >
+                  Get Started Free
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 justify-center lg:justify-start text-sm text-slate-400">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle className="h-3.5 w-3.5 text-green-400" />
+                  Free forever for small teams
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle className="h-3.5 w-3.5 text-green-400" />
+                  No credit card required
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle className="h-3.5 w-3.5 text-green-400" />
+                  Setup in 5 minutes
+                </span>
+              </div>
             </div>
+
             <div className="relative">
-              <div className="absolute -inset-2 bg-gradient-to-r from-primary/20 via-orange-500/10 to-primary/20 rounded-xl blur-lg opacity-40" />
+              <div className="absolute -inset-3 bg-gradient-to-r from-primary/20 via-orange-500/15 to-primary/20 rounded-2xl blur-xl opacity-50" />
               <div
-                className="relative rounded-xl border border-slate-700 shadow-2xl shadow-black/50 bg-slate-900/95 overflow-hidden h-[350px] sm:h-[450px] lg:h-[550px]"
+                className="relative rounded-xl border border-slate-700 shadow-2xl shadow-black/50 bg-slate-900/95 overflow-hidden h-[350px] sm:h-[420px] lg:h-[480px]"
                 data-testid="hero-radar-widget"
               >
                 <RadarCanvas
@@ -510,6 +519,9 @@ export default function SignInPage() {
                   centerLabel="PORTFOLIO"
                 />
               </div>
+              <p className="text-center text-xs text-slate-500 mt-2">
+                Live PMO Radar — Risk Intelligence at a Glance
+              </p>
             </div>
           </div>
         </div>
