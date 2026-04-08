@@ -38,7 +38,8 @@ import {
   Volume2,
   VolumeX,
   Menu,
-  X
+  X,
+  Radio
 } from "lucide-react";
 import {
   SiJira, SiAsana, SiTrello, SiNotion, SiClickup,
@@ -64,9 +65,25 @@ import { useQuery } from "@tanstack/react-query";
 import { HoneypotField } from "@/components/HoneypotField";
 import { LandingFooter } from "@/components/layout/LandingFooter";
 import { PublicFeatureComparison } from "@/components/PublicFeatureComparison";
+import RadarCanvas, { type RiskSignal } from "@/components/radar/RadarCanvas";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
 // Video served from public folder for production compatibility
 import demoVideo from "@assets/30_sec_video_1771015821657.mp4";
+
+const DEMO_RADAR_SIGNALS: RiskSignal[] = [
+  { id: "demo-1", title: "Cloud migration timeline slippage", project: "Cloud Migration", projectId: 1, portfolioName: "Digital Transformation", riskScore: 82, timeOffsetDays: -12, impactScore: 85, probability: 75, costExposureNorm: 70, costExposureRaw: 450000, confidence: 0.9, type: "schedule", costExposure: 450000, dueDate: null, status: "Open", itemType: "risk" },
+  { id: "demo-2", title: "Budget overrun on ERP rollout", project: "ERP Implementation", projectId: 2, portfolioName: "Enterprise Systems", riskScore: 74, timeOffsetDays: 22, impactScore: 70, probability: 65, costExposureNorm: 85, costExposureRaw: 820000, confidence: 0.85, type: "budget", costExposure: 820000, dueDate: null, status: "Open", itemType: "risk" },
+  { id: "demo-3", title: "API dependency on legacy system", project: "Platform Modernization", projectId: 3, portfolioName: "Digital Transformation", riskScore: 65, timeOffsetDays: -35, impactScore: 60, probability: 55, costExposureNorm: 40, costExposureRaw: 180000, confidence: 0.75, type: "dependency", costExposure: 180000, dueDate: null, status: "Mitigating", itemType: "risk" },
+  { id: "demo-4", title: "Key architect resignation", project: "Cloud Migration", projectId: 1, portfolioName: "Digital Transformation", riskScore: 91, timeOffsetDays: 5, impactScore: 95, probability: 40, costExposureNorm: 90, costExposureRaw: 1200000, confidence: 0.6, type: "resource", costExposure: 1200000, dueDate: null, status: "Open", itemType: "risk" },
+  { id: "demo-5", title: "Security vulnerability in auth module", project: "Customer Portal", projectId: 4, portfolioName: "Customer Experience", riskScore: 88, timeOffsetDays: -5, impactScore: 90, probability: 60, costExposureNorm: 55, costExposureRaw: 350000, confidence: 0.95, type: "technical", costExposure: 350000, dueDate: null, status: "Open", itemType: "issue" },
+  { id: "demo-6", title: "Scope creep on reporting features", project: "Analytics Dashboard", projectId: 5, portfolioName: "Enterprise Systems", riskScore: 52, timeOffsetDays: 45, impactScore: 50, probability: 70, costExposureNorm: 35, costExposureRaw: 120000, confidence: 0.7, type: "scope", costExposure: 120000, dueDate: null, status: "Monitoring", itemType: "risk" },
+  { id: "demo-7", title: "Data center capacity constraints", project: "Infrastructure Upgrade", projectId: 6, portfolioName: "Digital Transformation", riskScore: 45, timeOffsetDays: 60, impactScore: 55, probability: 35, costExposureNorm: 25, costExposureRaw: 95000, confidence: 0.8, type: "technical", costExposure: 95000, dueDate: null, status: "Monitoring", itemType: "risk" },
+  { id: "demo-8", title: "Vendor contract renewal delay", project: "ERP Implementation", projectId: 2, portfolioName: "Enterprise Systems", riskScore: 38, timeOffsetDays: -50, impactScore: 40, probability: 45, costExposureNorm: 30, costExposureRaw: 75000, confidence: 0.65, type: "dependency", costExposure: 75000, dueDate: null, status: "Mitigating", itemType: "issue" },
+  { id: "demo-9", title: "Testing team availability gap Q3", project: "Customer Portal", projectId: 4, portfolioName: "Customer Experience", riskScore: 58, timeOffsetDays: 30, impactScore: 45, probability: 80, costExposureNorm: 45, costExposureRaw: 200000, confidence: 0.7, type: "resource", costExposure: 200000, dueDate: null, status: "Open", itemType: "risk" },
+  { id: "demo-10", title: "Integration test failures blocking release", project: "Platform Modernization", projectId: 3, portfolioName: "Digital Transformation", riskScore: 72, timeOffsetDays: -20, impactScore: 75, probability: 50, costExposureNorm: 50, costExposureRaw: 280000, confidence: 0.85, type: "schedule", costExposure: 280000, dueDate: null, status: "Open", itemType: "issue" },
+  { id: "demo-11", title: "Compliance audit findings", project: "Analytics Dashboard", projectId: 5, portfolioName: "Enterprise Systems", riskScore: 28, timeOffsetDays: 70, impactScore: 30, probability: 25, costExposureNorm: 15, costExposureRaw: 50000, confidence: 0.5, type: "scope", costExposure: 50000, dueDate: null, status: "Monitoring", itemType: "risk" },
+  { id: "demo-12", title: "Performance degradation under load", project: "Infrastructure Upgrade", projectId: 6, portfolioName: "Digital Transformation", riskScore: 68, timeOffsetDays: 15, impactScore: 65, probability: 55, costExposureNorm: 60, costExposureRaw: 380000, confidence: 0.8, type: "technical", costExposure: 380000, dueDate: null, status: "Open", itemType: "issue" },
+];
 
 const features = [
   {
@@ -214,6 +231,8 @@ export default function SignInPage() {
       setIsMuted(newMuted);
     }
   }, [isMuted]);
+  const handleRadarSignalClick = useCallback(() => {}, []);
+
   const [honeypotData, setHoneypotData] = useState<{ honeypot1: string; honeypot2: string; formLoadTime: number } | null>(null);
   const handleHoneypotChange = useCallback((data: { honeypot1: string; honeypot2: string; formLoadTime: number }) => {
     setHoneypotData(data);
@@ -464,8 +483,47 @@ export default function SignInPage() {
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
           </div>
-          
-          <div className="relative max-w-4xl mx-auto">
+
+          <div className="relative max-w-5xl mx-auto mt-8">
+            <div className="text-center mb-4">
+              <Badge variant="secondary" className="mb-3 bg-orange-500/10 text-orange-400 border-orange-500/20">
+                <Radio className="h-3 w-3 mr-1" />
+                Live PMO Radar
+              </Badge>
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-white mb-1">
+                Risk Intelligence at a Glance
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-400 max-w-lg mx-auto">
+                Visualize risks and issues across your entire portfolio in real time — prioritize what matters most
+              </p>
+            </div>
+            <div className="relative">
+              <div className="absolute -inset-2 bg-gradient-to-r from-primary/20 via-orange-500/10 to-primary/20 rounded-xl blur-lg opacity-40" />
+              <div
+                className="relative rounded-xl border border-slate-700 shadow-2xl shadow-black/50 bg-slate-900/95 overflow-hidden h-[350px] sm:h-[450px] lg:h-[550px]"
+                data-testid="hero-radar-widget"
+              >
+                <RadarCanvas
+                  signals={DEMO_RADAR_SIGNALS}
+                  onSignalClick={handleRadarSignalClick}
+                  isDark={true}
+                  centerLabel="PORTFOLIO"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="relative pb-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-4">
+            <Badge variant="secondary" className="mb-2 bg-slate-700/50 text-slate-300 border-slate-600">
+              <Play className="h-3 w-3 mr-1" />
+              See It in Action
+            </Badge>
+          </div>
+          <div className="relative">
             <div className="absolute -inset-2 bg-gradient-to-r from-primary/30 via-orange-500/20 to-primary/30 rounded-xl blur-lg opacity-50" />
             <div className="relative rounded-lg border border-slate-700 shadow-2xl shadow-black/50 bg-slate-900">
               <video
