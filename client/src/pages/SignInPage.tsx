@@ -474,9 +474,7 @@ export default function SignInPage() {
               <p className="text-lg sm:text-xl font-medium text-slate-100 mb-2">
                 Built to adapt. Designed to predict.
               </p>
-              <p className="text-sm sm:text-base text-slate-300 mb-6">
-                FridayReport.ai brings AI-native intelligence to portfolio and project management — visualize risks across your entire portfolio in real time.
-              </p>
+              <p className="text-sm sm:text-base text-slate-300 mb-6">FridayReport.AI brings AI-native intelligence to portfolio and project management — visualize risks across your entire portfolio in real time.</p>
               
               <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
                 <Button 
@@ -527,7 +525,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       <section className="relative pb-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-4">
@@ -557,13 +554,11 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       <section className="py-10 sm:py-20 px-4 sm:px-6 lg:px-8 bg-slate-700/30" data-testid="section-feature-comparison-signin">
         <div className="max-w-7xl mx-auto">
           <PublicFeatureComparison variant="slate" />
         </div>
       </section>
-
       {/* Trust Indicators */}
       <section className="py-8 sm:py-12 px-4 sm:px-6 lg:px-8 border-y border-slate-600 bg-slate-700/50">
         <div className="max-w-7xl mx-auto">
@@ -675,7 +670,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* Value Proposition */}
       <section className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
@@ -1206,7 +1200,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* FAQ Section */}
       <section id="faq-section" className="py-12 sm:py-20 px-4 bg-slate-700/30">
         <div className="max-w-4xl mx-auto">
