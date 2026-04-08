@@ -939,9 +939,10 @@ export default function RadarCanvas({
     : "bg-white/80 border-slate-300/50 text-slate-600 hover:bg-slate-100 hover:text-green-600";
 
   return (
-    <div ref={containerRef} className={`relative w-full h-full flex items-center justify-center ${isFullscreen ? (isDark ? "bg-[#0f172a]" : "bg-slate-100") : ""}`}>
+    <div ref={containerRef} className={`relative w-full h-full flex items-center justify-center overflow-hidden ${isFullscreen ? (isDark ? "bg-[#0f172a]" : "bg-slate-100") : ""}`}>
       <canvas
         ref={canvasRef}
+        className="block max-w-full max-h-full"
         onMouseDown={readOnly ? undefined : handleMouseDown}
         onMouseMove={handleMouseMove}
         onClick={readOnly ? undefined : handleClick}

@@ -344,7 +344,7 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-800 via-slate-700 to-slate-800">
+    <div className="min-h-screen bg-gradient-to-b from-slate-800 via-slate-700 to-slate-800 overflow-x-hidden">
       <Helmet>
         <title>FridayReport.AI - Project Portfolio Management Software | PMO Tools</title>
         <meta name="description" content="FridayReport.AI is enterprise project portfolio management software. Track projects, manage resources, monitor risks, and create executive dashboards. Free forever - no credit card required." />
@@ -510,7 +510,7 @@ export default function SignInPage() {
               <div className="relative">
                 <div className="absolute -inset-2 sm:-inset-3 bg-gradient-to-r from-primary/20 via-orange-500/15 to-primary/20 rounded-2xl blur-xl opacity-50" />
                 <div
-                  className="relative rounded-xl border border-slate-700 shadow-2xl shadow-black/50 bg-slate-900/95 overflow-hidden aspect-square sm:aspect-auto sm:h-[420px] lg:h-[480px]"
+                  className="relative rounded-xl border border-slate-700 shadow-2xl shadow-black/50 bg-slate-900/95 overflow-hidden h-[65vw] max-h-[280px] sm:h-[420px] sm:max-h-none lg:h-[480px]"
                   data-testid="hero-radar-widget"
                 >
                   <RadarCanvas
