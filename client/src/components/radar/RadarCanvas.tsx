@@ -704,18 +704,24 @@ export default function RadarCanvas({
         costExposureNorm: ["LOW COST", "HIGH COST"],
       };
       const [leftLabel, rightLabel] = metricLabels[horizontalMetric] || metricLabels.riskScore;
-      ctx.fillStyle = labelColor;
-      ctx.font = isDark ? "bold 11px sans-serif" : "bold 12px sans-serif";
-      ctx.textAlign = "left";
-      ctx.fillText(leftLabel, cx - clipRadius + 4, cy - clipRadius - 12);
-      ctx.textAlign = "right";
-      ctx.fillText(rightLabel, cx + clipRadius - 4, cy - clipRadius - 12);
+      const compact = clipRadius < 160;
+      const labelFontSize = compact ? 9 : (isDark ? 11 : 12);
+      const titleFontSize = compact ? 10 : (isDark ? 12 : 13);
+      const titleOffset = compact ? 18 : 30;
+      const cornerOffset = compact ? 6 : 14;
 
       ctx.fillStyle = labelColor;
-      ctx.font = isDark ? "bold 12px sans-serif" : "bold 13px sans-serif";
+      ctx.font = `bold ${labelFontSize}px sans-serif`;
+      ctx.textAlign = "left";
+      ctx.fillText(leftLabel, cx - clipRadius + 4, cy - clipRadius - cornerOffset);
+      ctx.textAlign = "right";
+      ctx.fillText(rightLabel, cx + clipRadius - 4, cy - clipRadius - cornerOffset);
+
+      ctx.fillStyle = labelColor;
+      ctx.font = `bold ${titleFontSize}px sans-serif`;
       ctx.textAlign = "center";
-      ctx.fillText("FUTURE (+days)", cx, cy - clipRadius - 26);
-      ctx.fillText("PAST (-days)", cx, cy + clipRadius + 24);
+      ctx.fillText("FUTURE (+days)", cx, cy - clipRadius - titleOffset);
+      ctx.fillText("PAST (-days)", cx, cy + clipRadius + titleOffset - 2);
       ctx.save();
       ctx.translate(cx - clipRadius - 18, cy);
       ctx.rotate(-Math.PI / 2);
