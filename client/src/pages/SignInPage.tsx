@@ -463,10 +463,6 @@ export default function SignInPage() {
         <div className="max-w-7xl mx-auto relative">
           <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
             <div className="text-center lg:text-left max-w-xl mx-auto lg:mx-0">
-              <Badge variant="secondary" className="mb-4 bg-orange-500/10 text-orange-400 border-orange-500/20">
-                <Radio className="h-3 w-3 mr-1" />
-                AI-Powered PMO Radar
-              </Badge>
               <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-white mb-3 leading-tight">
                 The Most Flexible,
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-300"> AI-First PMO Platform</span>
@@ -505,6 +501,12 @@ export default function SignInPage() {
             </div>
 
             <div className="relative">
+              <div className="text-center mb-3">
+                <Badge variant="secondary" className="bg-orange-500/10 text-orange-400 border-orange-500/20">
+                  <Radio className="h-3 w-3 mr-1" />
+                  AI-Powered PMO Radar
+                </Badge>
+              </div>
               <div className="absolute -inset-3 bg-gradient-to-r from-primary/20 via-orange-500/15 to-primary/20 rounded-2xl blur-xl opacity-50" />
               <div
                 className="relative rounded-xl border border-slate-700 shadow-2xl shadow-black/50 bg-slate-900/95 overflow-hidden h-[350px] sm:h-[420px] lg:h-[480px]"
