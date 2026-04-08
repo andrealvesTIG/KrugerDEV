@@ -517,6 +517,7 @@ export default function SignInPage() {
                   onSignalClick={handleRadarSignalClick}
                   isDark={true}
                   centerLabel="PORTFOLIO"
+                  readOnly={true}
                 />
               </div>
               <p className="text-center text-xs text-slate-500 mt-2">

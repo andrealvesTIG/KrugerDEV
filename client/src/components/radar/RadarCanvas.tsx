@@ -41,6 +41,7 @@ interface RadarCanvasProps {
   maxCostExposure?: number;
   width?: number;
   height?: number;
+  readOnly?: boolean;
 }
 
 function getRiskColor(score: number): string {
@@ -177,6 +178,7 @@ export default function RadarCanvas({
   centerLabel,
   horizontalMetric = "riskScore",
   maxCostExposure = 0,
+  readOnly = false,
 }: RadarCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -940,46 +942,48 @@ export default function RadarCanvas({
     <div ref={containerRef} className={`relative w-full h-full flex items-center justify-center ${isFullscreen ? (isDark ? "bg-[#0f172a]" : "bg-slate-100") : ""}`}>
       <canvas
         ref={canvasRef}
-        onMouseDown={handleMouseDown}
+        onMouseDown={readOnly ? undefined : handleMouseDown}
         onMouseMove={handleMouseMove}
-        onClick={handleClick}
+        onClick={readOnly ? undefined : handleClick}
         onMouseLeave={() => setTooltip(null)}
-        onWheel={handleWheel}
-        style={{ cursor: zoom > 1 ? "grab" : "default" }}
+        onWheel={readOnly ? undefined : handleWheel}
+        style={{ cursor: readOnly ? "default" : zoom > 1 ? "grab" : "default" }}
       />
-      <div className="absolute top-2 right-2 flex flex-col gap-1 z-40">
-        <button
-          onClick={toggleFullscreen}
-          className={`p-1.5 rounded border transition-colors ${zoomBtnCls}`}
-          title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-        >
-          {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-        </button>
-        <button
-          onClick={() => setZoom((z) => clamp(z + 0.2, 0.5, 3))}
-          className={`p-1.5 rounded border transition-colors ${zoomBtnCls}`}
-          title="Zoom In"
-        >
-          <ZoomIn className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={() => setZoom((z) => clamp(z - 0.2, 0.5, 3))}
-          className={`p-1.5 rounded border transition-colors ${zoomBtnCls}`}
-          title="Zoom Out"
-        >
-          <ZoomOut className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={() => { setZoom(1); setPanOffset({ x: 0, y: 0 }); }}
-          className={`p-1.5 rounded border transition-colors ${zoomBtnCls}`}
-          title="Reset Zoom & Pan"
-        >
-          <span className={`text-[9px] font-bold ${isDark ? "text-slate-300" : "text-slate-600"}`}>1:1</span>
-        </button>
-        <div className={`text-[9px] text-center font-mono mt-0.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-          {Math.round(zoom * 100)}%
+      {!readOnly && (
+        <div className="absolute top-2 right-2 flex flex-col gap-1 z-40">
+          <button
+            onClick={toggleFullscreen}
+            className={`p-1.5 rounded border transition-colors ${zoomBtnCls}`}
+            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+          >
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+          </button>
+          <button
+            onClick={() => setZoom((z) => clamp(z + 0.2, 0.5, 3))}
+            className={`p-1.5 rounded border transition-colors ${zoomBtnCls}`}
+            title="Zoom In"
+          >
+            <ZoomIn className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => setZoom((z) => clamp(z - 0.2, 0.5, 3))}
+            className={`p-1.5 rounded border transition-colors ${zoomBtnCls}`}
+            title="Zoom Out"
+          >
+            <ZoomOut className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => { setZoom(1); setPanOffset({ x: 0, y: 0 }); }}
+            className={`p-1.5 rounded border transition-colors ${zoomBtnCls}`}
+            title="Reset Zoom & Pan"
+          >
+            <span className={`text-[9px] font-bold ${isDark ? "text-slate-300" : "text-slate-600"}`}>1:1</span>
+          </button>
+          <div className={`text-[9px] text-center font-mono mt-0.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+            {Math.round(zoom * 100)}%
+          </div>
         </div>
-      </div>
+      )}
       {tooltip && (
         <div
           className={`absolute pointer-events-none z-50 border rounded-lg px-3 py-2 text-xs shadow-lg ${tooltipBg}`}
