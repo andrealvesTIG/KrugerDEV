@@ -42,3 +42,9 @@ id = "gyzN-Ym-IwXS3SfyBoWCO"
 uri = "file://Schema_Gap_Analysis.md"
 type = "text"
 title = "Schema Gap Analysis Report"
+
+[[outputs]]
+id = "yyLw7wDAn1WlrVJoaNDcn"
+uri = "file://.local/qa-audit-report.md"
+type = "text"
+title = "QA Audit Report — FridayReport.AI"
