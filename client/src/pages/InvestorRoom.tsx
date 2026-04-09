@@ -1577,7 +1577,7 @@ export default function InvestorRoom() {
 
   const handleLogout = async () => {
     if (isSuperAdmin) {
-      setLocation("/home");
+      setLocation("/");
       return;
     }
     await fetch("/api/investor/logout", { method: "POST", credentials: "include" });
