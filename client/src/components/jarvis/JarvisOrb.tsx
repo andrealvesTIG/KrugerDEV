@@ -59,14 +59,67 @@ export function JarvisOrb({ state = "idle", size = 200 }: JarvisOrbProps) {
   return (
     <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
       <motion.div
-        className="absolute inset-0 rounded-full"
-        style={{ background: pulseColors[state] }}
-        animate={state !== "idle" ? {
-          scale: [1, 1.15, 1],
-          opacity: [0.5, 0.2, 0.5],
-        } : {}}
-        transition={{ duration: state === "thinking" ? 1.5 : 2, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute rounded-full"
+        style={{ width: size * 0.95, height: size * 0.95, background: pulseColors[state] }}
+        animate={{
+          scale: [1, 1.08, 1],
+          opacity: [0.3, 0.12, 0.3],
+        }}
+        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
       />
+
+      <motion.div
+        className="absolute rounded-full"
+        style={{
+          width: size * 0.85,
+          height: size * 0.85,
+          border: `1px solid rgba(0,200,255,0.15)`,
+        }}
+        animate={{ rotate: 360 }}
+        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+      >
+        <motion.div
+          className="absolute rounded-full"
+          style={{
+            width: size * 0.06,
+            height: size * 0.06,
+            background: "rgba(0,200,255,0.5)",
+            top: -size * 0.03,
+            left: "50%",
+            marginLeft: -size * 0.03,
+            boxShadow: "0 0 8px rgba(0,200,255,0.6)",
+          }}
+          animate={{ opacity: [0.3, 0.8, 0.3] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        />
+      </motion.div>
+
+      <motion.div
+        className="absolute rounded-full"
+        style={{
+          width: size * 0.78,
+          height: size * 0.78,
+          border: `1px solid rgba(0,200,255,0.08)`,
+        }}
+        animate={{ rotate: -360 }}
+        transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+      >
+        <motion.div
+          className="absolute rounded-full"
+          style={{
+            width: size * 0.04,
+            height: size * 0.04,
+            background: "rgba(0,180,255,0.35)",
+            bottom: -size * 0.02,
+            left: "50%",
+            marginLeft: -size * 0.02,
+            boxShadow: "0 0 6px rgba(0,200,255,0.4)",
+          }}
+          animate={{ opacity: [0.2, 0.6, 0.2] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+        />
+      </motion.div>
+
       {state === "listening" && (
         <motion.div
           className="absolute inset-0 rounded-full"
@@ -75,6 +128,31 @@ export function JarvisOrb({ state = "idle", size = 200 }: JarvisOrbProps) {
           transition={{ duration: 1.5, repeat: Infinity, ease: "easeOut" }}
         />
       )}
+
+      <motion.div
+        className="absolute rounded-full"
+        style={{
+          width: size * 0.72,
+          height: size * 0.72,
+          background: "transparent",
+          overflow: "hidden",
+        }}
+      >
+        <motion.div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: "50%",
+            width: 1,
+            height: "50%",
+            background: "linear-gradient(to bottom, rgba(0,200,255,0.25), transparent)",
+            transformOrigin: "bottom center",
+          }}
+          animate={{ rotate: 360 }}
+          transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
+        />
+      </motion.div>
+
       <motion.div
         className="rounded-full flex items-center justify-center"
         style={{
@@ -100,14 +178,14 @@ export function JarvisOrb({ state = "idle", size = 200 }: JarvisOrbProps) {
             strokeWidth="1.5"
             fill="none"
             strokeDasharray="113"
-            animate={state !== "idle" ? { strokeDashoffset: [0, 113] } : {}}
-            transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+            animate={{ strokeDashoffset: [0, 113] }}
+            transition={{ duration: state !== "idle" ? 3 : 8, repeat: Infinity, ease: "linear" }}
           />
           <motion.circle
             cx="30" cy="30" r="10"
             fill={state === "listening" ? "rgba(255,80,80,0.6)" : state === "speaking" ? "rgba(0,255,180,0.5)" : "rgba(0,200,255,0.4)"}
-            animate={state !== "idle" ? { scale: [1, 1.2, 1], opacity: [0.6, 1, 0.6] } : {}}
-            transition={{ duration: state === "thinking" ? 1 : 1.5, repeat: Infinity }}
+            animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0.9, 0.5] }}
+            transition={{ duration: state === "thinking" ? 1 : 2.5, repeat: Infinity }}
           />
           <motion.circle
             cx="30" cy="30" r="4"
@@ -117,6 +195,8 @@ export function JarvisOrb({ state = "idle", size = 200 }: JarvisOrbProps) {
               state === "thinking" && "rgba(0,200,255,0.9)",
               state === "speaking" && "rgba(0,255,180,0.9)",
             )}
+            animate={{ opacity: [0.7, 1, 0.7] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
           />
         </svg>
       </motion.div>
