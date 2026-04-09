@@ -24,6 +24,11 @@ import { HelpDialog } from "@/components/HelpDialog";
 import { AICreateButton, AICreateButtonHandle } from "./AICreateButton";
 import { Mic } from "lucide-react";
 import { FridayCountdown } from "./FridayCountdown";
+import JarvisOrb from "@/components/jarvis/JarvisOrb";
+import JarvisPanel from "@/components/jarvis/JarvisPanel";
+import { useJarvis } from "@/hooks/use-jarvis";
+import { useWakeWord } from "@/hooks/use-wake-word";
+import { useUserJourney } from "@/hooks/use-user-journey";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
@@ -65,6 +70,18 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
   const aiCreateRef = useRef<AICreateButtonHandle>(null);
   const { theme } = useTheme();
   const { toast } = useToast();
+  const { isOpen: jarvisOpen, toggleOpen: toggleJarvis, setIsOpen: setJarvisOpen } = useJarvis();
+  const { trackChecklistEvent } = useUserJourney();
+
+  useWakeWord(() => {
+    if (!jarvisOpen) setJarvisOpen(true);
+  }, !jarvisOpen);
+
+  useEffect(() => {
+    if (jarvisOpen) {
+      trackChecklistEvent("meet_copilot");
+    }
+  }, [jarvisOpen, trackChecklistEvent]);
 
   useEffect(() => {
     if (orgDropdownOpen) {
@@ -341,6 +358,8 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
           )}
         </main>
       </div>
+      <JarvisOrb onClick={toggleJarvis} isActive={jarvisOpen} />
+      <JarvisPanel isOpen={jarvisOpen} onClose={() => setJarvisOpen(false)} />
     </div>
   );
 }

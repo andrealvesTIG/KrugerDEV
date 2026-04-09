@@ -422,6 +422,12 @@ export default function Home() {
             <Bug className="h-4 w-4 sm:mr-1" />
             <span className="hidden sm:inline">Report Issue</span>
           </Button>
+          <Link href="/investor-room">
+            <Button variant="outline" size="sm" className="whitespace-nowrap">
+              <TrendingUp className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">Investor Room</span>
+            </Button>
+          </Link>
         </div>
       </FadeIn>
 

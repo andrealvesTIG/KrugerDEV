@@ -378,6 +378,9 @@ export default function SignInPage() {
                 <Link href="/partners" className="hidden sm:inline text-slate-200 hover:text-orange-400 text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-partners">
                   Partners
                 </Link>
+                <Link href="/investor-room" className="hidden sm:inline text-slate-200 hover:text-orange-400 text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-investor-room">
+                  Investors
+                </Link>
                 <Button onClick={scrollToSignIn} size="sm" className="bg-orange-500 hover:bg-orange-400 text-white font-semibold text-xs sm:text-sm px-3 sm:px-4 shadow-lg shadow-orange-500/30" data-testid="button-nav-get-started">
                   <span className="hidden sm:inline">Get Started Free</span>
                   <span className="sm:hidden">Start Free</span>

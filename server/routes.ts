@@ -30,6 +30,8 @@ import { registerCrossProjectReferenceRoutes } from "./routes/crossProjectRefere
 import { registerPartnerRoutes } from "./routes/partnerRoutes";
 import { registerUserActivityRoutes } from "./routes/userActivityRoutes";
 import { registerProjectAgentRoutes } from "./routes/projectAgentRoutes";
+import { registerJarvisRoutes } from "./routes/jarvisRoutes";
+import { registerInvestorRoutes } from "./routes/investorRoutes";
 import { seedDatabase } from "./routes/helpers";
 
 export async function registerRoutes(
@@ -102,6 +104,8 @@ export async function registerRoutes(
   registerPartnerRoutes(app);
   registerUserActivityRoutes(app);
   registerProjectAgentRoutes(app);
+  registerJarvisRoutes(app);
+  registerInvestorRoutes(app);
 
   seedTrainingDataIfEmpty().catch(err => {
     console.error('[training] Failed to seed training data:', err.message);

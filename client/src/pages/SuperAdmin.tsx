@@ -1,5 +1,6 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Building2, Users, CreditCard, Wallet, FileCheck, Activity, BarChart3, HelpCircle, ShieldAlert, Crown, GraduationCap, MousePointerClick } from "lucide-react";
 import { OrganizationsTab } from "@/components/admin/OrganizationsTab";
@@ -45,10 +46,16 @@ export default function SuperAdmin() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Crown className="h-6 w-6 sm:h-8 sm:w-8 text-amber-500 shrink-0" />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="text-xl sm:text-3xl font-display font-bold text-foreground truncate">Super Admin Console</h1>
           <p className="text-sm sm:text-base text-muted-foreground">Manage all organizations and system users</p>
         </div>
+        <a href="/investor-room" className="shrink-0">
+          <Button variant="outline" size="sm" className="text-amber-600 border-amber-300 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:hover:bg-amber-950">
+            <BarChart3 className="h-4 w-4 mr-1" />
+            Investor Room
+          </Button>
+        </a>
       </div>
 
       <Tabs defaultValue="monitoring" className="w-full">

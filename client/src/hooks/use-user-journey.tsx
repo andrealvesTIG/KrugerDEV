@@ -21,7 +21,7 @@ function saveStatus(status: JourneyStatus) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(status));
 }
 
-const ALL_CHECKLIST_ITEMS = ["create_project", "add_task", "assign_member", "use_ai", "explore_dashboard"];
+const ALL_CHECKLIST_ITEMS = ["create_project", "add_task", "assign_member", "use_ai", "explore_dashboard", "meet_copilot"];
 
 interface JourneyContextValue {
   status: JourneyStatus;
