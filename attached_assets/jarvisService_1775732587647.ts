@@ -41,6 +41,8 @@ export interface JarvisContext {
 }
 
 export async function gatherOrganizationContext(orgId: number): Promise<JarvisContext> {
+  const now = new Date();
+
   const [orgProjects, orgPortfolios, orgResources] = await Promise.all([
     db.select().from(projects).where(
       and(eq(projects.organizationId, orgId), isNull(projects.deletedAt))

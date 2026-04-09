@@ -66,15 +66,10 @@ function useGlobalMessages(): [JarvisMessage[], typeof setGlobalMessages] {
 
 export function useJarvis() {
   const [messages, setMessages] = useGlobalMessages();
-  const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [conciseMode, setConciseMode] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
   const { currentOrganization } = useOrganization();
-
-  const toggleOpen = useCallback(() => {
-    setIsOpen(prev => !prev);
-  }, []);
 
   const sendMessage = useCallback(async (content: string) => {
     if (!currentOrganization?.id || isLoading) return;
@@ -97,7 +92,7 @@ export function useJarvis() {
     setIsLoading(true);
 
     const currentMessages = globalMessages;
-    const allMessages = currentMessages.slice(0, -1).slice(-40).map(m => ({
+    const allMessages = currentMessages.slice(0, -1).map(m => ({
       role: m.role,
       content: m.content,
     }));
@@ -210,9 +205,6 @@ export function useJarvis() {
 
   return {
     messages,
-    isOpen,
-    setIsOpen,
-    toggleOpen,
     isLoading,
     sendMessage,
     clearMessages,
