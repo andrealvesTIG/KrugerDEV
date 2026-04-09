@@ -1,0 +1,236 @@
+# FridayReport.AI — Remix Changelog
+
+> Use this changelog to cherry-pick specific features into the main application branch.
+> Each feature group lists the relevant commits (oldest → newest) and every file touched.
+> Base commit (before any remix changes): `d1dad142`
+
+---
+
+## Feature 1: Friday Copilot — AI Assistant (Core)
+
+AI-powered assistant panel with natural-language project queries, context-aware responses drawn from live project data (issues, tasks, dependencies, resources), and clickable entity links in responses.
+
+### Commits (apply in order)
+| # | Hash | Description |
+|---|------|-------------|
+| 1 | `793bcc36` | Add an AI assistant to help users interact with project data |
+| 2 | `5248adbc` | Add voice interaction and animated JARVIS interface |
+| 3 | `70c1921c` | Fix issues with project data retrieval and user assignment |
+| 4 | `dc3c97ec` | Allow chat messages to fill the entire window height and width |
+| 5 | `be9ef56f` | Update application name from JARVIS to Friday Copilot |
+| 6 | `064f898c` | Make project and task references clickable links in copilot responses |
+| 7 | `6e2282c4` | Make all project and task links clickable and functional within the response |
+| 8 | `1e27ab16` | Persist chat history across page navigations using module-level state and sessionStorage |
+| 9 | `fa30b073` | Ensure AI assistant consistently uses its new name |
+| 10 | `d3ebf48e` | Update copilot panel header to reflect new assistant name |
+
+### Files
+- `client/src/components/jarvis/JarvisPanel.tsx` — Main assistant panel UI, message rendering, clickable links regex
+- `client/src/components/jarvis/JarvisOrb.tsx` — Animated floating orb trigger button
+- `client/src/components/layout/AppLayout.tsx` — Layout integration for the panel + orb
+- `client/src/hooks/use-jarvis.ts` — Hook: open/close state, message history, sessionStorage persistence
+- `server/routes/jarvisRoutes.ts` — `/api/jarvis/chat` endpoint
+- `server/services/jarvisService.ts` — OpenAI integration, system prompt, DB context queries (MAX_ISSUES=200, MAX_TASKS=300, MAX_DEPS=100)
+- `server/routes.ts` — Route registration
+- `client/src/App.tsx` — Route additions
+
+### Dependencies / Config
+- Uses OpenAI via env vars: `AI_INTEGRATIONS_OPENAI_API_KEY`, `AI_INTEGRATIONS_OPENAI_BASE_URL`, model `gpt-4o`
+- DB query bounds: MAX_ISSUES=200, MAX_TASKS=300, MAX_DEPS=100; `resources` table uses `title` (no `role` column)
+
+---
+
+## Feature 2: Voice Input/Output & Wake Word
+
+Hands-free voice interaction: speech-to-text input, text-to-speech responses, "Hey Friday" wake word activation, interrupt support, and concise conversation mode.
+
+### Commits (apply in order)
+| # | Hash | Description |
+|---|------|-------------|
+| 1 | `07522ebc` | Add wake word activation for JARVIS AI assistant |
+| 2 | `63105d60` | Enable voice activation by default and consolidate AI assistant icons |
+| 3 | `ae994da1` | Improve wake word detection and startup logic for voice commands |
+| 4 | `2f8b43ae` | Add concise mode and stop functionality to Jarvis conversations |
+| 5 | `0c8fd717` | Make the microphone button interrupt when the assistant is speaking or loading |
+| 6 | `75705e26` | Allow users to interrupt Jarvis when it is speaking or loading |
+| 7 | `7bb3615f` | Stop assistant speech immediately when user starts talking |
+| 8 | `473918bc` | Improve chat input and voice interaction responsiveness |
+| 9 | `1503a6a7` | Improve speech system to stop speaking instantly when interrupted |
+| 10 | `2e79490e` | Make speech sound more natural and conversational |
+
+### Files
+- `client/src/hooks/use-speech.ts` — `useSpeechRecognition` and `useSpeechSynthesis` hooks (Web Speech API)
+- `client/src/hooks/use-wake-word.ts` — "Hey Friday" wake word listener
+- `client/src/components/jarvis/JarvisPanel.tsx` — Voice button states, interrupt logic, concise mode toggle
+
+### Notes
+- **CRITICAL**: Hook order in `JarvisPanel.tsx` must be `useSpeechRecognition` THEN `useSpeechSynthesis` — changing order causes HMR hook-order violations. Fix = full workflow restart.
+- Uses browser-native Web Speech API (no external service needed)
+
+---
+
+## Feature 3: Getting Started Checklist Update
+
+Adds a "Meet Friday Copilot" step to the onboarding checklist.
+
+### Commits
+| # | Hash | Description |
+|---|------|-------------|
+| 1 | `7f722a8c` | Add a new step to the getting started checklist to introduce users to JARVIS |
+
+### Files
+- `client/src/components/GettingStartedChecklist.tsx`
+- `client/src/hooks/use-user-journey.tsx`
+
+---
+
+## Feature 4: Investor Room — Password-Protected Pitch Deck
+
+Full investor pitch deck at `/investor-room` with password gate, animated PMO Radar, product screenshots gallery, 3-tier pricing, competitive positioning, team slide, and milestone roadmap.
+
+### Commits (apply in order)
+| # | Hash | Description |
+|---|------|-------------|
+| 1 | `e1b81f29` | Add a secure investor portal with password protection and session persistence |
+| 2 | `105f6bb8` | Improve navigation layout to prevent content overlap on investor page |
+| 3 | `333b62aa` | Update pricing information to reflect actual billing plans |
+| 4 | `e22f7a8a` | Update investor page with accurate pricing and plan details |
+| 5 | `9e6933a0` | Allow super admins to access the investor room directly without a password |
+| 6 | `41c6100e` | Add a button to access the investor pitch directly from the super admin console |
+| 7 | `11e232c0` | Add PMO Radar widget to the investor room solution area |
+| 8 | `c947b0d4` | Add live animated PMO Radar with demo data to investor room |
+| 9 | `72ee899d` | Redesign investor room layout for improved visual appeal and functionality |
+| 10 | `f8ba3357` | Remove dashboard mock from investor room and center radar |
+| 11 | `4aedc9a8` | Update the website footer to use a light theme |
+| 12 | `b42c9282` | Add platform screenshots to the investor room product section |
+| 13 | `1f5458b5` | Update pricing plans to include Free, Pro, and Enterprise tiers |
+
+### Files
+- `client/src/pages/InvestorRoom.tsx` — Full pitch deck page (1300+ lines)
+- `client/src/App.tsx` — `/investor-room` route
+- `server/routes/investorRoutes.ts` — Password verification endpoint, session management
+- `server/routes.ts` — Route registration
+- `client/src/pages/SuperAdmin.tsx` — "Investor Room" button for super admins
+- `client/src/components/layout/LandingFooter.tsx` — Footer link to investor room
+- `client/src/assets/investor/*` — 10 product screenshot images
+
+### Dependencies / Config
+- Env var: `INVESTOR_ACCESS_PASSWORD` (default: `FridayReport2026!`)
+- Super Admin users bypass password gate automatically
+- Uses `RadarCanvas` component: `import RadarCanvas, { type RiskSignal } from "@/components/radar/RadarCanvas"` with 12 demo signals
+
+---
+
+## Feature 5: Investor Room Navigation Links
+
+Links to the Investor Room from the landing page navbar, mobile hamburger menu, footer, and Home dashboard.
+
+### Commits (apply in order)
+| # | Hash | Description |
+|---|------|-------------|
+| 1 | `bba3442a` | Add investor room link to home page header |
+| 2 | `1e51a01f` | Add investor room link to multiple navigation and footer locations |
+
+### Files
+- `client/src/pages/Home.tsx` — Quick-action button in authenticated dashboard
+- `client/src/pages/SignInPage.tsx` — Navbar link (amber text)
+- `client/src/components/layout/LandingFooter.tsx` — Footer link
+
+---
+
+## Feature 6: Investor Deck PDF Download
+
+Client-side PDF generation of the investor deck using html2canvas + jsPDF. Generates 1280×720 landscape slides from each section.
+
+### Commits (apply in order)
+| # | Hash | Description |
+|---|------|-------------|
+| 1 | `d64e1bfa` | Add options to print and email investor reports |
+| 2 | `b5c24bcc` | Remove export dropdown from investor room header |
+| 3 | `ce41c22e` | Add ability to download page content as PDF slides |
+| 4 | `bd5b9bda` | Fix blank PDF pages by ensuring all content is visible during generation |
+| 5 | `84b2b095` | Fix overlap issue with letter "j" in the project title |
+| 6 | `640b7865` | Improve PDF generation by adjusting text spacing and visibility |
+| 7 | `efb8711f` | Fix issues with PDF generation and text clipping in reports |
+
+### Files
+- `client/src/pages/InvestorRoom.tsx` — `generatePdfBlob()` function, Download PDF button
+
+### Dependencies
+- NPM: `html2canvas`, `jspdf`
+
+### Notes
+- Must force all Framer Motion elements visible (opacity:1, transform:none) before capture
+- Must convert `.bg-clip-text` elements to solid color (`#7dd3fc`) during capture, then restore after
+- Extracted reusable `generatePdfBlob()` shared by both download and email flows
+
+---
+
+## Feature 7: Investor Deck Email PDF
+
+Email the generated investor deck PDF to any email address. Client generates the PDF, sends base64 to the server, which emails it via Resend.
+
+### Commits
+| # | Hash | Description |
+|---|------|-------------|
+| 1 | `601ceb5b` | Add functionality to email investor deck PDFs to recipients |
+
+### Files
+- `client/src/pages/InvestorRoom.tsx` — Email dialog, `handleEmailPdf()` function
+- `server/routes/investorRoutes.ts` — `/api/investor/email-pdf` endpoint
+- `server/services/email.ts` — Resend email service (shared)
+- `server/index.ts` — Express JSON body limit increased to `20mb`
+
+### Dependencies / Config
+- Requires Resend API key (already configured in email service)
+- Express JSON body limit must be ≥ 20mb for PDF attachment transfer
+
+---
+
+## All Modified Files (Complete List)
+
+| File | Features |
+|------|----------|
+| `client/src/App.tsx` | 1, 4 |
+| `client/src/components/GettingStartedChecklist.tsx` | 3 |
+| `client/src/components/jarvis/JarvisOrb.tsx` | 1 |
+| `client/src/components/jarvis/JarvisPanel.tsx` | 1, 2 |
+| `client/src/components/layout/AppLayout.tsx` | 1 |
+| `client/src/components/layout/LandingFooter.tsx` | 5 |
+| `client/src/hooks/use-jarvis.ts` | 1 |
+| `client/src/hooks/use-speech.ts` | 2 |
+| `client/src/hooks/use-user-journey.tsx` | 3 |
+| `client/src/hooks/use-wake-word.ts` | 2 |
+| `client/src/pages/Home.tsx` | 5 |
+| `client/src/pages/InvestorRoom.tsx` | 4, 6, 7 |
+| `client/src/pages/SignInPage.tsx` | 5 |
+| `client/src/pages/SuperAdmin.tsx` | 4 |
+| `client/src/assets/investor/*` (10 images) | 4 |
+| `server/index.ts` | 7 |
+| `server/routes.ts` | 1, 4 |
+| `server/routes/investorRoutes.ts` | 4, 7 |
+| `server/routes/jarvisRoutes.ts` | 1 |
+| `server/services/jarvisService.ts` | 1 |
+| `server/services/email.ts` | 7 |
+
+---
+
+## Quick Cherry-Pick Guide
+
+To apply a single feature group, cherry-pick the commits in order:
+
+```bash
+# Example: Apply only the Investor Room (Feature 4)
+git cherry-pick e1b81f29 105f6bb8 333b62aa e22f7a8a 9e6933a0 41c6100e 11e232c0 c947b0d4 72ee899d f8ba3357 4aedc9a8 b42c9282 1f5458b5
+
+# Example: Apply only Friday Copilot core (Feature 1)
+git cherry-pick 793bcc36 5248adbc 70c1921c dc3c97ec be9ef56f 064f898c 6e2282c4 1e27ab16 fa30b073 d3ebf48e
+```
+
+### Feature Dependencies
+- **Feature 2** (Voice) depends on **Feature 1** (Copilot core)
+- **Feature 3** (Checklist) depends on **Feature 1** (Copilot core)
+- **Feature 5** (Nav links) depends on **Feature 4** (Investor Room)
+- **Feature 6** (PDF Download) depends on **Feature 4** (Investor Room)
+- **Feature 7** (Email PDF) depends on **Feature 4** and **Feature 6**
+- **Features 1–3** and **Features 4–7** are independent of each other
