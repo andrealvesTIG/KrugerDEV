@@ -304,14 +304,13 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
             <span className="hidden md:inline-flex"><FridayCountdown /></span>
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={toggleJarvis}
-              className="hidden sm:inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
+              className="hidden sm:inline-flex text-muted-foreground hover:text-foreground"
               aria-label="Friday Copilot"
               data-testid="button-friday-copilot"
             >
               <Bot className="h-4 w-4" />
-              <span className="hidden lg:inline text-xs">Copilot</span>
             </Button>
             <Button
               variant="ghost"
