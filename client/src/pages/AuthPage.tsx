@@ -359,7 +359,7 @@ export default function AuthPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   required
-                  minLength={6}
+                  minLength={mode === "register" ? 8 : 1}
                   data-testid="input-password"
                 />
               </div>

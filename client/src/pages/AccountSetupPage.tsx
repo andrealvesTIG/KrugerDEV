@@ -87,10 +87,10 @@ export default function AccountSetupPage() {
   const handleSetPassword = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (password.length < 6) {
+    if (password.length < 8) {
       toast({
         title: "Password too short",
-        description: "Password must be at least 6 characters.",
+        description: "Password must be at least 8 characters.",
         variant: "destructive",
       });
       return;
@@ -207,11 +207,11 @@ export default function AccountSetupPage() {
                 <Input
                   id="password"
                   type="password"
-                  placeholder="At least 6 characters"
+                  placeholder="At least 8 characters"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  minLength={6}
+                  minLength={8}
                   data-testid="input-setup-password"
                 />
               </div>
@@ -224,7 +224,7 @@ export default function AccountSetupPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
-                  minLength={6}
+                  minLength={8}
                   data-testid="input-setup-confirm-password"
                 />
               </div>

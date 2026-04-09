@@ -1,5 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { setupSwagger } from "./swagger";
@@ -36,6 +37,15 @@ const app = express();
 
 // Cookie parser middleware (for OAuth state fallback)
 app.use(cookieParser());
+
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false,
+  crossOriginResourcePolicy: false,
+  hsts: process.env.NODE_ENV === "production" ? { maxAge: 31536000, includeSubDomains: true } : false,
+}));
+
 const httpServer = createServer(app);
 
 // Serve static files from public directory (avatars, logos, etc.)

@@ -4,12 +4,13 @@ import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { sendEmail } from "../services/email";
 
-const DEFAULT_PASSWORD = "FridayReport2026!";
-
 export function registerInvestorRoutes(app: Express) {
   app.post("/api/investor/verify-password", (req: Request, res: Response) => {
     const { password } = req.body;
-    const correctPassword = process.env.INVESTOR_ACCESS_PASSWORD || DEFAULT_PASSWORD;
+    const correctPassword = process.env.INVESTOR_ACCESS_PASSWORD;
+    if (!correctPassword) {
+      return res.status(503).json({ success: false, message: "Investor access is not configured" });
+    }
 
     if (password === correctPassword) {
       (req.session as any).investorAccess = true;
@@ -21,7 +22,10 @@ export function registerInvestorRoutes(app: Express) {
 
   app.post("/api/investor/verify", (req: Request, res: Response) => {
     const { password } = req.body;
-    const correctPassword = process.env.INVESTOR_ACCESS_PASSWORD || DEFAULT_PASSWORD;
+    const correctPassword = process.env.INVESTOR_ACCESS_PASSWORD;
+    if (!correctPassword) {
+      return res.status(503).json({ success: false, message: "Investor access is not configured" });
+    }
 
     if (password === correctPassword) {
       (req.session as any).investorAccess = true;

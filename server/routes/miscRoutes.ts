@@ -3339,12 +3339,13 @@ export async function registerMiscRoutes(app: Express) {
 
   app.get('/api/home/recent-activity', async (req, res) => {
     try {
-      if (!req.user) return res.status(401).json({ message: "Authentication required" });
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
       const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
       if (!organizationId) return res.json([]);
 
       const orgMembers = await storage.getOrganizationMembers(organizationId);
-      const isMember = orgMembers.some(m => m.userId === (req.user as User).id);
+      const isMember = orgMembers.some(m => m.userId === userId);
       if (!isMember) return res.status(403).json({ message: "Not a member of this organization" });
 
       const activity = await storage.getRecentOrgActivity(organizationId, 15);

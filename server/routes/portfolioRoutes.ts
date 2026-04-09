@@ -39,7 +39,7 @@ export function registerPortfolioRoutes(app: Express) {
     
     // Filter portfolios to only those in accessible orgs
     let filteredPortfolios = portfolios.filter(p => 
-      p.organizationId === null || accessibleOrgIds.includes(p.organizationId)
+      p.organizationId !== null && accessibleOrgIds.includes(p.organizationId)
     );
     
     // For team_member role, further filter to only portfolios they created or are assigned to

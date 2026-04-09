@@ -322,7 +322,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     } else {
       accessibleProjectIds = new Set(
         allProjects
-          .filter(p => p.organizationId === null || accessibleOrgIds.includes(p.organizationId))
+          .filter(p => p.organizationId !== null && accessibleOrgIds.includes(p.organizationId))
           .map(p => p.id)
       );
     }
@@ -439,7 +439,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     } else {
       accessibleProjectIds = new Set(
         allProjects
-          .filter(p => p.organizationId === null || accessibleOrgIds.includes(p.organizationId))
+          .filter(p => p.organizationId !== null && accessibleOrgIds.includes(p.organizationId))
           .map(p => p.id)
       );
     }

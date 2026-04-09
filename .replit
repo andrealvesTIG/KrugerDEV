@@ -51,6 +51,7 @@ expertMode = true
 
 [userenv.shared]
 RESEND_FROM_EMAIL = "FridayReport.AI <info@fridayreport.ai>"
+INVESTOR_ACCESS_PASSWORD = "FridayReport2026!"
 
 [userenv.production]
 APP_URL = "https://fridayreport.ai"

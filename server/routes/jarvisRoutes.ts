@@ -4,6 +4,7 @@ import { streamJarvisResponse, executeJarvisAction, type JarvisMessage } from ".
 import {
   getUserIdFromRequest,
   getUserOrgIds,
+  getUserOrgRole,
   logUserActivity,
 } from "./helpers";
 
@@ -104,6 +105,11 @@ export function registerJarvisRoutes(app: Express) {
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(organizationId)) {
         return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+
+      const role = await getUserOrgRole(userId, organizationId);
+      if (role === "viewer" || role === "team_member") {
+        return res.status(403).json({ message: "Insufficient permissions to perform this action" });
       }
 
       const result = await executeJarvisAction(Number(organizationId), userId, action);

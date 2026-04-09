@@ -1,6 +1,7 @@
 import { Express, RequestHandler } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import rateLimit from "express-rate-limit";
 import { db } from "../db";
 import { users, passwordResetTokens, magicLinkTokens } from "@shared/schema";
 import { eq, and, gt } from "drizzle-orm";
@@ -9,6 +10,22 @@ import { sendPasswordResetEmail, sendMagicLinkEmail, sendPasswordlessSignInEmail
 import { ensureUserOrganization } from "../services/onboarding";
 import { storage } from "../storage";
 import { lookupCompanyByEmail } from "../services/companyLookup";
+
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many attempts. Please try again later." },
+});
+
+const strictAuthRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many attempts. Please try again later." },
+});
 
 const PgSession = connectPgSimple(session);
 
@@ -97,7 +114,7 @@ export async function setupAuth(app: Express) {
   // We only register the email/password auth endpoints here
 
   // Register new user
-  app.post("/api/auth/register", async (req, res) => {
+  app.post("/api/auth/register", authRateLimiter, async (req, res) => {
     try {
       const { email, password, firstName, lastName, honeypot1, honeypot2, formLoadTime, signupSource } = req.body;
 
@@ -111,8 +128,12 @@ export async function setupAuth(app: Express) {
         return res.status(400).json({ message: "Email and password are required" });
       }
 
-      if (password.length < 6) {
-        return res.status(400).json({ message: "Password must be at least 6 characters" });
+      if (password.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters" });
+      }
+
+      if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+        return res.status(400).json({ message: "Password must contain at least one uppercase letter, one lowercase letter, and one number" });
       }
 
       // Check if user already exists
@@ -245,7 +266,7 @@ export async function setupAuth(app: Express) {
   });
 
   // Login
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", authRateLimiter, async (req, res) => {
     try {
       const { email, password, honeypot1, honeypot2, formLoadTime } = req.body;
 
@@ -368,8 +389,12 @@ export async function setupAuth(app: Express) {
         return res.status(400).json({ message: "Password is required." });
       }
 
-      if (password.length < 6) {
-        return res.status(400).json({ message: "Password must be at least 6 characters." });
+      if (password.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters." });
+      }
+
+      if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+        return res.status(400).json({ message: "Password must contain at least one uppercase letter, one lowercase letter, and one number." });
       }
 
       const [user] = await db.select().from(users).where(eq(users.id, req.session.userId)).limit(1);
@@ -392,7 +417,7 @@ export async function setupAuth(app: Express) {
   });
 
   // Request password reset
-  app.post("/api/auth/forgot-password", async (req, res) => {
+  app.post("/api/auth/forgot-password", strictAuthRateLimiter, async (req, res) => {
     try {
       const { email, honeypot1, honeypot2, formLoadTime } = req.body;
 
@@ -479,7 +504,7 @@ export async function setupAuth(app: Express) {
   });
 
   // Reset password
-  app.post("/api/auth/reset-password", async (req, res) => {
+  app.post("/api/auth/reset-password", strictAuthRateLimiter, async (req, res) => {
     try {
       const { token, password } = req.body;
 
@@ -487,8 +512,12 @@ export async function setupAuth(app: Express) {
         return res.status(400).json({ message: "Token and password are required" });
       }
 
-      if (password.length < 6) {
-        return res.status(400).json({ message: "Password must be at least 6 characters" });
+      if (password.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters" });
+      }
+
+      if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+        return res.status(400).json({ message: "Password must contain at least one uppercase letter, one lowercase letter, and one number" });
       }
 
       const [resetToken] = await db
@@ -526,7 +555,7 @@ export async function setupAuth(app: Express) {
   const MAGIC_LINK_RATE_LIMIT = 3; // max requests per window
   const MAGIC_LINK_RATE_WINDOW = 15 * 60 * 1000; // 15 minutes
 
-  app.post("/api/auth/magic-link/request", async (req, res) => {
+  app.post("/api/auth/magic-link/request", strictAuthRateLimiter, async (req, res) => {
     try {
       const { email, honeypot1, honeypot2, formLoadTime, signupSource } = req.body;
 
@@ -750,7 +779,7 @@ export async function setupAuth(app: Express) {
   });
 
   // Passwordless authentication - request (handles both new and existing users)
-  app.post("/api/auth/passwordless/request", async (req, res) => {
+  app.post("/api/auth/passwordless/request", strictAuthRateLimiter, async (req, res) => {
     try {
       const { email, honeypot1, honeypot2, formLoadTime, termsAccepted, signupSource } = req.body;
 
@@ -957,7 +986,7 @@ export async function setupAuth(app: Express) {
   });
 
   // Resend verification email
-  app.post("/api/auth/resend-verification", async (req, res) => {
+  app.post("/api/auth/resend-verification", strictAuthRateLimiter, async (req, res) => {
     try {
       // User must be logged in
       if (!req.session.userId) {

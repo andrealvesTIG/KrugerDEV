@@ -59,7 +59,7 @@ export function registerProjectRoutes(app: Express) {
     
     // Filter projects to only those in accessible orgs
     let filteredProjects = allProjects.filter(p => 
-      p.organizationId === null || accessibleOrgIds.includes(p.organizationId)
+      p.organizationId !== null && accessibleOrgIds.includes(p.organizationId)
     );
     
     // For team_member role, further filter to only assigned projects
