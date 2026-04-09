@@ -19,6 +19,30 @@ export function registerInvestorRoutes(app: Express) {
     res.status(401).json({ success: false, message: "Incorrect password" });
   });
 
+  app.post("/api/investor/verify", (req: Request, res: Response) => {
+    const { password } = req.body;
+    const correctPassword = process.env.INVESTOR_ACCESS_PASSWORD || DEFAULT_PASSWORD;
+
+    if (password === correctPassword) {
+      (req.session as any).investorAccess = true;
+      return res.json({ success: true });
+    }
+
+    res.status(401).json({ error: "Incorrect password" });
+  });
+
+  app.get("/api/investor/session", (req: Request, res: Response) => {
+    const hasAccess = !!(req.session as any)?.investorAccess;
+    res.json({ authenticated: hasAccess });
+  });
+
+  app.post("/api/investor/logout", (req: Request, res: Response) => {
+    if ((req.session as any)?.investorAccess) {
+      delete (req.session as any).investorAccess;
+    }
+    res.json({ success: true });
+  });
+
   app.get("/api/investor/check-access", async (req: Request, res: Response) => {
     if ((req.session as any)?.investorAccess) {
       return res.json({ hasAccess: true });
@@ -50,21 +74,22 @@ export function registerInvestorRoutes(app: Express) {
         return res.status(403).json({ message: "Access denied. Please verify investor access first." });
       }
 
-      const { recipientEmail, recipientName, pdfBase64 } = req.body;
+      const { email, recipientEmail, recipientName, pdfBase64 } = req.body;
+      const toEmail = email || recipientEmail;
 
-      if (!recipientEmail || !pdfBase64) {
+      if (!toEmail || !pdfBase64) {
         return res.status(400).json({ message: "Recipient email and PDF data are required" });
       }
 
       const pdfBuffer = Buffer.from(pdfBase64, "base64");
 
       const success = await sendEmail({
-        to: recipientEmail,
+        to: toEmail,
         subject: "FridayReport.AI — Investor Deck",
         text: `Hi ${recipientName || "there"},\n\nPlease find attached the FridayReport.AI investor deck.\n\nBest regards,\nFridayReport.AI Team`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background: linear-gradient(135deg, #f97316, #ef4444); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+            <div style="background: linear-gradient(135deg, #3b82f6, #6366f1); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
               <h1 style="color: white; margin: 0; font-size: 24px;">FridayReport.AI</h1>
               <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0;">Investor Deck</p>
             </div>
