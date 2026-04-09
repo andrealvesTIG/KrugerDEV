@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { useNotifications, useUnreadNotificationCount, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/use-notifications";
 import { useSnoozeTimesheetReminder } from "@/hooks/use-timesheets";
-import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle, AlertTriangle, Clock, UserPlus, Flag, Target, AlertCircle, CheckCircle2, UserCheck, X, Search, ArrowDownAZ, ArrowUpZA, CalendarDays, ArrowUp, ArrowDown, AlarmClock, BellOff } from "lucide-react";
+import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle, AlertTriangle, Clock, UserPlus, Flag, Target, AlertCircle, CheckCircle2, UserCheck, X, Search, ArrowDownAZ, ArrowUpZA, CalendarDays, ArrowUp, ArrowDown, AlarmClock, BellOff, Bot } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Link, useLocation } from "wouter";
 import { SearchCommand } from "./SearchCommand";
@@ -302,6 +302,17 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
           </div>
           <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             <span className="hidden md:inline-flex"><FridayCountdown /></span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleJarvis}
+              className="hidden sm:inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
+              aria-label="Friday Copilot"
+              data-testid="button-friday-copilot"
+            >
+              <Bot className="h-4 w-4" />
+              <span className="hidden lg:inline text-xs">Copilot</span>
+            </Button>
             <Button
               variant="ghost"
               size="icon"
