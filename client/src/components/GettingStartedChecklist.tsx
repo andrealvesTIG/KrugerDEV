@@ -11,7 +11,7 @@ const CHECKLIST_ITEMS = [
   { key: "assign_member", label: "Assign a team member", icon: Users, href: "/resources" },
   { key: "use_ai", label: "Try AI features", icon: Sparkles, href: null },
   { key: "explore_dashboard", label: "Explore the dashboard", icon: LayoutDashboard, href: "/dashboards" },
-  { key: "meet_copilot", label: "Meet Friday Copilot", icon: Bot, href: null },
+  { key: "meet_copilot", label: "Meet Friday Agent", icon: Bot, href: null },
 ];
 
 export function GettingStartedChecklist() {

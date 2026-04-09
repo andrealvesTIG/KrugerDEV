@@ -81,7 +81,7 @@ function ScreenshotCopilot() {
       <rect width="320" height="180" fill="#0f172a" />
       <rect x="0" y="0" width="320" height="24" fill="#1e293b" />
       <circle cx="12" cy="12" r="4" fill="#3b82f6" />
-      <text x="20" y="15" fontSize="7" fill="#94a3b8" fontFamily="sans-serif">Friday Copilot</text>
+      <text x="20" y="15" fontSize="7" fill="#94a3b8" fontFamily="sans-serif">Friday Agent</text>
       <rect x="200" y="6" width="50" height="12" rx="6" fill="#3b82f6" opacity="0.2" />
       <text x="210" y="15" fontSize="5" fill="#60a5fa" fontFamily="sans-serif">AI Active</text>
       <rect x="20" y="35" width="160" height="28" rx="8" fill="#1e293b" />
@@ -279,7 +279,7 @@ function ScreenshotTraining() {
 const SCREENSHOT_COMPONENTS: Record<string, () => JSX.Element> = {
   "Portfolio Dashboard": ScreenshotPortfolio,
   "Gantt Chart & CPM": ScreenshotGantt,
-  "Friday Copilot AI": ScreenshotCopilot,
+  "Friday Agent AI": ScreenshotCopilot,
   "PMO Risk Radar": ScreenshotRadar,
   "Timesheets": ScreenshotTimesheets,
   "Issues & Risks Board": ScreenshotIssues,
@@ -290,7 +290,7 @@ const SCREENSHOT_COMPONENTS: Record<string, () => JSX.Element> = {
 };
 
 const PRODUCT_SCREENSHOTS = [
-  "Portfolio Dashboard", "Gantt Chart & CPM", "Friday Copilot AI", "PMO Risk Radar",
+  "Portfolio Dashboard", "Gantt Chart & CPM", "Friday Agent AI", "PMO Risk Radar",
   "Timesheets", "Issues & Risks Board", "Executive Analytics", "Project Details",
   "Resource Allocation", "Training Academy",
 ];
@@ -856,7 +856,7 @@ function InvestorDeck({ onLogout, isAdmin }: { onLogout: () => void; isAdmin: bo
 
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-14">
                 {[
-                  { icon: Brain, title: "AI-Native Intelligence", desc: "Friday Copilot answers questions, generates reports, and surfaces risks using natural language — like having a senior PM on call 24/7.", gradient: "from-blue-500 to-indigo-600" },
+                  { icon: Brain, title: "AI-Native Intelligence", desc: "Friday Agent answers questions, generates reports, and surfaces risks using natural language — like having a senior PM on call 24/7.", gradient: "from-blue-500 to-indigo-600" },
                   { icon: Zap, title: "Real-Time Everything", desc: "Live dashboards, instant status updates, and automated alerts ensure leaders always have current, actionable information.", gradient: "from-amber-500 to-orange-600" },
                   { icon: Shield, title: "Enterprise-Grade Security", desc: "SSO via Microsoft 365 & Google, role-based access control, audit trails, and encrypted data at rest and in transit.", gradient: "from-emerald-500 to-teal-600" },
                   { icon: Globe, title: "Built for Global Teams", desc: "Multi-org support, timezone-aware scheduling, and configurable working calendars for distributed enterprises.", gradient: "from-purple-500 to-violet-600" },
@@ -934,7 +934,7 @@ function InvestorDeck({ onLogout, isAdmin }: { onLogout: () => void; isAdmin: bo
                   { icon: BarChart3, title: "Portfolio Dashboards", desc: "Executive-level views with KPIs, health scores, and drill-down analytics across all projects." },
                   { icon: Layers, title: "Project Management", desc: "Gantt charts, task hierarchies, dependencies, milestones, and critical path analysis." },
                   { icon: Shield, title: "PMO Radar", desc: "Dynamic risk visualization with simulation engine, timeline playback, and predictive modeling." },
-                  { icon: Brain, title: "Friday Copilot", desc: "Natural language interface to query data, generate reports, and get AI-powered recommendations." },
+                  { icon: Brain, title: "Friday Agent", desc: "Natural language interface to query data, generate reports, and get AI-powered recommendations." },
                   { icon: Clock, title: "Timesheets & Resources", desc: "Time tracking, capacity planning, workload balancing, and utilization analytics." },
                   { icon: Award, title: "Training Academy", desc: "Built-in PM training modules with quizzes, progress tracking, and certification." },
                 ].map((item) => (
@@ -1055,7 +1055,7 @@ function InvestorDeck({ onLogout, isAdmin }: { onLogout: () => void; isAdmin: bo
                     price: "$25,000",
                     period: "/mo",
                     desc: "For growing organizations that need full power",
-                    features: ["Unlimited users", "Unlimited projects", "Friday Copilot AI (unlimited)", "PMO Risk Radar", "Advanced analytics & dashboards", "Portfolio management", "Timesheets & resource planning", "SSO (Microsoft 365 & Google)", "Priority support", "Training Academy access"],
+                    features: ["Unlimited users", "Unlimited projects", "Friday Agent AI (unlimited)", "PMO Risk Radar", "Advanced analytics & dashboards", "Portfolio management", "Timesheets & resource planning", "SSO (Microsoft 365 & Google)", "Priority support", "Training Academy access"],
                     highlight: true,
                   },
                   {
@@ -1151,7 +1151,7 @@ function InvestorDeck({ onLogout, isAdmin }: { onLogout: () => void; isAdmin: bo
                       <div className="space-y-4">
                         {[
                           { date: "Q1 2025", event: "Product launch with full PPM suite" },
-                          { date: "Q2 2025", event: "Friday Copilot AI released" },
+                          { date: "Q2 2025", event: "Friday Agent AI released" },
                           { date: "Q3 2025", event: "Enterprise pilot program initiated" },
                           { date: "Q4 2025", event: "Partner program launched" },
                           { date: "Q1 2026", event: "MS Project & Planner integrations live" },
@@ -1232,7 +1232,7 @@ function InvestorDeck({ onLogout, isAdmin }: { onLogout: () => void; isAdmin: bo
 
               <div className="grid md:grid-cols-3 gap-8">
                 {[
-                  { icon: Brain, title: "AI-First Architecture", desc: "Friday Copilot is not a bolt-on chatbot. It's deeply integrated into every data layer, providing real insights that save hours daily." },
+                  { icon: Brain, title: "AI-First Architecture", desc: "Friday Agent is not a bolt-on chatbot. It's deeply integrated into every data layer, providing real insights that save hours daily." },
                   { icon: Layers, title: "Unified Platform", desc: "No more stitching together 5 tools. Projects, portfolios, risks, timesheets, and reporting — all in one place." },
                   { icon: Zap, title: "Rapid Innovation", desc: "500+ features shipped in 12 months. We move faster than legacy vendors and ship what customers actually need." },
                 ].map((item) => (

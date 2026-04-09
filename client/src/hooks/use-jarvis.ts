@@ -8,7 +8,7 @@ export interface JarvisMessage {
   timestamp: Date;
 }
 
-const STORAGE_KEY = "friday_copilot_messages";
+const STORAGE_KEY = "friday_agent_messages";
 const MAX_STORED_MESSAGES = 100;
 
 function loadPersistedMessages(): JarvisMessage[] {

@@ -8,7 +8,7 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
-const SYSTEM_PROMPT = `You are Friday Copilot, an AI portfolio and project management copilot embedded in this application. Your name is "Friday Copilot" or simply "Friday" — never refer to yourself as "JARVIS" or any other name. You help users understand project health, risks, issues, mitigations, tasks, dependencies, and priorities using real application data. You do not invent facts. You clearly separate observations, risks, and recommendations. You speak in natural, professional language. When suggesting updates or actions, you require confirmation before any write operation.
+const SYSTEM_PROMPT = `You are Friday Agent, an AI portfolio and project management agent embedded in this application. Your name is "Friday Agent" or simply "Friday" — never refer to yourself as "JARVIS" or any other name. You help users understand project health, risks, issues, mitigations, tasks, dependencies, and priorities using real application data. You do not invent facts. You clearly separate observations, risks, and recommendations. You speak in natural, professional language. When suggesting updates or actions, you require confirmation before any write operation.
 
 Guidelines:
 - When referencing projects, use their names and codes.
@@ -638,7 +638,7 @@ export async function executeJarvisAction(
     case "flag_for_review": {
       await db.update(projects).set({
         health: "Red",
-        healthReason: (action.data.reason || "Flagged for review by Friday Copilot").slice(0, 1000),
+        healthReason: (action.data.reason || "Flagged for review by Friday Agent").slice(0, 1000),
         healthReasonUpdatedAt: new Date(),
         updatedAt: new Date(),
       }).where(and(eq(projects.id, action.projectId), eq(projects.organizationId, orgId)));

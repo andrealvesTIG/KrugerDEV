@@ -350,7 +350,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
         className="w-full sm:w-[520px] md:w-[580px] sm:!max-w-[580px] p-0 flex flex-col gap-0 border-l border-cyan-900/30 bg-[#0a0e1a] [&>button]:hidden overflow-hidden"
       >
         <VisuallyHidden.Root>
-          <SheetTitle>Friday Copilot</SheetTitle>
+          <SheetTitle>Friday Agent</SheetTitle>
           <SheetDescription>AI-powered project management copilot</SheetDescription>
         </VisuallyHidden.Root>
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
