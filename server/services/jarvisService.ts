@@ -280,6 +280,164 @@ export interface JarvisMessage {
   content: string;
 }
 
+const jarvisTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+  {
+    type: "function",
+    function: {
+      name: "create_task",
+      description: "Create a new task in a project. Call this ONLY after the user has explicitly confirmed (e.g. said 'yes', 'proceed', 'do it', 'go ahead').",
+      parameters: {
+        type: "object",
+        properties: {
+          projectId: { type: "number", description: "The project ID to create the task in" },
+          name: { type: "string", description: "The task name" },
+          priority: { type: "string", enum: ["Low", "Medium", "High", "Critical"], description: "Task priority" },
+          description: { type: "string", description: "Optional task description" },
+          assignee: { type: "string", description: "Optional assignee name" },
+        },
+        required: ["projectId", "name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_risk",
+      description: "Create a new risk/mitigation entry in a project. Call this ONLY after the user has explicitly confirmed.",
+      parameters: {
+        type: "object",
+        properties: {
+          projectId: { type: "number", description: "The project ID" },
+          title: { type: "string", description: "The risk title" },
+          description: { type: "string", description: "Risk description" },
+          priority: { type: "string", enum: ["Low", "Medium", "High", "Critical"] },
+          probability: { type: "string", enum: ["Very Low", "Low", "Medium", "High", "Very High"] },
+          impact: { type: "string", enum: ["Very Low", "Low", "Medium", "High", "Very High"] },
+          responseStrategy: { type: "string", enum: ["Avoid", "Transfer", "Mitigate", "Accept"] },
+          mitigationPlan: { type: "string", description: "The mitigation plan" },
+        },
+        required: ["projectId", "title"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_issue",
+      description: "Create a new issue in a project. Call this ONLY after the user has explicitly confirmed.",
+      parameters: {
+        type: "object",
+        properties: {
+          projectId: { type: "number", description: "The project ID" },
+          title: { type: "string", description: "The issue title" },
+          description: { type: "string", description: "Issue description" },
+          priority: { type: "string", enum: ["Low", "Medium", "High", "Critical"] },
+          severity: { type: "string", enum: ["Low", "Medium", "High", "Critical"] },
+        },
+        required: ["projectId", "title"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "add_project_note",
+      description: "Add or update notes on a project. Call this ONLY after the user has explicitly confirmed.",
+      parameters: {
+        type: "object",
+        properties: {
+          projectId: { type: "number", description: "The project ID" },
+          note: { type: "string", description: "The note content" },
+        },
+        required: ["projectId", "note"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "flag_project_for_review",
+      description: "Flag a project for review by setting its health to Red. Call this ONLY after the user has explicitly confirmed.",
+      parameters: {
+        type: "object",
+        properties: {
+          projectId: { type: "number", description: "The project ID" },
+          reason: { type: "string", description: "The reason for flagging" },
+        },
+        required: ["projectId"],
+      },
+    },
+  },
+];
+
+async function handleToolCall(
+  orgId: number,
+  toolName: string,
+  args: Record<string, any>,
+): Promise<string> {
+  const projectId = args.projectId;
+  if (!projectId || typeof projectId !== "number") {
+    return JSON.stringify({ success: false, message: "Valid projectId is required." });
+  }
+  const projectInOrg = await verifyProjectBelongsToOrg(projectId, orgId);
+  if (!projectInOrg) {
+    return JSON.stringify({ success: false, message: "Project not found in this organization." });
+  }
+
+  switch (toolName) {
+    case "create_task": {
+      const result = await executeJarvisAction(orgId, "", {
+        type: "create_task",
+        projectId,
+        data: { name: args.name, priority: args.priority, description: args.description, assignee: args.assignee },
+      });
+      return JSON.stringify(result);
+    }
+    case "create_risk": {
+      const result = await executeJarvisAction(orgId, "", {
+        type: "create_mitigation",
+        projectId,
+        data: {
+          title: args.title, description: args.description, priority: args.priority,
+          probability: args.probability, impact: args.impact,
+          responseStrategy: args.responseStrategy, mitigationPlan: args.mitigationPlan,
+        },
+      });
+      return JSON.stringify(result);
+    }
+    case "create_issue": {
+      const [newIssue] = await db.insert(issues).values({
+        projectId,
+        itemType: "issue",
+        title: (args.title || "Untitled Issue").slice(0, 500),
+        description: args.description?.slice(0, 5000) || null,
+        priority: ["Low", "Medium", "High", "Critical"].includes(args.priority) ? args.priority : "Medium",
+        severity: ["Low", "Medium", "High", "Critical"].includes(args.severity) ? args.severity : "Medium",
+        status: "Open",
+      }).returning();
+      return JSON.stringify({ success: true, message: `Issue "${newIssue.title}" created successfully.`, entityId: newIssue.id });
+    }
+    case "add_project_note": {
+      const result = await executeJarvisAction(orgId, "", {
+        type: "add_note",
+        projectId,
+        data: { note: args.note },
+      });
+      return JSON.stringify(result);
+    }
+    case "flag_project_for_review": {
+      const result = await executeJarvisAction(orgId, "", {
+        type: "flag_for_review",
+        projectId,
+        data: { reason: args.reason },
+      });
+      return JSON.stringify(result);
+    }
+    default:
+      return JSON.stringify({ success: false, message: "Unknown tool." });
+  }
+}
+
 export async function streamJarvisResponse(
   orgId: number,
   messages: JarvisMessage[],
@@ -296,7 +454,13 @@ export async function streamJarvisResponse(
       ? `\n\nIMPORTANT — Concise mode is ON. Keep every reply SHORT: max 3-5 bullet points or 2-3 short sentences. No lengthy explanations. Omit sections that have nothing notable. If the user needs more detail, they will ask.`
       : `\n\nDetailed mode is ON. Provide thorough, structured responses. Use sections (Observations, Risks/Concerns, Recommendations) when helpful. Include relevant data points and context. Use bullet points for clarity.`;
 
-    const systemMessage = `${SYSTEM_PROMPT}${conciseDirective}\n\n---\n\n${dataContext}`;
+    const actionDirective = `\n\nACTION EXECUTION RULES:
+- When the user asks you to create a task, risk, issue, note, or flag a project, first describe what you will do and ask for confirmation.
+- When the user confirms (says "yes", "proceed", "do it", "go ahead", "ok", "sure", "confirm", etc.), you MUST call the appropriate tool function to actually execute the action. Do NOT just say you did it — you must use the tool.
+- After the tool executes, report the result to the user based on the tool response.
+- The project IDs are available in the data context above. Match project names to their IDs.`;
+
+    const systemMessage = `${SYSTEM_PROMPT}${conciseDirective}${actionDirective}\n\n---\n\n${dataContext}`;
 
     const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: "system", content: systemMessage },
@@ -306,22 +470,85 @@ export async function streamJarvisResponse(
       })),
     ];
 
-    const stream = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: apiMessages,
-      stream: true,
-      max_completion_tokens: concise ? 800 : 4096,
-      temperature: 0.3,
-    });
-
     let fullResponse = "";
+    const MAX_TOOL_ROUNDS = 3;
 
-    for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content || "";
-      if (content) {
-        fullResponse += content;
-        onChunk(content);
+    for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+      const stream = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: apiMessages,
+        stream: true,
+        max_completion_tokens: concise ? 800 : 4096,
+        temperature: 0.3,
+        tools: jarvisTools,
+      });
+
+      let currentToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
+      let hasToolCalls = false;
+      let finishReason = "";
+
+      for await (const chunk of stream) {
+        const choice = chunk.choices[0];
+        if (!choice) continue;
+
+        if (choice.finish_reason) {
+          finishReason = choice.finish_reason;
+        }
+
+        const content = choice.delta?.content || "";
+        if (content) {
+          fullResponse += content;
+          onChunk(content);
+        }
+
+        if (choice.delta?.tool_calls) {
+          hasToolCalls = true;
+          for (const tc of choice.delta.tool_calls) {
+            const idx = tc.index;
+            if (!currentToolCalls.has(idx)) {
+              currentToolCalls.set(idx, { id: tc.id || "", name: tc.function?.name || "", arguments: "" });
+            }
+            const existing = currentToolCalls.get(idx)!;
+            if (tc.id) existing.id = tc.id;
+            if (tc.function?.name) existing.name = tc.function.name;
+            if (tc.function?.arguments) existing.arguments += tc.function.arguments;
+          }
+        }
       }
+
+      if (!hasToolCalls || finishReason !== "tool_calls") {
+        break;
+      }
+
+      apiMessages.push({
+        role: "assistant",
+        content: fullResponse || null,
+        tool_calls: Array.from(currentToolCalls.values()).map(tc => ({
+          id: tc.id,
+          type: "function" as const,
+          function: { name: tc.name, arguments: tc.arguments },
+        })),
+      });
+
+      for (const [, tc] of currentToolCalls) {
+        try {
+          const args = JSON.parse(tc.arguments);
+          const result = await handleToolCall(orgId, tc.name, args);
+          apiMessages.push({
+            role: "tool",
+            tool_call_id: tc.id,
+            content: result,
+          });
+        } catch (err: any) {
+          apiMessages.push({
+            role: "tool",
+            tool_call_id: tc.id,
+            content: JSON.stringify({ success: false, message: err.message || "Tool execution failed." }),
+          });
+        }
+      }
+
+      fullResponse = "";
     }
 
     onDone(fullResponse);
