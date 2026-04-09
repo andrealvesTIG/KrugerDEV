@@ -351,7 +351,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
       >
         <VisuallyHidden.Root>
           <SheetTitle>Friday Agent</SheetTitle>
-          <SheetDescription>AI-powered project management copilot</SheetDescription>
+          <SheetDescription>AI-powered project management agent</SheetDescription>
         </VisuallyHidden.Root>
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent" />
@@ -374,7 +374,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
               <span className="text-sm font-medium text-cyan-300 tracking-wider uppercase" style={{ fontFamily: "'Outfit', sans-serif" }}>
                 F.R.I.D.A.Y.
               </span>
-              <span className="text-xs text-cyan-600">Copilot</span>
+              <span className="text-xs text-cyan-600">Agent</span>
             </div>
             <div className="flex items-center gap-1">
               <Tooltip>
