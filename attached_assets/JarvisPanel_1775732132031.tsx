@@ -175,7 +175,7 @@ interface JarvisPanelProps {
   onAutoListenConsumed?: () => void;
 }
 
-export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoListenConsumed }: JarvisPanelProps) {
+export function JarvisPanel({ open, onOpenChange, autoListen, onAutoListenConsumed }: JarvisPanelProps) {
   const { messages, isLoading, sendMessage, clearMessages, stopGeneration, conciseMode, setConciseMode } = useJarvis();
   const [input, setInput] = useState("");
   const [interimText, setInterimText] = useState("");

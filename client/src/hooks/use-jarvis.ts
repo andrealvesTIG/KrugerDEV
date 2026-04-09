@@ -130,7 +130,9 @@ export function useJarvis() {
     isLoading,
     sendMessage,
     stopResponse,
+    stopGeneration: stopResponse,
     clearHistory,
+    clearMessages: clearHistory,
     conciseMode,
     setConciseMode,
   };

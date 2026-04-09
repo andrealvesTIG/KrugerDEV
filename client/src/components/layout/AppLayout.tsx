@@ -24,7 +24,7 @@ import { HelpDialog } from "@/components/HelpDialog";
 import { AICreateButton, AICreateButtonHandle } from "./AICreateButton";
 import { Mic } from "lucide-react";
 import { FridayCountdown } from "./FridayCountdown";
-import JarvisOrb from "@/components/jarvis/JarvisOrb";
+import JarvisOrbFloating from "@/components/jarvis/JarvisOrb";
 import JarvisPanel from "@/components/jarvis/JarvisPanel";
 import { useJarvis } from "@/hooks/use-jarvis";
 import { useWakeWord } from "@/hooks/use-wake-word";
@@ -368,8 +368,8 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
           )}
         </main>
       </div>
-      <JarvisOrb onClick={toggleJarvis} isActive={jarvisOpen} />
-      <JarvisPanel isOpen={jarvisOpen} onClose={() => setJarvisOpen(false)} />
+      <JarvisOrbFloating onClick={toggleJarvis} isActive={jarvisOpen} />
+      <JarvisPanel open={jarvisOpen} onOpenChange={setJarvisOpen} />
     </div>
   );
 }

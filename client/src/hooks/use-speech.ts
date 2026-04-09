@@ -1,9 +1,19 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 
-export function useSpeechRecognition() {
+interface SpeechRecognitionOptions {
+  onResult?: (transcript: string) => void;
+  onInterimResult?: (transcript: string) => void;
+}
+
+export function useSpeechRecognition(options?: SpeechRecognitionOptions) {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const recognitionRef = useRef<any>(null);
+  const onResultRef = useRef(options?.onResult);
+  const onInterimRef = useRef(options?.onInterimResult);
+
+  useEffect(() => { onResultRef.current = options?.onResult; }, [options?.onResult]);
+  useEffect(() => { onInterimRef.current = options?.onInterimResult; }, [options?.onInterimResult]);
 
   const isSupported = typeof window !== "undefined" &&
     ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
@@ -11,22 +21,45 @@ export function useSpeechRecognition() {
   const startListening = useCallback(() => {
     if (!isSupported) return;
 
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch {}
+    }
+
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = "en-US";
 
+    let finalTranscript = "";
+
     recognition.onresult = (event: any) => {
-      let text = "";
+      let interim = "";
+      finalTranscript = "";
       for (let i = 0; i < event.results.length; i++) {
-        text += event.results[i][0].transcript;
+        const t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += t;
+        } else {
+          interim += t;
+        }
       }
-      setTranscript(text);
+      const combined = finalTranscript || interim;
+      setTranscript(combined);
+
+      if (interim && onInterimRef.current) {
+        onInterimRef.current(interim);
+      }
+      if (finalTranscript && onResultRef.current) {
+        onResultRef.current(finalTranscript);
+      }
     };
 
     recognition.onend = () => {
       setIsListening(false);
+      if (finalTranscript && onResultRef.current) {
+        onResultRef.current(finalTranscript);
+      }
     };
 
     recognition.onerror = () => {
@@ -46,6 +79,14 @@ export function useSpeechRecognition() {
     }
   }, []);
 
+  const toggleListening = useCallback(() => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  }, [isListening, startListening, stopListening]);
+
   useEffect(() => {
     return () => {
       if (recognitionRef.current) {
@@ -54,7 +95,7 @@ export function useSpeechRecognition() {
     };
   }, []);
 
-  return { isListening, transcript, startListening, stopListening, isSupported };
+  return { isListening, transcript, startListening, stopListening, toggleListening, isSupported };
 }
 
 export function useSpeechSynthesis() {
@@ -68,7 +109,16 @@ export function useSpeechSynthesis() {
 
     window.speechSynthesis.cancel();
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    const cleaned = text
+      .replace(/\*\*([^*]+)\*\*/g, "$1")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/^#{1,3}\s/gm, "")
+      .replace(/^[-*]\s/gm, "")
+      .replace(/^\d+\.\s/gm, "")
+      .replace(/^>\s/gm, "");
+
+    const utterance = new SpeechSynthesisUtterance(cleaned);
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
@@ -91,7 +141,7 @@ export function useSpeechSynthesis() {
     window.speechSynthesis.speak(utterance);
   }, [isSupported]);
 
-  const stopSpeaking = useCallback(() => {
+  const stop = useCallback(() => {
     if (isSupported) {
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
@@ -106,5 +156,5 @@ export function useSpeechSynthesis() {
     };
   }, [isSupported]);
 
-  return { isSpeaking, speak, stopSpeaking, isSupported };
+  return { isSpeaking, speak, stop, stopSpeaking: stop, isSupported };
 }
