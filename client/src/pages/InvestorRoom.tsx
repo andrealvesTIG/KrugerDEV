@@ -20,28 +20,18 @@ import { useAuth } from "@/hooks/use-auth";
 import { motion, useInView } from "framer-motion";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import RadarCanvas, { type RiskSignal } from "@/components/radar/RadarCanvas";
-import imgPortfolio from "@/assets/investor/dashboard-portfolio.png";
-import imgGantt from "@/assets/investor/dashboard-gantt.png";
-import imgCopilot from "@/assets/investor/dashboard-copilot.png";
-import imgRadar from "@/assets/investor/dashboard-radar.png";
-import imgTimesheets from "@/assets/investor/dashboard-timesheets.png";
-import imgIssues from "@/assets/investor/dashboard-issues.png";
-import imgAnalytics from "@/assets/investor/dashboard-analytics.png";
-import imgProjectDetail from "@/assets/investor/dashboard-project-detail.png";
-import imgResources from "@/assets/investor/dashboard-resources.png";
-import imgTraining from "@/assets/investor/dashboard-training.png";
 
 const PRODUCT_SCREENSHOTS = [
-  { src: imgPortfolio, label: "Portfolio Dashboard" },
-  { src: imgGantt, label: "Gantt Chart & CPM" },
-  { src: imgCopilot, label: "Friday Copilot AI" },
-  { src: imgRadar, label: "PMO Risk Radar" },
-  { src: imgTimesheets, label: "Timesheets" },
-  { src: imgIssues, label: "Issues & Risks Board" },
-  { src: imgAnalytics, label: "Executive Analytics" },
-  { src: imgProjectDetail, label: "Project Details" },
-  { src: imgResources, label: "Resource Allocation" },
-  { src: imgTraining, label: "Training Academy" },
+  { label: "Portfolio Dashboard", icon: BarChart3, gradient: "from-blue-600 to-indigo-700" },
+  { label: "Gantt Chart & CPM", icon: Layers, gradient: "from-violet-600 to-purple-700" },
+  { label: "Friday Copilot AI", icon: Brain, gradient: "from-emerald-600 to-teal-700" },
+  { label: "PMO Risk Radar", icon: Shield, gradient: "from-cyan-600 to-blue-700" },
+  { label: "Timesheets", icon: Clock, gradient: "from-amber-600 to-orange-700" },
+  { label: "Issues & Risks Board", icon: Target, gradient: "from-red-600 to-rose-700" },
+  { label: "Executive Analytics", icon: LineChart, gradient: "from-indigo-600 to-blue-700" },
+  { label: "Project Details", icon: Briefcase, gradient: "from-slate-600 to-slate-700" },
+  { label: "Resource Allocation", icon: Users, gradient: "from-purple-600 to-indigo-700" },
+  { label: "Training Academy", icon: Award, gradient: "from-teal-600 to-emerald-700" },
 ];
 
 const DEMO_RADAR_SIGNALS: RiskSignal[] = [
@@ -705,20 +695,28 @@ function InvestorDeck({ onLogout, isAdmin }: { onLogout: () => void; isAdmin: bo
                 <h3 className="text-xl font-bold text-slate-900 text-center mb-2">Platform Screenshots</h3>
                 <p className="text-sm text-slate-500 text-center mb-8">A glimpse into the FridayReport.AI experience</p>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-                  {PRODUCT_SCREENSHOTS.map((shot) => (
-                    <div key={shot.label} className="group cursor-pointer">
-                      <div className="relative rounded-xl overflow-hidden shadow-md border border-slate-200 bg-white hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-                        <img
-                          src={shot.src}
-                          alt={shot.label}
-                          className="w-full aspect-video object-cover object-top"
-                          loading="lazy"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  {PRODUCT_SCREENSHOTS.map((shot) => {
+                    const Icon = shot.icon;
+                    return (
+                      <div key={shot.label} className="group cursor-pointer">
+                        <div className={`relative rounded-xl overflow-hidden shadow-md border border-slate-200 bg-gradient-to-br ${shot.gradient} hover:shadow-xl transition-all duration-300 hover:-translate-y-1 aspect-video flex flex-col items-center justify-center p-4`}>
+                          <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center mb-3">
+                            <Icon className="w-6 h-6 text-white" />
+                          </div>
+                          <p className="text-white/90 text-xs font-semibold text-center leading-tight">{shot.label}</p>
+                          <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20" />
+                          <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-green-400/80" />
+                          <div className="absolute top-0 left-0 right-0 h-6 bg-black/10 flex items-center px-2 gap-1">
+                            <div className="w-1.5 h-1.5 rounded-full bg-white/40" />
+                            <div className="w-1.5 h-1.5 rounded-full bg-white/40" />
+                            <div className="w-1.5 h-1.5 rounded-full bg-white/40" />
+                            <div className="flex-1 mx-2 h-2 rounded bg-white/15" />
+                          </div>
+                        </div>
+                        <p className="text-xs font-medium text-slate-600 text-center mt-2">{shot.label}</p>
                       </div>
-                      <p className="text-xs font-medium text-slate-600 text-center mt-2">{shot.label}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </motion.div>
 
