@@ -21,17 +21,278 @@ import { motion, useInView } from "framer-motion";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import RadarCanvas, { type RiskSignal } from "@/components/radar/RadarCanvas";
 
+function ScreenshotPortfolio() {
+  return (
+    <svg viewBox="0 0 320 180" className="w-full h-full">
+      <rect width="320" height="180" fill="#f8fafc" />
+      <rect width="50" height="180" fill="#1e293b" />
+      {[20,40,60,80,100,120].map((y,i)=>(<rect key={i} x="8" y={y} width="34" height="6" rx="2" fill={i===0?"#3b82f6":"#334155"} />))}
+      <rect x="60" y="8" width="252" height="20" rx="4" fill="#e2e8f0" />
+      <text x="70" y="21" fontSize="8" fill="#64748b" fontFamily="sans-serif">Portfolio Overview</text>
+      <rect x="65" y="35" width="55" height="40" rx="4" fill="#fff" stroke="#e2e8f0" />
+      <text x="70" y="48" fontSize="5" fill="#94a3b8" fontFamily="sans-serif">Total Projects</text>
+      <text x="70" y="62" fontSize="12" fill="#1e293b" fontWeight="bold" fontFamily="sans-serif">24</text>
+      <rect x="125" y="35" width="55" height="40" rx="4" fill="#fff" stroke="#e2e8f0" />
+      <text x="130" y="48" fontSize="5" fill="#94a3b8" fontFamily="sans-serif">On Track</text>
+      <text x="130" y="62" fontSize="12" fill="#22c55e" fontWeight="bold" fontFamily="sans-serif">18</text>
+      <rect x="185" y="35" width="55" height="40" rx="4" fill="#fff" stroke="#e2e8f0" />
+      <text x="190" y="48" fontSize="5" fill="#94a3b8" fontFamily="sans-serif">At Risk</text>
+      <text x="190" y="62" fontSize="12" fill="#f59e0b" fontWeight="bold" fontFamily="sans-serif">4</text>
+      <rect x="245" y="35" width="55" height="40" rx="4" fill="#fff" stroke="#e2e8f0" />
+      <text x="250" y="48" fontSize="5" fill="#94a3b8" fontFamily="sans-serif">Off Track</text>
+      <text x="250" y="62" fontSize="12" fill="#ef4444" fontWeight="bold" fontFamily="sans-serif">2</text>
+      <circle cx="92" cy="130" r="30" fill="none" stroke="#e2e8f0" strokeWidth="8" />
+      <circle cx="92" cy="130" r="30" fill="none" stroke="#22c55e" strokeWidth="8" strokeDasharray="141 188" transform="rotate(-90 92 130)" />
+      <circle cx="92" cy="130" r="30" fill="none" stroke="#f59e0b" strokeWidth="8" strokeDasharray="25 163" strokeDashoffset="-141" transform="rotate(-90 92 130)" />
+      <text x="82" y="133" fontSize="10" fill="#1e293b" fontWeight="bold" fontFamily="sans-serif">75%</text>
+      {[0,1,2,3,4].map(i=>(<rect key={i} x={160+i*22} y={170-[50,65,40,70,55][i]} width="14" rx="2" height={[50,65,40,70,55][i]} fill={["#3b82f6","#6366f1","#8b5cf6","#3b82f6","#6366f1"][i]} opacity="0.8" />))}
+    </svg>
+  );
+}
+
+function ScreenshotGantt() {
+  return (
+    <svg viewBox="0 0 320 180" className="w-full h-full">
+      <rect width="320" height="180" fill="#f8fafc" />
+      <rect x="0" y="0" width="320" height="22" fill="#fff" />
+      <text x="10" y="15" fontSize="8" fill="#1e293b" fontWeight="bold" fontFamily="sans-serif">Gantt Chart — Critical Path</text>
+      <circle cx="295" cy="11" r="5" fill="#ef4444" opacity="0.2" /><circle cx="295" cy="11" r="3" fill="#ef4444" />
+      <circle cx="308" cy="11" r="5" fill="#22c55e" opacity="0.2" /><circle cx="308" cy="11" r="3" fill="#22c55e" />
+      <rect x="0" y="22" width="90" height="158" fill="#f1f5f9" />
+      {["Planning","Design","Dev Sprint 1","Dev Sprint 2","Testing","UAT","Deployment"].map((t,i)=>(<g key={i}><rect x="0" y={30+i*20} width="90" height="18" fill={i%2===0?"#f8fafc":"#f1f5f9"} /><text x="6" y={42+i*20} fontSize="5.5" fill="#475569" fontFamily="sans-serif">{t}</text></g>))}
+      {[0,1,2,3,4,5,6].map(i=><line key={i} x1={90+i*33} y1="22" x2={90+i*33} y2="180" stroke="#e2e8f0" strokeWidth="0.5" />)}
+      <rect x="95" y="32" width="45" height="10" rx="3" fill="#3b82f6" />
+      <rect x="130" y="52" width="55" height="10" rx="3" fill="#6366f1" />
+      <rect x="155" y="72" width="80" height="10" rx="3" fill="#8b5cf6" />
+      <rect x="195" y="92" width="70" height="10" rx="3" fill="#8b5cf6" />
+      <rect x="240" y="112" width="50" height="10" rx="3" fill="#f59e0b" />
+      <rect x="260" y="132" width="40" height="10" rx="3" fill="#22c55e" />
+      <rect x="280" y="152" width="30" height="10" rx="3" fill="#ef4444" />
+      <line x1="140" y1="37" x2="155" y2="77" stroke="#ef4444" strokeWidth="1" strokeDasharray="3" />
+      <line x1="235" y1="97" x2="240" y2="117" stroke="#ef4444" strokeWidth="1" strokeDasharray="3" />
+      <line x1="290" y1="137" x2="280" y2="157" stroke="#ef4444" strokeWidth="1" strokeDasharray="3" />
+    </svg>
+  );
+}
+
+function ScreenshotCopilot() {
+  return (
+    <svg viewBox="0 0 320 180" className="w-full h-full">
+      <rect width="320" height="180" fill="#0f172a" />
+      <rect x="0" y="0" width="320" height="24" fill="#1e293b" />
+      <circle cx="12" cy="12" r="4" fill="#3b82f6" />
+      <text x="20" y="15" fontSize="7" fill="#94a3b8" fontFamily="sans-serif">Friday Copilot</text>
+      <rect x="200" y="6" width="50" height="12" rx="6" fill="#3b82f6" opacity="0.2" />
+      <text x="210" y="15" fontSize="5" fill="#60a5fa" fontFamily="sans-serif">AI Active</text>
+      <rect x="20" y="35" width="160" height="28" rx="8" fill="#1e293b" />
+      <text x="30" y="47" fontSize="5.5" fill="#60a5fa" fontFamily="sans-serif">Friday</text>
+      <text x="30" y="56" fontSize="5" fill="#cbd5e1" fontFamily="sans-serif">Here's your portfolio health summary...</text>
+      <rect x="20" y="70" width="180" height="55" rx="6" fill="#1e293b" />
+      <text x="28" y="83" fontSize="5" fill="#94a3b8" fontFamily="sans-serif">Risk Analysis</text>
+      {[0,1,2,3,4,5].map(i=>(<rect key={i} x={30+i*25} y={115-[30,45,25,40,35,50][i]} width="16" rx="2" height={[30,45,25,40,35,50][i]} fill={[30,45,25,40,35,50][i]>35?"#ef4444":"#3b82f6"} opacity="0.8" />))}
+      <rect x="140" y="140" width="160" height="24" rx="8" fill="#1e3a5f" />
+      <text x="150" y="152" fontSize="5.5" fill="#93c5fd" fontFamily="sans-serif">You</text>
+      <text x="150" y="160" fontSize="5" fill="#e2e8f0" fontFamily="sans-serif">Show me projects at risk this quarter</text>
+      <rect x="20" y="145" width="100" height="28" rx="14" fill="#1e293b" stroke="#334155" />
+      <text x="35" y="162" fontSize="5.5" fill="#64748b" fontFamily="sans-serif">Ask Friday anything...</text>
+      <circle cx="28" cy="159" r="4" fill="#3b82f6" opacity="0.5" />
+    </svg>
+  );
+}
+
+function ScreenshotRadar() {
+  return (
+    <svg viewBox="0 0 320 180" className="w-full h-full">
+      <rect width="320" height="180" fill="#0f172a" />
+      <rect x="0" y="0" width="320" height="22" fill="#1e293b" />
+      <text x="10" y="14" fontSize="7" fill="#e2e8f0" fontWeight="bold" fontFamily="sans-serif">PMO Risk Radar</text>
+      <rect x="240" y="5" width="35" height="12" rx="4" fill="#22c55e" opacity="0.2" /><text x="248" y="14" fontSize="5" fill="#22c55e" fontFamily="sans-serif">Live</text>
+      <circle cx="160" cy="105" r="65" fill="none" stroke="#1e293b" strokeWidth="1" />
+      <circle cx="160" cy="105" r="45" fill="none" stroke="#1e293b" strokeWidth="1" />
+      <circle cx="160" cy="105" r="25" fill="none" stroke="#1e293b" strokeWidth="1" />
+      <line x1="95" y1="105" x2="225" y2="105" stroke="#1e293b" strokeWidth="0.5" />
+      <line x1="160" y1="40" x2="160" y2="170" stroke="#1e293b" strokeWidth="0.5" />
+      <circle cx="130" cy="75" r="6" fill="#ef4444" opacity="0.7" /><circle cx="130" cy="75" r="3" fill="#ef4444" />
+      <circle cx="195" cy="85" r="5" fill="#f59e0b" opacity="0.7" /><circle cx="195" cy="85" r="2.5" fill="#f59e0b" />
+      <circle cx="175" cy="120" r="7" fill="#ef4444" opacity="0.7" /><circle cx="175" cy="120" r="3.5" fill="#ef4444" />
+      <circle cx="140" cy="130" r="4" fill="#22c55e" opacity="0.7" /><circle cx="140" cy="130" r="2" fill="#22c55e" />
+      <circle cx="185" cy="65" r="5" fill="#f59e0b" opacity="0.7" /><circle cx="185" cy="65" r="2.5" fill="#f59e0b" />
+      <circle cx="145" cy="95" r="4.5" fill="#3b82f6" opacity="0.7" /><circle cx="145" cy="95" r="2.2" fill="#3b82f6" />
+      <circle cx="200" cy="130" r="3.5" fill="#22c55e" opacity="0.7" /><circle cx="200" cy="130" r="1.7" fill="#22c55e" />
+      <circle cx="120" cy="110" r="5.5" fill="#ef4444" opacity="0.7" /><circle cx="120" cy="110" r="2.8" fill="#ef4444" />
+      <rect x="250" y="35" width="60" height="50" rx="4" fill="#1e293b" />
+      <text x="255" y="48" fontSize="5" fill="#94a3b8" fontFamily="sans-serif">Risk Summary</text>
+      <rect x="255" y="53" width="8" height="8" rx="2" fill="#ef4444" /><text x="266" y="60" fontSize="4.5" fill="#cbd5e1" fontFamily="sans-serif">Critical: 3</text>
+      <rect x="255" y="64" width="8" height="8" rx="2" fill="#f59e0b" /><text x="266" y="71" fontSize="4.5" fill="#cbd5e1" fontFamily="sans-serif">Medium: 2</text>
+      <rect x="255" y="75" width="8" height="8" rx="2" fill="#22c55e" /><text x="266" y="82" fontSize="4.5" fill="#cbd5e1" fontFamily="sans-serif">Low: 3</text>
+    </svg>
+  );
+}
+
+function ScreenshotTimesheets() {
+  return (
+    <svg viewBox="0 0 320 180" className="w-full h-full">
+      <rect width="320" height="180" fill="#f8fafc" />
+      <rect x="0" y="0" width="50" height="180" fill="#1e293b" />
+      {[20,40,60,80,100].map((y,i)=>(<rect key={i} x="8" y={y} width="34" height="6" rx="2" fill={i===4?"#3b82f6":"#334155"} />))}
+      <text x="60" y="16" fontSize="8" fill="#1e293b" fontWeight="bold" fontFamily="sans-serif">Timesheets</text>
+      <rect x="220" y="6" width="45" height="14" rx="4" fill="#3b82f6" /><text x="228" y="16" fontSize="5.5" fill="#fff" fontFamily="sans-serif">Submit</text>
+      <rect x="55" y="28" width="260" height="16" rx="0" fill="#f1f5f9" />
+      <text x="60" y="39" fontSize="5" fill="#64748b" fontFamily="sans-serif">Team Member</text>
+      <text x="140" y="39" fontSize="5" fill="#64748b" fontFamily="sans-serif">Mon</text>
+      <text x="165" y="39" fontSize="5" fill="#64748b" fontFamily="sans-serif">Tue</text>
+      <text x="190" y="39" fontSize="5" fill="#64748b" fontFamily="sans-serif">Wed</text>
+      <text x="215" y="39" fontSize="5" fill="#64748b" fontFamily="sans-serif">Thu</text>
+      <text x="240" y="39" fontSize="5" fill="#64748b" fontFamily="sans-serif">Fri</text>
+      <text x="270" y="39" fontSize="5" fill="#64748b" fontFamily="sans-serif">Total</text>
+      {[0,1,2,3,4].map(i=>{const names=["Sarah Chen","Mike Johnson","Alex Rivera","Priya Patel","Tom Wilson"];const hrs=[[8,7,8,8,6],[6,8,8,7,8],[8,8,4,8,8],[7,8,8,6,7],[8,8,8,8,8]];return(<g key={i}><rect x="55" y={46+i*18} width="260" height="16" fill={i%2===0?"#fff":"#f8fafc"} /><text x="60" y={57+i*18} fontSize="5" fill="#334155" fontFamily="sans-serif">{names[i]}</text>{hrs[i].map((h,j)=>(<text key={j} x={143+j*25} y={57+i*18} fontSize="5" fill={h<7?"#f59e0b":"#334155"} fontFamily="sans-serif">{h}h</text>))}<text x="272" y={57+i*18} fontSize="5" fill="#1e293b" fontWeight="bold" fontFamily="sans-serif">{hrs[i].reduce((a,b)=>a+b)}h</text></g>);})}
+      {[0,1,2,3,4].map(i=>(<rect key={i} x={70+i*48} y={170-[55,40,65,35,50][i]} width="30" rx="3" height={[55,40,65,35,50][i]} fill="#3b82f6" opacity={0.6+i*0.08} />))}
+    </svg>
+  );
+}
+
+function ScreenshotIssues() {
+  return (
+    <svg viewBox="0 0 320 180" className="w-full h-full">
+      <rect width="320" height="180" fill="#f8fafc" />
+      <rect x="0" y="0" width="50" height="180" fill="#1e293b" />
+      {[20,40,60,80].map((y,i)=>(<rect key={i} x="8" y={y} width="34" height="6" rx="2" fill={i===3?"#3b82f6":"#334155"} />))}
+      <text x="60" y="16" fontSize="8" fill="#1e293b" fontWeight="bold" fontFamily="sans-serif">Issues & Risks Board</text>
+      <rect x="60" y="28" width="60" height="145" rx="4" fill="#fff" stroke="#e2e8f0" />
+      <rect x="60" y="28" width="60" height="16" rx="0" fill="#ef4444" opacity="0.1" />
+      <text x="70" y="39" fontSize="5" fill="#ef4444" fontWeight="bold" fontFamily="sans-serif">Critical (3)</text>
+      {[0,1,2].map(i=>(<g key={i}><rect x="64" y={48+i*28} width="52" height="24" rx="3" fill="#fff" stroke="#fecaca" /><rect x="67" y={51+i*28} width="20" height="4" rx="1" fill="#e2e8f0" /><rect x="67" y={58+i*28} width="40" height="3" rx="1" fill="#f1f5f9" /><rect x="67" y={64+i*28} width="14" height="4" rx="2" fill="#fecaca" /><text x="69" y={67+i*28} fontSize="3.5" fill="#ef4444" fontFamily="sans-serif">High</text></g>))}
+      <rect x="128" y="28" width="60" height="145" rx="4" fill="#fff" stroke="#e2e8f0" />
+      <rect x="128" y="28" width="60" height="16" rx="0" fill="#f59e0b" opacity="0.1" />
+      <text x="135" y="39" fontSize="5" fill="#f59e0b" fontWeight="bold" fontFamily="sans-serif">Medium (5)</text>
+      {[0,1,2,3].map(i=>(<g key={i}><rect x="132" y={48+i*24} width="52" height="20" rx="3" fill="#fff" stroke="#fde68a" /><rect x="135" y={51+i*24} width="22" height="4" rx="1" fill="#e2e8f0" /><rect x="135" y={58+i*24} width="38" height="3" rx="1" fill="#f1f5f9" /></g>))}
+      <rect x="196" y="28" width="60" height="145" rx="4" fill="#fff" stroke="#e2e8f0" />
+      <rect x="196" y="28" width="60" height="16" rx="0" fill="#22c55e" opacity="0.1" />
+      <text x="208" y="39" fontSize="5" fill="#22c55e" fontWeight="bold" fontFamily="sans-serif">Low (8)</text>
+      {[0,1,2].map(i=>(<g key={i}><rect x="200" y={48+i*24} width="52" height="20" rx="3" fill="#fff" stroke="#bbf7d0" /><rect x="203" y={51+i*24} width="18" height="4" rx="1" fill="#e2e8f0" /><rect x="203" y={58+i*24} width="35" height="3" rx="1" fill="#f1f5f9" /></g>))}
+      <rect x="264" y="28" width="50" height="145" rx="4" fill="#fff" stroke="#e2e8f0" />
+      <rect x="264" y="28" width="50" height="16" rx="0" fill="#3b82f6" opacity="0.1" />
+      <text x="270" y="39" fontSize="5" fill="#3b82f6" fontWeight="bold" fontFamily="sans-serif">Resolved (12)</text>
+    </svg>
+  );
+}
+
+function ScreenshotAnalytics() {
+  return (
+    <svg viewBox="0 0 320 180" className="w-full h-full">
+      <rect width="320" height="180" fill="#f8fafc" />
+      <rect x="0" y="0" width="50" height="180" fill="#1e293b" />
+      {[20,40,60,80].map((y,i)=>(<rect key={i} x="8" y={y} width="34" height="6" rx="2" fill={i===1?"#3b82f6":"#334155"} />))}
+      <text x="60" y="16" fontSize="8" fill="#1e293b" fontWeight="bold" fontFamily="sans-serif">Executive Analytics</text>
+      <rect x="60" y="28" width="65" height="35" rx="4" fill="#fff" stroke="#e2e8f0" />
+      <text x="65" y="40" fontSize="4.5" fill="#94a3b8" fontFamily="sans-serif">Budget Utilized</text>
+      <text x="65" y="54" fontSize="11" fill="#22c55e" fontWeight="bold" fontFamily="sans-serif">$2.4M</text>
+      <rect x="130" y="28" width="65" height="35" rx="4" fill="#fff" stroke="#e2e8f0" />
+      <text x="135" y="40" fontSize="4.5" fill="#94a3b8" fontFamily="sans-serif">Schedule Variance</text>
+      <text x="135" y="54" fontSize="11" fill="#f59e0b" fontWeight="bold" fontFamily="sans-serif">-3.2%</text>
+      <rect x="200" y="28" width="65" height="35" rx="4" fill="#fff" stroke="#e2e8f0" />
+      <text x="205" y="40" fontSize="4.5" fill="#94a3b8" fontFamily="sans-serif">Utilization Rate</text>
+      <text x="205" y="54" fontSize="11" fill="#3b82f6" fontWeight="bold" fontFamily="sans-serif">87%</text>
+      <rect x="270" y="28" width="45" height="35" rx="4" fill="#fff" stroke="#e2e8f0" />
+      <text x="275" y="40" fontSize="4.5" fill="#94a3b8" fontFamily="sans-serif">SPI</text>
+      <text x="275" y="54" fontSize="11" fill="#22c55e" fontWeight="bold" fontFamily="sans-serif">1.02</text>
+      {[0,1,2,3,4,5,6,7].map(i=>(<rect key={i} x={65+i*27} y={170-[45,55,35,60,50,65,40,58][i]} width="18" rx="2" height={[45,55,35,60,50,65,40,58][i]} fill={["#3b82f6","#6366f1","#3b82f6","#6366f1","#3b82f6","#6366f1","#3b82f6","#6366f1"][i]} opacity="0.75" />))}
+      <circle cx="265" cy="130" r="28" fill="none" stroke="#e2e8f0" strokeWidth="6" />
+      <circle cx="265" cy="130" r="28" fill="none" stroke="#3b82f6" strokeWidth="6" strokeDasharray="110 66" transform="rotate(-90 265 130)" />
+      <circle cx="265" cy="130" r="28" fill="none" stroke="#22c55e" strokeWidth="6" strokeDasharray="40 136" strokeDashoffset="-110" transform="rotate(-90 265 130)" />
+      <text x="255" y="133" fontSize="8" fill="#1e293b" fontWeight="bold" fontFamily="sans-serif">87%</text>
+    </svg>
+  );
+}
+
+function ScreenshotProjectDetail() {
+  return (
+    <svg viewBox="0 0 320 180" className="w-full h-full">
+      <rect width="320" height="180" fill="#0f172a" />
+      <rect x="0" y="0" width="320" height="24" fill="#1e293b" />
+      <text x="10" y="16" fontSize="8" fill="#e2e8f0" fontWeight="bold" fontFamily="sans-serif">Project Details</text>
+      <rect x="200" y="6" width="50" height="12" rx="4" fill="#22c55e" opacity="0.2" /><text x="210" y="15" fontSize="5" fill="#22c55e" fontFamily="sans-serif">On Track</text>
+      <rect x="10" y="32" width="140" height="65" rx="6" fill="#1e293b" />
+      <text x="18" y="46" fontSize="6" fill="#94a3b8" fontFamily="sans-serif">Completion Progress</text>
+      <rect x="18" y="52" width="120" height="6" rx="3" fill="#334155" />
+      <rect x="18" y="52" width="84" height="6" rx="3" fill="#3b82f6" />
+      <text x="18" y="68" fontSize="5" fill="#60a5fa" fontFamily="sans-serif">70% Complete</text>
+      <text x="18" y="80" fontSize="5" fill="#64748b" fontFamily="sans-serif">Budget: $1.2M / $1.8M</text>
+      <text x="18" y="90" fontSize="5" fill="#64748b" fontFamily="sans-serif">Timeline: Mar-Dec 2026</text>
+      <rect x="160" y="32" width="150" height="65" rx="6" fill="#1e293b" />
+      <text x="168" y="46" fontSize="6" fill="#94a3b8" fontFamily="sans-serif">Team Activity</text>
+      {[0,1,2,3,4,5,6].map(i=>(<rect key={i} x={170+i*18} y={88-[25,35,20,40,30,22,38][i]} width="10" rx="2" height={[25,35,20,40,30,22,38][i]} fill="#6366f1" opacity="0.7" />))}
+      <rect x="10" y="105" width="300" height="68" rx="6" fill="#1e293b" />
+      <text x="18" y="118" fontSize="6" fill="#94a3b8" fontFamily="sans-serif">Milestones</text>
+      {[0,1,2,3].map(i=>{const labels=["Design Phase","Sprint 1-3","UAT Testing","Go-Live"];const colors=["#22c55e","#22c55e","#3b82f6","#64748b"];return(<g key={i}><circle cx={30+i*72} cy="140" r="5" fill={colors[i]} /><line x1={i>0?30+(i-1)*72+5:0} y1="140" x2={30+i*72-5} y2="140" stroke={i>0?colors[i-1]:"none"} strokeWidth="2" /><text x={18+i*72} y="155" fontSize="4.5" fill="#cbd5e1" fontFamily="sans-serif">{labels[i]}</text></g>);})}
+    </svg>
+  );
+}
+
+function ScreenshotResources() {
+  return (
+    <svg viewBox="0 0 320 180" className="w-full h-full">
+      <rect width="320" height="180" fill="#f8fafc" />
+      <rect x="0" y="0" width="50" height="180" fill="#1e293b" />
+      {[20,40,60,80,100].map((y,i)=>(<rect key={i} x="8" y={y} width="34" height="6" rx="2" fill={i===2?"#3b82f6":"#334155"} />))}
+      <text x="60" y="16" fontSize="8" fill="#1e293b" fontWeight="bold" fontFamily="sans-serif">Resource Allocation</text>
+      {[0,1,2,3,4].map(i=>{const names=["Frontend Team","Backend Team","QA Team","DevOps","Design"];const pcts=[85,92,68,75,55];const colors=["#3b82f6","#6366f1","#f59e0b","#22c55e","#8b5cf6"];return(<g key={i}><text x="60" y={42+i*22} fontSize="5" fill="#334155" fontFamily="sans-serif">{names[i]}</text><rect x="130" y={35+i*22} width="130" height="8" rx="3" fill="#e2e8f0" /><rect x="130" y={35+i*22} width={130*pcts[i]/100} height="8" rx="3" fill={colors[i]} /><text x="265" y={42+i*22} fontSize="5" fill="#64748b" fontFamily="sans-serif">{pcts[i]}%</text></g>);})}
+      <rect x="60" y="140" width="90" height="35" rx="4" fill="#fff" stroke="#e2e8f0" />
+      <text x="65" y="153" fontSize="5" fill="#94a3b8" fontFamily="sans-serif">Available Resources</text>
+      <text x="65" y="168" fontSize="12" fill="#22c55e" fontWeight="bold" fontFamily="sans-serif">12 / 48</text>
+      <rect x="155" y="140" width="90" height="35" rx="4" fill="#fff" stroke="#e2e8f0" />
+      <text x="160" y="153" fontSize="5" fill="#94a3b8" fontFamily="sans-serif">Avg Utilization</text>
+      <text x="160" y="168" fontSize="12" fill="#3b82f6" fontWeight="bold" fontFamily="sans-serif">78%</text>
+      <rect x="250" y="140" width="65" height="35" rx="4" fill="#fff" stroke="#e2e8f0" />
+      <text x="255" y="153" fontSize="5" fill="#94a3b8" fontFamily="sans-serif">Over-allocated</text>
+      <text x="255" y="168" fontSize="12" fill="#ef4444" fontWeight="bold" fontFamily="sans-serif">3</text>
+    </svg>
+  );
+}
+
+function ScreenshotTraining() {
+  return (
+    <svg viewBox="0 0 320 180" className="w-full h-full">
+      <rect width="320" height="180" fill="#f8fafc" />
+      <rect x="0" y="0" width="50" height="180" fill="#1e293b" />
+      {[20,40,60,80,100].map((y,i)=>(<rect key={i} x="8" y={y} width="34" height="6" rx="2" fill={i===4?"#3b82f6":"#334155"} />))}
+      <text x="60" y="16" fontSize="8" fill="#1e293b" fontWeight="bold" fontFamily="sans-serif">Training Academy</text>
+      {[0,1,2].map(i=>{const titles=["PMO Fundamentals","Advanced Risk Mgmt","AI-Powered Reports"];const pcts=[100,72,30];const colors=["#22c55e","#3b82f6","#8b5cf6"];return(<g key={i}>
+        <rect x={60+i*88} y="28" width="80" height="70" rx="6" fill="#fff" stroke="#e2e8f0" />
+        <rect x={60+i*88} y="28" width="80" height="22" rx="6" fill={colors[i]} opacity="0.15" />
+        <rect x={60+i*88} y="45" width="80" height="5" fill="#fff" />
+        <text x={68+i*88} y="42" fontSize="5" fill={colors[i]} fontWeight="bold" fontFamily="sans-serif">{titles[i]}</text>
+        <rect x={67+i*88} y="58" width="60" height="4" rx="2" fill="#e2e8f0" />
+        <rect x={67+i*88} y="58" width={60*pcts[i]/100} height="4" rx="2" fill={colors[i]} />
+        <text x={67+i*88} y="72" fontSize="4.5" fill="#64748b" fontFamily="sans-serif">{pcts[i]}% complete</text>
+        <text x={67+i*88} y="82" fontSize="4" fill="#94a3b8" fontFamily="sans-serif">{["12 lessons","8 lessons","10 lessons"][i]}</text>
+        <rect x={67+i*88} y="86" width="25" height="8" rx="3" fill={pcts[i]===100?colors[i]:colors[i]} opacity={pcts[i]===100?0.15:1} />
+        <text x={70+i*88} y="92" fontSize="4" fill={pcts[i]===100?colors[i]:"#fff"} fontFamily="sans-serif">{pcts[i]===100?"Done":"Continue"}</text>
+      </g>);})}
+      <rect x="60" y="108" width="255" height="65" rx="6" fill="#fff" stroke="#e2e8f0" />
+      <text x="68" y="122" fontSize="6" fill="#1e293b" fontWeight="bold" fontFamily="sans-serif">Your Learning Path</text>
+      {[0,1,2,3].map(i=>{const items=["Risk Assessment","Stakeholder Mgmt","Gantt Mastery","AI Insights"];const st=["Completed","In Progress","Up Next","Locked"];const cols=["#22c55e","#3b82f6","#f59e0b","#94a3b8"];return(<g key={i}><circle cx={85+i*60} cy="145" r="6" fill={cols[i]} opacity="0.2" /><circle cx={85+i*60} cy="145" r="4" fill={cols[i]} />{i>0&&<line x1={85+(i-1)*60+6} y1="145" x2={85+i*60-6} y2="145" stroke={cols[i-1]} strokeWidth="1.5" />}<text x={72+i*60} y="160" fontSize="4" fill="#475569" fontFamily="sans-serif" textAnchor="middle">{items[i]}</text><text x={72+i*60} y="167" fontSize="3.5" fill={cols[i]} fontFamily="sans-serif" textAnchor="middle">{st[i]}</text></g>);})}
+    </svg>
+  );
+}
+
+const SCREENSHOT_COMPONENTS: Record<string, () => JSX.Element> = {
+  "Portfolio Dashboard": ScreenshotPortfolio,
+  "Gantt Chart & CPM": ScreenshotGantt,
+  "Friday Copilot AI": ScreenshotCopilot,
+  "PMO Risk Radar": ScreenshotRadar,
+  "Timesheets": ScreenshotTimesheets,
+  "Issues & Risks Board": ScreenshotIssues,
+  "Executive Analytics": ScreenshotAnalytics,
+  "Project Details": ScreenshotProjectDetail,
+  "Resource Allocation": ScreenshotResources,
+  "Training Academy": ScreenshotTraining,
+};
+
 const PRODUCT_SCREENSHOTS = [
-  { label: "Portfolio Dashboard", icon: BarChart3, gradient: "from-blue-600 to-indigo-700" },
-  { label: "Gantt Chart & CPM", icon: Layers, gradient: "from-violet-600 to-purple-700" },
-  { label: "Friday Copilot AI", icon: Brain, gradient: "from-emerald-600 to-teal-700" },
-  { label: "PMO Risk Radar", icon: Shield, gradient: "from-cyan-600 to-blue-700" },
-  { label: "Timesheets", icon: Clock, gradient: "from-amber-600 to-orange-700" },
-  { label: "Issues & Risks Board", icon: Target, gradient: "from-red-600 to-rose-700" },
-  { label: "Executive Analytics", icon: LineChart, gradient: "from-indigo-600 to-blue-700" },
-  { label: "Project Details", icon: Briefcase, gradient: "from-slate-600 to-slate-700" },
-  { label: "Resource Allocation", icon: Users, gradient: "from-purple-600 to-indigo-700" },
-  { label: "Training Academy", icon: Award, gradient: "from-teal-600 to-emerald-700" },
+  "Portfolio Dashboard", "Gantt Chart & CPM", "Friday Copilot AI", "PMO Risk Radar",
+  "Timesheets", "Issues & Risks Board", "Executive Analytics", "Project Details",
+  "Resource Allocation", "Training Academy",
 ];
 
 const DEMO_RADAR_SIGNALS: RiskSignal[] = [
@@ -695,25 +956,15 @@ function InvestorDeck({ onLogout, isAdmin }: { onLogout: () => void; isAdmin: bo
                 <h3 className="text-xl font-bold text-slate-900 text-center mb-2">Platform Screenshots</h3>
                 <p className="text-sm text-slate-500 text-center mb-8">A glimpse into the FridayReport.AI experience</p>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-                  {PRODUCT_SCREENSHOTS.map((shot) => {
-                    const Icon = shot.icon;
+                  {PRODUCT_SCREENSHOTS.map((label) => {
+                    const Comp = SCREENSHOT_COMPONENTS[label];
+                    if (!Comp) return null;
                     return (
-                      <div key={shot.label} className="group cursor-pointer">
-                        <div className={`relative rounded-xl overflow-hidden shadow-md border border-slate-200 bg-gradient-to-br ${shot.gradient} hover:shadow-xl transition-all duration-300 hover:-translate-y-1 aspect-video flex flex-col items-center justify-center p-4`}>
-                          <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center mb-3">
-                            <Icon className="w-6 h-6 text-white" />
-                          </div>
-                          <p className="text-white/90 text-xs font-semibold text-center leading-tight">{shot.label}</p>
-                          <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20" />
-                          <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-green-400/80" />
-                          <div className="absolute top-0 left-0 right-0 h-6 bg-black/10 flex items-center px-2 gap-1">
-                            <div className="w-1.5 h-1.5 rounded-full bg-white/40" />
-                            <div className="w-1.5 h-1.5 rounded-full bg-white/40" />
-                            <div className="w-1.5 h-1.5 rounded-full bg-white/40" />
-                            <div className="flex-1 mx-2 h-2 rounded bg-white/15" />
-                          </div>
+                      <div key={label} className="group cursor-pointer">
+                        <div className="relative rounded-xl overflow-hidden shadow-md border border-slate-200 bg-white hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+                          <Comp />
                         </div>
-                        <p className="text-xs font-medium text-slate-600 text-center mt-2">{shot.label}</p>
+                        <p className="text-xs font-medium text-slate-600 text-center mt-2">{label}</p>
                       </div>
                     );
                   })}
