@@ -74,6 +74,27 @@ function getContextLabel(entityType: string | null): string {
 }
 
 const MAX_FILE_SIZE = 500 * 1024;
+const CSV_CHUNK_BYTES = 450 * 1024;
+
+function splitCsvIntoChunks(text: string, maxBytes: number): string[] {
+  const lines = text.split(/\r?\n/);
+  const header = lines[0] ?? "";
+  const dataRows = lines.slice(1).filter(l => l.trim());
+  const chunks: string[] = [];
+  let current = header;
+  for (const row of dataRows) {
+    const candidate = current + "\n" + row;
+    if (new Blob([candidate]).size > maxBytes && current !== header) {
+      chunks.push(current);
+      current = header + "\n" + row;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current !== header) chunks.push(current);
+  return chunks.length > 0 ? chunks : [text];
+}
+
 const ALLOWED_FILE_TYPES = [
   "text/plain", "text/csv", "text/html", "text/xml", "text/markdown",
   "application/json", "application/xml", "application/csv",
@@ -389,22 +410,77 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
 
   const [pendingFiles, setPendingFiles] = useState<FileAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [csvChunkQueue, setCsvChunkQueue] = useState<Array<{ name: string; chunks: string[] }>>([]);
+  const chunkQueueRef = useRef<Array<{ name: string; chunks: string[] }>>([]);
+
+  const processNextChunk = useCallback(() => {
+    const queue = chunkQueueRef.current;
+    if (queue.length === 0 || isLoading) return;
+    const [item, ...rest] = queue;
+    const [chunkText, ...remainingChunks] = item.chunks;
+    const nextQueue = remainingChunks.length > 0 ? [{ ...item, chunks: remainingChunks }, ...rest] : rest;
+    chunkQueueRef.current = nextQueue;
+    setCsvChunkQueue(nextQueue);
+
+    const chunkBytes = new Blob([chunkText]).size;
+    const b64 = btoa(unescape(encodeURIComponent(chunkText)));
+    const attachment: FileAttachment = {
+      name: item.name,
+      type: "text/csv",
+      size: chunkBytes,
+      content: b64,
+    };
+    sendMessage(`Here is the next chunk of "${item.name}". Please continue processing it the same way as before.`, [attachment]);
+  }, [sendMessage, isLoading]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
     const allowedExtensions = /\.(txt|csv|json|xml|md|log|yaml|yml|ini|conf|cfg|tsv|html|htm|sql|js|ts|py|rb|go|java|c|cpp|h|css|scss|less|pdf|xls|xlsx)$/i;
+    const isCsvExtension = /\.csv$/i;
 
     Array.from(files).forEach(file => {
-      if (file.size > MAX_FILE_SIZE) {
-        alert(`File "${file.name}" exceeds the 500KB limit.`);
-        return;
-      }
       if (!allowedExtensions.test(file.name) && !ALLOWED_FILE_TYPES.includes(file.type)) {
         alert(`File type "${file.name}" is not supported. Please use text, CSV, JSON, PDF, or similar files.`);
         return;
       }
+
+      if (file.size > MAX_FILE_SIZE && isCsvExtension.test(file.name)) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const text = reader.result as string;
+          const chunks = splitCsvIntoChunks(text, CSV_CHUNK_BYTES);
+          if (chunks.length > 1) {
+            setCsvChunkQueue(prev => {
+              const updated = [...prev, { name: file.name, chunks: chunks.slice(1) }];
+              chunkQueueRef.current = updated;
+              return updated;
+            });
+            const firstChunk = chunks[0];
+            const firstBytes = new Blob([firstChunk]).size;
+            const firstB64 = btoa(unescape(encodeURIComponent(firstChunk)));
+            sendMessage(
+              `This CSV file ("${file.name}") is large and has been split into ${chunks.length} chunks. Here is chunk 1 of ${chunks.length}. Please parse and show a summary — I'll send the rest after confirming. Do not import yet.`,
+              [{ name: file.name, type: "text/csv", size: firstBytes, content: firstB64 }],
+            );
+          } else {
+            const b64 = btoa(unescape(encodeURIComponent(text)));
+            setPendingFiles(prev => {
+              if (prev.length >= 5 || prev.some(f => f.name === file.name)) return prev;
+              return [...prev, { name: file.name, type: "text/csv", size: file.size, content: b64 }];
+            });
+          }
+        };
+        reader.readAsText(file);
+        return;
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`File "${file.name}" exceeds the 500KB limit.`);
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = () => {
         const base64 = (reader.result as string).split(",")[1] || "";
@@ -418,7 +494,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
     });
 
     if (fileInputRef.current) fileInputRef.current.value = "";
-  }, []);
+  }, [sendMessage]);
 
   const removeFile = useCallback((name: string) => {
     setPendingFiles(prev => prev.filter(f => f.name !== name));
@@ -651,6 +727,31 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
               onChange={handleFileSelect}
               className="hidden"
             />
+            <AnimatePresence>
+              {csvChunkQueue.length > 0 && !isLoading && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mb-2 p-2 rounded border border-cyan-700/30 bg-cyan-900/20"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] text-cyan-400">
+                      <Paperclip className="h-2.5 w-2.5 inline mr-1" />
+                      {csvChunkQueue[0]?.name} — {csvChunkQueue[0]?.chunks.length} chunk{csvChunkQueue[0]?.chunks.length !== 1 ? "s" : ""} remaining
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-[10px] text-cyan-400 hover:text-cyan-200 hover:bg-cyan-900/40 border border-cyan-700/30"
+                      onClick={processNextChunk}
+                    >
+                      Send next chunk →
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <AnimatePresence>
               {pendingFiles.length > 0 && (
                 <motion.div

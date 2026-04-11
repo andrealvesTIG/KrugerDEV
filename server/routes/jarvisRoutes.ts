@@ -9,7 +9,7 @@ import {
 } from "./helpers";
 
 const MAX_MESSAGES = 50;
-const MAX_MESSAGE_LENGTH = 10000;
+const MAX_MESSAGE_LENGTH = 200000;
 const MAX_ATTACHMENT_SIZE = 500000;
 const MAX_ATTACHMENTS = 5;
 
