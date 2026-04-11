@@ -23,6 +23,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -35,7 +36,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Loader2, Plus, Trash2, Pencil, Check, X, GripVertical, Users, Flag, Columns3, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, Search, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown, Undo2, Redo2, FolderKanban, RefreshCw, Focus, Link2, Link as LinkIcon, IndentIncrease, IndentDecrease, Type, Lock as LockIcon, Calendar as CalendarIcon } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, Check, X, GripVertical, Users, Flag, Columns3, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, Search, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown, Undo2, Redo2, FolderKanban, RefreshCw, Focus, Link2, Link as LinkIcon, IndentIncrease, IndentDecrease, Type, Lock as LockIcon, Calendar as CalendarIcon, ClipboardPaste } from "lucide-react";
 
 export { type ZoomLevel, type GanttColumn, type GanttColumnConfig, GANTT_COLUMNS, COLUMN_CATEGORIES, DEFAULT_GANTT_COLUMNS };
 
@@ -2159,6 +2160,7 @@ function ProjectGanttView({
   const [editingCell, setEditingCell] = useState<CellPosition | null>(null);
   const [editingInitialChar, setEditingInitialChar] = useState<string | undefined>(undefined);
   const [selectionRange, setSelectionRange] = useState<CellRange | null>(null);
+  const [pasteProgress, setPasteProgress] = useState<{ open: boolean; total: number; completed: number; phase: string } | null>(null);
   const cellAnchorRef = useRef<CellPosition | null>(null);
 
   useEffect(() => {
@@ -2868,15 +2870,25 @@ function ProjectGanttView({
 
     e.preventDefault();
 
+    const cleanedUpdates = taskUpdates.filter(tu => Object.keys(tu.updates).length > 0);
+    const totalSteps = (cleanedUpdates.length > 0 ? 1 : 0) + newTaskRows.length + resourceAssignments.length;
+
+    if (totalSteps > 0) {
+      setPasteProgress({ open: true, total: totalSteps, completed: 0, phase: 'Preparing...' });
+    }
+
     try {
       let updatedCount = 0;
       let createdCount = 0;
       let resourcesAssigned = 0;
+      let completedSteps = 0;
 
-      const cleanedUpdates = taskUpdates.filter(tu => Object.keys(tu.updates).length > 0);
       if (cleanedUpdates.length > 0) {
+        setPasteProgress(p => p ? { ...p, phase: `Updating ${cleanedUpdates.length} row${cleanedUpdates.length !== 1 ? 's' : ''}...` } : p);
         const result = await bulkUpdate.mutateAsync({ taskUpdates: cleanedUpdates, projectId });
         updatedCount = result.updatedCount ?? cleanedUpdates.length;
+        completedSteps++;
+        setPasteProgress(p => p ? { ...p, completed: completedSteps } : p);
       }
 
       const createdTaskIds: number[] = [];
@@ -2892,6 +2904,8 @@ function ProjectGanttView({
           const startDate = (rowData.startDate as string) || todayStr;
           const endDate = (rowData.endDate as string) || calculateEndDateFromWorkingDays(startDate, (rowData.durationDays as number) || 1);
           const durationDays = (rowData.durationDays as number) || 1;
+
+          setPasteProgress(p => p ? { ...p, phase: `Creating task ${idx + 1} of ${newTaskRows.length}...` } : p);
 
           try {
             const newTask = await createTask.mutateAsync({
@@ -2939,10 +2953,13 @@ function ProjectGanttView({
             invalidCells.push(`New row "${taskName}": failed to create`);
             createdTaskIds.push(-1);
           }
+          completedSteps++;
+          setPasteProgress(p => p ? { ...p, completed: completedSteps } : p);
         }
       }
 
       if (resourceAssignments.length > 0 && organizationId) {
+        const finalTotalSteps = (cleanedUpdates.length > 0 ? 1 : 0) + newTaskRows.length + resourceAssignments.length;
         const currentResources = allResources ?? [];
         const resourceNameToId = new Map<string, number>();
 
@@ -2951,7 +2968,9 @@ function ProjectGanttView({
           if (r.email) resourceNameToId.set(r.email.toLowerCase(), r.id);
         }
 
-        for (const { taskId, resourceNames } of resourceAssignments) {
+        for (let raIdx = 0; raIdx < resourceAssignments.length; raIdx++) {
+          const { taskId, resourceNames } = resourceAssignments[raIdx];
+          setPasteProgress(p => p ? { ...p, phase: `Assigning resources ${raIdx + 1} of ${resourceAssignments.length}...`, total: finalTotalSteps } : p);
           const resolvedIds: number[] = [];
 
           for (const name of resourceNames) {
@@ -2988,8 +3007,13 @@ function ProjectGanttView({
               invalidCells.push(`Task ${taskId}: failed to assign resources`);
             }
           }
+          completedSteps++;
+          setPasteProgress(p => p ? { ...p, completed: completedSteps } : p);
         }
       }
+
+      setPasteProgress(p => p ? { ...p, phase: 'Complete!', completed: p.total } : p);
+      setTimeout(() => setPasteProgress(null), 600);
 
       const parts: string[] = [];
       if (updatedCount > 0) parts.push(`${updatedCount} row${updatedCount !== 1 ? 's' : ''} updated`);
@@ -3003,6 +3027,7 @@ function ProjectGanttView({
         description: parts.join(', '),
       });
     } catch {
+      setPasteProgress(null);
       toast({ title: "Paste failed", description: "Could not save changes", variant: "destructive" });
     }
   }, [visibleColumns, isReadOnly, bulkUpdate, projectId, toast, focusedCell, selectionRange, createTask, organizationId, allResources, createResource, updateTaskResources, projectTaskAssignments]);
@@ -5549,6 +5574,29 @@ function ProjectGanttView({
           </div>
         )}
       </CardContent>
+
+      {pasteProgress && (
+        <Dialog open={pasteProgress.open} onOpenChange={() => {}}>
+          <DialogContent className="sm:max-w-[400px]" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ClipboardPaste className="h-5 w-5" />
+                Pasting Data
+              </DialogTitle>
+              <DialogDescription>
+                {pasteProgress.phase}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-3">
+              <Progress value={pasteProgress.total > 0 ? Math.round((pasteProgress.completed / pasteProgress.total) * 100) : 0} className="h-3" />
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>{pasteProgress.completed} of {pasteProgress.total} items processed</span>
+                <span>{pasteProgress.total > 0 ? Math.round((pasteProgress.completed / pasteProgress.total) * 100) : 0}%</span>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Dependencies Dialog */}
       <Dialog open={!!dependenciesDialogTask} onOpenChange={(open) => !open && setDependenciesDialogTask(null)}>
