@@ -10,16 +10,57 @@ import {
 
 const MAX_MESSAGES = 50;
 const MAX_MESSAGE_LENGTH = 10000;
+const MAX_ATTACHMENT_SIZE = 500000;
+const MAX_ATTACHMENTS = 5;
 
 const chatMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
   content: z.string().max(MAX_MESSAGE_LENGTH),
 });
 
+const pageContextSchema = z.object({
+  path: z.string().max(500),
+  entityType: z.enum(["project", "portfolio", "resource"]).nullable(),
+  entityId: z.number().int().positive().nullable(),
+}).optional();
+
+const ALLOWED_ATTACHMENT_EXTENSIONS = /\.(txt|csv|json|xml|md|log|yaml|yml|ini|conf|cfg|tsv|html|htm|sql|js|ts|py|rb|go|java|c|cpp|h|css|scss|less|pdf|xls|xlsx)$/i;
+const ALLOWED_ATTACHMENT_TYPES = [
+  "text/plain", "text/csv", "text/html", "text/xml", "text/markdown",
+  "application/json", "application/xml", "application/csv", "application/pdf",
+  "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/octet-stream",
+];
+
+const attachmentSchema = z.object({
+  name: z.string().max(255).refine(
+    (name) => ALLOWED_ATTACHMENT_EXTENSIONS.test(name),
+    { message: "File type not supported" }
+  ),
+  type: z.string().max(100).refine(
+    (type) => ALLOWED_ATTACHMENT_TYPES.includes(type),
+    { message: "MIME type not allowed" }
+  ),
+  size: z.number().int().max(MAX_ATTACHMENT_SIZE),
+  content: z.string().max(MAX_ATTACHMENT_SIZE * 2).refine(
+    (content) => {
+      try {
+        const decoded = Buffer.from(content, "base64");
+        return decoded.length <= MAX_ATTACHMENT_SIZE;
+      } catch {
+        return false;
+      }
+    },
+    { message: "Invalid or oversized file content" }
+  ),
+});
+
 const chatRequestSchema = z.object({
   messages: z.array(chatMessageSchema).min(1).max(MAX_MESSAGES),
   organizationId: z.number().int().positive(),
   concise: z.boolean().optional(),
+  pageContext: pageContextSchema,
+  attachments: z.array(attachmentSchema).max(MAX_ATTACHMENTS).optional(),
 });
 
 const actionRequestSchema = z.object({
@@ -44,7 +85,7 @@ export function registerJarvisRoutes(app: Express) {
         return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
       }
 
-      const { messages, organizationId, concise } = parsed.data;
+      const { messages, organizationId, concise, pageContext, attachments } = parsed.data;
 
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(organizationId)) {
@@ -68,6 +109,7 @@ export function registerJarvisRoutes(app: Express) {
           logUserActivity(userId, "jarvis_chat", "jarvis", undefined, {
             messageCount: messages.length,
             responseLength: fullResponse.length,
+            pageContext: pageContext?.entityType ? `${pageContext.entityType}:${pageContext.entityId}` : undefined,
           }, req).catch(() => {});
         },
         (error) => {
@@ -79,6 +121,8 @@ export function registerJarvisRoutes(app: Express) {
             res.status(500).json({ message: "Failed to process JARVIS request" });
           }
         },
+        pageContext ? { path: pageContext.path, entityType: pageContext.entityType, entityId: pageContext.entityId } : undefined,
+        attachments,
       );
     } catch (error) {
       console.error("[JARVIS] Route error:", error);

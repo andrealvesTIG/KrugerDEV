@@ -438,6 +438,104 @@ async function handleToolCall(
   }
 }
 
+export interface PageContext {
+  path: string;
+  entityType: "project" | "portfolio" | "resource" | null;
+  entityId: number | null;
+}
+
+export interface FileAttachment {
+  name: string;
+  type: string;
+  size: number;
+  content: string;
+}
+
+function buildPageContextDirective(pageContext: PageContext | undefined, ctx: JarvisContext): string {
+  if (!pageContext?.entityType || !pageContext.entityId) return "";
+
+  if (pageContext.entityType === "project") {
+    const project = ctx.projects.find((p: any) => p.id === pageContext.entityId);
+    if (!project) return "";
+
+    const projectTasks = ctx.tasks.filter((t: any) => t.projectId === pageContext.entityId);
+    const projectMilestones = ctx.milestones.filter((m: any) => m.projectId === pageContext.entityId);
+    const projectRisks = ctx.risks.filter((r: any) => r.projectId === pageContext.entityId);
+    const projectIssues = ctx.issues.filter((i: any) => i.projectId === pageContext.entityId);
+    const projectReports = ctx.statusReports.filter((r: any) => r.projectId === pageContext.entityId);
+
+    return `\n\nCURRENT PAGE CONTEXT: The user is currently viewing project [${project.name}](/projects/${project.id}) (ID: ${project.id}).
+Prioritize answering questions about THIS project. When the user says "this project" or asks about tasks, risks, issues without specifying a project, assume they mean this one.
+
+**Focused Project Detail:**
+- Project: ${JSON.stringify(project, null, 1)}
+- Tasks (${projectTasks.length}): ${JSON.stringify(projectTasks.slice(0, 50), null, 1)}
+- Milestones (${projectMilestones.length}): ${JSON.stringify(projectMilestones.slice(0, 20), null, 1)}
+- Risks (${projectRisks.length}): ${JSON.stringify(projectRisks, null, 1)}
+- Issues (${projectIssues.length}): ${JSON.stringify(projectIssues, null, 1)}
+- Recent Status Reports: ${JSON.stringify(projectReports.slice(0, 5), null, 1)}
+`;
+  }
+
+  if (pageContext.entityType === "portfolio") {
+    const portfolio = ctx.portfolios.find((p: any) => p.id === pageContext.entityId);
+    if (!portfolio) return "";
+
+    const portfolioProjects = ctx.projects.filter((p: any) => p.portfolioId === pageContext.entityId);
+    return `\n\nCURRENT PAGE CONTEXT: The user is currently viewing portfolio [${portfolio.name}](/portfolios/${portfolio.id}) (ID: ${portfolio.id}).
+Prioritize answering questions about THIS portfolio and its projects. When the user says "this portfolio" or asks general questions, assume they mean this one.
+
+**Focused Portfolio Detail:**
+- Portfolio: ${JSON.stringify(portfolio, null, 1)}
+- Projects in Portfolio (${portfolioProjects.length}): ${JSON.stringify(portfolioProjects, null, 1)}
+`;
+  }
+
+  if (pageContext.entityType === "resource") {
+    const resource = ctx.resources.find((r: any) => r.id === pageContext.entityId);
+    if (!resource) return "";
+
+    return `\n\nCURRENT PAGE CONTEXT: The user is currently viewing resource [${resource.displayName}](/resources/${resource.id}) (ID: ${resource.id}).
+Prioritize answering questions about THIS resource. When the user says "this person" or "this resource", assume they mean this one.
+
+**Focused Resource Detail:**
+- Resource: ${JSON.stringify(resource, null, 1)}
+`;
+  }
+
+  return "";
+}
+
+function buildAttachmentContext(attachments?: FileAttachment[]): string {
+  if (!attachments || attachments.length === 0) return "";
+
+  let ctx = `\n\nATTACHED FILES: The user has attached ${attachments.length} file(s) to this message. Analyze their contents and incorporate them into your response.\n`;
+
+  for (const att of attachments) {
+    const isTextBased = att.type.startsWith("text/") ||
+      att.type === "application/json" ||
+      att.type === "application/xml" ||
+      att.type === "text/csv" ||
+      att.type === "application/csv" ||
+      att.name.match(/\.(txt|csv|json|xml|md|log|yaml|yml|ini|conf|cfg|tsv|html|htm|sql|js|ts|py|rb|go|java|c|cpp|h|css|scss|less)$/i);
+
+    if (isTextBased) {
+      let decoded: string;
+      try {
+        decoded = Buffer.from(att.content, "base64").toString("utf-8");
+      } catch {
+        decoded = att.content;
+      }
+      const truncated = decoded.length > 50000 ? decoded.slice(0, 50000) + "\n...(truncated)" : decoded;
+      ctx += `\n### File: ${att.name} (${att.type}, ${(att.size / 1024).toFixed(1)} KB)\n\`\`\`\n${truncated}\n\`\`\`\n`;
+    } else {
+      ctx += `\n### File: ${att.name} (${att.type}, ${(att.size / 1024).toFixed(1)} KB)\n[Binary file — contents cannot be displayed as text]\n`;
+    }
+  }
+
+  return ctx;
+}
+
 export async function streamJarvisResponse(
   orgId: number,
   messages: JarvisMessage[],
@@ -445,10 +543,14 @@ export async function streamJarvisResponse(
   onChunk: (content: string) => void,
   onDone: (fullResponse: string) => void,
   onError: (error: Error) => void,
+  pageContext?: PageContext,
+  attachments?: FileAttachment[],
 ) {
   try {
     const context = await gatherOrganizationContext(orgId);
     const dataContext = buildDataContext(context);
+    const pageDirective = buildPageContextDirective(pageContext, context);
+    const attachmentContext = buildAttachmentContext(attachments);
 
     const conciseDirective = concise
       ? `\n\nIMPORTANT — Concise mode is ON. Keep every reply SHORT: max 3-5 bullet points or 2-3 short sentences. No lengthy explanations. Omit sections that have nothing notable. If the user needs more detail, they will ask.`
@@ -460,7 +562,7 @@ export async function streamJarvisResponse(
 - After the tool executes, report the result to the user based on the tool response.
 - The project IDs are available in the data context above. Match project names to their IDs.`;
 
-    const systemMessage = `${SYSTEM_PROMPT}${conciseDirective}${actionDirective}\n\n---\n\n${dataContext}`;
+    const systemMessage = `${SYSTEM_PROMPT}${pageDirective}${conciseDirective}${actionDirective}${attachmentContext}\n\n---\n\n${dataContext}`;
 
     const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: "system", content: systemMessage },

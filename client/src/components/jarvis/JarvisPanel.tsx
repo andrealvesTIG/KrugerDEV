@@ -3,12 +3,13 @@ import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useJarvis, type JarvisMessage } from "@/hooks/use-jarvis";
+import { useJarvis, type JarvisMessage, type FileAttachment } from "@/hooks/use-jarvis";
 import { useSpeechRecognition, useSpeechSynthesis } from "@/hooks/use-speech";
 import { JarvisOrb } from "./JarvisOrb";
 import {
   Mic, MicOff, Send, Square, Trash2, Volume2, VolumeX,
   ChevronRight, X, MessageSquare, Minimize2, Radio, Zap, FileText,
+  Paperclip, FolderOpen, Briefcase, User2,
 } from "lucide-react";
 import {
   Tooltip, TooltipContent, TooltipTrigger
@@ -17,11 +18,68 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 
-const SUGGESTED_PROMPTS = [
+const GLOBAL_PROMPTS = [
   "Which projects are at risk?",
   "What issues are blocking delivery?",
   "Summarize overall project health",
   "Draft an executive weekly update",
+];
+
+const PROJECT_PROMPTS = [
+  "Summarize this project's status",
+  "What are the open risks for this project?",
+  "List overdue tasks in this project",
+  "Draft a status update for this project",
+];
+
+const PORTFOLIO_PROMPTS = [
+  "Summarize this portfolio's health",
+  "Which projects in this portfolio are at risk?",
+  "Show budget vs actual across this portfolio",
+  "What are the top risks in this portfolio?",
+];
+
+const RESOURCE_PROMPTS = [
+  "What projects is this person assigned to?",
+  "Show this resource's workload summary",
+  "Are there any overdue tasks for this person?",
+  "Summarize this resource's current assignments",
+];
+
+function getSuggestedPrompts(entityType: string | null): string[] {
+  switch (entityType) {
+    case "project": return PROJECT_PROMPTS;
+    case "portfolio": return PORTFOLIO_PROMPTS;
+    case "resource": return RESOURCE_PROMPTS;
+    default: return GLOBAL_PROMPTS;
+  }
+}
+
+function getContextIcon(entityType: string | null) {
+  switch (entityType) {
+    case "project": return FolderOpen;
+    case "portfolio": return Briefcase;
+    case "resource": return User2;
+    default: return null;
+  }
+}
+
+function getContextLabel(entityType: string | null): string {
+  switch (entityType) {
+    case "project": return "Project scope";
+    case "portfolio": return "Portfolio scope";
+    case "resource": return "Resource scope";
+    default: return "Organization scope";
+  }
+}
+
+const MAX_FILE_SIZE = 500 * 1024;
+const ALLOWED_FILE_TYPES = [
+  "text/plain", "text/csv", "text/html", "text/xml", "text/markdown",
+  "application/json", "application/xml", "application/csv",
+  "application/pdf",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ];
 
 function MarkdownContent({ content, onNavigate }: { content: string; onNavigate?: (path: string) => void }) {
@@ -150,7 +208,19 @@ function MessageBubble({ message, index, onNavigate }: { message: JarvisMessage;
           : "bg-slate-800/50 border border-slate-700/30 text-slate-200 w-full"
       )}>
         {isUser ? (
-          <p className="text-sm">{message.content}</p>
+          <div>
+            <p className="text-sm">{message.content}</p>
+            {message.attachments && message.attachments.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {message.attachments.map(a => (
+                  <span key={a.name} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-cyan-900/20 text-cyan-500 border border-cyan-800/20">
+                    <Paperclip className="h-2 w-2" />
+                    {a.name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         ) : message.content ? (
           <MarkdownContent content={message.content} onNavigate={onNavigate} />
         ) : (
@@ -176,7 +246,7 @@ interface JarvisPanelProps {
 }
 
 export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoListenConsumed }: JarvisPanelProps) {
-  const { messages, isLoading, sendMessage, clearMessages, stopGeneration, conciseMode, setConciseMode } = useJarvis();
+  const { messages, isLoading, sendMessage, clearMessages, stopGeneration, conciseMode, setConciseMode, pageContext } = useJarvis();
   const [input, setInput] = useState("");
   const [interimText, setInterimText] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(true);
@@ -317,11 +387,50 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
     prevMessageCountRef.current = messages.length;
   }, [messages.length]);
 
+  const [pendingFiles, setPendingFiles] = useState<FileAttachment[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const allowedExtensions = /\.(txt|csv|json|xml|md|log|yaml|yml|ini|conf|cfg|tsv|html|htm|sql|js|ts|py|rb|go|java|c|cpp|h|css|scss|less|pdf|xls|xlsx)$/i;
+
+    Array.from(files).forEach(file => {
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`File "${file.name}" exceeds the 500KB limit.`);
+        return;
+      }
+      if (!allowedExtensions.test(file.name) && !ALLOWED_FILE_TYPES.includes(file.type)) {
+        alert(`File type "${file.name}" is not supported. Please use text, CSV, JSON, PDF, or similar files.`);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(",")[1] || "";
+        setPendingFiles(prev => {
+          if (prev.length >= 5) return prev;
+          if (prev.some(f => f.name === file.name)) return prev;
+          return [...prev, { name: file.name, type: file.type || "application/octet-stream", size: file.size, content: base64 }];
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, []);
+
+  const removeFile = useCallback((name: string) => {
+    setPendingFiles(prev => prev.filter(f => f.name !== name));
+  }, []);
+
   const handleSend = () => {
     const trimmed = input.trim();
-    if (!trimmed || isLoading) return;
+    if ((!trimmed && pendingFiles.length === 0) || isLoading) return;
     setInput("");
-    sendMessage(trimmed);
+    const files = pendingFiles.length > 0 ? [...pendingFiles] : undefined;
+    setPendingFiles([]);
+    sendMessage(trimmed || "Please analyze the attached file(s).", files);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -375,6 +484,15 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                 F.R.I.D.A.Y.
               </span>
               <span className="text-xs text-cyan-600">Agent</span>
+              {pageContext.entityType && (() => {
+                const CtxIcon = getContextIcon(pageContext.entityType);
+                return (
+                  <span className="flex items-center gap-1 ml-1 px-1.5 py-0.5 rounded text-[10px] bg-cyan-900/30 text-cyan-500 border border-cyan-800/30">
+                    {CtxIcon && <CtxIcon className="h-2.5 w-2.5" />}
+                    {getContextLabel(pageContext.entityType)}
+                  </span>
+                );
+              })()}
             </div>
             <div className="flex items-center gap-1">
               <Tooltip>
@@ -472,7 +590,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                   Suggested
                 </p>
                 <div className="space-y-1.5">
-                  {SUGGESTED_PROMPTS.map((prompt) => (
+                  {getSuggestedPrompts(pageContext.entityType).map((prompt) => (
                     <button
                       key={prompt}
                       onClick={() => sendMessage(prompt)}
@@ -525,6 +643,41 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
           )}
 
           <div className="flex-shrink-0 border-t border-cyan-900/20 p-3 bg-[#0a0e1a]/80 backdrop-blur">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".txt,.csv,.json,.xml,.md,.log,.yaml,.yml,.html,.htm,.sql,.js,.ts,.py,.pdf,.xls,.xlsx,.tsv,.ini,.conf,.cfg"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <AnimatePresence>
+              {pendingFiles.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mb-2 flex flex-wrap gap-1.5"
+                >
+                  {pendingFiles.map(f => (
+                    <span
+                      key={f.name}
+                      className="flex items-center gap-1 px-2 py-1 rounded text-[10px] bg-cyan-900/30 text-cyan-400 border border-cyan-800/30"
+                    >
+                      <Paperclip className="h-2.5 w-2.5" />
+                      <span className="max-w-[120px] truncate">{f.name}</span>
+                      <span className="text-cyan-700">({(f.size / 1024).toFixed(0)}KB)</span>
+                      <button
+                        onClick={() => removeFile(f.name)}
+                        className="ml-0.5 text-cyan-700 hover:text-red-400 transition-colors"
+                      >
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </span>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
             <div className="flex items-center gap-2 mb-2">
               {micSupported && (
                 <Button
@@ -541,13 +694,29 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                   {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                 </Button>
               )}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isListening || pendingFiles.length >= 5}
+                    className="h-9 w-9 rounded-full text-cyan-500 hover:bg-cyan-900/30 hover:text-cyan-400 disabled:opacity-30 flex-shrink-0"
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p className="text-xs">Attach files (max 5, 500KB each)</p>
+                </TooltipContent>
+              </Tooltip>
               <div className="flex-1 min-w-0 relative">
                 <Textarea
                   ref={textareaRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={isListening ? "Listening..." : "Ask Friday anything..."}
+                  placeholder={isListening ? "Listening..." : pageContext.entityType ? `Ask about this ${pageContext.entityType}...` : "Ask Friday anything..."}
                   className="min-h-[38px] max-h-[80px] resize-none text-sm bg-slate-900/50 border-cyan-900/30 text-cyan-100 placeholder:text-cyan-800 focus-visible:ring-cyan-500/30 focus-visible:border-cyan-700/50 pr-2"
                   rows={1}
                   disabled={isListening}
@@ -567,7 +736,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                 <Button
                   size="icon"
                   onClick={handleSend}
-                  disabled={!input.trim() || isListening}
+                  disabled={(!input.trim() && pendingFiles.length === 0) || isListening}
                   className="h-9 w-9 rounded-full bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 disabled:opacity-30 disabled:bg-transparent border border-cyan-500/20 flex-shrink-0"
                 >
                   <Send className="h-4 w-4" />

@@ -1,15 +1,47 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useOrganization } from "./use-organization";
+import { useLocation } from "wouter";
 
 export interface JarvisMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  attachments?: { name: string; type: string; size: number }[];
+}
+
+export interface PageContext {
+  path: string;
+  entityType: "project" | "portfolio" | "resource" | null;
+  entityId: number | null;
+  label: string | null;
+}
+
+export interface FileAttachment {
+  name: string;
+  type: string;
+  size: number;
+  content: string;
 }
 
 const STORAGE_KEY = "friday_agent_messages";
 const MAX_STORED_MESSAGES = 100;
+
+function parsePageContext(pathname: string): PageContext {
+  const projectMatch = pathname.match(/^\/projects\/(\d+)/);
+  if (projectMatch) {
+    return { path: pathname, entityType: "project", entityId: parseInt(projectMatch[1]), label: null };
+  }
+  const portfolioMatch = pathname.match(/^\/portfolios\/(\d+)/);
+  if (portfolioMatch) {
+    return { path: pathname, entityType: "portfolio", entityId: parseInt(portfolioMatch[1]), label: null };
+  }
+  const resourceMatch = pathname.match(/^\/resources\/(\d+)/);
+  if (resourceMatch) {
+    return { path: pathname, entityType: "resource", entityId: parseInt(resourceMatch[1]), label: null };
+  }
+  return { path: pathname, entityType: null, entityId: null, label: null };
+}
 
 function loadPersistedMessages(): JarvisMessage[] {
   try {
@@ -71,12 +103,15 @@ export function useJarvis() {
   const [conciseMode, setConciseMode] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
   const { currentOrganization } = useOrganization();
+  const [location] = useLocation();
+
+  const pageContext = parsePageContext(location);
 
   const toggleOpen = useCallback(() => {
     setIsOpen(prev => !prev);
   }, []);
 
-  const sendMessage = useCallback(async (content: string) => {
+  const sendMessage = useCallback(async (content: string, attachments?: FileAttachment[]) => {
     if (!currentOrganization?.id || isLoading) return;
 
     const userMessage: JarvisMessage = {
@@ -84,6 +119,7 @@ export function useJarvis() {
       role: "user",
       content,
       timestamp: new Date(),
+      attachments: attachments?.map(a => ({ name: a.name, type: a.type, size: a.size })),
     };
 
     const assistantMessage: JarvisMessage = {
@@ -102,6 +138,8 @@ export function useJarvis() {
       content: m.content,
     }));
 
+    const currentPageContext = parsePageContext(window.location.pathname);
+
     try {
       abortRef.current = new AbortController();
       const response = await fetch("/api/jarvis/chat", {
@@ -112,6 +150,17 @@ export function useJarvis() {
           messages: allMessages,
           organizationId: currentOrganization.id,
           concise: conciseMode,
+          pageContext: {
+            path: currentPageContext.path,
+            entityType: currentPageContext.entityType,
+            entityId: currentPageContext.entityId,
+          },
+          attachments: attachments?.map(a => ({
+            name: a.name,
+            type: a.type,
+            size: a.size,
+            content: a.content,
+          })),
         }),
         signal: abortRef.current.signal,
       });
@@ -219,5 +268,6 @@ export function useJarvis() {
     stopGeneration,
     conciseMode,
     setConciseMode,
+    pageContext,
   };
 }
