@@ -5084,7 +5084,7 @@ function ProjectGanttView({
                   className="gap-1"
                 >
                   <RefreshCw className={cn("h-3.5 w-3.5", isRecalculating && "animate-spin")} />
-                  <span className="hidden sm:inline text-xs">Refresh Schedule</span>
+                  <span className="hidden sm:inline text-xs">Refresh Tasks</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Recalculate all task dates based on dependencies</TooltipContent>
@@ -5556,7 +5556,7 @@ function ProjectGanttView({
                   </div>
                 ) : useVirtualScroll ? (
                   /* Virtual scrolling path: only render visible rows (no DnD for large task lists) */
-                  <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+                  (<div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
                     {rowVirtualizer.getVirtualItems().map(vRow => {
                       const task = visibleTasks[vRow.index];
                       const index = vRow.index;
@@ -5612,10 +5612,10 @@ function ProjectGanttView({
                         </div>
                       );
                     })}
-                  </div>
+                  </div>)
                 ) : (
                   /* Standard path: all rows rendered with drag-and-drop support */
-                  <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleTaskDragEnd}>
+                  (<DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleTaskDragEnd}>
                     <SortableContext items={visibleTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
                       {visibleTasks.map((task, index) => (
                         <SortableTaskRow key={task.id} task={task}>
@@ -5672,7 +5672,7 @@ function ProjectGanttView({
                         </SortableTaskRow>
                       ))}
                     </SortableContext>
-                  </DndContext>
+                  </DndContext>)
                 )}
                 {/* Add task row - hidden for read-only projects, height must match timeline side */}
                 {!isReadOnly && (
@@ -5760,7 +5760,7 @@ function ProjectGanttView({
                     <div className="h-[28px]" />
                   ) : useVirtualScroll ? (
                     /* Virtual scrolling path: only render visible rows */
-                    <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+                    (<div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
                       {rowVirtualizer.getVirtualItems().map(vRow => {
                         const task = visibleTasks[vRow.index];
                         return (
@@ -5780,10 +5780,10 @@ function ProjectGanttView({
                           </div>
                         );
                       })}
-                    </div>
+                    </div>)
                   ) : (
                     /* Standard path: all rows rendered */
-                    visibleTasks.map(task => (
+                    (visibleTasks.map(task => (
                       <ProjectGanttTaskRowTimeline
                         key={task.id}
                         task={task}
@@ -5797,7 +5797,7 @@ function ProjectGanttView({
                         hasDependencies={tasksWithDependencies.has(task.id)}
                         precomputedDates={parsedDatesMap.get(task.id)}
                       />
-                    ))
+                    )))
                   )}
                   {/* Empty row for add task alignment - must match left pane condition */}
                   {!isReadOnly && <div data-add-task-row="true" className="h-[28px] border-t bg-muted/20" />}
@@ -5915,7 +5915,6 @@ function ProjectGanttView({
           </div>
         )}
       </CardContent>
-
       {pasteProgress && (
         <Dialog open={pasteProgress.open} onOpenChange={() => {}}>
           <DialogContent className="sm:max-w-[400px]" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
@@ -5952,7 +5951,6 @@ function ProjectGanttView({
           </DialogContent>
         </Dialog>
       )}
-
       {/* Dependencies Dialog */}
       <Dialog open={!!dependenciesDialogTask} onOpenChange={(open) => !open && setDependenciesDialogTask(null)}>
         <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
@@ -5981,7 +5979,6 @@ function ProjectGanttView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Column Reorder Dialog */}
       <Dialog open={isReorderDialogOpen} onOpenChange={setIsReorderDialogOpen}>
         <DialogContent className="sm:max-w-[400px]">
@@ -6026,7 +6023,6 @@ function ProjectGanttView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Baseline Schedule Dialog */}
       <Dialog open={isBaselineDialogOpen} onOpenChange={setIsBaselineDialogOpen}>
         <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
