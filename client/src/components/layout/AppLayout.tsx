@@ -75,7 +75,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
 
   useWakeWord(() => {
     if (!jarvisOpen) setJarvisOpen(true);
-  }, !jarvisOpen);
+  }, jarvisOpen);
 
   useEffect(() => {
     if (jarvisOpen) {
