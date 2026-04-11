@@ -160,6 +160,9 @@ interface InlineEditCellProps {
   min?: number;
   max?: number;
   suffix?: string;
+  externalEditing?: boolean;
+  initialCharacter?: string;
+  onEditingChange?: (editing: boolean) => void;
 }
 
 const InlineEditCell = memo(function InlineEditCell({ 
@@ -172,18 +175,35 @@ const InlineEditCell = memo(function InlineEditCell({
   disabled = false,
   min,
   max,
-  suffix = ''
+  suffix = '',
+  externalEditing,
+  initialCharacter,
+  onEditingChange
 }: InlineEditCellProps) {
-  const [isEditing, setIsEditing] = useState(false);
+  const [internalEditing, setInternalEditing] = useState(false);
+  const isEditing = externalEditing !== undefined ? externalEditing : internalEditing;
+  const setIsEditing = useCallback((val: boolean) => {
+    if (onEditingChange) onEditingChange(val);
+    setInternalEditing(val);
+  }, [onEditingChange]);
   const [editValue, setEditValue] = useState<string>('');
   const [selectOpen, setSelectOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const pendingInitialChar = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
+      if (pendingInitialChar.current) {
+        inputRef.current.value = pendingInitialChar.current;
+        setEditValue(pendingInitialChar.current);
+        pendingInitialChar.current = undefined;
+        const len = inputRef.current.value.length;
+        inputRef.current.setSelectionRange(len, len);
+      } else {
+        inputRef.current.select();
+      }
       inputRef.current.focus();
-      inputRef.current.select();
     }
   }, [isEditing]);
 
@@ -193,19 +213,37 @@ const InlineEditCell = memo(function InlineEditCell({
     }
   }, [isEditing, editType]);
 
-  const handleStartEdit = () => {
+  useEffect(() => {
+    if (externalEditing && !internalEditing) {
+      startEditInternal(initialCharacter);
+      setInternalEditing(true);
+    } else if (!externalEditing && internalEditing) {
+      setInternalEditing(false);
+    }
+  }, [externalEditing]);
+
+  const startEditInternal = (initChar?: string) => {
     if (disabled) return;
-    if (editType === 'date') {
-      setEditValue(value ? String(value) : '');
-    } else if (editType === 'number' || editType === 'progress') {
-      setEditValue(value != null ? String(value) : '');
-    } else if (editType === 'boolean') {
+    if (editType === 'boolean') {
       const newVal = !value;
       onSave(newVal);
       return;
+    }
+    if (initChar && (editType === 'text' || editType === 'number' || editType === 'progress')) {
+      pendingInitialChar.current = initChar;
+      setEditValue(initChar);
+    } else if (editType === 'date') {
+      setEditValue(value ? String(value) : '');
+    } else if (editType === 'number' || editType === 'progress') {
+      setEditValue(value != null ? String(value) : '');
     } else {
       setEditValue(value ? String(value) : '');
     }
+  };
+
+  const handleStartEdit = () => {
+    if (disabled) return;
+    startEditInternal();
     setIsEditing(true);
   };
 
@@ -362,7 +400,7 @@ const InlineEditCell = memo(function InlineEditCell({
         disabled && "cursor-default hover:bg-transparent",
         className
       )}
-      onClick={handleStartEdit}
+      onDoubleClick={handleStartEdit}
       data-testid="inline-edit-display"
     >
       {displayValue}
@@ -686,6 +724,9 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   selectionRange,
   isRowInSelectionRange,
   onCellClick,
+  editingCell,
+  editingInitialChar,
+  onEditingChange,
 }: { 
   task: Task;
   rowIndex: number;
@@ -733,6 +774,9 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   selectionRange?: CellRange | null;
   isRowInSelectionRange?: boolean;
   onCellClick?: (taskId: number, columnId: GanttColumn, shiftKey?: boolean) => void;
+  editingCell?: CellPosition | null;
+  editingInitialChar?: string;
+  onEditingChange?: (editing: boolean) => void;
 }) {
   const [isEditingResources, setIsEditingResources] = useState(false);
   const { data: fetchedAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(isEditingResources ? task.id : null);
@@ -1155,6 +1199,15 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
           { value: 'Finish No Later Than', label: 'FNLT' },
         ];
 
+        const isCellBeingEdited = editingCell?.taskId === task.id && editingCell?.columnId === colId;
+        const cellEditProps = {
+          externalEditing: isCellBeingEdited || undefined,
+          initialCharacter: isCellBeingEdited ? editingInitialChar : undefined,
+          onEditingChange: (editing: boolean) => {
+            if (!editing && onEditingChange) onEditingChange(false);
+          },
+        };
+
         const renderEditableCell = () => {
           switch (colId) {
             case 'taskIndex':
@@ -1165,7 +1218,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'taskNumber':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.taskNumber}
                   displayValue={<span className="truncate">{task.taskNumber || '—'}</span>}
                   editType="text"
@@ -1185,7 +1238,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'description':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.description}
                   displayValue={<span className="truncate">{task.description || '—'}</span>}
                   editType="text"
@@ -1195,7 +1248,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'startDate':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.startDate}
                   displayValue={precomputedDates?.startFormatted ?? (task.startDate ? format(parseISO(task.startDate), 'MM/dd/yyyy') : '—')}
                   editType="date"
@@ -1205,7 +1258,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'endDate':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.endDate}
                   displayValue={precomputedDates?.endFormatted ?? (task.endDate ? format(parseISO(task.endDate), 'MM/dd/yyyy') : '—')}
                   editType="date"
@@ -1215,7 +1268,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'baselineStartDate':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.baselineStartDate}
                   displayValue={precomputedDates?.baselineStartFormatted ?? (task.baselineStartDate ? format(parseISO(task.baselineStartDate), 'MM/dd/yyyy') : '—')}
                   editType="date"
@@ -1225,7 +1278,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'baselineEndDate':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.baselineEndDate}
                   displayValue={precomputedDates?.baselineEndFormatted ?? (task.baselineEndDate ? format(parseISO(task.baselineEndDate), 'MM/dd/yyyy') : '—')}
                   editType="date"
@@ -1235,7 +1288,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'actualStartDate':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.actualStartDate}
                   displayValue={precomputedDates?.actualStartFormatted ?? (task.actualStartDate ? format(parseISO(task.actualStartDate), 'MM/dd/yyyy') : '—')}
                   editType="date"
@@ -1245,7 +1298,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'actualEndDate':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.actualEndDate}
                   displayValue={precomputedDates?.actualEndFormatted ?? (task.actualEndDate ? format(parseISO(task.actualEndDate), 'MM/dd/yyyy') : '—')}
                   editType="date"
@@ -1258,7 +1311,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                 ? (task.startDate === task.endDate ? 0 : calculateDurationInWorkingDays(task.startDate, task.endDate))
                 : null));
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={calculatedDuration != null ? formatDuration(calculatedDuration) : ''}
                   displayValue={calculatedDuration != null ? formatDuration(calculatedDuration) : '—'}
                   editType="text"
@@ -1271,7 +1324,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'progress':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={progressPercent}
                   displayValue={`${progressPercent}%`}
                   editType="progress"
@@ -1292,7 +1345,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                 </Badge>
               ) : '—';
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.status}
                   displayValue={statusBadge}
                   editType="select"
@@ -1313,7 +1366,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                 </Badge>
               ) : '—';
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.priority}
                   displayValue={priorityBadge}
                   editType="select"
@@ -1324,7 +1377,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'taskType':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.taskType}
                   displayValue={<span className="truncate">{task.taskType || '—'}</span>}
                   editType="select"
@@ -1415,7 +1468,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'actualHours':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.actualHours}
                   displayValue={task.actualHours != null ? `${task.actualHours}h` : '—'}
                   editType="number"
@@ -1426,7 +1479,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'remainingHours':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.remainingHours}
                   displayValue={task.remainingHours != null ? `${task.remainingHours}h` : '—'}
                   editType="number"
@@ -1437,7 +1490,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'cost':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.cost != null ? Number(task.cost) : null}
                   displayValue={task.cost != null ? `$${Number(task.cost).toLocaleString()}` : '—'}
                   editType="number"
@@ -1448,7 +1501,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'actualCost':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.actualCost != null ? Number(task.actualCost) : null}
                   displayValue={task.actualCost != null ? `$${Number(task.actualCost).toLocaleString()}` : '—'}
                   editType="number"
@@ -1459,7 +1512,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'assignee':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.assignee}
                   displayValue={<span className="truncate">{task.assignee || '—'}</span>}
                   editType="text"
@@ -1469,7 +1522,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'constraintType':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.constraintType}
                   displayValue={<span className="truncate">{task.constraintType || '—'}</span>}
                   editType="select"
@@ -1480,7 +1533,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'constraintDate':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.constraintDate}
                   displayValue={precomputedDates?.constraintDateFormatted ?? (task.constraintDate ? format(parseISO(task.constraintDate), 'MM/dd/yyyy') : '—')}
                   editType="date"
@@ -1490,7 +1543,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'isMilestone':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.isMilestone}
                   displayValue={task.isMilestone ? <Check className="h-3 w-3 text-primary mx-auto" /> : <span className="text-muted-foreground/50">—</span>}
                   editType="boolean"
@@ -1506,7 +1559,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               return task.isSummary ? <Check className="h-3 w-3 text-blue-500 mx-auto" /> : <span className="text-muted-foreground/50">—</span>;
             case 'timesheetBlocked':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.timesheetBlocked}
                   displayValue={task.timesheetBlocked ? <LockIcon className="h-3 w-3 text-amber-500 mx-auto" /> : <span className="text-muted-foreground/50">—</span>}
                   editType="boolean"
@@ -1516,7 +1569,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'phase':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.phase}
                   displayValue={<span className="truncate">{task.phase || '—'}</span>}
                   editType="text"
@@ -1526,7 +1579,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'category':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.category}
                   displayValue={<span className="truncate">{task.category || '—'}</span>}
                   editType="text"
@@ -1536,7 +1589,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'labels':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.labels}
                   displayValue={<span className="truncate">{task.labels || '—'}</span>}
                   editType="text"
@@ -1546,7 +1599,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'notes':
               return (
-                <InlineEditCell
+                <InlineEditCell {...cellEditProps}
                   value={task.notes}
                   displayValue={<span className="truncate">{task.notes || '—'}</span>}
                   editType="text"
@@ -2095,6 +2148,8 @@ function ProjectGanttView({
   };
 
   const [focusedCell, setFocusedCell] = useState<CellPosition | null>(null);
+  const [editingCell, setEditingCell] = useState<CellPosition | null>(null);
+  const [editingInitialChar, setEditingInitialChar] = useState<string | undefined>(undefined);
   const [selectionRange, setSelectionRange] = useState<CellRange | null>(null);
   const cellAnchorRef = useRef<CellPosition | null>(null);
 
@@ -2146,9 +2201,6 @@ function ProjectGanttView({
   }, [selectionRange]);
 
   const triggerCellEdit = useCallback((taskId: number, colId: GanttColumn, initialChar?: string) => {
-    const cellEl = document.querySelector(`[data-cell-task="${taskId}"][data-cell-col="${colId}"]`);
-    if (!cellEl) return;
-
     if (colId === 'task') {
       const trigger = document.querySelector(`[data-testid="task-actions-${taskId}"]`) as HTMLElement;
       if (trigger) {
@@ -2161,22 +2213,8 @@ function ProjectGanttView({
       return;
     }
 
-    const editDisplay = cellEl.querySelector('[data-testid="inline-edit-display"]') as HTMLElement;
-    if (editDisplay) {
-      editDisplay.click();
-      if (initialChar) {
-        requestAnimationFrame(() => {
-          const input = cellEl.querySelector('input') as HTMLInputElement;
-          if (input) {
-            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-            if (nativeInputValueSetter) {
-              nativeInputValueSetter.call(input, initialChar);
-              input.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-          }
-        });
-      }
-    }
+    setEditingInitialChar(initialChar);
+    setEditingCell({ taskId, columnId: colId });
   }, []);
   
   const handleBulkDelete = async () => {
@@ -5040,6 +5078,9 @@ function ProjectGanttView({
                             selectionRange={selectionRange}
                             isRowInSelectionRange={isRowInSelectionRange(task.id)}
                             onCellClick={handleCellClick}
+                            editingCell={editingCell}
+                            editingInitialChar={editingInitialChar}
+                            onEditingChange={(editing) => { if (!editing) { setEditingCell(null); setEditingInitialChar(undefined); } }}
                           />
                         </div>
                       );
@@ -5090,6 +5131,9 @@ function ProjectGanttView({
                               selectionRange={selectionRange}
                               isRowInSelectionRange={isRowInSelectionRange(task.id)}
                               onCellClick={handleCellClick}
+                              editingCell={editingCell}
+                              editingInitialChar={editingInitialChar}
+                              onEditingChange={(editing) => { if (!editing) { setEditingCell(null); setEditingInitialChar(undefined); } }}
                             />
                           )}
                         </SortableTaskRow>
