@@ -33,10 +33,9 @@ import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Loader2, Plus, Trash2, Pencil, Check, X, GripVertical, Users, Flag, Columns3, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, Search, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown, Undo2, Redo2, FolderKanban, RefreshCw, Focus, Link2, Link as LinkIcon, IndentIncrease, IndentDecrease, Type, Lock as LockIcon, Calendar as CalendarIcon, ClipboardPaste } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, Check, X, GripVertical, Flag, Columns3, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, Search, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown, Undo2, Redo2, FolderKanban, RefreshCw, Focus, Link2, Link as LinkIcon, IndentIncrease, IndentDecrease, Type, Lock as LockIcon, Calendar as CalendarIcon, ClipboardPaste } from "lucide-react";
 
 export { type ZoomLevel, type GanttColumn, type GanttColumnConfig, GANTT_COLUMNS, COLUMN_CATEGORIES, DEFAULT_GANTT_COLUMNS };
 
@@ -131,7 +130,7 @@ const COLUMN_CATEGORIES: { id: GanttColumnConfig['category']; label: string }[] 
 
 const DEFAULT_GANTT_COLUMNS: GanttColumn[] = ['taskIndex', 'wbs', 'task', 'startDate', 'endDate', 'durationDays', 'progress', 'estimatedHours', 'resources'];
 
-const READ_ONLY_COLUMNS: GanttColumn[] = ['taskIndex', 'wbs', 'outlineLevel', 'isCritical', 'isSummary', 'estimatedHours'];
+const READ_ONLY_COLUMNS: GanttColumn[] = ['taskIndex', 'wbs', 'outlineLevel', 'isCritical', 'isSummary'];
 
 interface CellPosition {
   taskId: number;
@@ -1414,84 +1413,15 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                 />
               );
             case 'estimatedHours':
-              // Est Hours is read-only - calculated from resource assignments
-              const durationForCalc = task.durationDays ?? (task.startDate && task.endDate 
-                ? calculateDurationInWorkingDays(task.startDate, task.endDate)
-                : 0);
-              const estHoursBreakdown = taskAssignments?.map(assignment => {
-                const weeklyCapacity = Number(assignment.resource.weeklyCapacity) || 40;
-                const dailyHours = weeklyCapacity / 5;
-                const allocation = assignment.allocationPercentage ?? 100;
-                const hoursContributed = (allocation / 100) * dailyHours * durationForCalc;
-                const remainingAvailability = (assignment.resource.availability ?? 100) - allocation;
-                return {
-                  displayName: assignment.resource.displayName,
-                  email: assignment.resource.email,
-                  hours: Math.round(hoursContributed * 10) / 10,
-                  allocation,
-                  remainingAvailability: Math.max(0, remainingAvailability),
-                };
-              }) || [];
-              
               return (
-                <HoverCard>
-                  <HoverCardTrigger asChild>
-                    <div 
-                      className={cn(
-                        "px-2 h-full flex items-center cursor-default",
-                        task.estimatedHours != null ? "text-foreground font-medium" : "text-muted-foreground"
-                      )}
-                    >
-                      {task.estimatedHours != null ? `${task.estimatedHours}h` : '—'}
-                    </div>
-                  </HoverCardTrigger>
-                  <HoverCardContent className="w-[340px] p-0" side="top">
-                    <div className="p-4 border-b bg-muted/30">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-                          <Clock className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <h4 className="font-semibold text-sm">Hours Breakdown</h4>
-                          <p className="text-xs text-muted-foreground">{estHoursBreakdown.length} team member{estHoursBreakdown.length !== 1 ? 's' : ''} assigned</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="p-3 space-y-2 max-h-[240px] overflow-y-auto">
-                      {estHoursBreakdown.length > 0 ? (
-                        <>
-                          {estHoursBreakdown.map((item, idx) => (
-                            <div key={idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-primary-foreground text-sm font-semibold shrink-0">
-                                {item.displayName.charAt(0).toUpperCase()}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="font-medium text-sm truncate">{item.displayName}</div>
-                                <div className="text-xs text-muted-foreground truncate">{item.email || 'No email'}</div>
-                              </div>
-                              <div className="text-right shrink-0">
-                                <div className="font-semibold text-sm text-primary">{item.hours}h</div>
-                                <div className="text-[10px] text-muted-foreground">{item.allocation}% allocated</div>
-                              </div>
-                            </div>
-                          ))}
-                        </>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center py-6 text-center">
-                          <Users className="h-8 w-8 text-muted-foreground/40 mb-2" />
-                          <p className="text-sm text-muted-foreground">No resources assigned</p>
-                          <p className="text-xs text-muted-foreground/70 mt-1">Assign resources to calculate hours</p>
-                        </div>
-                      )}
-                    </div>
-                    {estHoursBreakdown.length > 0 && (
-                      <div className="p-3 border-t bg-muted/20 flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Total Estimated</span>
-                        <span className="font-bold text-lg text-primary">{task.estimatedHours || 0}h</span>
-                      </div>
-                    )}
-                  </HoverCardContent>
-                </HoverCard>
+                <InlineEditCell {...cellEditProps}
+                  value={task.estimatedHours != null ? Number(task.estimatedHours) : null}
+                  displayValue={task.estimatedHours != null ? `${task.estimatedHours}h` : '—'}
+                  editType="number"
+                  min={0}
+                  onSave={(val) => handleInlineUpdate('estimatedHours', val as number | null, task.estimatedHours)}
+                  disabled={isSummaryTask || isReadOnly}
+                />
               );
             case 'actualHours':
               return (
@@ -3323,7 +3253,7 @@ function ProjectGanttView({
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (isReadOnly) { return; }
-        const clearableColumns: GanttColumn[] = ['startDate', 'endDate', 'baselineStartDate', 'baselineEndDate', 'actualStartDate', 'actualEndDate', 'constraintDate', 'description', 'notes', 'taskNumber', 'phase', 'category', 'labels', 'constraintType'];
+        const clearableColumns: GanttColumn[] = ['startDate', 'endDate', 'baselineStartDate', 'baselineEndDate', 'actualStartDate', 'actualEndDate', 'constraintDate', 'description', 'notes', 'taskNumber', 'phase', 'category', 'labels', 'constraintType', 'durationDays', 'estimatedHours'];
         const currentVisibleTasks = visibleTasksRef.current;
 
         if (selectionRange) {
@@ -3357,6 +3287,10 @@ function ProjectGanttView({
                   updates.startDate = null;
                   updates.durationDays = null;
                   if (task.schedulingMode !== 'manual') updates.schedulingMode = 'manual';
+                } else if (col === 'durationDays') {
+                  updates.startDate = null;
+                  updates.endDate = null;
+                  if (task.schedulingMode !== 'manual') updates.schedulingMode = 'manual';
                 }
               }
             }
@@ -3385,6 +3319,10 @@ function ProjectGanttView({
               } else if (field === 'endDate') {
                 updates.startDate = null;
                 updates.durationDays = null;
+                if (taskForDelete.schedulingMode !== 'manual') updates.schedulingMode = 'manual';
+              } else if (field === 'durationDays') {
+                updates.startDate = null;
+                updates.endDate = null;
                 if (taskForDelete.schedulingMode !== 'manual') updates.schedulingMode = 'manual';
               }
               updateTask.mutate(updates as Parameters<typeof updateTask.mutate>[0]);
@@ -4390,6 +4328,7 @@ function ProjectGanttView({
       updates.startDate = null;
       updates.endDate = null;
       updates.durationDays = null;
+      updates.estimatedHours = null;
     } else if (newMode === 'auto' && !task.startDate) {
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       updates.startDate = todayStr;
