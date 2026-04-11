@@ -3126,7 +3126,8 @@ function ProjectGanttView({
     e.preventDefault();
 
     const cleanedUpdates = taskUpdates.filter(tu => Object.keys(tu.updates).length > 0);
-    const totalSteps = (cleanedUpdates.length > 0 ? 1 : 0) + newTaskRows.length + resourceAssignments.length + cfUpdates.length;
+    const newTaskResCount = newTaskResourceNames.filter(n => n.length > 0).length;
+    const totalSteps = (cleanedUpdates.length > 0 ? 1 : 0) + newTaskRows.length + resourceAssignments.length + newTaskResCount + cfUpdates.length;
 
     pasteCancelledRef.current = false;
 
@@ -3217,7 +3218,7 @@ function ProjectGanttView({
       }
 
       if (resourceAssignments.length > 0 && organizationId) {
-        const finalTotalSteps = (cleanedUpdates.length > 0 ? 1 : 0) + newTaskRows.length + resourceAssignments.length;
+        const finalTotalSteps = (cleanedUpdates.length > 0 ? 1 : 0) + newTaskRows.length + resourceAssignments.length + cfUpdates.length;
         const currentResources = allResources ?? [];
         const resourceNameToId = new Map<string, number>();
 
@@ -5992,10 +5993,10 @@ function ProjectGanttView({
               </DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-3">
-              <Progress value={pasteProgress.total > 0 ? Math.round((pasteProgress.completed / pasteProgress.total) * 100) : 0} className="h-3" />
+              <Progress value={pasteProgress.total > 0 ? Math.min(100, Math.round((pasteProgress.completed / pasteProgress.total) * 100)) : 0} className="h-3" />
               <div className="flex justify-between text-sm text-muted-foreground">
-                <span>{pasteProgress.completed} of {pasteProgress.total} items processed</span>
-                <span>{pasteProgress.total > 0 ? Math.round((pasteProgress.completed / pasteProgress.total) * 100) : 0}%</span>
+                <span>{Math.min(pasteProgress.completed, pasteProgress.total)} of {pasteProgress.total} items processed</span>
+                <span>{pasteProgress.total > 0 ? Math.min(100, Math.round((pasteProgress.completed / pasteProgress.total) * 100)) : 0}%</span>
               </div>
             </div>
             <DialogFooter>
