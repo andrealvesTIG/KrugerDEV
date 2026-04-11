@@ -4,7 +4,7 @@ import {
   healthStatusHistory, statusReportHistory,
   projectViews, systemProjectViews, notifications,
   userConsents,
-  customFieldDefinitions, projectCustomFieldValues,
+  customFieldDefinitions, projectCustomFieldValues, taskCustomFieldValues, resourceCustomFieldValues,
   customProjectTabs, customTabSections, customTabFields,
   projectScoringCriteria, projectScores, portfolioScoringConfig,
   projectBenefits, projectDecisions, lessonsLearned,
@@ -22,6 +22,8 @@ import {
   type UserConsent, type InsertUserConsent,
   type CustomFieldDefinition, type InsertCustomFieldDefinition, type UpdateCustomFieldDefinitionRequest,
   type ProjectCustomFieldValue, type InsertProjectCustomFieldValue,
+  type TaskCustomFieldValue, type InsertTaskCustomFieldValue,
+  type ResourceCustomFieldValue, type InsertResourceCustomFieldValue,
   type CustomProjectTab, type InsertCustomProjectTab,
   type CustomTabSection, type InsertCustomTabSection,
   type CustomTabField, type InsertCustomTabField,
@@ -350,6 +352,54 @@ export async function deleteProjectCustomFieldValue(projectId: number, fieldDefi
     .where(and(
       eq(projectCustomFieldValues.projectId, projectId),
       eq(projectCustomFieldValues.fieldDefinitionId, fieldDefinitionId)
+    ));
+}
+
+export async function getTaskCustomFieldValues(taskId: number): Promise<TaskCustomFieldValue[]> {
+  return await db.select().from(taskCustomFieldValues)
+    .where(eq(taskCustomFieldValues.taskId, taskId));
+}
+
+export async function upsertTaskCustomFieldValue(value: InsertTaskCustomFieldValue): Promise<TaskCustomFieldValue> {
+  const [result] = await db.insert(taskCustomFieldValues)
+    .values(value)
+    .onConflictDoUpdate({
+      target: [taskCustomFieldValues.taskId, taskCustomFieldValues.fieldDefinitionId],
+      set: { value: value.value, updatedAt: new Date() },
+    })
+    .returning();
+  return result;
+}
+
+export async function deleteTaskCustomFieldValue(taskId: number, fieldDefinitionId: number): Promise<void> {
+  await db.delete(taskCustomFieldValues)
+    .where(and(
+      eq(taskCustomFieldValues.taskId, taskId),
+      eq(taskCustomFieldValues.fieldDefinitionId, fieldDefinitionId)
+    ));
+}
+
+export async function getResourceCustomFieldValues(resourceId: number): Promise<ResourceCustomFieldValue[]> {
+  return await db.select().from(resourceCustomFieldValues)
+    .where(eq(resourceCustomFieldValues.resourceId, resourceId));
+}
+
+export async function upsertResourceCustomFieldValue(value: InsertResourceCustomFieldValue): Promise<ResourceCustomFieldValue> {
+  const [result] = await db.insert(resourceCustomFieldValues)
+    .values(value)
+    .onConflictDoUpdate({
+      target: [resourceCustomFieldValues.resourceId, resourceCustomFieldValues.fieldDefinitionId],
+      set: { value: value.value, updatedAt: new Date() },
+    })
+    .returning();
+  return result;
+}
+
+export async function deleteResourceCustomFieldValue(resourceId: number, fieldDefinitionId: number): Promise<void> {
+  await db.delete(resourceCustomFieldValues)
+    .where(and(
+      eq(resourceCustomFieldValues.resourceId, resourceId),
+      eq(resourceCustomFieldValues.fieldDefinitionId, fieldDefinitionId)
     ));
 }
 

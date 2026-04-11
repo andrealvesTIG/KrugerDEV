@@ -755,7 +755,7 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const organizationId = parseInt(req.params.organizationId);
-      const { name, fieldType, description, isRequired, options, defaultValue, displayOrder, isActive } = req.body;
+      const { name, fieldType, entityType, description, isRequired, options, defaultValue, displayOrder, isActive } = req.body;
       if (!name || typeof name !== "string" || !name.trim()) {
         return res.status(400).json({ message: "Field name is required" });
       }
@@ -763,6 +763,7 @@ export async function registerMiscRoutes(app: Express) {
         organizationId,
         name: name.trim(),
         fieldType,
+        entityType: entityType || 'project',
         description,
         isRequired,
         options,
@@ -787,11 +788,12 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const id = parseInt(req.params.id);
-      const { fieldName, fieldType, fieldLabel, description, isRequired, options, defaultValue, displayOrder, isActive } = req.body;
+      const { name, fieldName, fieldType, fieldLabel, entityType, description, isRequired, options, defaultValue, displayOrder, isActive } = req.body;
       const safeUpdate: Record<string, any> = {};
-      if (fieldName !== undefined) safeUpdate.fieldName = fieldName;
+      const nameVal = name ?? fieldName;
+      if (nameVal !== undefined) safeUpdate.name = nameVal;
       if (fieldType !== undefined) safeUpdate.fieldType = fieldType;
-      if (fieldLabel !== undefined) safeUpdate.fieldLabel = fieldLabel;
+      if (entityType !== undefined) safeUpdate.entityType = entityType;
       if (description !== undefined) safeUpdate.description = description;
       if (isRequired !== undefined) safeUpdate.isRequired = isRequired;
       if (options !== undefined) safeUpdate.options = options;
@@ -921,6 +923,142 @@ export async function registerMiscRoutes(app: Express) {
       console.error('Error deleting custom field value:', error);
       const classified = classifyError(error);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete custom field value' : classified.message });
+    }
+  });
+
+  // ============================================
+  // TASK CUSTOM FIELD VALUES ROUTES
+  // ============================================
+
+  app.get('/api/tasks/:taskId/custom-field-values', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+    try {
+      const taskId = parseInt(req.params.taskId);
+      const values = await storage.getTaskCustomFieldValues(taskId);
+      res.json(values);
+    } catch (error) {
+      console.error('Error fetching task custom field values:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch task custom field values' : classified.message });
+    }
+  });
+
+  app.put('/api/tasks/:taskId/custom-field-values/:fieldDefinitionId', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+    try {
+      const taskId = parseInt(req.params.taskId);
+      const fieldDefinitionId = parseInt(req.params.fieldDefinitionId);
+      const { value } = req.body;
+      const fieldValue = await storage.upsertTaskCustomFieldValue({ taskId, fieldDefinitionId, value });
+      res.json(fieldValue);
+    } catch (error) {
+      console.error('Error updating task custom field value:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update task custom field value' : classified.message });
+    }
+  });
+
+  app.put('/api/tasks/:taskId/custom-field-values', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+    try {
+      const taskId = parseInt(req.params.taskId);
+      const { values } = req.body;
+      const results = await Promise.all(
+        values.map((v: { fieldDefinitionId: number; value: string | null }) =>
+          storage.upsertTaskCustomFieldValue({ taskId, fieldDefinitionId: v.fieldDefinitionId, value: v.value })
+        )
+      );
+      res.json(results);
+    } catch (error) {
+      console.error('Error updating task custom field values:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update task custom field values' : classified.message });
+    }
+  });
+
+  app.delete('/api/tasks/:taskId/custom-field-values/:fieldDefinitionId', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+    try {
+      const taskId = parseInt(req.params.taskId);
+      const fieldDefinitionId = parseInt(req.params.fieldDefinitionId);
+      await storage.deleteTaskCustomFieldValue(taskId, fieldDefinitionId);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting task custom field value:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete task custom field value' : classified.message });
+    }
+  });
+
+  // ============================================
+  // RESOURCE CUSTOM FIELD VALUES ROUTES
+  // ============================================
+
+  app.get('/api/resources/:resourceId/custom-field-values', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+    try {
+      const resourceId = parseInt(req.params.resourceId);
+      const values = await storage.getResourceCustomFieldValues(resourceId);
+      res.json(values);
+    } catch (error) {
+      console.error('Error fetching resource custom field values:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch resource custom field values' : classified.message });
+    }
+  });
+
+  app.put('/api/resources/:resourceId/custom-field-values/:fieldDefinitionId', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+    try {
+      const resourceId = parseInt(req.params.resourceId);
+      const fieldDefinitionId = parseInt(req.params.fieldDefinitionId);
+      const { value } = req.body;
+      const fieldValue = await storage.upsertResourceCustomFieldValue({ resourceId, fieldDefinitionId, value });
+      res.json(fieldValue);
+    } catch (error) {
+      console.error('Error updating resource custom field value:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update resource custom field value' : classified.message });
+    }
+  });
+
+  app.put('/api/resources/:resourceId/custom-field-values', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+    try {
+      const resourceId = parseInt(req.params.resourceId);
+      const { values } = req.body;
+      const results = await Promise.all(
+        values.map((v: { fieldDefinitionId: number; value: string | null }) =>
+          storage.upsertResourceCustomFieldValue({ resourceId, fieldDefinitionId: v.fieldDefinitionId, value: v.value })
+        )
+      );
+      res.json(results);
+    } catch (error) {
+      console.error('Error updating resource custom field values:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update resource custom field values' : classified.message });
+    }
+  });
+
+  app.delete('/api/resources/:resourceId/custom-field-values/:fieldDefinitionId', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+    try {
+      const resourceId = parseInt(req.params.resourceId);
+      const fieldDefinitionId = parseInt(req.params.fieldDefinitionId);
+      await storage.deleteResourceCustomFieldValue(resourceId, fieldDefinitionId);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting resource custom field value:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete resource custom field value' : classified.message });
     }
   });
 

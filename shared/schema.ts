@@ -1988,12 +1988,13 @@ export type UserConsent = typeof userConsents.$inferSelect;
 export const CURRENT_TERMS_VERSION = "2026-01";
 export const CURRENT_PRIVACY_VERSION = "2026-01";
 
-// Custom Field Definitions - Define custom fields for projects per organization
+// Custom Field Definitions - Define custom fields for projects, tasks, or resources per organization
 export const customFieldDefinitions = pgTable("custom_field_definitions", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   name: text("name").notNull(),
   fieldType: text("field_type").notNull(), // 'text', 'number', 'date', 'select', 'multiselect', 'checkbox', 'url'
+  entityType: text("entity_type").default("project").notNull(), // 'project', 'task', 'resource'
   description: text("description"),
   isRequired: boolean("is_required").default(false),
   options: text("options").array(), // For select/multiselect types
@@ -2037,6 +2038,44 @@ export const insertProjectCustomFieldValueSchema = createInsertSchema(projectCus
 export type InsertProjectCustomFieldValue = z.infer<typeof insertProjectCustomFieldValueSchema>;
 export type ProjectCustomFieldValue = typeof projectCustomFieldValues.$inferSelect;
 export type UpdateProjectCustomFieldValueRequest = Partial<InsertProjectCustomFieldValue>;
+
+// Task Custom Field Values - Store values for custom fields per task
+export const taskCustomFieldValues = pgTable("task_custom_field_values", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").references(() => tasks.id).notNull(),
+  fieldDefinitionId: integer("field_definition_id").references(() => customFieldDefinitions.id).notNull(),
+  value: text("value"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("tcfv_task_field_idx").on(table.taskId, table.fieldDefinitionId),
+]);
+
+export const insertTaskCustomFieldValueSchema = createInsertSchema(taskCustomFieldValues).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type InsertTaskCustomFieldValue = z.infer<typeof insertTaskCustomFieldValueSchema>;
+export type TaskCustomFieldValue = typeof taskCustomFieldValues.$inferSelect;
+
+// Resource Custom Field Values - Store values for custom fields per resource
+export const resourceCustomFieldValues = pgTable("resource_custom_field_values", {
+  id: serial("id").primaryKey(),
+  resourceId: integer("resource_id").references(() => resources.id).notNull(),
+  fieldDefinitionId: integer("field_definition_id").references(() => customFieldDefinitions.id).notNull(),
+  value: text("value"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("rcfv_resource_field_idx").on(table.resourceId, table.fieldDefinitionId),
+]);
+
+export const insertResourceCustomFieldValueSchema = createInsertSchema(resourceCustomFieldValues).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type InsertResourceCustomFieldValue = z.infer<typeof insertResourceCustomFieldValueSchema>;
+export type ResourceCustomFieldValue = typeof resourceCustomFieldValues.$inferSelect;
 
 // Custom Project Tabs - User-defined tabs for project details
 export const customProjectTabs = pgTable("custom_project_tabs", {

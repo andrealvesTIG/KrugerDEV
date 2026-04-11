@@ -133,7 +133,7 @@ export function CustomTabsSection({ organizationId }: { organizationId: number }
 
   const allFields = [
     ...projectFields.map(f => ({ key: f.key, label: f.label, type: 'project' as const })),
-    ...customFields.map(f => ({ key: `customField:${f.id}`, label: f.name, type: 'custom' as const }))
+    ...customFields.filter(f => (f.entityType || 'project') === 'project').map(f => ({ key: `customField:${f.id}`, label: f.name, type: 'custom' as const }))
   ];
 
   if (isLoading) {

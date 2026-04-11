@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Loader2, Trash2, FileText, Pencil, Plus, Check } from "lucide-react";
+import { Loader2, Trash2, FileText, Pencil, Plus, Check, FolderKanban, ListTodo, Users } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useCustomFieldDefinitions, useCreateCustomFieldDefinition, useUpdateCustomFieldDefinition, useDeleteCustomFieldDefinition } from "@/hooks/use-custom-fields";
@@ -24,6 +25,12 @@ const FIELD_TYPES = [
   { value: "url", label: "URL" },
 ] as const;
 
+const ENTITY_TYPES = [
+  { value: "project", label: "Project", icon: FolderKanban },
+  { value: "task", label: "Task", icon: ListTodo },
+  { value: "resource", label: "Resource", icon: Users },
+] as const;
+
 export function CustomFieldsSection({ organizationId }: { organizationId: number }) {
   const { toast } = useToast();
   const { data: fields = [], isLoading } = useCustomFieldDefinitions(organizationId);
@@ -31,19 +38,27 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
   const updateMutation = useUpdateCustomFieldDefinition();
   const deleteMutation = useDeleteCustomFieldDefinition();
 
+  const [activeEntityTab, setActiveEntityTab] = useState<string>("project");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingField, setEditingField] = useState<CustomFieldDefinition | null>(null);
   const [deleteField, setDeleteField] = useState<CustomFieldDefinition | null>(null);
 
   const [name, setName] = useState("");
   const [fieldType, setFieldType] = useState<string>("text");
+  const [entityType, setEntityType] = useState<string>("project");
   const [description, setDescription] = useState("");
   const [isRequired, setIsRequired] = useState(false);
   const [options, setOptions] = useState("");
 
+  const filteredFields = useMemo(() =>
+    fields.filter(f => (f.entityType || 'project') === activeEntityTab),
+    [fields, activeEntityTab]
+  );
+
   const resetForm = () => {
     setName("");
     setFieldType("text");
+    setEntityType(activeEntityTab);
     setDescription("");
     setIsRequired(false);
     setOptions("");
@@ -54,6 +69,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
     setEditingField(field);
     setName(field.name);
     setFieldType(field.fieldType);
+    setEntityType(field.entityType || 'project');
     setDescription(field.description || "");
     setIsRequired(field.isRequired ?? false);
     setOptions(field.options ? (field.options as string[]).join(", ") : "");
@@ -77,6 +93,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
           organizationId,
           name: name.trim(),
           fieldType,
+          entityType,
           description: description.trim() || null,
           isRequired,
           options: optionsArray,
@@ -87,10 +104,11 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
           organizationId,
           name: name.trim(),
           fieldType,
+          entityType,
           description: description.trim() || null,
           isRequired,
           options: optionsArray,
-          displayOrder: fields.length,
+          displayOrder: filteredFields.length,
         });
         toast({ title: "Success", description: "Custom field created" });
       }
@@ -122,6 +140,8 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
     );
   }
 
+  const entityLabel = ENTITY_TYPES.find(e => e.value === activeEntityTab)?.label || "Project";
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4">
@@ -131,7 +151,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
             Custom Fields
           </CardTitle>
           <CardDescription>
-            Define custom fields that can be added to projects in your organization
+            Define custom fields for projects, tasks, and resources in your organization
           </CardDescription>
         </div>
         <Button
@@ -146,67 +166,91 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
         </Button>
       </CardHeader>
       <CardContent>
-        {fields.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No custom fields defined yet</p>
-            <p className="text-sm">Add custom fields to capture additional information on projects</p>
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Required</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead className="w-24">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {fields.map((field) => (
-                <TableRow key={field.id} data-testid={`row-custom-field-${field.id}`}>
-                  <TableCell className="font-medium">{field.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">
-                      {FIELD_TYPES.find(t => t.value === field.fieldType)?.label || field.fieldType}
+        <Tabs value={activeEntityTab} onValueChange={setActiveEntityTab} className="w-full">
+          <TabsList className="mb-4">
+            {ENTITY_TYPES.map((et) => {
+              const Icon = et.icon;
+              const count = fields.filter(f => (f.entityType || 'project') === et.value).length;
+              return (
+                <TabsTrigger key={et.value} value={et.value} className="gap-1.5">
+                  <Icon className="h-4 w-4" />
+                  {et.label}
+                  {count > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] px-1 text-[10px]">
+                      {count}
                     </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {field.isRequired ? (
-                      <Check className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm max-w-xs truncate">
-                    {field.description || "-"}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEditDialog(field)}
-                        data-testid={`button-edit-field-${field.id}`}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setDeleteField(field)}
-                        data-testid={`button-delete-field-${field.id}`}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+                  )}
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+
+          {ENTITY_TYPES.map((et) => (
+            <TabsContent key={et.value} value={et.value} className="mt-0">
+              {filteredFields.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No custom fields defined for {et.label.toLowerCase()}s yet</p>
+                  <p className="text-sm">Add custom fields to capture additional information on {et.label.toLowerCase()}s</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Required</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="w-24">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredFields.map((field) => (
+                      <TableRow key={field.id} data-testid={`row-custom-field-${field.id}`}>
+                        <TableCell className="font-medium">{field.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">
+                            {FIELD_TYPES.find(t => t.value === field.fieldType)?.label || field.fieldType}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {field.isRequired ? (
+                            <Check className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm max-w-xs truncate">
+                          {field.description || "-"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEditDialog(field)}
+                              data-testid={`button-edit-field-${field.id}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeleteField(field)}
+                              data-testid={`button-delete-field-${field.id}`}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
       </CardContent>
 
       <Dialog open={showAddDialog} onOpenChange={(open) => {
@@ -217,10 +261,25 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
           <DialogHeader>
             <DialogTitle>{editingField ? "Edit Custom Field" : "Add Custom Field"}</DialogTitle>
             <DialogDescription>
-              {editingField ? "Update the custom field settings" : "Create a new custom field for projects"}
+              {editingField ? "Update the custom field settings" : "Create a new custom field"}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="field-entity-type">Applies To</Label>
+              <Select value={entityType} onValueChange={setEntityType} disabled={!!editingField}>
+                <SelectTrigger id="field-entity-type" data-testid="select-entity-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ENTITY_TYPES.map((et) => (
+                    <SelectItem key={et.value} value={et.value}>
+                      {et.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="field-name">Field Name *</Label>
               <Input
@@ -306,7 +365,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Custom Field</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{deleteField?.name}"? This will remove this field from all projects and cannot be undone.
+              Are you sure you want to delete "{deleteField?.name}"? This will remove this field from all {ENTITY_TYPES.find(e => e.value === (deleteField?.entityType || 'project'))?.label.toLowerCase()}s and cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

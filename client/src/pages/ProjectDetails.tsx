@@ -2515,7 +2515,8 @@ function HealthStatusHistoryLog({ projectId }: { projectId: number }) {
 
 function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: number; organizationId: number | undefined }) {
   const { toast } = useToast();
-  const { data: definitions = [], isLoading: definitionsLoading } = useCustomFieldDefinitions(organizationId);
+  const { data: allDefinitions = [], isLoading: definitionsLoading } = useCustomFieldDefinitions(organizationId);
+  const definitions = useMemo(() => allDefinitions.filter(d => (d.entityType || 'project') === 'project'), [allDefinitions]);
   const { data: values = [], isLoading: valuesLoading } = useProjectCustomFieldValues(projectId);
   const updateValue = useUpdateProjectCustomFieldValue();
   const [editingFieldId, setEditingFieldId] = useState<number | null>(null);
@@ -2726,7 +2727,8 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
   const { toast } = useToast();
   const { data: fullTabData, isLoading } = useFullCustomTab(tabId);
   const { currentOrganization } = useOrganization();
-  const { data: customFieldDefs = [] } = useCustomFieldDefinitions(currentOrganization?.id);
+  const { data: allCustomFieldDefs = [] } = useCustomFieldDefinitions(currentOrganization?.id);
+  const customFieldDefs = useMemo(() => allCustomFieldDefs.filter(d => (d.entityType || 'project') === 'project'), [allCustomFieldDefs]);
   const { data: customFieldValues = [] } = useProjectCustomFieldValues(project.id);
   const updateCustomFieldValue = useUpdateProjectCustomFieldValue();
   const [editingFieldId, setEditingFieldId] = useState<number | null>(null);
