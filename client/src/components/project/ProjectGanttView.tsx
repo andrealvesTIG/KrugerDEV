@@ -987,13 +987,23 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
         
         if (colId === 'task') {
           const isCellFocusedTask = focusedCell?.taskId === task.id && focusedCell?.columnId === 'task';
+          const isTaskInRange = isRowInSelectionRange && (() => {
+            if (!selectionRange) return false;
+            const ci = visibleColumns.indexOf('task');
+            const sc = visibleColumns.indexOf(selectionRange.startColId);
+            const ec = visibleColumns.indexOf(selectionRange.endColId);
+            return ci >= Math.min(sc, ec) && ci <= Math.max(sc, ec);
+          })();
           return (
             <div
               key={colId}
               data-cell-task={task.id}
               data-cell-col="task"
-              className={cn(isCellFocusedTask && "ring-2 ring-primary ring-inset z-10")}
-              onClick={(e) => { onCellClick?.(task.id, 'task', e.shiftKey); }}
+              className={cn(
+                isCellFocusedTask && "ring-2 ring-primary ring-inset z-10",
+                isTaskInRange && !isCellFocusedTask && "bg-primary/10"
+              )}
+              onMouseDown={(e) => { onCellClick?.(task.id, 'task', e.shiftKey); }}
             >
               <TaskNameCell
                 task={task}
@@ -1021,14 +1031,22 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
         
         if (colId === 'resources') {
           const isCellFocusedRes = focusedCell?.taskId === task.id && focusedCell?.columnId === 'resources';
+          const isResInRange = isRowInSelectionRange && (() => {
+            if (!selectionRange) return false;
+            const ci = visibleColumns.indexOf('resources');
+            const sc = visibleColumns.indexOf(selectionRange.startColId);
+            const ec = visibleColumns.indexOf(selectionRange.endColId);
+            return ci >= Math.min(sc, ec) && ci <= Math.max(sc, ec);
+          })();
           return (
-            <div key={colId} data-cell-task={task.id} data-cell-col="resources" onClick={(e) => { onCellClick?.(task.id, 'resources', e.shiftKey); }}>
+            <div key={colId} data-cell-task={task.id} data-cell-col="resources" onMouseDown={(e) => { onCellClick?.(task.id, 'resources', e.shiftKey); }}>
               <div 
                 style={{ width: `${colWidth}px` }}
                 className={cn(
                   "flex-shrink-0 border-r px-1 text-muted-foreground flex items-center h-[28px] overflow-hidden min-w-0",
                   !hasChildren && !isReadOnly && "cursor-pointer hover:bg-muted/50",
-                  isCellFocusedRes && "ring-2 ring-primary ring-inset z-10"
+                  isCellFocusedRes && "ring-2 ring-primary ring-inset z-10",
+                  isResInRange && !isCellFocusedRes && "bg-primary/10"
                 )}
                 onClick={(e) => { e.stopPropagation(); if (!hasChildren && !isReadOnly) setIsEditingResources(true); }}
               >
@@ -1565,8 +1583,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               isCellFocused && "ring-2 ring-primary ring-inset z-10",
               isCellInRange && !isCellFocused && "bg-primary/10"
             )}
-            onClick={(e) => {
-              e.stopPropagation();
+            onMouseDown={(e) => {
               onCellClick?.(task.id, colId, e.shiftKey);
             }}
           >
@@ -2131,6 +2148,19 @@ function ProjectGanttView({
   const triggerCellEdit = useCallback((taskId: number, colId: GanttColumn, initialChar?: string) => {
     const cellEl = document.querySelector(`[data-cell-task="${taskId}"][data-cell-col="${colId}"]`);
     if (!cellEl) return;
+
+    if (colId === 'task') {
+      const trigger = document.querySelector(`[data-testid="task-actions-${taskId}"]`) as HTMLElement;
+      if (trigger) {
+        trigger.click();
+        setTimeout(() => {
+          const renameBtn = document.querySelector(`[data-testid="task-rename-${taskId}"]`) as HTMLElement;
+          if (renameBtn) renameBtn.click();
+        }, 100);
+      }
+      return;
+    }
+
     const editDisplay = cellEl.querySelector('[data-testid="inline-edit-display"]') as HTMLElement;
     if (editDisplay) {
       editDisplay.click();
@@ -2138,8 +2168,6 @@ function ProjectGanttView({
         requestAnimationFrame(() => {
           const input = cellEl.querySelector('input') as HTMLInputElement;
           if (input) {
-            input.value = initialChar;
-            input.dispatchEvent(new Event('input', { bubbles: true }));
             const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
             if (nativeInputValueSetter) {
               nativeInputValueSetter.call(input, initialChar);
@@ -2584,23 +2612,40 @@ function ProjectGanttView({
 
     if (dataLines.length === 0) return;
 
-    // Determine starting row and column index
-    const anchorTaskId = focusedCell?.taskId ?? lastSelectedTaskIdRef.current;
-    const anchorIndex = anchorTaskId != null
-      ? currentVisibleTasks.findIndex(t => t.id === anchorTaskId)
-      : -1;
-    const startIndex = anchorIndex >= 0 ? anchorIndex : 0;
+    // Determine starting row and column index, honoring selection range if present
+    let startIndex = 0;
+    let effectiveStartCol = 0;
+    let maxPasteRows = dataLines.length;
+    let maxPasteCols = Infinity;
 
-    const startColIndex = focusedCell
-      ? visibleColumns.indexOf(focusedCell.columnId)
-      : 0;
-    const effectiveStartCol = startColIndex >= 0 ? startColIndex : 0;
+    if (selectionRange) {
+      const rangeStartRow = currentVisibleTasks.findIndex(t => t.id === selectionRange.startTaskId);
+      const rangeEndRow = currentVisibleTasks.findIndex(t => t.id === selectionRange.endTaskId);
+      const rangeStartCol = visibleColumns.indexOf(selectionRange.startColId);
+      const rangeEndCol = visibleColumns.indexOf(selectionRange.endColId);
+      if (rangeStartRow !== -1 && rangeEndRow !== -1 && rangeStartCol !== -1 && rangeEndCol !== -1) {
+        startIndex = Math.min(rangeStartRow, rangeEndRow);
+        effectiveStartCol = Math.min(rangeStartCol, rangeEndCol);
+        maxPasteRows = Math.abs(rangeEndRow - rangeStartRow) + 1;
+        maxPasteCols = Math.abs(rangeEndCol - rangeStartCol) + 1;
+      }
+    } else {
+      const anchorTaskId = focusedCell?.taskId ?? lastSelectedTaskIdRef.current;
+      const anchorIndex = anchorTaskId != null
+        ? currentVisibleTasks.findIndex(t => t.id === anchorTaskId)
+        : -1;
+      startIndex = anchorIndex >= 0 ? anchorIndex : 0;
+      const startColIndex = focusedCell
+        ? visibleColumns.indexOf(focusedCell.columnId)
+        : 0;
+      effectiveStartCol = startColIndex >= 0 ? startColIndex : 0;
+    }
 
     const taskUpdates: Array<{ taskId: number; updates: Record<string, unknown> }> = [];
     const skippedRows: number[] = [];
     const invalidCells: string[] = [];
 
-    for (let i = 0; i < dataLines.length; i++) {
+    for (let i = 0; i < Math.min(dataLines.length, maxPasteRows); i++) {
       const taskIndex = startIndex + i;
       if (taskIndex >= currentVisibleTasks.length) break;
 
@@ -2616,7 +2661,7 @@ function ProjectGanttView({
       const cells = dataLines[i].split('\t');
       const updates: Record<string, unknown> = {};
 
-      for (let j = 0; j < cells.length; j++) {
+      for (let j = 0; j < cells.length && j < maxPasteCols; j++) {
         const colIndex = effectiveStartCol + j;
         if (colIndex >= visibleColumns.length) break;
         const colId = visibleColumns[colIndex];
@@ -2757,7 +2802,7 @@ function ProjectGanttView({
     } catch {
       toast({ title: "Paste failed", description: "Could not save changes", variant: "destructive" });
     }
-  }, [visibleColumns, isReadOnly, bulkUpdate, projectId, toast, focusedCell]);
+  }, [visibleColumns, isReadOnly, bulkUpdate, projectId, toast, focusedCell, selectionRange]);
 
   // Attach paste event listener
   useEffect(() => {
@@ -2830,10 +2875,19 @@ function ProjectGanttView({
         let newTaskIdx = taskIdx;
         let newColIdx = colIdx;
 
+        const isSummaryRow = (idx: number) => {
+          const t = currentVisibleTasks[idx];
+          return t && (t.isSummary || !!taskHasChildrenRef.current[t.id]);
+        };
+
         if (e.key === 'ArrowUp') {
-          newTaskIdx = Math.max(0, taskIdx - 1);
+          for (let r = taskIdx - 1; r >= 0; r--) {
+            if (!isSummaryRow(r)) { newTaskIdx = r; break; }
+          }
         } else if (e.key === 'ArrowDown') {
-          newTaskIdx = Math.min(currentVisibleTasks.length - 1, taskIdx + 1);
+          for (let r = taskIdx + 1; r < currentVisibleTasks.length; r++) {
+            if (!isSummaryRow(r)) { newTaskIdx = r; break; }
+          }
         } else if (e.key === 'ArrowLeft') {
           for (let c = colIdx - 1; c >= 0; c--) {
             if (!READ_ONLY_COLUMNS.includes(visibleColumns[c])) { newColIdx = c; break; }
@@ -2872,21 +2926,38 @@ function ProjectGanttView({
         let nextEditableIdx = editableIdx;
         let nextTaskIdx = taskIdx;
 
+        const isSummaryRowTab = (idx: number) => {
+          const t = currentVisibleTasks[idx];
+          return t && (t.isSummary || !!taskHasChildrenRef.current[t.id]);
+        };
+
+        const maxAttempts = currentVisibleTasks.length * editableCols.length;
+        let attempts = 0;
+
         if (e.shiftKey) {
-          nextEditableIdx--;
-          if (nextEditableIdx < 0) {
-            nextTaskIdx--;
-            if (nextTaskIdx < 0) nextTaskIdx = currentVisibleTasks.length - 1;
-            nextEditableIdx = editableCols.length - 1;
-          }
+          do {
+            nextEditableIdx--;
+            if (nextEditableIdx < 0) {
+              nextTaskIdx--;
+              if (nextTaskIdx < 0) nextTaskIdx = currentVisibleTasks.length - 1;
+              nextEditableIdx = editableCols.length - 1;
+            }
+            attempts++;
+          } while (isSummaryRowTab(nextTaskIdx) && attempts < maxAttempts);
         } else {
-          nextEditableIdx++;
-          if (nextEditableIdx >= editableCols.length) {
-            nextTaskIdx++;
-            if (nextTaskIdx >= currentVisibleTasks.length) nextTaskIdx = 0;
-            nextEditableIdx = 0;
-          }
+          do {
+            nextEditableIdx++;
+            if (nextEditableIdx >= editableCols.length) {
+              nextTaskIdx++;
+              if (nextTaskIdx >= currentVisibleTasks.length) nextTaskIdx = 0;
+              nextEditableIdx = 0;
+            }
+            attempts++;
+          } while (isSummaryRowTab(nextTaskIdx) && attempts < maxAttempts);
         }
+
+        if (attempts >= maxAttempts) return;
+
         const newCell: CellPosition = {
           taskId: currentVisibleTasks[nextTaskIdx].id,
           columnId: editableCols[nextEditableIdx],
