@@ -1276,8 +1276,33 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     taskUpdates: z.array(z.object({
       taskId: z.number(),
       updates: z.object({
-        baselineStartDate: z.string().optional(),
-        baselineEndDate: z.string().optional(),
+        name: z.string().optional(),
+        taskNumber: z.string().nullable().optional(),
+        description: z.string().nullable().optional(),
+        startDate: z.string().nullable().optional(),
+        endDate: z.string().nullable().optional(),
+        durationDays: z.number().nullable().optional(),
+        progress: z.number().min(0).max(100).nullable().optional(),
+        status: z.string().nullable().optional(),
+        priority: z.string().nullable().optional(),
+        taskType: z.string().nullable().optional(),
+        estimatedHours: z.number().nullable().optional(),
+        actualHours: z.number().nullable().optional(),
+        remainingHours: z.number().nullable().optional(),
+        cost: z.number().nullable().optional(),
+        actualCost: z.number().nullable().optional(),
+        baselineStartDate: z.string().nullable().optional(),
+        baselineEndDate: z.string().nullable().optional(),
+        actualStartDate: z.string().nullable().optional(),
+        actualEndDate: z.string().nullable().optional(),
+        constraintType: z.string().nullable().optional(),
+        constraintDate: z.string().nullable().optional(),
+        isMilestone: z.boolean().optional(),
+        timesheetBlocked: z.boolean().optional(),
+        phase: z.string().nullable().optional(),
+        category: z.string().nullable().optional(),
+        labels: z.string().nullable().optional(),
+        notes: z.string().nullable().optional(),
       }),
     })).optional(),
   }).refine(
@@ -1375,7 +1400,14 @@ Format your response as a numbered list with clear, concise strategies. Do not i
           const changes: string[] = [];
           const prevValues: Record<string, any> = {};
           const newValues: Record<string, any> = {};
-          for (const field of ['baselineStartDate', 'baselineEndDate']) {
+          const allTrackedFields = [
+            'name', 'taskNumber', 'description', 'startDate', 'endDate', 'durationDays',
+            'progress', 'status', 'priority', 'taskType', 'estimatedHours', 'actualHours',
+            'remainingHours', 'cost', 'actualCost', 'baselineStartDate', 'baselineEndDate',
+            'actualStartDate', 'actualEndDate', 'constraintType', 'constraintDate',
+            'isMilestone', 'timesheetBlocked', 'phase', 'category', 'labels', 'notes',
+          ];
+          for (const field of allTrackedFields) {
             if ((perTaskUpdates as any)[field] !== undefined && (prev as any)[field] !== (perTaskUpdates as any)[field]) {
               changes.push(`${field}: "${(prev as any)[field] ?? '(empty)'}" → "${(perTaskUpdates as any)[field] ?? '(empty)'}"`);
               prevValues[field] = (prev as any)[field];

@@ -1980,6 +1980,7 @@ function ProjectGanttView({
   const [bulkTimesheetBlockPending, setBulkTimesheetBlockPending] = useState(false);
   const lastSelectedTaskIdRef = useRef<number | null>(null);
   const visibleTasksRef = useRef<Task[]>([]);
+  const taskHasChildrenRef = useRef<Record<number, boolean>>({});
   
   const toggleTaskSelection = useCallback((taskId: number, shiftKey?: boolean) => {
     setSelectedTaskIds(prev => {
@@ -2278,6 +2279,320 @@ function ProjectGanttView({
     }
   }, []);
 
+  // Helper: get a plain-text value for a task field (for clipboard copy)
+  const getTaskCopyValue = useCallback((task: Task, colId: GanttColumn): string => {
+    switch (colId) {
+      case 'taskIndex': return '';
+      case 'task': return task.name ?? '';
+      case 'taskNumber': return task.taskNumber ?? '';
+      case 'wbs': return task.wbs ?? '';
+      case 'outlineLevel': return String(task.outlineLevel ?? 1);
+      case 'description': return task.description ?? '';
+      case 'startDate': return task.startDate ? format(parseISO(task.startDate), 'MM/dd/yyyy') : '';
+      case 'endDate': return task.endDate ? format(parseISO(task.endDate), 'MM/dd/yyyy') : '';
+      case 'baselineStartDate': return task.baselineStartDate ? format(parseISO(task.baselineStartDate), 'MM/dd/yyyy') : '';
+      case 'baselineEndDate': return task.baselineEndDate ? format(parseISO(task.baselineEndDate), 'MM/dd/yyyy') : '';
+      case 'actualStartDate': return task.actualStartDate ? format(parseISO(task.actualStartDate), 'MM/dd/yyyy') : '';
+      case 'actualEndDate': return task.actualEndDate ? format(parseISO(task.actualEndDate), 'MM/dd/yyyy') : '';
+      case 'durationDays': return task.durationDays != null ? String(task.durationDays) : '';
+      case 'progress': return task.progress != null ? String(task.progress) : '';
+      case 'status': return task.status ?? '';
+      case 'priority': return task.priority ?? '';
+      case 'taskType': return task.taskType ?? '';
+      case 'estimatedHours': return task.estimatedHours != null ? String(task.estimatedHours) : '';
+      case 'actualHours': return task.actualHours != null ? String(task.actualHours) : '';
+      case 'remainingHours': return task.remainingHours != null ? String(task.remainingHours) : '';
+      case 'cost': return task.cost != null ? String(task.cost) : '';
+      case 'actualCost': return task.actualCost != null ? String(task.actualCost) : '';
+      case 'constraintType': return task.constraintType ?? '';
+      case 'constraintDate': return task.constraintDate ? format(parseISO(task.constraintDate), 'MM/dd/yyyy') : '';
+      case 'isMilestone': return task.isMilestone ? 'Yes' : 'No';
+      case 'isCritical': return task.isCritical ? 'Yes' : 'No';
+      case 'isSummary': return task.isSummary ? 'Yes' : 'No';
+      case 'timesheetBlocked': return task.timesheetBlocked ? 'Yes' : 'No';
+      case 'phase': return task.phase ?? '';
+      case 'category': return task.category ?? '';
+      case 'labels': return task.labels ?? '';
+      case 'notes': return task.notes ?? '';
+      case 'assignee': return task.assignee ?? '';
+      case 'resources': return '';
+      default: return '';
+    }
+  }, []);
+
+  // Copy selected rows as TSV to clipboard
+  const handleGridCopy = useCallback(() => {
+    const currentVisibleTasks = visibleTasksRef.current;
+    const selectedInOrder = currentVisibleTasks.filter(t => selectedTaskIds.has(t.id));
+    if (selectedInOrder.length === 0) return;
+
+    const header = visibleColumns.map(colId => {
+      const col = GANTT_COLUMNS.find(c => c.id === colId);
+      return col?.label ?? colId;
+    }).join('\t');
+
+    const rows = selectedInOrder.map(task =>
+      visibleColumns.map(colId => getTaskCopyValue(task, colId)).join('\t')
+    );
+
+    const tsv = [header, ...rows].join('\n');
+    navigator.clipboard.writeText(tsv).then(() => {
+      toast({
+        title: "Copied",
+        description: `${selectedInOrder.length} row${selectedInOrder.length !== 1 ? 's' : ''} copied to clipboard`,
+      });
+    }).catch(() => {
+      toast({ title: "Copy failed", description: "Could not access clipboard", variant: "destructive" });
+    });
+  }, [selectedTaskIds, visibleColumns, getTaskCopyValue, toast]);
+
+  // Helper: flexible date parsing for pasted values
+  const parsePastedDate = (val: string): string | null => {
+    if (!val || !val.trim()) return null;
+    const trimmed = val.trim();
+
+    // YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      const d = parseISO(trimmed);
+      if (!isNaN(d.getTime())) return trimmed;
+    }
+
+    // MM/DD/YYYY or M/D/YYYY
+    const mdy = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (mdy) {
+      const [, m, d, y] = mdy;
+      const month = Number(m), day = Number(d), year = Number(y);
+      const date = new Date(year, month - 1, day);
+      // Round-trip validate: reject auto-corrected dates (e.g. Feb 31)
+      if (!isNaN(date.getTime()) && date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) {
+        return format(date, 'yyyy-MM-dd');
+      }
+    }
+
+    // M/D/YY
+    const mdyShort = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+    if (mdyShort) {
+      const [, m, d, y] = mdyShort;
+      const month = Number(m), day = Number(d);
+      const year = Number(y) < 70 ? 2000 + Number(y) : 1900 + Number(y);
+      const date = new Date(year, month - 1, day);
+      if (!isNaN(date.getTime()) && date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) {
+        return format(date, 'yyyy-MM-dd');
+      }
+    }
+
+    return null;
+  };
+
+  // Paste handler: parse TSV clipboard data and apply to tasks starting from focused row
+  const handleGridPaste = useCallback(async (e: ClipboardEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+    if (isReadOnly) return;
+
+    // Scope paste to the Gantt metadata pane: check active element is inside it or body is focused
+    const pane = leftPaneRef.current;
+    const activeEl = document.activeElement;
+    if (pane && activeEl && activeEl !== document.body && !pane.contains(activeEl)) return;
+
+    const text = e.clipboardData?.getData('text/plain');
+    if (!text) return;
+
+    const lines = text.split('\n').map(l => l.replace(/\r$/, '')).filter(l => l.trim() !== '');
+    if (lines.length === 0) return;
+
+    const currentVisibleTasks = visibleTasksRef.current;
+
+    // Detect if first row is a header (compare to column labels)
+    let dataLines = lines;
+    const firstRow = lines[0].split('\t');
+    const columnLabels = visibleColumns.map(colId => {
+      const col = GANTT_COLUMNS.find(c => c.id === colId);
+      return col?.label ?? colId;
+    });
+    const isHeader = firstRow.some((cell, i) =>
+      cell.trim().toLowerCase() === (columnLabels[i] ?? '').toLowerCase()
+    );
+    if (isHeader) dataLines = lines.slice(1);
+
+    if (dataLines.length === 0) return;
+
+    // Determine starting row index in visibleTasks
+    const anchorTaskId = lastSelectedTaskIdRef.current;
+    const anchorIndex = anchorTaskId != null
+      ? currentVisibleTasks.findIndex(t => t.id === anchorTaskId)
+      : -1;
+    const startIndex = anchorIndex >= 0 ? anchorIndex : 0;
+
+    const taskUpdates: Array<{ taskId: number; updates: Record<string, unknown> }> = [];
+    const skippedRows: number[] = [];
+    const invalidCells: string[] = [];
+
+    for (let i = 0; i < dataLines.length; i++) {
+      const taskIndex = startIndex + i;
+      if (taskIndex >= currentVisibleTasks.length) break;
+
+      const task = currentVisibleTasks[taskIndex];
+
+      // Skip summary/parent tasks - use hierarchy-based detection consistent with inline editing
+      const isHierarchySummary = !!taskHasChildrenRef.current[task.id];
+      if (isHierarchySummary || task.isSummary) {
+        skippedRows.push(taskIndex + 1);
+        continue;
+      }
+
+      const cells = dataLines[i].split('\t');
+      const updates: Record<string, unknown> = {};
+
+      for (let j = 0; j < visibleColumns.length && j < cells.length; j++) {
+        const colId = visibleColumns[j];
+        const rawVal = cells[j]?.trim() ?? '';
+
+        // Skip read-only display columns
+        if (['taskIndex', 'wbs', 'outlineLevel', 'isCritical', 'isSummary', 'resources', 'assignee'].includes(colId)) continue;
+
+        if (rawVal === '' || rawVal === '—') continue;
+
+        try {
+          switch (colId) {
+            case 'task':
+              updates.name = rawVal;
+              break;
+            case 'taskNumber':
+            case 'description':
+            case 'notes':
+            case 'phase':
+            case 'category':
+              updates[colId] = rawVal;
+              break;
+            case 'status': {
+              const validStatuses = ['Not Started', 'In Progress', 'Completed'];
+              const match = validStatuses.find(s => s.toLowerCase() === rawVal.toLowerCase());
+              if (match) updates.status = match;
+              else invalidCells.push(`Row ${i + 1} status: "${rawVal}"`);
+              break;
+            }
+            case 'priority': {
+              const validPriorities = ['Low', 'Medium', 'High', 'Critical'];
+              const match = validPriorities.find(p => p.toLowerCase() === rawVal.toLowerCase());
+              if (match) updates.priority = match;
+              else invalidCells.push(`Row ${i + 1} priority: "${rawVal}"`);
+              break;
+            }
+            case 'taskType': {
+              const validTypes = ['Work', 'Milestone', 'Summary', 'Ongoing'];
+              const match = validTypes.find(t => t.toLowerCase() === rawVal.toLowerCase());
+              if (match) updates.taskType = match;
+              else invalidCells.push(`Row ${i + 1} type: "${rawVal}"`);
+              break;
+            }
+            case 'constraintType': {
+              const validConstraints = ['As Soon As Possible', 'As Late As Possible', 'Must Start On', 'Must Finish On', 'Start No Earlier Than', 'Start No Later Than', 'Finish No Earlier Than', 'Finish No Later Than'];
+              const match = validConstraints.find(c => c.toLowerCase() === rawVal.toLowerCase());
+              if (match) updates.constraintType = match;
+              else invalidCells.push(`Row ${i + 1} constraint: "${rawVal}"`);
+              break;
+            }
+            case 'startDate':
+            case 'endDate':
+            case 'baselineStartDate':
+            case 'baselineEndDate':
+            case 'actualStartDate':
+            case 'actualEndDate':
+            case 'constraintDate': {
+              const parsed = parsePastedDate(rawVal);
+              if (parsed) updates[colId] = parsed;
+              else invalidCells.push(`Row ${i + 1} ${colId}: "${rawVal}"`);
+              break;
+            }
+            case 'durationDays': {
+              const parsed = parseDurationInput(rawVal);
+              if (parsed !== null && parsed >= 0) updates.durationDays = parsed;
+              else {
+                const n = parseFloat(rawVal);
+                if (!isNaN(n) && n >= 0) updates.durationDays = n;
+                else invalidCells.push(`Row ${i + 1} duration: "${rawVal}"`);
+              }
+              break;
+            }
+            case 'progress': {
+              const n = parseFloat(rawVal.replace('%', ''));
+              if (!isNaN(n) && n >= 0 && n <= 100) updates.progress = n;
+              else invalidCells.push(`Row ${i + 1} progress: "${rawVal}"`);
+              break;
+            }
+            case 'estimatedHours':
+            case 'actualHours':
+            case 'remainingHours':
+            case 'cost':
+            case 'actualCost': {
+              const n = parseFloat(rawVal.replace(/[$,]/g, ''));
+              if (!isNaN(n) && n >= 0) updates[colId] = n;
+              else invalidCells.push(`Row ${i + 1} ${colId}: "${rawVal}"`);
+              break;
+            }
+            case 'isMilestone':
+            case 'timesheetBlocked': {
+              const truthy = ['yes', 'true', '1', 'x'].includes(rawVal.toLowerCase());
+              const falsy = ['no', 'false', '0', ''].includes(rawVal.toLowerCase());
+              if (truthy) updates[colId] = true;
+              else if (falsy) updates[colId] = false;
+              break;
+            }
+            case 'labels': {
+              updates.labels = rawVal;
+              break;
+            }
+          }
+        } catch {
+          invalidCells.push(`Row ${i + 1} ${colId}: "${rawVal}"`);
+        }
+      }
+
+      if (Object.keys(updates).length > 0) {
+        taskUpdates.push({ taskId: task.id, updates });
+      }
+    }
+
+    if (taskUpdates.length === 0) {
+      toast({
+        title: "Nothing to paste",
+        description: skippedRows.length > 0
+          ? `${skippedRows.length} row(s) skipped (read-only or summary tasks)`
+          : "No valid data found in clipboard",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    e.preventDefault();
+
+    try {
+      const result = await bulkUpdate.mutateAsync({ taskUpdates, projectId });
+      const updatedCount = result.updatedCount ?? taskUpdates.length;
+
+      let description = `${updatedCount} row${updatedCount !== 1 ? 's' : ''} updated`;
+      if (skippedRows.length > 0) description += `, ${skippedRows.length} skipped (read-only/summary)`;
+      if (invalidCells.length > 0) description += `. ${invalidCells.length} value${invalidCells.length !== 1 ? 's' : ''} could not be parsed`;
+
+      toast({
+        title: "Paste complete",
+        description,
+        variant: invalidCells.length > 0 ? "default" : "default",
+      });
+    } catch {
+      toast({ title: "Paste failed", description: "Could not save changes", variant: "destructive" });
+    }
+  }, [visibleColumns, isReadOnly, bulkUpdate, projectId, toast]);
+
+  // Attach paste event listener
+  useEffect(() => {
+    const pasteHandler = (e: ClipboardEvent) => { handleGridPaste(e); };
+    document.addEventListener('paste', pasteHandler);
+    return () => document.removeEventListener('paste', pasteHandler);
+  }, [handleGridPaste]);
+
+  // Keyboard shortcuts: undo, redo, copy grid rows
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -2292,11 +2607,16 @@ function ProjectGanttView({
       } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
         e.preventDefault();
         handleRedo();
+      } else if (e.key === 'c') {
+        if (selectedTaskIds.size > 0) {
+          e.preventDefault();
+          handleGridCopy();
+        }
       }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [handleUndo, handleRedo]);
+  }, [handleUndo, handleRedo, handleGridCopy, selectedTaskIds]);
 
   // Fetch project dependencies and calculate CPM
   const { data: projectDependenciesData } = useProjectDependencies(projectId);
@@ -3054,6 +3374,7 @@ function ProjectGanttView({
   }, [tasks, collapsedTasks]);
 
   visibleTasksRef.current = visibleTasks;
+  taskHasChildrenRef.current = taskHasChildren;
 
   // Virtual scrolling: only render rows visible in the viewport when task count is large
   const VIRTUAL_SCROLL_THRESHOLD = 100;
