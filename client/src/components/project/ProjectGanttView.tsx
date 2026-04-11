@@ -130,7 +130,7 @@ const COLUMN_CATEGORIES: { id: GanttColumnConfig['category']; label: string }[] 
 
 const DEFAULT_GANTT_COLUMNS: GanttColumn[] = ['taskIndex', 'wbs', 'task', 'startDate', 'endDate', 'durationDays', 'progress', 'estimatedHours', 'resources'];
 
-const READ_ONLY_COLUMNS: GanttColumn[] = ['taskIndex', 'wbs', 'outlineLevel', 'isCritical', 'isSummary', 'resources', 'estimatedHours'];
+const READ_ONLY_COLUMNS: GanttColumn[] = ['taskIndex', 'wbs', 'outlineLevel', 'isCritical', 'isSummary', 'estimatedHours'];
 
 interface CellPosition {
   taskId: number;
