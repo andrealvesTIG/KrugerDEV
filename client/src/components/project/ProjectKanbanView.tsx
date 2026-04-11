@@ -344,35 +344,39 @@ function ProjectKanbanView({
             </div>
           )}
           
-          <span className="text-xs text-muted-foreground ml-auto">
-            {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
-          </span>
+          <div className="flex items-center gap-1 ml-auto">
+            {(canScrollLeft || canScrollRight) && (
+              <div className="flex items-center gap-1 mr-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => scrollBy('left')}
+                  disabled={!canScrollLeft}
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => scrollBy('right')}
+                  disabled={!canScrollRight}
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+            <span className="text-xs text-muted-foreground">
+              {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
+            </span>
+          </div>
         </div>
-        <div className={cn("p-4 relative", isFullscreen && "flex-1 overflow-auto")}>
+        <div className={cn("p-4 relative", isFullscreen && "flex-1 overflow-hidden")}>
           {!canDrag && (
             <div className="text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded mb-3 inline-block">
               {isReadOnly ? 'Project is read-only' : 'Drag and drop is available when grouping by Status or Assignee'}
             </div>
-          )}
-          {canScrollLeft && (
-            <Button
-              variant="outline"
-              size="icon"
-              className="absolute left-1 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full shadow-md bg-background/90 backdrop-blur-sm"
-              onClick={() => scrollBy('left')}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-          )}
-          {canScrollRight && (
-            <Button
-              variant="outline"
-              size="icon"
-              className="absolute right-1 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full shadow-md bg-background/90 backdrop-blur-sm"
-              onClick={() => scrollBy('right')}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
           )}
           <DndContext 
             sensors={sensors} 
