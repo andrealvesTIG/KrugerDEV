@@ -481,6 +481,7 @@ export const tasks = pgTable("tasks", {
   isSummary: boolean("is_summary").default(false), // Is a summary/parent task
   isCritical: boolean("is_critical").default(false), // On critical path
   isOngoing: boolean("is_ongoing").default(false), // Ongoing/operational task without scheduled dates
+  schedulingMode: text("scheduling_mode").default("auto"), // 'auto' = auto-scheduled, 'manual' = manually scheduled (dates optional)
   cost: numeric("cost"), // Budget for this task
   actualCost: numeric("actual_cost"), // Actual cost incurred
   phase: text("phase"), // Project phase this task belongs to
@@ -1629,6 +1630,7 @@ export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, creat
   startDate: z.string().nullable().optional(),
   endDate: z.string().nullable().optional(),
   isOngoing: z.boolean().optional(),
+  schedulingMode: z.enum(['auto', 'manual']).optional(),
 });
 export const insertTaskChangeLogSchema = createInsertSchema(taskChangeLogs).omit({ id: true, changedAt: true });
 export const insertProjectChangeLogSchema = createInsertSchema(projectChangeLogs).omit({ id: true, changedAt: true });

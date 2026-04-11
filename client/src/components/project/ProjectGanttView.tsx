@@ -450,6 +450,7 @@ const TaskNameCell = memo(function TaskNameCell({
   onUpdateName: (taskId: number, name: string) => void;
   onEdit: (task: Task) => void;
   isReadOnly?: boolean;
+  onToggleSchedulingMode?: (task: Task) => void;
   onCreateTaskAt?: (task: Task, position: 'above' | 'below') => void;
   onDeleteTask?: (task: Task) => void;
 }) {
@@ -598,6 +599,12 @@ const TaskNameCell = memo(function TaskNameCell({
             <X className="h-3.5 w-3.5 mr-2" />
             Clear Baseline
           </DropdownMenuItem>
+          {onToggleSchedulingMode && !isReadOnly && (
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onToggleSchedulingMode(task); }} data-testid={`task-toggle-scheduling-${task.id}`}>
+              <CalendarIcon className="h-3.5 w-3.5 mr-2" />
+              {task.schedulingMode === 'manual' ? 'Auto Schedule' : 'Manually Schedule'}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onIndent(task); }} disabled={!canIndent} data-testid={`task-indent-${task.id}`}>
             <ChevronRight className="h-3.5 w-3.5 mr-2" />
             Indent
@@ -722,6 +729,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   hasDependencies,
   computedWbs,
   isReadOnly,
+  onToggleSchedulingMode,
   onCreateTaskAt,
   onDeleteTask,
   preloadedAssignments,
@@ -763,6 +771,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   hasDependencies?: boolean;
   computedWbs?: string;
   isReadOnly?: boolean;
+  onToggleSchedulingMode?: (task: Task) => void;
   onCreateTaskAt?: (task: Task, position: 'above' | 'below') => void;
   onDeleteTask?: (task: Task) => void;
   preloadedAssignments?: (TaskResourceAssignment & { resource: Resource })[];
@@ -1855,6 +1864,10 @@ const ProjectGanttTaskRowTimeline = memo(function ProjectGanttTaskRowTimeline({
           {task.isOngoing ? (
             <Badge variant="outline" className="text-[9px] px-1 py-0 bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/30 dark:text-violet-400 dark:border-violet-700">
               Ongoing
+            </Badge>
+          ) : task.schedulingMode === 'manual' ? (
+            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-400 dark:border-sky-700">
+              Manually Scheduled
             </Badge>
           ) : (
             <Badge variant="outline" className="text-[9px] px-1 py-0 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
@@ -4232,6 +4245,26 @@ function ProjectGanttView({
     });
   }, [updateTask, toast]);
 
+  const handleToggleSchedulingMode = useCallback((task: Task) => {
+    const newMode = task.schedulingMode === 'manual' ? 'auto' : 'manual';
+    const updates: Record<string, unknown> = { id: task.id, projectId: task.projectId, schedulingMode: newMode };
+    if (newMode === 'manual') {
+      updates.startDate = null;
+      updates.endDate = null;
+      updates.durationDays = null;
+    } else if (newMode === 'auto' && !task.startDate) {
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      updates.startDate = todayStr;
+      updates.endDate = calculateEndDateFromWorkingDays(todayStr, 1);
+      updates.durationDays = 1;
+    }
+    updateTask.mutate(updates as Parameters<typeof updateTask.mutate>[0], {
+      onSuccess: () => {
+        toast({ title: newMode === 'manual' ? "Manually scheduled" : "Auto scheduled", description: newMode === 'manual' ? "Dates cleared — set them when ready" : "Task assigned default dates" });
+      }
+    });
+  }, [updateTask, toast]);
+
   const handleEditDependencies = useCallback((task: Task) => {
     setDependenciesDialogTask(task);
   }, []);
@@ -5273,6 +5306,7 @@ function ProjectGanttView({
                             hasDependencies={tasksWithDependencies.has(task.id)}
                             computedWbs={wbsMap.get(task.id)}
                             isReadOnly={isReadOnly}
+                            onToggleSchedulingMode={handleToggleSchedulingMode}
                             onCreateTaskAt={handleCreateTaskAt}
                             onDeleteTask={handleDeleteTask}
                             preloadedAssignments={taskAssignmentsMap.get(task.id)}
@@ -5326,6 +5360,7 @@ function ProjectGanttView({
                               hasDependencies={tasksWithDependencies.has(task.id)}
                               computedWbs={wbsMap.get(task.id)}
                               isReadOnly={isReadOnly}
+                              onToggleSchedulingMode={handleToggleSchedulingMode}
                               onCreateTaskAt={handleCreateTaskAt}
                               onDeleteTask={handleDeleteTask}
                               preloadedAssignments={taskAssignmentsMap.get(task.id)}

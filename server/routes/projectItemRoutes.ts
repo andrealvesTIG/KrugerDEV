@@ -1122,8 +1122,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
       const input = api.tasks.create.input.parse(body);
 
-      if (!input.isOngoing && !input.startDate) {
-        return res.status(400).json({ message: "Start date is required for non-ongoing tasks" });
+      if (!input.isOngoing && input.schedulingMode !== 'manual' && !input.startDate) {
+        return res.status(400).json({ message: "Start date is required for auto-scheduled tasks" });
       }
       
       // Check task limit before creation (using org subscription from project)
@@ -1540,8 +1540,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
 
       const isOngoing = input.isOngoing !== undefined ? input.isOngoing : previousTask.isOngoing;
-      if (!isOngoing && input.startDate === null && previousTask.startDate && input.startDate !== undefined) {
-        return res.status(400).json({ message: "Start date is required for non-ongoing tasks" });
+      const effectiveSchedulingMode = input.schedulingMode ?? previousTask.schedulingMode ?? 'auto';
+      if (!isOngoing && effectiveSchedulingMode !== 'manual' && input.startDate === null && previousTask.startDate && input.startDate !== undefined) {
+        return res.status(400).json({ message: "Start date is required for auto-scheduled tasks" });
       }
       
       // Guardrails: sync status and progress
