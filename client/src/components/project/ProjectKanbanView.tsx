@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Check, History, Milestone as MilestoneIcon } from "lucide-react";
+import { Loader2, Plus, Check, History, Milestone as MilestoneIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { DndContext, DragEndEvent, DragOverEvent, DragOverlay, DragStartEvent, closestCorners, pointerWithin, rectIntersection, useSensor, useSensors, PointerSensor, useDroppable, type CollisionDetection } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -260,6 +260,37 @@ function ProjectKanbanView({
     setActiveOverColumn(null);
   };
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollArrows = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 0);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    updateScrollArrows();
+    el.addEventListener('scroll', updateScrollArrows, { passive: true });
+    const ro = new ResizeObserver(updateScrollArrows);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', updateScrollArrows);
+      ro.disconnect();
+    };
+  }, [updateScrollArrows, columns.length]);
+
+  const scrollBy = useCallback((direction: 'left' | 'right') => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const amount = 300;
+    el.scrollBy({ left: direction === 'left' ? -amount : amount, behavior: 'smooth' });
+  }, []);
+
   return (
     <Card className="overflow-hidden transition-all duration-200">
       <CardContent className={cn(
@@ -317,11 +348,31 @@ function ProjectKanbanView({
             {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
           </span>
         </div>
-        <div className={cn("p-4", isFullscreen && "flex-1 overflow-auto")}>
+        <div className={cn("p-4 relative", isFullscreen && "flex-1 overflow-auto")}>
           {!canDrag && (
             <div className="text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded mb-3 inline-block">
               {isReadOnly ? 'Project is read-only' : 'Drag and drop is available when grouping by Status or Assignee'}
             </div>
+          )}
+          {canScrollLeft && (
+            <Button
+              variant="outline"
+              size="icon"
+              className="absolute left-1 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full shadow-md bg-background/90 backdrop-blur-sm"
+              onClick={() => scrollBy('left')}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          )}
+          {canScrollRight && (
+            <Button
+              variant="outline"
+              size="icon"
+              className="absolute right-1 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full shadow-md bg-background/90 backdrop-blur-sm"
+              onClick={() => scrollBy('right')}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           )}
           <DndContext 
             sensors={sensors} 
@@ -332,6 +383,7 @@ function ProjectKanbanView({
             onDragCancel={handleDragCancel}
           >
             <div 
+              ref={scrollContainerRef}
               className={cn("grid gap-6 overflow-x-auto pb-2", isFullscreen && "h-full")}
               style={{ 
                 gridTemplateColumns: `repeat(${columns.length}, minmax(280px, 1fr))` 
