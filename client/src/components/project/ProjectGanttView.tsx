@@ -844,9 +844,15 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
           updates.endDate = calculateEndDateFromWorkingDays(value as string, currentDuration);
         }
         updates.durationDays = currentDuration;
+        if (task.schedulingMode === 'manual' && !task.startDate) {
+          updates.schedulingMode = 'auto';
+        }
       } else {
         updates.endDate = null;
         updates.durationDays = null;
+        if (task.schedulingMode !== 'manual') {
+          updates.schedulingMode = 'manual';
+        }
       }
     } else if (field === 'endDate') {
       if (value && task.startDate) {
@@ -872,7 +878,11 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
         }
         updates.durationDays = duration;
       } else if (!value) {
+        updates.startDate = null;
         updates.durationDays = null;
+        if (task.schedulingMode !== 'manual') {
+          updates.schedulingMode = 'manual';
+        }
       }
     }
     // Auto-calculate end date when duration changes (working days)
@@ -3255,6 +3265,30 @@ function ProjectGanttView({
       }
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (!isReadOnly && !READ_ONLY_COLUMNS.includes(currentFocused.columnId)) {
+          const clearableColumns: GanttColumn[] = ['startDate', 'endDate', 'baselineStartDate', 'baselineEndDate', 'actualStartDate', 'actualEndDate', 'constraintDate', 'description', 'notes', 'taskNumber', 'phase', 'category', 'labels', 'constraintType'];
+          if (clearableColumns.includes(currentFocused.columnId)) {
+            e.preventDefault();
+            const taskForDelete = visibleTasksRef.current.find(t => t.id === currentFocused.taskId);
+            if (taskForDelete) {
+              const field = currentFocused.columnId;
+              const oldValue = (taskForDelete as Record<string, unknown>)[field];
+              if (oldValue != null && oldValue !== '') {
+                const updates: Record<string, unknown> = { id: taskForDelete.id, projectId: taskForDelete.projectId, [field]: null };
+                if (field === 'startDate') {
+                  updates.endDate = null;
+                  updates.durationDays = null;
+                  if (taskForDelete.schedulingMode !== 'manual') updates.schedulingMode = 'manual';
+                } else if (field === 'endDate') {
+                  updates.startDate = null;
+                  updates.durationDays = null;
+                  if (taskForDelete.schedulingMode !== 'manual') updates.schedulingMode = 'manual';
+                }
+                updateTask.mutate(updates as Parameters<typeof updateTask.mutate>[0]);
+              }
+            }
+          }
+        }
         return;
       }
 
@@ -3266,7 +3300,7 @@ function ProjectGanttView({
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [handleUndo, handleRedo, handleGridCopy, selectedTaskIds, focusedCell, visibleColumns, getEditableColumns, triggerCellEdit, editingCell]);
+  }, [handleUndo, handleRedo, handleGridCopy, selectedTaskIds, focusedCell, visibleColumns, getEditableColumns, triggerCellEdit, editingCell, updateTask, isReadOnly]);
 
   // Fetch project dependencies and calculate CPM
   const { data: projectDependenciesData } = useProjectDependencies(projectId);
