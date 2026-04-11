@@ -215,19 +215,23 @@ const InlineEditCell = memo(function InlineEditCell({
 
   useEffect(() => {
     if (externalEditing && !internalEditing) {
-      startEditInternal(initialCharacter);
-      setInternalEditing(true);
+      const didStart = startEditInternal(initialCharacter);
+      if (didStart) {
+        setInternalEditing(true);
+      } else if (onEditingChange) {
+        onEditingChange(false);
+      }
     } else if (!externalEditing && internalEditing) {
       setInternalEditing(false);
     }
   }, [externalEditing]);
 
-  const startEditInternal = (initChar?: string) => {
-    if (disabled) return;
+  const startEditInternal = (initChar?: string): boolean => {
+    if (disabled) return false;
     if (editType === 'boolean') {
       const newVal = !value;
       onSave(newVal);
-      return;
+      return false;
     }
     if (initChar && (editType === 'text' || editType === 'number' || editType === 'progress')) {
       pendingInitialChar.current = initChar;
@@ -239,12 +243,13 @@ const InlineEditCell = memo(function InlineEditCell({
     } else {
       setEditValue(value ? String(value) : '');
     }
+    return true;
   };
 
   const handleStartEdit = () => {
     if (disabled) return;
-    startEditInternal();
-    setIsEditing(true);
+    const didStart = startEditInternal();
+    if (didStart) setIsEditing(true);
   };
 
   const handleSave = () => {
@@ -2869,10 +2874,12 @@ function ProjectGanttView({
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const isInputActive = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+      const isInsidePopover = !!target.closest('[role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper], [data-radix-select-viewport]');
 
       const isMod = e.metaKey || e.ctrlKey;
 
-      if (isInputActive) return;
+      if (isInputActive || isInsidePopover) return;
+      if (editingCell) return;
 
       if (isMod) {
         if (e.key === 'z' && !e.shiftKey) {
@@ -3048,7 +3055,7 @@ function ProjectGanttView({
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [handleUndo, handleRedo, handleGridCopy, selectedTaskIds, focusedCell, visibleColumns, getEditableColumns, triggerCellEdit]);
+  }, [handleUndo, handleRedo, handleGridCopy, selectedTaskIds, focusedCell, visibleColumns, getEditableColumns, triggerCellEdit, editingCell]);
 
   // Fetch project dependencies and calculate CPM
   const { data: projectDependenciesData } = useProjectDependencies(projectId);
