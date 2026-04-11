@@ -431,6 +431,7 @@ const TaskNameCell = memo(function TaskNameCell({
   onUpdateName,
   onEdit,
   isReadOnly,
+  onToggleSchedulingMode,
   onCreateTaskAt,
   onDeleteTask,
 }: {
@@ -1081,6 +1082,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                 onUpdateName={(taskId, name) => handleInlineUpdate('name', name, task.name)}
                 onEdit={onEdit}
                 isReadOnly={isReadOnly}
+                onToggleSchedulingMode={onToggleSchedulingMode}
                 onCreateTaskAt={onCreateTaskAt}
                 onDeleteTask={onDeleteTask}
               />
