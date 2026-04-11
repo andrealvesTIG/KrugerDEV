@@ -1,8 +1,9 @@
 import { useParams, Link, useLocation } from "wouter";
 import { useResource, useUpdateResource, useResourceSkills, useAddResourceSkill, useRemoveResourceSkill } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
+import { useCustomFieldDefinitions, useResourceCustomFieldValues, useUpdateResourceCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,12 +36,16 @@ import {
   Save,
   Plus,
   X,
-  Wrench
+  Wrench,
+  Pencil,
+  Check,
+  ExternalLink
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import type { Resource, Task, Issue, Project } from "@shared/schema";
+import { Checkbox } from "@/components/ui/checkbox";
+import type { Resource, Task, Issue, Project, CustomFieldDefinition } from "@shared/schema";
 import {
   Table,
   TableBody,
@@ -540,6 +545,9 @@ export default function ResourceDetails() {
                   </div>
                 </div>
               </div>
+              {resource && currentOrganization?.id && (
+                <ResourceCustomFieldsSection resourceId={resource.id} organizationId={currentOrganization.id} />
+              )}
             </CardContent>
           </Card>
           
@@ -920,6 +928,208 @@ export default function ResourceDetails() {
           </Card>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function ResourceCustomFieldsSection({ resourceId, organizationId }: { resourceId: number; organizationId: number }) {
+  const { toast } = useToast();
+  const { data: allDefinitions = [], isLoading: definitionsLoading } = useCustomFieldDefinitions(organizationId);
+  const definitions = useMemo(() => allDefinitions.filter(d => d.entityType === 'resource' && d.isActive !== false), [allDefinitions]);
+  const { data: values = [], isLoading: valuesLoading } = useResourceCustomFieldValues(resourceId);
+  const updateValue = useUpdateResourceCustomFieldValue();
+  const [editingFieldId, setEditingFieldId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
+
+  if (definitionsLoading || valuesLoading) return null;
+  if (definitions.length === 0) return null;
+
+  const getFieldValue = (fieldId: number): string => {
+    const val = values.find(v => v.fieldDefinitionId === fieldId);
+    return val?.value || "";
+  };
+
+  const handleEdit = (field: CustomFieldDefinition) => {
+    setEditingFieldId(field.id);
+    setEditValue(getFieldValue(field.id));
+  };
+
+  const handleSave = async (fieldId: number) => {
+    try {
+      await updateValue.mutateAsync({
+        resourceId,
+        fieldDefinitionId: fieldId,
+        value: editValue || null,
+      });
+      toast({ title: "Saved" });
+    } catch {
+      toast({ title: "Error", description: "Failed to save", variant: "destructive" });
+    }
+    setEditingFieldId(null);
+  };
+
+  const handleCancel = () => {
+    setEditingFieldId(null);
+    setEditValue("");
+  };
+
+  const parseMultiSelectValue = (value: string): string[] => {
+    if (!value) return [];
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value ? [value] : [];
+    }
+  };
+
+  const toggleMultiSelectOption = (opt: string) => {
+    const current = parseMultiSelectValue(editValue);
+    const updated = current.includes(opt)
+      ? current.filter(v => v !== opt)
+      : [...current, opt];
+    setEditValue(JSON.stringify(updated));
+  };
+
+  const renderFieldInput = (field: CustomFieldDefinition) => {
+    switch (field.fieldType) {
+      case "checkbox":
+        return (
+          <Checkbox
+            checked={editValue === "true"}
+            onCheckedChange={(checked) => setEditValue(checked ? "true" : "false")}
+          />
+        );
+      case "select":
+        return (
+          <Select value={editValue} onValueChange={setEditValue}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select..." />
+            </SelectTrigger>
+            <SelectContent>
+              {(field.options as string[] || []).map((opt) => (
+                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      case "multiselect": {
+        const selectedValues = parseMultiSelectValue(editValue);
+        return (
+          <div className="flex flex-wrap gap-1">
+            {(field.options as string[] || []).map((opt) => (
+              <Badge
+                key={opt}
+                variant={selectedValues.includes(opt) ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => toggleMultiSelectOption(opt)}
+              >
+                {opt}
+              </Badge>
+            ))}
+          </div>
+        );
+      }
+      case "date":
+        return (
+          <Input
+            type="date"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+          />
+        );
+      case "number":
+        return (
+          <Input
+            type="number"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+          />
+        );
+      case "url":
+        return (
+          <Input
+            type="url"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            placeholder="https://..."
+          />
+        );
+      default:
+        return (
+          <Input
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+          />
+        );
+    }
+  };
+
+  const renderFieldValue = (field: CustomFieldDefinition) => {
+    const value = getFieldValue(field.id);
+    if (!value) return <span className="text-muted-foreground text-sm">Not set</span>;
+
+    switch (field.fieldType) {
+      case "checkbox":
+        return value === "true" ? <Check className="h-4 w-4 text-green-600" /> : <X className="h-4 w-4 text-muted-foreground" />;
+      case "url":
+        return (
+          <a href={value} target="_blank" rel="noopener noreferrer" className="underline text-sm flex items-center gap-1">
+            {value.length > 30 ? value.substring(0, 30) + "..." : value}
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        );
+      case "multiselect": {
+        const selected = parseMultiSelectValue(value);
+        return (
+          <div className="flex flex-wrap gap-1">
+            {selected.map((v) => (
+              <Badge key={v} variant="secondary" className="text-xs">{v}</Badge>
+            ))}
+          </div>
+        );
+      }
+      case "date":
+        return <span className="text-sm">{format(new Date(value), 'MMM d, yyyy')}</span>;
+      default:
+        return <span className="text-sm">{value}</span>;
+    }
+  };
+
+  return (
+    <div className="mt-6 pt-4 border-t border-border">
+      <div className="flex items-center gap-2 mb-3">
+        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Custom Fields</Label>
+        <Badge variant="secondary" className="text-[10px]">{definitions.length}</Badge>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+        {definitions.map((field) => (
+          <div key={field.id} className="space-y-1">
+            <Label className="text-xs text-muted-foreground flex items-center gap-1">
+              {field.name}
+              {field.isRequired && <span className="text-destructive">*</span>}
+            </Label>
+            {editingFieldId === field.id ? (
+              <div className="flex items-center gap-2">
+                {renderFieldInput(field)}
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleSave(field.id)}>
+                  <Check className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleCancel}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div
+                className="flex items-center justify-between p-1 rounded cursor-pointer hover:bg-muted min-h-[28px]"
+                onClick={() => handleEdit(field)}
+              >
+                {renderFieldValue(field)}
+                <Pencil className="h-3 w-3 text-muted-foreground" />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
