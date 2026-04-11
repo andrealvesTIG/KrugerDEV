@@ -2135,7 +2135,22 @@ function ProjectGanttView({
     return map;
   }, [projectTaskAssignments]);
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('month');
-  const [visibleColumns, setVisibleColumns] = useState<GanttColumn[]>(DEFAULT_GANTT_COLUMNS);
+  const getColumnsKey = () => `project-gantt-columns-${projectId}`;
+  const [visibleColumns, setVisibleColumns] = useState<GanttColumn[]>(() => {
+    try {
+      const saved = localStorage.getItem(getColumnsKey());
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_GANTT_COLUMNS;
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(getColumnsKey(), JSON.stringify(visibleColumns));
+    } catch {}
+  }, [visibleColumns, projectId]);
   const [newTaskName, setNewTaskName] = useState('');
   
   // Panel size state - persisted per project in localStorage
