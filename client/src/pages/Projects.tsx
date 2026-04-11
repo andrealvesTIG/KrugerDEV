@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 import { z } from "zod";
 import type { Project, Resource } from "@shared/schema";
 import { Link, useLocation } from "wouter";
@@ -548,6 +549,7 @@ export default function Projects() {
   const [deleteProjectId, setDeleteProjectId] = useState<number | null>(null);
   const [riskAssessProjectId, setRiskAssessProjectId] = useState<number | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number; imported: number; skipped: number } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const { isCollapsed: sidebarCollapsed, setIsCollapsed: setSidebarCollapsed } = useSidebarState();
   const sidebarWasCollapsed = useRef(false);
@@ -701,6 +703,8 @@ export default function Projects() {
       let imported = 0;
       let skipped = 0;
       let limitReached = false;
+      const totalRows = jsonData.length;
+      setImportProgress({ current: 0, total: totalRows, imported: 0, skipped: 0 });
       
       for (let i = 0; i < jsonData.length; i++) {
         if (limitReached) break;
@@ -708,6 +712,7 @@ export default function Projects() {
         const name = row["Name"] || row["name"] || row["Project Name"] || row["projectName"];
         if (!name || typeof name !== "string" || name.trim() === "") {
           skipped++;
+          setImportProgress({ current: i + 1, total: totalRows, imported, skipped });
           continue;
         }
         
@@ -751,6 +756,7 @@ export default function Projects() {
             completionPercentage: Math.min(100, Math.max(0, completionRaw))
           });
           imported++;
+          setImportProgress({ current: i + 1, total: totalRows, imported, skipped });
 
           if (cfHeaderMap.size > 0 && createdProject?.id) {
             const cfValuesToSave: Array<{ fieldDefinitionId: number; value: string | null }> = [];
@@ -783,6 +789,7 @@ export default function Projects() {
             break;
           }
           skipped++;
+          setImportProgress({ current: i + 1, total: totalRows, imported, skipped });
         }
       }
       
@@ -796,6 +803,7 @@ export default function Projects() {
       toast({ title: "Import Failed", description: "Could not read the Excel file", variant: "destructive" });
     } finally {
       setIsImporting(false);
+      setImportProgress(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
@@ -1324,6 +1332,43 @@ export default function Projects() {
               {generateProjectRiskAssessment.isPending ? "Generating..." : "Generate Assessment"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importProgress !== null} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Importing Projects
+            </DialogTitle>
+            <DialogDescription>
+              Please wait while your projects are being imported.
+            </DialogDescription>
+          </DialogHeader>
+          {importProgress && (
+            <div className="space-y-4 py-2">
+              <Progress value={importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0} className="h-3" />
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">
+                  Processing row {importProgress.current} of {importProgress.total}
+                </span>
+                <span className="font-medium">
+                  {importProgress.total > 0 ? Math.round((importProgress.current / importProgress.total) * 100) : 0}%
+                </span>
+              </div>
+              <div className="flex gap-4 text-sm">
+                <span className="text-emerald-600 dark:text-emerald-400">
+                  {importProgress.imported} imported
+                </span>
+                {importProgress.skipped > 0 && (
+                  <span className="text-amber-600 dark:text-amber-400">
+                    {importProgress.skipped} skipped
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </PageTransition>
