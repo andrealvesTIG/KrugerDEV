@@ -17,14 +17,37 @@ import { useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { useTaskHistory } from "@/hooks/use-tasks";
 import type { Task } from "@shared/schema";
 
-type GroupByField = 'status' | 'priority' | 'assignee' | 'phase';
+type GroupByField = 'status' | 'priority' | 'assignee' | 'phase' | 'category' | 'taskType' | 'constraintType' | 'schedulingMode' | 'labels' | 'isMilestone' | 'isCritical' | 'isOngoing' | 'milestoneType';
 
 const GROUP_BY_OPTIONS: { value: GroupByField; label: string }[] = [
   { value: 'status', label: 'Status' },
   { value: 'priority', label: 'Priority' },
   { value: 'assignee', label: 'Assignee' },
   { value: 'phase', label: 'Phase' },
+  { value: 'category', label: 'Category' },
+  { value: 'taskType', label: 'Task Type' },
+  { value: 'constraintType', label: 'Constraint Type' },
+  { value: 'schedulingMode', label: 'Scheduling Mode' },
+  { value: 'labels', label: 'Labels' },
+  { value: 'isMilestone', label: 'Milestone' },
+  { value: 'isCritical', label: 'Critical Path' },
+  { value: 'isOngoing', label: 'Ongoing' },
+  { value: 'milestoneType', label: 'Milestone Type' },
 ];
+
+const BOOLEAN_COLUMN_COLORS = {
+  yes: "bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200",
+  no: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200",
+};
+
+const TASK_TYPE_COLORS: Record<string, string> = {
+  "Work": "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200",
+  "Milestone": "bg-purple-100 text-purple-700 dark:bg-purple-800 dark:text-purple-200",
+  "Summary": "bg-amber-100 text-amber-700 dark:bg-amber-800 dark:text-amber-200",
+};
+
+const DEFAULT_COLUMN_COLOR = "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200";
+const NONE_COLUMN_COLOR = "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200";
 
 const STATUS_COLUMNS = [
   { id: "Not Started", label: "Not Started", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
@@ -101,26 +124,54 @@ function ProjectKanbanView({
       return PRIORITY_COLUMNS;
     } else if (groupBy === 'assignee') {
       const cols: { id: string; label: string; color: string }[] = [
-        { id: "Unassigned", label: "Unassigned", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" }
+        { id: "Unassigned", label: "Unassigned", color: NONE_COLUMN_COLOR }
       ];
       if (resources && resources.length > 0) {
         resources.forEach(r => {
-          cols.push({ id: String(r.id), label: r.displayName, color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" });
+          cols.push({ id: String(r.id), label: r.displayName, color: DEFAULT_COLUMN_COLOR });
         });
       }
       return cols;
-    } else if (groupBy === 'phase') {
-      const phaseSet = new Set<string>();
+    } else if (groupBy === 'isMilestone' || groupBy === 'isCritical' || groupBy === 'isOngoing') {
+      const labelMap: Record<string, [string, string]> = {
+        isMilestone: ['Milestones', 'Non-Milestones'],
+        isCritical: ['Critical Path', 'Non-Critical'],
+        isOngoing: ['Ongoing', 'Not Ongoing'],
+      };
+      const [yesLabel, noLabel] = labelMap[groupBy];
+      return [
+        { id: "Yes", label: yesLabel, color: BOOLEAN_COLUMN_COLORS.yes },
+        { id: "No", label: noLabel, color: BOOLEAN_COLUMN_COLORS.no },
+      ];
+    } else {
+      const noneLabel = groupBy === 'phase' ? 'No Phase' 
+        : groupBy === 'category' ? 'No Category'
+        : groupBy === 'taskType' ? 'No Type'
+        : groupBy === 'labels' ? 'No Labels'
+        : groupBy === 'milestoneType' ? 'No Milestone Type'
+        : groupBy === 'constraintType' ? 'No Constraint'
+        : groupBy === 'schedulingMode' ? 'Unknown'
+        : 'None';
+      const valueSet = new Set<string>();
       tasks.forEach(t => {
-        if (t.phase) phaseSet.add(t.phase);
+        const val = t[groupBy as keyof Task];
+        if (val != null && String(val).trim()) {
+          if (groupBy === 'labels') {
+            String(val).split(',').map(l => l.trim()).filter(Boolean).forEach(l => valueSet.add(l));
+          } else {
+            valueSet.add(String(val));
+          }
+        }
       });
-      const cols = [{ id: "No Phase", label: "No Phase", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" }];
-      Array.from(phaseSet).sort().forEach(phase => {
-        cols.push({ id: phase, label: phase, color: "bg-purple-100 text-purple-700 dark:bg-purple-800 dark:text-purple-200" });
+      const cols: { id: string; label: string; color: string }[] = [
+        { id: noneLabel, label: noneLabel, color: NONE_COLUMN_COLOR }
+      ];
+      Array.from(valueSet).sort().forEach(val => {
+        const color = groupBy === 'taskType' ? (TASK_TYPE_COLORS[val] || DEFAULT_COLUMN_COLOR) : DEFAULT_COLUMN_COLOR;
+        cols.push({ id: val, label: val, color });
       });
       return cols;
     }
-    return STATUS_COLUMNS;
   }, [groupBy, tasks, resources]);
   
   const filteredTasks = useMemo(() => {
@@ -148,10 +199,21 @@ function ProjectKanbanView({
         return String(assignedIds[0]);
       }
       return "Unassigned";
-    } else if (groupBy === 'phase') {
-      return task.phase || "No Phase";
+    } else if (groupBy === 'isMilestone' || groupBy === 'isCritical' || groupBy === 'isOngoing') {
+      return task[groupBy] ? "Yes" : "No";
+    } else {
+      const noneLabel = groupBy === 'phase' ? 'No Phase' 
+        : groupBy === 'category' ? 'No Category'
+        : groupBy === 'taskType' ? 'No Type'
+        : groupBy === 'labels' ? 'No Labels'
+        : groupBy === 'milestoneType' ? 'No Milestone Type'
+        : groupBy === 'constraintType' ? 'No Constraint'
+        : groupBy === 'schedulingMode' ? 'Unknown'
+        : 'None';
+      const val = task[groupBy as keyof Task];
+      if (val == null || !String(val).trim()) return noneLabel;
+      return String(val);
     }
-    return task.status || "Not Started";
   };
   
   const isDragEnabled = groupBy === 'status' || groupBy === 'assignee';
@@ -313,7 +375,7 @@ function ProjectKanbanView({
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Group by:</span>
             <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupByField)}>
-              <SelectTrigger className="h-8 w-[120px] text-xs" data-testid="kanban-group-by">
+              <SelectTrigger className="h-8 w-[160px] text-xs" data-testid="kanban-group-by">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -393,11 +455,19 @@ function ProjectKanbanView({
                 gridTemplateColumns: `repeat(${columns.length}, minmax(280px, 1fr))` 
               }}
             >
-              {columns.map(column => (
-                <ProjectKanbanColumn
+              {columns.map(column => {
+                const columnTasks = groupBy === 'labels'
+                  ? filteredTasks.filter(t => {
+                      const labels = t.labels ? String(t.labels).split(',').map(l => l.trim()).filter(Boolean) : [];
+                      const noneLabel = 'No Labels';
+                      if (column.id === noneLabel) return labels.length === 0;
+                      return labels.includes(column.id);
+                    })
+                  : filteredTasks.filter(t => getGroupValue(t) === column.id);
+                return (<ProjectKanbanColumn
                   key={column.id}
                   column={column}
-                  tasks={filteredTasks.filter(t => getGroupValue(t) === column.id)}
+                  tasks={columnTasks}
                   onTaskClick={onTaskClick}
                   isActiveOver={activeOverColumn === column.id && canDrag}
                   resources={resources}
@@ -405,8 +475,8 @@ function ProjectKanbanView({
                   isDragEnabled={canDrag}
                   taskAssignmentsMap={taskAssignmentsMap}
                   isReadOnly={isReadOnly}
-                />
-              ))}
+                />);
+              })}
             </div>
             <DragOverlay>
               {activeTask && canDrag && (
