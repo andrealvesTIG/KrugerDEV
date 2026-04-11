@@ -449,6 +449,51 @@ async function migrate() {
     // Backfill tasks.organization_id from projects for any null values
     `UPDATE tasks SET organization_id = (SELECT organization_id FROM projects WHERE projects.id = tasks.project_id) WHERE organization_id IS NULL AND project_id IS NOT NULL`,
 
+    // Fix CUSTOM plan credit limits: hard_cap was set to 10 instead of matching the included quota
+    `UPDATE plan_meter_rules SET hard_cap_units = 100000
+     WHERE plan_id = (SELECT id FROM plans WHERE code = 'CUSTOM')
+       AND meter_id = (SELECT id FROM meters WHERE code = 'credits')
+       AND rule_type = 'HARD_CAP'
+       AND (hard_cap_units IS NULL OR hard_cap_units < 100000)`,
+
+    // Fix CUSTOM plan: ensure other resource hard caps are reasonable
+    `UPDATE plan_meter_rules SET hard_cap_units = 10000
+     WHERE plan_id = (SELECT id FROM plans WHERE code = 'CUSTOM')
+       AND meter_id = (SELECT id FROM meters WHERE code = 'projects')
+       AND rule_type = 'HARD_CAP'
+       AND (hard_cap_units IS NULL OR hard_cap_units < 10000)`,
+
+    `UPDATE plan_meter_rules SET hard_cap_units = 1000000
+     WHERE plan_id = (SELECT id FROM plans WHERE code = 'CUSTOM')
+       AND meter_id = (SELECT id FROM meters WHERE code = 'tasks')
+       AND rule_type = 'HARD_CAP'
+       AND (hard_cap_units IS NULL OR hard_cap_units < 1000000)`,
+
+    `UPDATE plan_meter_rules SET hard_cap_units = 100000
+     WHERE plan_id = (SELECT id FROM plans WHERE code = 'CUSTOM')
+       AND meter_id = (SELECT id FROM meters WHERE code = 'documents')
+       AND rule_type = 'HARD_CAP'
+       AND (hard_cap_units IS NULL OR hard_cap_units < 100000)`,
+
+    `UPDATE plan_meter_rules SET hard_cap_units = 100000
+     WHERE plan_id = (SELECT id FROM plans WHERE code = 'CUSTOM')
+       AND meter_id = (SELECT id FROM meters WHERE code = 'ai_runs')
+       AND rule_type = 'HARD_CAP'
+       AND (hard_cap_units IS NULL OR hard_cap_units < 100000)`,
+
+    // Fix CUSTOM plan usage rollups: update included_units to match plan rules
+    `UPDATE usage_rollups ur SET 
+       included_units = pmr.included_units_monthly * 100,
+       remaining_units = GREATEST(0, pmr.included_units_monthly * 100 - ur.used_units)
+     FROM billing_cycles bc
+     JOIN subscriptions s ON bc.subscription_id = s.id
+     JOIN plans p ON s.plan_id = p.id
+     JOIN plan_meter_rules pmr ON pmr.plan_id = p.id AND pmr.meter_id = ur.meter_id AND pmr.rule_type = 'INCLUDED_QUOTA'
+     WHERE ur.billing_cycle_id = bc.id
+       AND p.code = 'CUSTOM'
+       AND ur.meter_id = (SELECT id FROM meters WHERE code = 'credits')
+       AND ur.included_units < pmr.included_units_monthly * 100`,
+
     // Deduplicate external_shares before adding unique index (keep latest row per object+user)
     `DELETE FROM external_shares WHERE id NOT IN (
       SELECT MAX(id) FROM external_shares GROUP BY object_type, object_id, shared_with_user_id
