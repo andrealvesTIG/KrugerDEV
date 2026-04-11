@@ -368,6 +368,38 @@ const jarvisTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "bulk_create_tasks",
+      description: "Create multiple tasks in a project at once from structured data (e.g. parsed from a CSV file). Call this ONLY after presenting the parsed data to the user and receiving explicit confirmation. Each task object should have at minimum a name.",
+      parameters: {
+        type: "object",
+        properties: {
+          projectId: { type: "number", description: "The project ID to create all tasks in" },
+          tasks: {
+            type: "array",
+            description: "Array of task objects to create",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string", description: "The task name (required)" },
+                description: { type: "string", description: "Task description" },
+                priority: { type: "string", enum: ["Low", "Medium", "High", "Critical"], description: "Task priority" },
+                status: { type: "string", enum: ["Not Started", "In Progress", "On Hold", "Completed", "Cancelled"], description: "Task status" },
+                assignee: { type: "string", description: "Assignee name" },
+                startDate: { type: "string", description: "Start date in YYYY-MM-DD format" },
+                endDate: { type: "string", description: "End date / due date in YYYY-MM-DD format" },
+                isMilestone: { type: "boolean", description: "Whether this is a milestone" },
+              },
+              required: ["name"],
+            },
+          },
+        },
+        required: ["projectId", "tasks"],
+      },
+    },
+  },
 ];
 
 async function handleToolCall(
@@ -431,6 +463,65 @@ async function handleToolCall(
         projectId,
         data: { reason: args.reason },
       });
+      return JSON.stringify(result);
+    }
+    case "bulk_create_tasks": {
+      const taskList = args.tasks;
+      if (!Array.isArray(taskList) || taskList.length === 0) {
+        return JSON.stringify({ success: false, message: "No tasks provided." });
+      }
+      if (taskList.length > 200) {
+        return JSON.stringify({ success: false, message: "Maximum 200 tasks can be created at once." });
+      }
+
+      const validStatuses = ["Not Started", "In Progress", "On Hold", "Completed", "Cancelled"];
+      const validPriorities = ["Low", "Medium", "High", "Critical"];
+
+      function parseDate(val: unknown): string | null {
+        if (typeof val !== "string") return null;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(val)) return null;
+        const d = new Date(val + "T00:00:00Z");
+        if (isNaN(d.getTime())) return null;
+        return val;
+      }
+
+      const skipped: string[] = [];
+      const taskValues = taskList
+        .filter((t: any, idx: number) => {
+          if (!t.name || typeof t.name !== "string" || !t.name.trim()) {
+            skipped.push(`Row ${idx + 1}: missing or invalid task name`);
+            return false;
+          }
+          return true;
+        })
+        .map((t: any) => ({
+          projectId,
+          name: String(t.name).trim().slice(0, 500),
+          description: typeof t.description === "string" ? t.description.slice(0, 5000) : null,
+          status: typeof t.status === "string" && validStatuses.includes(t.status) ? t.status : "Not Started",
+          priority: typeof t.priority === "string" && validPriorities.includes(t.priority) ? t.priority : "Medium",
+          assignee: typeof t.assignee === "string" ? t.assignee.slice(0, 200) : null,
+          startDate: parseDate(t.startDate),
+          endDate: parseDate(t.endDate),
+          isMilestone: t.isMilestone === true,
+          organizationId: orgId,
+        }));
+
+      if (taskValues.length === 0) {
+        return JSON.stringify({ success: false, message: "No valid tasks found — each task needs at least a name." });
+      }
+
+      const created = await db.insert(tasks).values(taskValues).returning({ id: tasks.id, name: tasks.name });
+      const result: Record<string, any> = {
+        success: true,
+        message: `Successfully created ${created.length} task(s) in the project.`,
+        taskCount: created.length,
+        tasks: created.slice(0, 20).map(t => ({ id: t.id, name: t.name })),
+      };
+      if (skipped.length > 0) {
+        result.message += ` ${skipped.length} row(s) were skipped.`;
+        result.skipped = skipped.slice(0, 10);
+      }
       return JSON.stringify(result);
     }
     default:
@@ -560,7 +651,15 @@ export async function streamJarvisResponse(
 - When the user asks you to create a task, risk, issue, note, or flag a project, first describe what you will do and ask for confirmation.
 - When the user confirms (says "yes", "proceed", "do it", "go ahead", "ok", "sure", "confirm", etc.), you MUST call the appropriate tool function to actually execute the action. Do NOT just say you did it — you must use the tool.
 - After the tool executes, report the result to the user based on the tool response.
-- The project IDs are available in the data context above. Match project names to their IDs.`;
+- The project IDs are available in the data context above. Match project names to their IDs.
+
+CSV FILE IMPORT RULES:
+- When a CSV file is attached, parse its content to identify task data. Look for columns like: name/title/task, description, priority, status, assignee, start date, end date, due date.
+- Be flexible with column names — map variations like "Task Name", "Title", "Activity" → name; "Owner", "Assigned To" → assignee; "Due Date", "End", "Deadline" → endDate; "Start", "Begin" → startDate.
+- Present a summary table of the parsed tasks to the user showing what will be created (task name, priority, assignee, dates, etc.).
+- Ask for confirmation before executing. If the user is on a project page, use that project. Otherwise ask which project to import into.
+- Use the bulk_create_tasks tool to create all tasks at once — do NOT call create_task repeatedly.
+- After creation, report how many tasks were created successfully.`;
 
     const systemMessage = `${SYSTEM_PROMPT}${pageDirective}${conciseDirective}${actionDirective}${attachmentContext}\n\n---\n\n${dataContext}`;
 
@@ -580,7 +679,7 @@ export async function streamJarvisResponse(
         model: "gpt-4o",
         messages: apiMessages,
         stream: true,
-        max_completion_tokens: concise ? 800 : 4096,
+        max_completion_tokens: concise ? 2048 : 4096,
         temperature: 0.3,
         tools: jarvisTools,
       });
