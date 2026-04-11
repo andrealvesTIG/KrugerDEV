@@ -107,6 +107,13 @@ export function useBulkUpdateProjectCustomFieldValues() {
   });
 }
 
+export function useProjectTaskCustomFieldValues(projectId: number | undefined | null) {
+  return useQuery<TaskCustomFieldValue[]>({
+    queryKey: [`/api/projects/${projectId}/task-custom-field-values`],
+    enabled: !!projectId,
+  });
+}
+
 export function useTaskCustomFieldValues(taskId: number | undefined | null) {
   return useQuery<TaskCustomFieldValue[]>({
     queryKey: [`/api/tasks/${taskId}/custom-field-values`],

@@ -4,6 +4,7 @@ import {
   healthStatusHistory, statusReportHistory,
   projectViews, systemProjectViews, notifications,
   userConsents,
+  tasks,
   customFieldDefinitions, projectCustomFieldValues, taskCustomFieldValues, resourceCustomFieldValues,
   customProjectTabs, customTabSections, customTabFields,
   projectScoringCriteria, projectScores, portfolioScoringConfig,
@@ -40,7 +41,7 @@ import {
   type ProjectTemplate, type InsertProjectTemplate,
   type ProjectTemplateItem, type InsertProjectTemplateItem,
 } from "@shared/schema";
-import { eq, and, desc, asc, sql } from "drizzle-orm";
+import { eq, and, desc, asc, sql, inArray } from "drizzle-orm";
 
 export async function getProjectDocuments(projectId: number): Promise<ProjectDocument[]> {
   return await db.select().from(projectDocuments)
@@ -377,6 +378,14 @@ export async function deleteTaskCustomFieldValue(taskId: number, fieldDefinition
       eq(taskCustomFieldValues.taskId, taskId),
       eq(taskCustomFieldValues.fieldDefinitionId, fieldDefinitionId)
     ));
+}
+
+export async function getProjectTaskCustomFieldValues(projectId: number): Promise<TaskCustomFieldValue[]> {
+  const projectTaskIds = await db.select({ id: tasks.id }).from(tasks)
+    .where(eq(tasks.projectId, projectId));
+  if (projectTaskIds.length === 0) return [];
+  return await db.select().from(taskCustomFieldValues)
+    .where(inArray(taskCustomFieldValues.taskId, projectTaskIds.map(t => t.id)));
 }
 
 export async function getResourceCustomFieldValues(resourceId: number): Promise<ResourceCustomFieldValue[]> {

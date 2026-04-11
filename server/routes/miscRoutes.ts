@@ -930,6 +930,20 @@ export async function registerMiscRoutes(app: Express) {
   // TASK CUSTOM FIELD VALUES ROUTES
   // ============================================
 
+  app.get('/api/projects/:projectId/task-custom-field-values', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const values = await storage.getProjectTaskCustomFieldValues(projectId);
+      res.json(values);
+    } catch (error) {
+      console.error('Error fetching project task custom field values:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch project task custom field values' : classified.message });
+    }
+  });
+
   app.get('/api/tasks/:taskId/custom-field-values', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });

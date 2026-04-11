@@ -9,6 +9,7 @@ import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, calcul
 import { calculateCPM, type CPMResult } from "@/lib/cpm";
 import { useUpdateTask, useCreateTask, useDeleteTask, useAddTaskDependency, useRemoveTaskDependency, useReorderTask, useProjectDependencies, useBulkUpdateTasks, useBulkDeleteTasks } from "@/hooks/use-tasks";
 import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useProjectTaskAssignments, useResources, useCreateResource } from "@/hooks/use-resources";
+import { useCustomFieldDefinitions, useProjectTaskCustomFieldValues, useUpdateTaskCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
@@ -50,23 +51,14 @@ const zoomLabels: Record<ZoomLevel, string> = {
   '5year': '5 Years'
 };
 
-type GanttColumn = 
-  | 'taskIndex' | 'task' | 'taskNumber' | 'wbs' | 'outlineLevel' | 'description'
-  | 'startDate' | 'endDate' | 'baselineStartDate' | 'baselineEndDate' | 'actualStartDate' | 'actualEndDate'
-  | 'durationDays' | 'progress' | 'status' | 'priority' | 'taskType'
-  | 'estimatedHours' | 'actualHours' | 'remainingHours'
-  | 'cost' | 'actualCost'
-  | 'resources' | 'assignee' 
-  | 'constraintType' | 'constraintDate'
-  | 'isMilestone' | 'isCritical' | 'isSummary' | 'timesheetBlocked'
-  | 'phase' | 'category' | 'labels' | 'notes';
+type GanttColumn = string;
 
 type GanttColumnConfig = { 
   id: GanttColumn; 
   label: string; 
   width: string; 
   widthPx: number;
-  category: 'basic' | 'schedule' | 'baseline' | 'effort' | 'cost' | 'assignment' | 'constraints' | 'flags' | 'metadata';
+  category: 'basic' | 'schedule' | 'baseline' | 'effort' | 'cost' | 'assignment' | 'constraints' | 'flags' | 'metadata' | 'custom';
 };
 
 const GANTT_COLUMNS: GanttColumnConfig[] = [
@@ -126,6 +118,7 @@ const COLUMN_CATEGORIES: { id: GanttColumnConfig['category']; label: string }[] 
   { id: 'constraints', label: 'Constraints' },
   { id: 'flags', label: 'Flags' },
   { id: 'metadata', label: 'Metadata' },
+  { id: 'custom', label: 'Custom Fields' },
 ];
 
 const DEFAULT_GANTT_COLUMNS: GanttColumn[] = ['taskIndex', 'wbs', 'task', 'startDate', 'endDate', 'durationDays', 'progress', 'estimatedHours', 'resources'];
@@ -741,6 +734,9 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   editingCell,
   editingInitialChar,
   onEditingChange,
+  allColumns,
+  taskCfValuesMap,
+  onCustomFieldChange,
 }: { 
   task: Task;
   rowIndex: number;
@@ -792,6 +788,9 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   editingCell?: CellPosition | null;
   editingInitialChar?: string;
   onEditingChange?: (editing: boolean) => void;
+  allColumns?: GanttColumnConfig[];
+  taskCfValuesMap?: Map<string, string>;
+  onCustomFieldChange?: (taskId: number, fieldDefId: number, value: string | null) => void;
 }) {
   const [isEditingResources, setIsEditingResources] = useState(false);
   const { data: fetchedAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(isEditingResources ? task.id : null);
@@ -1049,7 +1048,8 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
       
       {/* Dynamic column rendering */}
       {visibleColumns.map(colId => {
-        const colConfig = GANTT_COLUMNS.find(c => c.id === colId);
+        const columnsSource = allColumns ?? GANTT_COLUMNS;
+        const colConfig = columnsSource.find(c => c.id === colId);
         if (!colConfig) return null;
         
         const colWidth = columnWidths?.[colId] || colConfig.widthPx;
@@ -1565,6 +1565,19 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                 />
               );
             default:
+              if (colId.startsWith('cf_') && taskCfValuesMap && onCustomFieldChange) {
+                const fieldDefId = parseInt(colId.replace('cf_', ''));
+                const cfValue = taskCfValuesMap.get(`${task.id}_${fieldDefId}`) ?? '';
+                return (
+                  <InlineEditCell {...cellEditProps}
+                    value={cfValue || null}
+                    displayValue={<span className="truncate">{cfValue || '—'}</span>}
+                    editType="text"
+                    onSave={(val) => onCustomFieldChange(task.id, fieldDefId, val as string | null)}
+                    disabled={isReadOnly}
+                  />
+                );
+              }
               return '—';
           }
         };
@@ -1928,6 +1941,39 @@ function ProjectGanttView({
     enabled: !!organizationId,
   });
   const today = new Date();
+  const { data: customFieldDefs } = useCustomFieldDefinitions(organizationId);
+  const { data: projectTaskCfValues } = useProjectTaskCustomFieldValues(projectId);
+  const updateTaskCfValue = useUpdateTaskCustomFieldValue();
+
+  const taskCustomFieldDefs = useMemo(() => 
+    (customFieldDefs ?? []).filter(d => d.entityType === 'task'),
+    [customFieldDefs]
+  );
+
+  const customFieldColumns: GanttColumnConfig[] = useMemo(() => 
+    taskCustomFieldDefs.map(def => ({
+      id: `cf_${def.id}`,
+      label: def.fieldName,
+      width: 'w-28',
+      widthPx: 112,
+      category: 'custom' as const,
+    })),
+    [taskCustomFieldDefs]
+  );
+
+  const allGanttColumns = useMemo(() => 
+    [...GANTT_COLUMNS, ...customFieldColumns],
+    [customFieldColumns]
+  );
+
+  const taskCfValuesMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const v of projectTaskCfValues ?? []) {
+      map.set(`${v.taskId}_${v.fieldDefinitionId}`, v.value ?? '');
+    }
+    return map;
+  }, [projectTaskCfValues]);
+
   const { data: projectTaskAssignments } = useProjectTaskAssignments(projectId);
   const taskAssignmentsMap = useMemo(() => {
     const map = new Map<number, (TaskResourceAssignment & { resource: Resource })[]>();
@@ -2565,7 +2611,7 @@ function ProjectGanttView({
     if (selectedInOrder.length === 0) return;
 
     const header = visibleColumns.map(colId => {
-      const col = GANTT_COLUMNS.find(c => c.id === colId);
+      const col = allGanttColumns.find(c => c.id === colId);
       return col?.label ?? colId;
     }).join('\t');
 
@@ -2646,7 +2692,7 @@ function ProjectGanttView({
     let dataLines = lines;
     const firstRow = lines[0].split('\t');
     const columnLabels = visibleColumns.map(colId => {
-      const col = GANTT_COLUMNS.find(c => c.id === colId);
+      const col = allGanttColumns.find(c => c.id === colId);
       return col?.label ?? colId;
     });
     const isHeader = firstRow.some((cell, i) =>
@@ -3404,7 +3450,7 @@ function ProjectGanttView({
   // Column widths - use fixed pixel widths (no scaling)
   const [columnWidths, setColumnWidths] = useState<Record<GanttColumn, number>>(() => {
     const initial: Record<string, number> = {};
-    GANTT_COLUMNS.forEach(col => {
+    [...GANTT_COLUMNS].forEach(col => {
       initial[col.id] = col.widthPx;
     });
     return initial as Record<GanttColumn, number>;
@@ -3509,8 +3555,8 @@ function ProjectGanttView({
   
   // Add column from available fields
   const availableColumnsToAdd = useMemo(() => {
-    return GANTT_COLUMNS.filter(col => !visibleColumns.includes(col.id));
-  }, [visibleColumns]);
+    return allGanttColumns.filter(col => !visibleColumns.includes(col.id));
+  }, [visibleColumns, allGanttColumns]);
   
   const filteredColumnsToAdd = useMemo(() => {
     if (!columnSearchQuery.trim()) return availableColumnsToAdd;
@@ -4786,7 +4832,7 @@ function ProjectGanttView({
                     <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
                       {cat.label}
                     </div>
-                    {GANTT_COLUMNS.filter(col => col.category === cat.id).map(col => (
+                    {allGanttColumns.filter(col => col.category === cat.id).map(col => (
                       <DropdownMenuItem 
                         key={col.id}
                         onSelect={(e) => { e.preventDefault(); toggleColumn(col.id); }}
@@ -5148,7 +5194,7 @@ function ProjectGanttView({
                 )}
                 <div className="w-8 flex-shrink-0 border-r p-1"></div>
                 {visibleColumns.map(colId => {
-                  const col = GANTT_COLUMNS.find(c => c.id === colId);
+                  const col = allGanttColumns.find(c => c.id === colId);
                   if (!col) return null;
                   const colWidth = columnWidths[colId] || col.widthPx;
                   const isDraggable = col.id !== 'task';
@@ -5278,7 +5324,7 @@ function ProjectGanttView({
                       <FolderKanban className="h-3.5 w-3.5 text-primary" />
                     </div>
                     {visibleColumns.map(colId => {
-                      const colConfig = GANTT_COLUMNS.find(c => c.id === colId);
+                      const colConfig = allGanttColumns.find(c => c.id === colId);
                       if (!colConfig) return null;
                       const colWidth = columnWidths[colId] || colConfig.widthPx;
                       
@@ -5463,7 +5509,7 @@ function ProjectGanttView({
                   {baselineSelectionMode && <div className="w-8 flex-shrink-0 border-r p-1" />}
                   <div className="w-8 flex-shrink-0 border-r p-1" />
                   {visibleColumns.map(colId => {
-                    const colConfig = GANTT_COLUMNS.find(c => c.id === colId);
+                    const colConfig = allGanttColumns.find(c => c.id === colId);
                     if (!colConfig) return null;
                     const colWidth = columnWidths[colId] || colConfig.widthPx;
                     return colId === 'task' ? (
@@ -5781,7 +5827,7 @@ function ProjectGanttView({
               <SortableContext items={reorderColumns} strategy={verticalListSortingStrategy}>
                 <div className="space-y-1">
                   {reorderColumns.map((colId, idx) => {
-                    const colConfig = GANTT_COLUMNS.find(c => c.id === colId);
+                    const colConfig = allGanttColumns.find(c => c.id === colId);
                     return (
                       <SortableColumnItem 
                         key={colId} 
