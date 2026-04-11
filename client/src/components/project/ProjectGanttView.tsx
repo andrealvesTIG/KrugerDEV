@@ -2768,6 +2768,16 @@ function ProjectGanttView({
         const rawVal = rowCells[j]?.trim() ?? '';
 
         if (['taskIndex', 'wbs', 'outlineLevel', 'isCritical', 'isSummary', 'assignee'].includes(colId)) continue;
+
+        const dateColumns = ['startDate', 'endDate', 'baselineStartDate', 'baselineEndDate', 'actualStartDate', 'actualEndDate', 'constraintDate'];
+        if ((rawVal === '' || rawVal === '—') && dateColumns.includes(colId)) {
+          updates[colId] = null;
+          if (colId === 'startDate' || colId === 'endDate') {
+            updates.schedulingMode = 'manual';
+          }
+          continue;
+        }
+
         if (rawVal === '' || rawVal === '—') continue;
 
         try {
@@ -2893,6 +2903,14 @@ function ProjectGanttView({
       }
 
       const updates = parsePastedRow(cells, i + 1);
+      if (updates.startDate === null && !('endDate' in updates)) {
+        updates.endDate = null;
+        updates.durationDays = null;
+      }
+      if (updates.endDate === null && !('startDate' in updates)) {
+        updates.startDate = null;
+        updates.durationDays = null;
+      }
       if (Object.keys(updates).length > 0) {
         taskUpdates.push({ taskId: task.id, updates });
       }

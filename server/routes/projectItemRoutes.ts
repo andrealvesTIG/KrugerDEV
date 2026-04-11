@@ -1303,6 +1303,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         category: z.string().nullable().optional(),
         labels: z.string().nullable().optional(),
         notes: z.string().nullable().optional(),
+        schedulingMode: z.enum(['auto', 'manual']).optional(),
       }),
     })).optional(),
   }).refine(
