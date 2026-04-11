@@ -1073,7 +1073,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                 isCellFocusedTask && "ring-2 ring-primary ring-inset z-10",
                 isTaskInRange && !isCellFocusedTask && "bg-primary/10"
               )}
-              onMouseDown={(e) => { onCellClick?.(task.id, 'task', e.shiftKey); }}
+              onMouseDown={(e) => { e.preventDefault(); onCellClick?.(task.id, 'task', e.shiftKey); }}
             >
               <TaskNameCell
                 task={task}
@@ -1110,7 +1110,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
             return ci >= Math.min(sc, ec) && ci <= Math.max(sc, ec);
           })();
           return (
-            <div key={colId} data-cell-task={task.id} data-cell-col="resources" onMouseDown={(e) => { onCellClick?.(task.id, 'resources', e.shiftKey); }}>
+            <div key={colId} data-cell-task={task.id} data-cell-col="resources" onMouseDown={(e) => { e.preventDefault(); onCellClick?.(task.id, 'resources', e.shiftKey); }}>
               <div 
                 style={{ width: `${colWidth}px` }}
                 className={cn(
@@ -1664,6 +1664,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               isCellInRange && !isCellFocused && "bg-primary/10"
             )}
             onMouseDown={(e) => {
+              e.preventDefault();
               onCellClick?.(task.id, colId, e.shiftKey);
             }}
           >
@@ -5127,7 +5128,7 @@ function ProjectGanttView({
         >
           {/* Left pane: Metadata columns (horizontal scroll if columns exceed panel width) */}
           <ResizablePanel defaultSize={hideTimeline ? 100 : leftPanelSize} minSize={20} maxSize={hideTimeline ? 100 : 80}>
-            <div ref={leftPaneRef} tabIndex={-1} className={cn("h-full overflow-x-auto relative scrollbar-thin outline-none", hideTimeline ? "overflow-y-auto" : "overflow-y-hidden")}>
+            <div ref={leftPaneRef} tabIndex={-1} className={cn("h-full overflow-x-auto relative scrollbar-thin outline-none select-none", hideTimeline ? "overflow-y-auto" : "overflow-y-hidden")}>
               <div style={{ minWidth: `${totalColumnsWidth}px` }}>
               {/* Header row - height must match timeline header */}
               <div className="flex border-b bg-muted sticky top-0 z-20 h-[28px]">
