@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Plus, Check, History, Milestone as MilestoneIcon } from "lucide-react";
-import { DndContext, DragEndEvent, DragOverEvent, DragOverlay, DragStartEvent, closestCorners, useSensor, useSensors, PointerSensor, useDroppable } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, DragOverEvent, DragOverlay, DragStartEvent, closestCorners, pointerWithin, rectIntersection, useSensor, useSensors, PointerSensor, useDroppable, type CollisionDetection } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
@@ -162,6 +162,27 @@ function ProjectKanbanView({
     })
   );
 
+  const kanbanCollisionDetection: CollisionDetection = useMemo(() => {
+    const columnIds = new Set(columns.map(c => c.id));
+    return (args) => {
+      const pointerCollisions = pointerWithin(args);
+      if (pointerCollisions.length > 0) {
+        const columnHit = pointerCollisions.find(c => columnIds.has(String(c.id)));
+        if (columnHit) return [columnHit];
+        const taskHit = pointerCollisions.find(c => c.data?.droppableContainer?.data?.current?.type === 'task');
+        if (taskHit) return [taskHit];
+        return pointerCollisions;
+      }
+      const rectCollisions = rectIntersection(args);
+      if (rectCollisions.length > 0) {
+        const columnHit = rectCollisions.find(c => columnIds.has(String(c.id)));
+        if (columnHit) return [columnHit];
+        return rectCollisions;
+      }
+      return closestCorners(args);
+    };
+  }, [columns]);
+
   const handleDragStart = (event: DragStartEvent) => {
     if (!canDrag) return;
     const taskId = Number(event.active.id);
@@ -286,7 +307,7 @@ function ProjectKanbanView({
           )}
           <DndContext 
             sensors={canDrag ? sensors : []} 
-            collisionDetection={closestCorners}
+            collisionDetection={kanbanCollisionDetection}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
