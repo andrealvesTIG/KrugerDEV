@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { projects, portfolios, issues, tasks, taskDependencies, resources, statusReportHistory, healthStatusHistory, organizationMembers } from "@shared/schema";
+import { projects, portfolios, issues, tasks, taskDependencies, resources, statusReportHistory, healthStatusHistory, organizationMembers, taskResourceAssignments } from "@shared/schema";
 import { eq, and, sql, inArray, isNull, desc } from "drizzle-orm";
 import OpenAI from "openai";
 
@@ -371,6 +371,63 @@ const jarvisTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "update_task",
+      description: "Update an existing task's metadata. You can change status, priority, assignee, dates, progress, description, and other fields. Call this ONLY after the user has explicitly confirmed. Use the task ID from the data context.",
+      parameters: {
+        type: "object",
+        properties: {
+          taskId: { type: "number", description: "The task ID to update" },
+          projectId: { type: "number", description: "The project ID the task belongs to" },
+          name: { type: "string", description: "New task name" },
+          description: { type: "string", description: "New task description" },
+          status: { type: "string", enum: ["Not Started", "In Progress", "On Hold", "Completed", "Cancelled"], description: "New task status" },
+          priority: { type: "string", enum: ["Low", "Medium", "High", "Critical"], description: "New task priority" },
+          assignee: { type: "string", description: "New assignee name (text field)" },
+          progress: { type: "number", description: "Progress percentage (0-100)" },
+          startDate: { type: "string", description: "Start date in YYYY-MM-DD format" },
+          endDate: { type: "string", description: "End date in YYYY-MM-DD format" },
+          isMilestone: { type: "boolean", description: "Whether this is a milestone" },
+          isCritical: { type: "boolean", description: "Whether this is on the critical path" },
+        },
+        required: ["taskId", "projectId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "assign_resources_to_task",
+      description: "Assign one or more resources (people) to a task. This replaces all current resource assignments on the task. Use the resource IDs from the data context. Call this ONLY after the user has explicitly confirmed.",
+      parameters: {
+        type: "object",
+        properties: {
+          taskId: { type: "number", description: "The task ID to assign resources to" },
+          projectId: { type: "number", description: "The project ID the task belongs to" },
+          resourceIds: {
+            type: "array",
+            items: { type: "number" },
+            description: "Array of resource IDs to assign to the task. Pass an empty array to remove all assignments.",
+          },
+          allocations: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                resourceId: { type: "number" },
+                allocationPercentage: { type: "number", description: "Allocation percentage (0-100), default 100" },
+              },
+              required: ["resourceId"],
+            },
+            description: "Optional allocation percentages per resource. If not provided, defaults to 100% for each.",
+          },
+        },
+        required: ["taskId", "projectId", "resourceIds"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "bulk_create_tasks",
       description: "Create multiple tasks in a project at once from structured data (e.g. parsed from a CSV file). Call this ONLY after presenting the parsed data to the user and receiving explicit confirmation. Each task object should have at minimum a name.",
       parameters: {
@@ -464,6 +521,125 @@ async function handleToolCall(
         data: { reason: args.reason },
       });
       return JSON.stringify(result);
+    }
+    case "update_task": {
+      const taskId = args.taskId;
+      if (!taskId || typeof taskId !== "number") {
+        return JSON.stringify({ success: false, message: "Valid taskId is required." });
+      }
+
+      const [existingTask] = await db.select({ id: tasks.id, projectId: tasks.projectId })
+        .from(tasks).where(and(eq(tasks.id, taskId), eq(tasks.projectId, projectId), isNull(tasks.deletedAt)));
+      if (!existingTask) {
+        return JSON.stringify({ success: false, message: "Task not found in this project." });
+      }
+
+      const validStatuses = ["Not Started", "In Progress", "On Hold", "Completed", "Cancelled"];
+      const validPriorities = ["Low", "Medium", "High", "Critical"];
+
+      function parseDateField(val: unknown): string | null | undefined {
+        if (val === undefined) return undefined;
+        if (typeof val !== "string") return undefined;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(val)) return undefined;
+        const d = new Date(val + "T00:00:00Z");
+        if (isNaN(d.getTime())) return undefined;
+        return val;
+      }
+
+      const updates: Record<string, any> = {};
+      if (typeof args.name === "string" && args.name.trim()) updates.name = args.name.trim().slice(0, 500);
+      if (typeof args.description === "string") updates.description = args.description.slice(0, 5000);
+      if (typeof args.priority === "string" && validPriorities.includes(args.priority)) updates.priority = args.priority;
+      if (typeof args.assignee === "string") updates.assignee = args.assignee.slice(0, 200);
+
+      if (typeof args.progress === "number" && args.progress >= 0 && args.progress <= 100) {
+        updates.progress = Math.round(args.progress);
+      }
+      if (typeof args.status === "string" && validStatuses.includes(args.status)) {
+        updates.status = args.status;
+      }
+
+      if (updates.status === "Completed") updates.progress = 100;
+      else if (updates.status === "Not Started") updates.progress = 0;
+      else if (updates.progress === 100 && !updates.status) updates.status = "Completed";
+      else if (updates.progress === 0 && !updates.status) updates.status = "Not Started";
+      else if (typeof updates.progress === "number" && updates.progress > 0 && !updates.status) updates.status = "In Progress";
+
+      const parsedStart = parseDateField(args.startDate);
+      const parsedEnd = parseDateField(args.endDate);
+      if (parsedStart !== undefined) updates.startDate = parsedStart;
+      if (parsedEnd !== undefined) updates.endDate = parsedEnd;
+      if (parsedStart && parsedEnd && new Date(parsedStart) > new Date(parsedEnd)) {
+        return JSON.stringify({ success: false, message: "Start date cannot be after end date." });
+      }
+
+      if (typeof args.isMilestone === "boolean") updates.isMilestone = args.isMilestone;
+      if (typeof args.isCritical === "boolean") updates.isCritical = args.isCritical;
+
+      if (Object.keys(updates).length === 0) {
+        return JSON.stringify({ success: false, message: "No valid fields to update." });
+      }
+
+      updates.updatedAt = new Date();
+      await db.update(tasks).set(updates).where(eq(tasks.id, taskId));
+
+      const changedFields = Object.keys(updates).filter(k => k !== "updatedAt").join(", ");
+      return JSON.stringify({ success: true, message: `Task updated successfully. Changed: ${changedFields}.`, taskId });
+    }
+    case "assign_resources_to_task": {
+      const taskId = args.taskId;
+      if (!taskId || typeof taskId !== "number") {
+        return JSON.stringify({ success: false, message: "Valid taskId is required." });
+      }
+
+      const [existingTask] = await db.select({ id: tasks.id, projectId: tasks.projectId })
+        .from(tasks).where(and(eq(tasks.id, taskId), eq(tasks.projectId, projectId), isNull(tasks.deletedAt)));
+      if (!existingTask) {
+        return JSON.stringify({ success: false, message: "Task not found in this project." });
+      }
+
+      const rawResourceIds = args.resourceIds;
+      if (!Array.isArray(rawResourceIds)) {
+        return JSON.stringify({ success: false, message: "resourceIds must be an array." });
+      }
+      const resourceIds = [...new Set(rawResourceIds.filter((id: any) => typeof id === "number" && Number.isFinite(id)))];
+      if (resourceIds.length > 20) {
+        return JSON.stringify({ success: false, message: "Maximum 20 resources can be assigned to a single task." });
+      }
+
+      if (resourceIds.length > 0) {
+        const validResources = await db.select({ id: resources.id, displayName: resources.displayName })
+          .from(resources)
+          .where(and(
+            inArray(resources.id, resourceIds),
+            eq(resources.organizationId, orgId),
+            isNull(resources.deletedAt)
+          ));
+        const validIds = new Set(validResources.map(r => r.id));
+        const invalidIds = resourceIds.filter((id: number) => !validIds.has(id));
+        if (invalidIds.length > 0) {
+          return JSON.stringify({ success: false, message: `Invalid resource IDs: ${invalidIds.join(", ")}. Resources must exist in this organization.` });
+        }
+
+        await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, taskId));
+
+        const rawAllocations = Array.isArray(args.allocations) ? args.allocations : [];
+        const assignmentData = resourceIds.map((resId: number) => {
+          const alloc = rawAllocations.find((a: any) => typeof a === "object" && a && a.resourceId === resId);
+          const pct = typeof alloc?.allocationPercentage === "number" && Number.isFinite(alloc.allocationPercentage)
+            ? Math.min(100, Math.max(0, Math.round(alloc.allocationPercentage)))
+            : 100;
+          return { taskId, resourceId: resId, allocationPercentage: pct };
+        });
+
+        await db.insert(taskResourceAssignments).values(assignmentData);
+
+        const names = validResources.filter(r => resourceIds.includes(r.id)).map(r => r.displayName).join(", ");
+        return JSON.stringify({ success: true, message: `Assigned ${resourceIds.length} resource(s) to the task: ${names}.`, taskId, resourceIds });
+      } else {
+        await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, taskId));
+        return JSON.stringify({ success: true, message: "All resource assignments removed from the task.", taskId });
+      }
     }
     case "bulk_create_tasks": {
       const taskList = args.tasks;
@@ -653,6 +829,12 @@ export async function streamJarvisResponse(
 - After the tool executes, report the result to the user based on the tool response.
 - The project IDs are available in the data context above. Match project names to their IDs.
 
+TASK UPDATE & RESOURCE ASSIGNMENT RULES:
+- When the user asks to update a task (change status, priority, assignee, dates, progress, etc.), identify the task by name or ID from the data context, describe the change, and ask for confirmation before calling update_task.
+- When the user asks to assign resources/people to a task, match the resource name to the resource ID from the data context. Use assign_resources_to_task to set assignments. This replaces all current assignments — include all desired resources, not just new ones.
+- When asked to assign resources during bulk task import (e.g. from CSV with an "Assignee" column), first create the tasks, then use assign_resources_to_task for each task that has a matching resource in the organization. Also set the assignee text field via update_task or during creation.
+- The resources list with IDs and names is available in the data context. Always match resource names case-insensitively and report if a name doesn't match any known resource.
+
 CSV FILE IMPORT RULES:
 - When a CSV file is attached, parse its content to identify task data. Look for columns like: name/title/task, description, priority, status, assignee, start date, end date, due date.
 - Be flexible with column names — map variations like "Task Name", "Title", "Activity" → name; "Owner", "Assigned To" → assignee; "Due Date", "End", "Deadline" → endDate; "Start", "Begin" → startDate.
@@ -672,7 +854,7 @@ CSV FILE IMPORT RULES:
     ];
 
     let fullResponse = "";
-    const MAX_TOOL_ROUNDS = 3;
+    const MAX_TOOL_ROUNDS = 5;
 
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
       const stream = await openai.chat.completions.create({
