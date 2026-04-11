@@ -43,6 +43,7 @@ function ProjectKanbanView({
   tasks, 
   onTaskClick, 
   onStatusChange,
+  onAssigneeChange,
   isFullscreen,
   organizationId,
   projectId,
@@ -53,6 +54,7 @@ function ProjectKanbanView({
   tasks: Task[]; 
   onTaskClick: (task: Task) => void;
   onStatusChange: (taskId: number, newStatus: string) => void;
+  onAssigneeChange?: (taskId: number, newAssignee: string | null) => void;
   isFullscreen?: boolean;
   organizationId: number | null;
   projectId: number;
@@ -150,7 +152,7 @@ function ProjectKanbanView({
     return task.status || "Not Started";
   };
   
-  const isDragEnabled = groupBy === 'status';
+  const isDragEnabled = groupBy === 'status' || groupBy === 'assignee';
   
   const canDrag = isDragEnabled && !isReadOnly;
   
@@ -229,10 +231,17 @@ function ProjectKanbanView({
       targetColumnId = String(over.id);
     }
     
-    if (targetColumnId && groupBy === 'status') {
-      const currentValue = task.status || "Not Started";
-      if (currentValue !== targetColumnId) {
-        onStatusChange(taskId, targetColumnId);
+    if (targetColumnId) {
+      if (groupBy === 'status') {
+        const currentValue = task.status || "Not Started";
+        if (currentValue !== targetColumnId) {
+          onStatusChange(taskId, targetColumnId);
+        }
+      } else if (groupBy === 'assignee' && onAssigneeChange) {
+        const currentValue = task.assignee || "Unassigned";
+        if (currentValue !== targetColumnId) {
+          onAssigneeChange(taskId, targetColumnId === "Unassigned" ? null : targetColumnId);
+        }
       }
     }
   };
@@ -302,11 +311,11 @@ function ProjectKanbanView({
         <div className={cn("p-4", isFullscreen && "flex-1 overflow-auto")}>
           {!canDrag && (
             <div className="text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded mb-3 inline-block">
-              {isReadOnly ? 'Project is read-only' : 'Drag and drop is only available when grouping by Status'}
+              {isReadOnly ? 'Project is read-only' : 'Drag and drop is available when grouping by Status or Assignee'}
             </div>
           )}
           <DndContext 
-            sensors={canDrag ? sensors : []} 
+            sensors={sensors} 
             collisionDetection={kanbanCollisionDetection}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
