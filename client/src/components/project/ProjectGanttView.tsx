@@ -2639,7 +2639,8 @@ function ProjectGanttView({
     const text = e.clipboardData?.getData('text/plain');
     if (!text) return;
 
-    const lines = text.split('\n').map(l => l.replace(/\r$/, '')).filter(l => l.trim() !== '');
+    const lines = text.split('\n').map(l => l.replace(/\r$/, ''));
+    while (lines.length > 0 && lines[lines.length - 1].trim() === '') lines.pop();
     if (lines.length === 0) return;
 
     const currentVisibleTasks = visibleTasksRef.current;
