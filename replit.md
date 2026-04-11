@@ -33,6 +33,7 @@ The application features an enterprise-grade UI inspired by Linear and Asana, ut
 **CSV Import/Export Round-Trip**: Allows exporting tasks to CSV from project details and re-importing modified tasks.
 **Task Date Scheduling Rules**: Implements rules for task date changes, dependency cascading, and milestone preservation while respecting working days.
 **Gantt Undo/Redo**: A comprehensive undo/redo system for Gantt chart operations including field updates, reordering, indent/outdent, creation, deletion, and dependency management.
+**Gantt Excel-like Grid Editing**: Cell-level focus (blue ring), arrow key/Tab navigation, Shift+Click/Arrow range selection (light blue highlight), type-to-edit and Enter-to-edit, cell-aware copy (Ctrl+C copies focused cell, range, or selected rows) and paste (Ctrl+V starts at focused cell's row and column). Read-only columns (WBS, #, Critical, Summary, Resources, Est Hours) are skipped during navigation. Backward compatible with row-level checkbox copy/paste.
 **Schedule PNG Export**: Enables exporting the visible schedule as a PNG image.
 **Timesheet History Tab**: Displays past timesheet entries grouped by week, with selectable date ranges and status filters.
 **Critical Path Method (CPM)**: Implemented for calculating ES/EF/LS/LF/TF for tasks using forward and backward passes, supporting various dependency types and lag.
