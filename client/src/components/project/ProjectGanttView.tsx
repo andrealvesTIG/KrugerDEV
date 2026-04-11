@@ -2216,8 +2216,11 @@ function ProjectGanttView({
       const data = await response.json();
       
       if (response.ok) {
-        // Invalidate tasks to refresh the view
         queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/dependencies`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/task-custom-field-values`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/task-assignments`] });
+        queryClient.invalidateQueries({ queryKey: ['/api/custom-fields'] });
         
         if (data.adjustedCount > 0) {
           toast({
