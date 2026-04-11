@@ -2188,6 +2188,42 @@ function ProjectGanttView({
   const [pasteProgress, setPasteProgress] = useState<{ open: boolean; total: number; completed: number; phase: string } | null>(null);
   const pasteCancelledRef = useRef(false);
   const cellAnchorRef = useRef<CellPosition | null>(null);
+  const isDraggingCellsRef = useRef(false);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingCellsRef.current || !cellAnchorRef.current) return;
+      e.preventDefault();
+      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+      if (!el) return;
+      const cellEl = el.closest('[data-cell-task][data-cell-col]') as HTMLElement | null;
+      if (!cellEl) return;
+      const taskId = Number(cellEl.getAttribute('data-cell-task'));
+      const colId = cellEl.getAttribute('data-cell-col') as GanttColumn;
+      if (!taskId || !colId) return;
+      if (taskId !== cellAnchorRef.current.taskId || colId !== cellAnchorRef.current.columnId) {
+        setSelectionRange({
+          startTaskId: cellAnchorRef.current.taskId,
+          startColId: cellAnchorRef.current.columnId,
+          endTaskId: taskId,
+          endColId: colId,
+        });
+      }
+      setFocusedCell({ taskId, columnId: colId });
+    };
+    const handleMouseUp = () => {
+      if (isDraggingCellsRef.current) {
+        isDraggingCellsRef.current = false;
+        document.body.style.userSelect = '';
+      }
+    };
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
 
   useEffect(() => {
     setSelectionRange(null);
@@ -2220,6 +2256,8 @@ function ProjectGanttView({
       setFocusedCell({ taskId, columnId });
       cellAnchorRef.current = { taskId, columnId };
       setSelectionRange(null);
+      isDraggingCellsRef.current = true;
+      document.body.style.userSelect = 'none';
     }
     lastSelectedTaskIdRef.current = taskId;
   }, []);
