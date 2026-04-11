@@ -3219,16 +3219,35 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
             </div>
             <div>
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Health Status</Label>
-              <Select value={project.health || "Green"} onValueChange={(v) => handleHealthChange(v)}>
-                <SelectTrigger className="h-8 text-sm" data-testid="select-project-health">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Green"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />Green</span></SelectItem>
-                  <SelectItem value="Yellow"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500" />Yellow</span></SelectItem>
-                  <SelectItem value="Red"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-rose-500" />Red</span></SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted/30 p-1" data-testid="toggle-project-health">
+                {[
+                  { value: 'Green', label: 'Green', bg: 'bg-emerald-500', bgLight: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', ring: 'ring-emerald-500/30' },
+                  { value: 'Yellow', label: 'Yellow', bg: 'bg-amber-500', bgLight: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', ring: 'ring-amber-500/30' },
+                  { value: 'Red', label: 'Red', bg: 'bg-rose-500', bgLight: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300', ring: 'ring-rose-500/30' },
+                ].map((option) => {
+                  const isSelected = project.health === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => handleHealthChange(option.value)}
+                      className={cn(
+                        "flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all",
+                        isSelected
+                          ? `${option.bgLight} ${option.text} ring-2 ${option.ring} shadow-sm`
+                          : "text-muted-foreground hover:bg-muted/80"
+                      )}
+                      data-testid={`health-option-${option.value.toLowerCase()}`}
+                    >
+                      <span className={cn(
+                        "w-2.5 h-2.5 rounded-full transition-all shrink-0",
+                        isSelected ? `${option.bg} shadow-sm` : "bg-muted-foreground/30"
+                      )} />
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
               <button
                 type="button"
                 onClick={handleAddStatusNote}

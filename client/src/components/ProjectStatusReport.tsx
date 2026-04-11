@@ -323,9 +323,8 @@ export function ProjectStatusReport({
                 <span className="flex items-center gap-1">
                   <div className="w-0.5 h-3 bg-red-500 shrink-0" /> Today
                 </span>
-                <span className="flex items-center gap-1"> 
-                  <Flag className="h-3 w-3 text-yellow-500 fill-yellow-500" /> Key Date 
-                  <Flag className="h-3 w-3 text-yellow-500 fill-yellow-500 shrink-0" /> Milestone 
+                <span className="flex items-center gap-1">
+                  <Flag className="h-3 w-3 text-yellow-500 fill-yellow-500 shrink-0" /> Milestone
                 </span>
               </div>
               <span className="shrink-0">{taskStats.overallCompletion}% Complete</span>
