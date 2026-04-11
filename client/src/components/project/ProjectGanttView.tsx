@@ -3001,6 +3001,12 @@ function ProjectGanttView({
               updates._pastedResources = rawVal;
               break;
             }
+            default: {
+              if (colId.startsWith('cf_')) {
+                updates[colId] = rawVal;
+              }
+              break;
+            }
           }
         } catch {
           invalidCells.push(`Row ${rowNum} ${colId}: "${rawVal}"`);
@@ -3044,12 +3050,22 @@ function ProjectGanttView({
     }
 
     const resourceAssignments: Array<{ taskId: number; resourceNames: string[] }> = [];
+    const cfUpdates: Array<{ taskId: number; fieldDefId: number; value: string }> = [];
 
     for (const tu of taskUpdates) {
       if (tu.updates._pastedResources) {
         const names = (tu.updates._pastedResources as string).split(/[,;]/).map(n => n.trim()).filter(Boolean);
         if (names.length > 0) resourceAssignments.push({ taskId: tu.taskId, resourceNames: names });
         delete tu.updates._pastedResources;
+      }
+      const cfKeys = Object.keys(tu.updates).filter(k => k.startsWith('cf_'));
+      for (const cfKey of cfKeys) {
+        const fieldDefId = parseInt(cfKey.replace('cf_', ''));
+        const val = String(tu.updates[cfKey]);
+        if (!isNaN(fieldDefId) && val) {
+          cfUpdates.push({ taskId: tu.taskId, fieldDefId, value: val });
+        }
+        delete tu.updates[cfKey];
       }
     }
 
@@ -3065,8 +3081,9 @@ function ProjectGanttView({
     const hasUpdates = taskUpdates.some(tu => Object.keys(tu.updates).length > 0);
     const hasNewRows = newTaskRows.some(row => Object.keys(row).length > 0);
     const hasResourceAssignments = resourceAssignments.length > 0 || newTaskResourceNames.some(n => n.length > 0);
+    const hasCfUpdates = cfUpdates.length > 0;
 
-    if (!hasUpdates && !hasNewRows && !hasResourceAssignments) {
+    if (!hasUpdates && !hasNewRows && !hasResourceAssignments && !hasCfUpdates) {
       toast({
         title: "Nothing to paste",
         description: skippedRows.length > 0
@@ -3080,7 +3097,7 @@ function ProjectGanttView({
     e.preventDefault();
 
     const cleanedUpdates = taskUpdates.filter(tu => Object.keys(tu.updates).length > 0);
-    const totalSteps = (cleanedUpdates.length > 0 ? 1 : 0) + newTaskRows.length + resourceAssignments.length;
+    const totalSteps = (cleanedUpdates.length > 0 ? 1 : 0) + newTaskRows.length + resourceAssignments.length + cfUpdates.length;
 
     pasteCancelledRef.current = false;
 
@@ -3225,6 +3242,23 @@ function ProjectGanttView({
         }
       }
 
+      let cfUpdated = 0;
+      if (cfUpdates.length > 0 && !pasteCancelledRef.current) {
+        setPasteProgress(p => p ? { ...p, phase: `Updating ${cfUpdates.length} custom field${cfUpdates.length !== 1 ? 's' : ''}...` } : p);
+        for (const cfu of cfUpdates) {
+          if (pasteCancelledRef.current) break;
+          try {
+            await updateTaskCfValue.mutateAsync({ taskId: cfu.taskId, fieldDefinitionId: cfu.fieldDefId, value: cfu.value });
+            cfUpdated++;
+          } catch {
+            invalidCells.push(`Task ${cfu.taskId} cf_${cfu.fieldDefId}: failed to update`);
+          }
+          completedSteps++;
+          setPasteProgress(p => p ? { ...p, completed: completedSteps } : p);
+        }
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/task-custom-field-values`] });
+      }
+
       const wasCancelled = pasteCancelledRef.current;
 
       if (wasCancelled) {
@@ -3238,6 +3272,7 @@ function ProjectGanttView({
       if (updatedCount > 0) parts.push(`${updatedCount} row${updatedCount !== 1 ? 's' : ''} updated`);
       if (createdCount > 0) parts.push(`${createdCount} new task${createdCount !== 1 ? 's' : ''} created`);
       if (resourcesAssigned > 0) parts.push(`${resourcesAssigned} resource${resourcesAssigned !== 1 ? 's' : ''} assigned`);
+      if (cfUpdated > 0) parts.push(`${cfUpdated} custom field${cfUpdated !== 1 ? 's' : ''} updated`);
       if (skippedRows.length > 0) parts.push(`${skippedRows.length} skipped (read-only/summary)`);
       if (invalidCells.length > 0) parts.push(`${invalidCells.length} value${invalidCells.length !== 1 ? 's' : ''} could not be parsed`);
 
@@ -3249,7 +3284,7 @@ function ProjectGanttView({
       setPasteProgress(null);
       toast({ title: "Paste failed", description: "Could not save changes", variant: "destructive" });
     }
-  }, [visibleColumns, isReadOnly, bulkUpdate, projectId, toast, focusedCell, selectionRange, createTask, organizationId, allResources, createResource, updateTaskResources, projectTaskAssignments]);
+  }, [visibleColumns, isReadOnly, bulkUpdate, projectId, toast, focusedCell, selectionRange, createTask, organizationId, allResources, createResource, updateTaskResources, projectTaskAssignments, updateTaskCfValue, allGanttColumns]);
 
   // Attach paste event listener
   useEffect(() => {
