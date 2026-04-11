@@ -674,9 +674,24 @@ export default function Projects() {
         throw new Error("No worksheet found");
       }
       
+      const getCellText = (cellValue: any): string => {
+        if (cellValue == null) return "";
+        if (typeof cellValue === "string") return cellValue;
+        if (typeof cellValue === "number" || typeof cellValue === "boolean") return String(cellValue);
+        if (cellValue instanceof Date) return cellValue.toISOString().split("T")[0];
+        if (typeof cellValue === "object") {
+          if (cellValue.text) return String(cellValue.text);
+          if (cellValue.richText && Array.isArray(cellValue.richText)) {
+            return cellValue.richText.map((r: any) => r.text || "").join("");
+          }
+          if (cellValue.result !== undefined) return String(cellValue.result);
+        }
+        return String(cellValue);
+      };
+
       const headers: string[] = [];
-      worksheet.getRow(1).eachCell((cell, colNumber) => {
-        headers[colNumber - 1] = String(cell.value || "");
+      worksheet.getRow(1).eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        headers[colNumber - 1] = getCellText(cell.value).trim();
       });
 
       const cfHeaderMap = new Map<string, CustomFieldDefinition>();
@@ -691,13 +706,15 @@ export default function Projects() {
       worksheet.eachRow((row, rowNumber) => {
         if (rowNumber === 1) return;
         const rowData: Record<string, string> = {};
-        row.eachCell((cell, colNumber) => {
+        row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
           const header = headers[colNumber - 1];
           if (header) {
-            rowData[header] = String(cell.value || "");
+            rowData[header] = getCellText(cell.value);
           }
         });
-        jsonData.push(rowData);
+        if (Object.keys(rowData).length > 0) {
+          jsonData.push(rowData);
+        }
       });
       
       let imported = 0;
@@ -709,8 +726,8 @@ export default function Projects() {
       for (let i = 0; i < jsonData.length; i++) {
         if (limitReached) break;
         const row = jsonData[i];
-        const name = row["Name"] || row["name"] || row["Project Name"] || row["projectName"];
-        if (!name || typeof name !== "string" || name.trim() === "") {
+        const name = row["Name"] || row["name"] || row["Project Name"] || row["projectName"] || row["Project"] || row["project"] || row["Title"] || row["title"];
+        if (!name || name.trim() === "") {
           skipped++;
           setImportProgress({ current: i + 1, total: totalRows, imported, skipped });
           continue;
