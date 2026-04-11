@@ -8,7 +8,7 @@ import { format, addDays, differenceInDays, parseISO, eachDayOfInterval, startOf
 import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, calculateStartDateFromEndAndDuration, parseDurationInput, formatDuration } from "@/lib/workingDays";
 import { calculateCPM, type CPMResult } from "@/lib/cpm";
 import { useUpdateTask, useCreateTask, useDeleteTask, useAddTaskDependency, useRemoveTaskDependency, useReorderTask, useProjectDependencies, useBulkUpdateTasks, useBulkDeleteTasks } from "@/hooks/use-tasks";
-import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useProjectTaskAssignments } from "@/hooks/use-resources";
+import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useProjectTaskAssignments, useResources, useCreateResource } from "@/hooks/use-resources";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
@@ -1962,6 +1962,9 @@ function ProjectGanttView({
   const bulkDelete = useBulkDeleteTasks();
   const addDependency = useAddTaskDependency();
   const removeDependency = useRemoveTaskDependency();
+  const createResource = useCreateResource();
+  const updateTaskResources = useUpdateTaskResourceAssignments();
+  const { data: allResources } = useResources(organizationId);
   const { toast } = useToast();
   const { data: schedulingDefaults } = useQuery<SchedulingDefaults>({
     queryKey: ['/api/organizations', organizationId, 'scheduling-defaults'],
@@ -2697,7 +2700,7 @@ function ProjectGanttView({
         const colId = visibleColumns[colIndex];
         const rawVal = rowCells[j]?.trim() ?? '';
 
-        if (['taskIndex', 'wbs', 'outlineLevel', 'isCritical', 'isSummary', 'resources', 'assignee'].includes(colId)) continue;
+        if (['taskIndex', 'wbs', 'outlineLevel', 'isCritical', 'isSummary', 'assignee'].includes(colId)) continue;
         if (rawVal === '' || rawVal === '—') continue;
 
         try {
@@ -2790,6 +2793,10 @@ function ProjectGanttView({
               updates.labels = rawVal;
               break;
             }
+            case 'resources': {
+              updates._pastedResources = rawVal;
+              break;
+            }
           }
         } catch {
           invalidCells.push(`Row ${rowNum} ${colId}: "${rawVal}"`);
@@ -2824,7 +2831,30 @@ function ProjectGanttView({
       }
     }
 
-    if (taskUpdates.length === 0 && newTaskRows.length === 0) {
+    const resourceAssignments: Array<{ taskId: number; resourceNames: string[] }> = [];
+
+    for (const tu of taskUpdates) {
+      if (tu.updates._pastedResources) {
+        const names = (tu.updates._pastedResources as string).split(/[,;]/).map(n => n.trim()).filter(Boolean);
+        if (names.length > 0) resourceAssignments.push({ taskId: tu.taskId, resourceNames: names });
+        delete tu.updates._pastedResources;
+      }
+    }
+
+    const newTaskResourceNames: string[][] = newTaskRows.map(row => {
+      if (row._pastedResources) {
+        const names = (row._pastedResources as string).split(/[,;]/).map(n => n.trim()).filter(Boolean);
+        delete row._pastedResources;
+        return names;
+      }
+      return [];
+    });
+
+    const hasUpdates = taskUpdates.some(tu => Object.keys(tu.updates).length > 0);
+    const hasNewRows = newTaskRows.some(row => Object.keys(row).length > 0);
+    const hasResourceAssignments = resourceAssignments.length > 0 || newTaskResourceNames.some(n => n.length > 0);
+
+    if (!hasUpdates && !hasNewRows && !hasResourceAssignments) {
       toast({
         title: "Nothing to paste",
         description: skippedRows.length > 0
@@ -2840,26 +2870,30 @@ function ProjectGanttView({
     try {
       let updatedCount = 0;
       let createdCount = 0;
+      let resourcesAssigned = 0;
 
-      if (taskUpdates.length > 0) {
-        const result = await bulkUpdate.mutateAsync({ taskUpdates, projectId });
-        updatedCount = result.updatedCount ?? taskUpdates.length;
+      const cleanedUpdates = taskUpdates.filter(tu => Object.keys(tu.updates).length > 0);
+      if (cleanedUpdates.length > 0) {
+        const result = await bulkUpdate.mutateAsync({ taskUpdates: cleanedUpdates, projectId });
+        updatedCount = result.updatedCount ?? cleanedUpdates.length;
       }
 
+      const createdTaskIds: number[] = [];
       if (newTaskRows.length > 0) {
         const lastTask = currentVisibleTasks[currentVisibleTasks.length - 1];
         const baseOutlineLevel = lastTask?.outlineLevel || 1;
         const baseParentId = lastTask?.parentId || null;
         const todayStr = format(new Date(), 'yyyy-MM-dd');
 
-        for (const rowData of newTaskRows) {
+        for (let idx = 0; idx < newTaskRows.length; idx++) {
+          const rowData = newTaskRows[idx];
           const taskName = (rowData.name as string) || 'New Task';
           const startDate = (rowData.startDate as string) || todayStr;
           const endDate = (rowData.endDate as string) || calculateEndDateFromWorkingDays(startDate, (rowData.durationDays as number) || 1);
           const durationDays = (rowData.durationDays as number) || 1;
 
           try {
-            await createTask.mutateAsync({
+            const newTask = await createTask.mutateAsync({
               projectId,
               name: taskName,
               startDate,
@@ -2890,6 +2924,11 @@ function ProjectGanttView({
               ...(rowData.labels && { labels: rowData.labels as string }),
             });
             createdCount++;
+            createdTaskIds.push(newTask.id);
+
+            if (newTaskResourceNames[idx]?.length > 0) {
+              resourceAssignments.push({ taskId: newTask.id, resourceNames: newTaskResourceNames[idx] });
+            }
           } catch (err: unknown) {
             const error = err as { limitExceeded?: boolean; message?: string };
             if (error.limitExceeded) {
@@ -2897,6 +2936,56 @@ function ProjectGanttView({
               break;
             }
             invalidCells.push(`New row "${taskName}": failed to create`);
+            createdTaskIds.push(-1);
+          }
+        }
+      }
+
+      if (resourceAssignments.length > 0 && organizationId) {
+        const currentResources = allResources ?? [];
+        const resourceNameToId = new Map<string, number>();
+
+        for (const r of currentResources) {
+          resourceNameToId.set(r.displayName.toLowerCase(), r.id);
+          if (r.email) resourceNameToId.set(r.email.toLowerCase(), r.id);
+        }
+
+        for (const { taskId, resourceNames } of resourceAssignments) {
+          const resolvedIds: number[] = [];
+
+          for (const name of resourceNames) {
+            const key = name.toLowerCase();
+            let resId = resourceNameToId.get(key);
+
+            if (!resId) {
+              try {
+                const newRes = await createResource.mutateAsync({
+                  organizationId,
+                  displayName: name,
+                  resourceType: 'Employee',
+                });
+                resId = newRes.id;
+                resourceNameToId.set(key, resId);
+              } catch {
+                invalidCells.push(`Resource "${name}": failed to create`);
+                continue;
+              }
+            }
+
+            resolvedIds.push(resId);
+          }
+
+          if (resolvedIds.length > 0) {
+            try {
+              const existingAssignments = projectTaskAssignments
+                ?.filter(a => a.taskId === taskId)
+                ?.map(a => a.resourceId) ?? [];
+              const mergedIds = [...new Set([...existingAssignments, ...resolvedIds])];
+              await updateTaskResources.mutateAsync({ taskId, resourceIds: mergedIds });
+              resourcesAssigned += resolvedIds.length;
+            } catch {
+              invalidCells.push(`Task ${taskId}: failed to assign resources`);
+            }
           }
         }
       }
@@ -2904,6 +2993,7 @@ function ProjectGanttView({
       const parts: string[] = [];
       if (updatedCount > 0) parts.push(`${updatedCount} row${updatedCount !== 1 ? 's' : ''} updated`);
       if (createdCount > 0) parts.push(`${createdCount} new task${createdCount !== 1 ? 's' : ''} created`);
+      if (resourcesAssigned > 0) parts.push(`${resourcesAssigned} resource${resourcesAssigned !== 1 ? 's' : ''} assigned`);
       if (skippedRows.length > 0) parts.push(`${skippedRows.length} skipped (read-only/summary)`);
       if (invalidCells.length > 0) parts.push(`${invalidCells.length} value${invalidCells.length !== 1 ? 's' : ''} could not be parsed`);
 
@@ -2914,7 +3004,7 @@ function ProjectGanttView({
     } catch {
       toast({ title: "Paste failed", description: "Could not save changes", variant: "destructive" });
     }
-  }, [visibleColumns, isReadOnly, bulkUpdate, projectId, toast, focusedCell, selectionRange, createTask]);
+  }, [visibleColumns, isReadOnly, bulkUpdate, projectId, toast, focusedCell, selectionRange, createTask, organizationId, allResources, createResource, updateTaskResources, projectTaskAssignments]);
 
   // Attach paste event listener
   useEffect(() => {
