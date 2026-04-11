@@ -972,6 +972,15 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
         }
       }
     }
+    // Auto-set progress to 100% and status to Completed when actual end date is entered
+    else if (field === 'actualEndDate' && value) {
+      if (task.progress !== 100) {
+        updates.progress = 100;
+      }
+      if (task.status !== 'Completed') {
+        updates.status = 'Completed';
+      }
+    }
     // Auto-calculate end date when duration changes (working days)
     else if (field === 'durationDays') {
       const parsed = Number(value);
@@ -3044,6 +3053,10 @@ function ProjectGanttView({
       if (updates.endDate === null && !('startDate' in updates)) {
         updates.startDate = null;
         updates.durationDays = null;
+      }
+      if (updates.actualEndDate && updates.actualEndDate !== null) {
+        updates.progress = 100;
+        updates.status = 'Completed';
       }
       if (Object.keys(updates).length > 0) {
         taskUpdates.push({ taskId: task.id, updates });
