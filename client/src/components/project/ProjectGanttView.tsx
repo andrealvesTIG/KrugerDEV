@@ -2161,6 +2161,7 @@ function ProjectGanttView({
   const [editingInitialChar, setEditingInitialChar] = useState<string | undefined>(undefined);
   const [selectionRange, setSelectionRange] = useState<CellRange | null>(null);
   const [pasteProgress, setPasteProgress] = useState<{ open: boolean; total: number; completed: number; phase: string } | null>(null);
+  const pasteCancelledRef = useRef(false);
   const cellAnchorRef = useRef<CellPosition | null>(null);
 
   useEffect(() => {
@@ -2873,6 +2874,8 @@ function ProjectGanttView({
     const cleanedUpdates = taskUpdates.filter(tu => Object.keys(tu.updates).length > 0);
     const totalSteps = (cleanedUpdates.length > 0 ? 1 : 0) + newTaskRows.length + resourceAssignments.length;
 
+    pasteCancelledRef.current = false;
+
     if (totalSteps > 0) {
       setPasteProgress({ open: true, total: totalSteps, completed: 0, phase: 'Preparing...' });
     }
@@ -2905,6 +2908,7 @@ function ProjectGanttView({
           const endDate = (rowData.endDate as string) || calculateEndDateFromWorkingDays(startDate, (rowData.durationDays as number) || 1);
           const durationDays = (rowData.durationDays as number) || 1;
 
+          if (pasteCancelledRef.current) break;
           setPasteProgress(p => p ? { ...p, phase: `Creating task ${idx + 1} of ${newTaskRows.length}...` } : p);
 
           try {
@@ -2970,6 +2974,7 @@ function ProjectGanttView({
 
         for (let raIdx = 0; raIdx < resourceAssignments.length; raIdx++) {
           const { taskId, resourceNames } = resourceAssignments[raIdx];
+          if (pasteCancelledRef.current) break;
           setPasteProgress(p => p ? { ...p, phase: `Assigning resources ${raIdx + 1} of ${resourceAssignments.length}...`, total: finalTotalSteps } : p);
           const resolvedIds: number[] = [];
 
@@ -3012,7 +3017,13 @@ function ProjectGanttView({
         }
       }
 
-      setPasteProgress(p => p ? { ...p, phase: 'Complete!', completed: p.total } : p);
+      const wasCancelled = pasteCancelledRef.current;
+
+      if (wasCancelled) {
+        setPasteProgress(p => p ? { ...p, phase: 'Cancelled' } : p);
+      } else {
+        setPasteProgress(p => p ? { ...p, phase: 'Complete!', completed: p.total } : p);
+      }
       setTimeout(() => setPasteProgress(null), 600);
 
       const parts: string[] = [];
@@ -3023,8 +3034,8 @@ function ProjectGanttView({
       if (invalidCells.length > 0) parts.push(`${invalidCells.length} value${invalidCells.length !== 1 ? 's' : ''} could not be parsed`);
 
       toast({
-        title: "Paste complete",
-        description: parts.join(', '),
+        title: wasCancelled ? "Paste cancelled" : "Paste complete",
+        description: parts.join(', ') || (wasCancelled ? 'Operation was cancelled' : 'No changes made'),
       });
     } catch {
       setPasteProgress(null);
@@ -5594,6 +5605,20 @@ function ProjectGanttView({
                 <span>{pasteProgress.total > 0 ? Math.round((pasteProgress.completed / pasteProgress.total) * 100) : 0}%</span>
               </div>
             </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  pasteCancelledRef.current = true;
+                  setPasteProgress(p => p ? { ...p, phase: 'Cancelling...' } : p);
+                }}
+                disabled={pasteProgress.phase === 'Cancelling...' || pasteProgress.phase === 'Complete!' || pasteProgress.phase === 'Cancelled'}
+              >
+                <X className="h-4 w-4 mr-1" />
+                {pasteProgress.phase === 'Cancelling...' ? 'Cancelling...' : 'Cancel'}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
