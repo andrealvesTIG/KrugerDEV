@@ -861,7 +861,7 @@ CSV FILE IMPORT RULES:
         model: "gpt-4o",
         messages: apiMessages,
         stream: true,
-        max_completion_tokens: concise ? 2048 : 4096,
+        max_completion_tokens: concise ? 4096 : 8192,
         temperature: 0.3,
         tools: jarvisTools,
       });
