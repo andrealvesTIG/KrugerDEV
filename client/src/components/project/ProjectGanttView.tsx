@@ -2152,6 +2152,24 @@ function ProjectGanttView({
     } catch {}
   }, [visibleColumns, projectId]);
   const [newTaskName, setNewTaskName] = useState('');
+
+  // Column sorting state
+  const [sortColumn, setSortColumn] = useState<GanttColumn | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const handleColumnSort = useCallback((colId: GanttColumn) => {
+    if (sortColumn === colId) {
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else {
+        setSortColumn(null);
+        setSortDirection('asc');
+      }
+    } else {
+      setSortColumn(colId);
+      setSortDirection('asc');
+    }
+  }, [sortColumn, sortDirection]);
   
   // Panel size state - persisted per project in localStorage
   const getSplitSizeKey = () => `project-gantt-split-${projectId}`;
@@ -4367,8 +4385,60 @@ function ProjectGanttView({
       absoluteIndexMap.set(tasks[i].id, i + 1);
     }
 
-    return { visibleTasks, taskHasChildren, wbsMap, absoluteIndexMap };
-  }, [tasks, collapsedTasks]);
+    // Apply column sorting if active
+    let sortedVisibleTasks = visibleTasks;
+    if (sortColumn) {
+      sortedVisibleTasks = [...visibleTasks].sort((a, b) => {
+        let aVal: unknown;
+        let bVal: unknown;
+
+        if (sortColumn === 'taskIndex') {
+          aVal = absoluteIndexMap.get(a.id) ?? 0;
+          bVal = absoluteIndexMap.get(b.id) ?? 0;
+        } else if (sortColumn === 'wbs') {
+          aVal = wbsMap.get(a.id) ?? '';
+          bVal = wbsMap.get(b.id) ?? '';
+        } else if (sortColumn === 'task') {
+          aVal = (a.name || '').toLowerCase();
+          bVal = (b.name || '').toLowerCase();
+        } else if (sortColumn === 'resources') {
+          aVal = (a.assignee || '').toLowerCase();
+          bVal = (b.assignee || '').toLowerCase();
+        } else if (sortColumn.startsWith('cf_')) {
+          aVal = taskCfValuesMap.get(`${a.id}_${sortColumn.replace('cf_', '')}`) ?? '';
+          bVal = taskCfValuesMap.get(`${b.id}_${sortColumn.replace('cf_', '')}`) ?? '';
+        } else {
+          aVal = (a as Record<string, unknown>)[sortColumn];
+          bVal = (b as Record<string, unknown>)[sortColumn];
+        }
+
+        if (aVal == null && bVal == null) return 0;
+        if (aVal == null) return 1;
+        if (bVal == null) return -1;
+
+        let cmp = 0;
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          cmp = aVal - bVal;
+        } else if (typeof aVal === 'boolean' && typeof bVal === 'boolean') {
+          cmp = (aVal === bVal) ? 0 : aVal ? -1 : 1;
+        } else {
+          const aStr = String(aVal);
+          const bStr = String(bVal);
+          const aDate = Date.parse(aStr);
+          const bDate = Date.parse(bStr);
+          if (!isNaN(aDate) && !isNaN(bDate)) {
+            cmp = aDate - bDate;
+          } else {
+            cmp = aStr.localeCompare(bStr, undefined, { numeric: true, sensitivity: 'base' });
+          }
+        }
+
+        return sortDirection === 'desc' ? -cmp : cmp;
+      });
+    }
+
+    return { visibleTasks: sortedVisibleTasks, taskHasChildren, wbsMap, absoluteIndexMap };
+  }, [tasks, collapsedTasks, sortColumn, sortDirection, taskCfValuesMap]);
 
   visibleTasksRef.current = visibleTasks;
   taskHasChildrenRef.current = taskHasChildren;
@@ -5430,7 +5500,7 @@ function ProjectGanttView({
                       key={col.id}
                       style={{ width: `${colWidth}px` }}
                       className={cn(
-                        "flex-shrink-0 border-r font-semibold text-[10px] text-foreground relative select-none flex items-center overflow-hidden",
+                        "flex-shrink-0 border-r font-semibold text-[10px] text-foreground relative select-none flex items-center overflow-hidden group",
                         ['progress', 'isMilestone', 'isCritical', 'isSummary'].includes(col.id) && "justify-center",
                         draggingColumn === col.id && "opacity-50",
                         dragOverColumn === col.id && "bg-muted"
@@ -5453,8 +5523,17 @@ function ProjectGanttView({
                           <GripVertical className="h-3 w-3" />
                         </div>
                       )}
-                      <div className="flex-1 p-1 truncate min-w-0">
-                        {col.label}
+                      <div 
+                        className="flex-1 p-1 truncate min-w-0 cursor-pointer flex items-center gap-0.5 hover:text-primary"
+                        onClick={() => handleColumnSort(col.id)}
+                        title={`Sort by ${col.label}`}
+                      >
+                        <span className="truncate">{col.label}</span>
+                        {sortColumn === col.id ? (
+                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3 flex-shrink-0 text-primary" /> : <ArrowDown className="h-3 w-3 flex-shrink-0 text-primary" />
+                        ) : (
+                          <ArrowUpDown className="h-2.5 w-2.5 flex-shrink-0 opacity-0 group-hover:opacity-40" />
+                        )}
                       </div>
                       {/* Resize handle */}
                       <div 
