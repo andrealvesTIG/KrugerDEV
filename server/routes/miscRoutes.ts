@@ -755,12 +755,14 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const organizationId = parseInt(req.params.organizationId);
-      const { fieldName, fieldType, fieldLabel, description, isRequired, options, defaultValue, displayOrder, isActive } = req.body;
+      const { name, fieldType, description, isRequired, options, defaultValue, displayOrder, isActive } = req.body;
+      if (!name || typeof name !== "string" || !name.trim()) {
+        return res.status(400).json({ message: "Field name is required" });
+      }
       const field = await storage.createCustomFieldDefinition({
         organizationId,
-        fieldName,
+        name: name.trim(),
         fieldType,
-        fieldLabel,
         description,
         isRequired,
         options,
