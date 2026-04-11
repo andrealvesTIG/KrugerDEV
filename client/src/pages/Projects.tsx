@@ -39,7 +39,7 @@ import { ViewsDropdown, type ProjectFilterView } from "@/components/ViewsDropdow
 import { useColumnState, sortData, type SortDirection } from "@/hooks/use-column-state";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { PageTransition, FadeIn } from "@/components/ui/page-transition";
-import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues } from "@/hooks/use-custom-fields";
+import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues, useBulkUpdateProjectCustomFieldValues } from "@/hooks/use-custom-fields";
 import type { CustomFieldDefinition, ProjectCustomFieldValue } from "@shared/schema";
 
 const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing", "Closed"];
@@ -495,6 +495,22 @@ export default function Projects() {
     enabled: !!currentOrganization?.id,
   });
 
+  const { data: exportCustomFieldDefs } = useCustomFieldDefinitions(currentOrganization?.id);
+  const { data: exportCfValues } = useOrganizationProjectCustomFieldValues(currentOrganization?.id);
+  const bulkUpdateCfValues = useBulkUpdateProjectCustomFieldValues();
+
+  const exportProjectCustomFields = useMemo(() => {
+    return (exportCustomFieldDefs || []).filter(d => d.entityType === "project" && d.isActive);
+  }, [exportCustomFieldDefs]);
+
+  const exportCfValuesMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (exportCfValues || []).forEach(v => {
+      if (v.value != null) map.set(`${v.projectId}_${v.fieldDefinitionId}`, v.value);
+    });
+    return map;
+  }, [exportCfValues]);
+
   const getRiskScoreForProject = (projectId: number) => {
     return projectRiskAssessments?.find(a => a.projectId === projectId);
   };
@@ -581,7 +597,7 @@ export default function Projects() {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Projects");
     
-    worksheet.columns = [
+    const baseColumns = [
       { header: "Name", key: "name", width: 30 },
       { header: "Description", key: "description", width: 40 },
       { header: "Portfolio", key: "portfolio", width: 25 },
@@ -593,10 +609,18 @@ export default function Projects() {
       { header: "Budget", key: "budget", width: 15 },
       { header: "Completion %", key: "completion", width: 12 }
     ];
+
+    const cfColumns = exportProjectCustomFields.map(cf => ({
+      header: `CF: ${cf.name}`,
+      key: `cf_${cf.id}`,
+      width: 20,
+    }));
+
+    worksheet.columns = [...baseColumns, ...cfColumns];
     
     projects.forEach(p => {
       const portfolio = portfolios?.find(pf => pf.id === p.portfolioId);
-      worksheet.addRow({
+      const rowData: Record<string, any> = {
         name: p.name,
         description: p.description || "",
         portfolio: portfolio?.name || "",
@@ -607,7 +631,20 @@ export default function Projects() {
         endDate: p.endDate || "",
         budget: p.budget || "",
         completion: p.completionPercentage || 0
+      };
+
+      exportProjectCustomFields.forEach(cf => {
+        const val = exportCfValuesMap.get(`${p.id}_${cf.id}`) || "";
+        if (cf.fieldType === "multiselect" && val) {
+          try { rowData[`cf_${cf.id}`] = JSON.parse(val).join(", "); } catch { rowData[`cf_${cf.id}`] = val; }
+        } else if (cf.fieldType === "checkbox") {
+          rowData[`cf_${cf.id}`] = val === "true" ? "Yes" : val === "false" ? "No" : "";
+        } else {
+          rowData[`cf_${cf.id}`] = val;
+        }
       });
+
+      worksheet.addRow(rowData);
     });
     
     const buffer = await workbook.xlsx.writeBuffer();
@@ -638,6 +675,14 @@ export default function Projects() {
       const headers: string[] = [];
       worksheet.getRow(1).eachCell((cell, colNumber) => {
         headers[colNumber - 1] = String(cell.value || "");
+      });
+
+      const cfHeaderMap = new Map<string, CustomFieldDefinition>();
+      exportProjectCustomFields.forEach(cf => {
+        const headerName = `CF: ${cf.name}`;
+        if (headers.includes(headerName)) {
+          cfHeaderMap.set(headerName, cf);
+        }
       });
       
       const jsonData: Record<string, string>[] = [];
@@ -692,7 +737,7 @@ export default function Projects() {
         const completionRaw = parseInt((row["Completion %"] || row["completion"] || "0").toString().replace(/[^0-9]/g, "")) || 0;
         
         try {
-          await createProject.mutateAsync({
+          const createdProject = await createProject.mutateAsync({
             organizationId: currentOrganization.id,
             portfolioId: matchedPortfolioId,
             name: name.trim(),
@@ -706,6 +751,27 @@ export default function Projects() {
             completionPercentage: Math.min(100, Math.max(0, completionRaw))
           });
           imported++;
+
+          if (cfHeaderMap.size > 0 && createdProject?.id) {
+            const cfValuesToSave: Array<{ fieldDefinitionId: number; value: string | null }> = [];
+            cfHeaderMap.forEach((cfDef, headerName) => {
+              const rawVal = (row[headerName] || "").toString().trim();
+              if (!rawVal) return;
+              let value: string = rawVal;
+              if (cfDef.fieldType === "checkbox") {
+                value = rawVal.toLowerCase() === "yes" || rawVal.toLowerCase() === "true" ? "true" : "false";
+              } else if (cfDef.fieldType === "multiselect") {
+                const parts = rawVal.split(",").map(s => s.trim()).filter(Boolean);
+                value = JSON.stringify(parts);
+              }
+              cfValuesToSave.push({ fieldDefinitionId: cfDef.id, value });
+            });
+            if (cfValuesToSave.length > 0) {
+              try {
+                await bulkUpdateCfValues.mutateAsync({ projectId: createdProject.id, values: cfValuesToSave });
+              } catch {}
+            }
+          }
         } catch (err: any) {
           if (err?.limitExceeded) {
             toast({ 
