@@ -9,7 +9,7 @@ import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, calcul
 import { calculateCPM, type CPMResult } from "@/lib/cpm";
 import { useUpdateTask, useCreateTask, useDeleteTask, useAddTaskDependency, useRemoveTaskDependency, useReorderTask, useProjectDependencies, useBulkUpdateTasks, useBulkDeleteTasks } from "@/hooks/use-tasks";
 import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useProjectTaskAssignments, useResources, useCreateResource } from "@/hooks/use-resources";
-import { useCustomFieldDefinitions, useProjectTaskCustomFieldValues, useUpdateTaskCustomFieldValue } from "@/hooks/use-custom-fields";
+import { useCustomFieldDefinitions, useProjectTaskCustomFieldValues, useUpdateTaskCustomFieldValue, useUpdateCustomFieldDefinition } from "@/hooks/use-custom-fields";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
@@ -156,6 +156,8 @@ interface InlineEditCellProps {
   externalEditing?: boolean;
   initialCharacter?: string;
   onEditingChange?: (editing: boolean) => void;
+  creatableSelect?: boolean;
+  onAddOption?: (newOption: string) => void;
 }
 
 const InlineEditCell = memo(function InlineEditCell({ 
@@ -171,7 +173,9 @@ const InlineEditCell = memo(function InlineEditCell({
   suffix = '',
   externalEditing,
   initialCharacter,
-  onEditingChange
+  onEditingChange,
+  creatableSelect = false,
+  onAddOption
 }: InlineEditCellProps) {
   const [internalEditing, setInternalEditing] = useState(false);
   const isEditing = externalEditing !== undefined ? externalEditing : internalEditing;
@@ -182,7 +186,9 @@ const InlineEditCell = memo(function InlineEditCell({
   const [editValue, setEditValue] = useState<string>('');
   const [selectOpen, setSelectOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [selectFilter, setSelectFilter] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const selectFilterRef = useRef<HTMLInputElement>(null);
   const pendingInitialChar = useRef<string | undefined>(undefined);
 
   useEffect(() => {
@@ -285,6 +291,85 @@ const InlineEditCell = memo(function InlineEditCell({
 
   if (isEditing) {
     if (editType === 'select' && options) {
+      if (creatableSelect) {
+        const filtered = selectFilter.trim()
+          ? options.filter(o => o.label.toLowerCase().includes(selectFilter.toLowerCase()))
+          : options;
+        const exactMatch = options.some(o => o.label.toLowerCase() === selectFilter.trim().toLowerCase());
+        const showAddNew = creatableSelect && selectFilter.trim() && !exactMatch;
+        return (
+          <Popover open={true} onOpenChange={(open) => { if (!open) { setIsEditing(false); setSelectFilter(''); } }}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="text-[10px] px-1 w-full min-h-0 h-6 justify-start font-normal truncate" data-testid="inline-edit-select">
+                {String(value || '—')}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-0" align="start" side="bottom">
+              <div className="p-1.5 border-b">
+                <Input
+                  ref={selectFilterRef}
+                  placeholder="Search or add..."
+                  value={selectFilter}
+                  onChange={(e) => setSelectFilter(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && showAddNew) {
+                      e.preventDefault();
+                      const newVal = selectFilter.trim();
+                      if (onAddOption) onAddOption(newVal);
+                      onSave(newVal);
+                      setSelectFilter('');
+                      setIsEditing(false);
+                    } else if (e.key === 'Escape') {
+                      setIsEditing(false);
+                      setSelectFilter('');
+                    }
+                  }}
+                  className="h-6 text-xs"
+                  autoFocus
+                />
+              </div>
+              <div className="max-h-[200px] overflow-y-auto p-1">
+                {filtered.map(opt => (
+                  <div
+                    key={opt.value}
+                    className={cn(
+                      "px-2 py-1 text-xs rounded cursor-pointer hover:bg-accent",
+                      String(value) === opt.value && "bg-accent font-medium"
+                    )}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      onSave(opt.value);
+                      setSelectFilter('');
+                      setIsEditing(false);
+                    }}
+                  >
+                    {opt.label}
+                  </div>
+                ))}
+                {showAddNew && (
+                  <div
+                    className="px-2 py-1 text-xs rounded cursor-pointer hover:bg-accent text-primary flex items-center gap-1 border-t mt-1 pt-1"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      const newVal = selectFilter.trim();
+                      if (onAddOption) onAddOption(newVal);
+                      onSave(newVal);
+                      setSelectFilter('');
+                      setIsEditing(false);
+                    }}
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add "{selectFilter.trim()}"
+                  </div>
+                )}
+                {filtered.length === 0 && !showAddNew && (
+                  <div className="px-2 py-1 text-xs text-muted-foreground">No options</div>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+        );
+      }
       return (
         <Select value={String(value || '')} onValueChange={handleSelectChange} open={selectOpen} onOpenChange={handleSelectOpenChange}>
           <SelectTrigger className="text-[10px] px-1 min-h-0 py-0.5" data-testid="inline-edit-select">
@@ -738,6 +823,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   taskCfValuesMap,
   onCustomFieldChange,
   customFieldDefsMap,
+  onAddCustomFieldOption,
 }: { 
   task: Task;
   rowIndex: number;
@@ -793,6 +879,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   taskCfValuesMap?: Map<string, string>;
   onCustomFieldChange?: (taskId: number, fieldDefId: number, value: string | null) => void;
   customFieldDefsMap?: Map<number, { fieldType: string; options?: string[] | null }>;
+  onAddCustomFieldOption?: (fieldDefId: number, newOption: string) => void;
 }) {
   const [isEditingResources, setIsEditingResources] = useState(false);
   const { data: fetchedAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(isEditingResources ? task.id : null);
@@ -1586,6 +1673,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                   cfEditType = 'boolean';
                 }
 
+                const isSelectType = cfFieldType === 'select' || cfFieldType === 'multiselect';
                 return (
                   <InlineEditCell {...cellEditProps}
                     value={cfFieldType === 'checkbox' ? (cfValue === 'true') : (cfValue || null)}
@@ -1598,6 +1686,8 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                     options={cfOptions}
                     onSave={(val) => onCustomFieldChange(task.id, fieldDefId, val != null ? String(val) : null)}
                     disabled={isReadOnly}
+                    creatableSelect={isSelectType}
+                    onAddOption={isSelectType ? (newOpt) => onAddCustomFieldOption?.(fieldDefId, newOpt) : undefined}
                   />
                 );
               }
@@ -2012,6 +2102,19 @@ function ProjectGanttView({
       },
     });
   }, [updateTaskCfValue, projectId]);
+
+  const updateCustomFieldDef = useUpdateCustomFieldDefinition();
+  const handleAddCustomFieldOption = useCallback((fieldDefId: number, newOption: string) => {
+    const def = taskCustomFieldDefs.find(d => d.id === fieldDefId);
+    if (!def || !organizationId) return;
+    const currentOptions = def.options ?? [];
+    if (currentOptions.includes(newOption)) return;
+    updateCustomFieldDef.mutate({
+      id: fieldDefId,
+      organizationId,
+      options: [...currentOptions, newOption],
+    });
+  }, [taskCustomFieldDefs, organizationId, updateCustomFieldDef]);
 
   const { data: projectTaskAssignments } = useProjectTaskAssignments(projectId);
   const taskAssignmentsMap = useMemo(() => {
@@ -5501,6 +5604,7 @@ function ProjectGanttView({
                             taskCfValuesMap={taskCfValuesMap}
                             onCustomFieldChange={handleCustomFieldChange}
                             customFieldDefsMap={customFieldDefsMap}
+                            onAddCustomFieldOption={handleAddCustomFieldOption}
                           />
                         </div>
                       );
@@ -5559,6 +5663,7 @@ function ProjectGanttView({
                               taskCfValuesMap={taskCfValuesMap}
                               onCustomFieldChange={handleCustomFieldChange}
                               customFieldDefsMap={customFieldDefsMap}
+                              onAddCustomFieldOption={handleAddCustomFieldOption}
                             />
                           )}
                         </SortableTaskRow>
