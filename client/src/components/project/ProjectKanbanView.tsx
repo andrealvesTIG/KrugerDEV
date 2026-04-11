@@ -15,11 +15,12 @@ import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { useTaskHistory } from "@/hooks/use-tasks";
-import type { Task } from "@shared/schema";
+import { useCustomFieldDefinitions, useProjectTaskCustomFieldValues } from "@/hooks/use-custom-fields";
+import type { Task, CustomFieldDefinition, TaskCustomFieldValue } from "@shared/schema";
 
-type GroupByField = 'status' | 'priority' | 'assignee' | 'phase' | 'category' | 'taskType' | 'constraintType' | 'schedulingMode' | 'labels' | 'isMilestone' | 'isCritical' | 'isOngoing' | 'milestoneType';
+type GroupByField = string;
 
-const GROUP_BY_OPTIONS: { value: GroupByField; label: string }[] = [
+const BUILT_IN_GROUP_BY_OPTIONS: { value: string; label: string }[] = [
   { value: 'status', label: 'Status' },
   { value: 'priority', label: 'Priority' },
   { value: 'assignee', label: 'Assignee' },
@@ -90,6 +91,32 @@ function ProjectKanbanView({
   const [groupBy, setGroupBy] = useState<GroupByField>('status');
   
   const { data: allTaskAssignments } = useAllTaskResourceAssignments(organizationId);
+  const { data: customFieldDefs } = useCustomFieldDefinitions(organizationId);
+  const { data: taskCustomFieldValues } = useProjectTaskCustomFieldValues(projectId);
+
+  const taskCustomFields = useMemo(() => {
+    return (customFieldDefs || []).filter(d => d.entityType === 'task' && d.isActive);
+  }, [customFieldDefs]);
+
+  const cfValuesMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (taskCustomFieldValues) {
+      for (const v of taskCustomFieldValues) {
+        if (v.value != null) {
+          map.set(`${v.taskId}_${v.fieldDefinitionId}`, v.value);
+        }
+      }
+    }
+    return map;
+  }, [taskCustomFieldValues]);
+
+  const groupByOptions = useMemo(() => {
+    const opts = [...BUILT_IN_GROUP_BY_OPTIONS];
+    for (const cf of taskCustomFields) {
+      opts.push({ value: `cf_${cf.id}`, label: cf.name });
+    }
+    return opts;
+  }, [taskCustomFields]);
   
   const projectTaskIds = useMemo(() => new Set(tasks.map(t => t.id)), [tasks]);
   
@@ -143,6 +170,49 @@ function ProjectKanbanView({
         { id: "Yes", label: yesLabel, color: BOOLEAN_COLUMN_COLORS.yes },
         { id: "No", label: noLabel, color: BOOLEAN_COLUMN_COLORS.no },
       ];
+    } else if (groupBy.startsWith('cf_')) {
+      const cfId = Number(groupBy.slice(3));
+      const cfDef = taskCustomFields.find(d => d.id === cfId);
+      const noneLabel = 'No Value';
+      const valueSet = new Set<string>();
+      tasks.forEach(t => {
+        const val = cfValuesMap.get(`${t.id}_${cfId}`);
+        if (val != null && val.trim()) {
+          if (cfDef?.fieldType === 'multiselect') {
+            try {
+              const arr = JSON.parse(val);
+              if (Array.isArray(arr)) arr.forEach((v: string) => valueSet.add(v));
+            } catch {
+              valueSet.add(val);
+            }
+          } else if (cfDef?.fieldType === 'checkbox') {
+            valueSet.add(val === 'true' ? 'Yes' : 'No');
+          } else {
+            valueSet.add(val);
+          }
+        }
+      });
+      if (cfDef?.fieldType === 'checkbox') {
+        return [
+          { id: "Yes", label: "Yes", color: BOOLEAN_COLUMN_COLORS.yes },
+          { id: "No", label: "No", color: BOOLEAN_COLUMN_COLORS.no },
+        ];
+      }
+      if (cfDef?.fieldType === 'select' && cfDef.options) {
+        const opts = Array.isArray(cfDef.options) ? cfDef.options as string[] : [];
+        const cols: { id: string; label: string; color: string }[] = [
+          { id: noneLabel, label: noneLabel, color: NONE_COLUMN_COLOR }
+        ];
+        opts.forEach(o => cols.push({ id: o, label: o, color: DEFAULT_COLUMN_COLOR }));
+        return cols;
+      }
+      const cols: { id: string; label: string; color: string }[] = [
+        { id: noneLabel, label: noneLabel, color: NONE_COLUMN_COLOR }
+      ];
+      Array.from(valueSet).sort().forEach(val => {
+        cols.push({ id: val, label: val, color: DEFAULT_COLUMN_COLOR });
+      });
+      return cols;
     } else {
       const noneLabel = groupBy === 'phase' ? 'No Phase' 
         : groupBy === 'category' ? 'No Category'
@@ -172,7 +242,7 @@ function ProjectKanbanView({
       });
       return cols;
     }
-  }, [groupBy, tasks, resources]);
+  }, [groupBy, tasks, resources, taskCustomFields, cfValuesMap]);
   
   const filteredTasks = useMemo(() => {
     let result = tasks;
@@ -188,7 +258,7 @@ function ProjectKanbanView({
     return result;
   }, [tasks, showSummary, summaryTaskIds, filterResourceId, taskAssignmentsMap]);
   
-  const getGroupValue = (task: Task): string => {
+  const getGroupValue = useCallback((task: Task): string => {
     if (groupBy === 'status') {
       return task.status || "Not Started";
     } else if (groupBy === 'priority') {
@@ -201,6 +271,13 @@ function ProjectKanbanView({
       return "Unassigned";
     } else if (groupBy === 'isMilestone' || groupBy === 'isCritical' || groupBy === 'isOngoing') {
       return task[groupBy] ? "Yes" : "No";
+    } else if (groupBy.startsWith('cf_')) {
+      const cfId = Number(groupBy.slice(3));
+      const cfDef = taskCustomFields.find(d => d.id === cfId);
+      const val = cfValuesMap.get(`${task.id}_${cfId}`);
+      if (!val || !val.trim()) return 'No Value';
+      if (cfDef?.fieldType === 'checkbox') return val === 'true' ? 'Yes' : 'No';
+      return val;
     } else {
       const noneLabel = groupBy === 'phase' ? 'No Phase' 
         : groupBy === 'category' ? 'No Category'
@@ -214,7 +291,7 @@ function ProjectKanbanView({
       if (val == null || !String(val).trim()) return noneLabel;
       return String(val);
     }
-  };
+  }, [groupBy, taskAssignmentsMap, taskCustomFields, cfValuesMap]);
   
   const isDragEnabled = groupBy === 'status' || groupBy === 'assignee';
   
@@ -379,7 +456,7 @@ function ProjectKanbanView({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {GROUP_BY_OPTIONS.map(opt => (
+                {groupByOptions.map(opt => (
                   <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                 ))}
               </SelectContent>
@@ -456,14 +533,35 @@ function ProjectKanbanView({
               }}
             >
               {columns.map(column => {
-                const columnTasks = groupBy === 'labels'
-                  ? filteredTasks.filter(t => {
-                      const labels = t.labels ? String(t.labels).split(',').map(l => l.trim()).filter(Boolean) : [];
-                      const noneLabel = 'No Labels';
-                      if (column.id === noneLabel) return labels.length === 0;
-                      return labels.includes(column.id);
-                    })
-                  : filteredTasks.filter(t => getGroupValue(t) === column.id);
+                let columnTasks: Task[];
+                if (groupBy === 'labels') {
+                  columnTasks = filteredTasks.filter(t => {
+                    const labels = t.labels ? String(t.labels).split(',').map(l => l.trim()).filter(Boolean) : [];
+                    if (column.id === 'No Labels') return labels.length === 0;
+                    return labels.includes(column.id);
+                  });
+                } else if (groupBy.startsWith('cf_')) {
+                  const cfId = Number(groupBy.slice(3));
+                  const cfDef = taskCustomFields.find(d => d.id === cfId);
+                  if (cfDef?.fieldType === 'multiselect') {
+                    columnTasks = filteredTasks.filter(t => {
+                      const val = cfValuesMap.get(`${t.id}_${cfId}`);
+                      if (!val || !val.trim()) return column.id === 'No Value';
+                      try {
+                        const arr = JSON.parse(val);
+                        if (Array.isArray(arr)) {
+                          if (column.id === 'No Value') return arr.length === 0;
+                          return arr.includes(column.id);
+                        }
+                      } catch {}
+                      return column.id === val;
+                    });
+                  } else {
+                    columnTasks = filteredTasks.filter(t => getGroupValue(t) === column.id);
+                  }
+                } else {
+                  columnTasks = filteredTasks.filter(t => getGroupValue(t) === column.id);
+                }
                 return (<ProjectKanbanColumn
                   key={column.id}
                   column={column}
