@@ -428,6 +428,74 @@ const jarvisTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "create_resource",
+      description: "Create a new resource (person/team member) in the organization. Call this ONLY after the user has explicitly confirmed. This is organization-scoped — no project ID needed.",
+      parameters: {
+        type: "object",
+        properties: {
+          displayName: { type: "string", description: "Full display name of the resource (required)" },
+          firstName: { type: "string", description: "First name" },
+          lastName: { type: "string", description: "Last name" },
+          email: { type: "string", description: "Email address" },
+          phone: { type: "string", description: "Phone number" },
+          title: { type: "string", description: "Job title or role (e.g. 'Senior Developer', 'Project Manager')" },
+          department: { type: "string", description: "Department (e.g. 'Engineering', 'Design', 'Marketing')" },
+          resourceType: { type: "string", enum: ["Employee", "Contractor", "Vendor", "Equipment", "Material"], description: "Type of resource" },
+          location: { type: "string", description: "Office location" },
+          skills: { type: "string", description: "Comma-separated skills (e.g. 'JavaScript, React, Node.js')" },
+          experienceLevel: { type: "string", enum: ["Junior", "Mid-Level", "Senior", "Lead", "Principal"], description: "Experience level" },
+          hourlyRate: { type: "string", description: "Standard hourly rate (numeric string)" },
+          weeklyCapacity: { type: "string", description: "Hours per week available (numeric string, default 40)" },
+          availability: { type: "number", description: "Availability percentage 0-100 (default 100)" },
+          startDate: { type: "string", description: "Start date in YYYY-MM-DD format" },
+          isBillable: { type: "boolean", description: "Whether this resource is billable (default true)" },
+        },
+        required: ["displayName"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "bulk_create_resources",
+      description: "Create multiple resources (people/team members) in the organization at once. Call this ONLY after presenting the list to the user and receiving explicit confirmation. This is organization-scoped — no project ID needed.",
+      parameters: {
+        type: "object",
+        properties: {
+          resources: {
+            type: "array",
+            description: "Array of resource objects to create",
+            items: {
+              type: "object",
+              properties: {
+                displayName: { type: "string", description: "Full display name (required)" },
+                firstName: { type: "string", description: "First name" },
+                lastName: { type: "string", description: "Last name" },
+                email: { type: "string", description: "Email address" },
+                phone: { type: "string", description: "Phone number" },
+                title: { type: "string", description: "Job title or role" },
+                department: { type: "string", description: "Department" },
+                resourceType: { type: "string", enum: ["Employee", "Contractor", "Vendor", "Equipment", "Material"], description: "Type of resource" },
+                location: { type: "string", description: "Office location" },
+                skills: { type: "string", description: "Comma-separated skills" },
+                experienceLevel: { type: "string", enum: ["Junior", "Mid-Level", "Senior", "Lead", "Principal"], description: "Experience level" },
+                hourlyRate: { type: "string", description: "Standard hourly rate" },
+                weeklyCapacity: { type: "string", description: "Hours per week available (default 40)" },
+                availability: { type: "number", description: "Availability percentage 0-100" },
+                startDate: { type: "string", description: "Start date in YYYY-MM-DD format" },
+                isBillable: { type: "boolean", description: "Whether this resource is billable (default true)" },
+              },
+              required: ["displayName"],
+            },
+          },
+        },
+        required: ["resources"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "bulk_create_tasks",
       description: "Create multiple tasks in a project at once from structured data (e.g. parsed from a CSV file). Call this ONLY after presenting the parsed data to the user and receiving explicit confirmation. Each task object should have at minimum a name.",
       parameters: {
@@ -459,11 +527,17 @@ const jarvisTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   },
 ];
 
+const ORG_SCOPED_TOOLS = new Set(["create_resource", "bulk_create_resources"]);
+
 async function handleToolCall(
   orgId: number,
   toolName: string,
   args: Record<string, any>,
 ): Promise<string> {
+  if (ORG_SCOPED_TOOLS.has(toolName)) {
+    return handleOrgScopedToolCall(orgId, toolName, args);
+  }
+
   const projectId = args.projectId;
   if (!projectId || typeof projectId !== "number") {
     return JSON.stringify({ success: false, message: "Valid projectId is required." });
@@ -705,6 +779,111 @@ async function handleToolCall(
   }
 }
 
+function sanitizeResourceFields(r: any): Record<string, any> {
+  const validTypes = ["Employee", "Contractor", "Vendor", "Equipment", "Material"];
+  const validLevels = ["Junior", "Mid-Level", "Senior", "Lead", "Principal"];
+
+  const fields: Record<string, any> = {};
+  if (typeof r.displayName === "string" && r.displayName.trim()) {
+    fields.displayName = r.displayName.trim().slice(0, 200);
+  }
+  if (typeof r.firstName === "string") fields.firstName = r.firstName.trim().slice(0, 100);
+  if (typeof r.lastName === "string") fields.lastName = r.lastName.trim().slice(0, 100);
+  if (typeof r.email === "string" && r.email.includes("@")) fields.email = r.email.trim().slice(0, 200);
+  if (typeof r.phone === "string") fields.phone = r.phone.trim().slice(0, 50);
+  if (typeof r.title === "string") fields.title = r.title.trim().slice(0, 200);
+  if (typeof r.department === "string") fields.department = r.department.trim().slice(0, 200);
+  fields.resourceType = (typeof r.resourceType === "string" && validTypes.includes(r.resourceType)) ? r.resourceType : "Employee";
+  if (typeof r.location === "string") fields.location = r.location.trim().slice(0, 200);
+  if (typeof r.skills === "string") fields.skills = r.skills.slice(0, 1000);
+  if (typeof r.experienceLevel === "string" && validLevels.includes(r.experienceLevel)) fields.experienceLevel = r.experienceLevel;
+  if (typeof r.hourlyRate === "string" && !isNaN(Number(r.hourlyRate))) fields.hourlyRate = r.hourlyRate;
+  if (typeof r.weeklyCapacity === "string" && !isNaN(Number(r.weeklyCapacity))) fields.weeklyCapacity = r.weeklyCapacity;
+  if (typeof r.availability === "number" && r.availability >= 0 && r.availability <= 100) fields.availability = Math.round(r.availability);
+  if (typeof r.isBillable === "boolean") fields.isBillable = r.isBillable;
+
+  if (typeof r.startDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.startDate)) {
+    const [y, m, d] = r.startDate.split("-").map(Number);
+    const date = new Date(Date.UTC(y, m - 1, d));
+    if (date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d) {
+      fields.startDate = r.startDate;
+    }
+  }
+
+  return fields;
+}
+
+async function handleOrgScopedToolCall(
+  orgId: number,
+  toolName: string,
+  args: Record<string, any>,
+): Promise<string> {
+  switch (toolName) {
+    case "create_resource": {
+      const fields = sanitizeResourceFields(args);
+      if (!fields.displayName) {
+        return JSON.stringify({ success: false, message: "A display name is required to create a resource." });
+      }
+
+      const [created] = await db.insert(resources).values({
+        organizationId: orgId,
+        ...fields,
+      }).returning({ id: resources.id, displayName: resources.displayName });
+
+      return JSON.stringify({
+        success: true,
+        message: `Resource "${created.displayName}" created successfully (ID: ${created.id}).`,
+        resource: created,
+      });
+    }
+
+    case "bulk_create_resources": {
+      const resourceList = args.resources;
+      if (!Array.isArray(resourceList) || resourceList.length === 0) {
+        return JSON.stringify({ success: false, message: "No resources provided." });
+      }
+      if (resourceList.length > 200) {
+        return JSON.stringify({ success: false, message: "Maximum 200 resources can be created at once." });
+      }
+
+      const skipped: string[] = [];
+      const resourceValues = resourceList
+        .filter((r: any, idx: number) => {
+          const fields = sanitizeResourceFields(r);
+          if (!fields.displayName) {
+            skipped.push(`Row ${idx + 1}: missing or invalid display name`);
+            return false;
+          }
+          return true;
+        })
+        .map((r: any) => ({
+          organizationId: orgId,
+          ...sanitizeResourceFields(r),
+        }));
+
+      if (resourceValues.length === 0) {
+        return JSON.stringify({ success: false, message: "No valid resources found — each resource needs at least a display name." });
+      }
+
+      const created = await db.insert(resources).values(resourceValues).returning({ id: resources.id, displayName: resources.displayName });
+      const result: Record<string, any> = {
+        success: true,
+        message: `Successfully created ${created.length} resource(s) in the organization.`,
+        resourceCount: created.length,
+        resources: created.slice(0, 20).map(r => ({ id: r.id, displayName: r.displayName })),
+      };
+      if (skipped.length > 0) {
+        result.message += ` ${skipped.length} row(s) were skipped.`;
+        result.skipped = skipped.slice(0, 10);
+      }
+      return JSON.stringify(result);
+    }
+
+    default:
+      return JSON.stringify({ success: false, message: "Unknown tool." });
+  }
+}
+
 export interface PageContext {
   path: string;
   entityType: "project" | "portfolio" | "resource" | null;
@@ -828,6 +1007,14 @@ export async function streamJarvisResponse(
 - When the user confirms (says "yes", "proceed", "do it", "go ahead", "ok", "sure", "confirm", etc.), you MUST call the appropriate tool function to actually execute the action. Do NOT just say you did it — you must use the tool.
 - After the tool executes, report the result to the user based on the tool response.
 - The project IDs are available in the data context above. Match project names to their IDs.
+
+RESOURCE CREATION RULES:
+- When the user asks to add a new resource/person/team member to the organization, gather the key details (name, role/title, department, email, type, skills, etc.) and present a summary for confirmation before calling create_resource.
+- When a CSV or file is attached with resource/people data, parse it and use bulk_create_resources to create them all at once. Present a summary table first and ask for confirmation.
+- These tools are organization-scoped — they do NOT require a project ID.
+- At minimum, a display name is required. If the user provides a full name, try to split it into firstName and lastName as well.
+- Valid resource types: Employee, Contractor, Vendor, Equipment, Material. Default to Employee if not specified.
+- Valid experience levels: Junior, Mid-Level, Senior, Lead, Principal.
 
 TASK UPDATE & RESOURCE ASSIGNMENT RULES:
 - When the user asks to update a task (change status, priority, assignee, dates, progress, etc.), identify the task by name or ID from the data context, describe the change, and ask for confirmation before calling update_task.
