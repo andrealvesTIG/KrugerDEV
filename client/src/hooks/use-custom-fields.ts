@@ -151,6 +151,10 @@ export function useUpdateTaskCustomFieldValue() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [`/api/tasks/${variables.taskId}/custom-field-values`] });
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0];
+        return typeof key === 'string' && key.includes('/task-custom-field-values');
+      }});
     },
   });
 }

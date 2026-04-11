@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { useTaskHistory } from "@/hooks/use-tasks";
-import { useCustomFieldDefinitions, useProjectTaskCustomFieldValues } from "@/hooks/use-custom-fields";
+import { useCustomFieldDefinitions, useProjectTaskCustomFieldValues, useUpdateTaskCustomFieldValue } from "@/hooks/use-custom-fields";
 import type { Task, CustomFieldDefinition, TaskCustomFieldValue } from "@shared/schema";
 
 type GroupByField = string;
@@ -93,6 +93,7 @@ function ProjectKanbanView({
   const { data: allTaskAssignments } = useAllTaskResourceAssignments(organizationId);
   const { data: customFieldDefs } = useCustomFieldDefinitions(organizationId);
   const { data: taskCustomFieldValues } = useProjectTaskCustomFieldValues(projectId);
+  const updateTaskCfValue = useUpdateTaskCustomFieldValue();
 
   const taskCustomFields = useMemo(() => {
     return (customFieldDefs || []).filter(d => d.entityType === 'task' && d.isActive);
@@ -293,7 +294,15 @@ function ProjectKanbanView({
     }
   }, [groupBy, taskAssignmentsMap, taskCustomFields, cfValuesMap]);
   
-  const isDragEnabled = groupBy === 'status' || groupBy === 'assignee';
+  const isDragEnabled = useMemo(() => {
+    if (groupBy === 'status' || groupBy === 'assignee') return true;
+    if (groupBy.startsWith('cf_')) {
+      const cfId = Number(groupBy.slice(3));
+      const cfDef = taskCustomFields.find(d => d.id === cfId);
+      if (cfDef && cfDef.fieldType !== 'multiselect') return true;
+    }
+    return false;
+  }, [groupBy, taskCustomFields]);
   
   const canDrag = isDragEnabled && !isReadOnly;
   
@@ -388,6 +397,24 @@ function ProjectKanbanView({
             const targetResourceId = Number(targetColumnId);
             const otherAssignments = currentAssignedIds.filter(id => id !== (currentAssignedIds[0] || -1));
             onResourceAssign(taskId, [targetResourceId, ...otherAssignments]);
+          }
+        }
+      } else if (groupBy.startsWith('cf_')) {
+        const cfId = Number(groupBy.slice(3));
+        const cfDef = taskCustomFields.find(d => d.id === cfId);
+        if (cfDef) {
+          const currentGroupValue = getGroupValue(task);
+          if (currentGroupValue !== targetColumnId) {
+            let newValue: string | null;
+            const noneLabel = 'No Value';
+            if (targetColumnId === noneLabel) {
+              newValue = null;
+            } else if (cfDef.fieldType === 'checkbox') {
+              newValue = targetColumnId === 'Yes' ? 'true' : 'false';
+            } else {
+              newValue = targetColumnId;
+            }
+            updateTaskCfValue.mutate({ taskId, fieldDefinitionId: cfId, value: newValue });
           }
         }
       }
@@ -514,7 +541,7 @@ function ProjectKanbanView({
         <div className={cn("p-4 relative", isFullscreen && "flex-1 overflow-hidden")}>
           {!canDrag && (
             <div className="text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded mb-3 inline-block">
-              {isReadOnly ? 'Project is read-only' : 'Drag and drop is available when grouping by Status or Assignee'}
+              {isReadOnly ? 'Project is read-only' : 'Drag and drop is available when grouping by Status, Assignee, or Custom Fields'}
             </div>
           )}
           <DndContext 
