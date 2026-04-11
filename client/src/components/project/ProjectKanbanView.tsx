@@ -43,7 +43,6 @@ function ProjectKanbanView({
   tasks, 
   onTaskClick, 
   onStatusChange,
-  onAssigneeChange,
   isFullscreen,
   organizationId,
   projectId,
@@ -54,7 +53,6 @@ function ProjectKanbanView({
   tasks: Task[]; 
   onTaskClick: (task: Task) => void;
   onStatusChange: (taskId: number, newStatus: string) => void;
-  onAssigneeChange?: (taskId: number, newAssignee: string | null) => void;
   isFullscreen?: boolean;
   organizationId: number | null;
   projectId: number;
@@ -102,14 +100,14 @@ function ProjectKanbanView({
     } else if (groupBy === 'priority') {
       return PRIORITY_COLUMNS;
     } else if (groupBy === 'assignee') {
-      const assigneeSet = new Set<string>();
-      tasks.forEach(t => {
-        if (t.assignee) assigneeSet.add(t.assignee);
-      });
-      const cols = [{ id: "Unassigned", label: "Unassigned", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" }];
-      Array.from(assigneeSet).sort().forEach(name => {
-        cols.push({ id: name, label: name, color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" });
-      });
+      const cols: { id: string; label: string; color: string }[] = [
+        { id: "Unassigned", label: "Unassigned", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" }
+      ];
+      if (resources && resources.length > 0) {
+        resources.forEach(r => {
+          cols.push({ id: String(r.id), label: r.displayName, color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" });
+        });
+      }
       return cols;
     } else if (groupBy === 'phase') {
       const phaseSet = new Set<string>();
@@ -123,7 +121,7 @@ function ProjectKanbanView({
       return cols;
     }
     return STATUS_COLUMNS;
-  }, [groupBy, tasks]);
+  }, [groupBy, tasks, resources]);
   
   const filteredTasks = useMemo(() => {
     let result = tasks;
@@ -145,7 +143,11 @@ function ProjectKanbanView({
     } else if (groupBy === 'priority') {
       return task.priority || "Medium";
     } else if (groupBy === 'assignee') {
-      return task.assignee || "Unassigned";
+      const assignedIds = taskAssignmentsMap.get(task.id);
+      if (assignedIds && assignedIds.length > 0) {
+        return String(assignedIds[0]);
+      }
+      return "Unassigned";
     } else if (groupBy === 'phase') {
       return task.phase || "No Phase";
     }
@@ -237,10 +239,17 @@ function ProjectKanbanView({
         if (currentValue !== targetColumnId) {
           onStatusChange(taskId, targetColumnId);
         }
-      } else if (groupBy === 'assignee' && onAssigneeChange) {
-        const currentValue = task.assignee || "Unassigned";
-        if (currentValue !== targetColumnId) {
-          onAssigneeChange(taskId, targetColumnId === "Unassigned" ? null : targetColumnId);
+      } else if (groupBy === 'assignee' && onResourceAssign) {
+        const currentAssignedIds = taskAssignmentsMap.get(taskId) || [];
+        const currentColumnId = currentAssignedIds.length > 0 ? String(currentAssignedIds[0]) : "Unassigned";
+        if (currentColumnId !== targetColumnId) {
+          if (targetColumnId === "Unassigned") {
+            onResourceAssign(taskId, []);
+          } else {
+            const targetResourceId = Number(targetColumnId);
+            const otherAssignments = currentAssignedIds.filter(id => id !== (currentAssignedIds[0] || -1));
+            onResourceAssign(taskId, [targetResourceId, ...otherAssignments]);
+          }
         }
       }
     }

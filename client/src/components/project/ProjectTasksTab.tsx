@@ -1476,16 +1476,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             const task = tasks?.find(t => t.id === taskId);
             updateTaskResources.mutate({ taskId, resourceIds, expectedUpdatedAt: task?.updatedAt ? new Date(task.updatedAt).toISOString() : undefined });
           }}
-          onAssigneeChange={(taskId, newAssignee) => {
-            const task = tasks?.find(t => t.id === taskId);
-            if (task) {
-              updateTask.mutate({ 
-                id: taskId, 
-                projectId: task.projectId, 
-                assignee: newAssignee
-              });
-            }
-          }}
           onStatusChange={(taskId, newStatus) => {
             const task = tasks?.find(t => t.id === taskId);
             if (task) {
