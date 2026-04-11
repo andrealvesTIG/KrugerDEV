@@ -2870,13 +2870,14 @@ function ProjectGanttView({
         maxPasteCols = Math.abs(rangeEndCol - rangeStartCol) + 1;
       }
     } else {
-      const anchorTaskId = focusedCell?.taskId ?? lastSelectedTaskIdRef.current;
+      const activeFocus = focusedCell ?? (cellAnchorRef.current ? { taskId: cellAnchorRef.current.taskId, columnId: cellAnchorRef.current.columnId } : null);
+      const anchorTaskId = activeFocus?.taskId ?? lastSelectedTaskIdRef.current;
       const anchorIndex = anchorTaskId != null
         ? currentVisibleTasks.findIndex(t => t.id === anchorTaskId)
         : -1;
       startIndex = anchorIndex >= 0 ? anchorIndex : 0;
-      const startColIndex = focusedCell
-        ? visibleColumns.indexOf(focusedCell.columnId)
+      const startColIndex = activeFocus
+        ? visibleColumns.indexOf(activeFocus.columnId)
         : 0;
       effectiveStartCol = startColIndex >= 0 ? startColIndex : 0;
     }
