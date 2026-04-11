@@ -431,6 +431,7 @@ export interface IMiscStorage {
   updateCustomFieldDefinition(id: number, updates: UpdateCustomFieldDefinitionRequest): Promise<CustomFieldDefinition>;
   deleteCustomFieldDefinition(id: number): Promise<void>;
   getProjectCustomFieldValues(projectId: number): Promise<ProjectCustomFieldValue[]>;
+  getOrganizationProjectCustomFieldValues(organizationId: number): Promise<ProjectCustomFieldValue[]>;
   getProjectCustomFieldValue(projectId: number, fieldDefinitionId: number): Promise<ProjectCustomFieldValue | undefined>;
   upsertProjectCustomFieldValue(value: InsertProjectCustomFieldValue): Promise<ProjectCustomFieldValue>;
   deleteProjectCustomFieldValue(projectId: number, fieldDefinitionId: number): Promise<void>;

@@ -4,7 +4,7 @@ import {
   healthStatusHistory, statusReportHistory,
   projectViews, systemProjectViews, notifications,
   userConsents,
-  tasks,
+  tasks, projects,
   customFieldDefinitions, projectCustomFieldValues, taskCustomFieldValues, resourceCustomFieldValues,
   customProjectTabs, customTabSections, customTabFields,
   projectScoringCriteria, projectScores, portfolioScoringConfig,
@@ -326,6 +326,22 @@ export async function deleteCustomFieldDefinition(id: number): Promise<void> {
 export async function getProjectCustomFieldValues(projectId: number): Promise<ProjectCustomFieldValue[]> {
   return await db.select().from(projectCustomFieldValues)
     .where(eq(projectCustomFieldValues.projectId, projectId));
+}
+
+export async function getOrganizationProjectCustomFieldValues(organizationId: number): Promise<ProjectCustomFieldValue[]> {
+  return await db.select({
+    id: projectCustomFieldValues.id,
+    projectId: projectCustomFieldValues.projectId,
+    fieldDefinitionId: projectCustomFieldValues.fieldDefinitionId,
+    value: projectCustomFieldValues.value,
+    textValue: projectCustomFieldValues.textValue,
+    numberValue: projectCustomFieldValues.numberValue,
+    dateValue: projectCustomFieldValues.dateValue,
+    booleanValue: projectCustomFieldValues.booleanValue,
+    updatedAt: projectCustomFieldValues.updatedAt,
+  }).from(projectCustomFieldValues)
+    .innerJoin(projects, eq(projectCustomFieldValues.projectId, projects.id))
+    .where(eq(projects.organizationId, organizationId));
 }
 
 export async function getProjectCustomFieldValue(projectId: number, fieldDefinitionId: number): Promise<ProjectCustomFieldValue | undefined> {

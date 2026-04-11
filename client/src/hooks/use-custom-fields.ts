@@ -69,6 +69,13 @@ export function useProjectCustomFieldValues(projectId: number | undefined | null
   });
 }
 
+export function useOrganizationProjectCustomFieldValues(organizationId: number | undefined | null) {
+  return useQuery<ProjectCustomFieldValue[]>({
+    queryKey: [`/api/organizations/${organizationId}/project-custom-field-values`],
+    enabled: !!organizationId,
+  });
+}
+
 export function useUpdateProjectCustomFieldValue() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -84,6 +91,10 @@ export function useUpdateProjectCustomFieldValue() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${variables.projectId}/custom-field-values`] });
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0];
+        return typeof key === 'string' && key.includes('/project-custom-field-values');
+      }});
     },
   });
 }
@@ -103,6 +114,10 @@ export function useBulkUpdateProjectCustomFieldValues() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${variables.projectId}/custom-field-values`] });
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0];
+        return typeof key === 'string' && key.includes('/project-custom-field-values');
+      }});
     },
   });
 }

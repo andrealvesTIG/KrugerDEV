@@ -39,6 +39,8 @@ import { ViewsDropdown, type ProjectFilterView } from "@/components/ViewsDropdow
 import { useColumnState, sortData, type SortDirection } from "@/hooks/use-column-state";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { PageTransition, FadeIn } from "@/components/ui/page-transition";
+import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues } from "@/hooks/use-custom-fields";
+import type { CustomFieldDefinition, ProjectCustomFieldValue } from "@shared/schema";
 
 const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing", "Closed"];
 
@@ -1539,9 +1541,33 @@ function ProjectsGridView({
   
   const isFullscreen = externalFullscreen !== undefined ? externalFullscreen : internalFullscreen;
   const setIsFullscreen = onExitFullscreen ? () => onExitFullscreen() : setInternalFullscreen;
-  
+
+  const { data: customFieldDefs } = useCustomFieldDefinitions(organizationId);
+  const { data: orgCfValues } = useOrganizationProjectCustomFieldValues(organizationId);
+
+  const projectCustomFields = useMemo(() => {
+    return (customFieldDefs || []).filter(d => d.entityType === "project" && d.isActive);
+  }, [customFieldDefs]);
+
+  const cfValuesMap = useMemo(() => {
+    const map = new Map<string, ProjectCustomFieldValue>();
+    (orgCfValues || []).forEach(v => {
+      map.set(`${v.projectId}_${v.fieldDefinitionId}`, v);
+    });
+    return map;
+  }, [orgCfValues]);
+
+  const allGridColumns = useMemo<GridColumn[]>(() => {
+    const cfColumns: GridColumn[] = projectCustomFields.map(cf => ({
+      id: `cf_${cf.id}`,
+      label: cf.name,
+      defaultVisible: false,
+    }));
+    return [...ALL_GRID_COLUMNS, ...cfColumns];
+  }, [projectCustomFields]);
+
   const defaultColumns = useMemo(() => ALL_GRID_COLUMNS.filter(c => c.defaultVisible).map(c => c.id), []);
-  const defaultColumnOrder = useMemo(() => ALL_GRID_COLUMNS.map(c => c.id), []);
+  const defaultColumnOrder = useMemo(() => allGridColumns.map(c => c.id), [allGridColumns]);
 
   const defaultWidths = useMemo(() => ({
     name: 200,
@@ -1624,9 +1650,21 @@ function ProjectsGridView({
       case 'createdAt': return project.createdAt ? new Date(project.createdAt) : null;
       case 'updatedAt': return (project as any).updatedAt ? new Date((project as any).updatedAt) : (project.createdAt ? new Date(project.createdAt) : null);
       case 'description': return project.description;
-      default: return null;
+      default:
+        if (columnId.startsWith("cf_")) {
+          const cfId = parseInt(columnId.replace("cf_", ""));
+          const cfValue = cfValuesMap.get(`${project.id}_${cfId}`);
+          const rawValue = cfValue?.value ?? null;
+          if (!rawValue) return null;
+          const cfDef = projectCustomFields.find(d => d.id === cfId);
+          if (cfDef?.fieldType === "number") return Number(rawValue);
+          if (cfDef?.fieldType === "date") try { return new Date(rawValue); } catch { return rawValue; }
+          if (cfDef?.fieldType === "checkbox") return rawValue === "true" ? 1 : 0;
+          return rawValue;
+        }
+        return null;
     }
-  }, [portfolios]);
+  }, [portfolios, cfValuesMap, projectCustomFields]);
 
   const sortedProjects = useMemo(() => {
     return sortData(projects, sortState, getFieldValue);
@@ -1664,6 +1702,14 @@ function ProjectsGridView({
         : [...prev, columnId];
       saveColumns(newColumns);
       return newColumns;
+    });
+    setColumnOrder(prev => {
+      if (!prev.includes(columnId)) {
+        const newOrder = [...prev, columnId];
+        saveColumnOrder(newOrder);
+        return newOrder;
+      }
+      return prev;
     });
   };
 
@@ -1753,7 +1799,7 @@ function ProjectsGridView({
   const getOrderedVisibleColumns = () => {
     return columnOrder
       .filter(id => visibleColumns.includes(id))
-      .map(id => ALL_GRID_COLUMNS.find(c => c.id === id)!)
+      .map(id => allGridColumns.find(c => c.id === id)!)
       .filter(Boolean);
   };
 
@@ -2125,6 +2171,44 @@ function ProjectsGridView({
           </Badge>
         ) : <span className="text-sm text-muted-foreground">-</span>;
       default:
+        if (columnId.startsWith("cf_")) {
+          const cfId = parseInt(columnId.replace("cf_", ""));
+          const cfValue = cfValuesMap.get(`${project.id}_${cfId}`);
+          const rawValue = cfValue?.value ?? null;
+          if (!rawValue) return <span className="text-sm text-muted-foreground">-</span>;
+          const cfDef = projectCustomFields.find(d => d.id === cfId);
+          if (cfDef?.fieldType === "checkbox") {
+            return <span className="text-sm">{rawValue === "true" ? "Yes" : "No"}</span>;
+          }
+          if (cfDef?.fieldType === "multiselect") {
+            try {
+              const arr = JSON.parse(rawValue) as string[];
+              return (
+                <div className="flex flex-wrap gap-1">
+                  {arr.map((v, i) => (
+                    <Badge key={i} variant="outline" className="text-xs">{v}</Badge>
+                  ))}
+                </div>
+              );
+            } catch { return <span className="text-sm">{rawValue}</span>; }
+          }
+          if (cfDef?.fieldType === "date" && rawValue) {
+            try {
+              return <span className="text-sm">{format(new Date(rawValue), 'MMM d, yyyy')}</span>;
+            } catch { return <span className="text-sm">{rawValue}</span>; }
+          }
+          if (cfDef?.fieldType === "number" && rawValue) {
+            return <span className="text-sm">{Number(rawValue).toLocaleString()}</span>;
+          }
+          if (cfDef?.fieldType === "url" && rawValue) {
+            return (
+              <a href={rawValue} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline truncate">
+                {rawValue}
+              </a>
+            );
+          }
+          return <span className="text-sm">{rawValue}</span>;
+        }
         return "-";
     }
   };
@@ -2144,7 +2228,7 @@ function ProjectsGridView({
             <ViewsDropdown
               mode="grid"
               organizationId={organizationId}
-              allColumns={ALL_GRID_COLUMNS}
+              allColumns={allGridColumns}
               visibleColumns={visibleColumns}
               columnOrder={columnOrder}
               onApplyView={handleApplyView}
@@ -2186,7 +2270,7 @@ function ProjectsGridView({
                   <p className="text-sm font-medium">Show Columns</p>
                   <p className="text-xs text-muted-foreground">Drag column headers to reorder</p>
                   <div className="space-y-1">
-                    {[...ALL_GRID_COLUMNS].sort((a, b) => a.label.localeCompare(b.label)).map(column => (
+                    {[...allGridColumns].sort((a, b) => a.label.localeCompare(b.label)).map(column => (
                       <div
                         key={column.id}
                         className="flex items-center gap-2 py-1 px-2 rounded hover:bg-muted cursor-pointer"
@@ -2245,7 +2329,7 @@ function ProjectsGridView({
           <ViewsDropdown
             mode="grid"
             organizationId={organizationId}
-            allColumns={ALL_GRID_COLUMNS}
+            allColumns={allGridColumns}
             visibleColumns={visibleColumns}
             columnOrder={columnOrder}
             onApplyView={handleApplyView}
@@ -2269,7 +2353,7 @@ function ProjectsGridView({
               </div>
               <div className="max-h-64 overflow-y-auto p-2">
                 <div className="space-y-1">
-                  {[...ALL_GRID_COLUMNS].sort((a, b) => a.label.localeCompare(b.label)).map(column => (
+                  {[...allGridColumns].sort((a, b) => a.label.localeCompare(b.label)).map(column => (
                     <div
                       key={column.id}
                       className="flex items-center gap-2 py-1 px-2 rounded hover:bg-muted cursor-pointer"

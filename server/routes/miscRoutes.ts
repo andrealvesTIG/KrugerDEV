@@ -837,6 +837,26 @@ export async function registerMiscRoutes(app: Express) {
   // ============================================
 
   // Get all custom field values for a project
+  app.get('/api/organizations/:organizationId/project-custom-field-values', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    try {
+      const organizationId = parseInt(req.params.organizationId);
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const values = await storage.getOrganizationProjectCustomFieldValues(organizationId);
+      res.json(values);
+    } catch (error) {
+      console.error('Error fetching organization project custom field values:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch custom field values' : classified.message });
+    }
+  });
+
   app.get('/api/projects/:projectId/custom-field-values', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
