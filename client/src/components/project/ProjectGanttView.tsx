@@ -3322,27 +3322,72 @@ function ProjectGanttView({
       }
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (!isReadOnly && !READ_ONLY_COLUMNS.includes(currentFocused.columnId)) {
-          const clearableColumns: GanttColumn[] = ['startDate', 'endDate', 'baselineStartDate', 'baselineEndDate', 'actualStartDate', 'actualEndDate', 'constraintDate', 'description', 'notes', 'taskNumber', 'phase', 'category', 'labels', 'constraintType'];
-          if (clearableColumns.includes(currentFocused.columnId)) {
-            e.preventDefault();
-            const taskForDelete = visibleTasksRef.current.find(t => t.id === currentFocused.taskId);
-            if (taskForDelete) {
-              const field = currentFocused.columnId;
-              const oldValue = (taskForDelete as Record<string, unknown>)[field];
-              if (oldValue != null && oldValue !== '') {
-                const updates: Record<string, unknown> = { id: taskForDelete.id, projectId: taskForDelete.projectId, [field]: null };
-                if (field === 'startDate') {
+        if (isReadOnly) { return; }
+        const clearableColumns: GanttColumn[] = ['startDate', 'endDate', 'baselineStartDate', 'baselineEndDate', 'actualStartDate', 'actualEndDate', 'constraintDate', 'description', 'notes', 'taskNumber', 'phase', 'category', 'labels', 'constraintType'];
+        const currentVisibleTasks = visibleTasksRef.current;
+
+        if (selectionRange) {
+          e.preventDefault();
+          const startIdx = currentVisibleTasks.findIndex(t => t.id === selectionRange.startTaskId);
+          const endIdx = currentVisibleTasks.findIndex(t => t.id === selectionRange.endTaskId);
+          if (startIdx === -1 || endIdx === -1) return;
+          const minRow = Math.min(startIdx, endIdx);
+          const maxRow = Math.max(startIdx, endIdx);
+          const startColIdx = visibleColumns.indexOf(selectionRange.startColId);
+          const endColIdx = visibleColumns.indexOf(selectionRange.endColId);
+          const minCol = Math.min(startColIdx, endColIdx);
+          const maxCol = Math.max(startColIdx, endColIdx);
+
+          const taskUpdatesForBulk: Array<{ taskId: number; updates: Record<string, unknown> }> = [];
+          for (let r = minRow; r <= maxRow; r++) {
+            const task = currentVisibleTasks[r];
+            if (!task) continue;
+            const updates: Record<string, unknown> = {};
+            for (let c = minCol; c <= maxCol; c++) {
+              const col = visibleColumns[c];
+              if (!col || READ_ONLY_COLUMNS.includes(col) || !clearableColumns.includes(col)) continue;
+              const oldVal = (task as Record<string, unknown>)[col];
+              if (oldVal != null && oldVal !== '') {
+                updates[col] = null;
+                if (col === 'startDate') {
                   updates.endDate = null;
                   updates.durationDays = null;
-                  if (taskForDelete.schedulingMode !== 'manual') updates.schedulingMode = 'manual';
-                } else if (field === 'endDate') {
+                  if (task.schedulingMode !== 'manual') updates.schedulingMode = 'manual';
+                } else if (col === 'endDate') {
                   updates.startDate = null;
                   updates.durationDays = null;
-                  if (taskForDelete.schedulingMode !== 'manual') updates.schedulingMode = 'manual';
+                  if (task.schedulingMode !== 'manual') updates.schedulingMode = 'manual';
                 }
-                updateTask.mutate(updates as Parameters<typeof updateTask.mutate>[0]);
               }
+            }
+            if (Object.keys(updates).length > 0) {
+              taskUpdatesForBulk.push({ taskId: task.id, updates });
+            }
+          }
+          if (taskUpdatesForBulk.length > 0) {
+            const pid = currentVisibleTasks[minRow]?.projectId;
+            if (pid) {
+              bulkUpdate.mutate({ taskUpdates: taskUpdatesForBulk, projectId: pid });
+            }
+          }
+        } else if (!READ_ONLY_COLUMNS.includes(currentFocused.columnId) && clearableColumns.includes(currentFocused.columnId)) {
+          e.preventDefault();
+          const taskForDelete = currentVisibleTasks.find(t => t.id === currentFocused.taskId);
+          if (taskForDelete) {
+            const field = currentFocused.columnId;
+            const oldValue = (taskForDelete as Record<string, unknown>)[field];
+            if (oldValue != null && oldValue !== '') {
+              const updates: Record<string, unknown> = { id: taskForDelete.id, projectId: taskForDelete.projectId, [field]: null };
+              if (field === 'startDate') {
+                updates.endDate = null;
+                updates.durationDays = null;
+                if (taskForDelete.schedulingMode !== 'manual') updates.schedulingMode = 'manual';
+              } else if (field === 'endDate') {
+                updates.startDate = null;
+                updates.durationDays = null;
+                if (taskForDelete.schedulingMode !== 'manual') updates.schedulingMode = 'manual';
+              }
+              updateTask.mutate(updates as Parameters<typeof updateTask.mutate>[0]);
             }
           }
         }
@@ -3357,7 +3402,7 @@ function ProjectGanttView({
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [handleUndo, handleRedo, handleGridCopy, selectedTaskIds, focusedCell, visibleColumns, getEditableColumns, triggerCellEdit, editingCell, updateTask, isReadOnly]);
+  }, [handleUndo, handleRedo, handleGridCopy, selectedTaskIds, focusedCell, visibleColumns, getEditableColumns, triggerCellEdit, editingCell, updateTask, isReadOnly, selectionRange, bulkUpdate]);
 
   // Fetch project dependencies and calculate CPM
   const { data: projectDependenciesData } = useProjectDependencies(projectId);
