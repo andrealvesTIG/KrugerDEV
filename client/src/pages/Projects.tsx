@@ -726,14 +726,23 @@ export default function Projects() {
       for (let i = 0; i < jsonData.length; i++) {
         if (limitReached) break;
         const row = jsonData[i];
-        const name = row["Name"] || row["name"] || row["Project Name"] || row["projectName"] || row["Project"] || row["project"] || row["Title"] || row["title"];
-        if (!name || name.trim() === "") {
+        const getVal = (keys: string[], fallback = ""): string => {
+          for (const k of Object.keys(row)) {
+            if (keys.some(target => k.trim().toLowerCase() === target.toLowerCase())) {
+              return (row[k] || "").toString().trim();
+            }
+          }
+          return fallback;
+        };
+
+        const name = getVal(["Name", "Project Name", "projectName", "Project", "Title"]);
+        if (!name) {
           skipped++;
           setImportProgress({ current: i + 1, total: totalRows, imported, skipped });
           continue;
         }
         
-        const portfolioName = (row["Portfolio"] || row["portfolio"] || "").toString().trim();
+        const portfolioName = getVal(["Portfolio"]);
         let matchedPortfolioId: number | null = null;
         if (portfolioName) {
           const matchedPortfolio = portfolios?.find(p => normalizeSearch(p.name) === normalizeSearch(portfolioName));
@@ -742,28 +751,28 @@ export default function Projects() {
           }
         }
         
-        const statusValue = row["Status"] || row["status"] || "Initiation";
+        const statusValue = getVal(["Status"], "Initiation");
         const validStatus = PROJECT_STATUS_LIST.includes(statusValue) ? statusValue : "Initiation";
         
-        const priorityValue = row["Priority"] || row["priority"] || "Medium";
+        const priorityValue = getVal(["Priority"], "Medium");
         const validPriorities = ["Critical", "High", "Medium", "Low"];
         const validPriority = validPriorities.includes(priorityValue) ? priorityValue : "Medium";
         
-        const healthValue = row["Health"] || row["health"] || "Green";
+        const healthValue = getVal(["Health"], "Green");
         const validHealths = ["Green", "Yellow", "Red"];
         const validHealth = validHealths.includes(healthValue) ? healthValue : "Green";
         
-        const startDateRaw = (row["Start Date"] || row["startDate"] || "").toString().trim();
-        const endDateRaw = (row["End Date"] || row["endDate"] || "").toString().trim();
-        const budgetRaw = (row["Budget"] || row["budget"] || "0").toString().replace(/[^0-9.]/g, "") || "0";
-        const completionRaw = parseInt((row["Completion %"] || row["completion"] || "0").toString().replace(/[^0-9]/g, "")) || 0;
+        const startDateRaw = getVal(["Start Date", "startDate"]);
+        const endDateRaw = getVal(["End Date", "endDate"]);
+        const budgetRaw = getVal(["Budget"], "0").replace(/[^0-9.]/g, "") || "0";
+        const completionRaw = parseInt(getVal(["Completion %", "completion"], "0").replace(/[^0-9]/g, "")) || 0;
         
         try {
           const createdProject = await createProject.mutateAsync({
             organizationId: currentOrganization.id,
             portfolioId: matchedPortfolioId,
             name: name.trim(),
-            description: (row["Description"] || row["description"] || "").toString().trim() || null,
+            description: getVal(["Description"]) || null,
             status: validStatus,
             priority: validPriority as "Critical" | "High" | "Medium" | "Low",
             health: validHealth as "Green" | "Yellow" | "Red",
