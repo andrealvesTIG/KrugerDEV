@@ -737,6 +737,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   allColumns,
   taskCfValuesMap,
   onCustomFieldChange,
+  customFieldDefsMap,
 }: { 
   task: Task;
   rowIndex: number;
@@ -791,6 +792,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   allColumns?: GanttColumnConfig[];
   taskCfValuesMap?: Map<string, string>;
   onCustomFieldChange?: (taskId: number, fieldDefId: number, value: string | null) => void;
+  customFieldDefsMap?: Map<number, { fieldType: string; options?: string[] | null }>;
 }) {
   const [isEditingResources, setIsEditingResources] = useState(false);
   const { data: fetchedAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(isEditingResources ? task.id : null);
@@ -1568,12 +1570,33 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               if (colId.startsWith('cf_') && taskCfValuesMap && onCustomFieldChange) {
                 const fieldDefId = parseInt(colId.replace('cf_', ''));
                 const cfValue = taskCfValuesMap.get(`${task.id}_${fieldDefId}`) ?? '';
+                const cfDef = customFieldDefsMap?.get(fieldDefId);
+                const cfFieldType = cfDef?.fieldType ?? 'text';
+
+                let cfEditType: InlineEditType = 'text';
+                let cfOptions: { value: string; label: string }[] | undefined;
+                if (cfFieldType === 'select' || cfFieldType === 'multiselect') {
+                  cfEditType = 'select';
+                  cfOptions = (cfDef?.options ?? []).map(o => ({ value: o, label: o }));
+                } else if (cfFieldType === 'number') {
+                  cfEditType = 'number';
+                } else if (cfFieldType === 'date') {
+                  cfEditType = 'date';
+                } else if (cfFieldType === 'checkbox') {
+                  cfEditType = 'boolean';
+                }
+
                 return (
                   <InlineEditCell {...cellEditProps}
-                    value={cfValue || null}
-                    displayValue={<span className="truncate">{cfValue || '—'}</span>}
-                    editType="text"
-                    onSave={(val) => onCustomFieldChange(task.id, fieldDefId, val as string | null)}
+                    value={cfFieldType === 'checkbox' ? (cfValue === 'true') : (cfValue || null)}
+                    displayValue={
+                      cfFieldType === 'checkbox'
+                        ? <span>{cfValue === 'true' ? '✓' : '—'}</span>
+                        : <span className="truncate">{cfValue || '—'}</span>
+                    }
+                    editType={cfEditType}
+                    options={cfOptions}
+                    onSave={(val) => onCustomFieldChange(task.id, fieldDefId, val != null ? String(val) : null)}
                     disabled={isReadOnly}
                   />
                 );
@@ -1973,6 +1996,14 @@ function ProjectGanttView({
     }
     return map;
   }, [projectTaskCfValues]);
+
+  const customFieldDefsMap = useMemo(() => {
+    const map = new Map<number, { fieldType: string; options?: string[] | null }>();
+    for (const def of taskCustomFieldDefs) {
+      map.set(def.id, { fieldType: def.fieldType, options: def.options });
+    }
+    return map;
+  }, [taskCustomFieldDefs]);
 
   const handleCustomFieldChange = useCallback((taskId: number, fieldDefId: number, value: string | null) => {
     updateTaskCfValue.mutate({ taskId, fieldDefinitionId: fieldDefId, value }, {
@@ -5469,6 +5500,7 @@ function ProjectGanttView({
                             allColumns={allGanttColumns}
                             taskCfValuesMap={taskCfValuesMap}
                             onCustomFieldChange={handleCustomFieldChange}
+                            customFieldDefsMap={customFieldDefsMap}
                           />
                         </div>
                       );
@@ -5526,6 +5558,7 @@ function ProjectGanttView({
                               allColumns={allGanttColumns}
                               taskCfValuesMap={taskCfValuesMap}
                               onCustomFieldChange={handleCustomFieldChange}
+                              customFieldDefsMap={customFieldDefsMap}
                             />
                           )}
                         </SortableTaskRow>
