@@ -2685,34 +2685,19 @@ function ProjectGanttView({
     }
 
     const taskUpdates: Array<{ taskId: number; updates: Record<string, unknown> }> = [];
+    const newTaskRows: Array<Record<string, unknown>> = [];
     const skippedRows: number[] = [];
     const invalidCells: string[] = [];
 
-    for (let i = 0; i < Math.min(dataLines.length, maxPasteRows); i++) {
-      const taskIndex = startIndex + i;
-      if (taskIndex >= currentVisibleTasks.length) break;
-
-      const task = currentVisibleTasks[taskIndex];
-
-      // Skip summary/parent tasks - use hierarchy-based detection consistent with inline editing
-      const isHierarchySummary = !!taskHasChildrenRef.current[task.id];
-      if (isHierarchySummary || task.isSummary) {
-        skippedRows.push(taskIndex + 1);
-        continue;
-      }
-
-      const cells = dataLines[i].split('\t');
+    const parsePastedRow = (rowCells: string[], rowNum: number) => {
       const updates: Record<string, unknown> = {};
-
-      for (let j = 0; j < cells.length && j < maxPasteCols; j++) {
+      for (let j = 0; j < rowCells.length && j < maxPasteCols; j++) {
         const colIndex = effectiveStartCol + j;
         if (colIndex >= visibleColumns.length) break;
         const colId = visibleColumns[colIndex];
-        const rawVal = cells[j]?.trim() ?? '';
+        const rawVal = rowCells[j]?.trim() ?? '';
 
-        // Skip read-only display columns
         if (['taskIndex', 'wbs', 'outlineLevel', 'isCritical', 'isSummary', 'resources', 'assignee'].includes(colId)) continue;
-
         if (rawVal === '' || rawVal === '—') continue;
 
         try {
@@ -2731,28 +2716,28 @@ function ProjectGanttView({
               const validStatuses = ['Not Started', 'In Progress', 'Completed'];
               const match = validStatuses.find(s => s.toLowerCase() === rawVal.toLowerCase());
               if (match) updates.status = match;
-              else invalidCells.push(`Row ${i + 1} status: "${rawVal}"`);
+              else invalidCells.push(`Row ${rowNum} status: "${rawVal}"`);
               break;
             }
             case 'priority': {
               const validPriorities = ['Low', 'Medium', 'High', 'Critical'];
               const match = validPriorities.find(p => p.toLowerCase() === rawVal.toLowerCase());
               if (match) updates.priority = match;
-              else invalidCells.push(`Row ${i + 1} priority: "${rawVal}"`);
+              else invalidCells.push(`Row ${rowNum} priority: "${rawVal}"`);
               break;
             }
             case 'taskType': {
               const validTypes = ['Work', 'Milestone', 'Summary', 'Ongoing'];
               const match = validTypes.find(t => t.toLowerCase() === rawVal.toLowerCase());
               if (match) updates.taskType = match;
-              else invalidCells.push(`Row ${i + 1} type: "${rawVal}"`);
+              else invalidCells.push(`Row ${rowNum} type: "${rawVal}"`);
               break;
             }
             case 'constraintType': {
               const validConstraints = ['As Soon As Possible', 'As Late As Possible', 'Must Start On', 'Must Finish On', 'Start No Earlier Than', 'Start No Later Than', 'Finish No Earlier Than', 'Finish No Later Than'];
               const match = validConstraints.find(c => c.toLowerCase() === rawVal.toLowerCase());
               if (match) updates.constraintType = match;
-              else invalidCells.push(`Row ${i + 1} constraint: "${rawVal}"`);
+              else invalidCells.push(`Row ${rowNum} constraint: "${rawVal}"`);
               break;
             }
             case 'startDate':
@@ -2764,7 +2749,7 @@ function ProjectGanttView({
             case 'constraintDate': {
               const parsed = parsePastedDate(rawVal);
               if (parsed) updates[colId] = parsed;
-              else invalidCells.push(`Row ${i + 1} ${colId}: "${rawVal}"`);
+              else invalidCells.push(`Row ${rowNum} ${colId}: "${rawVal}"`);
               break;
             }
             case 'durationDays': {
@@ -2773,14 +2758,14 @@ function ProjectGanttView({
               else {
                 const n = parseFloat(rawVal);
                 if (!isNaN(n) && n >= 0) updates.durationDays = n;
-                else invalidCells.push(`Row ${i + 1} duration: "${rawVal}"`);
+                else invalidCells.push(`Row ${rowNum} duration: "${rawVal}"`);
               }
               break;
             }
             case 'progress': {
               const n = parseFloat(rawVal.replace('%', ''));
               if (!isNaN(n) && n >= 0 && n <= 100) updates.progress = n;
-              else invalidCells.push(`Row ${i + 1} progress: "${rawVal}"`);
+              else invalidCells.push(`Row ${rowNum} progress: "${rawVal}"`);
               break;
             }
             case 'estimatedHours':
@@ -2790,7 +2775,7 @@ function ProjectGanttView({
             case 'actualCost': {
               const n = parseFloat(rawVal.replace(/[$,]/g, ''));
               if (!isNaN(n) && n >= 0) updates[colId] = n;
-              else invalidCells.push(`Row ${i + 1} ${colId}: "${rawVal}"`);
+              else invalidCells.push(`Row ${rowNum} ${colId}: "${rawVal}"`);
               break;
             }
             case 'isMilestone':
@@ -2807,16 +2792,39 @@ function ProjectGanttView({
             }
           }
         } catch {
-          invalidCells.push(`Row ${i + 1} ${colId}: "${rawVal}"`);
+          invalidCells.push(`Row ${rowNum} ${colId}: "${rawVal}"`);
         }
       }
+      return updates;
+    };
 
+    for (let i = 0; i < Math.min(dataLines.length, maxPasteRows); i++) {
+      const taskIndex = startIndex + i;
+      const cells = dataLines[i].split('\t');
+
+      if (taskIndex >= currentVisibleTasks.length) {
+        const updates = parsePastedRow(cells, i + 1);
+        if (Object.keys(updates).length > 0) {
+          newTaskRows.push(updates);
+        }
+        continue;
+      }
+
+      const task = currentVisibleTasks[taskIndex];
+
+      const isHierarchySummary = !!taskHasChildrenRef.current[task.id];
+      if (isHierarchySummary || task.isSummary) {
+        skippedRows.push(taskIndex + 1);
+        continue;
+      }
+
+      const updates = parsePastedRow(cells, i + 1);
       if (Object.keys(updates).length > 0) {
         taskUpdates.push({ taskId: task.id, updates });
       }
     }
 
-    if (taskUpdates.length === 0) {
+    if (taskUpdates.length === 0 && newTaskRows.length === 0) {
       toast({
         title: "Nothing to paste",
         description: skippedRows.length > 0
@@ -2830,22 +2838,83 @@ function ProjectGanttView({
     e.preventDefault();
 
     try {
-      const result = await bulkUpdate.mutateAsync({ taskUpdates, projectId });
-      const updatedCount = result.updatedCount ?? taskUpdates.length;
+      let updatedCount = 0;
+      let createdCount = 0;
 
-      let description = `${updatedCount} row${updatedCount !== 1 ? 's' : ''} updated`;
-      if (skippedRows.length > 0) description += `, ${skippedRows.length} skipped (read-only/summary)`;
-      if (invalidCells.length > 0) description += `. ${invalidCells.length} value${invalidCells.length !== 1 ? 's' : ''} could not be parsed`;
+      if (taskUpdates.length > 0) {
+        const result = await bulkUpdate.mutateAsync({ taskUpdates, projectId });
+        updatedCount = result.updatedCount ?? taskUpdates.length;
+      }
+
+      if (newTaskRows.length > 0) {
+        const lastTask = currentVisibleTasks[currentVisibleTasks.length - 1];
+        const baseOutlineLevel = lastTask?.outlineLevel || 1;
+        const baseParentId = lastTask?.parentId || null;
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+
+        for (const rowData of newTaskRows) {
+          const taskName = (rowData.name as string) || 'New Task';
+          const startDate = (rowData.startDate as string) || todayStr;
+          const endDate = (rowData.endDate as string) || calculateEndDateFromWorkingDays(startDate, (rowData.durationDays as number) || 1);
+          const durationDays = (rowData.durationDays as number) || 1;
+
+          try {
+            await createTask.mutateAsync({
+              projectId,
+              name: taskName,
+              startDate,
+              endDate,
+              durationDays,
+              outlineLevel: baseOutlineLevel,
+              parentId: baseParentId,
+              status: (rowData.status as string) || 'Not Started',
+              progress: (rowData.progress as number) ?? 0,
+              ...(rowData.priority && { priority: rowData.priority as string }),
+              ...(rowData.description && { description: rowData.description as string }),
+              ...(rowData.taskNumber && { taskNumber: rowData.taskNumber as string }),
+              ...(rowData.notes && { notes: rowData.notes as string }),
+              ...(rowData.taskType && { taskType: rowData.taskType as string }),
+              ...(rowData.isMilestone !== undefined && { isMilestone: rowData.isMilestone as boolean }),
+              ...(rowData.category && { category: rowData.category as string }),
+              ...(rowData.phase && { phase: rowData.phase as string }),
+              ...(rowData.baselineStartDate && { baselineStartDate: rowData.baselineStartDate as string }),
+              ...(rowData.baselineEndDate && { baselineEndDate: rowData.baselineEndDate as string }),
+              ...(rowData.actualStartDate && { actualStartDate: rowData.actualStartDate as string }),
+              ...(rowData.actualEndDate && { actualEndDate: rowData.actualEndDate as string }),
+              ...(rowData.constraintType && { constraintType: rowData.constraintType as string }),
+              ...(rowData.constraintDate && { constraintDate: rowData.constraintDate as string }),
+              ...(rowData.cost !== undefined && { cost: rowData.cost as number }),
+              ...(rowData.actualCost !== undefined && { actualCost: rowData.actualCost as number }),
+              ...(rowData.actualHours !== undefined && { actualHours: rowData.actualHours as number }),
+              ...(rowData.remainingHours !== undefined && { remainingHours: rowData.remainingHours as number }),
+              ...(rowData.labels && { labels: rowData.labels as string }),
+            });
+            createdCount++;
+          } catch (err: unknown) {
+            const error = err as { limitExceeded?: boolean; message?: string };
+            if (error.limitExceeded) {
+              invalidCells.push(`New row "${taskName}": task limit reached`);
+              break;
+            }
+            invalidCells.push(`New row "${taskName}": failed to create`);
+          }
+        }
+      }
+
+      const parts: string[] = [];
+      if (updatedCount > 0) parts.push(`${updatedCount} row${updatedCount !== 1 ? 's' : ''} updated`);
+      if (createdCount > 0) parts.push(`${createdCount} new task${createdCount !== 1 ? 's' : ''} created`);
+      if (skippedRows.length > 0) parts.push(`${skippedRows.length} skipped (read-only/summary)`);
+      if (invalidCells.length > 0) parts.push(`${invalidCells.length} value${invalidCells.length !== 1 ? 's' : ''} could not be parsed`);
 
       toast({
         title: "Paste complete",
-        description,
-        variant: invalidCells.length > 0 ? "default" : "default",
+        description: parts.join(', '),
       });
     } catch {
       toast({ title: "Paste failed", description: "Could not save changes", variant: "destructive" });
     }
-  }, [visibleColumns, isReadOnly, bulkUpdate, projectId, toast, focusedCell, selectionRange]);
+  }, [visibleColumns, isReadOnly, bulkUpdate, projectId, toast, focusedCell, selectionRange, createTask]);
 
   // Attach paste event listener
   useEffect(() => {
