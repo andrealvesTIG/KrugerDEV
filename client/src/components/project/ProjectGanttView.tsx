@@ -1953,7 +1953,7 @@ function ProjectGanttView({
   const customFieldColumns: GanttColumnConfig[] = useMemo(() => 
     taskCustomFieldDefs.map(def => ({
       id: `cf_${def.id}`,
-      label: def.fieldName,
+      label: def.name,
       width: 'w-28',
       widthPx: 112,
       category: 'custom' as const,
@@ -1973,6 +1973,14 @@ function ProjectGanttView({
     }
     return map;
   }, [projectTaskCfValues]);
+
+  const handleCustomFieldChange = useCallback((taskId: number, fieldDefId: number, value: string | null) => {
+    updateTaskCfValue.mutate({ taskId, fieldDefinitionId: fieldDefId, value }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/task-custom-field-values`] });
+      },
+    });
+  }, [updateTaskCfValue, projectId]);
 
   const { data: projectTaskAssignments } = useProjectTaskAssignments(projectId);
   const taskAssignmentsMap = useMemo(() => {
@@ -2561,9 +2569,14 @@ function ProjectGanttView({
       case 'notes': return task.notes ?? '';
       case 'assignee': return task.assignee ?? '';
       case 'resources': return '';
-      default: return '';
+      default:
+        if (colId.startsWith('cf_')) {
+          const fieldDefId = parseInt(colId.replace('cf_', ''));
+          return taskCfValuesMap.get(`${task.id}_${fieldDefId}`) ?? '';
+        }
+        return '';
     }
-  }, []);
+  }, [taskCfValuesMap]);
 
   // Copy selected cells/rows as TSV to clipboard
   const handleGridCopy = useCallback(() => {
@@ -3321,7 +3334,13 @@ function ProjectGanttView({
             const updates: Record<string, unknown> = {};
             for (let c = minCol; c <= maxCol; c++) {
               const col = visibleColumns[c];
-              if (!col || READ_ONLY_COLUMNS.includes(col) || !clearableColumns.includes(col)) continue;
+              if (!col || READ_ONLY_COLUMNS.includes(col) || (!clearableColumns.includes(col) && !col.startsWith('cf_'))) continue;
+              if (col.startsWith('cf_')) {
+                const fieldDefId = parseInt(col.replace('cf_', ''));
+                const cfVal = taskCfValuesMap.get(`${task.id}_${fieldDefId}`);
+                if (cfVal) handleCustomFieldChange(task.id, fieldDefId, null);
+                continue;
+              }
               const oldVal = (task as Record<string, unknown>)[col];
               if (oldVal != null && oldVal !== '') {
                 updates[col] = null;
@@ -3350,8 +3369,14 @@ function ProjectGanttView({
               bulkUpdate.mutate({ taskUpdates: taskUpdatesForBulk, projectId: pid });
             }
           }
-        } else if (!READ_ONLY_COLUMNS.includes(currentFocused.columnId) && clearableColumns.includes(currentFocused.columnId)) {
+        } else if (!READ_ONLY_COLUMNS.includes(currentFocused.columnId) && (clearableColumns.includes(currentFocused.columnId) || currentFocused.columnId.startsWith('cf_'))) {
           e.preventDefault();
+          if (currentFocused.columnId.startsWith('cf_')) {
+            const fieldDefId = parseInt(currentFocused.columnId.replace('cf_', ''));
+            const cfVal = taskCfValuesMap.get(`${currentFocused.taskId}_${fieldDefId}`);
+            if (cfVal) handleCustomFieldChange(currentFocused.taskId, fieldDefId, null);
+            return;
+          }
           const taskForDelete = currentVisibleTasks.find(t => t.id === currentFocused.taskId);
           if (taskForDelete) {
             const field = currentFocused.columnId;
@@ -3386,7 +3411,7 @@ function ProjectGanttView({
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [handleUndo, handleRedo, handleGridCopy, selectedTaskIds, focusedCell, visibleColumns, getEditableColumns, triggerCellEdit, editingCell, updateTask, isReadOnly, selectionRange, bulkUpdate]);
+  }, [handleUndo, handleRedo, handleGridCopy, selectedTaskIds, focusedCell, visibleColumns, getEditableColumns, triggerCellEdit, editingCell, updateTask, isReadOnly, selectionRange, bulkUpdate, taskCfValuesMap, handleCustomFieldChange]);
 
   // Fetch project dependencies and calculate CPM
   const { data: projectDependenciesData } = useProjectDependencies(projectId);
@@ -4827,7 +4852,7 @@ function ProjectGanttView({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="max-h-[400px] overflow-y-auto w-56">
-                {COLUMN_CATEGORIES.map(cat => (
+                {COLUMN_CATEGORIES.filter(cat => allGanttColumns.some(col => col.category === cat.id)).map(cat => (
                   <div key={cat.id}>
                     <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
                       {cat.label}
@@ -5441,6 +5466,9 @@ function ProjectGanttView({
                             editingCell={editingCell}
                             editingInitialChar={editingInitialChar}
                             onEditingChange={(editing) => { if (!editing) { setEditingCell(null); setEditingInitialChar(undefined); } }}
+                            allColumns={allGanttColumns}
+                            taskCfValuesMap={taskCfValuesMap}
+                            onCustomFieldChange={handleCustomFieldChange}
                           />
                         </div>
                       );
@@ -5495,6 +5523,9 @@ function ProjectGanttView({
                               editingCell={editingCell}
                               editingInitialChar={editingInitialChar}
                               onEditingChange={(editing) => { if (!editing) { setEditingCell(null); setEditingInitialChar(undefined); } }}
+                              allColumns={allGanttColumns}
+                              taskCfValuesMap={taskCfValuesMap}
+                              onCustomFieldChange={handleCustomFieldChange}
                             />
                           )}
                         </SortableTaskRow>
