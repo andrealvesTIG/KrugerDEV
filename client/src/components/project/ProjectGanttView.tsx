@@ -5926,7 +5926,6 @@ function ProjectGanttView({
                   className="gap-1"
                 >
                   <RefreshCw className={cn("h-3.5 w-3.5", isRecalculating && "animate-spin")} />
-                  <span className="hidden sm:inline text-xs">Refresh Tasks</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Refresh all task data and recalculate schedule</TooltipContent>
