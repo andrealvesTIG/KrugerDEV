@@ -328,6 +328,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       projectId: projectId,
       name: "",
       description: "",
+      notes: "",
       startDate: format(new Date(), 'yyyy-MM-dd'),
       endDate: calculateEndDateFromWorkingDays(format(new Date(), 'yyyy-MM-dd'), 1),
       durationDays: 1,
@@ -425,6 +426,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       projectId: task.projectId,
       name: task.name,
       description: task.description || "",
+      notes: task.notes || "",
       startDate: task.startDate || format(new Date(), 'yyyy-MM-dd'),
       endDate: task.endDate || calculateEndDateFromWorkingDays(format(new Date(), 'yyyy-MM-dd'), 1),
       durationDays: taskDuration,
@@ -465,6 +467,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       projectId: projectId,
       name: "",
       description: "",
+      notes: "",
       startDate: todayStr,
       endDate: calculateEndDateFromWorkingDays(todayStr, 1),
       durationDays: 1,
@@ -483,6 +486,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       projectId,
       name: data.name,
       description: data.description || null,
+      notes: data.notes || null,
       startDate: isOngoingTask ? null : data.startDate,
       endDate: isOngoingTask ? null : data.endDate,
       durationDays: isOngoingTask ? null : (durationDays ?? 1),
@@ -970,11 +974,12 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               
               {/* Tabbed content */}
               <Tabs value={activeDialogTab} onValueChange={setActiveDialogTab} className="flex-1 flex flex-col min-h-0">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-5">
                   <TabsTrigger value="details" className="text-xs">Details</TabsTrigger>
                   <TabsTrigger value="schedule" className="text-xs">Schedule</TabsTrigger>
                   <TabsTrigger value="resources" className="text-xs">Resources</TabsTrigger>
                   <TabsTrigger value="dependencies" className="text-xs" disabled={!editingTask || isOngoingTask}>Dependencies</TabsTrigger>
+                  <TabsTrigger value="notes" className="text-xs">Notes</TabsTrigger>
                 </TabsList>
                 
                 <div className="flex-1 overflow-y-auto py-4 min-h-[280px]">
@@ -1297,6 +1302,21 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                         Save the task first to add dependencies
                       </div>
                     )}
+                  </TabsContent>
+
+                  {/* Notes Tab */}
+                  <TabsContent value="notes" className="mt-0 space-y-4">
+                    <div className="space-y-2">
+                      <Label>Task Notes</Label>
+                      <Textarea
+                        {...form.register("notes")}
+                        placeholder="Add notes for this task..."
+                        className="min-h-[200px] focus-visible:ring-inset resize-y"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Use notes to capture additional context, decisions, or follow-up items for this task.
+                      </p>
+                    </div>
                   </TabsContent>
                 </div>
               </Tabs>
