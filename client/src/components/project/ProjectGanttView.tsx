@@ -2259,20 +2259,23 @@ function ProjectGanttView({
       
       if (response.ok) {
         queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/tasks'], exact: false });
         queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/dependencies`] });
         queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/task-custom-field-values`] });
         queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/task-assignments`] });
         queryClient.invalidateQueries({ queryKey: ['/api/custom-fields'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/resources'] });
         
         if (data.adjustedCount > 0) {
           toast({
-            title: "Schedule Updated",
+            title: "Tasks Refreshed",
             description: `${data.adjustedCount} task(s) adjusted based on dependencies`,
           });
         } else {
           toast({
-            title: "Schedule Up-to-Date",
-            description: "All tasks already comply with dependency constraints",
+            title: "Tasks Refreshed",
+            description: "All task data reloaded. No schedule adjustments needed.",
           });
         }
       } else {
@@ -5306,7 +5309,7 @@ function ProjectGanttView({
                   <span className="hidden sm:inline text-xs">Refresh Tasks</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Recalculate all task dates based on dependencies</TooltipContent>
+              <TooltipContent>Refresh all task data and recalculate schedule</TooltipContent>
             </Tooltip>
             {!hideTimeline && hasAnyBaselines && (
               <div className="flex items-center gap-2">
