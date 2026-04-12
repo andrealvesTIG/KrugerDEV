@@ -520,64 +520,68 @@ function ProjectsListView({
       </div>
 
       <div className="divide-y divide-border">
-        {groupedProjects.map((group) => {
-          const isCollapsed = collapsedGroups[group.key] === true;
-          const portfolio = group.portfolio;
-          const portfolioHealth = portfolio ? (HEALTH_CONFIG[portfolio.healthScore || 'Green'] || HEALTH_CONFIG.Green) : null;
+        {groupedProjects.length === 1 && !groupedProjects[0].portfolio ? (
+          groupedProjects[0].projects.map((project, index) => renderProjectRow(project, index))
+        ) : (
+          groupedProjects.map((group) => {
+            const isCollapsed = collapsedGroups[group.key] === true;
+            const portfolio = group.portfolio;
+            const portfolioHealth = portfolio ? (HEALTH_CONFIG[portfolio.healthScore || 'Green'] || HEALTH_CONFIG.Green) : null;
 
-          return (
-            <div key={group.key}>
-              <button
-                type="button"
-                onClick={() => toggleGroup(group.key)}
-                className="w-full flex items-center gap-3 px-4 py-2.5 bg-muted/30 hover:bg-muted/50 transition-colors duration-150 border-b border-border cursor-pointer"
-              >
-                <ChevronRight className={cn("h-4 w-4 text-muted-foreground shrink-0 transition-transform duration-200", isCollapsed ? "" : "rotate-90")} />
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <span className="text-sm font-semibold text-foreground truncate">
-                    {portfolio ? portfolio.name : "Unassigned"}
-                  </span>
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
-                    {group.projects.length} {group.projects.length === 1 ? 'project' : 'projects'}
-                  </Badge>
-                  {portfolio && portfolioHealth && (
-                    <>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <div className={cn("w-2 h-2 rounded-full", portfolioHealth.dot)} />
-                        <span className="text-[11px] text-muted-foreground">{portfolioHealth.label}</span>
+            return (
+              <div key={group.key}>
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.key)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 bg-muted/30 hover:bg-muted/50 transition-colors duration-150 border-b border-border cursor-pointer"
+                >
+                  <ChevronRight className={cn("h-4 w-4 text-muted-foreground shrink-0 transition-transform duration-200", isCollapsed ? "" : "rotate-90")} />
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <span className="text-sm font-semibold text-foreground truncate">
+                      {portfolio ? portfolio.name : "Unassigned"}
+                    </span>
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
+                      {group.projects.length} {group.projects.length === 1 ? 'project' : 'projects'}
+                    </Badge>
+                    {portfolio && portfolioHealth && (
+                      <>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <div className={cn("w-2 h-2 rounded-full", portfolioHealth.dot)} />
+                          <span className="text-[11px] text-muted-foreground">{portfolioHealth.label}</span>
+                        </div>
+                        {portfolio.status && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
+                            {portfolio.status}
+                          </Badge>
+                        )}
+                        {portfolio.budgetAllocated && Number(portfolio.budgetAllocated) > 0 && (
+                          <span className="text-[11px] text-muted-foreground shrink-0">
+                            Budget: ${Number(portfolio.budgetAllocated).toLocaleString()}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </button>
+                <AnimatePresence initial={false}>
+                  {!isCollapsed && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: "easeInOut" }}
+                      className="overflow-hidden"
+                    >
+                      <div className="divide-y divide-border">
+                        {group.projects.map((project, index) => renderProjectRow(project, index))}
                       </div>
-                      {portfolio.status && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
-                          {portfolio.status}
-                        </Badge>
-                      )}
-                      {portfolio.budgetAllocated && Number(portfolio.budgetAllocated) > 0 && (
-                        <span className="text-[11px] text-muted-foreground shrink-0">
-                          Budget: ${Number(portfolio.budgetAllocated).toLocaleString()}
-                        </span>
-                      )}
-                    </>
+                    </motion.div>
                   )}
-                </div>
-              </button>
-              <AnimatePresence initial={false}>
-                {!isCollapsed && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2, ease: "easeInOut" }}
-                    className="overflow-hidden"
-                  >
-                    <div className="divide-y divide-border">
-                      {group.projects.map((project, index) => renderProjectRow(project, index))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          );
-        })}
+                </AnimatePresence>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {!isLoading && filteredProjects.length === 0 && (
