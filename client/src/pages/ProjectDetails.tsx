@@ -36,7 +36,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, ChevronDown, ChevronUp, ChevronRight, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Users, UserPlus, Flag, FlagTriangleRight, ImageDown, Mail, Briefcase } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, ChevronDown, ChevronUp, ChevronRight, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Users, UserPlus, Flag, FlagTriangleRight, ImageDown, Mail, Briefcase, ZoomIn, ZoomOut, Maximize2, ListTodo } from "lucide-react";
 import { toPng } from "html-to-image";
 import ExcelJS from "exceljs";
 import { GANTT_COLUMNS, type GanttColumn } from "@/components/project/ProjectGanttView";
@@ -44,7 +44,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { format, addDays, differenceInDays, parseISO, startOfDay } from "date-fns";
+import { format, addDays, addWeeks, addMonths, addQuarters, addYears, differenceInDays, parseISO, startOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, endOfDay } from "date-fns";
 import type { Task, ProjectFinancial, Risk, User } from "@shared/schema";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -3069,20 +3069,224 @@ function ProjectTeamTab({
     }
   };
 
-  const removeFromTeam = async (resourceId: number) => {
-    try {
-      const res = await fetch(`/api/projects/${projectId}/team-members/${resourceId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to remove team member");
-      qc.invalidateQueries({ queryKey: ["/api/projects", projectId, "task-resource-assignments"] });
-      qc.invalidateQueries({ queryKey: ["/api/resources"] });
-      toast({ title: "Removed", description: "Team member removed from the project." });
-    } catch {
-      toast({ title: "Error", description: "Failed to remove team member", variant: "destructive" });
+  type TeamTimeScale = "day" | "week" | "month" | "quarter" | "year";
+  type TeamDisplayUnit = "hours" | "percent" | "fte";
+
+  const DEFAULT_TEAM_PERIODS: Record<TeamTimeScale, number> = { day: 14, week: 12, month: 6, quarter: 4, year: 2 };
+
+  const [teamTimeScale, setTeamTimeScale] = useState<TeamTimeScale>("week");
+  const [teamPeriodCount, setTeamPeriodCount] = useState(12);
+  const [teamDisplayUnit, setTeamDisplayUnit] = useState<TeamDisplayUnit>("hours");
+  const [expandedMembers, setExpandedMembers] = useState<Set<number>>(new Set());
+
+  const today = useMemo(() => new Date(), []);
+
+  const teamPeriods = useMemo(() => {
+    const result: { start: Date; end: Date; label: string; workDays: number }[] = [];
+    for (let i = 0; i < teamPeriodCount; i++) {
+      let periodStart: Date, periodEnd: Date, label: string, workDays: number;
+      switch (teamTimeScale) {
+        case "day":
+          periodStart = startOfDay(addDays(today, i));
+          periodEnd = endOfDay(addDays(today, i));
+          label = format(periodStart, "MMM d");
+          workDays = [0, 6].includes(periodStart.getDay()) ? 0 : 1;
+          break;
+        case "week":
+          periodStart = startOfWeek(addWeeks(today, i), { weekStartsOn: 1 });
+          periodEnd = endOfWeek(addWeeks(today, i), { weekStartsOn: 1 });
+          label = format(periodStart, "MMM d");
+          workDays = 5;
+          break;
+        case "month":
+          periodStart = startOfMonth(addMonths(today, i));
+          periodEnd = endOfMonth(addMonths(today, i));
+          label = format(periodStart, "MMM yy");
+          workDays = 22;
+          break;
+        case "quarter":
+          periodStart = startOfQuarter(addQuarters(today, i));
+          periodEnd = endOfQuarter(addQuarters(today, i));
+          label = `Q${Math.floor(periodStart.getMonth() / 3) + 1} ${format(periodStart, "yy")}`;
+          workDays = 65;
+          break;
+        case "year":
+          periodStart = startOfYear(addYears(today, i));
+          periodEnd = endOfYear(addYears(today, i));
+          label = format(periodStart, "yyyy");
+          workDays = 260;
+          break;
+      }
+      result.push({ start: periodStart, end: periodEnd, label, workDays });
+    }
+    return result;
+  }, [teamTimeScale, teamPeriodCount, today]);
+
+  const getTeamPeriodCapacity = (weeklyCapacity: number, period: { workDays: number }) => {
+    switch (teamTimeScale) {
+      case "day": return weeklyCapacity / 5;
+      case "week": return weeklyCapacity;
+      case "month": return weeklyCapacity * 4.33;
+      case "quarter": return weeklyCapacity * 13;
+      case "year": return weeklyCapacity * 52;
     }
   };
+
+  const getAssignmentAllocation = (task: Task, allocationPct: number, weeklyCapacity: number) => {
+    return teamPeriods.map(period => {
+      if (!task.startDate || !task.endDate) return { allocation: 0, active: false };
+      const taskStart = parseISO(task.startDate);
+      const taskEnd = parseISO(task.endDate);
+      if (taskStart > period.end || taskEnd < period.start) return { allocation: 0, active: false };
+      const overlapStart = taskStart > period.start ? taskStart : period.start;
+      const overlapEnd = taskEnd < period.end ? taskEnd : period.end;
+      const overlapDays = Math.max(0, differenceInDays(overlapEnd, overlapStart) + 1);
+      let workDaysInPeriod = teamTimeScale === "day"
+        ? ([0, 6].includes(overlapStart.getDay()) ? 0 : 1)
+        : Math.min(overlapDays, period.workDays) * (5 / 7);
+      const periodCapacity = getTeamPeriodCapacity(weeklyCapacity, period);
+      const allocationRatio = workDaysInPeriod / period.workDays;
+      const periodAllocation = (allocationPct / 100) * allocationRatio * periodCapacity;
+      return { allocation: periodAllocation, active: true };
+    });
+  };
+
+  interface TeamMemberHeatmapData {
+    resource: import("@shared/schema").Resource;
+    taskCount: number;
+    taskNames: string[];
+    weeklyCapacity: number;
+    weeks: { allocation: number; tasks: { name: string; allocation: number; taskId: number }[] }[];
+    taskDetails: { task: Task; allocation: number; weeks: { allocation: number; active: boolean }[] }[];
+  }
+
+  const teamHeatmapData = useMemo((): TeamMemberHeatmapData[] => {
+    const memberMap = new Map<number, TeamMemberHeatmapData>();
+
+    for (const member of teamMembers) {
+      const weeklyCapacity = member.resource.weeklyCapacity ? Number(member.resource.weeklyCapacity) : 40;
+      memberMap.set(member.resource.id, {
+        resource: member.resource,
+        taskCount: member.taskCount,
+        taskNames: member.taskNames,
+        weeklyCapacity,
+        weeks: teamPeriods.map(() => ({ allocation: 0, tasks: [] })),
+        taskDetails: [],
+      });
+    }
+
+    for (const assignment of projectTaskAssignments) {
+      if (!assignment.resource) continue;
+      const memberData = memberMap.get(assignment.resourceId);
+      if (!memberData) continue;
+      const task = projectTasks?.find(t => t.id === assignment.taskId);
+      if (!task) continue;
+      if (summaryTaskIds.has(task.id)) continue;
+
+      const allocationPct = assignment.allocationPercentage || 100;
+      const weekAlloc = getAssignmentAllocation(task, allocationPct, memberData.weeklyCapacity);
+
+      const existingTask = memberData.taskDetails.find(td => td.task.id === task.id);
+      if (!existingTask) {
+        memberData.taskDetails.push({ task, allocation: allocationPct, weeks: weekAlloc });
+        weekAlloc.forEach((w, idx) => {
+          if (w.active) {
+            memberData.weeks[idx].allocation += w.allocation;
+            memberData.weeks[idx].tasks.push({ name: task.name, allocation: allocationPct, taskId: task.id });
+          }
+        });
+      }
+    }
+
+    return Array.from(memberMap.values()).sort((a, b) =>
+      a.resource.displayName.localeCompare(b.resource.displayName)
+    );
+  }, [teamMembers, projectTaskAssignments, projectTasks, summaryTaskIds, teamPeriods]);
+
+  const getHeatColor = (allocation: number, capacity: number) => {
+    if (allocation === 0) return "bg-slate-50 dark:bg-slate-900";
+    const utilization = allocation / capacity;
+    if (utilization <= 0.5) return "bg-emerald-100 dark:bg-emerald-900/30";
+    if (utilization <= 0.75) return "bg-emerald-200 dark:bg-emerald-800/40";
+    if (utilization <= 0.9) return "bg-emerald-300 dark:bg-emerald-700/50";
+    if (utilization <= 1.0) return "bg-emerald-400 dark:bg-emerald-600/60";
+    if (utilization <= 1.1) return "bg-yellow-300 dark:bg-yellow-700/50";
+    if (utilization <= 1.25) return "bg-orange-300 dark:bg-orange-700/50";
+    return "bg-red-400 dark:bg-red-600/60";
+  };
+
+  const getTextColor = (allocation: number, capacity: number) => {
+    if (allocation === 0) return "text-muted-foreground";
+    const utilization = allocation / capacity;
+    if (utilization > 1.0) return "text-red-900 dark:text-red-100 font-medium";
+    if (utilization > 0.75) return "text-emerald-900 dark:text-emerald-100";
+    return "text-emerald-800 dark:text-emerald-200";
+  };
+
+  const formatTeamCellValue = (allocation: number, capacity: number): string => {
+    if (allocation === 0) return "-";
+    switch (teamDisplayUnit) {
+      case "hours": return `${allocation.toFixed(0)}h`;
+      case "percent": return `${((allocation / capacity) * 100).toFixed(0)}%`;
+      case "fte": return (allocation / capacity).toFixed(2);
+    }
+  };
+
+  const teamDataRange = useMemo(() => {
+    let minDate = new Date();
+    let maxDate = new Date();
+    for (const member of teamHeatmapData) {
+      for (const td of member.taskDetails) {
+        if (td.task.startDate) {
+          const s = parseISO(td.task.startDate);
+          if (s < minDate) minDate = s;
+        }
+        if (td.task.endDate) {
+          const e = parseISO(td.task.endDate);
+          if (e > maxDate) maxDate = e;
+        }
+      }
+    }
+    return { minDate, maxDate };
+  }, [teamHeatmapData]);
+
+  const handleTeamAutofit = () => {
+    const { minDate, maxDate } = teamDataRange;
+    const daysDiff = differenceInDays(maxDate, minDate);
+    if (daysDiff <= 21) { setTeamTimeScale("day"); setTeamPeriodCount(Math.min(Math.max(daysDiff + 7, 14), 30)); }
+    else if (daysDiff <= 90) { setTeamTimeScale("week"); setTeamPeriodCount(Math.min(Math.ceil(daysDiff / 7) + 2, 16)); }
+    else if (daysDiff <= 365) { setTeamTimeScale("month"); setTeamPeriodCount(Math.min(Math.ceil(daysDiff / 30) + 1, 12)); }
+    else if (daysDiff <= 730) { setTeamTimeScale("quarter"); setTeamPeriodCount(Math.min(Math.ceil(daysDiff / 90) + 1, 8)); }
+    else { setTeamTimeScale("year"); setTeamPeriodCount(Math.min(Math.ceil(daysDiff / 365) + 1, 5)); }
+  };
+
+  const handleTeamZoomIn = () => {
+    const scales: TeamTimeScale[] = ["year", "quarter", "month", "week", "day"];
+    const idx = scales.indexOf(teamTimeScale);
+    if (idx < scales.length - 1) { const ns = scales[idx + 1]; setTeamTimeScale(ns); setTeamPeriodCount(DEFAULT_TEAM_PERIODS[ns]); }
+    else setTeamPeriodCount(Math.min(teamPeriodCount + 7, 30));
+  };
+
+  const handleTeamZoomOut = () => {
+    const scales: TeamTimeScale[] = ["year", "quarter", "month", "week", "day"];
+    const idx = scales.indexOf(teamTimeScale);
+    if (idx > 0) { const ns = scales[idx - 1]; setTeamTimeScale(ns); setTeamPeriodCount(DEFAULT_TEAM_PERIODS[ns]); }
+    else setTeamPeriodCount(Math.max(teamPeriodCount - 1, 2));
+  };
+
+  const toggleMemberExpanded = (resourceId: number) => {
+    setExpandedMembers(prev => {
+      const next = new Set(prev);
+      if (next.has(resourceId)) next.delete(resourceId);
+      else next.add(resourceId);
+      return next;
+    });
+  };
+
+  const totalAssignments = useMemo(() =>
+    teamHeatmapData.reduce((sum, m) => sum + m.taskDetails.length, 0),
+    [teamHeatmapData]
+  );
 
   return (
     <div className="space-y-6">
@@ -3092,10 +3296,10 @@ function ProjectTeamTab({
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-primary" />
               <div>
-                <CardTitle className="text-lg">Project Team</CardTitle>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  {teamMembers.length} team member{teamMembers.length !== 1 ? 's' : ''} assigned to this project
-                </p>
+                <CardTitle className="text-lg">
+                  Resource Assignments
+                  <Badge variant="secondary" className="ml-2 text-xs">{totalAssignments} assignment{totalAssignments !== 1 ? 's' : ''}</Badge>
+                </CardTitle>
               </div>
             </div>
             {!readOnly && (
@@ -3172,73 +3376,151 @@ function ProjectTeamTab({
             </div>
           ) : (
             <div className="space-y-2">
-              {teamMembers.map(({ resource, taskCount, taskNames }) => (
-                <div
-                  key={resource.id}
-                  className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/30 transition-colors group"
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-primary-foreground text-sm font-semibold shrink-0">
-                      {resource.displayName.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <Link href={`/resources/${resource.id}`} className="font-medium text-sm hover:underline truncate">
-                          {resource.displayName}
-                        </Link>
-                        {resource.resourceType && (
-                          <Badge variant="outline" className="text-[10px] shrink-0">
-                            {resource.resourceType}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-                        {resource.title && (
-                          <span className="flex items-center gap-1">
-                            <Briefcase className="h-3 w-3" />
-                            {resource.title}
-                          </span>
-                        )}
-                        {resource.email && (
-                          <span className="flex items-center gap-1">
-                            <Mail className="h-3 w-3" />
-                            {resource.email}
-                          </span>
-                        )}
-                        {resource.department && (
-                          <span className="truncate">{resource.department}</span>
-                        )}
-                      </div>
-                    </div>
+              <div className="flex items-center justify-between gap-4 pb-2 border-b">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Scale:</span>
+                    <Select value={teamTimeScale} onValueChange={(v) => { setTeamTimeScale(v as TeamTimeScale); setTeamPeriodCount(DEFAULT_TEAM_PERIODS[v as TeamTimeScale]); }}>
+                      <SelectTrigger className="w-[100px] h-8"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="day">Days</SelectItem>
+                        <SelectItem value="week">Weeks</SelectItem>
+                        <SelectItem value="month">Months</SelectItem>
+                        <SelectItem value="quarter">Quarters</SelectItem>
+                        <SelectItem value="year">Years</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    {taskCount > 0 ? (
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Badge variant="secondary" className="text-xs">
-                            {taskCount} task{taskCount !== 1 ? 's' : ''}
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent side="left" className="max-w-[250px]">
-                          <p className="font-medium text-xs mb-1">Assigned Tasks:</p>
-                          <ul className="text-xs space-y-0.5">
-                            {taskNames.slice(0, 10).map((name, i) => (
-                              <li key={i} className="truncate">• {name}</li>
-                            ))}
-                            {taskNames.length > 10 && (
-                              <li className="text-muted-foreground">...and {taskNames.length - 10} more</li>
-                            )}
-                          </ul>
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : (
-                      <Badge variant="outline" className="text-xs text-muted-foreground">
-                        No tasks
-                      </Badge>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Show:</span>
+                    <Select value={teamDisplayUnit} onValueChange={(v) => setTeamDisplayUnit(v as TeamDisplayUnit)}>
+                      <SelectTrigger className="w-[120px] h-8"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="hours">Hours</SelectItem>
+                        <SelectItem value="percent">% Utilization</SelectItem>
+                        <SelectItem value="fte">FTE</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-              ))}
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleTeamZoomOut} title="Zoom out">
+                    <ZoomOut className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleTeamZoomIn} title="Zoom in">
+                    <ZoomIn className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-8" onClick={handleTeamAutofit} title="Autofit to data range">
+                    <Maximize2 className="h-4 w-4 mr-1" />
+                    Autofit
+                  </Button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <div className="min-w-[900px]">
+                  <div className="flex border-b sticky top-0 bg-background z-10">
+                    <div className="w-64 flex-shrink-0 p-2 font-medium text-sm border-r">
+                      Resource / Task
+                    </div>
+                    <div className="flex-1 flex">
+                      {teamPeriods.map((period, idx) => (
+                        <div key={idx} className={`flex-1 p-2 text-center text-xs font-medium border-r text-muted-foreground ${teamTimeScale === "day" ? "min-w-[50px]" : "min-w-[65px]"}`}>
+                          {period.label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <ScrollArea className="h-[500px]">
+                    {teamHeatmapData.map((member) => {
+                      const isExpanded = expandedMembers.has(member.resource.id);
+                      return (
+                        <div key={member.resource.id}>
+                          <div
+                            className="flex border-b bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                            onClick={() => toggleMemberExpanded(member.resource.id)}
+                          >
+                            <div className="w-64 flex-shrink-0 p-2 border-r">
+                              <div className="flex items-center gap-2">
+                                {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
+                                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-semibold flex-shrink-0">
+                                  {member.resource.displayName.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium truncate">{member.resource.displayName}</p>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    {member.taskDetails.length} assignment{member.taskDetails.length !== 1 ? 's' : ''} • {member.weeklyCapacity}h/week
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex-1 flex">
+                              {member.weeks.map((weekData, weekIdx) => {
+                                const periodCap = getTeamPeriodCapacity(member.weeklyCapacity, teamPeriods[weekIdx]);
+                                return (
+                                  <div
+                                    key={weekIdx}
+                                    className={`flex-1 p-1.5 border-r min-w-[65px] ${getHeatColor(weekData.allocation, periodCap)} transition-colors`}
+                                    title={weekData.tasks.length > 0
+                                      ? `${weekData.tasks.map(t => `${t.name} (${t.allocation}%)`).join('\n')}\n\nTotal: ${formatTeamCellValue(weekData.allocation, periodCap)}`
+                                      : "No assignments"
+                                    }
+                                  >
+                                    <div className={`text-center text-xs ${getTextColor(weekData.allocation, periodCap)}`}>
+                                      {formatTeamCellValue(weekData.allocation, periodCap)}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {isExpanded && member.taskDetails.map((td) => (
+                            <div key={td.task.id} className="flex border-b bg-background hover:bg-muted/10 transition-colors">
+                              <div className="w-64 flex-shrink-0 p-2 border-r pl-10">
+                                <div className="flex items-center gap-2">
+                                  <ListTodo className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-medium truncate">{td.task.name}</p>
+                                    <p className="text-[10px] text-muted-foreground truncate">
+                                      {td.allocation}% allocation
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex-1 flex">
+                                {td.weeks.map((w, weekIdx) => {
+                                  const periodCap = getTeamPeriodCapacity(member.weeklyCapacity, teamPeriods[weekIdx]);
+                                  return (
+                                    <div
+                                      key={weekIdx}
+                                      className={`flex-1 p-1.5 border-r min-w-[65px] ${w.active ? 'bg-primary/10' : 'bg-slate-50 dark:bg-slate-900'} transition-colors`}
+                                    >
+                                      <div className={`text-center text-xs ${w.active ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                                        {w.active ? formatTeamCellValue(w.allocation, periodCap) : "-"}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </ScrollArea>
+
+                  <div className="flex items-center gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground flex-wrap">
+                    <span className="font-medium">Utilization:</span>
+                    <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-emerald-100 dark:bg-emerald-900/30" /><span>0-50%</span></div>
+                    <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-emerald-300 dark:bg-emerald-700/50" /><span>50-90%</span></div>
+                    <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-emerald-400 dark:bg-emerald-600/60" /><span>90-100%</span></div>
+                    <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-yellow-300 dark:bg-yellow-700/50" /><span>100-110%</span></div>
+                    <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-red-400 dark:bg-red-600/60" /><span>&gt;125%</span></div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </CardContent>
