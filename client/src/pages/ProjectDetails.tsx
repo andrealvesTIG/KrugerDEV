@@ -36,7 +36,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, ChevronDown, ChevronUp, ChevronRight, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Users, UserPlus, Flag, FlagTriangleRight, ImageDown, Mail, Briefcase, ZoomIn, ZoomOut, Maximize2, ListTodo } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, ChevronDown, ChevronUp, ChevronRight, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Users, UserPlus, Flag, FlagTriangleRight, ImageDown, Mail, Briefcase, ZoomIn, ZoomOut, Maximize2, ListTodo, MoreVertical, UserMinus } from "lucide-react";
 import { toPng } from "html-to-image";
 import ExcelJS from "exceljs";
 import { GANTT_COLUMNS, type GanttColumn } from "@/components/project/ProjectGanttView";
@@ -3069,6 +3069,21 @@ function ProjectTeamTab({
     }
   };
 
+  const removeFromTeam = async (resourceId: number) => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/team-members/${resourceId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to remove team member");
+      qc.invalidateQueries({ queryKey: ["/api/projects", projectId, "task-resource-assignments"] });
+      qc.invalidateQueries({ queryKey: ["/api/resources"] });
+      toast({ title: "Removed", description: "Team member removed from the project." });
+    } catch {
+      toast({ title: "Error", description: "Failed to remove team member", variant: "destructive" });
+    }
+  };
+
   type TeamTimeScale = "day" | "week" | "month" | "quarter" | "year";
   type TeamDisplayUnit = "hours" | "percent" | "fte";
 
@@ -3447,12 +3462,33 @@ function ProjectTeamTab({
                                 <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-semibold flex-shrink-0">
                                   {member.resource.displayName.charAt(0).toUpperCase()}
                                 </div>
-                                <div className="min-w-0">
+                                <div className="min-w-0 flex-1">
                                   <p className="text-sm font-medium truncate">{member.resource.displayName}</p>
                                   <p className="text-[10px] text-muted-foreground">
                                     {member.taskDetails.length} assignment{member.taskDetails.length !== 1 ? 's' : ''} • {member.weeklyCapacity}h/week
                                   </p>
                                 </div>
+                                {!readOnly && member.taskDetails.length === 0 && (
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <button
+                                        className="p-1 rounded hover:bg-background/80 transition-colors flex-shrink-0"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                      <DropdownMenuItem
+                                        className="text-destructive focus:text-destructive"
+                                        onClick={() => removeFromTeam(member.resource.id)}
+                                      >
+                                        <UserMinus className="h-4 w-4 mr-2" />
+                                        Remove Resource
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                )}
                               </div>
                             </div>
                             <div className="flex-1 flex">
