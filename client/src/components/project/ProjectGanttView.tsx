@@ -2351,6 +2351,7 @@ function ProjectGanttView({
   const [selectionRange, setSelectionRange] = useState<CellRange | null>(null);
   const [pasteProgress, setPasteProgress] = useState<{ open: boolean; total: number; completed: number; phase: string } | null>(null);
   const pasteCancelledRef = useRef(false);
+  const [clearProgress, setClearProgress] = useState<{ open: boolean; total: number; completed: number; phase: string } | null>(null);
   const cellAnchorRef = useRef<CellPosition | null>(null);
   const isDraggingCellsRef = useRef(false);
 
@@ -3595,6 +3596,7 @@ function ProjectGanttView({
           const maxCol = Math.max(startColIdx, endColIdx);
 
           const taskUpdatesForBulk: Array<{ taskId: number; updates: Record<string, unknown> }> = [];
+          const cfClearOps: Array<{ taskId: number; fieldDefId: number }> = [];
           for (let r = minRow; r <= maxRow; r++) {
             const task = currentVisibleTasks[r];
             if (!task) continue;
@@ -3605,7 +3607,7 @@ function ProjectGanttView({
               if (col.startsWith('cf_')) {
                 const fieldDefId = parseInt(col.replace('cf_', ''));
                 const cfVal = taskCfValuesMap.get(`${task.id}_${fieldDefId}`);
-                if (cfVal) handleCustomFieldChange(task.id, fieldDefId, null);
+                if (cfVal) cfClearOps.push({ taskId: task.id, fieldDefId });
                 continue;
               }
               const oldVal = (task as Record<string, unknown>)[col];
@@ -3630,12 +3632,47 @@ function ProjectGanttView({
               taskUpdatesForBulk.push({ taskId: task.id, updates });
             }
           }
-          if (taskUpdatesForBulk.length > 0) {
-            const pid = currentVisibleTasks[minRow]?.projectId;
-            if (pid) {
-              bulkUpdate.mutate({ taskUpdates: taskUpdatesForBulk, projectId: pid });
-            }
+
+          const totalOps = (taskUpdatesForBulk.length > 0 ? 1 : 0) + cfClearOps.length;
+          if (totalOps === 0) {
+            toast({ title: "Nothing to clear", description: "Selected cells are already empty" });
+            return;
           }
+
+          const totalCells = taskUpdatesForBulk.reduce((sum, tu) => sum + Object.keys(tu.updates).length, 0) + cfClearOps.length;
+
+          (async () => {
+            let completed = 0;
+            setClearProgress({ open: true, total: totalOps, completed: 0, phase: `Clearing ${totalCells} cell${totalCells !== 1 ? 's' : ''}...` });
+            try {
+              if (taskUpdatesForBulk.length > 0) {
+                const pid = currentVisibleTasks[minRow]?.projectId;
+                if (pid) {
+                  setClearProgress(p => p ? { ...p, phase: `Clearing ${taskUpdatesForBulk.length} task${taskUpdatesForBulk.length !== 1 ? 's' : ''}...` } : p);
+                  await bulkUpdate.mutateAsync({ taskUpdates: taskUpdatesForBulk, projectId: pid });
+                  completed++;
+                  setClearProgress(p => p ? { ...p, completed } : p);
+                }
+              }
+              for (let ci = 0; ci < cfClearOps.length; ci++) {
+                const { taskId, fieldDefId } = cfClearOps[ci];
+                setClearProgress(p => p ? { ...p, phase: `Clearing custom field ${ci + 1} of ${cfClearOps.length}...` } : p);
+                try {
+                  await updateTaskCfValue.mutateAsync({ taskId, fieldDefinitionId: fieldDefId, value: null });
+                } catch {}
+                completed++;
+                setClearProgress(p => p ? { ...p, completed } : p);
+              }
+              if (cfClearOps.length > 0) {
+                queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/task-custom-field-values`] });
+              }
+              toast({ title: "Cleared", description: `${totalCells} cell${totalCells !== 1 ? 's' : ''} cleared successfully` });
+            } catch {
+              toast({ title: "Clear failed", description: "Some cells could not be cleared", variant: "destructive" });
+            } finally {
+              setClearProgress(null);
+            }
+          })();
         } else if (!READ_ONLY_COLUMNS.includes(currentFocused.columnId) && (clearableColumns.includes(currentFocused.columnId) || currentFocused.columnId.startsWith('cf_'))) {
           e.preventDefault();
           if (currentFocused.columnId.startsWith('cf_')) {
@@ -3678,7 +3715,7 @@ function ProjectGanttView({
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [handleUndo, handleRedo, handleGridCopy, selectedTaskIds, focusedCell, visibleColumns, getEditableColumns, triggerCellEdit, editingCell, updateTask, isReadOnly, selectionRange, bulkUpdate, taskCfValuesMap, handleCustomFieldChange]);
+  }, [handleUndo, handleRedo, handleGridCopy, selectedTaskIds, focusedCell, visibleColumns, getEditableColumns, triggerCellEdit, editingCell, updateTask, isReadOnly, selectionRange, bulkUpdate, taskCfValuesMap, handleCustomFieldChange, updateTaskCfValue, projectId, toast]);
 
   // Fetch project dependencies and calculate CPM
   const { data: projectDependenciesData } = useProjectDependencies(projectId);
@@ -6139,6 +6176,28 @@ function ProjectGanttView({
                 {pasteProgress.phase === 'Cancelling...' ? 'Cancelling...' : 'Cancel'}
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      {clearProgress && (
+        <Dialog open={clearProgress.open} onOpenChange={() => {}}>
+          <DialogContent className="sm:max-w-[400px]" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Clearing Data
+              </DialogTitle>
+              <DialogDescription>
+                {clearProgress.phase}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-3">
+              <Progress value={clearProgress.total > 0 ? Math.min(100, Math.round((clearProgress.completed / clearProgress.total) * 100)) : 0} className="h-3" />
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>{Math.min(clearProgress.completed, clearProgress.total)} of {clearProgress.total} items processed</span>
+                <span>{clearProgress.total > 0 ? Math.min(100, Math.round((clearProgress.completed / clearProgress.total) * 100)) : 0}%</span>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       )}
