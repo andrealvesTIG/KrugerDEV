@@ -1629,7 +1629,7 @@ export const insertIssueSchema = baseIssueSchema.extend({
   escalatedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),
 });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true }).extend({
-  durationDays: z.number().min(0).max(365).nullable().optional(),
+  durationDays: z.number().min(0).max(36500).nullable().optional(),
   startDate: z.string().nullable().optional(),
   endDate: z.string().nullable().optional(),
   isOngoing: z.boolean().optional(),
