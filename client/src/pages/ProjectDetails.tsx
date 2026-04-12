@@ -2962,29 +2962,53 @@ function ProjectTeamTab({
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
 
+  const summaryTaskIds = useMemo(() => {
+    const ids = new Set<number>();
+    if (!projectTasks) return ids;
+    for (let i = 0; i < projectTasks.length; i++) {
+      const currentLevel = projectTasks[i].outlineLevel || 1;
+      if (i + 1 < projectTasks.length) {
+        const nextLevel = projectTasks[i + 1].outlineLevel || 1;
+        if (nextLevel > currentLevel) {
+          ids.add(projectTasks[i].id);
+        }
+      }
+    }
+    return ids;
+  }, [projectTasks]);
+
   const teamMembers = useMemo(() => {
     const resourceMap = new Map<number, {
       resource: import("@shared/schema").Resource;
       taskCount: number;
       taskNames: string[];
+      taskIds: Set<number>;
       totalAllocation: number;
     }>();
 
     for (const assignment of projectTaskAssignments) {
       if (!assignment.resource) continue;
+      const task = projectTasks?.find(t => t.id === assignment.taskId);
+      if (!task) continue;
+      const isSummary = summaryTaskIds.has(task.id);
       const existing = resourceMap.get(assignment.resourceId);
-      const taskName = projectTasks?.find(t => t.id === assignment.taskId)?.name || '';
       if (existing) {
-        existing.taskCount++;
-        if (taskName && !existing.taskNames.includes(taskName)) {
-          existing.taskNames.push(taskName);
+        if (!existing.taskIds.has(assignment.taskId)) {
+          existing.taskIds.add(assignment.taskId);
+          if (!isSummary) {
+            existing.taskCount++;
+            if (task.name && !existing.taskNames.includes(task.name)) {
+              existing.taskNames.push(task.name);
+            }
+          }
         }
         existing.totalAllocation += assignment.allocationPercentage || 100;
       } else {
         resourceMap.set(assignment.resourceId, {
           resource: assignment.resource,
-          taskCount: 1,
-          taskNames: taskName ? [taskName] : [],
+          taskCount: isSummary ? 0 : 1,
+          taskNames: (!isSummary && task.name) ? [task.name] : [],
+          taskIds: new Set([assignment.taskId]),
           totalAllocation: assignment.allocationPercentage || 100,
         });
       }
@@ -2998,6 +3022,7 @@ function ProjectTeamTab({
             resource,
             taskCount: 0,
             taskNames: [],
+            taskIds: new Set<number>(),
             totalAllocation: 0,
           });
         }
@@ -3007,7 +3032,7 @@ function ProjectTeamTab({
     return Array.from(resourceMap.values()).sort((a, b) => 
       a.resource.displayName.localeCompare(b.resource.displayName)
     );
-  }, [projectTaskAssignments, projectTasks, allResources, projectId]);
+  }, [projectTaskAssignments, projectTasks, allResources, projectId, summaryTaskIds]);
 
   const availableResources = useMemo(() => {
     if (!allResources) return [];

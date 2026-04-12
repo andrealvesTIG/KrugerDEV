@@ -2499,6 +2499,10 @@ function ProjectGanttView({
   const [resourceFilterOpen, setResourceFilterOpen] = useState(false);
   const [resourceFilterSearch, setResourceFilterSearch] = useState("");
 
+  useEffect(() => {
+    setResourceFilter([]);
+  }, [projectId]);
+
   const projectResources = useMemo(() => {
     const resourceMap = new Map<number, Resource>();
     for (const a of projectTaskAssignments ?? []) {
