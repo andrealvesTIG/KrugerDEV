@@ -508,6 +508,9 @@ const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, ext
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [popoverSize, setPopoverSize] = useState({ width: 320, height: 0 });
+  const resizeRef = useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(null);
+  const popoverContentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (externalEditing && !isOpen) {
@@ -589,6 +592,29 @@ const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, ext
     }
   };
 
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const el = popoverContentRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    resizeRef.current = { startX: e.clientX, startY: e.clientY, startW: rect.width, startH: rect.height };
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!resizeRef.current) return;
+      const newW = Math.max(280, resizeRef.current.startW + (ev.clientX - resizeRef.current.startX));
+      const newH = Math.max(150, resizeRef.current.startH + (ev.clientY - resizeRef.current.startY));
+      setPopoverSize({ width: newW, height: newH });
+    };
+    const onMouseUp = () => {
+      resizeRef.current = null;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, []);
+
   const displayText = value || '—';
 
   return (
@@ -607,65 +633,77 @@ const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, ext
         </div>
       </PopoverTrigger>
       <PopoverContent
-        className="w-80 p-0 shadow-lg border"
+        ref={popoverContentRef}
+        className="p-0 shadow-lg border relative overflow-hidden"
+        style={{ width: `${popoverSize.width}px`, ...(popoverSize.height > 0 ? { height: `${popoverSize.height}px` } : {}) }}
         align="start"
         side="bottom"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        {isEditing ? (
-          <div className="p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-foreground">Edit Note</span>
-            </div>
-            <Textarea
-              ref={textareaRef}
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Write your notes here..."
-              className="text-xs min-h-[100px] max-h-[240px] resize-y border-muted focus-visible:ring-1"
-              disabled={disabled}
-            />
-            <div className="flex justify-end gap-1.5 pt-1">
-              <Button variant="ghost" size="sm" className="h-7 text-xs px-3" onClick={handleCancel}>
-                Cancel
-              </Button>
-              <Button variant="default" size="sm" className="h-7 text-xs px-3" onClick={handleSave}>
-                Save
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col">
-            <div className="px-3 pt-3 pb-2 flex items-center justify-between">
-              <span className="text-xs font-semibold text-foreground">Note</span>
-              {!disabled && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs px-2 text-muted-foreground hover:text-foreground"
-                  onClick={handleStartEdit}
-                >
-                  <Pencil className="h-3 w-3 mr-1" />
-                  Edit
+        <div className="flex flex-col h-full">
+          {isEditing ? (
+            <div className="p-3 flex flex-col gap-2 flex-1 min-h-0">
+              <div className="flex items-center justify-between flex-shrink-0">
+                <span className="text-xs font-semibold text-foreground">Edit Note</span>
+              </div>
+              <Textarea
+                ref={textareaRef}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Write your notes here..."
+                className="text-xs flex-1 min-h-[80px] resize-none border-muted focus-visible:ring-1"
+                disabled={disabled}
+              />
+              <div className="flex justify-end gap-1.5 pt-1 flex-shrink-0">
+                <Button variant="ghost" size="sm" className="h-7 text-xs px-3" onClick={handleCancel}>
+                  Cancel
                 </Button>
-              )}
+                <Button variant="default" size="sm" className="h-7 text-xs px-3" onClick={handleSave}>
+                  Save
+                </Button>
+              </div>
             </div>
-            <div className="px-3 pb-2 max-h-[200px] overflow-y-auto">
-              <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words leading-relaxed">
-                {value}
-              </p>
-            </div>
-            {notesUpdatedAt && (
-              <div className="px-3 pb-3 pt-1 border-t">
-                <p className="text-[10px] text-muted-foreground/70">
-                  Updated {format(new Date(notesUpdatedAt), 'MMM d, yyyy h:mm a')}
-                  {notesUpdatedByName && <> by <span className="font-medium text-muted-foreground">{notesUpdatedByName}</span></>}
+          ) : (
+            <div className="flex flex-col flex-1 min-h-0">
+              <div className="px-3 pt-3 pb-2 flex items-center justify-between flex-shrink-0">
+                <span className="text-xs font-semibold text-foreground">Note</span>
+                {!disabled && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs px-2 text-muted-foreground hover:text-foreground"
+                    onClick={handleStartEdit}
+                  >
+                    <Pencil className="h-3 w-3 mr-1" />
+                    Edit
+                  </Button>
+                )}
+              </div>
+              <div className="px-3 pb-2 overflow-y-auto flex-1 min-h-0">
+                <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words leading-relaxed">
+                  {value}
                 </p>
               </div>
-            )}
-          </div>
-        )}
+              {notesUpdatedAt && (
+                <div className="px-3 pb-3 pt-1 border-t flex-shrink-0">
+                  <p className="text-[10px] text-muted-foreground/70">
+                    Updated {format(new Date(notesUpdatedAt), 'MMM d, yyyy h:mm a')}
+                    {notesUpdatedByName && <> by <span className="font-medium text-muted-foreground">{notesUpdatedByName}</span></>}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <div
+          className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-10 flex items-end justify-end"
+          onMouseDown={handleResizeStart}
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" className="text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors">
+            <path d="M9 1L1 9M9 5L5 9M9 9L9 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </div>
       </PopoverContent>
     </Popover>
   );
