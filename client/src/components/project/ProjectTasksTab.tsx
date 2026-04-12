@@ -7,7 +7,7 @@ import { computeWbsValues } from "@/lib/taskWbs";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskNotesHistory } from "@/hooks/use-tasks";
-import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useResources } from "@/hooks/use-resources";
+import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { useSidebarState } from "@/components/layout/Sidebar";
@@ -167,6 +167,21 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading, refetch: refetchTasks } = useTasks(projectId);
   const { data: resources } = useResources(currentOrganization?.id ?? null);
+  const { data: allTaskAssignments } = useAllTaskResourceAssignments(currentOrganization?.id ?? null);
+
+  const teamResources = useMemo(() => {
+    if (!resources) return [];
+    const projectTaskIds = new Set((tasks || []).map(t => t.id));
+    const assignedResourceIds = new Set(
+      (allTaskAssignments || [])
+        .filter(a => projectTaskIds.has(a.taskId))
+        .map(a => a.resourceId)
+    );
+    return resources.filter(r =>
+      assignedResourceIds.has(r.id) ||
+      (r.isActive && r.invitedProjectIds && r.invitedProjectIds.includes(projectId))
+    );
+  }, [resources, tasks, allTaskAssignments, projectId]);
 
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
@@ -1369,6 +1384,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                         taskId={editingTask?.id}
                         taskName={editingTask?.name}
                         onInviteAssigned={() => { inviteAssignedRef.current = true; }}
+                        teamResourceIds={teamResources.map(r => r.id)}
                       />
                     )}
                   </TabsContent>
@@ -1624,7 +1640,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           isFullscreen={isFullscreen}
           organizationId={currentOrganization?.id ?? null}
           projectId={projectId}
-          resources={resources}
+          resources={teamResources}
+          allResources={resources}
           isReadOnly={readOnly}
           onResourceAssign={(taskId, resourceIds) => {
             const task = tasks?.find(t => t.id === taskId);

@@ -30,7 +30,8 @@ interface ResourceAssignmentProps {
   projectName?: string;
   taskId?: number;
   taskName?: string;
-  onInviteAssigned?: () => void; // Called when an invite already assigned resource to task
+  onInviteAssigned?: () => void;
+  teamResourceIds?: number[];
 }
 
 export function ResourceAssignment({ 
@@ -46,7 +47,8 @@ export function ResourceAssignment({
   projectName,
   taskId,
   taskName,
-  onInviteAssigned
+  onInviteAssigned,
+  teamResourceIds
 }: ResourceAssignmentProps) {
   const { data: resources, isLoading } = useResources(organizationId);
   const [open, setOpen] = useState(false);
@@ -70,7 +72,8 @@ export function ResourceAssignment({
   };
 
   const selectedResources = resources?.filter(r => selectedResourceIds.includes(r.id)) || [];
-  const availableResources = resources?.filter(r => r.isActive) || [];
+  const teamFilterSet = teamResourceIds ? new Set(teamResourceIds) : null;
+  const availableResources = resources?.filter(r => r.isActive && (!teamFilterSet || teamFilterSet.has(r.id))) || [];
 
   const inviteMutation = useMutation({
     mutationFn: async (email: string) => {

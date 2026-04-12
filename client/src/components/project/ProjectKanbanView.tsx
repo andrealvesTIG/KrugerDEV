@@ -71,6 +71,7 @@ function ProjectKanbanView({
   organizationId,
   projectId,
   resources,
+  allResources,
   onResourceAssign,
   isReadOnly = false,
 }: { 
@@ -81,6 +82,7 @@ function ProjectKanbanView({
   organizationId: number | null;
   projectId: number;
   resources?: Array<{ id: number; displayName: string; resourceCode?: string | null }>;
+  allResources?: Array<{ id: number; displayName: string; resourceCode?: string | null }>;
   onResourceAssign?: (taskId: number, resourceIds: number[]) => void;
   isReadOnly?: boolean;
 }) {
@@ -596,6 +598,7 @@ function ProjectKanbanView({
                   onTaskClick={onTaskClick}
                   isActiveOver={activeOverColumn === column.id && canDrag}
                   resources={resources}
+                  allResources={allResources}
                   onResourceAssign={onResourceAssign}
                   isDragEnabled={canDrag}
                   taskAssignmentsMap={taskAssignmentsMap}
@@ -627,6 +630,7 @@ function ProjectKanbanColumn({
   onTaskClick,
   isActiveOver,
   resources,
+  allResources,
   onResourceAssign,
   isDragEnabled,
   taskAssignmentsMap,
@@ -637,6 +641,7 @@ function ProjectKanbanColumn({
   onTaskClick: (task: Task) => void;
   isActiveOver: boolean;
   resources?: Array<{ id: number; displayName: string; resourceCode?: string | null }>;
+  allResources?: Array<{ id: number; displayName: string; resourceCode?: string | null }>;
   onResourceAssign?: (taskId: number, resourceIds: number[]) => void;
   isDragEnabled?: boolean;
   taskAssignmentsMap?: Map<number, number[]>;
@@ -671,6 +676,7 @@ function ProjectKanbanColumn({
               onTaskClick={onTaskClick}
               columnId={column.id}
               resources={resources}
+              allResources={allResources}
               onResourceAssign={onResourceAssign}
               isDragEnabled={isDragEnabled}
               assignedResourceIds={taskAssignmentsMap?.get(task.id) || []}
@@ -698,6 +704,7 @@ function ProjectDraggableTaskCard({
   onTaskClick,
   columnId,
   resources,
+  allResources,
   onResourceAssign,
   isDragEnabled,
   assignedResourceIds,
@@ -707,6 +714,7 @@ function ProjectDraggableTaskCard({
   onTaskClick: (task: Task) => void;
   columnId: string;
   resources?: Array<{ id: number; displayName: string; resourceCode?: string | null }>;
+  allResources?: Array<{ id: number; displayName: string; resourceCode?: string | null }>;
   onResourceAssign?: (taskId: number, resourceIds: number[]) => void;
   isDragEnabled?: boolean;
   assignedResourceIds: number[];
@@ -737,9 +745,10 @@ function ProjectDraggableTaskCard({
   } : {};
 
   const assignedResources = useMemo(() => {
-    if (!resources) return [];
-    return resources.filter(r => assignedResourceIds.includes(r.id));
-  }, [resources, assignedResourceIds]);
+    const lookup = allResources || resources;
+    if (!lookup) return [];
+    return lookup.filter(r => assignedResourceIds.includes(r.id));
+  }, [allResources, resources, assignedResourceIds]);
 
   const handleClick = (e: React.MouseEvent) => {
     if (isDragging) {

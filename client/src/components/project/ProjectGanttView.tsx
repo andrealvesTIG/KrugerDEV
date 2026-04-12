@@ -1145,6 +1145,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   dragHandleProps,
   onToggleCollapse,
   projectName,
+  teamResourceIds,
   onSetBaseline,
   onClearBaseline,
   onEditDependencies,
@@ -1192,6 +1193,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   dragHandleProps?: { listeners: Record<string, unknown>; attributes: Record<string, unknown> };
   onToggleCollapse: (taskId: number) => void;
   projectName?: string;
+  teamResourceIds?: number[];
   onSetBaseline: (task: Task) => void;
   onClearBaseline: (task: Task) => void;
   onEditDependencies: (task: Task) => void;
@@ -1633,6 +1635,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                       taskId={task.id}
                       taskName={task.name}
                       onInviteAssigned={() => { inviteAssignedRef.current = true; }}
+                      teamResourceIds={teamResourceIds}
                     />
                   </div>
                   <DialogFooter>
@@ -2510,10 +2513,19 @@ function ProjectGanttView({
         resourceMap.set(a.resourceId, a.resource);
       }
     }
+    if (allResources) {
+      for (const r of allResources) {
+        if (!resourceMap.has(r.id) && r.isActive && r.invitedProjectIds?.includes(projectId)) {
+          resourceMap.set(r.id, r);
+        }
+      }
+    }
     return Array.from(resourceMap.values()).sort((a, b) =>
       a.displayName.localeCompare(b.displayName)
     );
-  }, [projectTaskAssignments]);
+  }, [projectTaskAssignments, allResources, projectId]);
+
+  const teamResourceIds = useMemo(() => projectResources.map(r => r.id), [projectResources]);
 
   const resourceFilteredTasks = useMemo(() => {
     if (resourceFilter.length === 0) return tasks;
@@ -6412,6 +6424,7 @@ function ProjectGanttView({
                             isCollapsed={collapsedTasks.has(task.id)}
                             onToggleCollapse={toggleCollapse}
                             projectName={projectName}
+                            teamResourceIds={teamResourceIds}
                             onSetBaseline={handleSetBaseline}
                             onClearBaseline={handleClearBaseline}
                             onEditDependencies={handleEditDependencies}
@@ -6471,6 +6484,7 @@ function ProjectGanttView({
                               dragHandleProps={dragHandleProps}
                               onToggleCollapse={toggleCollapse}
                               projectName={projectName}
+                              teamResourceIds={teamResourceIds}
                               onSetBaseline={handleSetBaseline}
                               onClearBaseline={handleClearBaseline}
                               onEditDependencies={handleEditDependencies}
