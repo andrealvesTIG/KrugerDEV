@@ -1105,6 +1105,21 @@ export default function Projects() {
     );
   };
 
+  const handlePortfolioChange = (projectId: number, portfolioId: number | null) => {
+    const portfolioName = portfolioId ? portfolios?.find(p => p.id === portfolioId)?.name : "Unassigned";
+    updateProject.mutate(
+      { id: projectId, portfolioId: portfolioId },
+      {
+        onSuccess: () => {
+          toast({ title: "Project updated", description: `Moved to ${portfolioName}` });
+        },
+        onError: (err) => {
+          toast({ title: "Error", description: err.message, variant: "destructive" });
+        }
+      }
+    );
+  };
+
   return (
     <PageTransition className="space-y-8">
       <FadeIn className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1408,7 +1423,9 @@ export default function Projects() {
             ) : view === "kanban" ? (
               <ProjectsKanbanView 
                 projects={filteredProjects || []} 
-                onStatusChange={handleStatusChange} 
+                portfolios={portfolios || []}
+                onStatusChange={handleStatusChange}
+                onPortfolioChange={handlePortfolioChange}
               />
             ) : (
               <ProjectsGanttView projects={filteredProjects || []} organizationId={currentOrganization?.id || null} />
@@ -1452,7 +1469,9 @@ export default function Projects() {
       ) : !isFullscreen && view === "kanban" ? (
         <ProjectsKanbanView 
           projects={filteredProjects || []} 
-          onStatusChange={handleStatusChange} 
+          portfolios={portfolios || []}
+          onStatusChange={handleStatusChange}
+          onPortfolioChange={handlePortfolioChange}
         />
       ) : !isFullscreen ? (
         <ProjectsGanttView projects={filteredProjects || []} organizationId={currentOrganization?.id || null} />
@@ -2809,12 +2828,17 @@ const PROJECT_STATUSES = [
 
 function ProjectsKanbanView({ 
   projects, 
-  onStatusChange 
+  portfolios,
+  onStatusChange,
+  onPortfolioChange,
 }: { 
   projects: Project[]; 
+  portfolios: Portfolio[];
   onStatusChange: (projectId: number, newStatus: string) => void;
+  onPortfolioChange: (projectId: number, portfolioId: number | null) => void;
 }) {
   const [activeProject, setActiveProject] = useState<Project | null>(null);
+  const [groupBy, setGroupBy] = useState<"status" | "portfolio">("status");
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -2836,43 +2860,107 @@ function ProjectsKanbanView({
     if (!over) return;
     
     const projectId = Number(active.id);
-    const newStatus = String(over.id);
+    const targetId = String(over.id);
     const project = projects.find(p => p.id === projectId);
     
-    if (project && project.status !== newStatus && PROJECT_STATUSES.some(s => s.id === newStatus)) {
-      onStatusChange(projectId, newStatus);
+    if (groupBy === "status") {
+      if (project && project.status !== targetId && PROJECT_STATUSES.some(s => s.id === targetId)) {
+        onStatusChange(projectId, targetId);
+      }
+    } else {
+      const newPortfolioId = targetId === "unassigned" ? null : Number(targetId);
+      const currentPortfolioId = project?.portfolioId ?? null;
+      if (project && currentPortfolioId !== newPortfolioId) {
+        onPortfolioChange(projectId, newPortfolioId);
+      }
     }
   };
 
+  const portfolioColumns = useMemo(() => {
+    const cols: { id: string; label: string; color: string }[] = portfolios.map(p => ({
+      id: String(p.id),
+      label: p.name,
+      color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200",
+    }));
+    cols.push({
+      id: "unassigned",
+      label: "Unassigned",
+      color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200",
+    });
+    return cols;
+  }, [portfolios]);
+
+  const columns = groupBy === "status" ? PROJECT_STATUSES : portfolioColumns;
+
+  const getProjectsForColumn = (columnId: string) => {
+    if (groupBy === "status") {
+      return projects.filter(p => p.status === columnId);
+    }
+    if (columnId === "unassigned") {
+      return projects.filter(p => !p.portfolioId || !portfolios.some(pf => pf.id === p.portfolioId));
+    }
+    return projects.filter(p => p.portfolioId === Number(columnId));
+  };
+
   return (
-    <DndContext 
-      sensors={sensors} 
-      collisionDetection={closestCorners}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        {PROJECT_STATUSES.map(status => (
-          <ProjectKanbanColumn
-            key={status.id}
-            column={status}
-            projects={projects.filter(p => p.status === status.id)}
-          />
-        ))}
+    <div>
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xs text-muted-foreground font-medium">Group by:</span>
+        <div className="flex items-center rounded-md border border-border overflow-hidden">
+          <button
+            type="button"
+            className={cn(
+              "px-3 py-1 text-xs font-medium transition-colors",
+              groupBy === "status" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+            )}
+            onClick={() => setGroupBy("status")}
+          >
+            Status
+          </button>
+          <button
+            type="button"
+            className={cn(
+              "px-3 py-1 text-xs font-medium transition-colors",
+              groupBy === "portfolio" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+            )}
+            onClick={() => setGroupBy("portfolio")}
+          >
+            Portfolio
+          </button>
+        </div>
       </div>
-      <DragOverlay>
-        {activeProject && (
-          <div className="opacity-80">
-            <Card className="shadow-lg border-primary">
-              <CardContent className="p-4">
-                <div className="font-medium text-sm">{activeProject.name}</div>
-                <div className="text-xs text-muted-foreground mt-1">{activeProject.completionPercentage}% complete</div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-      </DragOverlay>
-    </DndContext>
+      <DndContext 
+        sensors={sensors} 
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className={cn(
+          "grid grid-cols-1 gap-4",
+          columns.length <= 5 ? "md:grid-cols-5" : columns.length <= 7 ? "md:grid-cols-4 lg:grid-cols-7" : "md:grid-cols-4"
+        )}>
+          {columns.map(col => (
+            <ProjectKanbanColumn
+              key={col.id}
+              column={col}
+              projects={getProjectsForColumn(col.id)}
+            />
+          ))}
+        </div>
+        <DragOverlay>
+          {activeProject && (
+            <div className="opacity-80">
+              <Card className="shadow-lg border-primary">
+                <CardContent className="p-4">
+                  <div className="font-medium text-sm">{activeProject.name}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{activeProject.completionPercentage}% complete</div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
+    </div>
   );
 }
 
