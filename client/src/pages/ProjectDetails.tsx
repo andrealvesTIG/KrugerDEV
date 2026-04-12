@@ -291,7 +291,7 @@ export default function ProjectDetails() {
   const [projectListOpen, setProjectListOpen] = useState(false);
   const { data: allOrgProjects } = useProjects(currentOrganization?.id);
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
-  const currentPortfolio = portfolios?.find(p => p.id === project.portfolioId);
+  const currentPortfolio = portfolios?.find(p => p.id === project?.portfolioId);
   const sortedProjects = useMemo(() => {
     if (!allOrgProjects) return [];
     return [...allOrgProjects].sort((a, b) => a.name.localeCompare(b.name));
