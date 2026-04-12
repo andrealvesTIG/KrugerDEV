@@ -214,6 +214,7 @@ export async function bulkSoftDeleteTasks(taskIds: number[], userId: string): Pr
     await tx.update(tasks).set({ parentId: null }).where(inArray(tasks.parentId, taskIds));
     await tx.delete(taskDependencies).where(inArray(taskDependencies.taskId, taskIds));
     await tx.delete(taskDependencies).where(inArray(taskDependencies.dependsOnTaskId, taskIds));
+    await tx.delete(taskResourceAssignments).where(inArray(taskResourceAssignments.taskId, taskIds));
     const now = new Date();
     const updated = await tx.update(tasks)
       .set({ deletedAt: now, deletedBy: userId })
@@ -329,6 +330,9 @@ export async function getTaskResourceAssignmentsByOrgId(organizationId: number):
 export async function deleteTask(id: number): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.update(tasks).set({ parentId: null }).where(eq(tasks.parentId, id));
+    await tx.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, id));
+    await tx.delete(taskDependencies).where(eq(taskDependencies.taskId, id));
+    await tx.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, id));
     await tx.update(tasks)
       .set({ deletedAt: new Date() })
       .where(eq(tasks.id, id));
