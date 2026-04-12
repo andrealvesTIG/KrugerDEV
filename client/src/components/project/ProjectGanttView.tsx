@@ -2360,41 +2360,9 @@ function ProjectGanttView({
     cfClearOps: Array<{ taskId: number; fieldDefId: number }>;
     totalCells: number;
     projectId: number;
+    undoEntries: BulkUpdateEntry[];
+    undoCfEntries: BulkCfEntry[];
   } | null>(null);
-
-  const executePendingClear = useCallback(async () => {
-    if (!pendingClear) return;
-    const { taskUpdatesForBulk, cfClearOps, totalCells, projectId: pid } = pendingClear;
-    setPendingClear(null);
-    const totalOps = (taskUpdatesForBulk.length > 0 ? 1 : 0) + cfClearOps.length;
-    let completed = 0;
-    setClearProgress({ open: true, total: totalOps, completed: 0, phase: `Clearing ${totalCells} cell${totalCells !== 1 ? 's' : ''}...` });
-    try {
-      if (taskUpdatesForBulk.length > 0) {
-        setClearProgress(p => p ? { ...p, phase: `Clearing ${taskUpdatesForBulk.length} task${taskUpdatesForBulk.length !== 1 ? 's' : ''}...` } : p);
-        await bulkUpdate.mutateAsync({ taskUpdates: taskUpdatesForBulk, projectId: pid });
-        completed++;
-        setClearProgress(p => p ? { ...p, completed } : p);
-      }
-      for (let ci = 0; ci < cfClearOps.length; ci++) {
-        const { taskId, fieldDefId } = cfClearOps[ci];
-        setClearProgress(p => p ? { ...p, phase: `Clearing custom field ${ci + 1} of ${cfClearOps.length}...` } : p);
-        try {
-          await updateTaskCfValue.mutateAsync({ taskId, fieldDefinitionId: fieldDefId, value: null });
-        } catch {}
-        completed++;
-        setClearProgress(p => p ? { ...p, completed } : p);
-      }
-      if (cfClearOps.length > 0) {
-        queryClient.invalidateQueries({ queryKey: [`/api/projects/${pid}/task-custom-field-values`] });
-      }
-      toast({ title: "Cleared", description: `${totalCells} cell${totalCells !== 1 ? 's' : ''} cleared successfully` });
-    } catch {
-      toast({ title: "Clear failed", description: "Some cells could not be cleared", variant: "destructive" });
-    } finally {
-      setClearProgress(null);
-    }
-  }, [pendingClear, bulkUpdate, updateTaskCfValue, queryClient, toast]);
 
   const cellAnchorRef = useRef<CellPosition | null>(null);
   const isDraggingCellsRef = useRef(false);
@@ -2537,13 +2505,16 @@ function ProjectGanttView({
     setBulkTimesheetBlockPending(false);
   };
 
+  type BulkUpdateEntry = { taskId: number; before: Record<string, unknown>; after: Record<string, unknown> };
+  type BulkCfEntry = { taskId: number; fieldDefId: number; before: string | null; after: string | null };
   type GanttAction = 
     | { type: 'reorder'; taskId: number; fromIndex: number; toIndex: number; taskIds?: number[] }
     | { type: 'update'; taskId: number; projectId: number; before: Record<string, unknown>; after: Record<string, unknown>; label: string }
     | { type: 'create'; taskId: number; projectId: number }
     | { type: 'delete'; taskId: number; projectId: number }
     | { type: 'addDependency'; taskId: number; dependsOnTaskId: number; projectId: number }
-    | { type: 'removeDependency'; taskId: number; dependsOnTaskId: number; projectId: number };
+    | { type: 'removeDependency'; taskId: number; dependsOnTaskId: number; projectId: number }
+    | { type: 'bulkUpdate'; projectId: number; entries: BulkUpdateEntry[]; cfEntries: BulkCfEntry[]; label: string };
   const MAX_UNDO_STACK = 50;
   const [undoStack, setUndoStack] = useState<GanttAction[]>([]);
   const [redoStack, setRedoStack] = useState<GanttAction[]>([]);
@@ -2637,7 +2608,48 @@ function ProjectGanttView({
   const pushToUndoStack = useCallback((taskId: number, projectId: number, before: Record<string, unknown>, after: Record<string, unknown>, label: string) => {
     pushActionToUndoStack({ type: 'update', taskId, projectId, before, after, label });
   }, [pushActionToUndoStack]);
-  
+
+  const executePendingClear = useCallback(async () => {
+    if (!pendingClear) return;
+    const { taskUpdatesForBulk, cfClearOps, totalCells, projectId: pid, undoEntries, undoCfEntries } = pendingClear;
+    setPendingClear(null);
+    const totalOps = (taskUpdatesForBulk.length > 0 ? 1 : 0) + cfClearOps.length;
+    let completed = 0;
+    setClearProgress({ open: true, total: totalOps, completed: 0, phase: `Clearing ${totalCells} cell${totalCells !== 1 ? 's' : ''}...` });
+    try {
+      if (taskUpdatesForBulk.length > 0) {
+        setClearProgress(p => p ? { ...p, phase: `Clearing ${taskUpdatesForBulk.length} task${taskUpdatesForBulk.length !== 1 ? 's' : ''}...` } : p);
+        await bulkUpdate.mutateAsync({ taskUpdates: taskUpdatesForBulk, projectId: pid });
+        completed++;
+        setClearProgress(p => p ? { ...p, completed } : p);
+      }
+      for (let ci = 0; ci < cfClearOps.length; ci++) {
+        const { taskId, fieldDefId } = cfClearOps[ci];
+        setClearProgress(p => p ? { ...p, phase: `Clearing custom field ${ci + 1} of ${cfClearOps.length}...` } : p);
+        try {
+          await updateTaskCfValue.mutateAsync({ taskId, fieldDefinitionId: fieldDefId, value: null });
+        } catch {}
+        completed++;
+        setClearProgress(p => p ? { ...p, completed } : p);
+      }
+      if (cfClearOps.length > 0) {
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${pid}/task-custom-field-values`] });
+      }
+      pushActionToUndoStack({
+        type: 'bulkUpdate',
+        projectId: pid,
+        entries: undoEntries,
+        cfEntries: undoCfEntries,
+        label: `Clear ${totalCells} cell${totalCells !== 1 ? 's' : ''}`,
+      });
+      toast({ title: "Cleared", description: `${totalCells} cell${totalCells !== 1 ? 's' : ''} cleared successfully` });
+    } catch {
+      toast({ title: "Clear failed", description: "Some cells could not be cleared", variant: "destructive" });
+    } finally {
+      setClearProgress(null);
+    }
+  }, [pendingClear, bulkUpdate, updateTaskCfValue, queryClient, toast, pushActionToUndoStack]);
+
   const undoErrorRollback = useCallback((action: GanttAction) => {
     setUndoStack(prev => [...prev, action]);
     setRedoStack(prev => prev.slice(0, -1));
@@ -2694,8 +2706,29 @@ function ProjectGanttView({
           onError: () => undoErrorRollback(lastAction),
         });
         break;
+      case 'bulkUpdate': {
+        const restoreEntries = lastAction.entries.map(e => ({ taskId: e.taskId, updates: { ...e.before } }));
+        const restoreCf = lastAction.cfEntries;
+        (async () => {
+          try {
+            if (restoreEntries.length > 0) {
+              await bulkUpdate.mutateAsync({ taskUpdates: restoreEntries, projectId: lastAction.projectId });
+            }
+            for (const cf of restoreCf) {
+              await updateTaskCfValue.mutateAsync({ taskId: cf.taskId, fieldDefinitionId: cf.fieldDefId, value: cf.before });
+            }
+            if (restoreCf.length > 0) {
+              queryClient.invalidateQueries({ queryKey: [`/api/projects/${lastAction.projectId}/task-custom-field-values`] });
+            }
+            toast({ title: "Undone", description: `${lastAction.label} restored` });
+          } catch {
+            undoErrorRollback(lastAction);
+          }
+        })();
+        break;
+      }
     }
-  }, [undoStack, projectId, organizationId, reorderTask, updateTask, deleteTask, addDependency, removeDependency, toast, undoErrorRollback]);
+  }, [undoStack, projectId, organizationId, reorderTask, updateTask, deleteTask, addDependency, removeDependency, toast, undoErrorRollback, bulkUpdate, updateTaskCfValue, queryClient]);
 
   const handleRedo = useCallback(() => {
     if (redoStack.length === 0) return;
@@ -2741,8 +2774,29 @@ function ProjectGanttView({
           onError: () => redoErrorRollback(lastAction),
         });
         break;
+      case 'bulkUpdate': {
+        const reapplyEntries = lastAction.entries.map(e => ({ taskId: e.taskId, updates: { ...e.after } }));
+        const reapplyCf = lastAction.cfEntries;
+        (async () => {
+          try {
+            if (reapplyEntries.length > 0) {
+              await bulkUpdate.mutateAsync({ taskUpdates: reapplyEntries, projectId: lastAction.projectId });
+            }
+            for (const cf of reapplyCf) {
+              await updateTaskCfValue.mutateAsync({ taskId: cf.taskId, fieldDefinitionId: cf.fieldDefId, value: cf.after });
+            }
+            if (reapplyCf.length > 0) {
+              queryClient.invalidateQueries({ queryKey: [`/api/projects/${lastAction.projectId}/task-custom-field-values`] });
+            }
+            toast({ title: "Redone", description: `${lastAction.label} reapplied` });
+          } catch {
+            redoErrorRollback(lastAction);
+          }
+        })();
+        break;
+      }
     }
-  }, [redoStack, projectId, organizationId, reorderTask, updateTask, deleteTask, addDependency, removeDependency, toast, redoErrorRollback]);
+  }, [redoStack, projectId, organizationId, reorderTask, updateTask, deleteTask, addDependency, removeDependency, toast, redoErrorRollback, bulkUpdate, updateTaskCfValue, queryClient]);
 
   const describeAction = useCallback((action: GanttAction | undefined): string => {
     if (!action) return '';
@@ -2753,6 +2807,7 @@ function ProjectGanttView({
       case 'delete': return 'Delete task';
       case 'addDependency': return 'Add dependency';
       case 'removeDependency': return 'Remove dependency';
+      case 'bulkUpdate': return action.label;
     }
   }, []);
 
@@ -3239,6 +3294,25 @@ function ProjectGanttView({
     const newTaskResCount = newTaskResourceNames.filter(n => n.length > 0).length;
     const totalSteps = (cleanedUpdates.length > 0 ? 1 : 0) + newTaskRows.length + resourceAssignments.length + newTaskResCount + cfUpdates.length;
 
+    const pasteUndoEntries: BulkUpdateEntry[] = cleanedUpdates.map(tu => {
+      const task = currentVisibleTasks.find(t => t.id === tu.taskId);
+      const before: Record<string, unknown> = {};
+      const after: Record<string, unknown> = {};
+      for (const key of Object.keys(tu.updates)) {
+        if (key === 'name') {
+          before['name'] = task ? task.name : undefined;
+        } else {
+          before[key] = task ? (task as Record<string, unknown>)[key] : undefined;
+        }
+        after[key] = tu.updates[key];
+      }
+      return { taskId: tu.taskId, before, after };
+    });
+    const pasteUndoCfEntries: BulkCfEntry[] = cfUpdates.map(cfu => {
+      const cfVal = taskCfValuesMap.get(`${cfu.taskId}_${cfu.fieldDefId}`);
+      return { taskId: cfu.taskId, fieldDefId: cfu.fieldDefId, before: cfVal ?? null, after: cfu.value };
+    });
+
     pasteCancelledRef.current = false;
 
     if (totalSteps > 0) {
@@ -3401,6 +3475,17 @@ function ProjectGanttView({
 
       const wasCancelled = pasteCancelledRef.current;
 
+      if (!wasCancelled && (pasteUndoEntries.length > 0 || pasteUndoCfEntries.length > 0)) {
+        const totalPastedCells = pasteUndoEntries.reduce((s, e) => s + Object.keys(e.after).length, 0) + pasteUndoCfEntries.length;
+        pushActionToUndoStack({
+          type: 'bulkUpdate',
+          projectId,
+          entries: pasteUndoEntries,
+          cfEntries: pasteUndoCfEntries,
+          label: `Paste ${totalPastedCells} cell${totalPastedCells !== 1 ? 's' : ''}`,
+        });
+      }
+
       if (wasCancelled) {
         setPasteProgress(p => p ? { ...p, phase: 'Cancelled' } : p);
       } else {
@@ -3424,7 +3509,7 @@ function ProjectGanttView({
       setPasteProgress(null);
       toast({ title: "Paste failed", description: "Could not save changes", variant: "destructive" });
     }
-  }, [visibleColumns, isReadOnly, bulkUpdate, projectId, toast, focusedCell, selectionRange, createTask, organizationId, allResources, createResource, updateTaskResources, projectTaskAssignments, updateTaskCfValue, allGanttColumns]);
+  }, [visibleColumns, isReadOnly, bulkUpdate, projectId, toast, focusedCell, selectionRange, createTask, organizationId, allResources, createResource, updateTaskResources, projectTaskAssignments, updateTaskCfValue, allGanttColumns, pushActionToUndoStack, taskCfValuesMap]);
 
   // Attach paste event listener
   useEffect(() => {
@@ -3686,14 +3771,37 @@ function ProjectGanttView({
           const totalCells = taskUpdatesForBulk.reduce((sum, tu) => sum + Object.keys(tu.updates).length, 0) + cfClearOps.length;
           const pid = currentVisibleTasks[minRow]?.projectId;
           if (pid) {
-            setPendingClear({ taskUpdatesForBulk, cfClearOps, totalCells, projectId: pid });
+            const undoEntries: BulkUpdateEntry[] = taskUpdatesForBulk.map(tu => {
+              const task = currentVisibleTasks.find(t => t.id === tu.taskId);
+              const before: Record<string, unknown> = {};
+              const after: Record<string, unknown> = {};
+              for (const key of Object.keys(tu.updates)) {
+                before[key] = task ? (task as Record<string, unknown>)[key] : undefined;
+                after[key] = tu.updates[key];
+              }
+              return { taskId: tu.taskId, before, after };
+            });
+            const undoCfEntries: BulkCfEntry[] = cfClearOps.map(op => {
+              const cfVal = taskCfValuesMap.get(`${op.taskId}_${op.fieldDefId}`);
+              return { taskId: op.taskId, fieldDefId: op.fieldDefId, before: cfVal ?? null, after: null };
+            });
+            setPendingClear({ taskUpdatesForBulk, cfClearOps, totalCells, projectId: pid, undoEntries, undoCfEntries });
           }
         } else if (!READ_ONLY_COLUMNS.includes(currentFocused.columnId) && (clearableColumns.includes(currentFocused.columnId) || currentFocused.columnId.startsWith('cf_'))) {
           e.preventDefault();
           if (currentFocused.columnId.startsWith('cf_')) {
             const fieldDefId = parseInt(currentFocused.columnId.replace('cf_', ''));
             const cfVal = taskCfValuesMap.get(`${currentFocused.taskId}_${fieldDefId}`);
-            if (cfVal) handleCustomFieldChange(currentFocused.taskId, fieldDefId, null);
+            if (cfVal) {
+              pushActionToUndoStack({
+                type: 'bulkUpdate',
+                projectId,
+                entries: [],
+                cfEntries: [{ taskId: currentFocused.taskId, fieldDefId, before: cfVal, after: null }],
+                label: 'Clear cell',
+              });
+              handleCustomFieldChange(currentFocused.taskId, fieldDefId, null);
+            }
             return;
           }
           const taskForDelete = currentVisibleTasks.find(t => t.id === currentFocused.taskId);
@@ -3701,20 +3809,32 @@ function ProjectGanttView({
             const field = currentFocused.columnId;
             const oldValue = (taskForDelete as Record<string, unknown>)[field];
             if (oldValue != null && oldValue !== '') {
-              const updates: Record<string, unknown> = { id: taskForDelete.id, projectId: taskForDelete.projectId, [field]: null };
+              const before: Record<string, unknown> = { [field]: oldValue };
+              const after: Record<string, unknown> = { [field]: null };
               if (field === 'startDate') {
-                updates.endDate = null;
-                updates.durationDays = null;
-                if (taskForDelete.schedulingMode !== 'manual') updates.schedulingMode = 'manual';
+                before.endDate = taskForDelete.endDate;
+                before.durationDays = taskForDelete.durationDays;
+                before.schedulingMode = taskForDelete.schedulingMode;
+                after.endDate = null;
+                after.durationDays = null;
+                after.schedulingMode = 'manual';
               } else if (field === 'endDate') {
-                updates.startDate = null;
-                updates.durationDays = null;
-                if (taskForDelete.schedulingMode !== 'manual') updates.schedulingMode = 'manual';
+                before.startDate = taskForDelete.startDate;
+                before.durationDays = taskForDelete.durationDays;
+                before.schedulingMode = taskForDelete.schedulingMode;
+                after.startDate = null;
+                after.durationDays = null;
+                after.schedulingMode = 'manual';
               } else if (field === 'durationDays') {
-                updates.startDate = null;
-                updates.endDate = null;
-                if (taskForDelete.schedulingMode !== 'manual') updates.schedulingMode = 'manual';
+                before.startDate = taskForDelete.startDate;
+                before.endDate = taskForDelete.endDate;
+                before.schedulingMode = taskForDelete.schedulingMode;
+                after.startDate = null;
+                after.endDate = null;
+                after.schedulingMode = 'manual';
               }
+              pushToUndoStack(taskForDelete.id, taskForDelete.projectId, before, after, 'Clear cell');
+              const updates: Record<string, unknown> = { id: taskForDelete.id, projectId: taskForDelete.projectId, ...after };
               updateTask.mutate(updates as Parameters<typeof updateTask.mutate>[0]);
             }
           }
@@ -3730,7 +3850,7 @@ function ProjectGanttView({
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [handleUndo, handleRedo, handleGridCopy, selectedTaskIds, focusedCell, visibleColumns, getEditableColumns, triggerCellEdit, editingCell, updateTask, isReadOnly, selectionRange, bulkUpdate, taskCfValuesMap, handleCustomFieldChange, updateTaskCfValue, projectId, toast]);
+  }, [handleUndo, handleRedo, handleGridCopy, selectedTaskIds, focusedCell, visibleColumns, getEditableColumns, triggerCellEdit, editingCell, updateTask, isReadOnly, selectionRange, bulkUpdate, taskCfValuesMap, handleCustomFieldChange, updateTaskCfValue, projectId, toast, pushActionToUndoStack, pushToUndoStack]);
 
   // Fetch project dependencies and calculate CPM
   const { data: projectDependenciesData } = useProjectDependencies(projectId);
