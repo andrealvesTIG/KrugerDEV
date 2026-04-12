@@ -51,6 +51,7 @@ import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, BreadcrumbPage } from "@/components/ui/breadcrumb";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AICreateButton } from "@/components/layout/AICreateButton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -289,6 +290,8 @@ export default function ProjectDetails() {
 
   const [projectListOpen, setProjectListOpen] = useState(false);
   const { data: allOrgProjects } = useProjects(currentOrganization?.id);
+  const { data: portfolios } = usePortfolios(currentOrganization?.id);
+  const currentPortfolio = portfolios?.find(p => p.id === project.portfolioId);
   const sortedProjects = useMemo(() => {
     if (!allOrgProjects) return [];
     return [...allOrgProjects].sort((a, b) => a.name.localeCompare(b.name));
@@ -1155,6 +1158,23 @@ export default function ProjectDetails() {
         )}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1 max-w-full lg:max-w-[60%]">
+          {currentPortfolio && (
+            <Breadcrumb className="mb-1">
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbLink asChild>
+                    <Link href={`/portfolios/${currentPortfolio.id}`} data-testid="breadcrumb-portfolio">
+                      {currentPortfolio.name}
+                    </Link>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>{project.name}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+          )}
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-3xl font-display font-bold text-foreground truncate max-w-full" title={project.name}>{project.name}</h1>
             <Badge className={cn(
