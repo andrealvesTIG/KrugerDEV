@@ -40,6 +40,28 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Switch } from "@/components/ui/switch";
 import { Loader2, AlertCircle, Calendar as CalendarIcon, Plus, Pencil, GanttChartSquare, Table, Milestone as MilestoneIcon, History, Maximize2, Minimize2, Columns3, RefreshCw, Download, Upload, ExternalLink, Search, Link2, User as UserIcon, ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
 
+function ExpandableNoteText({ text, className }: { text: string; className?: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const needsExpand = text.length > 200 || text.split('\n').length > 4;
+
+  return (
+    <div>
+      <p className={cn(className, !isExpanded && needsExpand && "line-clamp-4")}>
+        {text}
+      </p>
+      {needsExpand && (
+        <button
+          type="button"
+          className="text-[10px] text-primary hover:underline mt-0.5"
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          {isExpanded ? 'show less' : 'read more...'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function NotesHistorySection({ taskId, onRestore, readOnly }: { taskId: number; onRestore?: (text: string) => void; readOnly?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const { data: history, isLoading } = useTaskNotesHistory(expanded ? taskId : null);
@@ -90,9 +112,10 @@ function NotesHistorySection({ taskId, onRestore, readOnly }: { taskId: number; 
                           </Button>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground/80 whitespace-pre-wrap break-words line-clamp-4 mt-0.5">
-                        {entry.previousNotes}
-                      </p>
+                      <ExpandableNoteText
+                        text={entry.previousNotes}
+                        className="text-xs text-muted-foreground/80 whitespace-pre-wrap break-words mt-0.5"
+                      />
                     </div>
                   )}
                   <div>
@@ -111,9 +134,10 @@ function NotesHistorySection({ taskId, onRestore, readOnly }: { taskId: number; 
                         </Button>
                       )}
                     </div>
-                    <p className="text-xs text-foreground whitespace-pre-wrap break-words line-clamp-4 mt-0.5">
-                      {entry.newNotes || '(cleared)'}
-                    </p>
+                    <ExpandableNoteText
+                      text={entry.newNotes || '(cleared)'}
+                      className="text-xs text-foreground whitespace-pre-wrap break-words mt-0.5"
+                    />
                   </div>
                 </div>
               ))}

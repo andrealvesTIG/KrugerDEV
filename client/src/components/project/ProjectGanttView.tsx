@@ -492,6 +492,28 @@ const InlineEditCell = memo(function InlineEditCell({
   );
 });
 
+function ExpandableNoteText({ text, className }: { text: string; className?: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const needsExpand = text.length > 200 || text.split('\n').length > 3;
+
+  return (
+    <div>
+      <p className={cn(className, !expanded && needsExpand && "line-clamp-3")}>
+        {text}
+      </p>
+      {needsExpand && (
+        <button
+          type="button"
+          className="text-[10px] text-primary hover:underline mt-0.5"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? 'show less' : 'read more...'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 interface NotesCellProps {
   value: string | null | undefined;
   onSave: (val: string | null) => void;
@@ -731,9 +753,10 @@ const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, ext
                                 </Button>
                               )}
                             </div>
-                            <p className="text-[11px] text-muted-foreground/80 whitespace-pre-wrap break-words line-clamp-3 mt-0.5">
-                              {entry.previousNotes}
-                            </p>
+                            <ExpandableNoteText
+                              text={entry.previousNotes}
+                              className="text-[11px] text-muted-foreground/80 whitespace-pre-wrap break-words mt-0.5"
+                            />
                           </div>
                         )}
                         <div>
@@ -755,9 +778,10 @@ const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, ext
                               </Button>
                             )}
                           </div>
-                          <p className="text-[11px] text-foreground whitespace-pre-wrap break-words line-clamp-3 mt-0.5">
-                            {entry.newNotes || '(cleared)'}
-                          </p>
+                          <ExpandableNoteText
+                            text={entry.newNotes || '(cleared)'}
+                            className="text-[11px] text-foreground whitespace-pre-wrap break-words mt-0.5"
+                          />
                         </div>
                       </div>
                     ))}
