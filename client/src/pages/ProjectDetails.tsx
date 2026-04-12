@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { formatDuration } from "@/lib/workingDays";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import { useRoute, Link } from "wouter";
-import { useProject, useUpdateProject, useProjectHistory, useProjects } from "@/hooks/use-projects";
+import { useProject, useUpdateProject, useProjectHistory, useProjects, useDeleteProject } from "@/hooks/use-projects";
 import { usePortfolios, useCreatePortfolio } from "@/hooks/use-portfolios";
 import { useRisks } from "@/hooks/use-risks";
 import { useIssues } from "@/hooks/use-issues";
@@ -41,7 +41,7 @@ import { toPng } from "html-to-image";
 import ExcelJS from "exceljs";
 import { GANTT_COLUMNS, type GanttColumn } from "@/components/project/ProjectGanttView";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { format, addDays, addWeeks, addMonths, addQuarters, addYears, differenceInDays, parseISO, startOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, endOfDay } from "date-fns";
@@ -257,7 +257,9 @@ export default function ProjectDetails() {
   const [isStatusReportOpen, setIsStatusReportOpen] = useState(false);
   const [isImportingCsv, setIsImportingCsv] = useState(false);
   const [isExportingPng, setIsExportingPng] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const csvImportInputRef = useRef<HTMLInputElement>(null);
+  const deleteProjectMutation = useDeleteProject();
   const [sectionsCollapsed, setSectionsCollapsed] = useState({
     workflow: false,
     stats: false,
@@ -1191,84 +1193,105 @@ export default function ProjectDetails() {
           <p className="mt-2 max-w-2xl text-muted-foreground">{project.description}</p>
         </div>
         <div className="flex items-center gap-3">
-           <Select value={project.health || "Green"} onValueChange={handleHealthChange}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Health" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Green">Green</SelectItem>
-              <SelectItem value="Yellow">Yellow</SelectItem>
-              <SelectItem value="Red">Red</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                variant="outline" 
-                size="icon"
-                onClick={() => setIsStatusReportOpen(true)}
-                data-testid="button-status-report"
-              >
-                <ClipboardList className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Status Report</TooltipContent>
-          </Tooltip>
-          
           <DropdownMenu>
             <Tooltip>
               <TooltipTrigger asChild>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" data-testid="button-download-project">
-                    <ArrowDownUp className="h-4 w-4" />
+                  <Button variant="outline" size="icon" data-testid="button-project-menu">
+                    <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
               </TooltipTrigger>
-              <TooltipContent>Export / Import</TooltipContent>
+              <TooltipContent>Project Options</TooltipContent>
             </Tooltip>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem 
-                onClick={() => {
-                  window.open(`/api/projects/${project.id}/export?format=csv`, '_blank');
-                }}
-                data-testid="menu-download-csv"
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger data-testid="menu-health">
+                  <div className={cn("h-2 w-2 rounded-full mr-2", (project.health || 'Green') === 'Green' ? 'bg-emerald-500' : project.health === 'Yellow' ? 'bg-amber-500' : 'bg-rose-500')} />
+                  Health: {project.health || 'Green'}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem onClick={() => handleHealthChange('Green')} data-testid="menu-health-green">
+                    <div className="h-2 w-2 rounded-full bg-emerald-500 mr-2" /> Green
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleHealthChange('Yellow')} data-testid="menu-health-yellow">
+                    <div className="h-2 w-2 rounded-full bg-amber-500 mr-2" /> Yellow
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleHealthChange('Red')} data-testid="menu-health-red">
+                    <div className="h-2 w-2 rounded-full bg-rose-500 mr-2" /> Red
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => setIsStatusReportOpen(true)}
+                data-testid="menu-status-report"
               >
-                <FileText className="h-4 w-4 mr-2" />
-                Download as CSV
+                <ClipboardList className="h-4 w-4 mr-2" />
+                Status Report
               </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={handleExportExcel}
-                data-testid="menu-export-excel"
+              <DropdownMenuItem
+                onClick={() => setIsProjectHistoryOpen(true)}
+                data-testid="menu-project-history"
               >
-                <Download className="h-4 w-4 mr-2" />
-                Export to Excel
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={() => {
-                  window.open(`/api/projects/${project.id}/export?format=mspdi`, '_blank');
-                }}
-                data-testid="menu-download-mspdi"
-              >
-                <GanttChart className="h-4 w-4 mr-2" />
-                Download as MS Project XML
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={handleExportPng}
-                disabled={isExportingPng}
-                data-testid="menu-download-png"
-              >
-                {isExportingPng ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ImageDown className="h-4 w-4 mr-2" />}
-                {isExportingPng ? 'Exporting...' : 'Download Schedule as PNG'}
+                <History className="h-4 w-4 mr-2" />
+                View History
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                onClick={() => csvImportInputRef.current?.click()}
-                disabled={isImportingCsv}
-                data-testid="menu-import-csv"
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger data-testid="menu-export-import">
+                  <ArrowDownUp className="h-4 w-4 mr-2" />
+                  Export / Import
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem 
+                    onClick={() => window.open(`/api/projects/${project.id}/export?format=csv`, '_blank')}
+                    data-testid="menu-download-csv"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Download as CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={handleExportExcel}
+                    data-testid="menu-export-excel"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export to Excel
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => window.open(`/api/projects/${project.id}/export?format=mspdi`, '_blank')}
+                    data-testid="menu-download-mspdi"
+                  >
+                    <GanttChart className="h-4 w-4 mr-2" />
+                    Download as MS Project XML
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={handleExportPng}
+                    disabled={isExportingPng}
+                    data-testid="menu-download-png"
+                  >
+                    {isExportingPng ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ImageDown className="h-4 w-4 mr-2" />}
+                    {isExportingPng ? 'Exporting...' : 'Download Schedule as PNG'}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => csvImportInputRef.current?.click()}
+                    disabled={isImportingCsv}
+                    data-testid="menu-import-csv"
+                  >
+                    {isImportingCsv ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                    {isImportingCsv ? 'Importing...' : 'Import from CSV'}
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => setIsDeleteConfirmOpen(true)}
+                className="text-destructive focus:text-destructive"
+                data-testid="menu-delete-project"
               >
-                {isImportingCsv ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                {isImportingCsv ? 'Importing...' : 'Import from CSV'}
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Project
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1279,20 +1302,6 @@ export default function ProjectDetails() {
             className="hidden"
             onChange={handleCsvImport}
           />
-          
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                variant="outline" 
-                size="icon"
-                onClick={() => setIsProjectHistoryOpen(true)}
-                data-testid="button-project-history"
-              >
-                <History className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>View History</TooltipContent>
-          </Tooltip>
         </div>
       </div>
       </div>
@@ -1625,6 +1634,40 @@ export default function ProjectDetails() {
       />
 
       <AICreateButton projectId={project.id} projectName={project.name} variant="fab" />
+
+      <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Project</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{project.name}</strong>? This action cannot be undone. All tasks, risks, issues, and other data associated with this project will be permanently removed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteConfirmOpen(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={deleteProjectMutation.isPending}
+              onClick={() => {
+                deleteProjectMutation.mutate(project.id, {
+                  onSuccess: () => {
+                    setIsDeleteConfirmOpen(false);
+                    toast({ title: "Project deleted", description: `"${project.name}" has been deleted.` });
+                    setLocation('/');
+                  },
+                  onError: () => {
+                    toast({ title: "Error", description: "Failed to delete project.", variant: "destructive" });
+                  },
+                });
+              }}
+              data-testid="button-confirm-delete-project"
+            >
+              {deleteProjectMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              {deleteProjectMutation.isPending ? 'Deleting...' : 'Delete Project'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Sheet open={projectListOpen} onOpenChange={setProjectListOpen}>
         <SheetContent side="left" className="w-72 p-0">
