@@ -503,6 +503,7 @@ interface NotesCellProps {
 
 const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, externalEditing, initialCharacter, onEditingChange }: NotesCellProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -513,36 +514,70 @@ const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, ext
         return;
       }
       setEditValue(initialCharacter || value || '');
+      setIsEditing(true);
       setIsOpen(true);
     } else if (!externalEditing && isOpen) {
       setIsOpen(false);
+      setIsEditing(false);
     }
   }, [externalEditing]);
 
   useEffect(() => {
-    if (isOpen && textareaRef.current) {
+    if (isOpen && isEditing && textareaRef.current) {
       textareaRef.current.focus();
       const len = textareaRef.current.value.length;
       textareaRef.current.setSelectionRange(len, len);
     }
-  }, [isOpen]);
+  }, [isOpen, isEditing]);
 
   const handleOpen = () => {
     if (disabled) return;
     setEditValue(value || '');
+    setIsEditing(true);
     setIsOpen(true);
     if (onEditingChange) onEditingChange(true);
   };
 
+  const handlePreviewOpen = () => {
+    if (!value) {
+      if (!disabled) handleOpen();
+      return;
+    }
+    setIsEditing(false);
+    setEditValue(value || '');
+    setIsOpen(true);
+  };
+
+  const handleStartEdit = () => {
+    if (disabled) return;
+    setEditValue(value || '');
+    setIsEditing(true);
+    if (onEditingChange) onEditingChange(true);
+  };
+
   const handleSave = () => {
+    const trimmed = editValue.trim();
+    const changed = trimmed !== (value || '');
     setIsOpen(false);
+    setIsEditing(false);
     if (onEditingChange) onEditingChange(false);
-    onSave(editValue.trim() || null);
+    if (changed) {
+      onSave(trimmed || null);
+    }
   };
 
   const handleCancel = () => {
     setIsOpen(false);
+    setIsEditing(false);
     if (onEditingChange) onEditingChange(false);
+  };
+
+  const handleClose = () => {
+    if (isEditing) {
+      handleSave();
+    } else {
+      setIsOpen(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -555,51 +590,72 @@ const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, ext
   const displayText = value || '—';
 
   return (
-    <Popover open={isOpen} onOpenChange={(open) => { if (!open) handleSave(); }}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <div
-              className={cn(
-                "cursor-pointer hover:bg-muted/50 transition-colors rounded px-0.5 min-h-[18px] flex items-center w-full",
-                disabled && "cursor-default hover:bg-transparent"
-              )}
-              onDoubleClick={handleOpen}
-              data-testid="notes-cell-display"
-            >
-              <span className="truncate">{displayText}</span>
-            </div>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        {value && !isOpen && (
-          <TooltipContent side="top" align="start" className="max-w-[300px] whitespace-pre-wrap break-words text-xs">
-            {value}
-          </TooltipContent>
-        )}
-      </Tooltip>
+    <Popover open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
+      <PopoverTrigger asChild>
+        <div
+          className={cn(
+            "cursor-pointer hover:bg-muted/50 transition-colors rounded px-0.5 min-h-[18px] flex items-center w-full",
+            disabled && "cursor-default hover:bg-transparent"
+          )}
+          onClick={handlePreviewOpen}
+          onDoubleClick={(e) => { e.stopPropagation(); handleOpen(); }}
+          data-testid="notes-cell-display"
+        >
+          <span className="truncate">{displayText}</span>
+        </div>
+      </PopoverTrigger>
       <PopoverContent
-        className="w-72 p-2"
+        className="w-80 p-0 shadow-lg border"
         align="start"
         side="bottom"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <Textarea
-          ref={textareaRef}
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Add notes..."
-          className="text-xs min-h-[80px] max-h-[200px] resize-y"
-          disabled={disabled}
-        />
-        <div className="flex justify-end gap-1 mt-2">
-          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={handleCancel}>
-            Cancel
-          </Button>
-          <Button variant="default" size="sm" className="h-6 text-xs px-2" onClick={handleSave}>
-            Save
-          </Button>
-        </div>
+        {isEditing ? (
+          <div className="p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground">Edit Note</span>
+            </div>
+            <Textarea
+              ref={textareaRef}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Write your notes here..."
+              className="text-xs min-h-[100px] max-h-[240px] resize-y border-muted focus-visible:ring-1"
+              disabled={disabled}
+            />
+            <div className="flex justify-end gap-1.5 pt-1">
+              <Button variant="ghost" size="sm" className="h-7 text-xs px-3" onClick={handleCancel}>
+                Cancel
+              </Button>
+              <Button variant="default" size="sm" className="h-7 text-xs px-3" onClick={handleSave}>
+                Save
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col">
+            <div className="px-3 pt-3 pb-2 flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground">Note</span>
+              {!disabled && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs px-2 text-muted-foreground hover:text-foreground"
+                  onClick={handleStartEdit}
+                >
+                  <Pencil className="h-3 w-3 mr-1" />
+                  Edit
+                </Button>
+              )}
+            </div>
+            <div className="px-3 pb-3 max-h-[200px] overflow-y-auto">
+              <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words leading-relaxed">
+                {value}
+              </p>
+            </div>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );
