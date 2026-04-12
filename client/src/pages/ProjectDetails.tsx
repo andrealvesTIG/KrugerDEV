@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { formatDuration } from "@/lib/workingDays";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import { useRoute, Link } from "wouter";
-import { useProject, useUpdateProject, useProjectHistory } from "@/hooks/use-projects";
+import { useProject, useUpdateProject, useProjectHistory, useProjects } from "@/hooks/use-projects";
 import { usePortfolios, useCreatePortfolio } from "@/hooks/use-portfolios";
 import { useRisks } from "@/hooks/use-risks";
 import { useIssues } from "@/hooks/use-issues";
@@ -36,7 +36,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, ChevronDown, ChevronUp, ChevronRight, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Users, UserPlus, Flag, FlagTriangleRight, ImageDown, Mail, Briefcase, ZoomIn, ZoomOut, Maximize2, ListTodo, MoreVertical, UserMinus } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Users, UserPlus, Flag, FlagTriangleRight, ImageDown, Mail, Briefcase, ZoomIn, ZoomOut, Maximize2, ListTodo, MoreVertical, UserMinus } from "lucide-react";
 import { toPng } from "html-to-image";
 import ExcelJS from "exceljs";
 import { GANTT_COLUMNS, type GanttColumn } from "@/components/project/ProjectGanttView";
@@ -282,6 +282,18 @@ export default function ProjectDetails() {
   const { user } = useAuth();
   const { data: customTabs = [] } = useCustomProjectTabs(currentOrganization?.id);
   const [, setLocation] = useLocation();
+
+  const { data: allOrgProjects } = useProjects(currentOrganization?.id);
+  const { prevProject, nextProject } = useMemo(() => {
+    if (!allOrgProjects || allOrgProjects.length < 2) return { prevProject: null, nextProject: null };
+    const sorted = [...allOrgProjects].sort((a, b) => a.name.localeCompare(b.name));
+    const idx = sorted.findIndex(p => p.id === id);
+    if (idx === -1) return { prevProject: null, nextProject: null };
+    return {
+      prevProject: idx > 0 ? sorted[idx - 1] : null,
+      nextProject: idx < sorted.length - 1 ? sorted[idx + 1] : null,
+    };
+  }, [allOrgProjects, id]);
 
   useEffect(() => {
     if (!id || !currentOrganization?.id) return;
@@ -1038,6 +1050,44 @@ export default function ProjectDetails() {
   return (
     <div className="space-y-8">
       {/* Header */}
+      <div>
+        {(prevProject || nextProject) && (
+          <div className="flex items-center gap-1 mb-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-1.5 gap-0.5 text-[11px] text-muted-foreground"
+                  disabled={!prevProject}
+                  onClick={() => prevProject && setLocation(`/projects/${prevProject.id}`)}
+                  data-testid="button-prev-project"
+                >
+                  <ChevronLeft className="h-3 w-3" />
+                  Prev
+                </Button>
+              </TooltipTrigger>
+              {prevProject && <TooltipContent>{prevProject.name}</TooltipContent>}
+            </Tooltip>
+            <span className="text-muted-foreground/40 text-[11px]">|</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-1.5 gap-0.5 text-[11px] text-muted-foreground"
+                  disabled={!nextProject}
+                  onClick={() => nextProject && setLocation(`/projects/${nextProject.id}`)}
+                  data-testid="button-next-project"
+                >
+                  Next
+                  <ChevronRight className="h-3 w-3" />
+                </Button>
+              </TooltipTrigger>
+              {nextProject && <TooltipContent>{nextProject.name}</TooltipContent>}
+            </Tooltip>
+          </div>
+        )}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1 max-w-full lg:max-w-[60%]">
           <div className="flex items-center gap-3 flex-wrap">
@@ -1223,6 +1273,7 @@ export default function ProjectDetails() {
             <TooltipContent>View History</TooltipContent>
           </Tooltip>
         </div>
+      </div>
       </div>
 
       {/* Business Process Flow */}
