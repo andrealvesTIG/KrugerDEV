@@ -1100,7 +1100,7 @@ export default function ProjectDetails() {
       {/* Header */}
       <div>
         {sortedProjects.length > 1 && (
-          <div className="flex items-center gap-1 mb-1">
+          <div className="flex items-center gap-1 mb-1 -mt-2">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
