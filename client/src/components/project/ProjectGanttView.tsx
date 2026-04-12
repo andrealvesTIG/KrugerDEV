@@ -513,6 +513,7 @@ const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, ext
   const [popoverSize, setPopoverSize] = useState({ width: 320, height: 0 });
   const resizeRef = useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(null);
   const popoverContentRef = useRef<HTMLDivElement>(null);
+  const didInitialFocusRef = useRef(false);
   const { data: notesHistory, isLoading: historyLoading } = useTaskNotesHistory(showHistory && taskId ? taskId : null);
 
   useEffect(() => {
@@ -531,10 +532,14 @@ const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, ext
   }, [externalEditing]);
 
   useEffect(() => {
-    if (isOpen && isEditing && textareaRef.current) {
+    if (isOpen && isEditing && textareaRef.current && !didInitialFocusRef.current) {
+      didInitialFocusRef.current = true;
       textareaRef.current.focus();
       textareaRef.current.setSelectionRange(0, 0);
       textareaRef.current.scrollTop = 0;
+    }
+    if (!isOpen || !isEditing) {
+      didInitialFocusRef.current = false;
     }
   }, [isOpen, isEditing]);
 
@@ -658,8 +663,10 @@ const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, ext
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
                 onKeyDown={handleKeyDown}
+                onMouseDown={(e) => e.stopPropagation()}
                 placeholder="Write your notes here..."
-                className="text-xs flex-1 min-h-[80px] resize-none border-muted focus-visible:ring-1"
+                className="text-xs flex-1 min-h-[80px] resize-none border-muted focus-visible:ring-1 cursor-text select-text"
+                style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
                 disabled={disabled}
               />
               <div className="flex justify-end gap-1.5 pt-1 flex-shrink-0">
