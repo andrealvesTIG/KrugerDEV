@@ -1055,7 +1055,7 @@ export default function ProjectDetails() {
   };
 
   return (
-    <div className="flex -ml-4 -mr-4 md:-ml-8 md:-mr-8 -mt-4 md:-mt-8 -mb-4 md:-mb-8 min-h-[calc(100vh-64px)]">
+    <div className="flex -ml-4 -mr-4 md:-ml-8 md:-mr-8 -mt-4 md:-mt-8 -mb-4 md:-mb-8 h-[calc(100vh-64px)] overflow-hidden">
       <div
         className={cn(
           "flex-shrink-0 border-r border-border bg-muted/30 transition-all duration-300 ease-in-out overflow-hidden",
