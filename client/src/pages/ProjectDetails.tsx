@@ -3236,15 +3236,6 @@ function ProjectTeamTab({
                         No tasks
                       </Badge>
                     )}
-                    {!readOnly && (
-                      <button
-                        onClick={() => removeFromTeam(resource.id)}
-                        className="opacity-0 group-hover:opacity-100 rounded-full p-1.5 hover:bg-destructive/10 hover:text-destructive transition-all"
-                        title="Remove from team"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    )}
                   </div>
                 </div>
               ))}
