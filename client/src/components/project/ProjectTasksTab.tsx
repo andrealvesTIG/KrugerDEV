@@ -38,9 +38,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, AlertCircle, Calendar as CalendarIcon, Plus, Pencil, GanttChartSquare, Table, Milestone as MilestoneIcon, History, Maximize2, Minimize2, Columns3, RefreshCw, Download, Upload, ExternalLink, Search, Link2, User as UserIcon, ChevronDown, ChevronRight } from "lucide-react";
+import { Loader2, AlertCircle, Calendar as CalendarIcon, Plus, Pencil, GanttChartSquare, Table, Milestone as MilestoneIcon, History, Maximize2, Minimize2, Columns3, RefreshCw, Download, Upload, ExternalLink, Search, Link2, User as UserIcon, ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
 
-function NotesHistorySection({ taskId }: { taskId: number }) {
+function NotesHistorySection({ taskId, onRestore, readOnly }: { taskId: number; onRestore?: (text: string) => void; readOnly?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const { data: history, isLoading } = useTaskNotesHistory(expanded ? taskId : null);
 
@@ -75,14 +75,42 @@ function NotesHistorySection({ taskId }: { taskId: number }) {
                   </div>
                   {entry.previousNotes && (
                     <div className="mb-1.5">
-                      <span className="text-[11px] font-medium text-muted-foreground">Previous:</span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-medium text-muted-foreground">Previous:</span>
+                        {!readOnly && onRestore && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 text-[10px] px-1.5 text-muted-foreground hover:text-foreground"
+                            onClick={() => onRestore(entry.previousNotes!)}
+                          >
+                            <RotateCcw className="h-2.5 w-2.5 mr-0.5" />
+                            Restore
+                          </Button>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground/80 whitespace-pre-wrap break-words line-clamp-4 mt-0.5">
                         {entry.previousNotes}
                       </p>
                     </div>
                   )}
                   <div>
-                    <span className="text-[11px] font-medium text-muted-foreground">{entry.previousNotes ? 'Changed to:' : 'Added:'}</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-medium text-muted-foreground">{entry.previousNotes ? 'Changed to:' : 'Added:'}</span>
+                      {!readOnly && onRestore && entry.newNotes && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 text-[10px] px-1.5 text-muted-foreground hover:text-foreground"
+                          onClick={() => onRestore(entry.newNotes!)}
+                        >
+                          <RotateCcw className="h-2.5 w-2.5 mr-0.5" />
+                          Restore
+                        </Button>
+                      )}
+                    </div>
                     <p className="text-xs text-foreground whitespace-pre-wrap break-words line-clamp-4 mt-0.5">
                       {entry.newNotes || '(cleared)'}
                     </p>
@@ -1392,7 +1420,13 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                         </span>
                       </div>
                     )}
-                    {editingTask && <NotesHistorySection taskId={editingTask.id} />}
+                    {editingTask && (
+                      <NotesHistorySection
+                        taskId={editingTask.id}
+                        readOnly={readOnly}
+                        onRestore={(text) => form.setValue("notes", text, { shouldDirty: true })}
+                      />
+                    )}
                   </TabsContent>
                 </div>
               </Tabs>

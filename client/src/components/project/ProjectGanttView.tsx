@@ -37,7 +37,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Loader2, Plus, Trash2, Pencil, Check, X, GripVertical, Flag, Columns3, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, Search, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown, Undo2, Redo2, FolderKanban, RefreshCw, Focus, Link2, Link as LinkIcon, IndentIncrease, IndentDecrease, Type, Lock as LockIcon, Calendar as CalendarIcon, ClipboardPaste, History } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, Check, X, GripVertical, Flag, Columns3, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, Search, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown, Undo2, Redo2, FolderKanban, RefreshCw, Focus, Link2, Link as LinkIcon, IndentIncrease, IndentDecrease, Type, Lock as LockIcon, Calendar as CalendarIcon, ClipboardPaste, History, RotateCcw } from "lucide-react";
 
 export { type ZoomLevel, type GanttColumn, type GanttColumnConfig, GANTT_COLUMNS, COLUMN_CATEGORIES, DEFAULT_GANTT_COLUMNS };
 
@@ -696,22 +696,58 @@ const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, ext
                   <div className="space-y-3">
                     {notesHistory.map((entry) => (
                       <div key={entry.id} className="border rounded-md p-2">
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <span className="text-[10px] font-medium text-foreground">{entry.changedByName || 'Unknown'}</span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {entry.changedAt ? format(new Date(entry.changedAt), 'MMM d, yyyy h:mm a') : ''}
-                          </span>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-medium text-foreground">{entry.changedByName || 'Unknown'}</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {entry.changedAt ? format(new Date(entry.changedAt), 'MMM d, yyyy h:mm a') : ''}
+                            </span>
+                          </div>
                         </div>
                         {entry.previousNotes && (
                           <div className="mb-1">
-                            <span className="text-[10px] font-medium text-muted-foreground">Previous:</span>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-medium text-muted-foreground">Previous:</span>
+                              {!disabled && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 text-[10px] px-1.5 text-muted-foreground hover:text-foreground"
+                                  onClick={() => {
+                                    onSave(entry.previousNotes || null);
+                                    setShowHistory(false);
+                                    setIsOpen(false);
+                                  }}
+                                >
+                                  <RotateCcw className="h-2.5 w-2.5 mr-0.5" />
+                                  Restore
+                                </Button>
+                              )}
+                            </div>
                             <p className="text-[11px] text-muted-foreground/80 whitespace-pre-wrap break-words line-clamp-3 mt-0.5">
                               {entry.previousNotes}
                             </p>
                           </div>
                         )}
                         <div>
-                          <span className="text-[10px] font-medium text-muted-foreground">{entry.previousNotes ? 'Changed to:' : 'Added:'}</span>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-medium text-muted-foreground">{entry.previousNotes ? 'Changed to:' : 'Added:'}</span>
+                            {!disabled && entry.newNotes && (entry.newNotes !== value) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 text-[10px] px-1.5 text-muted-foreground hover:text-foreground"
+                                onClick={() => {
+                                  onSave(entry.newNotes || null);
+                                  setShowHistory(false);
+                                  setIsOpen(false);
+                                }}
+                              >
+                                <RotateCcw className="h-2.5 w-2.5 mr-0.5" />
+                                Restore
+                              </Button>
+                            )}
+                          </div>
                           <p className="text-[11px] text-foreground whitespace-pre-wrap break-words line-clamp-3 mt-0.5">
                             {entry.newNotes || '(cleared)'}
                           </p>
