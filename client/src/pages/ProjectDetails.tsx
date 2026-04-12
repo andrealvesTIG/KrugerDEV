@@ -51,7 +51,6 @@ import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AICreateButton } from "@/components/layout/AICreateButton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1056,7 +1055,48 @@ export default function ProjectDetails() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="flex -ml-4 -mr-4 md:-ml-8 md:-mr-8 -mt-4 md:-mt-8 -mb-4 md:-mb-8 min-h-[calc(100vh-64px)]">
+      <div
+        className={cn(
+          "flex-shrink-0 border-r border-border bg-muted/30 transition-all duration-300 ease-in-out overflow-hidden",
+          projectListOpen ? "w-64" : "w-0"
+        )}
+      >
+        <div className="w-64 h-full flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b">
+            <span className="text-sm font-semibold">Projects</span>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setProjectListOpen(false)}>
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <ScrollArea className="flex-1">
+            <div className="py-1">
+              {sortedProjects.map(p => {
+                const isCurrent = p.id === id;
+                const healthDot = p.health === 'Green' ? 'bg-emerald-500' : p.health === 'Yellow' ? 'bg-amber-500' : 'bg-rose-500';
+                return (
+                  <div
+                    key={p.id}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 cursor-pointer text-sm transition-colors",
+                      isCurrent ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted/50 text-foreground"
+                    )}
+                    onClick={() => setLocation(`/projects/${p.id}`)}
+                    data-testid={`sidebar-project-${p.id}`}
+                  >
+                    <div className={cn("h-2 w-2 rounded-full flex-shrink-0", healthDot)} />
+                    <span className="truncate">{p.name}</span>
+                    {isCurrent && <ChevronRight className="h-3 w-3 ml-auto flex-shrink-0 text-primary" />}
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        </div>
+      </div>
+
+      <div className="flex-1 min-w-0 overflow-y-auto">
+        <div className="px-4 py-4 md:px-8 md:py-8 space-y-8">
       {/* Header */}
       <div>
         {sortedProjects.length > 1 && (
@@ -1067,13 +1107,13 @@ export default function ProjectDetails() {
                   variant="ghost"
                   size="sm"
                   className="h-6 w-6 p-0 text-muted-foreground"
-                  onClick={() => setProjectListOpen(true)}
+                  onClick={() => setProjectListOpen(!projectListOpen)}
                   data-testid="button-project-list-sidebar"
                 >
                   <PanelLeft className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Browse Projects</TooltipContent>
+              <TooltipContent>{projectListOpen ? 'Hide Projects' : 'Browse Projects'}</TooltipContent>
             </Tooltip>
             <span className="text-muted-foreground/40 text-[11px]">|</span>
             <Tooltip>
@@ -1669,39 +1709,8 @@ export default function ProjectDetails() {
         </DialogContent>
       </Dialog>
 
-      <Sheet open={projectListOpen} onOpenChange={setProjectListOpen}>
-        <SheetContent side="left" className="w-72 p-0">
-          <SheetHeader className="px-4 py-3 border-b">
-            <SheetTitle className="text-sm">Projects</SheetTitle>
-          </SheetHeader>
-          <ScrollArea className="h-[calc(100vh-60px)]">
-            <div className="py-1">
-              {sortedProjects.map(p => {
-                const isCurrent = p.id === id;
-                const healthDot = p.health === 'Green' ? 'bg-emerald-500' : p.health === 'Yellow' ? 'bg-amber-500' : 'bg-rose-500';
-                return (
-                  <div
-                    key={p.id}
-                    className={cn(
-                      "flex items-center gap-2 px-4 py-2 cursor-pointer text-sm transition-colors",
-                      isCurrent ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted/50 text-foreground"
-                    )}
-                    onClick={() => {
-                      setLocation(`/projects/${p.id}`);
-                      setProjectListOpen(false);
-                    }}
-                    data-testid={`sidebar-project-${p.id}`}
-                  >
-                    <div className={cn("h-2 w-2 rounded-full flex-shrink-0", healthDot)} />
-                    <span className="truncate">{p.name}</span>
-                    {isCurrent && <ChevronRight className="h-3 w-3 ml-auto flex-shrink-0 text-primary" />}
-                  </div>
-                );
-              })}
-            </div>
-          </ScrollArea>
-        </SheetContent>
-      </Sheet>
+        </div>
+      </div>
     </div>
   );
 }
