@@ -89,8 +89,7 @@ export default function Resources() {
   const { data: selectedTaskData, isLoading: isLoadingTask } = useQuery({
     queryKey: ['/api/tasks', selectedTaskId],
     queryFn: async () => {
-      const res = await fetch(`/api/tasks/${selectedTaskId}`);
-      if (!res.ok) throw new Error('Failed to fetch task');
+      const res = await apiRequest("GET", `/api/tasks/${selectedTaskId}`);
       return res.json();
     },
     enabled: !!selectedTaskId && isTaskDialogOpen,
@@ -100,8 +99,7 @@ export default function Resources() {
   const { data: taskResourcesData } = useQuery({
     queryKey: ['/api/tasks', selectedTaskId, 'resources'],
     queryFn: async () => {
-      const res = await fetch(`/api/tasks/${selectedTaskId}/resources`);
-      if (!res.ok) throw new Error('Failed to fetch task resources');
+      const res = await apiRequest("GET", `/api/tasks/${selectedTaskId}/resources`);
       return res.json();
     },
     enabled: !!selectedTaskId && isTaskDialogOpen,
