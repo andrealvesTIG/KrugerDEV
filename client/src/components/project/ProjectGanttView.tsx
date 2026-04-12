@@ -533,8 +533,8 @@ const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, ext
   useEffect(() => {
     if (isOpen && isEditing && textareaRef.current) {
       textareaRef.current.focus();
-      const len = textareaRef.current.value.length;
-      textareaRef.current.setSelectionRange(len, len);
+      textareaRef.current.setSelectionRange(0, 0);
+      textareaRef.current.scrollTop = 0;
     }
   }, [isOpen, isEditing]);
 
@@ -560,6 +560,9 @@ const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, ext
     if (disabled) return;
     setEditValue(value || '');
     setIsEditing(true);
+    if (popoverSize.height === 0 && value && value.length > 200) {
+      setPopoverSize(prev => ({ ...prev, height: 320 }));
+    }
     if (onEditingChange) onEditingChange(true);
   };
 
