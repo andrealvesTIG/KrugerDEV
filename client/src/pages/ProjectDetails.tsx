@@ -283,6 +283,17 @@ export default function ProjectDetails() {
   const { data: customTabs = [] } = useCustomProjectTabs(currentOrganization?.id);
   const [, setLocation] = useLocation();
 
+  useEffect(() => {
+    if (!id || !currentOrganization?.id) return;
+    try {
+      const key = `project-visits-${currentOrganization.id}`;
+      const raw = localStorage.getItem(key);
+      const counts: Record<number, number> = raw ? JSON.parse(raw) : {};
+      counts[id] = (counts[id] || 0) + 1;
+      localStorage.setItem(key, JSON.stringify(counts));
+    } catch {}
+  }, [id, currentOrganization?.id]);
+
   // Read tab and item IDs from URL query parameters
   const urlParams = new URLSearchParams(window.location.search);
   const urlTab = urlParams.get('tab');

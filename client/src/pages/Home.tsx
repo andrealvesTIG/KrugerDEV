@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { GettingStartedChecklist } from "@/components/GettingStartedChecklist";
@@ -46,6 +46,7 @@ import {
   Users,
   Upload,
   Sparkles,
+  History,
 } from "lucide-react";
 import { Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -380,6 +381,29 @@ export default function Home() {
     return breakdown;
   }, [myProjects]);
 
+  const VISIT_STORAGE_KEY = `project-visits-${organizationId}`;
+
+  const getVisitCounts = useCallback((): Record<number, number> => {
+    try {
+      const raw = localStorage.getItem(VISIT_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  }, [VISIT_STORAGE_KEY]);
+
+  const recentProjects = useMemo(() => {
+    if (!allProjects || allProjects.length === 0) return [];
+    const visitCounts = getVisitCounts();
+    const active = allProjects.filter((p: Project) => !p.deletedAt && p.status?.toLowerCase() !== "closing");
+    const scored = active.map((p: Project) => {
+      const updatedAt = p.updatedAt ? new Date(p.updatedAt).getTime() : (p.createdAt ? new Date(p.createdAt).getTime() : 0);
+      const recencyScore = updatedAt / 1e10;
+      const frequencyScore = (visitCounts[p.id] || 0) * 2;
+      return { project: p, score: recencyScore + frequencyScore, updatedAt };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, 5);
+  }, [allProjects, getVisitCounts]);
+
   const isEmptyState = (allProjects?.length || 0) === 0 && totalTasksCount === 0 && (allIssues?.length || 0) === 0;
 
   const isLoading = resourceLoading || tasksLoading || timesheetsLoading || issuesLoading || milestonesLoading || projectsLoading;
@@ -687,6 +711,51 @@ export default function Home() {
           </StaggerItem>
         )}
       </StaggerContainer>
+
+      {!isEmptyState && recentProjects.length > 0 && (
+        <Card className="border-0 shadow-sm" data-testid="card-recent-projects">
+          <CardHeader className="px-4 py-2">
+            <div className="flex items-center justify-between gap-1">
+              <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                <History className="h-4 w-4 text-muted-foreground" />
+                Recent Projects
+              </CardTitle>
+              <Link href="/projects">
+                <Button variant="ghost" size="sm" data-testid="link-view-all-recent-projects">
+                  View All <ChevronRight className="ml-1 h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent className="px-4 pb-3 pt-0">
+            <div className="space-y-1">
+              {recentProjects.map(({ project, updatedAt }) => (
+                <Link key={project.id} href={`/projects/${project.id}`}>
+                  <div
+                    className="flex items-center gap-3 p-2 rounded-md bg-muted/50 hover-elevate cursor-pointer"
+                    data-testid={`recent-project-${project.id}`}
+                  >
+                    <div className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${getHealthColor(project.health)}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-foreground truncate">{project.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {project.status || "Active"}
+                        {updatedAt > 0 && (
+                          <span> · Updated {formatDistanceToNow(new Date(updatedAt), { addSuffix: true })}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Progress value={project.completionPercentage || 0} className="w-16 h-1.5" />
+                      <span className="text-xs text-muted-foreground w-8 text-right">{project.completionPercentage || 0}%</span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {!isEmptyState && totalTasksCount > 0 && taskStatusDistribution.length > 0 && (
         <Card className="border-0 shadow-sm" data-testid="card-task-status-breakdown">
