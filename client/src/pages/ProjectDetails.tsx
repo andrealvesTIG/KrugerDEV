@@ -3187,24 +3187,30 @@ function ProjectTeamTab({
                     </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Badge variant="secondary" className="text-xs">
-                          {taskCount} task{taskCount !== 1 ? 's' : ''}
-                        </Badge>
-                      </TooltipTrigger>
-                      <TooltipContent side="left" className="max-w-[250px]">
-                        <p className="font-medium text-xs mb-1">Assigned Tasks:</p>
-                        <ul className="text-xs space-y-0.5">
-                          {taskNames.slice(0, 10).map((name, i) => (
-                            <li key={i} className="truncate">• {name}</li>
-                          ))}
-                          {taskNames.length > 10 && (
-                            <li className="text-muted-foreground">...and {taskNames.length - 10} more</li>
-                          )}
-                        </ul>
-                      </TooltipContent>
-                    </Tooltip>
+                    {taskCount > 0 ? (
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Badge variant="secondary" className="text-xs">
+                            {taskCount} task{taskCount !== 1 ? 's' : ''}
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent side="left" className="max-w-[250px]">
+                          <p className="font-medium text-xs mb-1">Assigned Tasks:</p>
+                          <ul className="text-xs space-y-0.5">
+                            {taskNames.slice(0, 10).map((name, i) => (
+                              <li key={i} className="truncate">• {name}</li>
+                            ))}
+                            {taskNames.length > 10 && (
+                              <li className="text-muted-foreground">...and {taskNames.length - 10} more</li>
+                            )}
+                          </ul>
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <Badge variant="outline" className="text-xs text-muted-foreground">
+                        No tasks
+                      </Badge>
+                    )}
                     {!readOnly && (
                       <button
                         onClick={() => removeFromTeam(resource.id)}
