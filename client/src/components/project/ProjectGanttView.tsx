@@ -2874,30 +2874,77 @@ function ProjectGanttView({
     const text = e.clipboardData?.getData('text/plain');
     if (!text) return;
 
-    const lines = text.split('\n').map(l => l.replace(/\r$/, ''));
-    while (lines.length > 0 && lines[lines.length - 1].trim() === '') lines.pop();
-    if (lines.length === 0) return;
+    const parseTsv = (input: string): string[][] => {
+      const rows: string[][] = [];
+      let row: string[] = [];
+      let i = 0;
+      while (i < input.length) {
+        if (input[i] === '"') {
+          let val = '';
+          i++;
+          while (i < input.length) {
+            if (input[i] === '"') {
+              if (i + 1 < input.length && input[i + 1] === '"') {
+                val += '"';
+                i += 2;
+              } else {
+                i++;
+                break;
+              }
+            } else {
+              val += input[i];
+              i++;
+            }
+          }
+          row.push(val);
+          if (i < input.length && input[i] === '\t') { i++; }
+          else if (i < input.length && (input[i] === '\r' || input[i] === '\n')) {
+            if (input[i] === '\r' && i + 1 < input.length && input[i + 1] === '\n') i++;
+            i++;
+            rows.push(row);
+            row = [];
+          }
+        } else {
+          let val = '';
+          while (i < input.length && input[i] !== '\t' && input[i] !== '\r' && input[i] !== '\n') {
+            val += input[i];
+            i++;
+          }
+          row.push(val);
+          if (i < input.length && input[i] === '\t') { i++; }
+          else if (i < input.length && (input[i] === '\r' || input[i] === '\n')) {
+            if (input[i] === '\r' && i + 1 < input.length && input[i + 1] === '\n') i++;
+            i++;
+            rows.push(row);
+            row = [];
+          }
+        }
+      }
+      if (row.length > 0) rows.push(row);
+      while (rows.length > 0 && rows[rows.length - 1].every(c => c.trim() === '')) rows.pop();
+      return rows;
+    };
+
+    const parsedRows = parseTsv(text);
+    if (parsedRows.length === 0) return;
 
     const currentVisibleTasks = visibleTasksRef.current;
 
-    // Detect if first row is a header (compare to column labels)
-    let dataLines = lines;
-    const firstRow = lines[0].split('\t');
     const columnLabels = visibleColumns.map(colId => {
       const col = allGanttColumns.find(c => c.id === colId);
       return col?.label ?? colId;
     });
-    const isHeader = firstRow.some((cell, i) =>
+    const isHeader = parsedRows[0].some((cell, i) =>
       cell.trim().toLowerCase() === (columnLabels[i] ?? '').toLowerCase()
     );
-    if (isHeader) dataLines = lines.slice(1);
+    let dataRows = isHeader ? parsedRows.slice(1) : parsedRows;
 
-    if (dataLines.length === 0) return;
+    if (dataRows.length === 0) return;
 
     // Determine starting row and column index, honoring selection range if present
     let startIndex = 0;
     let effectiveStartCol = 0;
-    let maxPasteRows = dataLines.length;
+    let maxPasteRows = dataRows.length;
     let maxPasteCols = Infinity;
 
     if (selectionRange) {
@@ -3058,9 +3105,9 @@ function ProjectGanttView({
       return updates;
     };
 
-    for (let i = 0; i < Math.min(dataLines.length, maxPasteRows); i++) {
+    for (let i = 0; i < Math.min(dataRows.length, maxPasteRows); i++) {
       const taskIndex = startIndex + i;
-      const cells = dataLines[i].split('\t');
+      const cells = dataRows[i];
 
       if (taskIndex >= currentVisibleTasks.length) {
         const updates = parsePastedRow(cells, i + 1);
