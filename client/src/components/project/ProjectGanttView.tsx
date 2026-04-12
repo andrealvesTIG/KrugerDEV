@@ -5754,131 +5754,6 @@ function ProjectGanttView({
                 View: {zoomLabels[zoomLevel]}
               </span>
             )}
-            <Popover open={resourceFilterOpen} onOpenChange={(open) => { setResourceFilterOpen(open); if (!open) setResourceFilterSearch(""); }}>
-              <PopoverTrigger asChild>
-                <Button 
-                  variant={resourceFilter.length > 0 ? "default" : "outline"} 
-                  size="sm" 
-                  className="gap-1"
-                  data-testid="button-resource-filter"
-                >
-                  <Users className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Resource</span>
-                  {resourceFilter.length > 0 && (
-                    <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-primary-foreground/20 text-primary-foreground">
-                      {resourceFilter.length}
-                    </Badge>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64 p-0" align="start">
-                <div className="p-2 border-b">
-                  <Input
-                    placeholder="Search resources..."
-                    value={resourceFilterSearch}
-                    onChange={(e) => setResourceFilterSearch(e.target.value)}
-                    className="h-7 text-xs"
-                    autoFocus
-                  />
-                </div>
-                <div className="max-h-[250px] overflow-y-auto p-1">
-                  {projectResources
-                    .filter(r => !resourceFilterSearch || r.displayName.toLowerCase().includes(resourceFilterSearch.toLowerCase()))
-                    .map(r => (
-                      <div
-                        key={r.id}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-xs"
-                        onClick={() => {
-                          setResourceFilter(prev =>
-                            prev.includes(r.id) ? prev.filter(id => id !== r.id) : [...prev, r.id]
-                          );
-                        }}
-                      >
-                        <Checkbox checked={resourceFilter.includes(r.id)} />
-                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-[9px] font-semibold shrink-0">
-                          {r.displayName.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="truncate">{r.displayName}</span>
-                      </div>
-                    ))
-                  }
-                  {projectResources.filter(r => !resourceFilterSearch || r.displayName.toLowerCase().includes(resourceFilterSearch.toLowerCase())).length === 0 && (
-                    <div className="text-center py-4 text-xs text-muted-foreground">
-                      {resourceFilterSearch ? "No matching resources" : "No resources assigned"}
-                    </div>
-                  )}
-                </div>
-                {resourceFilter.length > 0 && (
-                  <div className="border-t p-1.5">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full text-xs h-7"
-                      onClick={() => { setResourceFilter([]); setResourceFilterOpen(false); }}
-                    >
-                      Clear filter
-                    </Button>
-                  </div>
-                )}
-              </PopoverContent>
-            </Popover>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1" data-testid="button-gantt-table-menu">
-                  <MoreVertical className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger className="gap-2">
-                    <Columns3 className="h-3.5 w-3.5" />
-                    Columns
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="max-h-[400px] overflow-y-auto w-56">
-                    {COLUMN_CATEGORIES.filter(cat => allGanttColumns.some(col => col.category === cat.id)).map(cat => (
-                      <div key={cat.id}>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
-                          {cat.label}
-                        </div>
-                        {allGanttColumns.filter(col => col.category === cat.id).map(col => (
-                          <DropdownMenuItem 
-                            key={col.id}
-                            onSelect={(e) => { e.preventDefault(); toggleColumn(col.id); }}
-                            className="gap-2"
-                          >
-                            <Checkbox 
-                              checked={visibleColumns.includes(col.id)} 
-                              disabled={col.id === 'task'}
-                            />
-                            {col.label}
-                          </DropdownMenuItem>
-                        ))}
-                      </div>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-                <DropdownMenuItem onClick={openReorderDialog} data-testid="button-reorder-columns" className="gap-2">
-                  <ArrowUpDown className="h-3.5 w-3.5" />
-                  Reorder Columns
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={openBaselineDialog} data-testid="button-baseline-schedule" className="gap-2">
-                  <Flag className="h-3.5 w-3.5" />
-                  Baseline Schedule
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={expandAllTasks} data-testid="button-expand-all-tasks" className="gap-2">
-                  <ChevronDown className="h-3.5 w-3.5" />
-                  Expand All
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={collapseAllTasks} data-testid="button-collapse-all-tasks" className="gap-2">
-                  <ChevronRight className="h-3.5 w-3.5" />
-                  Collapse All
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <div className="flex items-center gap-2">
               <Switch
                 checked={showProjectSummary}
@@ -5899,6 +5774,18 @@ function ProjectGanttView({
                 Critical<span className="hidden sm:inline"> Path</span>
               </Label>
             </div>
+            {!hideTimeline && hasAnyBaselines && (
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={showBaseline}
+                  onCheckedChange={setShowBaseline}
+                  data-testid="toggle-show-baseline"
+                />
+                <Label className="text-xs text-muted-foreground cursor-pointer" onClick={() => setShowBaseline(!showBaseline)}>
+                  Show Baseline
+                </Label>
+              </div>
+            )}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -5914,18 +5801,6 @@ function ProjectGanttView({
               </TooltipTrigger>
               <TooltipContent>Refresh all task data and recalculate schedule</TooltipContent>
             </Tooltip>
-            {!hideTimeline && hasAnyBaselines && (
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={showBaseline}
-                  onCheckedChange={setShowBaseline}
-                  data-testid="toggle-show-baseline"
-                />
-                <Label className="text-xs text-muted-foreground cursor-pointer" onClick={() => setShowBaseline(!showBaseline)}>
-                  Show Baseline
-                </Label>
-              </div>
-            )}
             <div className="flex items-center gap-1 border-l pl-3">
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -6012,6 +5887,128 @@ function ProjectGanttView({
                 </Tooltip>
               </div>
             )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Popover open={resourceFilterOpen} onOpenChange={(open) => { setResourceFilterOpen(open); if (!open) setResourceFilterSearch(""); }}>
+              <PopoverTrigger asChild>
+                <span />
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-0" align="end">
+                <div className="p-2 border-b">
+                  <Input
+                    placeholder="Search resources..."
+                    value={resourceFilterSearch}
+                    onChange={(e) => setResourceFilterSearch(e.target.value)}
+                    className="h-7 text-xs"
+                    autoFocus
+                  />
+                </div>
+                <div className="max-h-[250px] overflow-y-auto p-1">
+                  {projectResources
+                    .filter(r => !resourceFilterSearch || r.displayName.toLowerCase().includes(resourceFilterSearch.toLowerCase()))
+                    .map(r => (
+                      <div
+                        key={r.id}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-xs"
+                        onClick={() => {
+                          setResourceFilter(prev =>
+                            prev.includes(r.id) ? prev.filter(id => id !== r.id) : [...prev, r.id]
+                          );
+                        }}
+                      >
+                        <Checkbox checked={resourceFilter.includes(r.id)} />
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-[9px] font-semibold shrink-0">
+                          {r.displayName.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="truncate">{r.displayName}</span>
+                      </div>
+                    ))
+                  }
+                  {projectResources.filter(r => !resourceFilterSearch || r.displayName.toLowerCase().includes(resourceFilterSearch.toLowerCase())).length === 0 && (
+                    <div className="text-center py-4 text-xs text-muted-foreground">
+                      {resourceFilterSearch ? "No matching resources" : "No resources assigned"}
+                    </div>
+                  )}
+                </div>
+                {resourceFilter.length > 0 && (
+                  <div className="border-t p-1.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-xs h-7"
+                      onClick={() => { setResourceFilter([]); setResourceFilterOpen(false); }}
+                    >
+                      Clear filter
+                    </Button>
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1" data-testid="button-gantt-table-menu">
+                  <MoreVertical className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="gap-2">
+                    <Columns3 className="h-3.5 w-3.5" />
+                    Columns
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="max-h-[400px] overflow-y-auto w-56">
+                    {COLUMN_CATEGORIES.filter(cat => allGanttColumns.some(col => col.category === cat.id)).map(cat => (
+                      <div key={cat.id}>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
+                          {cat.label}
+                        </div>
+                        {allGanttColumns.filter(col => col.category === cat.id).map(col => (
+                          <DropdownMenuItem 
+                            key={col.id}
+                            onSelect={(e) => { e.preventDefault(); toggleColumn(col.id); }}
+                            className="gap-2"
+                          >
+                            <Checkbox 
+                              checked={visibleColumns.includes(col.id)} 
+                              disabled={col.id === 'task'}
+                            />
+                            {col.label}
+                          </DropdownMenuItem>
+                        ))}
+                      </div>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                <DropdownMenuItem onClick={openReorderDialog} data-testid="button-reorder-columns" className="gap-2">
+                  <ArrowUpDown className="h-3.5 w-3.5" />
+                  Reorder Columns
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setResourceFilterOpen(true)} data-testid="button-resource-filter" className="gap-2">
+                  <Users className="h-3.5 w-3.5" />
+                  Filter by Resource
+                  {resourceFilter.length > 0 && (
+                    <Badge variant="secondary" className="h-4 px-1 text-[10px] ml-auto">
+                      {resourceFilter.length}
+                    </Badge>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={openBaselineDialog} data-testid="button-baseline-schedule" className="gap-2">
+                  <Flag className="h-3.5 w-3.5" />
+                  Baseline Schedule
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={expandAllTasks} data-testid="button-expand-all-tasks" className="gap-2">
+                  <ChevronDown className="h-3.5 w-3.5" />
+                  Expand All
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={collapseAllTasks} data-testid="button-collapse-all-tasks" className="gap-2">
+                  <ChevronRight className="h-3.5 w-3.5" />
+                  Collapse All
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
         {/* Bulk actions bar - outside scroll area to prevent row misalignment */}
