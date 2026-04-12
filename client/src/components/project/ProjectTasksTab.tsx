@@ -1317,6 +1317,24 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                         Use notes to capture additional context, decisions, or follow-up items for this task.
                       </p>
                     </div>
+                    {editingTask?.notesUpdatedAt && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+                        <span>
+                          Last updated on{' '}
+                          <span className="font-medium text-foreground">
+                            {format(new Date(editingTask.notesUpdatedAt), 'MMM d, yyyy h:mm a')}
+                          </span>
+                          {editingTask.notesUpdatedByName && (
+                            <>
+                              {' '}by{' '}
+                              <span className="font-medium text-foreground">
+                                {editingTask.notesUpdatedByName}
+                              </span>
+                            </>
+                          )}
+                        </span>
+                      </div>
+                    )}
                   </TabsContent>
                 </div>
               </Tabs>

@@ -1394,6 +1394,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
           const prev = taskMap.get(taskId);
           if (!prev) continue;
 
+          if ((perTaskUpdates as any).notes !== undefined && (perTaskUpdates as any).notes !== prev.notes) {
+            (perTaskUpdates as any).notesUpdatedAt = new Date();
+            (perTaskUpdates as any).notesUpdatedBy = userId;
+            (perTaskUpdates as any).notesUpdatedByName = changedByName;
+          }
+
           await storage.updateTask(taskId, perTaskUpdates);
           updatedCount++;
           projectIds.add(prev.projectId);
@@ -1610,6 +1616,14 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         }
       }
       
+      if (input.notes !== undefined && input.notes !== previousTask.notes) {
+        const noteUser = userId ? await storage.getUser(userId) : null;
+        const noteUserName = noteUser ? `${noteUser.firstName || ''} ${noteUser.lastName || ''}`.trim() || noteUser.email || 'Unknown' : 'System';
+        (input as any).notesUpdatedAt = new Date();
+        (input as any).notesUpdatedBy = userId;
+        (input as any).notesUpdatedByName = noteUserName;
+      }
+
       const updated = await storage.updateTask(taskId, input);
       
       // Build change summary

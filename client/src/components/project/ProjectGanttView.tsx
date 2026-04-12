@@ -499,9 +499,11 @@ interface NotesCellProps {
   externalEditing?: boolean;
   initialCharacter?: string;
   onEditingChange?: (editing: boolean) => void;
+  notesUpdatedAt?: string | Date | null;
+  notesUpdatedByName?: string | null;
 }
 
-const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, externalEditing, initialCharacter, onEditingChange }: NotesCellProps) {
+const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, externalEditing, initialCharacter, onEditingChange, notesUpdatedAt, notesUpdatedByName }: NotesCellProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
@@ -649,11 +651,19 @@ const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, ext
                 </Button>
               )}
             </div>
-            <div className="px-3 pb-3 max-h-[200px] overflow-y-auto">
+            <div className="px-3 pb-2 max-h-[200px] overflow-y-auto">
               <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words leading-relaxed">
                 {value}
               </p>
             </div>
+            {notesUpdatedAt && (
+              <div className="px-3 pb-3 pt-1 border-t">
+                <p className="text-[10px] text-muted-foreground/70">
+                  Updated {format(new Date(notesUpdatedAt), 'MMM d, yyyy h:mm a')}
+                  {notesUpdatedByName && <> by <span className="font-medium text-muted-foreground">{notesUpdatedByName}</span></>}
+                </p>
+              </div>
+            )}
           </div>
         )}
       </PopoverContent>
@@ -1831,6 +1841,8 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                   externalEditing={cellEditProps.externalEditing}
                   initialCharacter={cellEditProps.initialCharacter}
                   onEditingChange={cellEditProps.onEditingChange}
+                  notesUpdatedAt={task.notesUpdatedAt}
+                  notesUpdatedByName={task.notesUpdatedByName}
                 />
               );
             default:

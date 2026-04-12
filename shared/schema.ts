@@ -488,6 +488,9 @@ export const tasks = pgTable("tasks", {
   category: text("category"), // Task category
   labels: text("labels"), // Comma-separated labels
   notes: text("notes"),
+  notesUpdatedAt: timestamp("notes_updated_at"),
+  notesUpdatedBy: varchar("notes_updated_by").references(() => users.id),
+  notesUpdatedByName: text("notes_updated_by_name"),
   timesheetBlocked: boolean("timesheet_blocked").default(false),
   externalId: text("external_id"),
   completionOverridden: boolean("completion_overridden").default(false),
