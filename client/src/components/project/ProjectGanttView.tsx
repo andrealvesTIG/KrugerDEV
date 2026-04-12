@@ -28,6 +28,7 @@ import { Progress } from "@/components/ui/progress";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -488,6 +489,119 @@ const InlineEditCell = memo(function InlineEditCell({
     >
       {displayValue}
     </div>
+  );
+});
+
+interface NotesCellProps {
+  value: string | null | undefined;
+  onSave: (val: string | null) => void;
+  disabled?: boolean;
+  externalEditing?: boolean;
+  initialCharacter?: string;
+  onEditingChange?: (editing: boolean) => void;
+}
+
+const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, externalEditing, initialCharacter, onEditingChange }: NotesCellProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (externalEditing && !isOpen) {
+      if (disabled) {
+        if (onEditingChange) onEditingChange(false);
+        return;
+      }
+      setEditValue(initialCharacter || value || '');
+      setIsOpen(true);
+    } else if (!externalEditing && isOpen) {
+      setIsOpen(false);
+    }
+  }, [externalEditing]);
+
+  useEffect(() => {
+    if (isOpen && textareaRef.current) {
+      textareaRef.current.focus();
+      const len = textareaRef.current.value.length;
+      textareaRef.current.setSelectionRange(len, len);
+    }
+  }, [isOpen]);
+
+  const handleOpen = () => {
+    if (disabled) return;
+    setEditValue(value || '');
+    setIsOpen(true);
+    if (onEditingChange) onEditingChange(true);
+  };
+
+  const handleSave = () => {
+    setIsOpen(false);
+    if (onEditingChange) onEditingChange(false);
+    onSave(editValue.trim() || null);
+  };
+
+  const handleCancel = () => {
+    setIsOpen(false);
+    if (onEditingChange) onEditingChange(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      handleCancel();
+    }
+  };
+
+  const displayText = value || '—';
+
+  return (
+    <Popover open={isOpen} onOpenChange={(open) => { if (!open) handleSave(); }}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <div
+              className={cn(
+                "cursor-pointer hover:bg-muted/50 transition-colors rounded px-0.5 min-h-[18px] flex items-center w-full",
+                disabled && "cursor-default hover:bg-transparent"
+              )}
+              onDoubleClick={handleOpen}
+              data-testid="notes-cell-display"
+            >
+              <span className="truncate">{displayText}</span>
+            </div>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        {value && !isOpen && (
+          <TooltipContent side="top" align="start" className="max-w-[300px] whitespace-pre-wrap break-words text-xs">
+            {value}
+          </TooltipContent>
+        )}
+      </Tooltip>
+      <PopoverContent
+        className="w-72 p-2"
+        align="start"
+        side="bottom"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <Textarea
+          ref={textareaRef}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Add notes..."
+          className="text-xs min-h-[80px] max-h-[200px] resize-y"
+          disabled={disabled}
+        />
+        <div className="flex justify-end gap-1 mt-2">
+          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={handleCancel}>
+            Cancel
+          </Button>
+          <Button variant="default" size="sm" className="h-6 text-xs px-2" onClick={handleSave}>
+            Save
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 });
 
@@ -1654,12 +1768,13 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'notes':
               return (
-                <InlineEditCell {...cellEditProps}
+                <NotesCell
                   value={task.notes}
-                  displayValue={<span className="truncate">{task.notes || '—'}</span>}
-                  editType="text"
                   onSave={(val) => handleInlineUpdate('notes', val as string | null, task.notes)}
                   disabled={isReadOnly}
+                  externalEditing={cellEditProps.externalEditing}
+                  initialCharacter={cellEditProps.initialCharacter}
+                  onEditingChange={cellEditProps.onEditingChange}
                 />
               );
             default:
