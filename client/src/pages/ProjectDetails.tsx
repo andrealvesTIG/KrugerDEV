@@ -296,6 +296,7 @@ export default function ProjectDetails() {
   const defaultMainTabs = [
     { id: 'summary', label: 'Summary' },
     { id: 'tasks', label: 'Tasks' },
+    { id: 'team', label: 'Team' },
     { id: 'risks', label: 'Risks' },
     { id: 'issues', label: 'Issues' },
     { id: 'financials', label: 'Financials' },
@@ -303,7 +304,6 @@ export default function ProjectDetails() {
   
   // Available tabs for pinning from the More menu
   const moreTabItems = [
-    { id: 'team', label: 'Team' },
     { id: 'scoring', label: 'Scoring' },
     { id: 'benefits', label: 'Benefits' },
     { id: 'decisions', label: 'Decisions' },
@@ -1386,13 +1386,12 @@ export default function ProjectDetails() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
-                variant={['team', 'change-requests', 'documents', 'invoices', 'status-report', 'scoring', 'benefits', 'decisions', 'lessons-learned', 'ai-agent', ...customTabs.map(t => `custom-${t.id}`)].filter(t => !pinnedTabs.includes(t)).includes(activeTab) ? 'default' : 'ghost'} 
+                variant={['change-requests', 'documents', 'invoices', 'status-report', 'scoring', 'benefits', 'decisions', 'lessons-learned', 'ai-agent', ...customTabs.map(t => `custom-${t.id}`)].filter(t => !pinnedTabs.includes(t)).includes(activeTab) ? 'default' : 'ghost'} 
                 size="sm" 
                 className="rounded-lg px-4 py-2 font-medium gap-1"
                 data-testid="button-more-tabs"
               >
-                {!pinnedTabs.includes(activeTab) && activeTab === 'team' ? 'Team' :
-                 !pinnedTabs.includes(activeTab) && activeTab === 'change-requests' ? 'Change Requests' : 
+                {!pinnedTabs.includes(activeTab) && activeTab === 'change-requests' ? 'Change Requests' : 
                  !pinnedTabs.includes(activeTab) && activeTab === 'documents' ? 'Documents' : 
                  !pinnedTabs.includes(activeTab) && activeTab === 'invoices' ? 'Invoices' :
                  !pinnedTabs.includes(activeTab) && activeTab === 'status-report' ? 'Status Report' :
