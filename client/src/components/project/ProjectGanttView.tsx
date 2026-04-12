@@ -37,7 +37,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Loader2, Plus, Trash2, Pencil, Check, X, GripVertical, Flag, Columns3, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, Search, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown, Undo2, Redo2, FolderKanban, RefreshCw, Focus, Link2, Link as LinkIcon, IndentIncrease, IndentDecrease, Type, Lock as LockIcon, Calendar as CalendarIcon, ClipboardPaste, History, RotateCcw } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, Check, X, GripVertical, Flag, Columns3, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, Search, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown, Undo2, Redo2, FolderKanban, RefreshCw, Focus, Link2, Link as LinkIcon, IndentIncrease, IndentDecrease, Type, Lock as LockIcon, Calendar as CalendarIcon, ClipboardPaste, History, RotateCcw, Filter, Users } from "lucide-react";
 
 export { type ZoomLevel, type GanttColumn, type GanttColumnConfig, GANTT_COLUMNS, COLUMN_CATEGORIES, DEFAULT_GANTT_COLUMNS };
 
@@ -2494,6 +2494,49 @@ function ProjectGanttView({
     }
     return map;
   }, [projectTaskAssignments]);
+
+  const [resourceFilter, setResourceFilter] = useState<number[]>([]);
+  const [resourceFilterOpen, setResourceFilterOpen] = useState(false);
+  const [resourceFilterSearch, setResourceFilterSearch] = useState("");
+
+  const projectResources = useMemo(() => {
+    const resourceMap = new Map<number, Resource>();
+    for (const a of projectTaskAssignments ?? []) {
+      if (a.resource && !resourceMap.has(a.resourceId)) {
+        resourceMap.set(a.resourceId, a.resource);
+      }
+    }
+    return Array.from(resourceMap.values()).sort((a, b) =>
+      a.displayName.localeCompare(b.displayName)
+    );
+  }, [projectTaskAssignments]);
+
+  const resourceFilteredTasks = useMemo(() => {
+    if (resourceFilter.length === 0) return tasks;
+    const filterSet = new Set(resourceFilter);
+    const matchingTaskIds = new Set<number>();
+    for (const a of projectTaskAssignments ?? []) {
+      if (filterSet.has(a.resourceId)) {
+        matchingTaskIds.add(a.taskId);
+      }
+    }
+    const includedIds = new Set<number>();
+    for (const task of tasks) {
+      if (matchingTaskIds.has(task.id)) {
+        includedIds.add(task.id);
+        let parentLevel = (task.outlineLevel || 1) - 1;
+        for (let i = tasks.indexOf(task) - 1; i >= 0 && parentLevel >= 1; i--) {
+          const candidate = tasks[i];
+          if ((candidate.outlineLevel || 1) === parentLevel) {
+            includedIds.add(candidate.id);
+            parentLevel--;
+          }
+        }
+      }
+    }
+    return tasks.filter(t => includedIds.has(t.id));
+  }, [tasks, resourceFilter, projectTaskAssignments]);
+
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('month');
   const getColumnsKey = () => `project-gantt-columns-${projectId}`;
   const [visibleColumns, setVisibleColumns] = useState<GanttColumn[]>(() => {
@@ -4917,16 +4960,17 @@ function ProjectGanttView({
   // Determine which tasks have children, filter visible tasks, and compute WBS
   // Uses tasks in their original order to preserve hierarchy
   const { visibleTasks, taskHasChildren, wbsMap, absoluteIndexMap } = useMemo(() => {
+    const baseTasks = resourceFilteredTasks;
     const taskHasChildren: Record<number, boolean> = {};
 
     // First pass: determine which tasks have children based on outline levels
-    for (let i = 0; i < tasks.length; i++) {
-      const currentTask = tasks[i];
+    for (let i = 0; i < baseTasks.length; i++) {
+      const currentTask = baseTasks[i];
       const currentLevel = currentTask.outlineLevel || 1;
       
       // Check if next task is a child (higher level)
-      if (i + 1 < tasks.length) {
-        const nextTask = tasks[i + 1];
+      if (i + 1 < baseTasks.length) {
+        const nextTask = baseTasks[i + 1];
         const nextLevel = nextTask.outlineLevel || 1;
         if (nextLevel > currentLevel) {
           taskHasChildren[currentTask.id] = true;
@@ -4938,7 +4982,7 @@ function ProjectGanttView({
     const visibleTasks: Task[] = [];
     let skipUntilLevel = -1;
 
-    for (const task of tasks) {
+    for (const task of baseTasks) {
       const taskLevel = task.outlineLevel || 1;
 
       // If we're skipping and this task is still a child, skip it
@@ -5017,7 +5061,7 @@ function ProjectGanttView({
     }
 
     return { visibleTasks: sortedVisibleTasks, taskHasChildren, wbsMap, absoluteIndexMap };
-  }, [tasks, collapsedTasks, sortColumn, sortDirection, taskCfValuesMap]);
+  }, [tasks, resourceFilteredTasks, collapsedTasks, sortColumn, sortDirection, taskCfValuesMap]);
 
   visibleTasksRef.current = visibleTasks;
   taskHasChildrenRef.current = taskHasChildren;
@@ -5745,6 +5789,74 @@ function ProjectGanttView({
               <Flag className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Baseline Schedule</span>
             </Button>
+            <Popover open={resourceFilterOpen} onOpenChange={(open) => { setResourceFilterOpen(open); if (!open) setResourceFilterSearch(""); }}>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant={resourceFilter.length > 0 ? "default" : "outline"} 
+                  size="sm" 
+                  className="gap-1"
+                  data-testid="button-resource-filter"
+                >
+                  <Users className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Resource</span>
+                  {resourceFilter.length > 0 && (
+                    <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-primary-foreground/20 text-primary-foreground">
+                      {resourceFilter.length}
+                    </Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-0" align="start">
+                <div className="p-2 border-b">
+                  <Input
+                    placeholder="Search resources..."
+                    value={resourceFilterSearch}
+                    onChange={(e) => setResourceFilterSearch(e.target.value)}
+                    className="h-7 text-xs"
+                    autoFocus
+                  />
+                </div>
+                <div className="max-h-[250px] overflow-y-auto p-1">
+                  {projectResources
+                    .filter(r => !resourceFilterSearch || r.displayName.toLowerCase().includes(resourceFilterSearch.toLowerCase()))
+                    .map(r => (
+                      <div
+                        key={r.id}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-xs"
+                        onClick={() => {
+                          setResourceFilter(prev =>
+                            prev.includes(r.id) ? prev.filter(id => id !== r.id) : [...prev, r.id]
+                          );
+                        }}
+                      >
+                        <Checkbox checked={resourceFilter.includes(r.id)} />
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-[9px] font-semibold shrink-0">
+                          {r.displayName.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="truncate">{r.displayName}</span>
+                      </div>
+                    ))
+                  }
+                  {projectResources.filter(r => !resourceFilterSearch || r.displayName.toLowerCase().includes(resourceFilterSearch.toLowerCase())).length === 0 && (
+                    <div className="text-center py-4 text-xs text-muted-foreground">
+                      {resourceFilterSearch ? "No matching resources" : "No resources assigned"}
+                    </div>
+                  )}
+                </div>
+                {resourceFilter.length > 0 && (
+                  <div className="border-t p-1.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-xs h-7"
+                      onClick={() => { setResourceFilter([]); setResourceFilterOpen(false); }}
+                    >
+                      Clear filter
+                    </Button>
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
             <div className="flex items-center border rounded-md">
               <Tooltip>
                 <TooltipTrigger asChild>
