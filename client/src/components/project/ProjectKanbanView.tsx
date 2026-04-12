@@ -504,7 +504,7 @@ function ProjectKanbanView({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Resources</SelectItem>
-                  {resources.map(r => (
+                  {[...resources].sort((a, b) => a.displayName.localeCompare(b.displayName)).map(r => (
                     <SelectItem key={r.id} value={r.id.toString()}>{r.displayName}</SelectItem>
                   ))}
                 </SelectContent>
@@ -813,7 +813,7 @@ function ProjectDraggableTaskCard({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-48" onClick={(e) => e.stopPropagation()}>
-                  {resources.map(r => (
+                  {[...resources].sort((a, b) => a.displayName.localeCompare(b.displayName)).map(r => (
                     <DropdownMenuItem
                       key={r.id}
                       onClick={(e) => handleQuickAssign(r.id, e)}
