@@ -534,6 +534,18 @@ export const taskChangeLogs = pgTable("task_change_logs", {
   index("task_change_logs_task_id_idx").on(table.taskId),
 ]);
 
+export const taskNotesHistory = pgTable("task_notes_history", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").references(() => tasks.id).notNull(),
+  changedBy: varchar("changed_by").references(() => users.id),
+  changedByName: text("changed_by_name"),
+  changedAt: timestamp("changed_at").defaultNow(),
+  previousNotes: text("previous_notes"),
+  newNotes: text("new_notes"),
+}, (table) => [
+  index("task_notes_history_task_id_idx").on(table.taskId),
+]);
+
 // Project Change Logs (Audit Trail)
 export const projectChangeLogs = pgTable("project_change_logs", {
   id: serial("id").primaryKey(),
@@ -1636,6 +1648,7 @@ export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, creat
   schedulingMode: z.enum(['auto', 'manual']).optional(),
 });
 export const insertTaskChangeLogSchema = createInsertSchema(taskChangeLogs).omit({ id: true, changedAt: true });
+export const insertTaskNotesHistorySchema = createInsertSchema(taskNotesHistory).omit({ id: true, changedAt: true });
 export const insertProjectChangeLogSchema = createInsertSchema(projectChangeLogs).omit({ id: true, changedAt: true });
 export const insertIssueChangeLogSchema = createInsertSchema(issueChangeLogs).omit({ id: true, changedAt: true });
 // Risk change logs are now handled through issue change logs
@@ -1712,6 +1725,9 @@ export type InsertTask = z.infer<typeof insertTaskSchema>;
 
 export type TaskChangeLog = typeof taskChangeLogs.$inferSelect;
 export type InsertTaskChangeLog = z.infer<typeof insertTaskChangeLogSchema>;
+
+export type TaskNotesHistoryEntry = typeof taskNotesHistory.$inferSelect;
+export type InsertTaskNotesHistory = z.infer<typeof insertTaskNotesHistorySchema>;
 
 export type ProjectChangeLog = typeof projectChangeLogs.$inferSelect;
 export type InsertProjectChangeLog = z.infer<typeof insertProjectChangeLogSchema>;

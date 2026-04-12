@@ -3,9 +3,10 @@ import {
   tasks, projects, issues, resources,
   taskDependencies, taskChangeLogs, taskResourceAssignments,
   projectChangeLogs, issueChangeLogs,
-  notifications,
+  notifications, taskNotesHistory,
   type Task, type InsertTask, type UpdateTaskRequest,
   type TaskChangeLog, type InsertTaskChangeLog,
+  type TaskNotesHistoryEntry, type InsertTaskNotesHistory,
   type ProjectChangeLog, type InsertProjectChangeLog,
   type RiskChangeLog, type InsertRiskChangeLog,
   type IssueChangeLog, type InsertIssueChangeLog,
@@ -349,6 +350,17 @@ export async function getTaskChangeLogs(taskId: number): Promise<TaskChangeLog[]
 export async function createTaskChangeLog(log: InsertTaskChangeLog): Promise<TaskChangeLog> {
   const [newLog] = await db.insert(taskChangeLogs).values(log).returning();
   return newLog;
+}
+
+export async function getTaskNotesHistory(taskId: number): Promise<TaskNotesHistoryEntry[]> {
+  return await db.select().from(taskNotesHistory)
+    .where(eq(taskNotesHistory.taskId, taskId))
+    .orderBy(desc(taskNotesHistory.changedAt));
+}
+
+export async function createTaskNotesHistory(entry: InsertTaskNotesHistory): Promise<TaskNotesHistoryEntry> {
+  const [newEntry] = await db.insert(taskNotesHistory).values(entry).returning();
+  return newEntry;
 }
 
 export async function getProjectChangeLogs(projectId: number): Promise<ProjectChangeLog[]> {

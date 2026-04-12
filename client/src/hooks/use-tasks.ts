@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useInfiniteQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Task, InsertTask, UpdateTaskRequest, TaskChangeLog, TaskDependency } from "@shared/schema";
+import type { Task, InsertTask, UpdateTaskRequest, TaskChangeLog, TaskNotesHistoryEntry, TaskDependency } from "@shared/schema";
 import { format } from "date-fns";
 
 export interface TaskFilterParams {
@@ -229,6 +229,18 @@ export function useTaskHistory(taskId: number) {
       return res.json();
     },
     enabled: taskId > 0,
+  });
+}
+
+export function useTaskNotesHistory(taskId: number | null) {
+  return useQuery<TaskNotesHistoryEntry[]>({
+    queryKey: ['/api/tasks', taskId, 'notes-history'],
+    queryFn: async () => {
+      const res = await fetch(`/api/tasks/${taskId}/notes-history`);
+      if (!res.ok) throw new Error('Failed to fetch notes history');
+      return res.json();
+    },
+    enabled: !!taskId && taskId > 0,
   });
 }
 

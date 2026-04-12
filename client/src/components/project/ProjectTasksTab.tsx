@@ -6,7 +6,7 @@ import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, parseD
 import { computeWbsValues } from "@/lib/taskWbs";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png";
-import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/use-tasks";
+import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskNotesHistory } from "@/hooks/use-tasks";
 import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useResources } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
@@ -38,7 +38,64 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, AlertCircle, Calendar as CalendarIcon, Plus, Pencil, GanttChartSquare, Table, Milestone as MilestoneIcon, History, Maximize2, Minimize2, Columns3, RefreshCw, Download, Upload, ExternalLink, Search, Link2, User as UserIcon } from "lucide-react";
+import { Loader2, AlertCircle, Calendar as CalendarIcon, Plus, Pencil, GanttChartSquare, Table, Milestone as MilestoneIcon, History, Maximize2, Minimize2, Columns3, RefreshCw, Download, Upload, ExternalLink, Search, Link2, User as UserIcon, ChevronDown, ChevronRight } from "lucide-react";
+
+function NotesHistorySection({ taskId }: { taskId: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const { data: history, isLoading } = useTaskNotesHistory(expanded ? taskId : null);
+
+  return (
+    <div className="border rounded-md">
+      <button
+        type="button"
+        className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+        onClick={() => setExpanded(!expanded)}
+      >
+        {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        <History className="h-3 w-3" />
+        Notes Change History
+      </button>
+      {expanded && (
+        <div className="px-3 pb-3 max-h-[300px] overflow-y-auto">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : !history || history.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-3">No change history recorded yet</p>
+          ) : (
+            <div className="space-y-2">
+              {history.map((entry) => (
+                <div key={entry.id} className="border rounded-md p-2.5 bg-muted/30">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-xs font-medium text-foreground">{entry.changedByName || 'Unknown'}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {entry.changedAt ? format(new Date(entry.changedAt), 'MMM d, yyyy h:mm a') : ''}
+                    </span>
+                  </div>
+                  {entry.previousNotes && (
+                    <div className="mb-1.5">
+                      <span className="text-[11px] font-medium text-muted-foreground">Previous:</span>
+                      <p className="text-xs text-muted-foreground/80 whitespace-pre-wrap break-words line-clamp-4 mt-0.5">
+                        {entry.previousNotes}
+                      </p>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-[11px] font-medium text-muted-foreground">{entry.previousNotes ? 'Changed to:' : 'Added:'}</span>
+                    <p className="text-xs text-foreground whitespace-pre-wrap break-words line-clamp-4 mt-0.5">
+                      {entry.newNotes || '(cleared)'}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId, sourceFileName, sourceFileUrl, dataverseOrgId, dataverseTenantId, urlTaskId, readOnly = false, projectUpdatedAt }: { 
   projectId: number; 
@@ -1335,6 +1392,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                         </span>
                       </div>
                     )}
+                    {editingTask && <NotesHistorySection taskId={editingTask.id} />}
                   </TabsContent>
                 </div>
               </Tabs>

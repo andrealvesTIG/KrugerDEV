@@ -1394,13 +1394,25 @@ Format your response as a numbered list with clear, concise strategies. Do not i
           const prev = taskMap.get(taskId);
           if (!prev) continue;
 
+          let bulkNotesChanged = false;
           if ((perTaskUpdates as any).notes !== undefined && (perTaskUpdates as any).notes !== prev.notes) {
             (perTaskUpdates as any).notesUpdatedAt = new Date();
             (perTaskUpdates as any).notesUpdatedBy = userId;
             (perTaskUpdates as any).notesUpdatedByName = changedByName;
+            bulkNotesChanged = true;
           }
 
           await storage.updateTask(taskId, perTaskUpdates);
+
+          if (bulkNotesChanged) {
+            await storage.createTaskNotesHistory({
+              taskId,
+              changedBy: userId || null,
+              changedByName,
+              previousNotes: prev.notes || null,
+              newNotes: (perTaskUpdates as any).notes || null,
+            });
+          }
           updatedCount++;
           projectIds.add(prev.projectId);
 
@@ -1616,15 +1628,28 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         }
       }
       
+      let notesChanged = false;
+      let noteUserName = 'System';
       if (input.notes !== undefined && input.notes !== previousTask.notes) {
         const noteUser = userId ? await storage.getUser(userId) : null;
-        const noteUserName = noteUser ? `${noteUser.firstName || ''} ${noteUser.lastName || ''}`.trim() || noteUser.email || 'Unknown' : 'System';
+        noteUserName = noteUser ? `${noteUser.firstName || ''} ${noteUser.lastName || ''}`.trim() || noteUser.email || 'Unknown' : 'System';
         (input as any).notesUpdatedAt = new Date();
         (input as any).notesUpdatedBy = userId;
         (input as any).notesUpdatedByName = noteUserName;
+        notesChanged = true;
       }
 
       const updated = await storage.updateTask(taskId, input);
+
+      if (notesChanged) {
+        await storage.createTaskNotesHistory({
+          taskId,
+          changedBy: userId || null,
+          changedByName: noteUserName,
+          previousNotes: previousTask.notes || null,
+          newNotes: input.notes || null,
+        });
+      }
       
       // Build change summary
       const changes: string[] = [];
@@ -1800,6 +1825,25 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     } catch (err) {
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching task history" : classified.message });
+    }
+  });
+
+  app.get('/api/tasks/:id/notes-history', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const taskId = Number(req.params.id);
+      const task = await storage.getTask(taskId);
+      if (!task) return res.status(404).json({ message: 'Task not found' });
+      const project = await storage.getProject(task.projectId);
+      if (project && !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const history = await storage.getTaskNotesHistory(taskId);
+      res.json(history);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching notes history" : classified.message });
     }
   });
 

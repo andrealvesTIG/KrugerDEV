@@ -7,7 +7,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { format, addDays, differenceInDays, parseISO, eachDayOfInterval, startOfMonth, endOfMonth } from "date-fns";
 import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, calculateStartDateFromEndAndDuration, parseDurationInput, formatDuration } from "@/lib/workingDays";
 import { calculateCPM, type CPMResult } from "@/lib/cpm";
-import { useUpdateTask, useCreateTask, useDeleteTask, useAddTaskDependency, useRemoveTaskDependency, useReorderTask, useProjectDependencies, useBulkUpdateTasks, useBulkDeleteTasks } from "@/hooks/use-tasks";
+import { useUpdateTask, useCreateTask, useDeleteTask, useAddTaskDependency, useRemoveTaskDependency, useReorderTask, useProjectDependencies, useBulkUpdateTasks, useBulkDeleteTasks, useTaskNotesHistory } from "@/hooks/use-tasks";
 import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useProjectTaskAssignments, useResources, useCreateResource } from "@/hooks/use-resources";
 import { useCustomFieldDefinitions, useProjectTaskCustomFieldValues, useUpdateTaskCustomFieldValue, useUpdateCustomFieldDefinition } from "@/hooks/use-custom-fields";
 import { useAuth } from "@/hooks/use-auth";
@@ -37,7 +37,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Loader2, Plus, Trash2, Pencil, Check, X, GripVertical, Flag, Columns3, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, Search, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown, Undo2, Redo2, FolderKanban, RefreshCw, Focus, Link2, Link as LinkIcon, IndentIncrease, IndentDecrease, Type, Lock as LockIcon, Calendar as CalendarIcon, ClipboardPaste } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, Check, X, GripVertical, Flag, Columns3, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, Search, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown, Undo2, Redo2, FolderKanban, RefreshCw, Focus, Link2, Link as LinkIcon, IndentIncrease, IndentDecrease, Type, Lock as LockIcon, Calendar as CalendarIcon, ClipboardPaste, History } from "lucide-react";
 
 export { type ZoomLevel, type GanttColumn, type GanttColumnConfig, GANTT_COLUMNS, COLUMN_CATEGORIES, DEFAULT_GANTT_COLUMNS };
 
@@ -501,16 +501,19 @@ interface NotesCellProps {
   onEditingChange?: (editing: boolean) => void;
   notesUpdatedAt?: string | Date | null;
   notesUpdatedByName?: string | null;
+  taskId?: number;
 }
 
-const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, externalEditing, initialCharacter, onEditingChange, notesUpdatedAt, notesUpdatedByName }: NotesCellProps) {
+const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, externalEditing, initialCharacter, onEditingChange, notesUpdatedAt, notesUpdatedByName, taskId }: NotesCellProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [popoverSize, setPopoverSize] = useState({ width: 320, height: 0 });
   const resizeRef = useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(null);
   const popoverContentRef = useRef<HTMLDivElement>(null);
+  const { data: notesHistory, isLoading: historyLoading } = useTaskNotesHistory(showHistory && taskId ? taskId : null);
 
   useEffect(() => {
     if (externalEditing && !isOpen) {
@@ -583,6 +586,7 @@ const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, ext
     } else {
       setIsOpen(false);
     }
+    setShowHistory(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -664,21 +668,85 @@ const NotesCell = memo(function NotesCell({ value, onSave, disabled = false, ext
                 </Button>
               </div>
             </div>
+          ) : showHistory ? (
+            <div className="flex flex-col flex-1 min-h-0">
+              <div className="px-3 pt-3 pb-2 flex items-center justify-between flex-shrink-0">
+                <span className="text-xs font-semibold text-foreground">Change History</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs px-2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowHistory(false)}
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Close
+                </Button>
+              </div>
+              <div className="px-3 pb-3 overflow-y-auto flex-1 min-h-0">
+                {historyLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : !notesHistory || notesHistory.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-4">No change history yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {notesHistory.map((entry) => (
+                      <div key={entry.id} className="border rounded-md p-2">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <span className="text-[10px] font-medium text-foreground">{entry.changedByName || 'Unknown'}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {entry.changedAt ? format(new Date(entry.changedAt), 'MMM d, yyyy h:mm a') : ''}
+                          </span>
+                        </div>
+                        {entry.previousNotes && (
+                          <div className="mb-1">
+                            <span className="text-[10px] font-medium text-muted-foreground">Previous:</span>
+                            <p className="text-[11px] text-muted-foreground/80 whitespace-pre-wrap break-words line-clamp-3 mt-0.5">
+                              {entry.previousNotes}
+                            </p>
+                          </div>
+                        )}
+                        <div>
+                          <span className="text-[10px] font-medium text-muted-foreground">{entry.previousNotes ? 'Changed to:' : 'Added:'}</span>
+                          <p className="text-[11px] text-foreground whitespace-pre-wrap break-words line-clamp-3 mt-0.5">
+                            {entry.newNotes || '(cleared)'}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           ) : (
             <div className="flex flex-col flex-1 min-h-0">
               <div className="px-3 pt-3 pb-2 flex items-center justify-between flex-shrink-0">
                 <span className="text-xs font-semibold text-foreground">Note</span>
-                {!disabled && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs px-2 text-muted-foreground hover:text-foreground"
-                    onClick={handleStartEdit}
-                  >
-                    <Pencil className="h-3 w-3 mr-1" />
-                    Edit
-                  </Button>
-                )}
+                <div className="flex items-center gap-1">
+                  {taskId && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs px-2 text-muted-foreground hover:text-foreground"
+                      onClick={() => setShowHistory(true)}
+                    >
+                      <History className="h-3 w-3 mr-1" />
+                      History
+                    </Button>
+                  )}
+                  {!disabled && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs px-2 text-muted-foreground hover:text-foreground"
+                      onClick={handleStartEdit}
+                    >
+                      <Pencil className="h-3 w-3 mr-1" />
+                      Edit
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="px-3 pb-2 overflow-y-auto flex-1 min-h-0">
                 <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words leading-relaxed">
@@ -1881,6 +1949,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                   onEditingChange={cellEditProps.onEditingChange}
                   notesUpdatedAt={task.notesUpdatedAt}
                   notesUpdatedByName={task.notesUpdatedByName}
+                  taskId={task.id}
                 />
               );
             default:

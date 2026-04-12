@@ -13,6 +13,7 @@ import type {
   Issue, InsertIssue, UpdateIssueRequest,
   Task, InsertTask, UpdateTaskRequest,
   TaskChangeLog, InsertTaskChangeLog,
+  TaskNotesHistoryEntry, InsertTaskNotesHistory,
   ProjectChangeLog, InsertProjectChangeLog,
   RiskChangeLog, InsertRiskChangeLog,
   IssueChangeLog, InsertIssueChangeLog,
@@ -241,6 +242,8 @@ export interface ITaskStorage {
   deleteTask(id: number): Promise<void>;
   getTaskChangeLogs(taskId: number): Promise<TaskChangeLog[]>;
   createTaskChangeLog(log: InsertTaskChangeLog): Promise<TaskChangeLog>;
+  getTaskNotesHistory(taskId: number): Promise<TaskNotesHistoryEntry[]>;
+  createTaskNotesHistory(entry: InsertTaskNotesHistory): Promise<TaskNotesHistoryEntry>;
   getTaskDependencies(taskId: number): Promise<TaskDependency[]>;
   getTaskDependents(taskId: number): Promise<TaskDependency[]>;
   getProjectDependencies(projectId: number): Promise<TaskDependency[]>;
