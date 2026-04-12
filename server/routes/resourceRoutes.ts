@@ -667,6 +667,68 @@ export function registerResourceRoutes(app: Express) {
     }
   });
 
+  app.post('/api/projects/:id/team-members', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const projectId = Number(req.params.id);
+      const { resourceId } = req.body;
+      if (!resourceId || isNaN(Number(resourceId))) return res.status(400).json({ message: 'Valid resourceId is required' });
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: 'Project not found' });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const role = await getUserOrgRole(userId, project.organizationId);
+      if (role === 'viewer') return res.status(403).json({ message: 'Viewers cannot modify team membership' });
+      const resource = await storage.getResource(Number(resourceId));
+      if (!resource) return res.status(404).json({ message: 'Resource not found' });
+      if (resource.organizationId !== project.organizationId) {
+        return res.status(400).json({ message: 'Resource does not belong to the same organization' });
+      }
+      const currentInvites = resource.invitedProjectIds || [];
+      if (!currentInvites.includes(projectId)) {
+        await storage.updateResource(resource.id, {
+          invitedProjectIds: [...currentInvites, projectId]
+        });
+      }
+      res.json({ success: true });
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error adding team member" : classified.message });
+    }
+  });
+
+  app.delete('/api/projects/:id/team-members/:resourceId', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const projectId = Number(req.params.id);
+      const resourceId = Number(req.params.resourceId);
+      if (isNaN(resourceId)) return res.status(400).json({ message: 'Valid resourceId is required' });
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: 'Project not found' });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const role = await getUserOrgRole(userId, project.organizationId);
+      if (role === 'viewer') return res.status(403).json({ message: 'Viewers cannot modify team membership' });
+      const resource = await storage.getResource(resourceId);
+      if (!resource) return res.status(404).json({ message: 'Resource not found' });
+      if (resource.organizationId !== project.organizationId) {
+        return res.status(400).json({ message: 'Resource does not belong to the same organization' });
+      }
+      const currentInvites = resource.invitedProjectIds || [];
+      await storage.updateResource(resourceId, {
+        invitedProjectIds: currentInvites.filter(id => id !== projectId)
+      });
+      res.json({ success: true });
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error removing team member" : classified.message });
+    }
+  });
+
   // Get all issue resource assignments for an organization (bulk endpoint - avoids N+1 queries)
   app.get('/api/organizations/:id/issue-assignments', async (req, res) => {
     try {

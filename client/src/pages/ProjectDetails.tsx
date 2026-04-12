@@ -36,7 +36,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, ChevronDown, ChevronUp, ChevronRight, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Flag, FlagTriangleRight, ImageDown } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, ChevronDown, ChevronUp, ChevronRight, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Users, UserPlus, Flag, FlagTriangleRight, ImageDown, Mail, Briefcase } from "lucide-react";
 import { toPng } from "html-to-image";
 import ExcelJS from "exceljs";
 import { GANTT_COLUMNS, type GanttColumn } from "@/components/project/ProjectGanttView";
@@ -46,7 +46,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { format, addDays, differenceInDays, parseISO, startOfDay } from "date-fns";
 import type { Task, ProjectFinancial, Risk, User } from "@shared/schema";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
@@ -303,6 +303,7 @@ export default function ProjectDetails() {
   
   // Available tabs for pinning from the More menu
   const moreTabItems = [
+    { id: 'team', label: 'Team' },
     { id: 'scoring', label: 'Scoring' },
     { id: 'benefits', label: 'Benefits' },
     { id: 'decisions', label: 'Decisions' },
@@ -1385,12 +1386,13 @@ export default function ProjectDetails() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
-                variant={['change-requests', 'documents', 'invoices', 'status-report', 'scoring', 'benefits', 'decisions', 'lessons-learned', 'ai-agent', ...customTabs.map(t => `custom-${t.id}`)].filter(t => !pinnedTabs.includes(t)).includes(activeTab) ? 'default' : 'ghost'} 
+                variant={['team', 'change-requests', 'documents', 'invoices', 'status-report', 'scoring', 'benefits', 'decisions', 'lessons-learned', 'ai-agent', ...customTabs.map(t => `custom-${t.id}`)].filter(t => !pinnedTabs.includes(t)).includes(activeTab) ? 'default' : 'ghost'} 
                 size="sm" 
                 className="rounded-lg px-4 py-2 font-medium gap-1"
                 data-testid="button-more-tabs"
               >
-                {!pinnedTabs.includes(activeTab) && activeTab === 'change-requests' ? 'Change Requests' : 
+                {!pinnedTabs.includes(activeTab) && activeTab === 'team' ? 'Team' :
+                 !pinnedTabs.includes(activeTab) && activeTab === 'change-requests' ? 'Change Requests' : 
                  !pinnedTabs.includes(activeTab) && activeTab === 'documents' ? 'Documents' : 
                  !pinnedTabs.includes(activeTab) && activeTab === 'invoices' ? 'Invoices' :
                  !pinnedTabs.includes(activeTab) && activeTab === 'status-report' ? 'Status Report' :
@@ -1469,6 +1471,15 @@ export default function ProjectDetails() {
           </TabsContent>
           <TabsContent value="financials">
             <FinancialsTab projectId={project.id} readOnly={isProjectLocked} />
+          </TabsContent>
+          <TabsContent value="team">
+            <ProjectTeamTab 
+              projectId={project.id} 
+              organizationId={project.organizationId} 
+              projectTaskAssignments={projectTaskAssignments || []} 
+              projectName={project.name}
+              readOnly={isProjectLocked}
+            />
           </TabsContent>
           <TabsContent value="scoring">
             {project.organizationId && <ScoringTab projectId={project.id} organizationId={project.organizationId} />}
@@ -2928,6 +2939,289 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
           <p className="text-sm mt-2">Go to Organization Settings to add sections and fields.</p>
         </Card>
       )}
+    </div>
+  );
+}
+
+function ProjectTeamTab({ 
+  projectId, 
+  organizationId, 
+  projectTaskAssignments, 
+  projectName,
+  readOnly = false 
+}: { 
+  projectId: number; 
+  organizationId: number | null; 
+  projectTaskAssignments: (import("@shared/schema").TaskResourceAssignment & { resource: import("@shared/schema").Resource })[]; 
+  projectName: string;
+  readOnly?: boolean;
+}) {
+  const { data: allResources } = useResources(organizationId);
+  const { data: projectTasks } = useTasks(projectId);
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
+
+  const teamMembers = useMemo(() => {
+    const resourceMap = new Map<number, {
+      resource: import("@shared/schema").Resource;
+      taskCount: number;
+      taskNames: string[];
+      totalAllocation: number;
+    }>();
+
+    for (const assignment of projectTaskAssignments) {
+      if (!assignment.resource) continue;
+      const existing = resourceMap.get(assignment.resourceId);
+      const taskName = projectTasks?.find(t => t.id === assignment.taskId)?.name || '';
+      if (existing) {
+        existing.taskCount++;
+        if (taskName && !existing.taskNames.includes(taskName)) {
+          existing.taskNames.push(taskName);
+        }
+        existing.totalAllocation += assignment.allocationPercentage || 100;
+      } else {
+        resourceMap.set(assignment.resourceId, {
+          resource: assignment.resource,
+          taskCount: 1,
+          taskNames: taskName ? [taskName] : [],
+          totalAllocation: assignment.allocationPercentage || 100,
+        });
+      }
+    }
+
+    if (allResources) {
+      for (const resource of allResources) {
+        if (resourceMap.has(resource.id)) continue;
+        if (resource.invitedProjectIds && resource.invitedProjectIds.includes(projectId)) {
+          resourceMap.set(resource.id, {
+            resource,
+            taskCount: 0,
+            taskNames: [],
+            totalAllocation: 0,
+          });
+        }
+      }
+    }
+
+    return Array.from(resourceMap.values()).sort((a, b) => 
+      a.resource.displayName.localeCompare(b.resource.displayName)
+    );
+  }, [projectTaskAssignments, projectTasks, allResources, projectId]);
+
+  const availableResources = useMemo(() => {
+    if (!allResources) return [];
+    const assignedIds = new Set(teamMembers.map(m => m.resource.id));
+    return allResources
+      .filter(r => r.isActive && !assignedIds.has(r.id))
+      .filter(r => {
+        if (!searchValue) return true;
+        const search = searchValue.toLowerCase();
+        return (
+          r.displayName.toLowerCase().includes(search) ||
+          (r.email && r.email.toLowerCase().includes(search)) ||
+          (r.title && r.title.toLowerCase().includes(search)) ||
+          (r.department && r.department.toLowerCase().includes(search))
+        );
+      });
+  }, [allResources, teamMembers, searchValue]);
+
+  const addResourceToProject = async (resourceId: number) => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/team-members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resourceId }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to add team member");
+      qc.invalidateQueries({ queryKey: ["/api/projects", projectId, "task-resource-assignments"] });
+      qc.invalidateQueries({ queryKey: ["/api/resources"] });
+      toast({ title: "Team member added", description: "Resource has been added to the project team." });
+      setSearchValue("");
+    } catch {
+      toast({ title: "Error", description: "Failed to add team member", variant: "destructive" });
+    }
+  };
+
+  const removeFromTeam = async (resourceId: number) => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/team-members/${resourceId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to remove team member");
+      qc.invalidateQueries({ queryKey: ["/api/projects", projectId, "task-resource-assignments"] });
+      qc.invalidateQueries({ queryKey: ["/api/resources"] });
+      toast({ title: "Removed", description: "Team member removed from the project." });
+    } catch {
+      toast({ title: "Error", description: "Failed to remove team member", variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              <div>
+                <CardTitle className="text-lg">Project Team</CardTitle>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {teamMembers.length} team member{teamMembers.length !== 1 ? 's' : ''} assigned to this project
+                </p>
+              </div>
+            </div>
+            {!readOnly && (
+              <Dialog open={addMemberOpen} onOpenChange={(open) => { setAddMemberOpen(open); if (!open) setSearchValue(""); }}>
+                <Button size="sm" className="gap-2" onClick={() => setAddMemberOpen(true)}>
+                  <UserPlus className="h-4 w-4" />
+                  Add Team Member
+                </Button>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <UserPlus className="h-5 w-5" />
+                      Add Team Member
+                    </DialogTitle>
+                    <DialogDescription>
+                      Select a resource to add to the project team.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="py-2">
+                    <Input
+                      placeholder="Search by name, email, title, or department..."
+                      value={searchValue}
+                      onChange={(e) => setSearchValue(e.target.value)}
+                      className="mb-3"
+                      autoFocus
+                    />
+                    <ScrollArea className="h-[300px]">
+                      <div className="space-y-1">
+                        {availableResources.length === 0 ? (
+                          <div className="text-center py-8 text-muted-foreground text-sm">
+                            {searchValue ? "No matching resources found" : "All resources are already on the team"}
+                          </div>
+                        ) : (
+                          availableResources.map(resource => (
+                            <div
+                              key={resource.id}
+                              className="flex items-center justify-between p-3 rounded-lg hover:bg-accent cursor-pointer transition-colors"
+                              onClick={() => {
+                                addResourceToProject(resource.id);
+                                setAddMemberOpen(false);
+                              }}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-primary-foreground text-sm font-semibold shrink-0">
+                                  {resource.displayName.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <div className="font-medium text-sm">{resource.displayName}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {[resource.title, resource.department].filter(Boolean).join(' · ') || resource.email || 'No details'}
+                                  </div>
+                                </div>
+                              </div>
+                              <Plus className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {teamMembers.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Users className="h-12 w-12 text-muted-foreground/30 mb-3" />
+              <h3 className="text-sm font-medium text-muted-foreground">No team members yet</h3>
+              <p className="text-xs text-muted-foreground/70 mt-1 max-w-sm">
+                Resources assigned to tasks will automatically appear here. You can also add team members manually.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {teamMembers.map(({ resource, taskCount, taskNames }) => (
+                <div
+                  key={resource.id}
+                  className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/30 transition-colors group"
+                >
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-primary-foreground text-sm font-semibold shrink-0">
+                      {resource.displayName.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <Link href={`/resources/${resource.id}`} className="font-medium text-sm hover:underline truncate">
+                          {resource.displayName}
+                        </Link>
+                        {resource.resourceType && (
+                          <Badge variant="outline" className="text-[10px] shrink-0">
+                            {resource.resourceType}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                        {resource.title && (
+                          <span className="flex items-center gap-1">
+                            <Briefcase className="h-3 w-3" />
+                            {resource.title}
+                          </span>
+                        )}
+                        {resource.email && (
+                          <span className="flex items-center gap-1">
+                            <Mail className="h-3 w-3" />
+                            {resource.email}
+                          </span>
+                        )}
+                        {resource.department && (
+                          <span className="truncate">{resource.department}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Badge variant="secondary" className="text-xs">
+                          {taskCount} task{taskCount !== 1 ? 's' : ''}
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="max-w-[250px]">
+                        <p className="font-medium text-xs mb-1">Assigned Tasks:</p>
+                        <ul className="text-xs space-y-0.5">
+                          {taskNames.slice(0, 10).map((name, i) => (
+                            <li key={i} className="truncate">• {name}</li>
+                          ))}
+                          {taskNames.length > 10 && (
+                            <li className="text-muted-foreground">...and {taskNames.length - 10} more</li>
+                          )}
+                        </ul>
+                      </TooltipContent>
+                    </Tooltip>
+                    {!readOnly && (
+                      <button
+                        onClick={() => removeFromTeam(resource.id)}
+                        className="opacity-0 group-hover:opacity-100 rounded-full p-1.5 hover:bg-destructive/10 hover:text-destructive transition-all"
+                        title="Remove from team"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
