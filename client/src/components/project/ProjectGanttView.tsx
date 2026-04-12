@@ -2355,6 +2355,47 @@ function ProjectGanttView({
   const [pasteProgress, setPasteProgress] = useState<{ open: boolean; total: number; completed: number; phase: string } | null>(null);
   const pasteCancelledRef = useRef(false);
   const [clearProgress, setClearProgress] = useState<{ open: boolean; total: number; completed: number; phase: string } | null>(null);
+  const [pendingClear, setPendingClear] = useState<{
+    taskUpdatesForBulk: Array<{ taskId: number; updates: Record<string, unknown> }>;
+    cfClearOps: Array<{ taskId: number; fieldDefId: number }>;
+    totalCells: number;
+    projectId: number;
+  } | null>(null);
+
+  const executePendingClear = useCallback(async () => {
+    if (!pendingClear) return;
+    const { taskUpdatesForBulk, cfClearOps, totalCells, projectId: pid } = pendingClear;
+    setPendingClear(null);
+    const totalOps = (taskUpdatesForBulk.length > 0 ? 1 : 0) + cfClearOps.length;
+    let completed = 0;
+    setClearProgress({ open: true, total: totalOps, completed: 0, phase: `Clearing ${totalCells} cell${totalCells !== 1 ? 's' : ''}...` });
+    try {
+      if (taskUpdatesForBulk.length > 0) {
+        setClearProgress(p => p ? { ...p, phase: `Clearing ${taskUpdatesForBulk.length} task${taskUpdatesForBulk.length !== 1 ? 's' : ''}...` } : p);
+        await bulkUpdate.mutateAsync({ taskUpdates: taskUpdatesForBulk, projectId: pid });
+        completed++;
+        setClearProgress(p => p ? { ...p, completed } : p);
+      }
+      for (let ci = 0; ci < cfClearOps.length; ci++) {
+        const { taskId, fieldDefId } = cfClearOps[ci];
+        setClearProgress(p => p ? { ...p, phase: `Clearing custom field ${ci + 1} of ${cfClearOps.length}...` } : p);
+        try {
+          await updateTaskCfValue.mutateAsync({ taskId, fieldDefinitionId: fieldDefId, value: null });
+        } catch {}
+        completed++;
+        setClearProgress(p => p ? { ...p, completed } : p);
+      }
+      if (cfClearOps.length > 0) {
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${pid}/task-custom-field-values`] });
+      }
+      toast({ title: "Cleared", description: `${totalCells} cell${totalCells !== 1 ? 's' : ''} cleared successfully` });
+    } catch {
+      toast({ title: "Clear failed", description: "Some cells could not be cleared", variant: "destructive" });
+    } finally {
+      setClearProgress(null);
+    }
+  }, [pendingClear, bulkUpdate, updateTaskCfValue, queryClient, toast]);
+
   const cellAnchorRef = useRef<CellPosition | null>(null);
   const isDraggingCellsRef = useRef(false);
 
@@ -3643,39 +3684,10 @@ function ProjectGanttView({
           }
 
           const totalCells = taskUpdatesForBulk.reduce((sum, tu) => sum + Object.keys(tu.updates).length, 0) + cfClearOps.length;
-
-          (async () => {
-            let completed = 0;
-            setClearProgress({ open: true, total: totalOps, completed: 0, phase: `Clearing ${totalCells} cell${totalCells !== 1 ? 's' : ''}...` });
-            try {
-              if (taskUpdatesForBulk.length > 0) {
-                const pid = currentVisibleTasks[minRow]?.projectId;
-                if (pid) {
-                  setClearProgress(p => p ? { ...p, phase: `Clearing ${taskUpdatesForBulk.length} task${taskUpdatesForBulk.length !== 1 ? 's' : ''}...` } : p);
-                  await bulkUpdate.mutateAsync({ taskUpdates: taskUpdatesForBulk, projectId: pid });
-                  completed++;
-                  setClearProgress(p => p ? { ...p, completed } : p);
-                }
-              }
-              for (let ci = 0; ci < cfClearOps.length; ci++) {
-                const { taskId, fieldDefId } = cfClearOps[ci];
-                setClearProgress(p => p ? { ...p, phase: `Clearing custom field ${ci + 1} of ${cfClearOps.length}...` } : p);
-                try {
-                  await updateTaskCfValue.mutateAsync({ taskId, fieldDefinitionId: fieldDefId, value: null });
-                } catch {}
-                completed++;
-                setClearProgress(p => p ? { ...p, completed } : p);
-              }
-              if (cfClearOps.length > 0) {
-                queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/task-custom-field-values`] });
-              }
-              toast({ title: "Cleared", description: `${totalCells} cell${totalCells !== 1 ? 's' : ''} cleared successfully` });
-            } catch {
-              toast({ title: "Clear failed", description: "Some cells could not be cleared", variant: "destructive" });
-            } finally {
-              setClearProgress(null);
-            }
-          })();
+          const pid = currentVisibleTasks[minRow]?.projectId;
+          if (pid) {
+            setPendingClear({ taskUpdatesForBulk, cfClearOps, totalCells, projectId: pid });
+          }
         } else if (!READ_ONLY_COLUMNS.includes(currentFocused.columnId) && (clearableColumns.includes(currentFocused.columnId) || currentFocused.columnId.startsWith('cf_'))) {
           e.preventDefault();
           if (currentFocused.columnId.startsWith('cf_')) {
@@ -6181,6 +6193,24 @@ function ProjectGanttView({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+      {pendingClear && (
+        <AlertDialog open={true} onOpenChange={(open) => { if (!open) setPendingClear(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Clear Selected Cells</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to clear {pendingClear.totalCells} cell{pendingClear.totalCells !== 1 ? 's' : ''}? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setPendingClear(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={executePendingClear}>
+                Clear {pendingClear.totalCells} Cell{pendingClear.totalCells !== 1 ? 's' : ''}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
       {clearProgress && (
         <Dialog open={clearProgress.open} onOpenChange={() => {}}>
