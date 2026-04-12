@@ -467,18 +467,6 @@ function ProjectKanbanView({
       )}>
         <div className="flex items-center gap-3 p-3 border-b bg-muted/30 flex-wrap">
           <div className="flex items-center gap-2">
-            <Checkbox
-              id="show-summary"
-              checked={showSummary}
-              onCheckedChange={(checked) => setShowSummary(!!checked)}
-              data-testid="kanban-show-summary"
-            />
-            <label htmlFor="show-summary" className="text-sm cursor-pointer select-none">
-              Show Summary
-            </label>
-          </div>
-          
-          <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Group by:</span>
             <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupByField)}>
               <SelectTrigger className="h-8 w-[160px] text-xs" data-testid="kanban-group-by">
