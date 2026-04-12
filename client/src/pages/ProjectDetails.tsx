@@ -258,6 +258,8 @@ export default function ProjectDetails() {
   const [isExportingPng, setIsExportingPng] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const csvImportInputRef = useRef<HTMLInputElement>(null);
+  const sidebarScrollRef = useRef<HTMLDivElement>(null);
+  const mainContentRef = useRef<HTMLDivElement>(null);
   const deleteProjectMutation = useDeleteProject();
   const [sectionsCollapsed, setSectionsCollapsed] = useState({
     workflow: false,
@@ -1069,7 +1071,7 @@ export default function ProjectDetails() {
               <X className="h-3.5 w-3.5" />
             </Button>
           </div>
-          <ScrollArea className="flex-1">
+          <ScrollArea className="flex-1" ref={sidebarScrollRef}>
             <div className="py-1">
               {sortedProjects.map(p => {
                 const isCurrent = p.id === id;
@@ -1095,7 +1097,7 @@ export default function ProjectDetails() {
         </div>
       </div>
 
-      <div className="flex-1 min-w-0 overflow-y-auto">
+      <div ref={mainContentRef} className="flex-1 min-w-0 overflow-y-auto">
         <div className="px-4 py-4 md:px-8 md:py-8 space-y-8">
       {/* Header */}
       <div>

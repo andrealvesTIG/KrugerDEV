@@ -53,6 +53,7 @@ export function useProject(id: number) {
       return api.projects.get.responses[200].parse(await res.json());
     },
     enabled: !!id,
+    placeholderData: (prev: unknown) => prev,
   });
 }
 
