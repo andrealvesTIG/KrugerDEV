@@ -36,7 +36,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Users, UserPlus, Flag, FlagTriangleRight, ImageDown, Mail, Briefcase, ZoomIn, ZoomOut, Maximize2, ListTodo, MoreVertical, UserMinus } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Users, UserPlus, Flag, FlagTriangleRight, ImageDown, Mail, Briefcase, ZoomIn, ZoomOut, Maximize2, ListTodo, MoreVertical, UserMinus, PanelLeft } from "lucide-react";
 import { toPng } from "html-to-image";
 import ExcelJS from "exceljs";
 import { GANTT_COLUMNS, type GanttColumn } from "@/components/project/ProjectGanttView";
@@ -51,6 +51,7 @@ import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AICreateButton } from "@/components/layout/AICreateButton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -283,7 +284,12 @@ export default function ProjectDetails() {
   const { data: customTabs = [] } = useCustomProjectTabs(currentOrganization?.id);
   const [, setLocation] = useLocation();
 
+  const [projectListOpen, setProjectListOpen] = useState(false);
   const { data: allOrgProjects } = useProjects(currentOrganization?.id);
+  const sortedProjects = useMemo(() => {
+    if (!allOrgProjects) return [];
+    return [...allOrgProjects].sort((a, b) => a.name.localeCompare(b.name));
+  }, [allOrgProjects]);
   const { prevProject, nextProject } = useMemo(() => {
     if (!allOrgProjects || allOrgProjects.length < 2) return { prevProject: null, nextProject: null };
     const sorted = [...allOrgProjects].sort((a, b) => a.name.localeCompare(b.name));
@@ -1051,8 +1057,23 @@ export default function ProjectDetails() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        {(prevProject || nextProject) && (
+        {sortedProjects.length > 1 && (
           <div className="flex items-center gap-1 mb-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 text-muted-foreground"
+                  onClick={() => setProjectListOpen(true)}
+                  data-testid="button-project-list-sidebar"
+                >
+                  <PanelLeft className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Browse Projects</TooltipContent>
+            </Tooltip>
+            <span className="text-muted-foreground/40 text-[11px]">|</span>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -1604,6 +1625,40 @@ export default function ProjectDetails() {
       />
 
       <AICreateButton projectId={project.id} projectName={project.name} variant="fab" />
+
+      <Sheet open={projectListOpen} onOpenChange={setProjectListOpen}>
+        <SheetContent side="left" className="w-72 p-0">
+          <SheetHeader className="px-4 py-3 border-b">
+            <SheetTitle className="text-sm">Projects</SheetTitle>
+          </SheetHeader>
+          <ScrollArea className="h-[calc(100vh-60px)]">
+            <div className="py-1">
+              {sortedProjects.map(p => {
+                const isCurrent = p.id === id;
+                const healthDot = p.health === 'Green' ? 'bg-emerald-500' : p.health === 'Yellow' ? 'bg-amber-500' : 'bg-rose-500';
+                return (
+                  <div
+                    key={p.id}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 cursor-pointer text-sm transition-colors",
+                      isCurrent ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted/50 text-foreground"
+                    )}
+                    onClick={() => {
+                      setLocation(`/projects/${p.id}`);
+                      setProjectListOpen(false);
+                    }}
+                    data-testid={`sidebar-project-${p.id}`}
+                  >
+                    <div className={cn("h-2 w-2 rounded-full flex-shrink-0", healthDot)} />
+                    <span className="truncate">{p.name}</span>
+                    {isCurrent && <ChevronRight className="h-3 w-3 ml-auto flex-shrink-0 text-primary" />}
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
