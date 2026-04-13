@@ -3051,7 +3051,7 @@ export const dailyLogs = pgTable("daily_logs", {
   index("daily_logs_project_id_idx").on(table.projectId),
   index("daily_logs_org_id_idx").on(table.organizationId),
   index("daily_logs_log_date_idx").on(table.logDate),
-  uniqueIndex("daily_logs_project_date_unique").on(table.projectId, table.logDate),
+  uniqueIndex("daily_logs_project_date_unique").on(table.projectId, table.logDate).where(sql`deleted_at IS NULL`),
 ]);
 
 export const insertDailyLogSchema = createInsertSchema(dailyLogs).omit({

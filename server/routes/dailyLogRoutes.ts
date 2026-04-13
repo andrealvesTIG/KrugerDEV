@@ -279,7 +279,7 @@ export function registerDailyLogRoutes(app: Express) {
       const { labor, equipment, ...logFields } = parsed;
 
       const result = await db.transaction(async (tx) => {
-        const updateData: Record<string, any> = { updatedAt: new Date() };
+        const updateData: Partial<typeof dailyLogs.$inferInsert> & { updatedAt: Date } = { updatedAt: new Date() };
         if (logFields.logDate !== undefined) updateData.logDate = logFields.logDate;
         if (logFields.weatherCondition !== undefined) updateData.weatherCondition = logFields.weatherCondition || null;
         if (logFields.temperature !== undefined) updateData.temperature = logFields.temperature || null;

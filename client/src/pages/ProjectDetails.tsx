@@ -338,6 +338,24 @@ export default function ProjectDetails() {
     { id: 'financials', label: 'Financials' },
   ];
   
+  const isModuleHidden = (moduleKey: string): boolean => {
+    const sidebarStructure = currentOrganization?.sidebarStructure as Array<{ items: Array<{ type: string; key?: string; hidden?: boolean }> }> | null;
+    if (sidebarStructure && Array.isArray(sidebarStructure)) {
+      for (const group of sidebarStructure) {
+        const item = group.items?.find(i => i.type === "module" && i.key === moduleKey);
+        if (item) return item.hidden === true;
+      }
+    } else {
+      const hiddenModules = (currentOrganization as Record<string, unknown>)?.hiddenModules as string[] | undefined;
+      if (hiddenModules?.includes(moduleKey)) return true;
+    }
+    return false;
+  };
+
+  const moduleGatedTabs: Record<string, string> = {
+    'daily-logs': 'daily-logs',
+  };
+
   // Available tabs for pinning from the More menu
   const moreTabItems = [
     { id: 'scoring', label: 'Scoring' },
@@ -350,7 +368,10 @@ export default function ProjectDetails() {
     { id: 'status-report', label: 'Status Report' },
     { id: 'ai-agent', label: 'AI Agent' },
     { id: 'daily-logs', label: 'Daily Logs' },
-  ];
+  ].filter(tab => {
+    const moduleKey = moduleGatedTabs[tab.id];
+    return !moduleKey || !isModuleHidden(moduleKey);
+  });
   
   // All available tab IDs for ordering
   const allTabIds = [...defaultMainTabs.map(t => t.id), ...moreTabItems.map(t => t.id)];
@@ -1672,9 +1693,11 @@ export default function ProjectDetails() {
           <TabsContent value="ai-agent">
             <ProjectAgentTab projectId={project.id} />
           </TabsContent>
-          <TabsContent value="daily-logs">
-            <DailyLogsTab projectId={project.id} />
-          </TabsContent>
+          {!isModuleHidden('daily-logs') && (
+            <TabsContent value="daily-logs">
+              <DailyLogsTab projectId={project.id} />
+            </TabsContent>
+          )}
           {customTabs.map((tab) => (
             <TabsContent key={tab.id} value={`custom-${tab.id}`}>
               <CustomTabRenderer tabId={tab.id} project={project} onUpdate={updateProject} />

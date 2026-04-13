@@ -33,6 +33,18 @@ interface EquipmentEntry {
   notes: string;
 }
 
+interface DailyLogFormData {
+  logDate: string;
+  weatherCondition: string | null;
+  temperature: string | null;
+  windSpeed: string | null;
+  precipitation: string | null;
+  visitors: string | null;
+  notes: string | null;
+  labor: LaborEntry[];
+  equipment: EquipmentEntry[];
+}
+
 export default function DailyLogsTab({ projectId }: { projectId: number }) {
   const [dateRange, setDateRange] = useState<{ from?: string; to?: string }>({});
   const { data: logs = [], isLoading } = useDailyLogs(projectId, dateRange.from, dateRange.to);
@@ -143,8 +155,8 @@ export default function DailyLogsTab({ projectId }: { projectId: number }) {
             await createMutation.mutateAsync(data);
             toast({ title: "Daily log created" });
             setIsCreateOpen(false);
-          } catch (err: any) {
-            toast({ title: "Error", description: err.message || "Failed to create daily log", variant: "destructive" });
+          } catch (err) {
+            toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to create daily log", variant: "destructive" });
           }
         }}
         isLoading={createMutation.isPending}
@@ -171,8 +183,8 @@ export default function DailyLogsTab({ projectId }: { projectId: number }) {
               toast({ title: "Daily log updated" });
               setIsEditOpen(false);
               setSelectedLogId(null);
-            } catch (err: any) {
-              toast({ title: "Error", description: err.message || "Failed to update", variant: "destructive" });
+            } catch (err) {
+              toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to update", variant: "destructive" });
             }
           }}
           isLoading={updateMutation.isPending}
@@ -196,8 +208,8 @@ export default function DailyLogsTab({ projectId }: { projectId: number }) {
                     await deleteMutation.mutateAsync(deleteConfirmId);
                     toast({ title: "Daily log deleted" });
                     setDeleteConfirmId(null);
-                  } catch (err: any) {
-                    toast({ title: "Error", description: err.message, variant: "destructive" });
+                  } catch (err) {
+                    toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to delete", variant: "destructive" });
                   }
                 }
               }}
@@ -226,7 +238,7 @@ function SummaryCard({ icon, label, value }: { icon: React.ReactNode; label: str
   );
 }
 
-function DailyLogRow({ log, onView, onEdit, onDelete }: { log: any; onView: () => void; onEdit: () => void; onDelete: () => void }) {
+function DailyLogRow({ log, onView, onEdit, onDelete }: { log: DailyLogWithDetails; onView: () => void; onEdit: () => void; onDelete: () => void }) {
   const weatherIcon = log.weatherCondition ? getWeatherEmoji(log.weatherCondition) : null;
 
   return (
@@ -292,7 +304,7 @@ function DailyLogForm({
   submitLabel,
 }: {
   initialData?: DailyLogWithDetails;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: DailyLogFormData) => void;
   isLoading: boolean;
   submitLabel: string;
 }) {
@@ -326,17 +338,17 @@ function DailyLogForm({
 
   const addLabor = () => setLaborEntries([...laborEntries, { company: "", trade: "", headcount: 0, hoursWorked: 0, notes: "" }]);
   const removeLabor = (idx: number) => setLaborEntries(laborEntries.filter((_, i) => i !== idx));
-  const updateLabor = (idx: number, field: keyof LaborEntry, value: any) => {
+  const updateLabor = <K extends keyof LaborEntry>(idx: number, field: K, value: LaborEntry[K]) => {
     const updated = [...laborEntries];
-    (updated[idx] as any)[field] = value;
+    updated[idx] = { ...updated[idx], [field]: value };
     setLaborEntries(updated);
   };
 
   const addEquipment = () => setEquipmentEntries([...equipmentEntries, { equipmentName: "", quantity: 1, hoursUsed: 0, status: "Active", notes: "" }]);
   const removeEquipment = (idx: number) => setEquipmentEntries(equipmentEntries.filter((_, i) => i !== idx));
-  const updateEquipment = (idx: number, field: keyof EquipmentEntry, value: any) => {
+  const updateEquipment = <K extends keyof EquipmentEntry>(idx: number, field: K, value: EquipmentEntry[K]) => {
     const updated = [...equipmentEntries];
-    (updated[idx] as any)[field] = value;
+    updated[idx] = { ...updated[idx], [field]: value };
     setEquipmentEntries(updated);
   };
 
@@ -520,7 +532,7 @@ function CreateDailyLogDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: DailyLogFormData) => void;
   isLoading: boolean;
 }) {
   return (
@@ -548,7 +560,7 @@ function EditDailyLogDialog({
   onClose: () => void;
   projectId: number;
   logId: number;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: DailyLogFormData) => void;
   isLoading: boolean;
 }) {
   const { data: log, isLoading: isLoadingLog } = useDailyLog(projectId, logId);
