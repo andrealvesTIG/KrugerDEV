@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
-import { Plus, Trash2, Pencil, MessageSquare, Eye, Search, Send, Loader2, Download } from "lucide-react";
+import { Plus, Trash2, Pencil, MessageSquare, Eye, Search, Send, Loader2, Download, Paperclip, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
@@ -90,6 +90,7 @@ export default function RFIsTab({ projectId }: { projectId: number }) {
             <DropdownMenuContent>
               <DropdownMenuItem onClick={() => exportRfisToFile(rfis, "csv")}>Export CSV</DropdownMenuItem>
               <DropdownMenuItem onClick={() => exportRfisToFile(rfis, "xlsx")}>Export Excel</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportRfisToFile(rfis, "pdf")}>Export PDF</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button size="sm" onClick={() => setIsCreateOpen(true)}>
@@ -273,6 +274,23 @@ function RfiForm({
   const [costImpact, setCostImpact] = useState(initialData?.costImpact || "");
   const [scheduleImpact, setScheduleImpact] = useState(initialData?.scheduleImpact || "");
   const [references, setReferences] = useState(initialData?.references || "");
+  const [attachments, setAttachments] = useState<Array<{ name: string; url: string }>>(
+    (initialData?.attachments as Array<{ name: string; url: string }>) || []
+  );
+  const [newAttachName, setNewAttachName] = useState("");
+  const [newAttachUrl, setNewAttachUrl] = useState("");
+
+  const addAttachment = () => {
+    if (newAttachName && newAttachUrl && /^https?:\/\//i.test(newAttachUrl)) {
+      setAttachments([...attachments, { name: newAttachName, url: newAttachUrl }]);
+      setNewAttachName("");
+      setNewAttachUrl("");
+    }
+  };
+
+  const removeAttachment = (idx: number) => {
+    setAttachments(attachments.filter((_, i) => i !== idx));
+  };
 
   const handleSubmit = () => {
     onSubmit({
@@ -285,6 +303,7 @@ function RfiForm({
       costImpact: costImpact || null,
       scheduleImpact: scheduleImpact || null,
       references: references || null,
+      attachments: attachments.length > 0 ? attachments : null,
     });
   };
 
@@ -341,6 +360,29 @@ function RfiForm({
       <div>
         <Label>References</Label>
         <Input value={references} onChange={(e) => setReferences(e.target.value)} placeholder="Drawing numbers, spec sections, etc." />
+      </div>
+      <div>
+        <Label className="flex items-center gap-1"><Paperclip className="h-3 w-3" /> Attachments</Label>
+        {attachments.length > 0 && (
+          <div className="space-y-1 mt-1 mb-2">
+            {attachments.map((att, idx) => (
+              <div key={idx} className="flex items-center gap-2 text-sm bg-muted/50 rounded px-2 py-1">
+                <span className="truncate flex-1">{att.name}</span>
+                <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs truncate max-w-[200px]">{att.url}</a>
+                <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={() => removeAttachment(idx)}><X className="h-3 w-3" /></Button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2 items-end">
+          <div className="flex-1">
+            <Input value={newAttachName} onChange={(e) => setNewAttachName(e.target.value)} placeholder="File name" className="text-sm h-8" />
+          </div>
+          <div className="flex-1">
+            <Input value={newAttachUrl} onChange={(e) => setNewAttachUrl(e.target.value)} placeholder="https://..." className="text-sm h-8" />
+          </div>
+          <Button type="button" variant="outline" size="sm" className="h-8" onClick={addAttachment} disabled={!newAttachName || !newAttachUrl || !/^https?:\/\//i.test(newAttachUrl)}>Add</Button>
+        </div>
       </div>
       <Button onClick={handleSubmit} disabled={isLoading || !subject || !question} className="w-full">
         {isLoading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}

@@ -13,6 +13,7 @@ import cron from "node-cron";
 import { checkAndSendDueReports } from "./services/scheduledReports";
 import { runScheduledReminders } from "./services/timesheetReminderEngine";
 import { checkAndRunDueAgentActions } from "./services/projectAgentService";
+import { checkDueDateNotifications } from "./services/dueDateNotifications";
 import { cleanupDuplicateBillingCycles } from "./services/billing";
 
 process.on('uncaughtException', (err) => {
@@ -274,6 +275,18 @@ app.use((req, res, next) => {
         }
       });
       log("AI Project Agent cron job started (every 15 minutes)", "cron");
+
+      cron.schedule('0 8 * * *', async () => {
+        try {
+          const count = await checkDueDateNotifications();
+          if (count > 0) {
+            log(`Due date notifications: sent ${count} notification(s)`, "cron");
+          }
+        } catch (error) {
+          console.error("Error in due date notification cron job:", error);
+        }
+      });
+      log("RFI/Submittal due date notification cron job started (daily at 8 AM)", "cron");
     },
   );
 })();
