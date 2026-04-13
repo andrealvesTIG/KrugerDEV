@@ -3911,3 +3911,140 @@ export const insertBidLineItemSchema = createInsertSchema(bidLineItems).omit({
 });
 export type BidLineItem = typeof bidLineItems.$inferSelect;
 export type InsertBidLineItem = z.infer<typeof insertBidLineItemSchema>;
+
+// ============ CHANGE ORDERS (Construction Financial Management) ============
+
+export const changeOrders = pgTable("change_orders", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  changeOrderNumber: text("change_order_number"),
+  title: text("title").notNull(),
+  description: text("description"),
+  tier: text("tier").default("PCO").notNull(),
+  status: text("status").default("Draft").notNull(),
+  reasonCode: text("reason_code"),
+  costImpact: numeric("cost_impact").default("0"),
+  scheduleImpactDays: integer("schedule_impact_days").default(0),
+  originalContractAmount: numeric("original_contract_amount").default("0"),
+  revisedContractAmount: numeric("revised_contract_amount").default("0"),
+  requestedBy: text("requested_by"),
+  requestedDate: date("requested_date"),
+  reviewedBy: text("reviewed_by"),
+  reviewedDate: date("reviewed_date"),
+  approvedBy: text("approved_by"),
+  approvedDate: date("approved_date"),
+  promotedFrom: integer("promoted_from"),
+  notes: text("notes"),
+  documents: text("documents"),
+  attachments: text("attachments"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
+}, (table) => [
+  index("change_orders_project_id_idx").on(table.projectId),
+  index("change_orders_tier_idx").on(table.tier),
+  index("change_orders_status_idx").on(table.status),
+]);
+
+export const changeOrderLineItems = pgTable("change_order_line_items", {
+  id: serial("id").primaryKey(),
+  changeOrderId: integer("change_order_id").references(() => changeOrders.id).notNull(),
+  costCode: text("cost_code"),
+  description: text("description").notNull(),
+  quantity: numeric("quantity").default("1"),
+  unitPrice: numeric("unit_price").default("0"),
+  totalPrice: numeric("total_price").default("0"),
+  category: text("category"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("change_order_line_items_co_id_idx").on(table.changeOrderId),
+]);
+
+export const insertChangeOrderSchema = createInsertSchema(changeOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type ChangeOrder = typeof changeOrders.$inferSelect;
+export type InsertChangeOrder = z.infer<typeof insertChangeOrderSchema>;
+
+export const insertChangeOrderLineItemSchema = createInsertSchema(changeOrderLineItems).omit({
+  id: true,
+  createdAt: true,
+});
+export type ChangeOrderLineItem = typeof changeOrderLineItems.$inferSelect;
+export type InsertChangeOrderLineItem = z.infer<typeof insertChangeOrderLineItemSchema>;
+
+// ============ CONSTRUCTION INVOICES (Payment Applications) ============
+
+export const constructionInvoices = pgTable("construction_invoices", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  invoiceNumber: text("invoice_number"),
+  title: text("title").notNull(),
+  description: text("description"),
+  contractAmount: numeric("contract_amount").default("0"),
+  totalAmount: numeric("total_amount").default("0"),
+  previousBilled: numeric("previous_billed").default("0"),
+  currentBilled: numeric("current_billed").default("0"),
+  balanceToFinish: numeric("balance_to_finish").default("0"),
+  retainage: numeric("retainage").default("0"),
+  status: text("status").default("Draft").notNull(),
+  periodFrom: date("period_from"),
+  periodTo: date("period_to"),
+  submittedDate: date("submitted_date"),
+  approvedDate: date("approved_date"),
+  paidDate: date("paid_date"),
+  paidAmount: numeric("paid_amount"),
+  vendorName: text("vendor_name"),
+  vendorEmail: text("vendor_email"),
+  notes: text("notes"),
+  documents: text("documents"),
+  attachments: text("attachments"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
+}, (table) => [
+  index("construction_invoices_project_id_idx").on(table.projectId),
+  index("construction_invoices_status_idx").on(table.status),
+]);
+
+export const constructionInvoiceLineItems = pgTable("construction_invoice_line_items", {
+  id: serial("id").primaryKey(),
+  invoiceId: integer("invoice_id").references(() => constructionInvoices.id).notNull(),
+  costCode: text("cost_code"),
+  description: text("description").notNull(),
+  scheduledValue: numeric("scheduled_value").default("0"),
+  previousBilled: numeric("previous_billed").default("0"),
+  currentBilled: numeric("current_billed").default("0"),
+  balanceToFinish: numeric("balance_to_finish").default("0"),
+  percentComplete: numeric("percent_complete").default("0"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("construction_invoice_line_items_inv_id_idx").on(table.invoiceId),
+]);
+
+export const insertConstructionInvoiceSchema = createInsertSchema(constructionInvoices).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type ConstructionInvoice = typeof constructionInvoices.$inferSelect;
+export type InsertConstructionInvoice = z.infer<typeof insertConstructionInvoiceSchema>;
+
+export const insertConstructionInvoiceLineItemSchema = createInsertSchema(constructionInvoiceLineItems).omit({
+  id: true,
+  createdAt: true,
+});
+export type ConstructionInvoiceLineItem = typeof constructionInvoiceLineItems.$inferSelect;
+export type InsertConstructionInvoiceLineItem = z.infer<typeof insertConstructionInvoiceLineItemSchema>;

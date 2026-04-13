@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate, ClipboardList, MessageSquare, FileCheck, PenSquare, ClipboardCheck, Shield, Gavel } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate, ClipboardList, MessageSquare, FileCheck, PenSquare, ClipboardCheck, Shield, Gavel, FileSignature } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
@@ -106,6 +106,8 @@ const moduleDefinitions: Record<string, { name: string; href: string; icon: Reac
   "quality-safety": { name: "Quality & Safety", href: "/quality-safety", icon: Shield },
   bidding: { name: "Bidding", href: "/bidding", icon: Gavel },
   vendors: { name: "Vendors", href: "/vendors", icon: Building2 },
+  "change-orders": { name: "Change Orders", href: "/change-orders", icon: FileSignature },
+  "construction-invoices": { name: "Payment Apps", href: "/construction-invoices", icon: Receipt },
 };
 
 const navigation = [
@@ -269,6 +271,8 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   ensureModule("quality-safety", "portfolio", "punch-list");
   ensureModule("bidding", "portfolio", "quality-safety");
   ensureModule("vendors", "portfolio", "bidding");
+  ensureModule("change-orders", "portfolio", "vendors");
+  ensureModule("construction-invoices", "portfolio", "change-orders");
   
   const helpGroup = updatedStructure.find(g => g.id === "help");
   if (!helpGroup) {
