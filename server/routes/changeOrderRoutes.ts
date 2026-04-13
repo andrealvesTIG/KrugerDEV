@@ -117,7 +117,7 @@ export function registerChangeOrderRoutes(app: Express) {
       const pendingCount = allOrders.filter(o => ["Pending", "Under Review"].includes(o.status)).length;
 
       const approvedCostImpact = allOrders
-        .filter(o => o.status === "Approved")
+        .filter(o => o.status === "Approved" && o.tier === "CO")
         .reduce((sum, o) => sum + parseFloat(o.costImpact || "0"), 0);
 
       const totalCostImpact = allOrders
@@ -504,12 +504,6 @@ export function registerChangeOrderRoutes(app: Express) {
       if (existing.tier === "CO" && existing.costImpact) {
         const costImpact = parseFloat(existing.costImpact || "0");
         if (costImpact !== 0) {
-          const currentContract = parseFloat(project.contractTotal || "0");
-          const newContract = currentContract + costImpact;
-          await db.update(projects)
-            .set({ contractTotal: String(newContract), updatedAt: now })
-            .where(eq(projects.id, projectId));
-
           await db.insert(projectFinancials).values({
             projectId,
             category: "CapEx",

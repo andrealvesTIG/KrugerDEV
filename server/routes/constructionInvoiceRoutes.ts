@@ -166,7 +166,12 @@ export function registerConstructionInvoiceRoutes(app: Express) {
         .orderBy(asc(constructionInvoices.submittedDate));
 
       const today = new Date();
-      const buckets = { current: [] as any[], days1to30: [] as any[], days31to60: [] as any[], days61to90: [] as any[], over90: [] as any[] };
+      type AgingEntry = {
+        id: number; invoiceNumber: string | null; title: string; vendorName: string | null;
+        status: string; submittedDate: string | null; currentBilled: string | null;
+        paidAmount: string | null; outstanding: number; daysOld: number;
+      };
+      const buckets: Record<string, AgingEntry[]> = { current: [], days1to30: [], days31to60: [], days61to90: [], over90: [] };
       const unpaid = allInvoices.filter(inv => inv.status !== "Paid" && inv.status !== "Draft" && inv.status !== "Void");
 
       for (const inv of unpaid) {
@@ -193,13 +198,10 @@ export function registerConstructionInvoiceRoutes(app: Express) {
         else buckets.over90.push(entry);
       }
 
-      const bucketTotals = {
-        current: buckets.current.reduce((s, e) => s + e.outstanding, 0),
-        days1to30: buckets.days1to30.reduce((s, e) => s + e.outstanding, 0),
-        days31to60: buckets.days31to60.reduce((s, e) => s + e.outstanding, 0),
-        days61to90: buckets.days61to90.reduce((s, e) => s + e.outstanding, 0),
-        over90: buckets.over90.reduce((s, e) => s + e.outstanding, 0),
-      };
+      const bucketTotals: Record<string, number> = {};
+      for (const [key, entries] of Object.entries(buckets)) {
+        bucketTotals[key] = entries.reduce((s, e) => s + e.outstanding, 0);
+      }
 
       const totalOutstanding = Object.values(bucketTotals).reduce((s, v) => s + v, 0);
       const totalBilled = allInvoices.reduce((s, inv) => s + parseFloat(inv.currentBilled || "0"), 0);
@@ -398,20 +400,18 @@ export function registerConstructionInvoiceRoutes(app: Express) {
       if (existing.status === "Draft") return res.status(400).json({ message: "Cannot record payment on a draft invoice" });
 
       const now = new Date();
-      const updateData: Record<string, any> = {
-        paidAmount: parsed.paidAmount,
-        paidDate: parsed.paidDate || now.toISOString().split("T")[0],
-        status: "Paid",
-        updatedAt: now,
-      };
-
-      if (parsed.notes) {
-        const existingNotes = existing.notes || "";
-        updateData.notes = existingNotes ? `${existingNotes}\n\nPayment recorded: ${parsed.notes}` : `Payment recorded: ${parsed.notes}`;
-      }
+      const notesUpdate = parsed.notes
+        ? (existing.notes ? `${existing.notes}\n\nPayment recorded: ${parsed.notes}` : `Payment recorded: ${parsed.notes}`)
+        : existing.notes;
 
       const [updated] = await db.update(constructionInvoices)
-        .set(updateData)
+        .set({
+          paidAmount: parsed.paidAmount,
+          paidDate: parsed.paidDate || now.toISOString().split("T")[0],
+          status: "Paid" as const,
+          updatedAt: now,
+          notes: notesUpdate,
+        })
         .where(and(
           eq(constructionInvoices.id, invoiceId),
           eq(constructionInvoices.projectId, projectId),
