@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { db } from "../db";
 import { z } from "zod";
-import { eq, and, asc, desc, isNull } from "drizzle-orm";
+import { eq, and, asc, desc, isNull, inArray } from "drizzle-orm";
 import { meetings, meetingAgendaItems, meetingActionItems } from "@shared/schema";
 import {
   classifyError,
@@ -19,6 +19,15 @@ async function verifyProjectAccess(userId: string | null, projectId: number) {
   return hasAccess ? project : null;
 }
 
+const agendaItemSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional().nullable(),
+  presenter: z.string().optional().nullable(),
+  duration: z.number().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  sortOrder: z.number().optional(),
+});
+
 const createMeetingSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional().nullable(),
@@ -29,17 +38,15 @@ const createMeetingSchema = z.object({
   endTime: z.string().optional().nullable(),
   location: z.string().optional().nullable(),
   attendees: z.string().optional().nullable(),
-  agendaItems: z.array(z.object({
-    title: z.string().min(1),
-    description: z.string().optional().nullable(),
-    presenter: z.string().optional().nullable(),
-    duration: z.number().optional().nullable(),
-    sortOrder: z.number().optional(),
-  })).optional(),
+  agendaItems: z.array(agendaItemSchema).optional(),
 });
 
 const updateMeetingSchema = createMeetingSchema.partial().extend({
   minutesNotes: z.string().optional().nullable(),
+  agendaItemNotes: z.array(z.object({
+    id: z.number(),
+    notes: z.string().nullable(),
+  })).optional(),
 });
 
 const createActionItemSchema = z.object({
@@ -101,10 +108,20 @@ export function registerMeetingRoutes(app: Express) {
       const project = await verifyProjectAccess(userId, projectId);
       if (!project) return res.status(403).json({ message: "Access denied" });
 
-      const items = await db.select()
-        .from(meetingActionItems)
-        .where(eq(meetingActionItems.projectId, projectId))
-        .orderBy(asc(meetingActionItems.dueDate));
+      const activeMeetingIds = await db.select({ id: meetings.id })
+        .from(meetings)
+        .where(and(eq(meetings.projectId, projectId), isNull(meetings.deletedAt)));
+      const activeIds = activeMeetingIds.map(m => m.id);
+
+      const items = activeIds.length > 0
+        ? await db.select()
+            .from(meetingActionItems)
+            .where(and(
+              eq(meetingActionItems.projectId, projectId),
+              inArray(meetingActionItems.meetingId, activeIds),
+            ))
+            .orderBy(asc(meetingActionItems.dueDate))
+        : [];
 
       res.json(items);
     } catch (err: unknown) {
@@ -213,7 +230,7 @@ export function registerMeetingRoutes(app: Express) {
         return res.status(400).json({ message: parsed.error.errors.map(e => e.message).join(", ") });
       }
 
-      const { agendaItems, ...data } = parsed.data;
+      const { agendaItems, agendaItemNotes, ...data } = parsed.data;
 
       const [updated] = await db.update(meetings)
         .set({
@@ -240,6 +257,17 @@ export function registerMeetingRoutes(app: Express) {
               sortOrder: item.sortOrder ?? idx,
             }))
           );
+        }
+      }
+
+      if (agendaItemNotes && agendaItemNotes.length > 0) {
+        for (const itemNote of agendaItemNotes) {
+          await db.update(meetingAgendaItems)
+            .set({ notes: itemNote.notes })
+            .where(and(
+              eq(meetingAgendaItems.id, itemNote.id),
+              eq(meetingAgendaItems.meetingId, meetingId),
+            ));
         }
       }
 

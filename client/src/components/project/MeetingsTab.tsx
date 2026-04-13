@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Loader2, Plus, Pencil, Trash2, MoreVertical, Calendar, MapPin, Users, Clock, CheckCircle, Circle, AlertCircle, ListTodo, ChevronDown, ChevronUp, Search } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, MoreVertical, Calendar, MapPin, Users, Clock, CheckCircle, Circle, AlertCircle, ListTodo, ChevronDown, ChevronUp, Search, Download } from "lucide-react";
 
 type ViewMode = "list" | "action-items";
 
@@ -44,6 +44,9 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
   const [deleteTarget, setDeleteTarget] = useState<Record<string, unknown> | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterTimeframe, setFilterTimeframe] = useState("all");
+  const [actionFilterStatus, setActionFilterStatus] = useState("all");
+  const [actionFilterAssignee, setActionFilterAssignee] = useState("all");
 
   const [formTitle, setFormTitle] = useState("");
   const [formDescription, setFormDescription] = useState("");
@@ -58,6 +61,7 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
   const [isMinutesOpen, setIsMinutesOpen] = useState(false);
   const [minutesMeetingId, setMinutesMeetingId] = useState<number | null>(null);
   const [minutesNotes, setMinutesNotes] = useState("");
+  const [minutesAgendaItems, setMinutesAgendaItems] = useState<{ id: number; title: string; notes: string }[]>([]);
 
   const [isActionDialogOpen, setIsActionDialogOpen] = useState(false);
   const [actionMeetingId, setActionMeetingId] = useState<number | null>(null);
@@ -164,21 +168,105 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
     }
   };
 
-  const handleRecordMinutes = (meeting: Record<string, unknown>) => {
+  const handleRecordMinutes = async (meeting: Record<string, unknown>) => {
     setMinutesMeetingId(meeting.id as number);
     setMinutesNotes((meeting.minutesNotes as string) || "");
+    try {
+      const res = await fetch(`/api/projects/${projectId}/meetings/${meeting.id}`);
+      if (res.ok) {
+        const detail = await res.json();
+        if (detail.agendaItems && detail.agendaItems.length > 0) {
+          setMinutesAgendaItems(detail.agendaItems.map((ai: Record<string, unknown>) => ({
+            id: ai.id as number,
+            title: ai.title as string,
+            notes: (ai.notes as string) || "",
+          })));
+        } else {
+          setMinutesAgendaItems([]);
+        }
+      }
+    } catch {
+      setMinutesAgendaItems([]);
+    }
     setIsMinutesOpen(true);
   };
 
   const saveMinutes = () => {
     if (minutesMeetingId === null) return;
+    const agendaItemNotes = minutesAgendaItems
+      .filter(ai => ai.notes.trim())
+      .map(ai => ({ id: ai.id, notes: ai.notes.trim() }));
     updateMutation.mutate({
       projectId,
       meetingId: minutesMeetingId,
-      data: { minutesNotes, status: "Completed" },
+      data: {
+        minutesNotes,
+        status: "Completed",
+        ...(agendaItemNotes.length > 0 ? { agendaItemNotes } : {}),
+      },
     }, {
-      onSuccess: () => { setIsMinutesOpen(false); setMinutesMeetingId(null); },
+      onSuccess: () => { setIsMinutesOpen(false); setMinutesMeetingId(null); setMinutesAgendaItems([]); },
     });
+  };
+
+  const exportMinutesPdf = async (meeting: Record<string, unknown>) => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/meetings/${meeting.id}`);
+      if (!res.ok) return;
+      const detail = await res.json();
+      const { default: jsPDF } = await import("jspdf");
+      const doc = new jsPDF();
+      let y = 20;
+      doc.setFontSize(16);
+      doc.text(`Meeting Minutes: ${detail.title}`, 14, y);
+      y += 10;
+      doc.setFontSize(10);
+      doc.text(`${detail.meetingNumber || ""} | ${detail.date} | ${detail.meetingType || "General"}`, 14, y);
+      y += 6;
+      if (detail.location) { doc.text(`Location: ${detail.location}`, 14, y); y += 6; }
+      if (detail.attendees) { doc.text(`Attendees: ${detail.attendees}`, 14, y); y += 6; }
+      y += 4;
+      if (detail.agendaItems?.length) {
+        doc.setFontSize(12);
+        doc.text("Agenda", 14, y); y += 8;
+        doc.setFontSize(10);
+        for (const [idx, ai] of detail.agendaItems.entries()) {
+          doc.text(`${idx + 1}. ${ai.title}${ai.presenter ? ` (${ai.presenter})` : ""}${ai.duration ? ` - ${ai.duration} min` : ""}`, 14, y);
+          y += 6;
+          if (ai.notes) {
+            const lines = doc.splitTextToSize(`   Notes: ${ai.notes}`, 180);
+            doc.text(lines, 14, y);
+            y += lines.length * 5;
+          }
+          if (y > 270) { doc.addPage(); y = 20; }
+        }
+        y += 4;
+      }
+      if (detail.minutesNotes) {
+        doc.setFontSize(12);
+        doc.text("General Minutes", 14, y); y += 8;
+        doc.setFontSize(10);
+        const lines = doc.splitTextToSize(detail.minutesNotes, 180);
+        doc.text(lines, 14, y);
+        y += lines.length * 5;
+      }
+      if (detail.actionItems?.length) {
+        if (y > 240) { doc.addPage(); y = 20; }
+        y += 4;
+        doc.setFontSize(12);
+        doc.text("Action Items", 14, y); y += 8;
+        doc.setFontSize(10);
+        for (const ai of detail.actionItems) {
+          doc.text(`- [${ai.status}] ${ai.title}${ai.assignee ? ` (${ai.assignee})` : ""}${ai.dueDate ? ` Due: ${ai.dueDate}` : ""}`, 14, y);
+          y += 6;
+          if (y > 270) { doc.addPage(); y = 20; }
+        }
+      }
+      doc.save(`${detail.meetingNumber || "meeting"}_minutes.pdf`);
+      toast({ title: "PDF exported successfully" });
+    } catch {
+      toast({ title: "Export failed", variant: "destructive" });
+    }
   };
 
   const openAddAction = (meetingId: number) => {
@@ -235,8 +323,12 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
     }
   };
 
+  const today = new Date().toISOString().split("T")[0];
+
   const filteredMeetings = (meetings as Record<string, unknown>[] || []).filter(m => {
     if (filterStatus !== "all" && m.status !== filterStatus) return false;
+    if (filterTimeframe === "upcoming" && (m.date as string) < today) return false;
+    if (filterTimeframe === "past" && (m.date as string) >= today) return false;
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       return (m.title as string).toLowerCase().includes(term) ||
@@ -246,7 +338,19 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
     return true;
   });
 
-  const filteredActionItems = (allActionItems as Record<string, unknown>[] || []);
+  const allItems = (allActionItems as Record<string, unknown>[] || []);
+  const uniqueAssignees = [...new Set(allItems.map(i => (i.assignee as string) || "").filter(Boolean))];
+
+  const filteredActionItems = allItems.filter(item => {
+    if (actionFilterStatus !== "all" && item.status !== actionFilterStatus) return false;
+    if (actionFilterAssignee !== "all" && (item.assignee as string) !== actionFilterAssignee) return false;
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      return (item.title as string).toLowerCase().includes(term) ||
+        ((item.assignee as string) || "").toLowerCase().includes(term);
+    }
+    return true;
+  });
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
@@ -277,16 +381,49 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
             <Input placeholder="Search..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-8 h-8 w-48" />
           </div>
           {viewMode === "list" && (
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-32 h-8"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="Scheduled">Scheduled</SelectItem>
-                <SelectItem value="In Progress">In Progress</SelectItem>
-                <SelectItem value="Completed">Completed</SelectItem>
-                <SelectItem value="Cancelled">Cancelled</SelectItem>
-              </SelectContent>
-            </Select>
+            <>
+              <Select value={filterTimeframe} onValueChange={setFilterTimeframe}>
+                <SelectTrigger className="w-32 h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Dates</SelectItem>
+                  <SelectItem value="upcoming">Upcoming</SelectItem>
+                  <SelectItem value="past">Past</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-32 h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="Scheduled">Scheduled</SelectItem>
+                  <SelectItem value="In Progress">In Progress</SelectItem>
+                  <SelectItem value="Completed">Completed</SelectItem>
+                  <SelectItem value="Cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          )}
+          {viewMode === "action-items" && (
+            <>
+              <Select value={actionFilterStatus} onValueChange={setActionFilterStatus}>
+                <SelectTrigger className="w-32 h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="Open">Open</SelectItem>
+                  <SelectItem value="In Progress">In Progress</SelectItem>
+                  <SelectItem value="Completed">Completed</SelectItem>
+                  <SelectItem value="Overdue">Overdue</SelectItem>
+                </SelectContent>
+              </Select>
+              {uniqueAssignees.length > 0 && (
+                <Select value={actionFilterAssignee} onValueChange={setActionFilterAssignee}>
+                  <SelectTrigger className="w-36 h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Assignees</SelectItem>
+                    {uniqueAssignees.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+            </>
           )}
           <Button size="sm" onClick={openCreate}>
             <Plus className="mr-1 h-4 w-4" />New Meeting
@@ -330,6 +467,9 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => openAddAction(meeting.id as number)}>
                           <Plus className="mr-2 h-4 w-4" />Add Action Item
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => exportMinutesPdf(meeting)}>
+                          <Download className="mr-2 h-4 w-4" />Export PDF
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteTarget(meeting)}>
@@ -477,6 +617,9 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
                 <Button size="sm" variant="outline" onClick={() => { setIsDetailOpen(false); openAddAction(detailMeeting.id as number); }}>
                   Add Action Item
                 </Button>
+                <Button size="sm" variant="outline" onClick={() => exportMinutesPdf(detailMeeting)}>
+                  <Download className="mr-1 h-4 w-4" />Export PDF
+                </Button>
               </div>
             </div>
           )}
@@ -589,14 +732,40 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
 
       {/* Record Minutes Dialog */}
       <Dialog open={isMinutesOpen} onOpenChange={setIsMinutesOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Record Meeting Minutes</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {minutesAgendaItems.length > 0 && (
+              <div>
+                <Label className="text-sm font-medium">Notes per Agenda Item</Label>
+                <div className="space-y-3 mt-2">
+                  {minutesAgendaItems.map((ai, idx) => (
+                    <div key={ai.id} className="border rounded p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{idx + 1}</span>
+                        <span className="text-sm font-medium">{ai.title}</span>
+                      </div>
+                      <Textarea
+                        value={ai.notes}
+                        onChange={e => {
+                          const updated = [...minutesAgendaItems];
+                          updated[idx] = { ...updated[idx], notes: e.target.value };
+                          setMinutesAgendaItems(updated);
+                        }}
+                        rows={2}
+                        placeholder="Notes for this agenda item..."
+                        className="text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div>
-              <Label>Minutes / Notes</Label>
-              <Textarea value={minutesNotes} onChange={e => setMinutesNotes(e.target.value)} rows={10} placeholder="Enter meeting minutes, key decisions, and notes..." />
+              <Label>General Minutes / Summary</Label>
+              <Textarea value={minutesNotes} onChange={e => setMinutesNotes(e.target.value)} rows={6} placeholder="Enter overall meeting minutes, key decisions, and notes..." />
             </div>
           </div>
           <DialogFooter>

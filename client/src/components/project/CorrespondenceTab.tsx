@@ -26,6 +26,8 @@ export default function CorrespondenceTab({ projectId }: { projectId: number }) 
   const [deleteTarget, setDeleteTarget] = useState<Record<string, unknown> | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
 
   const [formType, setFormType] = useState<string>("Letter");
   const [formSubject, setFormSubject] = useState("");
@@ -144,6 +146,8 @@ export default function CorrespondenceTab({ projectId }: { projectId: number }) 
 
   const filteredItems = (items as Record<string, unknown>[] || []).filter(item => {
     if (filterType !== "all" && item.type !== filterType) return false;
+    if (filterDateFrom && (item.date as string) < filterDateFrom) return false;
+    if (filterDateTo && (item.date as string) > filterDateTo) return false;
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       return (item.subject as string).toLowerCase().includes(term) ||
@@ -176,6 +180,11 @@ export default function CorrespondenceTab({ projectId }: { projectId: number }) 
               <SelectItem value="Notice">Notice</SelectItem>
             </SelectContent>
           </Select>
+          <Input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className="h-8 w-36" placeholder="From" title="From date" />
+          <Input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className="h-8 w-36" placeholder="To" title="To date" />
+          {(filterDateFrom || filterDateTo) && (
+            <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => { setFilterDateFrom(""); setFilterDateTo(""); }}>Clear</Button>
+          )}
         </div>
         <Button size="sm" onClick={openCreate}>
           <Plus className="mr-1 h-4 w-4" />New Correspondence
