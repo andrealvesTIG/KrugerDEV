@@ -2,6 +2,36 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { DailyLog } from "@shared/schema";
 
+interface LaborInput {
+  company?: string | null;
+  trade?: string | null;
+  headcount?: number;
+  hoursWorked?: number;
+  notes?: string | null;
+}
+
+interface EquipmentInput {
+  equipmentName: string;
+  quantity?: number;
+  hoursUsed?: number;
+  status?: "Active" | "Idle" | "Maintenance" | "Breakdown";
+  notes?: string | null;
+}
+
+export interface CreateDailyLogInput {
+  logDate: string;
+  weatherCondition?: string | null;
+  temperature?: string | null;
+  windSpeed?: string | null;
+  precipitation?: string | null;
+  visitors?: string | null;
+  notes?: string | null;
+  labor?: LaborInput[];
+  equipment?: EquipmentInput[];
+}
+
+export type UpdateDailyLogInput = Partial<CreateDailyLogInput>;
+
 export interface DailyLogWithDetails extends DailyLog {
   labor: Array<{
     id: number;
@@ -77,7 +107,7 @@ export function useDailyLogSummary(projectId: number, from?: string, to?: string
 
 export function useCreateDailyLog(projectId: number) {
   return useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: CreateDailyLogInput) => {
       const res = await apiRequest("POST", `/api/projects/${projectId}/daily-logs`, data);
       return res.json();
     },
@@ -89,7 +119,7 @@ export function useCreateDailyLog(projectId: number) {
 
 export function useUpdateDailyLog(projectId: number) {
   return useMutation({
-    mutationFn: async ({ logId, data }: { logId: number; data: any }) => {
+    mutationFn: async ({ logId, data }: { logId: number; data: UpdateDailyLogInput }) => {
       const res = await apiRequest("PATCH", `/api/projects/${projectId}/daily-logs/${logId}`, data);
       return res.json();
     },
