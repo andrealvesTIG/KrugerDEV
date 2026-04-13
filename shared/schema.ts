@@ -3099,3 +3099,143 @@ export const insertDailyLogEquipmentSchema = createInsertSchema(dailyLogEquipmen
 });
 export type DailyLogEquipment = typeof dailyLogEquipment.$inferSelect;
 export type InsertDailyLogEquipment = z.infer<typeof insertDailyLogEquipmentSchema>;
+
+// === RFIs (Requests for Information) ===
+export const rfis = pgTable("rfis", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  rfiNumber: text("rfi_number").notNull(),
+  subject: text("subject").notNull(),
+  question: text("question").notNull(),
+  status: text("status").notNull().default("Open"),
+  priority: text("priority").default("Medium"),
+  category: text("category"),
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  assignedToName: text("assigned_to_name"),
+  dueDate: date("due_date"),
+  distributionList: text("distribution_list"),
+  costImpact: text("cost_impact"),
+  scheduleImpact: text("schedule_impact"),
+  references: text("references"),
+  closedAt: timestamp("closed_at"),
+  closedBy: varchar("closed_by").references(() => users.id),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("rfis_project_id_idx").on(table.projectId),
+  index("rfis_org_id_idx").on(table.organizationId),
+  index("rfis_assigned_to_idx").on(table.assignedTo),
+  index("rfis_status_idx").on(table.status),
+]);
+
+export const insertRfiSchema = createInsertSchema(rfis).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  deletedBy: true,
+  closedAt: true,
+  closedBy: true,
+});
+export type Rfi = typeof rfis.$inferSelect;
+export type InsertRfi = z.infer<typeof insertRfiSchema>;
+
+// === RFI Responses ===
+export const rfiResponses = pgTable("rfi_responses", {
+  id: serial("id").primaryKey(),
+  rfiId: integer("rfi_id").references(() => rfis.id).notNull(),
+  responseText: text("response_text").notNull(),
+  isOfficial: boolean("is_official").default(false),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("rfi_responses_rfi_id_idx").on(table.rfiId),
+]);
+
+export const insertRfiResponseSchema = createInsertSchema(rfiResponses).omit({
+  id: true,
+  createdAt: true,
+});
+export type RfiResponse = typeof rfiResponses.$inferSelect;
+export type InsertRfiResponse = z.infer<typeof insertRfiResponseSchema>;
+
+// === Submittals ===
+export const submittals = pgTable("submittals", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  submittalNumber: text("submittal_number").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  specSection: text("spec_section"),
+  type: text("type").default("Product Data"),
+  status: text("status").notNull().default("Pending"),
+  priority: text("priority").default("Medium"),
+  submittedBy: varchar("submitted_by").references(() => users.id),
+  submittedByName: text("submitted_by_name"),
+  reviewerId: varchar("reviewer_id").references(() => users.id),
+  reviewerName: text("reviewer_name"),
+  submitDate: date("submit_date"),
+  requiredDate: date("required_date"),
+  receivedDate: date("received_date"),
+  reviewedDate: date("reviewed_date"),
+  leadTime: integer("lead_time"),
+  costImpact: text("cost_impact"),
+  scheduleImpact: text("schedule_impact"),
+  currentRevision: integer("current_revision").default(1),
+  closedAt: timestamp("closed_at"),
+  closedBy: varchar("closed_by").references(() => users.id),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("submittals_project_id_idx").on(table.projectId),
+  index("submittals_org_id_idx").on(table.organizationId),
+  index("submittals_reviewer_id_idx").on(table.reviewerId),
+  index("submittals_status_idx").on(table.status),
+]);
+
+export const insertSubmittalSchema = createInsertSchema(submittals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  deletedBy: true,
+  closedAt: true,
+  closedBy: true,
+});
+export type Submittal = typeof submittals.$inferSelect;
+export type InsertSubmittal = z.infer<typeof insertSubmittalSchema>;
+
+// === Submittal Revisions ===
+export const submittalRevisions = pgTable("submittal_revisions", {
+  id: serial("id").primaryKey(),
+  submittalId: integer("submittal_id").references(() => submittals.id).notNull(),
+  revisionNumber: integer("revision_number").notNull(),
+  status: text("status").notNull().default("Pending"),
+  notes: text("notes"),
+  reviewNotes: text("review_notes"),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedByName: text("reviewed_by_name"),
+  reviewedAt: timestamp("reviewed_at"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("submittal_revisions_submittal_id_idx").on(table.submittalId),
+]);
+
+export const insertSubmittalRevisionSchema = createInsertSchema(submittalRevisions).omit({
+  id: true,
+  createdAt: true,
+  reviewedAt: true,
+});
+export type SubmittalRevision = typeof submittalRevisions.$inferSelect;
+export type InsertSubmittalRevision = z.infer<typeof insertSubmittalRevisionSchema>;

@@ -28,6 +28,8 @@ import RisksTab from "@/components/project/ProjectRisksTab";
 import { IssuesTab, FinancialsTab, ChangeRequestsTab, DocumentsTab, StatusReportTab, ScoringTab, BenefitsTab, DecisionsTab, LessonsLearnedTab, InvoicesTab } from "@/components/project/ProjectTabs";
 import ProjectAgentTab from "@/components/project/ProjectAgentTab";
 import DailyLogsTab from "@/components/project/DailyLogsTab";
+import RFIsTab from "@/components/project/RFIsTab";
+import SubmittalsTab from "@/components/project/SubmittalsTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -354,6 +356,8 @@ export default function ProjectDetails() {
 
   const moduleGatedTabs: Record<string, string> = {
     'daily-logs': 'daily-logs',
+    'rfis': 'rfis',
+    'submittals': 'submittals',
   };
 
   // Available tabs for pinning from the More menu
@@ -368,6 +372,8 @@ export default function ProjectDetails() {
     { id: 'status-report', label: 'Status Report' },
     { id: 'ai-agent', label: 'AI Agent' },
     { id: 'daily-logs', label: 'Daily Logs' },
+    { id: 'rfis', label: 'RFIs' },
+    { id: 'submittals', label: 'Submittals' },
   ].filter(tab => {
     const moduleKey = moduleGatedTabs[tab.id];
     return !moduleKey || !isModuleHidden(moduleKey);
@@ -1696,6 +1702,16 @@ export default function ProjectDetails() {
           {!isModuleHidden('daily-logs') && (
             <TabsContent value="daily-logs">
               <DailyLogsTab projectId={project.id} />
+            </TabsContent>
+          )}
+          {!isModuleHidden('rfis') && (
+            <TabsContent value="rfis">
+              <RFIsTab projectId={project.id} />
+            </TabsContent>
+          )}
+          {!isModuleHidden('submittals') && (
+            <TabsContent value="submittals">
+              <SubmittalsTab projectId={project.id} />
             </TabsContent>
           )}
           {customTabs.map((tab) => (
