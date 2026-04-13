@@ -335,6 +335,10 @@ export function registerChangeOrderRoutes(app: Express) {
 
       const { lineItems, ...data } = parsed.data;
 
+      if (data.status === "Approved") {
+        return res.status(400).json({ message: "Use the /approve endpoint to approve change orders" });
+      }
+
       const [updated] = await db.update(changeOrders)
         .set({ ...data, updatedAt: new Date() })
         .where(and(

@@ -421,7 +421,7 @@ export function registerConstructionInvoiceRoutes(app: Express) {
       logUserActivity(userId, "construction_invoice_payment_recorded", projectId, {
         invoiceId,
         paidAmount: parsed.paidAmount,
-        paidDate: updateData.paidDate,
+        paidDate: parsed.paidDate || now.toISOString().split("T")[0],
       });
 
       res.json(updated);
