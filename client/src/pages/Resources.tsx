@@ -1596,8 +1596,8 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
       >
         <div style={{ minWidth: `${256 + periods.length * (timeScale === "day" ? 50 : 65)}px` }}>
           {/* Header row with period labels */}
-          <div className="flex border-b sticky top-0 bg-background z-20">
-            <div className="w-64 flex-shrink-0 p-2 font-medium text-sm border-r bg-background sticky left-0 z-30">
+          <div className="flex border-b sticky top-0 bg-background" style={{ zIndex: 20 }}>
+            <div className="w-64 flex-shrink-0 p-2 font-medium text-sm border-r bg-background sticky left-0" style={{ zIndex: 30 }}>
               {groupBy === "resource" ? "Resource" : 
                groupBy === "project" ? "Project" :
                groupBy === "portfolio" ? "Portfolio" :
@@ -1629,7 +1629,7 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
                   onClick={() => toggleGroup(group.key)}
                   data-testid={`heatmap-group-${group.key}`}
                 >
-                  <div className="w-64 flex-shrink-0 p-2 border-r bg-muted/30 sticky left-0 z-10">
+                  <div className="w-64 flex-shrink-0 p-2 border-r sticky left-0" style={{ zIndex: 10, backgroundColor: 'hsl(var(--muted))' }}>
                     <div className="flex items-center gap-2">
                       {isExpanded ? (
                         <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -1682,7 +1682,7 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
                       className="flex border-b bg-background hover:bg-muted/10 transition-colors"
                       data-testid={`heatmap-assignment-${assignment.assignmentId}`}
                     >
-                      <div className="w-64 flex-shrink-0 p-2 border-r pl-10 bg-background sticky left-0 z-10">
+                      <div className="w-64 flex-shrink-0 p-2 border-r pl-10 bg-background sticky left-0" style={{ zIndex: 10 }}>
                         <div className="flex items-center gap-2">
                           <ListTodo className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                           <div className="min-w-0 flex-1">
