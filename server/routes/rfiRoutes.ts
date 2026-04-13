@@ -11,6 +11,16 @@ import {
   logUserActivity,
 } from "./helpers";
 
+const attachmentSchema = z.object({
+  name: z.string().min(1).max(500),
+  url: z.string().min(1).max(2000).refine(
+    (u) => /^https?:\/\//i.test(u),
+    { message: "Attachment URL must use http or https" }
+  ),
+  size: z.number().int().min(0).optional(),
+  type: z.string().max(200).optional(),
+});
+
 const createRfiSchema = z.object({
   subject: z.string().min(1).max(500),
   question: z.string().min(1).max(10000),
@@ -23,6 +33,7 @@ const createRfiSchema = z.object({
   costImpact: z.string().max(500).nullable().optional(),
   scheduleImpact: z.string().max(500).nullable().optional(),
   references: z.string().max(2000).nullable().optional(),
+  attachments: z.array(attachmentSchema).max(20).nullable().optional(),
 }).strict();
 
 const updateRfiSchema = createRfiSchema.partial().extend({
@@ -32,6 +43,7 @@ const updateRfiSchema = createRfiSchema.partial().extend({
 const createResponseSchema = z.object({
   responseText: z.string().min(1).max(10000),
   isOfficial: z.boolean().default(false),
+  attachments: z.array(attachmentSchema).max(20).nullable().optional(),
 }).strict();
 
 export function registerRfiRoutes(app: Express) {
@@ -135,8 +147,28 @@ export function registerRfiRoutes(app: Express) {
         costImpact: parsed.costImpact || null,
         scheduleImpact: parsed.scheduleImpact || null,
         references: parsed.references || null,
+        attachments: parsed.attachments || null,
         createdBy: userId,
       }).returning();
+
+      if (parsed.assignedTo) {
+        const { storage } = await import("../storage");
+        const creator = await storage.getUser(userId);
+        const creatorName = creator ? `${creator.firstName || ""} ${creator.lastName || ""}`.trim() || creator.email || "Unknown" : "Unknown";
+        await storage.createNotification({
+          userId: parsed.assignedTo,
+          type: "rfi_assignment",
+          title: `New RFI Assigned: ${rfi.rfiNumber}`,
+          message: `You have been assigned ${rfi.rfiNumber}: "${rfi.subject}" by ${creatorName}`,
+          severity: "info",
+          organizationId: project.organizationId,
+          projectId,
+          fromUserId: userId,
+          fromUserName: creatorName,
+          actionUrl: `/projects/${projectId}?tab=rfis`,
+          metadata: { rfiId: rfi.id, rfiNumber: rfi.rfiNumber },
+        });
+      }
 
       logUserActivity(userId, "create_rfi", "rfi", rfi.id, { projectId, subject: rfi.subject }, req);
       res.status(201).json(rfi);
@@ -179,6 +211,7 @@ export function registerRfiRoutes(app: Express) {
       if (parsed.costImpact !== undefined) updateData.costImpact = parsed.costImpact || null;
       if (parsed.scheduleImpact !== undefined) updateData.scheduleImpact = parsed.scheduleImpact || null;
       if (parsed.references !== undefined) updateData.references = parsed.references || null;
+      if (parsed.attachments !== undefined) updateData.attachments = parsed.attachments || null;
 
       if (parsed.status !== undefined) {
         updateData.status = parsed.status;
@@ -260,6 +293,7 @@ export function registerRfiRoutes(app: Express) {
         rfiId,
         responseText: parsed.responseText,
         isOfficial: parsed.isOfficial,
+        attachments: parsed.attachments || null,
         createdBy: userId,
         createdByName: userName,
       }).returning();
@@ -268,6 +302,23 @@ export function registerRfiRoutes(app: Express) {
         await db.update(rfis)
           .set({ status: "Answered", updatedAt: new Date() })
           .where(and(eq(rfis.id, rfiId), eq(rfis.projectId, projectId), isNull(rfis.deletedAt)));
+      }
+
+      if (rfi.createdBy && rfi.createdBy !== userId) {
+        const { storage } = await import("../storage");
+        await storage.createNotification({
+          userId: rfi.createdBy,
+          type: "rfi_response",
+          title: `${parsed.isOfficial ? "Official " : ""}Response on ${rfi.rfiNumber}`,
+          message: `${userName} responded to ${rfi.rfiNumber}: "${rfi.subject}"`,
+          severity: "info",
+          organizationId: project.organizationId,
+          projectId,
+          fromUserId: userId,
+          fromUserName: userName,
+          actionUrl: `/projects/${projectId}?tab=rfis`,
+          metadata: { rfiId, rfiNumber: rfi.rfiNumber },
+        });
       }
 
       logUserActivity(userId, "create_rfi_response", "rfi_response", response.id, { rfiId, projectId }, req);

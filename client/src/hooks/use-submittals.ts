@@ -6,6 +6,13 @@ export interface SubmittalWithRevisions extends Submittal {
   revisions: SubmittalRevision[];
 }
 
+export interface AttachmentItem {
+  name: string;
+  url: string;
+  size?: number;
+  type?: string;
+}
+
 export interface CreateSubmittalInput {
   title: string;
   description?: string | null;
@@ -19,6 +26,7 @@ export interface CreateSubmittalInput {
   leadTime?: number | null;
   costImpact?: string | null;
   scheduleImpact?: string | null;
+  attachments?: AttachmentItem[] | null;
 }
 
 export interface UpdateSubmittalInput extends Partial<CreateSubmittalInput> {
@@ -28,6 +36,7 @@ export interface UpdateSubmittalInput extends Partial<CreateSubmittalInput> {
 export interface CreateRevisionInput {
   notes?: string | null;
   status?: "Pending" | "Under Review" | "Approved" | "Rejected" | "Revise & Resubmit";
+  attachments?: AttachmentItem[] | null;
 }
 
 export interface ReviewRevisionInput {

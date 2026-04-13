@@ -3118,6 +3118,7 @@ export const rfis = pgTable("rfis", {
   costImpact: text("cost_impact"),
   scheduleImpact: text("schedule_impact"),
   references: text("references"),
+  attachments: jsonb("attachments").$type<Array<{ name: string; url: string; size?: number; type?: string }>>(),
   closedAt: timestamp("closed_at"),
   closedBy: varchar("closed_by").references(() => users.id),
   createdBy: varchar("created_by").references(() => users.id),
@@ -3130,6 +3131,7 @@ export const rfis = pgTable("rfis", {
   index("rfis_org_id_idx").on(table.organizationId),
   index("rfis_assigned_to_idx").on(table.assignedTo),
   index("rfis_status_idx").on(table.status),
+  uniqueIndex("rfis_project_number_unique").on(table.projectId, table.rfiNumber).where(sql`deleted_at IS NULL`),
 ]);
 
 export const insertRfiSchema = createInsertSchema(rfis).omit({
@@ -3150,6 +3152,7 @@ export const rfiResponses = pgTable("rfi_responses", {
   rfiId: integer("rfi_id").references(() => rfis.id).notNull(),
   responseText: text("response_text").notNull(),
   isOfficial: boolean("is_official").default(false),
+  attachments: jsonb("attachments").$type<Array<{ name: string; url: string; size?: number; type?: string }>>(),
   createdBy: varchar("created_by").references(() => users.id),
   createdByName: text("created_by_name"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -3187,6 +3190,7 @@ export const submittals = pgTable("submittals", {
   leadTime: integer("lead_time"),
   costImpact: text("cost_impact"),
   scheduleImpact: text("schedule_impact"),
+  attachments: jsonb("attachments").$type<Array<{ name: string; url: string; size?: number; type?: string }>>(),
   currentRevision: integer("current_revision").default(1),
   closedAt: timestamp("closed_at"),
   closedBy: varchar("closed_by").references(() => users.id),
@@ -3200,6 +3204,7 @@ export const submittals = pgTable("submittals", {
   index("submittals_org_id_idx").on(table.organizationId),
   index("submittals_reviewer_id_idx").on(table.reviewerId),
   index("submittals_status_idx").on(table.status),
+  uniqueIndex("submittals_project_number_unique").on(table.projectId, table.submittalNumber).where(sql`deleted_at IS NULL`),
 ]);
 
 export const insertSubmittalSchema = createInsertSchema(submittals).omit({
@@ -3221,6 +3226,7 @@ export const submittalRevisions = pgTable("submittal_revisions", {
   revisionNumber: integer("revision_number").notNull(),
   status: text("status").notNull().default("Pending"),
   notes: text("notes"),
+  attachments: jsonb("attachments").$type<Array<{ name: string; url: string; size?: number; type?: string }>>(),
   reviewNotes: text("review_notes"),
   reviewedBy: varchar("reviewed_by").references(() => users.id),
   reviewedByName: text("reviewed_by_name"),

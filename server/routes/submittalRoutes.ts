@@ -11,6 +11,16 @@ import {
   logUserActivity,
 } from "./helpers";
 
+const attachmentSchema = z.object({
+  name: z.string().min(1).max(500),
+  url: z.string().min(1).max(2000).refine(
+    (u) => /^https?:\/\//i.test(u),
+    { message: "Attachment URL must use http or https" }
+  ),
+  size: z.number().int().min(0).optional(),
+  type: z.string().max(200).optional(),
+});
+
 const createSubmittalSchema = z.object({
   title: z.string().min(1).max(500),
   description: z.string().max(10000).nullable().optional(),
@@ -24,6 +34,7 @@ const createSubmittalSchema = z.object({
   leadTime: z.number().int().min(0).max(365).nullable().optional(),
   costImpact: z.string().max(500).nullable().optional(),
   scheduleImpact: z.string().max(500).nullable().optional(),
+  attachments: z.array(attachmentSchema).max(20).nullable().optional(),
 }).strict();
 
 const updateSubmittalSchema = createSubmittalSchema.partial().extend({
@@ -33,6 +44,7 @@ const updateSubmittalSchema = createSubmittalSchema.partial().extend({
 const createRevisionSchema = z.object({
   notes: z.string().max(10000).nullable().optional(),
   status: z.enum(["Pending", "Under Review", "Approved", "Rejected", "Revise & Resubmit"]).default("Pending"),
+  attachments: z.array(attachmentSchema).max(20).nullable().optional(),
 }).strict();
 
 const reviewRevisionSchema = z.object({
@@ -147,6 +159,7 @@ export function registerSubmittalRoutes(app: Express) {
           leadTime: parsed.leadTime ?? null,
           costImpact: parsed.costImpact || null,
           scheduleImpact: parsed.scheduleImpact || null,
+          attachments: parsed.attachments || null,
           submittedBy: userId,
           submittedByName: userName,
           createdBy: userId,
@@ -158,12 +171,29 @@ export function registerSubmittalRoutes(app: Express) {
           revisionNumber: 1,
           status: "Pending",
           notes: parsed.description || null,
+          attachments: parsed.attachments || null,
           createdBy: userId,
           createdByName: userName,
         }).returning();
 
         return { ...submittal, revisions: [revision] };
       });
+
+      if (parsed.reviewerId) {
+        await storage.createNotification({
+          userId: parsed.reviewerId,
+          type: "submittal_assignment",
+          title: `New Submittal for Review: ${result.submittalNumber}`,
+          message: `${userName} submitted ${result.submittalNumber}: "${result.title}" for your review`,
+          severity: "info",
+          organizationId: project.organizationId,
+          projectId,
+          fromUserId: userId,
+          fromUserName: userName,
+          actionUrl: `/projects/${projectId}?tab=submittals`,
+          metadata: { submittalId: result.id, submittalNumber: result.submittalNumber },
+        });
+      }
 
       logUserActivity(userId, "create_submittal", "submittal", result.id, { projectId, title: result.title }, req);
       res.status(201).json(result);
@@ -207,6 +237,7 @@ export function registerSubmittalRoutes(app: Express) {
       if (parsed.leadTime !== undefined) updateData.leadTime = parsed.leadTime ?? null;
       if (parsed.costImpact !== undefined) updateData.costImpact = parsed.costImpact || null;
       if (parsed.scheduleImpact !== undefined) updateData.scheduleImpact = parsed.scheduleImpact || null;
+      if (parsed.attachments !== undefined) updateData.attachments = parsed.attachments || null;
 
       if (parsed.status !== undefined) {
         updateData.status = parsed.status;
@@ -293,6 +324,7 @@ export function registerSubmittalRoutes(app: Express) {
           revisionNumber: nextRevision,
           status: parsed.status,
           notes: parsed.notes || null,
+          attachments: parsed.attachments || null,
           createdBy: userId,
           createdByName: userName,
         }).returning();
@@ -354,6 +386,10 @@ export function registerSubmittalRoutes(app: Express) {
           .where(and(eq(submittalRevisions.id, revisionId), eq(submittalRevisions.submittalId, submittalId)))
           .returning();
 
+        if (!updated) {
+          throw new Error("REVISION_NOT_FOUND");
+        }
+
         const submittalUpdate: Partial<typeof submittals.$inferInsert> & { updatedAt: Date } = {
           status: parsed.status,
           updatedAt: new Date(),
@@ -372,9 +408,29 @@ export function registerSubmittalRoutes(app: Express) {
         return updated;
       });
 
+      if (submittal.submittedBy && submittal.submittedBy !== userId) {
+        const { storage } = await import("../storage");
+        await storage.createNotification({
+          userId: submittal.submittedBy,
+          type: "submittal_review",
+          title: `Submittal ${parsed.status}: ${submittal.submittalNumber}`,
+          message: `${userName} ${parsed.status.toLowerCase()} ${submittal.submittalNumber}: "${submittal.title}"`,
+          severity: parsed.status === "Rejected" ? "warning" : "info",
+          organizationId: project.organizationId,
+          projectId,
+          fromUserId: userId,
+          fromUserName: userName,
+          actionUrl: `/projects/${projectId}?tab=submittals`,
+          metadata: { submittalId, submittalNumber: submittal.submittalNumber, status: parsed.status },
+        });
+      }
+
       logUserActivity(userId, "review_submittal_revision", "submittal_revision", revisionId, { submittalId, projectId, status: parsed.status }, req);
       res.json(result);
     } catch (err) {
+      if (err instanceof Error && err.message === "REVISION_NOT_FOUND") {
+        return res.status(404).json({ message: "Revision not found" });
+      }
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
       const classified = classifyError(err);
       res.status(classified.status).json({ message: "Error reviewing revision" });

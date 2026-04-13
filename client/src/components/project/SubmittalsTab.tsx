@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSubmittals, useSubmittal, useCreateSubmittal, useUpdateSubmittal, useDeleteSubmittal, useCreateSubmittalRevision, useReviewSubmittalRevision } from "@/hooks/use-submittals";
 import type { CreateSubmittalInput, UpdateSubmittalInput, SubmittalWithRevisions, ReviewRevisionInput } from "@/hooks/use-submittals";
 import type { Submittal } from "@shared/schema";
+import { exportSubmittalsToFile } from "@/lib/rfiSubmittalExport";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
-import { Plus, Trash2, Pencil, Eye, Search, Loader2, CheckCircle, XCircle, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Pencil, Eye, Search, Loader2, CheckCircle, XCircle, RefreshCw, Download } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 const SUBMITTAL_STATUSES = ["Pending", "Under Review", "Approved", "Rejected", "Revise & Resubmit"] as const;
@@ -83,9 +85,20 @@ export default function SubmittalsTab({ projectId }: { projectId: number }) {
           <h3 className="text-lg font-semibold">Submittals</h3>
           <Badge variant="secondary">{filtered.length}</Badge>
         </div>
-        <Button size="sm" onClick={() => setIsCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> New Submittal
-        </Button>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline"><Download className="h-4 w-4 mr-1" /> Export</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => exportSubmittalsToFile(filtered, "csv")}>Export CSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportSubmittalsToFile(filtered, "xlsx")}>Export Excel</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button size="sm" onClick={() => setIsCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> New Submittal
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
@@ -504,6 +517,19 @@ function ViewSubmittalDialog({ open, onClose, projectId, submittalId }: {
             {submittal.costImpact && <div><span className="text-muted-foreground">Cost Impact:</span> {submittal.costImpact}</div>}
             {submittal.scheduleImpact && <div><span className="text-muted-foreground">Schedule Impact:</span> {submittal.scheduleImpact}</div>}
           </div>
+
+          {submittal.attachments && Array.isArray(submittal.attachments) && submittal.attachments.length > 0 && (
+            <div>
+              <h4 className="font-semibold text-sm mb-1">Attachments</h4>
+              <div className="flex flex-wrap gap-2">
+                {submittal.attachments.map((att: { name: string; url: string }, idx: number) => (
+                  <a key={idx} href={att.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
+                    <Download className="h-3 w-3" /> {att.name}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           {(submittal.status === "Rejected" || submittal.status === "Revise & Resubmit") && (
             <Button size="sm" variant="outline" onClick={handleNewRevision} disabled={revisionMutation.isPending}>

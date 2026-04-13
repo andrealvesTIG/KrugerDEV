@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useRfis, useRfi, useCreateRfi, useUpdateRfi, useDeleteRfi, useCreateRfiResponse } from "@/hooks/use-rfis";
 import type { CreateRfiInput, UpdateRfiInput, CreateRfiResponseInput, RfiWithResponses } from "@/hooks/use-rfis";
 import type { Rfi } from "@shared/schema";
+import { exportRfisToFile } from "@/lib/rfiSubmittalExport";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
-import { Plus, Trash2, Pencil, MessageSquare, Eye, Search, Send, Loader2 } from "lucide-react";
+import { Plus, Trash2, Pencil, MessageSquare, Eye, Search, Send, Loader2, Download } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 const RFI_STATUSES = ["Open", "Answered", "Closed"] as const;
@@ -80,9 +82,20 @@ export default function RFIsTab({ projectId }: { projectId: number }) {
           <h3 className="text-lg font-semibold">RFIs</h3>
           <Badge variant="secondary">{rfis.length}</Badge>
         </div>
-        <Button size="sm" onClick={() => setIsCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> New RFI
-        </Button>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline"><Download className="h-4 w-4 mr-1" /> Export</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => exportRfisToFile(rfis, "csv")}>Export CSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportRfisToFile(rfis, "xlsx")}>Export Excel</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button size="sm" onClick={() => setIsCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> New RFI
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
@@ -470,6 +483,19 @@ function ViewRfiDialog({ open, onClose, projectId, rfiId }: {
             {rfi.references && <div><span className="text-muted-foreground">References:</span> {rfi.references}</div>}
           </div>
 
+          {rfi.attachments && Array.isArray(rfi.attachments) && rfi.attachments.length > 0 && (
+            <div>
+              <h4 className="font-semibold text-sm mb-1">Attachments</h4>
+              <div className="flex flex-wrap gap-2">
+                {rfi.attachments.map((att: { name: string; url: string }, idx: number) => (
+                  <a key={idx} href={att.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
+                    <Download className="h-3 w-3" /> {att.name}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2">
             {rfi.status !== "Closed" && (
               <>
@@ -495,6 +521,15 @@ function ViewRfiDialog({ open, onClose, projectId, rfiId }: {
                     {response.createdAt && <span className="text-xs text-muted-foreground">{format(new Date(response.createdAt), "MMM d, yyyy h:mm a")}</span>}
                   </div>
                   <p className="text-sm whitespace-pre-wrap">{response.responseText}</p>
+                  {response.attachments && Array.isArray(response.attachments) && response.attachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {response.attachments.map((att: { name: string; url: string }, idx: number) => (
+                        <a key={idx} href={att.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
+                          <Download className="h-3 w-3" /> {att.name}
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}

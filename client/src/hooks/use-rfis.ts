@@ -6,6 +6,13 @@ export interface RfiWithResponses extends Rfi {
   responses: RfiResponse[];
 }
 
+export interface AttachmentItem {
+  name: string;
+  url: string;
+  size?: number;
+  type?: string;
+}
+
 export interface CreateRfiInput {
   subject: string;
   question: string;
@@ -18,6 +25,7 @@ export interface CreateRfiInput {
   costImpact?: string | null;
   scheduleImpact?: string | null;
   references?: string | null;
+  attachments?: AttachmentItem[] | null;
 }
 
 export interface UpdateRfiInput extends Partial<CreateRfiInput> {
@@ -27,6 +35,7 @@ export interface UpdateRfiInput extends Partial<CreateRfiInput> {
 export interface CreateRfiResponseInput {
   responseText: string;
   isOfficial?: boolean;
+  attachments?: AttachmentItem[] | null;
 }
 
 export function useRfis(projectId: number, status?: string) {
