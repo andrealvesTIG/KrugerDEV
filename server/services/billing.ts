@@ -999,18 +999,20 @@ export async function cleanupDuplicateBillingCycles(): Promise<number> {
     .where(eq(billingCycles.status, "OPEN"))
     .orderBy(billingCycles.subscriptionId, billingCycles.id);
 
-  const grouped = new Map<number, typeof openCycles>();
+  const grouped = new Map<string, typeof openCycles>();
   for (const cycle of openCycles) {
-    const existing = grouped.get(cycle.subscriptionId) || [];
+    const key = `${cycle.subscriptionId}::${cycle.periodStart}::${cycle.periodEnd}`;
+    const existing = grouped.get(key) || [];
     existing.push(cycle);
-    grouped.set(cycle.subscriptionId, existing);
+    grouped.set(key, existing);
   }
 
   let deletedCount = 0;
-  for (const [subId, cycles] of grouped) {
+  for (const [groupKey, cycles] of grouped) {
     if (cycles.length <= 1) continue;
 
     const keepCycle = cycles[0];
+    const subId = keepCycle.subscriptionId;
     const duplicateIds = cycles.slice(1).map(c => c.id);
 
     await db.transaction(async (tx) => {
@@ -1038,13 +1040,19 @@ export async function cleanupDuplicateBillingCycles(): Promise<number> {
             .limit(1);
 
           if (existing) {
+            const mergedUsed = existing.usedUnits + rollup.usedUnits;
+            const includedUnits = existing.includedUnits;
+            const mergedRemaining = Math.max(0, includedUnits - mergedUsed);
+            const mergedOverage = Math.max(0, mergedUsed - includedUnits);
+            const mergedOverageCost = existing.overageCostMicrocents + rollup.overageCostMicrocents;
+
             await tx
               .update(usageRollups)
               .set({
-                usedUnits: existing.usedUnits + rollup.usedUnits,
-                remainingUnits: Math.max(0, existing.includedUnits - (existing.usedUnits + rollup.usedUnits)),
-                overageUnits: existing.overageUnits + rollup.overageUnits,
-                overageCostMicrocents: existing.overageCostMicrocents + rollup.overageCostMicrocents,
+                usedUnits: mergedUsed,
+                remainingUnits: mergedRemaining,
+                overageUnits: mergedOverage,
+                overageCostMicrocents: mergedOverageCost,
                 hardCapHit: existing.hardCapHit || rollup.hardCapHit,
               })
               .where(eq(usageRollups.id, existing.id));

@@ -395,7 +395,7 @@ export async function registerBillingRoutes(app: Express) {
 
       const seenPeriods = new Set<string>();
       const cycles = allCycles.filter(cycle => {
-        const key = `${cycle.periodStart}-${cycle.periodEnd}-${cycle.status}`;
+        const key = `${cycle.periodStart}-${cycle.periodEnd}`;
         if (seenPeriods.has(key)) return false;
         seenPeriods.add(key);
         return true;
