@@ -80,6 +80,7 @@ const DailyLogs = lazy(() => import("@/pages/DailyLogs"));
 const RFIs = lazy(() => import("@/pages/RFIs"));
 const Submittals = lazy(() => import("@/pages/Submittals"));
 const Drawings = lazy(() => import("@/pages/Drawings"));
+const PunchList = lazy(() => import("@/pages/PunchList"));
 
 function PageLoader() {
   return (
@@ -223,6 +224,7 @@ function Router() {
           <GuardedRoute path="/rfis" component={RFIs} moduleKey="rfis" />
           <GuardedRoute path="/submittals" component={Submittals} moduleKey="submittals" />
           <GuardedRoute path="/drawings" component={Drawings} moduleKey="drawings" />
+          <GuardedRoute path="/punch-list" component={PunchList} moduleKey="punch-list" />
           <GuardedRoute path="/calendar" component={Calendar} moduleKey="calendar" />
           <GuardedRoute path="/integrations" component={Integrations} moduleKey="integrations" />
           <Route path="/billing" component={Billing} />

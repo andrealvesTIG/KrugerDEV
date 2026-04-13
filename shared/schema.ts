@@ -3370,3 +3370,69 @@ export const insertDrawingMarkupSchema = createInsertSchema(drawingMarkups).omit
 });
 export type DrawingMarkup = typeof drawingMarkups.$inferSelect;
 export type InsertDrawingMarkup = z.infer<typeof insertDrawingMarkupSchema>;
+
+// === Punch List Items ===
+export const punchItems = pgTable("punch_items", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  number: text("number").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  location: text("location"),
+  category: text("category"),
+  priority: text("priority").notNull().default("Medium"),
+  status: text("status").notNull().default("Open"),
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  assignedToName: text("assigned_to_name"),
+  dueDate: date("due_date"),
+  closedAt: timestamp("closed_at"),
+  closedBy: varchar("closed_by").references(() => users.id),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("punch_items_project_id_idx").on(table.projectId),
+  index("punch_items_org_id_idx").on(table.organizationId),
+  index("punch_items_status_idx").on(table.status),
+  index("punch_items_assigned_to_idx").on(table.assignedTo),
+  index("punch_items_category_idx").on(table.category),
+  index("punch_items_priority_idx").on(table.priority),
+]);
+
+export const insertPunchItemSchema = createInsertSchema(punchItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  deletedBy: true,
+  closedAt: true,
+  closedBy: true,
+});
+export type PunchItem = typeof punchItems.$inferSelect;
+export type InsertPunchItem = z.infer<typeof insertPunchItemSchema>;
+
+// === Punch Item Photos ===
+export const punchItemPhotos = pgTable("punch_item_photos", {
+  id: serial("id").primaryKey(),
+  punchItemId: integer("punch_item_id").references(() => punchItems.id).notNull(),
+  fileUrl: text("file_url").notNull(),
+  fileName: text("file_name"),
+  fileSize: integer("file_size"),
+  photoType: text("photo_type").default("general"),
+  caption: text("caption"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("punch_item_photos_item_id_idx").on(table.punchItemId),
+]);
+
+export const insertPunchItemPhotoSchema = createInsertSchema(punchItemPhotos).omit({
+  id: true,
+  createdAt: true,
+});
+export type PunchItemPhoto = typeof punchItemPhotos.$inferSelect;
+export type InsertPunchItemPhoto = z.infer<typeof insertPunchItemPhotoSchema>;

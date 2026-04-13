@@ -36,6 +36,7 @@ import { registerDailyLogRoutes } from "./routes/dailyLogRoutes";
 import { registerRfiRoutes } from "./routes/rfiRoutes";
 import { registerSubmittalRoutes } from "./routes/submittalRoutes";
 import { registerDrawingRoutes } from "./routes/drawingRoutes";
+import { registerPunchListRoutes } from "./routes/punchListRoutes";
 import { seedDatabase } from "./routes/helpers";
 
 export async function registerRoutes(
@@ -43,7 +44,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  const numericParams = ['id', 'projectId', 'portfolioId', 'taskId', 'issueId', 'milestoneId', 'riskId', 'resourceId', 'orgId', 'organizationId', 'memberId', 'ticketId', 'documentId', 'assessmentId', 'subscriptionId', 'planId', 'viewId', 'entryId', 'notificationId', 'logId', 'rfiId', 'submittalId', 'revisionId', 'responseId', 'drawingId', 'markupId', 'setId'];
+  const numericParams = ['id', 'projectId', 'portfolioId', 'taskId', 'issueId', 'milestoneId', 'riskId', 'resourceId', 'orgId', 'organizationId', 'memberId', 'ticketId', 'documentId', 'assessmentId', 'subscriptionId', 'planId', 'viewId', 'entryId', 'notificationId', 'logId', 'rfiId', 'submittalId', 'revisionId', 'responseId', 'drawingId', 'markupId', 'setId', 'punchItemId', 'photoId'];
   for (const param of numericParams) {
     app.param(param, (req, res, next, value) => {
       const num = Number(value);
@@ -114,6 +115,7 @@ export async function registerRoutes(
   registerRfiRoutes(app);
   registerSubmittalRoutes(app);
   registerDrawingRoutes(app);
+  registerPunchListRoutes(app);
 
   seedTrainingDataIfEmpty().catch(err => {
     console.error('[training] Failed to seed training data:', err.message);
