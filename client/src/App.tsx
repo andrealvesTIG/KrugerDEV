@@ -82,6 +82,8 @@ const Submittals = lazy(() => import("@/pages/Submittals"));
 const Drawings = lazy(() => import("@/pages/Drawings"));
 const PunchList = lazy(() => import("@/pages/PunchList"));
 const QualitySafety = lazy(() => import("@/pages/QualitySafety"));
+const Bidding = lazy(() => import("@/pages/Bidding"));
+const Vendors = lazy(() => import("@/pages/Vendors"));
 
 function PageLoader() {
   return (
@@ -227,6 +229,8 @@ function Router() {
           <GuardedRoute path="/drawings" component={Drawings} moduleKey="drawings" />
           <GuardedRoute path="/punch-list" component={PunchList} moduleKey="punch-list" />
           <GuardedRoute path="/quality-safety" component={QualitySafety} moduleKey="quality-safety" />
+          <GuardedRoute path="/bidding" component={Bidding} moduleKey="bidding" />
+          <GuardedRoute path="/vendors" component={Vendors} moduleKey="vendors" />
           <GuardedRoute path="/calendar" component={Calendar} moduleKey="calendar" />
           <GuardedRoute path="/integrations" component={Integrations} moduleKey="integrations" />
           <Route path="/billing" component={Billing} />

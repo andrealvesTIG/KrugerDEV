@@ -3715,3 +3715,196 @@ export const insertObservationActionSchema = createInsertSchema(observationActio
 });
 export type ObservationAction = typeof observationActions.$inferSelect;
 export type InsertObservationAction = z.infer<typeof insertObservationActionSchema>;
+
+// ===================== BIDDING & PRECONSTRUCTION =====================
+
+export const vendors = pgTable("vendors", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  companyName: text("company_name").notNull(),
+  contactName: text("contact_name"),
+  email: text("email"),
+  phone: text("phone"),
+  address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  zipCode: text("zip_code"),
+  website: text("website"),
+  tradeSpecialty: text("trade_specialty"),
+  licenseNumber: text("license_number"),
+  insuranceExpiry: date("insurance_expiry"),
+  bondingCapacity: text("bonding_capacity"),
+  status: text("status").notNull().default("Active"),
+  rating: integer("rating"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("vendors_organization_id_idx").on(table.organizationId),
+  index("vendors_status_idx").on(table.status),
+  index("vendors_trade_specialty_idx").on(table.tradeSpecialty),
+]);
+
+export const insertVendorSchema = createInsertSchema(vendors).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type Vendor = typeof vendors.$inferSelect;
+export type InsertVendor = z.infer<typeof insertVendorSchema>;
+
+export const vendorPrequalifications = pgTable("vendor_prequalifications", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id").references(() => vendors.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  safetyRating: integer("safety_rating"),
+  financialRating: integer("financial_rating"),
+  qualityRating: integer("quality_rating"),
+  experienceYears: integer("experience_years"),
+  emrRate: text("emr_rate"),
+  osha300Log: boolean("osha_300_log").default(false),
+  insuranceCertificate: boolean("insurance_certificate").default(false),
+  bondingLetter: boolean("bonding_letter").default(false),
+  references: jsonb("references"),
+  overallScore: integer("overall_score"),
+  qualificationStatus: text("qualification_status").notNull().default("Pending"),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("vendor_prequalifications_vendor_id_idx").on(table.vendorId),
+  index("vendor_prequalifications_org_id_idx").on(table.organizationId),
+  index("vendor_prequalifications_status_idx").on(table.qualificationStatus),
+]);
+
+export const insertVendorPrequalificationSchema = createInsertSchema(vendorPrequalifications).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type VendorPrequalification = typeof vendorPrequalifications.$inferSelect;
+export type InsertVendorPrequalification = z.infer<typeof insertVendorPrequalificationSchema>;
+
+export const bidPackages = pgTable("bid_packages", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  number: text("number").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  tradeCategory: text("trade_category"),
+  scope: text("scope"),
+  estimatedBudget: text("estimated_budget"),
+  dueDate: date("due_date"),
+  prebidDate: date("prebid_date"),
+  status: text("status").notNull().default("Draft"),
+  awardedVendorId: integer("awarded_vendor_id").references(() => vendors.id),
+  awardedAmount: text("awarded_amount"),
+  awardedDate: date("awarded_date"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("bid_packages_project_id_idx").on(table.projectId),
+  index("bid_packages_org_id_idx").on(table.organizationId),
+  index("bid_packages_status_idx").on(table.status),
+  uniqueIndex("bid_packages_project_number_uniq").on(table.projectId, table.number),
+]);
+
+export const insertBidPackageSchema = createInsertSchema(bidPackages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type BidPackage = typeof bidPackages.$inferSelect;
+export type InsertBidPackage = z.infer<typeof insertBidPackageSchema>;
+
+export const bidInvitations = pgTable("bid_invitations", {
+  id: serial("id").primaryKey(),
+  bidPackageId: integer("bid_package_id").references(() => bidPackages.id).notNull(),
+  vendorId: integer("vendor_id").references(() => vendors.id).notNull(),
+  status: text("status").notNull().default("Invited"),
+  invitedAt: timestamp("invited_at").defaultNow(),
+  respondedAt: timestamp("responded_at"),
+  declineReason: text("decline_reason"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("bid_invitations_bid_package_id_idx").on(table.bidPackageId),
+  index("bid_invitations_vendor_id_idx").on(table.vendorId),
+  uniqueIndex("bid_invitations_package_vendor_uniq").on(table.bidPackageId, table.vendorId),
+]);
+
+export const insertBidInvitationSchema = createInsertSchema(bidInvitations).omit({
+  id: true,
+  createdAt: true,
+  invitedAt: true,
+});
+export type BidInvitation = typeof bidInvitations.$inferSelect;
+export type InsertBidInvitation = z.infer<typeof insertBidInvitationSchema>;
+
+export const bids = pgTable("bids", {
+  id: serial("id").primaryKey(),
+  bidPackageId: integer("bid_package_id").references(() => bidPackages.id).notNull(),
+  vendorId: integer("vendor_id").references(() => vendors.id).notNull(),
+  totalAmount: text("total_amount").notNull(),
+  alternateAmount: text("alternate_amount"),
+  bondIncluded: boolean("bond_included").default(false),
+  submittedAt: timestamp("submitted_at").defaultNow(),
+  notes: text("notes"),
+  exclusions: text("exclusions"),
+  clarifications: text("clarifications"),
+  validUntil: date("valid_until"),
+  status: text("status").notNull().default("Submitted"),
+  evaluationScore: integer("evaluation_score"),
+  evaluationNotes: text("evaluation_notes"),
+  isRecommended: boolean("is_recommended").default(false),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("bids_bid_package_id_idx").on(table.bidPackageId),
+  index("bids_vendor_id_idx").on(table.vendorId),
+  index("bids_status_idx").on(table.status),
+  uniqueIndex("bids_package_vendor_uniq").on(table.bidPackageId, table.vendorId),
+]);
+
+export const insertBidSchema = createInsertSchema(bids).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  submittedAt: true,
+});
+export type Bid = typeof bids.$inferSelect;
+export type InsertBid = z.infer<typeof insertBidSchema>;
+
+export const bidLineItems = pgTable("bid_line_items", {
+  id: serial("id").primaryKey(),
+  bidId: integer("bid_id").references(() => bids.id).notNull(),
+  bidPackageId: integer("bid_package_id").references(() => bidPackages.id).notNull(),
+  description: text("description").notNull(),
+  quantity: text("quantity"),
+  unit: text("unit"),
+  unitPrice: text("unit_price"),
+  totalPrice: text("total_price"),
+  category: text("category"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("bid_line_items_bid_id_idx").on(table.bidId),
+  index("bid_line_items_bid_package_id_idx").on(table.bidPackageId),
+]);
+
+export const insertBidLineItemSchema = createInsertSchema(bidLineItems).omit({
+  id: true,
+  createdAt: true,
+});
+export type BidLineItem = typeof bidLineItems.$inferSelect;
+export type InsertBidLineItem = z.infer<typeof insertBidLineItemSchema>;
