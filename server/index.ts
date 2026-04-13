@@ -13,6 +13,7 @@ import cron from "node-cron";
 import { checkAndSendDueReports } from "./services/scheduledReports";
 import { runScheduledReminders } from "./services/timesheetReminderEngine";
 import { checkAndRunDueAgentActions } from "./services/projectAgentService";
+import { cleanupDuplicateBillingCycles } from "./services/billing";
 
 process.on('uncaughtException', (err) => {
   const msg = err instanceof Error ? err.message : String(err);
@@ -239,6 +240,12 @@ app.use((req, res, next) => {
         }
       });
       log("Scheduled reports cron job started (every 15 minutes)", "cron");
+
+      cleanupDuplicateBillingCycles().then(count => {
+        if (count > 0) log(`Cleaned up ${count} duplicate billing cycle(s)`, "billing");
+      }).catch(err => {
+        console.error("[billing] Failed to cleanup duplicate cycles:", err);
+      });
 
       cron.schedule('*/15 * * * 1-5', async () => {
         try {

@@ -279,53 +279,86 @@ export class MockBillingProvider implements BillingProvider {
       return existingCycle;
     }
 
-    const [newCycle] = await dbHandle
-      .insert(billingCycles)
-      .values({
-        subscriptionId,
-        periodStart: start,
-        periodEnd: end,
-        status: "OPEN",
-      })
-      .returning();
+    try {
+      const [newCycle] = await dbHandle
+        .insert(billingCycles)
+        .values({
+          subscriptionId,
+          periodStart: start,
+          periodEnd: end,
+          status: "OPEN",
+        })
+        .onConflictDoNothing()
+        .returning();
 
-    const [subscription] = await dbHandle
-      .select()
-      .from(subscriptions)
-      .where(eq(subscriptions.id, subscriptionId))
-      .limit(1);
-
-    if (subscription) {
-      const rules = await dbHandle
-        .select()
-        .from(planMeterRules)
-        .innerJoin(meters, eq(planMeterRules.meterId, meters.id))
-        .where(eq(planMeterRules.planId, subscription.planId));
-
-      const meterIds = [...new Set(rules.map((r) => r.meters.id))];
-
-      for (const meterId of meterIds) {
-        const meterRules = rules.filter((r) => r.meters.id === meterId);
-        const meterInfo = meterRules[0]?.meters;
-        const quotaRule = meterRules.find((r) => r.plan_meter_rules.ruleType === "INCLUDED_QUOTA");
-        const rawIncludedUnits = quotaRule?.plan_meter_rules.includedUnitsMonthly || 0;
-        const isCredits = meterInfo?.code === 'credits';
-        const includedUnits = rawIncludedUnits * (isCredits ? 100 : 1);
-
-        await dbHandle.insert(usageRollups).values({
-          billingCycleId: newCycle.id,
-          meterId,
-          includedUnits,
-          usedUnits: 0,
-          remainingUnits: includedUnits,
-          overageUnits: 0,
-          overageCostMicrocents: 0,
-          hardCapHit: false,
-        });
+      if (!newCycle) {
+        const [racedCycle] = await dbHandle
+          .select()
+          .from(billingCycles)
+          .where(
+            and(
+              eq(billingCycles.subscriptionId, subscriptionId),
+              eq(billingCycles.status, "OPEN")
+            )
+          )
+          .limit(1);
+        if (racedCycle) return racedCycle;
+        throw new Error(`Failed to create or find OPEN billing cycle for subscription ${subscriptionId}`);
       }
-    }
 
-    return newCycle;
+      const [subscription] = await dbHandle
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.id, subscriptionId))
+        .limit(1);
+
+      if (subscription) {
+        const rules = await dbHandle
+          .select()
+          .from(planMeterRules)
+          .innerJoin(meters, eq(planMeterRules.meterId, meters.id))
+          .where(eq(planMeterRules.planId, subscription.planId));
+
+        const meterIds = [...new Set(rules.map((r) => r.meters.id))];
+
+        for (const meterId of meterIds) {
+          const meterRules = rules.filter((r) => r.meters.id === meterId);
+          const meterInfo = meterRules[0]?.meters;
+          const quotaRule = meterRules.find((r) => r.plan_meter_rules.ruleType === "INCLUDED_QUOTA");
+          const rawIncludedUnits = quotaRule?.plan_meter_rules.includedUnitsMonthly || 0;
+          const isCredits = meterInfo?.code === 'credits';
+          const includedUnits = rawIncludedUnits * (isCredits ? 100 : 1);
+
+          await dbHandle.insert(usageRollups).values({
+            billingCycleId: newCycle.id,
+            meterId,
+            includedUnits,
+            usedUnits: 0,
+            remainingUnits: includedUnits,
+            overageUnits: 0,
+            overageCostMicrocents: 0,
+            hardCapHit: false,
+          });
+        }
+      }
+
+      return newCycle;
+    } catch (error: any) {
+      if (error.code === '23505') {
+        const [racedCycle] = await dbHandle
+          .select()
+          .from(billingCycles)
+          .where(
+            and(
+              eq(billingCycles.subscriptionId, subscriptionId),
+              eq(billingCycles.status, "OPEN")
+            )
+          )
+          .limit(1);
+        if (racedCycle) return racedCycle;
+      }
+      throw error;
+    }
   }
 
   async checkLimit(
@@ -957,4 +990,87 @@ export async function updateCreditCost(
 // Check seat limit for an organization
 export async function checkSeatLimit(orgId: number, seatsToAdd: number = 1): Promise<SeatLimitResult> {
   return billingProvider.checkSeatLimit(orgId, seatsToAdd);
+}
+
+export async function cleanupDuplicateBillingCycles(): Promise<number> {
+  const openCycles = await db
+    .select()
+    .from(billingCycles)
+    .where(eq(billingCycles.status, "OPEN"))
+    .orderBy(billingCycles.subscriptionId, billingCycles.id);
+
+  const grouped = new Map<number, typeof openCycles>();
+  for (const cycle of openCycles) {
+    const existing = grouped.get(cycle.subscriptionId) || [];
+    existing.push(cycle);
+    grouped.set(cycle.subscriptionId, existing);
+  }
+
+  let deletedCount = 0;
+  for (const [subId, cycles] of grouped) {
+    if (cycles.length <= 1) continue;
+
+    const keepCycle = cycles[0];
+    const duplicateIds = cycles.slice(1).map(c => c.id);
+
+    await db.transaction(async (tx) => {
+      for (const dupId of duplicateIds) {
+        await tx
+          .update(usageEvents)
+          .set({ billingCycleId: keepCycle.id })
+          .where(eq(usageEvents.billingCycleId, dupId));
+
+        const dupRollups = await tx
+          .select()
+          .from(usageRollups)
+          .where(eq(usageRollups.billingCycleId, dupId));
+
+        for (const rollup of dupRollups) {
+          const [existing] = await tx
+            .select()
+            .from(usageRollups)
+            .where(
+              and(
+                eq(usageRollups.billingCycleId, keepCycle.id),
+                eq(usageRollups.meterId, rollup.meterId)
+              )
+            )
+            .limit(1);
+
+          if (existing) {
+            await tx
+              .update(usageRollups)
+              .set({
+                usedUnits: existing.usedUnits + rollup.usedUnits,
+                remainingUnits: Math.max(0, existing.includedUnits - (existing.usedUnits + rollup.usedUnits)),
+                overageUnits: existing.overageUnits + rollup.overageUnits,
+                overageCostMicrocents: existing.overageCostMicrocents + rollup.overageCostMicrocents,
+                hardCapHit: existing.hardCapHit || rollup.hardCapHit,
+              })
+              .where(eq(usageRollups.id, existing.id));
+          } else {
+            await tx.insert(usageRollups).values({
+              billingCycleId: keepCycle.id,
+              meterId: rollup.meterId,
+              includedUnits: rollup.includedUnits,
+              usedUnits: rollup.usedUnits,
+              remainingUnits: rollup.remainingUnits,
+              overageUnits: rollup.overageUnits,
+              overageCostMicrocents: rollup.overageCostMicrocents,
+              hardCapHit: rollup.hardCapHit,
+            });
+          }
+
+          await tx.delete(usageRollups).where(eq(usageRollups.id, rollup.id));
+        }
+
+        await tx.delete(billingCycles).where(eq(billingCycles.id, dupId));
+        deletedCount++;
+      }
+    });
+
+    console.log(`[billing] Cleaned up ${duplicateIds.length} duplicate OPEN cycle(s) for subscription ${subId}, kept cycle ${keepCycle.id}`);
+  }
+
+  return deletedCount;
 }

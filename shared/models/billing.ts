@@ -152,6 +152,7 @@ export const billingCycles = pgTable("billing_cycles", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("idx_billing_cycles_subscription_id").on(table.subscriptionId),
+  uniqueIndex("idx_billing_cycles_one_open_per_sub").on(table.subscriptionId).where(sql`status = 'OPEN'`),
 ]);
 
 export const usageEvents = pgTable("usage_events", {

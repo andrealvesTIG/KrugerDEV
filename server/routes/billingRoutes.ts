@@ -387,11 +387,19 @@ export async function registerBillingRoutes(app: Express) {
 
       const [plan] = await db.select().from(plans).where(eq(plans.id, subscription.planId)).limit(1);
 
-      const cycles = await db
+      const allCycles = await db
         .select()
         .from(billingCycles)
         .where(eq(billingCycles.subscriptionId, subscription.id))
         .orderBy(desc(billingCycles.periodStart));
+
+      const seenPeriods = new Set<string>();
+      const cycles = allCycles.filter(cycle => {
+        const key = `${cycle.periodStart}-${cycle.periodEnd}-${cycle.status}`;
+        if (seenPeriods.has(key)) return false;
+        seenPeriods.add(key);
+        return true;
+      });
 
       const result = [];
       for (const cycle of cycles) {
