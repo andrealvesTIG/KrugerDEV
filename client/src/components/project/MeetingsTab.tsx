@@ -120,7 +120,9 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
           })));
         }
       }
-    } catch {}
+    } catch {
+      toast({ title: "Warning", description: "Could not load agenda items for editing", variant: "destructive" });
+    }
   };
 
   const openDetail = async (meeting: Record<string, unknown>) => {
@@ -130,8 +132,12 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
         const detail = await res.json();
         setDetailMeeting(detail);
         setIsDetailOpen(true);
+      } else {
+        setDetailMeeting(meeting);
+        setIsDetailOpen(true);
       }
     } catch {
+      toast({ title: "Warning", description: "Could not load meeting details", variant: "destructive" });
       setDetailMeeting(meeting);
       setIsDetailOpen(true);
     }
@@ -191,6 +197,7 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
         }
       }
     } catch {
+      toast({ title: "Warning", description: "Could not load agenda items for minutes", variant: "destructive" });
       setMinutesAgendaItems([]);
     }
     setIsMinutesOpen(true);
@@ -213,7 +220,9 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: fullContent || minutesNotes }),
       });
-    } catch {}
+    } catch {
+      toast({ title: "Warning", description: "Could not save minutes record", variant: "destructive" });
+    }
 
     updateMutation.mutate({
       projectId,

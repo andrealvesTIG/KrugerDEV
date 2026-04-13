@@ -40,6 +40,7 @@ export default function CorrespondenceTab({ projectId }: { projectId: number }) 
   const [formStatus, setFormStatus] = useState("Draft");
   const [formPriority, setFormPriority] = useState("Normal");
   const [formNotes, setFormNotes] = useState("");
+  const [formAttachments, setFormAttachments] = useState("");
 
   const resetForm = () => {
     setFormType("Letter");
@@ -53,6 +54,7 @@ export default function CorrespondenceTab({ projectId }: { projectId: number }) 
     setFormStatus("Draft");
     setFormPriority("Normal");
     setFormNotes("");
+    setFormAttachments("");
     setEditingItem(null);
   };
 
@@ -74,6 +76,7 @@ export default function CorrespondenceTab({ projectId }: { projectId: number }) 
     setFormStatus((item.status as string) || "Draft");
     setFormPriority((item.priority as string) || "Normal");
     setFormNotes((item.notes as string) || "");
+    setFormAttachments((item.attachments as string) || "");
     setIsDialogOpen(true);
   };
 
@@ -95,6 +98,7 @@ export default function CorrespondenceTab({ projectId }: { projectId: number }) 
       status: formStatus,
       priority: formPriority,
       notes: formNotes.trim() || null,
+      attachments: formAttachments.trim() || null,
     };
 
     if (editingItem) {
@@ -218,6 +222,9 @@ export default function CorrespondenceTab({ projectId }: { projectId: number }) 
                         {item.toName as string}
                       </span>
                     )}
+                    {item.attachments && (
+                      <span className="flex items-center gap-1"><FileText className="h-3.5 w-3.5" />{(item.attachments as string).split(",").length} attachment(s)</span>
+                    )}
                   </div>
                 </div>
                 <div onClick={e => e.stopPropagation()}>
@@ -276,6 +283,19 @@ export default function CorrespondenceTab({ projectId }: { projectId: number }) 
                 <div>
                   <h4 className="font-medium text-sm mb-1">Body</h4>
                   <div className="text-sm bg-muted/50 p-3 rounded whitespace-pre-wrap">{detailItem.body as string}</div>
+                </div>
+              )}
+
+              {detailItem.attachments && (
+                <div>
+                  <h4 className="font-medium text-sm mb-1">Attachments</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {(detailItem.attachments as string).split(",").map((att, i) => (
+                      <Badge key={i} variant="outline" className="text-xs">
+                        <FileText className="mr-1 h-3 w-3" />{att.trim()}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -366,6 +386,11 @@ export default function CorrespondenceTab({ projectId }: { projectId: number }) 
               <div className="col-span-2">
                 <Label>Notes</Label>
                 <Textarea value={formNotes} onChange={e => setFormNotes(e.target.value)} rows={2} placeholder="Internal notes..." />
+              </div>
+              <div className="col-span-2">
+                <Label>Attachments</Label>
+                <Input value={formAttachments} onChange={e => setFormAttachments(e.target.value)} placeholder="Comma-separated file names or URLs" />
+                <p className="text-xs text-muted-foreground mt-1">Enter file references (e.g., "contract.pdf, spec-rev2.docx")</p>
               </div>
             </div>
           </div>

@@ -600,9 +600,23 @@ export function registerMeetingRoutes(app: Express) {
         if (sent) successCount++;
       }
 
-      await db.update(meetingMinutes)
-        .set({ distributedAt: new Date(), distributedTo: parsed.data.recipients.join(", ") })
+      const [existingMinutes] = await db.select()
+        .from(meetingMinutes)
         .where(eq(meetingMinutes.meetingId, meetingId));
+      if (existingMinutes) {
+        await db.update(meetingMinutes)
+          .set({ distributedAt: new Date(), distributedTo: parsed.data.recipients.join(", "), updatedAt: new Date() })
+          .where(eq(meetingMinutes.meetingId, meetingId));
+      } else {
+        await db.insert(meetingMinutes).values({
+          meetingId,
+          projectId,
+          content: minutesContent || null,
+          recordedBy: userId,
+          distributedAt: new Date(),
+          distributedTo: parsed.data.recipients.join(", "),
+        });
+      }
 
       logUserActivity(userId, "meeting_minutes_distributed", projectId, { meetingId, recipientCount: parsed.data.recipients.length });
 
