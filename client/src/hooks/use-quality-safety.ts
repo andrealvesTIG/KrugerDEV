@@ -326,15 +326,25 @@ export function useUpdateObservationAction(projectId: number, observationId: num
   });
 }
 
+export interface TrendDataPoint {
+  week: string;
+  inspections: number;
+  incidents: number;
+  observations: number;
+}
+
+export interface SafetyDashboardData {
+  inspections: { counts: Record<string, number>; total: number; completionRate: number };
+  incidents: { counts: Record<string, number>; total: number };
+  observations: { counts: Record<string, number>; total: number };
+  incidentsBySeverity: { counts: Record<string, number>; total: number };
+  observationsByCategory: { counts: Record<string, number>; total: number };
+  openCorrectiveActions: number;
+  trends: TrendDataPoint[];
+}
+
 export function useSafetyDashboard(projectId: number) {
-  return useQuery<{
-    inspections: { counts: Record<string, number>; total: number; completionRate: number };
-    incidents: { counts: Record<string, number>; total: number };
-    observations: { counts: Record<string, number>; total: number };
-    incidentsBySeverity: { counts: Record<string, number>; total: number };
-    observationsByCategory: { counts: Record<string, number>; total: number };
-    openCorrectiveActions: number;
-  }>({
+  return useQuery<SafetyDashboardData>({
     queryKey: [`/api/projects/${projectId}/safety-dashboard`],
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/projects/${projectId}/safety-dashboard`);

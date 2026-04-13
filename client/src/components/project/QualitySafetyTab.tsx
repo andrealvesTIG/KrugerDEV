@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   useInspections, useInspectionTemplates, useCreateInspection, useUpdateInspection, useDeleteInspection,
   useCreateInspectionTemplate, useDeleteInspectionTemplate, useInspectionTemplate,
@@ -9,7 +10,8 @@ import {
   useObservation, useCreateObservationAction, useUpdateObservationAction,
   useSafetyDashboard,
 } from "@/hooks/use-quality-safety";
-import { useOrganization } from "@/hooks/use-organization";
+import type { TrendDataPoint } from "@/hooks/use-quality-safety";
+import { useUpload } from "@/hooks/use-upload";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,13 +25,14 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import {
-  Plus, Trash2, Pencil, Loader2, Eye,
+  Plus, Trash2, Pencil, Loader2, Eye, Camera,
   CheckCircle2, Circle, Clock, AlertTriangle, XCircle,
   MapPin, User, Calendar, Shield, AlertCircle,
-  ClipboardCheck, FileText, BarChart3, Search,
+  ClipboardCheck, FileText, BarChart3, Search, TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { User as UserType } from "@shared/schema";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
+import type { Inspection, Incident, Observation, User as UserType } from "@shared/schema";
 
 interface OrgMember {
   userId: string;
@@ -43,6 +46,14 @@ function getMemberDisplayName(member: OrgMember): string {
     return member.user.username || member.user.email || "Unknown";
   }
   return "Unknown";
+}
+
+function useOrgMembers(organizationId: number) {
+  const { data = [] } = useQuery<OrgMember[]>({
+    queryKey: [`/api/organizations/${organizationId}/members`],
+    enabled: !!organizationId,
+  });
+  return data;
 }
 
 const INSPECTION_STATUSES = ["Scheduled", "In Progress", "Completed", "Failed", "Cancelled"] as const;
@@ -241,6 +252,32 @@ function DashboardPanel({ projectId }: { projectId: number }) {
           </CardContent>
         </Card>
       </div>
+
+      {dashboard.trends && dashboard.trends.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" /> Weekly Safety Trends (13 Weeks)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={dashboard.trends.map((t: TrendDataPoint) => ({ ...t, week: format(new Date(t.week), "MMM d") }))}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <XAxis dataKey="week" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Legend />
+                  <Area type="monotone" dataKey="inspections" stackId="1" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} name="Inspections" />
+                  <Area type="monotone" dataKey="incidents" stackId="2" stroke="#ef4444" fill="#ef4444" fillOpacity={0.3} name="Incidents" />
+                  <Area type="monotone" dataKey="observations" stackId="3" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.3} name="Observations" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
@@ -265,8 +302,7 @@ function InspectionsPanel({ projectId, organizationId }: { projectId: number; or
   const createMutation = useCreateInspection(projectId);
   const updateMutation = useUpdateInspection(projectId);
   const deleteMutation = useDeleteInspection(projectId);
-  const { data: orgData } = useOrganization(organizationId);
-  const members: OrgMember[] = (orgData as any)?.members ?? [];
+  const members = useOrgMembers(organizationId);
 
   const filtered = useMemo(() => {
     if (!searchTerm) return items;
@@ -286,7 +322,7 @@ function InspectionsPanel({ projectId, organizationId }: { projectId: number; or
     notes: "", templateId: null,
   });
 
-  const openEdit = (item: any) => {
+  const openEdit = (item: Inspection) => {
     setForm({
       title: item.title || "",
       description: item.description || "",
@@ -326,8 +362,8 @@ function InspectionsPanel({ projectId, organizationId }: { projectId: number; or
         setShowCreate(false);
       }
       resetForm();
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     }
   };
 
@@ -503,18 +539,19 @@ function InspectionsPanel({ projectId, organizationId }: { projectId: number; or
 
 function InspectionDetailDialog({ projectId, inspectionId, organizationId, onClose, onEdit }: {
   projectId: number; inspectionId: number; organizationId: number;
-  onClose: () => void; onEdit: (item: any) => void;
+  onClose: () => void; onEdit: (item: Inspection) => void;
 }) {
   const { data: inspection, isLoading } = useInspection(projectId, inspectionId);
-  const { data: orgData } = useOrganization(organizationId);
-  const members: OrgMember[] = (orgData as any)?.members ?? [];
+  const members = useOrgMembers(organizationId);
   const { data: templateData } = useInspectionTemplate(projectId, inspection?.templateId ?? 0);
   const saveResults = useSaveInspectionResults(projectId, inspectionId);
+  const { uploadFile, isUploading } = useUpload();
   const { toast } = useToast();
   const [results, setResults] = useState<Array<{
     templateItemId: number | null; itemText: string; section: string;
     result: string; notes: string; deficiencyDescription: string;
     correctiveAction: string; assignedTo: string; assignedToName: string; dueDate: string;
+    photoUrl: string;
   }>>([]);
   const [showResultsForm, setShowResultsForm] = useState(false);
 
@@ -531,6 +568,7 @@ function InspectionDetailDialog({ projectId, inspectionId, organizationId, onClo
         assignedTo: r.assignedTo || "",
         assignedToName: r.assignedToName || "",
         dueDate: r.dueDate || "",
+        photoUrl: r.photoUrl || "",
       })));
     } else if (templateData?.items) {
       setResults(templateData.items.map(i => ({
@@ -544,6 +582,7 @@ function InspectionDetailDialog({ projectId, inspectionId, organizationId, onClo
         assignedTo: "",
         assignedToName: "",
         dueDate: "",
+        photoUrl: "",
       })));
     }
     setShowResultsForm(true);
@@ -561,11 +600,12 @@ function InspectionDetailDialog({ projectId, inspectionId, organizationId, onClo
         assignedTo: r.assignedTo || null,
         assignedToName: r.assignedToName || null,
         dueDate: r.dueDate || null,
+        photoUrl: r.photoUrl || null,
       })));
       toast({ title: "Results saved" });
       setShowResultsForm(false);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     }
   };
 
@@ -666,6 +706,30 @@ function InspectionDetailDialog({ projectId, inspectionId, organizationId, onClo
                   <Input placeholder="Notes" value={r.notes}
                     onChange={e => { const u = [...results]; u[i] = { ...u[i], notes: e.target.value }; setResults(u); }}
                     className="text-sm" />
+                  <div className="flex items-center gap-2">
+                    <Button type="button" variant="outline" size="sm" disabled={isUploading} onClick={() => {
+                      const inp = document.createElement("input");
+                      inp.type = "file"; inp.accept = "image/*";
+                      inp.onchange = async () => {
+                        const file = inp.files?.[0];
+                        if (!file) return;
+                        const res = await uploadFile(file);
+                        if (res) {
+                          const u = [...results]; u[i] = { ...u[i], photoUrl: res.objectPath }; setResults(u);
+                          toast({ title: "Photo uploaded" });
+                        }
+                      };
+                      inp.click();
+                    }}>
+                      <Camera className="h-3 w-3 mr-1" /> {r.photoUrl ? "Replace" : "Photo"}
+                    </Button>
+                    {r.photoUrl && (
+                      <div className="flex items-center gap-1">
+                        <img src={r.photoUrl} alt="Result" className="h-8 w-8 rounded object-cover border" />
+                        <Button type="button" variant="ghost" size="sm" onClick={() => { const u = [...results]; u[i] = { ...u[i], photoUrl: "" }; setResults(u); }}><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
               <div className="flex gap-2">
@@ -713,8 +777,7 @@ function IncidentsPanel({ projectId, organizationId }: { projectId: number; orga
   const createMutation = useCreateIncident(projectId);
   const updateMutation = useUpdateIncident(projectId);
   const deleteMutation = useDeleteIncident(projectId);
-  const { data: orgData } = useOrganization(organizationId);
-  const members: OrgMember[] = (orgData as any)?.members ?? [];
+  const members = useOrgMembers(organizationId);
 
   const filtered = useMemo(() => {
     if (!searchTerm) return items;
@@ -736,7 +799,7 @@ function IncidentsPanel({ projectId, organizationId }: { projectId: number; orga
     assignedTo: "", assignedToName: "",
   });
 
-  const openEdit = (item: any) => {
+  const openEdit = (item: Incident) => {
     setForm({
       title: item.title || "",
       description: item.description || "",
@@ -784,8 +847,8 @@ function IncidentsPanel({ projectId, organizationId }: { projectId: number; orga
         setShowCreate(false);
       }
       resetForm();
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     }
   };
 
@@ -974,11 +1037,10 @@ function IncidentsPanel({ projectId, organizationId }: { projectId: number; orga
 
 function IncidentDetailDialog({ projectId, incidentId, organizationId, onClose, onEdit }: {
   projectId: number; incidentId: number; organizationId: number;
-  onClose: () => void; onEdit: (item: any) => void;
+  onClose: () => void; onEdit: (item: Incident) => void;
 }) {
   const { data: incident, isLoading } = useIncident(projectId, incidentId);
-  const { data: orgData } = useOrganization(organizationId);
-  const members: OrgMember[] = (orgData as any)?.members ?? [];
+  const members = useOrgMembers(organizationId);
   const createAction = useCreateIncidentAction(projectId, incidentId);
   const updateAction = useUpdateIncidentAction(projectId, incidentId);
   const { toast } = useToast();
@@ -1002,8 +1064,8 @@ function IncidentDetailDialog({ projectId, incidentId, organizationId, onClose, 
       toast({ title: "Action added" });
       setShowActionForm(false);
       setActionForm({ actionType: "Corrective", description: "", assignedTo: "", assignedToName: "", dueDate: "", status: "Open", notes: "" });
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     }
   };
 
@@ -1143,8 +1205,7 @@ function ObservationsPanel({ projectId, organizationId }: { projectId: number; o
   const createMutation = useCreateObservation(projectId);
   const updateMutation = useUpdateObservation(projectId);
   const deleteMutation = useDeleteObservation(projectId);
-  const { data: orgData } = useOrganization(organizationId);
-  const members: OrgMember[] = (orgData as any)?.members ?? [];
+  const members = useOrgMembers(organizationId);
 
   const filtered = useMemo(() => {
     if (!searchTerm) return items;
@@ -1152,21 +1213,32 @@ function ObservationsPanel({ projectId, organizationId }: { projectId: number; o
     return items.filter(i => i.title.toLowerCase().includes(lower) || i.number.toLowerCase().includes(lower));
   }, [items, searchTerm]);
 
+  const { uploadFile, isUploading } = useUpload();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [form, setForm] = useState({
     title: "", description: "", category: "Safety" as string, observationType: "Negative" as string,
     location: "", severity: "Low", status: "Open" as string,
     correctiveAction: "", assignedTo: "", assignedToName: "",
-    dueDate: "", observedDate: "",
+    dueDate: "", observedDate: "", photoUrl: "",
   });
 
   const resetForm = () => setForm({
     title: "", description: "", category: "Safety", observationType: "Negative",
     location: "", severity: "Low", status: "Open",
     correctiveAction: "", assignedTo: "", assignedToName: "",
-    dueDate: "", observedDate: "",
+    dueDate: "", observedDate: "", photoUrl: "",
   });
 
-  const openEdit = (item: any) => {
+  const handlePhotoUpload = async (file: File) => {
+    const result = await uploadFile(file);
+    if (result) {
+      setForm(f => ({ ...f, photoUrl: result.objectPath }));
+      toast({ title: "Photo uploaded" });
+    }
+  };
+
+  const openEdit = (item: Observation) => {
     setForm({
       title: item.title || "",
       description: item.description || "",
@@ -1180,6 +1252,7 @@ function ObservationsPanel({ projectId, organizationId }: { projectId: number; o
       assignedToName: item.assignedToName || "",
       dueDate: item.dueDate || "",
       observedDate: item.observedDate || "",
+      photoUrl: item.photoUrl || "",
     });
     setEditingId(item.id);
   };
@@ -1198,6 +1271,7 @@ function ObservationsPanel({ projectId, organizationId }: { projectId: number; o
       assignedToName: form.assignedToName || null,
       dueDate: form.dueDate || null,
       observedDate: form.observedDate || null,
+      photoUrl: form.photoUrl || null,
     };
     try {
       if (editingId) {
@@ -1210,8 +1284,8 @@ function ObservationsPanel({ projectId, organizationId }: { projectId: number; o
         setShowCreate(false);
       }
       resetForm();
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     }
   };
 
@@ -1370,6 +1444,22 @@ function ObservationsPanel({ projectId, organizationId }: { projectId: number; o
               <Label>Corrective Action</Label>
               <Textarea value={form.correctiveAction} onChange={e => setForm(f => ({ ...f, correctiveAction: e.target.value }))} rows={2} />
             </div>
+            <div>
+              <Label>Photo</Label>
+              <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); }} />
+              <div className="flex items-center gap-2 mt-1">
+                <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+                  {isUploading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Camera className="h-4 w-4 mr-1" />}
+                  {form.photoUrl ? "Replace Photo" : "Upload Photo"}
+                </Button>
+                {form.photoUrl && (
+                  <div className="flex items-center gap-2">
+                    <img src={form.photoUrl} alt="Observation" className="h-10 w-10 rounded object-cover border" />
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setForm(f => ({ ...f, photoUrl: "" }))}><Trash2 className="h-3 w-3" /></Button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowCreate(false); setEditingId(null); resetForm(); }}>Cancel</Button>
@@ -1396,11 +1486,10 @@ function ObservationsPanel({ projectId, organizationId }: { projectId: number; o
 
 function ObservationDetailDialog({ projectId, observationId, organizationId, onClose, onEdit }: {
   projectId: number; observationId: number; organizationId: number;
-  onClose: () => void; onEdit: (item: any) => void;
+  onClose: () => void; onEdit: (item: Observation) => void;
 }) {
   const { data: observation, isLoading } = useObservation(projectId, observationId);
-  const { data: orgData } = useOrganization(organizationId);
-  const members: OrgMember[] = (orgData as any)?.members ?? [];
+  const members = useOrgMembers(organizationId);
   const createAction = useCreateObservationAction(projectId, observationId);
   const updateAction = useUpdateObservationAction(projectId, observationId);
   const { toast } = useToast();
@@ -1424,8 +1513,8 @@ function ObservationDetailDialog({ projectId, observationId, organizationId, onC
       toast({ title: "Action added" });
       setShowActionForm(false);
       setActionForm({ actionType: "Corrective", description: "", assignedTo: "", assignedToName: "", dueDate: "", status: "Open", notes: "" });
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     }
   };
 
@@ -1594,8 +1683,8 @@ function TemplatesPanel({ projectId }: { projectId: number }) {
       toast({ title: "Template created" });
       setShowCreate(false);
       resetForm();
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     }
   };
 

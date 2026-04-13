@@ -877,7 +877,7 @@ export function registerQualitySafetyRoutes(app: Express) {
       const ctx = await verifyProjectAccess(req, res);
       if (!ctx) return;
 
-      const [inspectionStats, incidentStats, observationStats, incidentSeverityStats, observationCategoryStats, openActions] = await Promise.all([
+      const [inspectionStats, incidentStats, observationStats, incidentSeverityStats, observationCategoryStats, openIncidentActions, openObservationActions, weeklyTrends] = await Promise.all([
         db.select({ status: inspections.status, count: sql<number>`count(*)` })
           .from(inspections)
           .where(and(eq(inspections.projectId, ctx.projectId), isNull(inspections.deletedAt)))
@@ -906,6 +906,42 @@ export function registerQualitySafetyRoutes(app: Express) {
             isNull(incidents.deletedAt),
             sql`${incidentActions.status} IN ('Open', 'In Progress', 'Overdue')`,
           )),
+        db.select({ count: sql<number>`count(*)` })
+          .from(observationActions)
+          .innerJoin(observations, eq(observationActions.observationId, observations.id))
+          .where(and(
+            eq(observations.projectId, ctx.projectId),
+            isNull(observations.deletedAt),
+            sql`${observationActions.status} IN ('Open', 'In Progress', 'Overdue')`,
+          )),
+        db.execute(sql`
+          SELECT
+            to_char(date_trunc('week', w.week_start), 'YYYY-MM-DD') as week,
+            COALESCE(i.inspection_count, 0) as inspections,
+            COALESCE(inc.incident_count, 0) as incidents,
+            COALESCE(obs.observation_count, 0) as observations
+          FROM generate_series(
+            date_trunc('week', NOW() - interval '12 weeks'),
+            date_trunc('week', NOW()),
+            '1 week'
+          ) AS w(week_start)
+          LEFT JOIN (
+            SELECT date_trunc('week', created_at) as wk, count(*) as inspection_count
+            FROM inspections WHERE project_id = ${ctx.projectId} AND deleted_at IS NULL
+            GROUP BY wk
+          ) i ON i.wk = w.week_start
+          LEFT JOIN (
+            SELECT date_trunc('week', created_at) as wk, count(*) as incident_count
+            FROM incidents WHERE project_id = ${ctx.projectId} AND deleted_at IS NULL
+            GROUP BY wk
+          ) inc ON inc.wk = w.week_start
+          LEFT JOIN (
+            SELECT date_trunc('week', created_at) as wk, count(*) as observation_count
+            FROM observations WHERE project_id = ${ctx.projectId} AND deleted_at IS NULL
+            GROUP BY wk
+          ) obs ON obs.wk = w.week_start
+          ORDER BY w.week_start
+        `),
       ]);
 
       const toMap = (rows: { status?: string; severity?: string; category?: string; count: number }[], key: string) => {
@@ -929,13 +965,23 @@ export function registerQualitySafetyRoutes(app: Express) {
       const completedInspections = (inspData.counts["Completed"] ?? 0) + (inspData.counts["Failed"] ?? 0);
       const inspectionCompletionRate = totalInspections > 0 ? Math.round((completedInspections / totalInspections) * 100) : 0;
 
+      const totalOpenActions = Number(openIncidentActions[0]?.count ?? 0) + Number(openObservationActions[0]?.count ?? 0);
+
+      const trends = (weeklyTrends.rows as Array<{ week: string; inspections: string; incidents: string; observations: string }>).map(r => ({
+        week: r.week,
+        inspections: Number(r.inspections),
+        incidents: Number(r.incidents),
+        observations: Number(r.observations),
+      }));
+
       res.json({
         inspections: { ...inspData, completionRate: inspectionCompletionRate },
         incidents: incData,
         observations: obsData,
         incidentsBySeverity: sevData,
         observationsByCategory: catData,
-        openCorrectiveActions: Number(openActions[0]?.count ?? 0),
+        openCorrectiveActions: totalOpenActions,
+        trends,
       });
     } catch (err) {
       console.error("Error fetching safety dashboard:", err);
