@@ -157,6 +157,9 @@ If you didn't request this, you can safely ignore this email.
       If the button doesn't work, copy and paste this link into your browser:<br>
       <a href="${resetUrl}" style="color: #f97316; word-break: break-all;">${resetUrl}</a>
     </p>
+    <p style="font-size: 11px; color: #9ca3af; margin: 12px 0 0; text-align: center;">
+      <a href="https://fridayreport.ai/profile" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
+    </p>
   </div>
 </body>
 </html>
@@ -211,6 +214,9 @@ If you didn't create an account with us, you can safely ignore this email.
     <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0;">
       If the button doesn't work, copy and paste this link into your browser:<br>
       <a href="${verifyUrl}" style="color: #f97316; word-break: break-all;">${verifyUrl}</a>
+    </p>
+    <p style="font-size: 11px; color: #9ca3af; margin: 12px 0 0; text-align: center;">
+      <a href="https://fridayreport.ai/profile" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
     </p>
   </div>
 </body>
@@ -289,6 +295,9 @@ Please log in to FridayReport.AI to review this request in Organization Settings
     <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0;">
       This is an automated notification from FridayReport.AI
     </p>
+    <p style="font-size: 11px; color: #9ca3af; margin: 12px 0 0; text-align: center;">
+      <a href="https://fridayreport.ai/profile" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
+    </p>
   </div>
 </body>
 </html>
@@ -365,6 +374,9 @@ Simply log in with your Microsoft account to get started.
     <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0;">
       If you didn't expect this invitation, you can safely ignore this email.
     </p>
+    <p style="font-size: 11px; color: #9ca3af; margin: 12px 0 0; text-align: center;">
+      <a href="https://fridayreport.ai/profile" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
+    </p>
   </div>
 </body>
 </html>
@@ -417,6 +429,9 @@ export async function sendAccessRequestDecisionNotification(
     
     <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0;">
       This is an automated notification from FridayReport.AI
+    </p>
+    <p style="font-size: 11px; color: #9ca3af; margin: 12px 0 0; text-align: center;">
+      <a href="https://fridayreport.ai/profile" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
     </p>
   </div>
 </body>
@@ -484,6 +499,9 @@ If you didn't request this, you can safely ignore this email.
       If the button doesn't work, copy and paste this link into your browser:<br>
       <a href="${verifyUrl}" style="color: #f97316; word-break: break-all;">${verifyUrl}</a>
     </p>
+    <p style="font-size: 11px; color: #9ca3af; margin: 12px 0 0; text-align: center;">
+      <a href="https://fridayreport.ai/profile" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
+    </p>
   </div>
 </body>
 </html>
@@ -544,6 +562,9 @@ The FridayReport.AI Team
     <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0;">
       Best regards,<br>The FridayReport.AI Team
     </p>
+    <p style="font-size: 11px; color: #9ca3af; margin: 12px 0 0; text-align: center;">
+      <a href="https://fridayreport.ai/profile" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
+    </p>
   </div>
 </body>
 </html>
@@ -594,6 +615,9 @@ Please follow up with this lead as soon as possible.
     
     <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0;">
       This is an automated notification from FridayReport.AI
+    </p>
+    <p style="font-size: 11px; color: #9ca3af; margin: 12px 0 0; text-align: center;">
+      <a href="https://fridayreport.ai/profile" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
     </p>
   </div>
 </body>
@@ -676,6 +700,9 @@ If you didn't request this, you can safely ignore this email.
       If the button doesn't work, copy and paste this link into your browser:<br>
       <a href="${verifyUrl}" style="color: #f97316; word-break: break-all;">${verifyUrl}</a>
     </p>
+    <p style="font-size: 11px; color: #9ca3af; margin: 12px 0 0; text-align: center;">
+      <a href="https://fridayreport.ai/profile" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
+    </p>
   </div>
 </body>
 </html>
@@ -751,6 +778,9 @@ This link will expire in 7 days.
       If you didn't expect this invitation, you can safely ignore this email.<br>
       If the button doesn't work, copy and paste this link into your browser:<br>
       <a href="${magicLinkUrl}" style="color: #f97316; word-break: break-all;">${magicLinkUrl}</a>
+    </p>
+    <p style="font-size: 11px; color: #9ca3af; margin: 12px 0 0; text-align: center;">
+      <a href="https://fridayreport.ai/profile" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
     </p>
   </div>
 </body>
@@ -864,6 +894,9 @@ https://fridayreport.ai
     <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0; text-align: center;">
       FridayReport.AI - Project Management Made Simple<br>
       <a href="https://fridayreport.ai" style="color: #f97316;">fridayreport.ai</a>
+    </p>
+    <p style="font-size: 11px; color: #9ca3af; margin: 12px 0 0; text-align: center;">
+      <a href="https://fridayreport.ai/profile" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
     </p>
   </div>
 </body>
@@ -995,6 +1028,9 @@ FridayReport.AI Team
       <strong>${senderName}</strong><br>
       FridayReport.AI Team
     </p>
+    <p style="font-size: 11px; color: #9ca3af; margin: 12px 0 0; text-align: center;">
+      <a href="https://fridayreport.ai/profile" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
+    </p>
   </div>
 </body>
 </html>
@@ -1063,6 +1099,7 @@ export async function sendTimesheetSubmissionReminder(
       </div>
       <div style="background: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
         <p style="margin: 0; color: #94a3b8; font-size: 12px;">Automated reminder from FridayReport.AI</p>
+        <p style="margin: 8px 0 0; font-size: 11px;"><a href="https://fridayreport.ai/profile" style="color: #94a3b8; text-decoration: underline;">Manage notification preferences</a></p>
       </div>
     </div>
   </div>
@@ -1125,6 +1162,7 @@ export async function sendManagerApprovalReminder(
       </div>
       <div style="background: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
         <p style="margin: 0; color: #94a3b8; font-size: 12px;">Automated reminder from FridayReport.AI</p>
+        <p style="margin: 8px 0 0; font-size: 11px;"><a href="https://fridayreport.ai/profile" style="color: #94a3b8; text-decoration: underline;">Manage notification preferences</a></p>
       </div>
     </div>
   </div>
@@ -1173,6 +1211,7 @@ export async function sendTimesheetEscalationEmail(
       </div>
       <div style="background: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
         <p style="margin: 0; color: #94a3b8; font-size: 12px;">Automated escalation from FridayReport.AI</p>
+        <p style="margin: 8px 0 0; font-size: 11px;"><a href="https://fridayreport.ai/profile" style="color: #94a3b8; text-decoration: underline;">Manage notification preferences</a></p>
       </div>
     </div>
   </div>
@@ -1255,6 +1294,7 @@ export async function sendManagerWeeklyDigestEmail(
       </div>
       <div style="background: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
         <p style="margin: 0; color: #94a3b8; font-size: 12px;">Weekly digest from FridayReport.AI</p>
+        <p style="margin: 8px 0 0; font-size: 11px;"><a href="https://fridayreport.ai/profile" style="color: #94a3b8; text-decoration: underline;">Manage notification preferences</a></p>
       </div>
     </div>
   </div>
@@ -1356,6 +1396,7 @@ https://fridayreport.ai`;
               <p style="color: #999999; font-size: 12px; margin: 0;">
                 &copy; 2026 FridayReport.AI &mdash; Project Portfolio Management, Reimagined.
               </p>
+              <p style="margin: 8px 0 0; font-size: 11px;"><a href="https://fridayreport.ai/profile" style="color: #999999; text-decoration: underline;">Manage notification preferences</a></p>
             </td>
           </tr>
         </table>
@@ -1510,6 +1551,7 @@ https://fridayreport.ai`;
               <p style="color: #999999; font-size: 12px; margin: 0;">
                 &copy; 2026 FridayReport.AI &mdash; Project Portfolio Management, Reimagined.
               </p>
+              <p style="margin: 8px 0 0; font-size: 11px;"><a href="https://fridayreport.ai/profile" style="color: #999999; text-decoration: underline;">Manage notification preferences</a></p>
             </td>
           </tr>
         </table>
