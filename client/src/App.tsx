@@ -86,6 +86,8 @@ const Bidding = lazy(() => import("@/pages/Bidding"));
 const Vendors = lazy(() => import("@/pages/Vendors"));
 const ChangeOrders = lazy(() => import("@/pages/ChangeOrders"));
 const ConstructionInvoices = lazy(() => import("@/pages/ConstructionInvoices"));
+const Meetings = lazy(() => import("@/pages/Meetings"));
+const Correspondence = lazy(() => import("@/pages/Correspondence"));
 
 function PageLoader() {
   return (
@@ -235,6 +237,8 @@ function Router() {
           <GuardedRoute path="/vendors" component={Vendors} moduleKey="vendors" />
           <GuardedRoute path="/change-orders" component={ChangeOrders} moduleKey="change-orders" />
           <GuardedRoute path="/construction-invoices" component={ConstructionInvoices} moduleKey="construction-invoices" />
+          <GuardedRoute path="/meetings" component={Meetings} moduleKey="meetings" />
+          <GuardedRoute path="/correspondence" component={Correspondence} moduleKey="correspondence" />
           <GuardedRoute path="/calendar" component={Calendar} moduleKey="calendar" />
           <GuardedRoute path="/integrations" component={Integrations} moduleKey="integrations" />
           <Route path="/billing" component={Billing} />

@@ -12,7 +12,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Folder, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, CheckSquare, Eye, EyeOff, GripVertical, Pencil, X, Plus, ChevronUp, ChevronDown, Trash2, ExternalLink, Link as LinkIcon, BookOpen, Home, Radar, Clock, Lightbulb, Receipt, PlayCircle, Users, GraduationCap, LayoutTemplate, ClipboardList, MessageSquare, FileCheck, PenSquare, ClipboardCheck, Shield, Gavel, Building2, FileSignature } from "lucide-react";
+import { Folder, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, CheckSquare, Eye, EyeOff, GripVertical, Pencil, X, Plus, ChevronUp, ChevronDown, Trash2, ExternalLink, Link as LinkIcon, BookOpen, Home, Radar, Clock, Lightbulb, Receipt, PlayCircle, Users, GraduationCap, LayoutTemplate, ClipboardList, MessageSquare, FileCheck, PenSquare, ClipboardCheck, Shield, Gavel, Building2, FileSignature, CalendarDays, MailOpen } from "lucide-react";
 import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, UniqueIdentifier } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -46,6 +46,8 @@ export const availableModules = [
   { key: "vendors", name: "Vendors", icon: Building2, description: "Vendor directory and prequalification" },
   { key: "change-orders", name: "Change Orders", icon: FileSignature, description: "PCO/COR/CO change order management" },
   { key: "construction-invoices", name: "Payment Apps", icon: Receipt, description: "Construction invoices and payment applications" },
+  { key: "meetings", name: "Meetings", icon: CalendarDays, description: "Meeting agendas, minutes, and action items" },
+  { key: "correspondence", name: "Correspondence", icon: MailOpen, description: "Formal project correspondence and transmittals" },
 ];
 
 export const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -76,6 +78,8 @@ export const moduleIconMap: Record<string, React.ComponentType<{ className?: str
   vendors: Building2,
   "change-orders": FileSignature,
   "construction-invoices": Receipt,
+  meetings: CalendarDays,
+  correspondence: MailOpen,
 };
 
 function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder?: string[] | null, hiddenGroups?: string[] | null): SidebarStructure {
@@ -218,6 +222,8 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   ensureModule("vendors", "portfolio", "bidding");
   ensureModule("change-orders", "portfolio", "vendors");
   ensureModule("construction-invoices", "portfolio", "change-orders");
+  ensureModule("meetings", "portfolio", "construction-invoices");
+  ensureModule("correspondence", "portfolio", "meetings");
   
   const helpGroup = cleanedStructure.find(g => g.id === "help");
   if (!helpGroup) {

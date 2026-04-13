@@ -4048,3 +4048,132 @@ export const insertConstructionInvoiceLineItemSchema = createInsertSchema(constr
 });
 export type ConstructionInvoiceLineItem = typeof constructionInvoiceLineItems.$inferSelect;
 export type InsertConstructionInvoiceLineItem = z.infer<typeof insertConstructionInvoiceLineItemSchema>;
+
+// === MEETINGS MODULE ===
+
+export const meetings = pgTable("meetings", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  meetingNumber: text("meeting_number"),
+  title: text("title").notNull(),
+  description: text("description"),
+  meetingType: text("meeting_type").default("General"),
+  status: text("status").default("Scheduled").notNull(),
+  date: date("date").notNull(),
+  startTime: text("start_time"),
+  endTime: text("end_time"),
+  location: text("location"),
+  attendees: text("attendees"),
+  minutesNotes: text("minutes_notes"),
+  minutesRecordedAt: timestamp("minutes_recorded_at"),
+  minutesRecordedBy: varchar("minutes_recorded_by").references(() => users.id),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
+}, (table) => [
+  index("meetings_project_id_idx").on(table.projectId),
+  index("meetings_date_idx").on(table.date),
+  uniqueIndex("meetings_project_number_unique").on(table.projectId, table.meetingNumber),
+]);
+
+export const meetingAgendaItems = pgTable("meeting_agenda_items", {
+  id: serial("id").primaryKey(),
+  meetingId: integer("meeting_id").references(() => meetings.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  presenter: text("presenter"),
+  duration: integer("duration"),
+  notes: text("notes"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("meeting_agenda_items_meeting_id_idx").on(table.meetingId),
+]);
+
+export const meetingActionItems = pgTable("meeting_action_items", {
+  id: serial("id").primaryKey(),
+  meetingId: integer("meeting_id").references(() => meetings.id).notNull(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  assignee: text("assignee"),
+  assigneeId: varchar("assignee_id").references(() => users.id),
+  dueDate: date("due_date"),
+  status: text("status").default("Open").notNull(),
+  priority: text("priority").default("Medium"),
+  completedAt: timestamp("completed_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("meeting_action_items_meeting_id_idx").on(table.meetingId),
+  index("meeting_action_items_project_id_idx").on(table.projectId),
+  index("meeting_action_items_status_idx").on(table.status),
+]);
+
+export const insertMeetingSchema = createInsertSchema(meetings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type Meeting = typeof meetings.$inferSelect;
+export type InsertMeeting = z.infer<typeof insertMeetingSchema>;
+
+export const insertMeetingAgendaItemSchema = createInsertSchema(meetingAgendaItems).omit({
+  id: true,
+  createdAt: true,
+});
+export type MeetingAgendaItem = typeof meetingAgendaItems.$inferSelect;
+export type InsertMeetingAgendaItem = z.infer<typeof insertMeetingAgendaItemSchema>;
+
+export const insertMeetingActionItemSchema = createInsertSchema(meetingActionItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type MeetingActionItem = typeof meetingActionItems.$inferSelect;
+export type InsertMeetingActionItem = z.infer<typeof insertMeetingActionItemSchema>;
+
+// === CORRESPONDENCE MODULE ===
+
+export const correspondence = pgTable("correspondence", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  correspondenceNumber: text("correspondence_number"),
+  type: text("type").default("Letter").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body"),
+  fromName: text("from_name"),
+  fromEmail: text("from_email"),
+  toName: text("to_name"),
+  toEmail: text("to_email"),
+  date: date("date").notNull(),
+  status: text("status").default("Draft").notNull(),
+  priority: text("priority").default("Normal"),
+  attachments: text("attachments"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
+}, (table) => [
+  index("correspondence_project_id_idx").on(table.projectId),
+  index("correspondence_type_idx").on(table.type),
+  index("correspondence_date_idx").on(table.date),
+  uniqueIndex("correspondence_project_number_unique").on(table.projectId, table.correspondenceNumber),
+]);
+
+export const insertCorrespondenceSchema = createInsertSchema(correspondence).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type Correspondence = typeof correspondence.$inferSelect;
+export type InsertCorrespondence = z.infer<typeof insertCorrespondenceSchema>;
