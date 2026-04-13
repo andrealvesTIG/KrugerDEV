@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearch } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -104,7 +104,8 @@ export default function Profile() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
-  const [searchParams] = useSearchParams();
+  const searchString = useSearch();
+  const searchParams = new URLSearchParams(searchString);
   const initialSection = (searchParams.get("section") as Section) || "profile";
   const [activeSection, setActiveSection] = useState<Section>(initialSection);
   const [isEditing, setIsEditing] = useState(false);
