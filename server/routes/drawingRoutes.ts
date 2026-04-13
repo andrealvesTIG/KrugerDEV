@@ -11,6 +11,7 @@ import {
   formatZodErrors,
   logUserActivity,
 } from "./helpers";
+import { generateThumbnailForRevision } from "../services/thumbnailService";
 
 const DISCIPLINES = [
   "Architectural",
@@ -534,6 +535,8 @@ export function registerDrawingRoutes(app: Express) {
       });
 
       logUserActivity(userId, "upload_drawing_revision", "drawing_revision", result.id, { drawingId, revisionNumber: newRevNumber, projectId }, req);
+
+      generateThumbnailForRevision(result.id, data.fileUrl, data.fileType || null).catch(() => {});
 
       res.status(201).json(result);
     } catch (err) {
