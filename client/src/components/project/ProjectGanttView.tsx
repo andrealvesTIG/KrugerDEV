@@ -5891,7 +5891,15 @@ function ProjectGanttView({
           <div className="flex items-center gap-2">
             <Popover open={resourceFilterOpen} onOpenChange={(open) => { setResourceFilterOpen(open); if (!open) setResourceFilterSearch(""); }}>
               <PopoverTrigger asChild>
-                <span />
+                <Button variant="outline" size="sm" className="gap-1 relative" data-testid="button-resource-filter">
+                  <Users className="h-3.5 w-3.5" />
+                  <Filter className="h-3 w-3" />
+                  {resourceFilter.length > 0 && (
+                    <Badge variant="secondary" className="h-4 px-1 text-[10px] ml-0.5">
+                      {resourceFilter.length}
+                    </Badge>
+                  )}
+                </Button>
               </PopoverTrigger>
               <PopoverContent className="w-64 p-0" align="end">
                 <div className="p-2 border-b">
@@ -5982,16 +5990,6 @@ function ProjectGanttView({
                 <DropdownMenuItem onClick={openReorderDialog} data-testid="button-reorder-columns" className="gap-2">
                   <ArrowUpDown className="h-3.5 w-3.5" />
                   Reorder Columns
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setResourceFilterOpen(true)} data-testid="button-resource-filter" className="gap-2">
-                  <Users className="h-3.5 w-3.5" />
-                  Filter by Resource
-                  {resourceFilter.length > 0 && (
-                    <Badge variant="secondary" className="h-4 px-1 text-[10px] ml-auto">
-                      {resourceFilter.length}
-                    </Badge>
-                  )}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={openBaselineDialog} data-testid="button-baseline-schedule" className="gap-2">
