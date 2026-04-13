@@ -73,6 +73,12 @@ export function ResourceAssignment({
 
   const selectedResources = resources?.filter(r => selectedResourceIds.includes(r.id)) || [];
   const teamFilterSet = teamResourceIds ? new Set(teamResourceIds) : null;
+  const teamResources = teamFilterSet
+    ? resources?.filter(r => r.isActive && teamFilterSet.has(r.id)) || []
+    : [];
+  const otherResources = teamFilterSet
+    ? resources?.filter(r => r.isActive && !teamFilterSet.has(r.id)) || []
+    : [];
   const availableResources = resources?.filter(r => r.isActive && (!teamFilterSet || teamFilterSet.has(r.id))) || [];
 
   const inviteMutation = useMutation({
@@ -136,7 +142,28 @@ export function ResourceAssignment({
     }
   });
 
-  const toggleResource = (resourceId: number) => {
+  const addToProjectTeam = async (resourceId: number) => {
+    if (!projectId) return;
+    try {
+      const res = await fetch(`/api/projects/${projectId}/team-members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resourceId }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to add team member");
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "task-resource-assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/resources"] });
+    } catch {
+      toast({
+        title: "Could not add to project team",
+        description: "The resource was assigned but could not be added to the project team automatically.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const toggleResource = (resourceId: number, isFromOtherResources = false) => {
     if (selectedResourceIds.includes(resourceId)) {
       onSelectionChange(selectedResourceIds.filter(id => id !== resourceId));
       if (onAllocationsChange) {
@@ -146,6 +173,9 @@ export function ResourceAssignment({
       onSelectionChange([...selectedResourceIds, resourceId]);
       if (onAllocationsChange) {
         onAllocationsChange([...allocations, { resourceId, allocationPercentage: 100 }]);
+      }
+      if (isFromOtherResources && projectId) {
+        addToProjectTeam(resourceId);
       }
     }
     setSearchValue("");
@@ -305,39 +335,107 @@ export function ResourceAssignment({
               <div className="flex flex-col">
                 <Command shouldFilter={true}>
                   <CommandInput ref={commandInputRef} placeholder="Search resources..." value={searchValue} onValueChange={setSearchValue} />
-                  <CommandList className="max-h-[200px]">
+                  <CommandList className="max-h-[280px]">
                     <CommandEmpty>No resources found.</CommandEmpty>
-                    <CommandGroup>
-                      {availableResources.map(resource => (
-                        <CommandItem
-                          key={resource.id}
-                          value={resource.displayName}
-                          onSelect={() => {
-                            toggleResource(resource.id);
-                            // Keep popover open to allow multiple selections
-                          }}
-                          onPointerDown={(e) => e.preventDefault()}
-                          data-testid={`resource-option-${resource.id}`}
-                        >
-                          <div className="flex items-center gap-2 w-full">
-                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold">
-                              {resource.displayName.charAt(0).toUpperCase()}
+                    {teamFilterSet ? (
+                      <>
+                        {teamResources.length > 0 && (
+                          <CommandGroup heading="Project Team">
+                            {teamResources.map(resource => (
+                              <CommandItem
+                                key={resource.id}
+                                value={resource.displayName}
+                                onSelect={() => {
+                                  toggleResource(resource.id);
+                                }}
+                                onPointerDown={(e) => e.preventDefault()}
+                                data-testid={`resource-option-${resource.id}`}
+                              >
+                                <div className="flex items-center gap-2 w-full">
+                                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                                    {resource.displayName.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-sm font-medium truncate">{resource.displayName}</div>
+                                    {resource.email ? (
+                                      <div className="text-xs text-muted-foreground truncate">{resource.email}</div>
+                                    ) : resource.title ? (
+                                      <div className="text-xs text-muted-foreground truncate">{resource.title}</div>
+                                    ) : null}
+                                  </div>
+                                  {selectedResourceIds.includes(resource.id) && (
+                                    <Check className="h-4 w-4 text-primary shrink-0" />
+                                  )}
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
+                        {otherResources.length > 0 && (
+                          <CommandGroup heading="All Resources">
+                            {otherResources.map(resource => (
+                              <CommandItem
+                                key={resource.id}
+                                value={resource.displayName}
+                                onSelect={() => {
+                                  toggleResource(resource.id, true);
+                                }}
+                                onPointerDown={(e) => e.preventDefault()}
+                                data-testid={`resource-option-${resource.id}`}
+                              >
+                                <div className="flex items-center gap-2 w-full">
+                                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-muted-foreground text-xs font-semibold">
+                                    {resource.displayName.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-sm font-medium truncate">{resource.displayName}</div>
+                                    {resource.email ? (
+                                      <div className="text-xs text-muted-foreground truncate">{resource.email}</div>
+                                    ) : resource.title ? (
+                                      <div className="text-xs text-muted-foreground truncate">{resource.title}</div>
+                                    ) : null}
+                                  </div>
+                                  {selectedResourceIds.includes(resource.id) && (
+                                    <Check className="h-4 w-4 text-primary shrink-0" />
+                                  )}
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
+                      </>
+                    ) : (
+                      <CommandGroup>
+                        {availableResources.map(resource => (
+                          <CommandItem
+                            key={resource.id}
+                            value={resource.displayName}
+                            onSelect={() => {
+                              toggleResource(resource.id);
+                            }}
+                            onPointerDown={(e) => e.preventDefault()}
+                            data-testid={`resource-option-${resource.id}`}
+                          >
+                            <div className="flex items-center gap-2 w-full">
+                              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                                {resource.displayName.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium truncate">{resource.displayName}</div>
+                                {resource.email ? (
+                                  <div className="text-xs text-muted-foreground truncate">{resource.email}</div>
+                                ) : resource.title ? (
+                                  <div className="text-xs text-muted-foreground truncate">{resource.title}</div>
+                                ) : null}
+                              </div>
+                              {selectedResourceIds.includes(resource.id) && (
+                                <Check className="h-4 w-4 text-primary shrink-0" />
+                              )}
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium truncate">{resource.displayName}</div>
-                              {resource.email ? (
-                                <div className="text-xs text-muted-foreground truncate">{resource.email}</div>
-                              ) : resource.title ? (
-                                <div className="text-xs text-muted-foreground truncate">{resource.title}</div>
-                              ) : null}
-                            </div>
-                            {selectedResourceIds.includes(resource.id) && (
-                              <Check className="h-4 w-4 text-primary shrink-0" />
-                            )}
-                          </div>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
                   </CommandList>
                 </Command>
                 <div className="border-t p-1">
