@@ -1,12 +1,13 @@
 import type { Express } from "express";
 import { db } from "../db";
 import { z } from "zod";
-import { eq, and, isNull, desc, sql, gte, lte } from "drizzle-orm";
-import { rfis, rfiResponses, projects } from "@shared/schema";
+import { eq, and, isNull, desc, sql, gte, lte, ilike } from "drizzle-orm";
+import { rfis, rfiResponses, projects, users, organizationMembers } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
   userHasOrgAccess,
+  validateUserInOrg,
   formatZodErrors,
   logUserActivity,
 } from "./helpers";
@@ -45,6 +46,25 @@ const createResponseSchema = z.object({
   isOfficial: z.boolean().default(false),
   attachments: z.array(attachmentSchema).max(20).nullable().optional(),
 }).strict();
+
+async function resolveOrgUserByName(name: string, orgId: number): Promise<string | null> {
+  const members = await db.select({ userId: organizationMembers.userId })
+    .from(organizationMembers)
+    .where(eq(organizationMembers.organizationId, orgId));
+  if (members.length === 0) return null;
+
+  const memberIds = members.map(m => m.userId);
+  const matchingUsers = await db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName, email: users.email })
+    .from(users)
+    .where(sql`${users.id} = ANY(${memberIds})`);
+
+  const nameLower = name.toLowerCase().trim();
+  const match = matchingUsers.find(u => {
+    const fullName = `${u.firstName || ""} ${u.lastName || ""}`.trim().toLowerCase();
+    return fullName === nameLower || u.email?.toLowerCase() === nameLower;
+  });
+  return match?.id || null;
+}
 
 export function registerRfiRoutes(app: Express) {
   app.get("/api/projects/:projectId/rfis", async (req, res) => {
@@ -125,6 +145,14 @@ export function registerRfiRoutes(app: Express) {
 
       const parsed = createRfiSchema.parse(req.body);
 
+      let resolvedAssignedTo = parsed.assignedTo || null;
+      if (resolvedAssignedTo) {
+        const isOrgMember = await validateUserInOrg(resolvedAssignedTo, project.organizationId);
+        if (!isOrgMember) return res.status(400).json({ message: "Assigned user is not a member of this organization" });
+      } else if (parsed.assignedToName) {
+        resolvedAssignedTo = await resolveOrgUserByName(parsed.assignedToName, project.organizationId);
+      }
+
       const existingCount = await db.select({ count: sql<number>`count(*)::int` })
         .from(rfis)
         .where(eq(rfis.projectId, projectId))
@@ -140,7 +168,7 @@ export function registerRfiRoutes(app: Express) {
         question: parsed.question,
         priority: parsed.priority,
         category: parsed.category || null,
-        assignedTo: parsed.assignedTo || null,
+        assignedTo: resolvedAssignedTo,
         assignedToName: parsed.assignedToName || null,
         dueDate: parsed.dueDate || null,
         distributionList: parsed.distributionList || null,
@@ -151,12 +179,12 @@ export function registerRfiRoutes(app: Express) {
         createdBy: userId,
       }).returning();
 
-      if (parsed.assignedTo) {
+      if (resolvedAssignedTo) {
         const { storage } = await import("../storage");
         const creator = await storage.getUser(userId);
         const creatorName = creator ? `${creator.firstName || ""} ${creator.lastName || ""}`.trim() || creator.email || "Unknown" : "Unknown";
         await storage.createNotification({
-          userId: parsed.assignedTo,
+          userId: resolvedAssignedTo,
           type: "rfi_assignment",
           title: `New RFI Assigned: ${rfi.rfiNumber}`,
           message: `You have been assigned ${rfi.rfiNumber}: "${rfi.subject}" by ${creatorName}`,
@@ -198,13 +226,22 @@ export function registerRfiRoutes(app: Express) {
       if (!existing) return res.status(404).json({ message: "RFI not found" });
 
       const parsed = updateRfiSchema.parse(req.body);
+
+      let resolvedAssignedTo = parsed.assignedTo;
+      if (resolvedAssignedTo) {
+        const isOrgMember = await validateUserInOrg(resolvedAssignedTo, project.organizationId);
+        if (!isOrgMember) return res.status(400).json({ message: "Assigned user is not a member of this organization" });
+      } else if (parsed.assignedToName && parsed.assignedTo === undefined) {
+        resolvedAssignedTo = await resolveOrgUserByName(parsed.assignedToName, project.organizationId) || undefined;
+      }
+
       const updateData: Partial<typeof rfis.$inferInsert> & { updatedAt: Date } = { updatedAt: new Date() };
 
       if (parsed.subject !== undefined) updateData.subject = parsed.subject;
       if (parsed.question !== undefined) updateData.question = parsed.question;
       if (parsed.priority !== undefined) updateData.priority = parsed.priority;
       if (parsed.category !== undefined) updateData.category = parsed.category || null;
-      if (parsed.assignedTo !== undefined) updateData.assignedTo = parsed.assignedTo || null;
+      if (resolvedAssignedTo !== undefined) updateData.assignedTo = resolvedAssignedTo || null;
       if (parsed.assignedToName !== undefined) updateData.assignedToName = parsed.assignedToName || null;
       if (parsed.dueDate !== undefined) updateData.dueDate = parsed.dueDate || null;
       if (parsed.distributionList !== undefined) updateData.distributionList = parsed.distributionList || null;
@@ -327,6 +364,94 @@ export function registerRfiRoutes(app: Express) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
       const classified = classifyError(err);
       res.status(classified.status).json({ message: "Error adding response" });
+    }
+  });
+
+  const updateResponseSchema = z.object({
+    responseText: z.string().min(1).max(10000).optional(),
+    isOfficial: z.boolean().optional(),
+    attachments: z.array(attachmentSchema).max(20).nullable().optional(),
+  }).strict();
+
+  app.patch("/api/projects/:projectId/rfis/:rfiId/responses/:responseId", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const projectId = Number(req.params.projectId);
+      const rfiId = Number(req.params.rfiId);
+      const responseId = Number(req.params.responseId);
+      const project = await db.select().from(projects).where(eq(projects.id, projectId)).then(r => r[0]);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const rfi = await db.select().from(rfis)
+        .where(and(eq(rfis.id, rfiId), eq(rfis.projectId, projectId), isNull(rfis.deletedAt)))
+        .then(r => r[0]);
+      if (!rfi) return res.status(404).json({ message: "RFI not found" });
+
+      const existing = await db.select().from(rfiResponses)
+        .where(and(eq(rfiResponses.id, responseId), eq(rfiResponses.rfiId, rfiId)))
+        .then(r => r[0]);
+      if (!existing) return res.status(404).json({ message: "Response not found" });
+
+      if (existing.createdBy !== userId) {
+        return res.status(403).json({ message: "You can only edit your own responses" });
+      }
+
+      const parsed = updateResponseSchema.parse(req.body);
+      const updateData: Record<string, unknown> = {};
+      if (parsed.responseText !== undefined) updateData.responseText = parsed.responseText;
+      if (parsed.isOfficial !== undefined) updateData.isOfficial = parsed.isOfficial;
+      if (parsed.attachments !== undefined) updateData.attachments = parsed.attachments || null;
+
+      const [updated] = await db.update(rfiResponses)
+        .set(updateData)
+        .where(and(eq(rfiResponses.id, responseId), eq(rfiResponses.rfiId, rfiId)))
+        .returning();
+
+      logUserActivity(userId, "update_rfi_response", "rfi_response", responseId, { rfiId, projectId }, req);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: "Error updating response" });
+    }
+  });
+
+  app.delete("/api/projects/:projectId/rfis/:rfiId/responses/:responseId", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const projectId = Number(req.params.projectId);
+      const rfiId = Number(req.params.rfiId);
+      const responseId = Number(req.params.responseId);
+      const project = await db.select().from(projects).where(eq(projects.id, projectId)).then(r => r[0]);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const existing = await db.select().from(rfiResponses)
+        .where(and(eq(rfiResponses.id, responseId), eq(rfiResponses.rfiId, rfiId)))
+        .then(r => r[0]);
+      if (!existing) return res.status(404).json({ message: "Response not found" });
+
+      if (existing.createdBy !== userId) {
+        return res.status(403).json({ message: "You can only delete your own responses" });
+      }
+
+      await db.delete(rfiResponses)
+        .where(and(eq(rfiResponses.id, responseId), eq(rfiResponses.rfiId, rfiId)));
+
+      logUserActivity(userId, "delete_rfi_response", "rfi_response", responseId, { rfiId, projectId }, req);
+      res.status(204).send();
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: "Error deleting response" });
     }
   });
 }

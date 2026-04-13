@@ -1443,6 +1443,12 @@ export {
   getTeamMemberRiskIds,
   getTeamMemberIssueIds,
   getTeamMemberPortfolioIds,
+  validateUserInOrg,
 };
+
+async function validateUserInOrg(targetUserId: string, orgId: number): Promise<boolean> {
+  const membership = await storage.getUserOrganizations(targetUserId);
+  return membership.some(m => m.organizationId === orgId);
+}
 
 export type { ParsedMppTask, TeamMemberAccessData };

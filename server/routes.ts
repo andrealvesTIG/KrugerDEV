@@ -42,7 +42,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  const numericParams = ['id', 'projectId', 'portfolioId', 'taskId', 'issueId', 'milestoneId', 'riskId', 'resourceId', 'orgId', 'organizationId', 'memberId', 'ticketId', 'documentId', 'assessmentId', 'subscriptionId', 'planId', 'viewId', 'entryId', 'notificationId', 'logId', 'rfiId', 'submittalId', 'revisionId'];
+  const numericParams = ['id', 'projectId', 'portfolioId', 'taskId', 'issueId', 'milestoneId', 'riskId', 'resourceId', 'orgId', 'organizationId', 'memberId', 'ticketId', 'documentId', 'assessmentId', 'subscriptionId', 'planId', 'viewId', 'entryId', 'notificationId', 'logId', 'rfiId', 'submittalId', 'revisionId', 'responseId'];
   for (const param of numericParams) {
     app.param(param, (req, res, next, value) => {
       const num = Number(value);

@@ -2,11 +2,12 @@ import type { Express } from "express";
 import { db } from "../db";
 import { z } from "zod";
 import { eq, and, isNull, desc, sql } from "drizzle-orm";
-import { submittals, submittalRevisions, projects } from "@shared/schema";
+import { submittals, submittalRevisions, projects, users, organizationMembers } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
   userHasOrgAccess,
+  validateUserInOrg,
   formatZodErrors,
   logUserActivity,
 } from "./helpers";
@@ -51,6 +52,25 @@ const reviewRevisionSchema = z.object({
   status: z.enum(["Approved", "Rejected", "Revise & Resubmit"]),
   reviewNotes: z.string().max(10000).nullable().optional(),
 }).strict();
+
+async function resolveOrgUserByName(name: string, orgId: number): Promise<string | null> {
+  const members = await db.select({ userId: organizationMembers.userId })
+    .from(organizationMembers)
+    .where(eq(organizationMembers.organizationId, orgId));
+  if (members.length === 0) return null;
+
+  const memberIds = members.map(m => m.userId);
+  const matchingUsers = await db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName, email: users.email })
+    .from(users)
+    .where(sql`${users.id} = ANY(${memberIds})`);
+
+  const nameLower = name.toLowerCase().trim();
+  const match = matchingUsers.find(u => {
+    const fullName = `${u.firstName || ""} ${u.lastName || ""}`.trim().toLowerCase();
+    return fullName === nameLower || u.email?.toLowerCase() === nameLower;
+  });
+  return match?.id || null;
+}
 
 export function registerSubmittalRoutes(app: Express) {
   app.get("/api/projects/:projectId/submittals", async (req, res) => {
@@ -131,6 +151,14 @@ export function registerSubmittalRoutes(app: Express) {
 
       const parsed = createSubmittalSchema.parse(req.body);
 
+      let resolvedReviewerId = parsed.reviewerId || null;
+      if (resolvedReviewerId) {
+        const isOrgMember = await validateUserInOrg(resolvedReviewerId, project.organizationId);
+        if (!isOrgMember) return res.status(400).json({ message: "Reviewer is not a member of this organization" });
+      } else if (parsed.reviewerName) {
+        resolvedReviewerId = await resolveOrgUserByName(parsed.reviewerName, project.organizationId);
+      }
+
       const existingCount = await db.select({ count: sql<number>`count(*)::int` })
         .from(submittals)
         .where(eq(submittals.projectId, projectId))
@@ -152,7 +180,7 @@ export function registerSubmittalRoutes(app: Express) {
           specSection: parsed.specSection || null,
           type: parsed.type,
           priority: parsed.priority,
-          reviewerId: parsed.reviewerId || null,
+          reviewerId: resolvedReviewerId,
           reviewerName: parsed.reviewerName || null,
           submitDate: parsed.submitDate || null,
           requiredDate: parsed.requiredDate || null,
@@ -179,9 +207,9 @@ export function registerSubmittalRoutes(app: Express) {
         return { ...submittal, revisions: [revision] };
       });
 
-      if (parsed.reviewerId) {
+      if (resolvedReviewerId) {
         await storage.createNotification({
-          userId: parsed.reviewerId,
+          userId: resolvedReviewerId,
           type: "submittal_assignment",
           title: `New Submittal for Review: ${result.submittalNumber}`,
           message: `${userName} submitted ${result.submittalNumber}: "${result.title}" for your review`,
@@ -223,6 +251,15 @@ export function registerSubmittalRoutes(app: Express) {
       if (!existing) return res.status(404).json({ message: "Submittal not found" });
 
       const parsed = updateSubmittalSchema.parse(req.body);
+
+      let resolvedReviewerId = parsed.reviewerId;
+      if (resolvedReviewerId) {
+        const isOrgMember = await validateUserInOrg(resolvedReviewerId, project.organizationId);
+        if (!isOrgMember) return res.status(400).json({ message: "Reviewer is not a member of this organization" });
+      } else if (parsed.reviewerName && parsed.reviewerId === undefined) {
+        resolvedReviewerId = await resolveOrgUserByName(parsed.reviewerName, project.organizationId) || undefined;
+      }
+
       const updateData: Partial<typeof submittals.$inferInsert> & { updatedAt: Date } = { updatedAt: new Date() };
 
       if (parsed.title !== undefined) updateData.title = parsed.title;
@@ -230,7 +267,7 @@ export function registerSubmittalRoutes(app: Express) {
       if (parsed.specSection !== undefined) updateData.specSection = parsed.specSection || null;
       if (parsed.type !== undefined) updateData.type = parsed.type;
       if (parsed.priority !== undefined) updateData.priority = parsed.priority;
-      if (parsed.reviewerId !== undefined) updateData.reviewerId = parsed.reviewerId || null;
+      if (resolvedReviewerId !== undefined) updateData.reviewerId = resolvedReviewerId || null;
       if (parsed.reviewerName !== undefined) updateData.reviewerName = parsed.reviewerName || null;
       if (parsed.submitDate !== undefined) updateData.submitDate = parsed.submitDate || null;
       if (parsed.requiredDate !== undefined) updateData.requiredDate = parsed.requiredDate || null;
@@ -252,6 +289,32 @@ export function registerSubmittalRoutes(app: Express) {
         .set(updateData)
         .where(and(eq(submittals.id, submittalId), eq(submittals.projectId, projectId), isNull(submittals.deletedAt)))
         .returning();
+
+      if (parsed.status && parsed.status !== existing.status) {
+        const { storage } = await import("../storage");
+        const user = await storage.getUser(userId);
+        const userName = user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "Unknown" : "Unknown";
+        const notifyUserId = existing.submittedBy && existing.submittedBy !== userId
+          ? existing.submittedBy
+          : existing.createdBy && existing.createdBy !== userId
+            ? existing.createdBy
+            : null;
+        if (notifyUserId) {
+          await storage.createNotification({
+            userId: notifyUserId,
+            type: "submittal_status_change",
+            title: `Submittal ${parsed.status}: ${existing.submittalNumber}`,
+            message: `${userName} changed ${existing.submittalNumber}: "${existing.title}" to ${parsed.status}`,
+            severity: parsed.status === "Rejected" ? "warning" : "info",
+            organizationId: project.organizationId,
+            projectId,
+            fromUserId: userId,
+            fromUserName: userName,
+            actionUrl: `/projects/${projectId}?tab=submittals`,
+            metadata: { submittalId, submittalNumber: existing.submittalNumber, status: parsed.status },
+          });
+        }
+      }
 
       logUserActivity(userId, "update_submittal", "submittal", submittalId, { projectId, status: updated.status }, req);
       res.json(updated);
@@ -434,6 +497,100 @@ export function registerSubmittalRoutes(app: Express) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
       const classified = classifyError(err);
       res.status(classified.status).json({ message: "Error reviewing revision" });
+    }
+  });
+
+  const updateRevisionSchema = z.object({
+    notes: z.string().max(10000).nullable().optional(),
+    attachments: z.array(attachmentSchema).max(20).nullable().optional(),
+  }).strict();
+
+  app.patch("/api/projects/:projectId/submittals/:submittalId/revisions/:revisionId", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const projectId = Number(req.params.projectId);
+      const submittalId = Number(req.params.submittalId);
+      const revisionId = Number(req.params.revisionId);
+      const project = await db.select().from(projects).where(eq(projects.id, projectId)).then(r => r[0]);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const submittal = await db.select().from(submittals)
+        .where(and(eq(submittals.id, submittalId), eq(submittals.projectId, projectId), isNull(submittals.deletedAt)))
+        .then(r => r[0]);
+      if (!submittal) return res.status(404).json({ message: "Submittal not found" });
+
+      const existing = await db.select().from(submittalRevisions)
+        .where(and(eq(submittalRevisions.id, revisionId), eq(submittalRevisions.submittalId, submittalId)))
+        .then(r => r[0]);
+      if (!existing) return res.status(404).json({ message: "Revision not found" });
+
+      if (existing.createdBy !== userId) {
+        return res.status(403).json({ message: "You can only edit your own revisions" });
+      }
+
+      if (existing.reviewedAt) {
+        return res.status(400).json({ message: "Cannot edit a revision that has already been reviewed" });
+      }
+
+      const parsed = updateRevisionSchema.parse(req.body);
+      const updateData: Record<string, unknown> = {};
+      if (parsed.notes !== undefined) updateData.notes = parsed.notes || null;
+      if (parsed.attachments !== undefined) updateData.attachments = parsed.attachments || null;
+
+      const [updated] = await db.update(submittalRevisions)
+        .set(updateData)
+        .where(and(eq(submittalRevisions.id, revisionId), eq(submittalRevisions.submittalId, submittalId)))
+        .returning();
+
+      logUserActivity(userId, "update_submittal_revision", "submittal_revision", revisionId, { submittalId, projectId }, req);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: "Error updating revision" });
+    }
+  });
+
+  app.delete("/api/projects/:projectId/submittals/:submittalId/revisions/:revisionId", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const projectId = Number(req.params.projectId);
+      const submittalId = Number(req.params.submittalId);
+      const revisionId = Number(req.params.revisionId);
+      const project = await db.select().from(projects).where(eq(projects.id, projectId)).then(r => r[0]);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const existing = await db.select().from(submittalRevisions)
+        .where(and(eq(submittalRevisions.id, revisionId), eq(submittalRevisions.submittalId, submittalId)))
+        .then(r => r[0]);
+      if (!existing) return res.status(404).json({ message: "Revision not found" });
+
+      if (existing.createdBy !== userId) {
+        return res.status(403).json({ message: "You can only delete your own revisions" });
+      }
+
+      if (existing.reviewedAt) {
+        return res.status(400).json({ message: "Cannot delete a revision that has already been reviewed" });
+      }
+
+      await db.delete(submittalRevisions)
+        .where(and(eq(submittalRevisions.id, revisionId), eq(submittalRevisions.submittalId, submittalId)));
+
+      logUserActivity(userId, "delete_submittal_revision", "submittal_revision", revisionId, { submittalId, projectId }, req);
+      res.status(204).send();
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: "Error deleting revision" });
     }
   });
 }
