@@ -651,18 +651,29 @@ function InspectionDetailDialog({ projectId, inspectionId, organizationId, onClo
               <Label className="text-muted-foreground">Results ({inspection.results.length} items)</Label>
               <div className="space-y-1 mt-2">
                 {inspection.results.map((r, i) => (
-                  <div key={i} className="flex items-center justify-between text-sm border rounded px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      {r.section && <span className="text-xs text-muted-foreground">[{r.section}]</span>}
-                      <span>{r.itemText}</span>
+                  <div key={i} className="text-sm border rounded px-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {r.section && <span className="text-xs text-muted-foreground">[{r.section}]</span>}
+                        <span>{r.itemText}</span>
+                      </div>
+                      <Badge className={
+                        r.result === "Pass" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+                        r.result === "Fail" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                        "bg-gray-100 text-gray-700"
+                      }>
+                        {r.result || "Pending"}
+                      </Badge>
                     </div>
-                    <Badge className={
-                      r.result === "Pass" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
-                      r.result === "Fail" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
-                      "bg-gray-100 text-gray-700"
-                    }>
-                      {r.result || "Pending"}
-                    </Badge>
+                    {r.result === "Fail" && (r.deficiencyDescription || r.correctiveAction || r.assignedToName || r.dueDate) && (
+                      <div className="mt-1 pl-2 border-l-2 border-red-200 space-y-0.5 text-xs text-muted-foreground">
+                        {r.deficiencyDescription && <p><span className="font-medium">Deficiency:</span> {r.deficiencyDescription}</p>}
+                        {r.correctiveAction && <p><span className="font-medium">Action:</span> {r.correctiveAction}</p>}
+                        {r.assignedToName && <p><span className="font-medium">Assigned:</span> {r.assignedToName}</p>}
+                        {r.dueDate && <p><span className="font-medium">Due:</span> {format(new Date(r.dueDate), "MMM d, yyyy")}</p>}
+                      </div>
+                    )}
+                    {r.photoUrl && <img src={r.photoUrl} alt="Result" className="mt-1 h-12 w-12 rounded object-cover border" />}
                   </div>
                 ))}
               </div>
@@ -694,13 +705,46 @@ function InspectionDetailDialog({ projectId, inspectionId, organizationId, onClo
                     </Select>
                   </div>
                   {r.result === "Fail" && (
-                    <div className="pl-4 space-y-2">
+                    <div className="pl-4 space-y-2 border-l-2 border-red-200">
                       <Textarea placeholder="Deficiency description" value={r.deficiencyDescription}
                         onChange={e => { const u = [...results]; u[i] = { ...u[i], deficiencyDescription: e.target.value }; setResults(u); }}
                         rows={1} className="text-sm" />
-                      <Textarea placeholder="Corrective action" value={r.correctiveAction}
+                      <Textarea placeholder="Corrective action required" value={r.correctiveAction}
                         onChange={e => { const u = [...results]; u[i] = { ...u[i], correctiveAction: e.target.value }; setResults(u); }}
                         rows={1} className="text-sm" />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Assign To</Label>
+                          {members.length > 0 ? (
+                            <Select value={r.assignedTo || "unassigned"} onValueChange={v => {
+                              const u = [...results];
+                              if (v === "unassigned") {
+                                u[i] = { ...u[i], assignedTo: "", assignedToName: "" };
+                              } else {
+                                const m = members.find(m => m.userId === v);
+                                u[i] = { ...u[i], assignedTo: v, assignedToName: m ? getMemberDisplayName(m) : "" };
+                              }
+                              setResults(u);
+                            }}>
+                              <SelectTrigger className="text-sm h-8"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unassigned">Unassigned</SelectItem>
+                                {members.map(m => (
+                                  <SelectItem key={m.userId} value={m.userId}>{getMemberDisplayName(m)}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input placeholder="Assignee name" value={r.assignedToName} className="text-sm h-8"
+                              onChange={e => { const u = [...results]; u[i] = { ...u[i], assignedToName: e.target.value }; setResults(u); }} />
+                          )}
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Due Date</Label>
+                          <Input type="date" value={r.dueDate} className="text-sm h-8"
+                            onChange={e => { const u = [...results]; u[i] = { ...u[i], dueDate: e.target.value }; setResults(u); }} />
+                        </div>
+                      </div>
                     </div>
                   )}
                   <Input placeholder="Notes" value={r.notes}
