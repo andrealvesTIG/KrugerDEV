@@ -20,6 +20,63 @@ export type ContractSummary = {
   percentBilled: number;
 };
 
+export type InvoiceAgingReport = {
+  projectName: string;
+  totalInvoices: number;
+  totalBilled: number;
+  totalPaid: number;
+  totalOutstanding: number;
+  buckets: {
+    current: Array<{ id: number; invoiceNumber: string; title: string; vendorName: string; status: string; submittedDate: string; currentBilled: string; paidAmount: string; outstanding: number; daysOld: number }>;
+    days1to30: Array<{ id: number; invoiceNumber: string; title: string; vendorName: string; status: string; submittedDate: string; currentBilled: string; paidAmount: string; outstanding: number; daysOld: number }>;
+    days31to60: Array<{ id: number; invoiceNumber: string; title: string; vendorName: string; status: string; submittedDate: string; currentBilled: string; paidAmount: string; outstanding: number; daysOld: number }>;
+    days61to90: Array<{ id: number; invoiceNumber: string; title: string; vendorName: string; status: string; submittedDate: string; currentBilled: string; paidAmount: string; outstanding: number; daysOld: number }>;
+    over90: Array<{ id: number; invoiceNumber: string; title: string; vendorName: string; status: string; submittedDate: string; currentBilled: string; paidAmount: string; outstanding: number; daysOld: number }>;
+  };
+  bucketTotals: { current: number; days1to30: number; days31to60: number; days61to90: number; over90: number };
+  generatedAt: string;
+};
+
+export function useInvoiceAgingReport(projectId: number | undefined) {
+  return useQuery<InvoiceAgingReport>({
+    queryKey: [`/api/projects/${projectId}/construction-invoices/aging`],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/construction-invoices/aging`);
+      if (!res.ok) throw new Error("Failed to fetch aging report");
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+}
+
+export function useRecordPayment() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ projectId, invoiceId, paidAmount, paidDate, notes }: { projectId: number; invoiceId: number; paidAmount: string; paidDate?: string; notes?: string }) => {
+      const res = await fetch(`/api/projects/${projectId}/construction-invoices/${invoiceId}/record-payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paidAmount, paidDate, notes }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Failed to record payment" }));
+        throw new Error(err.message);
+      }
+      return res.json();
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/construction-invoices`] });
+      qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/construction-invoices/contract-summary`] });
+      qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/construction-invoices/aging`] });
+      toast({ title: "Payment recorded" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+}
+
 export function useConstructionInvoices(projectId: number | undefined) {
   return useQuery<ConstructionInvoice[]>({
     queryKey: [`/api/projects/${projectId}/construction-invoices`],
@@ -60,6 +117,7 @@ export function useCreateConstructionInvoice() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/construction-invoices`] });
       qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/construction-invoices/contract-summary`] });
+      qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/construction-invoices/aging`] });
       toast({ title: "Invoice created" });
     },
     onError: (err: Error) => {
@@ -87,6 +145,7 @@ export function useUpdateConstructionInvoice() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/construction-invoices`] });
       qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/construction-invoices/contract-summary`] });
+      qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/construction-invoices/aging`] });
       qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/construction-invoices/${vars.invoiceId}`] });
       toast({ title: "Invoice updated" });
     },
@@ -113,6 +172,7 @@ export function useDeleteConstructionInvoice() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/construction-invoices`] });
       qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/construction-invoices/contract-summary`] });
+      qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/construction-invoices/aging`] });
       toast({ title: "Invoice deleted" });
     },
     onError: (err: Error) => {

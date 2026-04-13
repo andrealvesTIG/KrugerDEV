@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useChangeOrders, useChangeOrderSummary, useCreateChangeOrder, useUpdateChangeOrder, useDeleteChangeOrder, usePromoteChangeOrder, useApproveChangeOrder } from "@/hooks/use-change-orders";
+import { useChangeOrders, useChangeOrderSummary, useChangeOrderReport, useCreateChangeOrder, useUpdateChangeOrder, useDeleteChangeOrder, usePromoteChangeOrder, useApproveChangeOrder } from "@/hooks/use-change-orders";
 import type { ChangeOrder } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Loader2, Search, Plus, Trash2, MoreVertical, Pencil, ArrowRight, CheckCircle, DollarSign, Clock, FileText, TrendingUp, ArrowUpRight } from "lucide-react";
+import { Loader2, Search, Plus, Trash2, MoreVertical, Pencil, ArrowRight, CheckCircle, DollarSign, Clock, FileText, TrendingUp, ArrowUpRight, BarChart3 } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
@@ -65,6 +66,7 @@ function emptyLineItem(): LineItemData {
 export default function ChangeOrdersTab({ projectId }: { projectId: number }) {
   const { data: changeOrders, isLoading } = useChangeOrders(projectId);
   const { data: summary } = useChangeOrderSummary(projectId);
+  const { data: report } = useChangeOrderReport(projectId);
   const createMutation = useCreateChangeOrder();
   const updateMutation = useUpdateChangeOrder();
   const deleteMutation = useDeleteChangeOrder();
@@ -78,6 +80,7 @@ export default function ChangeOrdersTab({ projectId }: { projectId: number }) {
   const [search, setSearch] = useState("");
   const [tierFilter, setTierFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"list" | "report">("list");
 
   const [formTitle, setFormTitle] = useState("");
   const [formDescription, setFormDescription] = useState("");
@@ -238,7 +241,133 @@ export default function ChangeOrdersTab({ projectId }: { projectId: number }) {
         </div>
       )}
 
-      <Card>
+      <div className="flex items-center gap-2">
+        <Button variant={viewMode === "list" ? "default" : "outline"} size="sm" onClick={() => setViewMode("list")}>
+          <FileText className="mr-2 h-4 w-4" />List
+        </Button>
+        <Button variant={viewMode === "report" ? "default" : "outline"} size="sm" onClick={() => setViewMode("report")}>
+          <BarChart3 className="mr-2 h-4 w-4" />Log Report
+        </Button>
+      </div>
+
+      {viewMode === "report" && report && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Change Order Log Report</CardTitle>
+            <p className="text-sm text-muted-foreground">Generated {format(new Date(report.generatedAt), "MMM d, yyyy h:mm a")}</p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-lg border p-4">
+                <p className="text-sm text-muted-foreground">Original Contract</p>
+                <p className="text-xl font-bold">{formatCurrency(report.originalContract)}</p>
+              </div>
+              <div className="rounded-lg border p-4">
+                <p className="text-sm text-muted-foreground">Net Change</p>
+                <p className={cn("text-xl font-bold", report.netChange > 0 ? "text-rose-600" : report.netChange < 0 ? "text-emerald-600" : "")}>{formatCurrency(report.netChange)}</p>
+              </div>
+              <div className="rounded-lg border p-4">
+                <p className="text-sm text-muted-foreground">Revised Contract</p>
+                <p className="text-xl font-bold">{formatCurrency(report.revisedContract)}</p>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-semibold mb-3">Tier Summary</h4>
+              <div className="rounded-lg border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="p-3 text-left font-medium">Tier</th>
+                      <th className="p-3 text-right font-medium">Total</th>
+                      <th className="p-3 text-right font-medium">Approved</th>
+                      <th className="p-3 text-right font-medium">Pending</th>
+                      <th className="p-3 text-right font-medium">Rejected</th>
+                      <th className="p-3 text-right font-medium">Approved Cost</th>
+                      <th className="p-3 text-right font-medium">Schedule (days)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.tierSummaries.map(ts => (
+                      <tr key={ts.tier} className="border-t">
+                        <td className="p-3"><Badge className={tierColors[ts.tier]}>{ts.tier}</Badge></td>
+                        <td className="p-3 text-right">{ts.total}</td>
+                        <td className="p-3 text-right">{ts.approved}</td>
+                        <td className="p-3 text-right">{ts.pending}</td>
+                        <td className="p-3 text-right">{ts.rejected}</td>
+                        <td className="p-3 text-right">{formatCurrency(ts.approvedCostImpact)}</td>
+                        <td className="p-3 text-right">{ts.totalScheduleImpact}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {Object.keys(report.reasonCodeBreakdown).length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold mb-3">Reason Code Breakdown</h4>
+                <div className="rounded-lg border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="p-3 text-left font-medium">Reason Code</th>
+                        <th className="p-3 text-right font-medium">Count</th>
+                        <th className="p-3 text-right font-medium">Total Cost Impact</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(report.reasonCodeBreakdown).map(([code, data]) => (
+                        <tr key={code} className="border-t">
+                          <td className="p-3">{code}</td>
+                          <td className="p-3 text-right">{data.count}</td>
+                          <td className="p-3 text-right">{formatCurrency(data.totalCost)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <h4 className="text-sm font-semibold mb-3">Full Change Order Log ({report.log.length} entries)</h4>
+              <div className="rounded-lg border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="p-3 text-left font-medium">Number</th>
+                      <th className="p-3 text-left font-medium">Tier</th>
+                      <th className="p-3 text-left font-medium">Title</th>
+                      <th className="p-3 text-left font-medium">Status</th>
+                      <th className="p-3 text-left font-medium">Reason</th>
+                      <th className="p-3 text-right font-medium">Cost Impact</th>
+                      <th className="p-3 text-right font-medium">Days</th>
+                      <th className="p-3 text-left font-medium">Requested By</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.log.map(entry => (
+                      <tr key={entry.id} className="border-t">
+                        <td className="p-3 font-mono text-xs">{entry.number}</td>
+                        <td className="p-3"><Badge className={tierColors[entry.tier || ""]}>{entry.tier}</Badge></td>
+                        <td className="p-3 max-w-[200px] truncate">{entry.title}</td>
+                        <td className="p-3"><Badge className={statusColors[entry.status || ""]}>{entry.status}</Badge></td>
+                        <td className="p-3 text-xs">{entry.reasonCode || "-"}</td>
+                        <td className="p-3 text-right">{formatCurrency(entry.costImpact)}</td>
+                        <td className="p-3 text-right">{entry.scheduleImpactDays ?? "-"}</td>
+                        <td className="p-3 text-xs">{entry.requestedBy || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {viewMode === "list" && <Card>
         <CardHeader className="pb-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <CardTitle className="text-lg">Change Orders</CardTitle>
@@ -343,7 +472,7 @@ export default function ChangeOrdersTab({ projectId }: { projectId: number }) {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
       <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) { setIsDialogOpen(false); resetForm(); } else setIsDialogOpen(true); }}>
         <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">

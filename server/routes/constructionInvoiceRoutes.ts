@@ -151,6 +151,76 @@ export function registerConstructionInvoiceRoutes(app: Express) {
     }
   });
 
+  app.get("/api/projects/:projectId/construction-invoices/aging", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const projectId = Number(req.params.projectId);
+      const project = await verifyProjectAccess(userId, projectId);
+      if (!project) return res.status(403).json({ message: "Access denied" });
+
+      const allInvoices = await db.select()
+        .from(constructionInvoices)
+        .where(and(eq(constructionInvoices.projectId, projectId), isNull(constructionInvoices.deletedAt)))
+        .orderBy(asc(constructionInvoices.submittedDate));
+
+      const today = new Date();
+      const buckets = { current: [] as any[], days1to30: [] as any[], days31to60: [] as any[], days61to90: [] as any[], over90: [] as any[] };
+      const unpaid = allInvoices.filter(inv => inv.status !== "Paid" && inv.status !== "Draft" && inv.status !== "Void");
+
+      for (const inv of unpaid) {
+        const refDate = inv.submittedDate ? new Date(inv.submittedDate) : (inv.createdAt || today);
+        const daysOld = Math.floor((today.getTime() - new Date(refDate).getTime()) / (1000 * 60 * 60 * 24));
+        const outstanding = parseFloat(inv.currentBilled || "0") - parseFloat(inv.paidAmount || "0");
+        const entry = {
+          id: inv.id,
+          invoiceNumber: inv.invoiceNumber,
+          title: inv.title,
+          vendorName: inv.vendorName,
+          status: inv.status,
+          submittedDate: inv.submittedDate,
+          currentBilled: inv.currentBilled,
+          paidAmount: inv.paidAmount,
+          outstanding,
+          daysOld,
+        };
+
+        if (daysOld <= 0) buckets.current.push(entry);
+        else if (daysOld <= 30) buckets.days1to30.push(entry);
+        else if (daysOld <= 60) buckets.days31to60.push(entry);
+        else if (daysOld <= 90) buckets.days61to90.push(entry);
+        else buckets.over90.push(entry);
+      }
+
+      const bucketTotals = {
+        current: buckets.current.reduce((s, e) => s + e.outstanding, 0),
+        days1to30: buckets.days1to30.reduce((s, e) => s + e.outstanding, 0),
+        days31to60: buckets.days31to60.reduce((s, e) => s + e.outstanding, 0),
+        days61to90: buckets.days61to90.reduce((s, e) => s + e.outstanding, 0),
+        over90: buckets.over90.reduce((s, e) => s + e.outstanding, 0),
+      };
+
+      const totalOutstanding = Object.values(bucketTotals).reduce((s, v) => s + v, 0);
+      const totalBilled = allInvoices.reduce((s, inv) => s + parseFloat(inv.currentBilled || "0"), 0);
+      const totalPaid = allInvoices.filter(inv => inv.status === "Paid").reduce((s, inv) => s + parseFloat(inv.paidAmount || inv.currentBilled || "0"), 0);
+
+      res.json({
+        projectName: project.name,
+        totalInvoices: allInvoices.length,
+        totalBilled,
+        totalPaid,
+        totalOutstanding,
+        buckets,
+        bucketTotals,
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (err: unknown) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
   app.get("/api/projects/:projectId/construction-invoices/:invoiceId", async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -291,6 +361,70 @@ export function registerConstructionInvoiceRoutes(app: Express) {
         .orderBy(asc(constructionInvoiceLineItems.sortOrder));
 
       res.json({ ...updated, lineItems: lineItemsList });
+    } catch (err: unknown) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.post("/api/projects/:projectId/construction-invoices/:invoiceId/record-payment", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const projectId = Number(req.params.projectId);
+      const invoiceId = Number(req.params.invoiceId);
+      const project = await verifyProjectAccess(userId, projectId);
+      if (!project) return res.status(403).json({ message: "Access denied" });
+
+      const paymentSchema = z.object({
+        paidAmount: z.string().min(1),
+        paidDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        notes: z.string().max(10000).optional(),
+      });
+
+      const parsed = paymentSchema.parse(req.body);
+
+      const [existing] = await db.select()
+        .from(constructionInvoices)
+        .where(and(
+          eq(constructionInvoices.id, invoiceId),
+          eq(constructionInvoices.projectId, projectId),
+          isNull(constructionInvoices.deletedAt),
+        ));
+
+      if (!existing) return res.status(404).json({ message: "Invoice not found" });
+      if (existing.status === "Paid") return res.status(400).json({ message: "Invoice is already fully paid" });
+      if (existing.status === "Draft") return res.status(400).json({ message: "Cannot record payment on a draft invoice" });
+
+      const now = new Date();
+      const updateData: Record<string, any> = {
+        paidAmount: parsed.paidAmount,
+        paidDate: parsed.paidDate || now.toISOString().split("T")[0],
+        status: "Paid",
+        updatedAt: now,
+      };
+
+      if (parsed.notes) {
+        const existingNotes = existing.notes || "";
+        updateData.notes = existingNotes ? `${existingNotes}\n\nPayment recorded: ${parsed.notes}` : `Payment recorded: ${parsed.notes}`;
+      }
+
+      const [updated] = await db.update(constructionInvoices)
+        .set(updateData)
+        .where(and(
+          eq(constructionInvoices.id, invoiceId),
+          eq(constructionInvoices.projectId, projectId),
+        ))
+        .returning();
+
+      logUserActivity(userId, "construction_invoice_payment_recorded", projectId, {
+        invoiceId,
+        paidAmount: parsed.paidAmount,
+        paidDate: updateData.paidDate,
+      });
+
+      res.json(updated);
     } catch (err: unknown) {
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.message });

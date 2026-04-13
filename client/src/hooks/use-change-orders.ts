@@ -20,6 +20,38 @@ export type ChangeOrderSummary = {
   revisedContract: number;
 };
 
+export type ChangeOrderReport = {
+  projectName: string;
+  originalContract: number;
+  revisedContract: number;
+  netChange: number;
+  tierSummaries: Array<{
+    tier: string;
+    total: number;
+    approved: number;
+    pending: number;
+    rejected: number;
+    totalCostImpact: number;
+    approvedCostImpact: number;
+    totalScheduleImpact: number;
+  }>;
+  reasonCodeBreakdown: Record<string, { count: number; totalCost: number }>;
+  log: Array<ChangeOrder & { lineItems: ChangeOrderLineItem[] }>;
+  generatedAt: string;
+};
+
+export function useChangeOrderReport(projectId: number | undefined) {
+  return useQuery<ChangeOrderReport>({
+    queryKey: [`/api/projects/${projectId}/change-orders/report`],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/change-orders/report`);
+      if (!res.ok) throw new Error("Failed to fetch report");
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+}
+
 export function useChangeOrders(projectId: number | undefined, tier?: string) {
   const url = tier
     ? `/api/projects/${projectId}/change-orders?tier=${tier}`
@@ -68,6 +100,7 @@ export function useCreateChangeOrder() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/change-orders`] });
       qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/change-orders/summary`] });
+      qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/change-orders/report`] });
       toast({ title: "Change order created" });
     },
     onError: (err: Error) => {
@@ -95,6 +128,7 @@ export function useUpdateChangeOrder() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/change-orders`] });
       qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/change-orders/summary`] });
+      qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/change-orders/report`] });
       qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/change-orders/${vars.changeOrderId}`] });
       toast({ title: "Change order updated" });
     },
@@ -121,6 +155,7 @@ export function useDeleteChangeOrder() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/change-orders`] });
       qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/change-orders/summary`] });
+      qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/change-orders/report`] });
       toast({ title: "Change order deleted" });
     },
     onError: (err: Error) => {
@@ -147,6 +182,7 @@ export function usePromoteChangeOrder() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/change-orders`] });
       qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/change-orders/summary`] });
+      qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/change-orders/report`] });
       toast({ title: "Change order promoted" });
     },
     onError: (err: Error) => {
@@ -174,6 +210,7 @@ export function useApproveChangeOrder() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/change-orders`] });
       qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/change-orders/summary`] });
+      qc.invalidateQueries({ queryKey: [`/api/projects/${vars.projectId}/change-orders/report`] });
       toast({ title: "Change order approved" });
     },
     onError: (err: Error) => {

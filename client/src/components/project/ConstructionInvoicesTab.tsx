@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useConstructionInvoices, useContractSummary, useCreateConstructionInvoice, useUpdateConstructionInvoice, useDeleteConstructionInvoice } from "@/hooks/use-construction-invoices";
+import { useConstructionInvoices, useContractSummary, useInvoiceAgingReport, useRecordPayment, useCreateConstructionInvoice, useUpdateConstructionInvoice, useDeleteConstructionInvoice } from "@/hooks/use-construction-invoices";
 import type { ConstructionInvoice } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Search, Plus, Trash2, MoreVertical, Pencil, Receipt, DollarSign, CheckCircle, Clock, TrendingUp, FileText } from "lucide-react";
+import { Loader2, Search, Plus, Trash2, MoreVertical, Pencil, Receipt, DollarSign, CheckCircle, Clock, TrendingUp, FileText, BarChart3, CreditCard, AlertTriangle } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
@@ -49,9 +49,11 @@ function emptyLineItem(): LineItemData {
 export default function ConstructionInvoicesTab({ projectId }: { projectId: number }) {
   const { data: invoices, isLoading } = useConstructionInvoices(projectId);
   const { data: contractSummary } = useContractSummary(projectId);
+  const { data: agingReport } = useInvoiceAgingReport(projectId);
   const createMutation = useCreateConstructionInvoice();
   const updateMutation = useUpdateConstructionInvoice();
   const deleteMutation = useDeleteConstructionInvoice();
+  const recordPaymentMutation = useRecordPayment();
   const { toast } = useToast();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -59,6 +61,11 @@ export default function ConstructionInvoicesTab({ projectId }: { projectId: numb
   const [deleteTarget, setDeleteTarget] = useState<ConstructionInvoice | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"list" | "aging">("list");
+  const [paymentTarget, setPaymentTarget] = useState<ConstructionInvoice | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentDate, setPaymentDate] = useState("");
+  const [paymentNotes, setPaymentNotes] = useState("");
 
   const [formTitle, setFormTitle] = useState("");
   const [formDescription, setFormDescription] = useState("");
@@ -230,7 +237,119 @@ export default function ConstructionInvoicesTab({ projectId }: { projectId: numb
         </div>
       )}
 
-      <Card>
+      <div className="flex items-center gap-2">
+        <Button variant={viewMode === "list" ? "default" : "outline"} size="sm" onClick={() => setViewMode("list")}>
+          <FileText className="mr-2 h-4 w-4" />List
+        </Button>
+        <Button variant={viewMode === "aging" ? "default" : "outline"} size="sm" onClick={() => setViewMode("aging")}>
+          <BarChart3 className="mr-2 h-4 w-4" />Aging Report
+        </Button>
+      </div>
+
+      {viewMode === "aging" && agingReport && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Invoice Aging Report</CardTitle>
+            <p className="text-sm text-muted-foreground">Generated {format(new Date(agingReport.generatedAt), "MMM d, yyyy h:mm a")}</p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-4">
+              <div className="rounded-lg border p-4">
+                <p className="text-sm text-muted-foreground">Total Billed</p>
+                <p className="text-xl font-bold">{formatCurrency(agingReport.totalBilled)}</p>
+              </div>
+              <div className="rounded-lg border p-4">
+                <p className="text-sm text-muted-foreground">Total Paid</p>
+                <p className="text-xl font-bold text-emerald-600">{formatCurrency(agingReport.totalPaid)}</p>
+              </div>
+              <div className="rounded-lg border p-4">
+                <p className="text-sm text-muted-foreground">Outstanding</p>
+                <p className={cn("text-xl font-bold", agingReport.totalOutstanding > 0 ? "text-amber-600" : "")}>{formatCurrency(agingReport.totalOutstanding)}</p>
+              </div>
+              <div className="rounded-lg border p-4">
+                <p className="text-sm text-muted-foreground">Total Invoices</p>
+                <p className="text-xl font-bold">{agingReport.totalInvoices}</p>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-semibold mb-3">Aging Buckets</h4>
+              <div className="rounded-lg border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="p-3 text-left font-medium">Bucket</th>
+                      <th className="p-3 text-right font-medium">Count</th>
+                      <th className="p-3 text-right font-medium">Outstanding</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { label: "Current", key: "current" as const, color: "" },
+                      { label: "1-30 Days", key: "days1to30" as const, color: "text-amber-600" },
+                      { label: "31-60 Days", key: "days31to60" as const, color: "text-orange-600" },
+                      { label: "61-90 Days", key: "days61to90" as const, color: "text-red-500" },
+                      { label: "Over 90 Days", key: "over90" as const, color: "text-red-700 font-semibold" },
+                    ].map(bucket => (
+                      <tr key={bucket.key} className="border-t">
+                        <td className="p-3 flex items-center gap-2">
+                          {bucket.key === "over90" && agingReport.buckets[bucket.key].length > 0 && <AlertTriangle className="h-4 w-4 text-red-500" />}
+                          {bucket.label}
+                        </td>
+                        <td className="p-3 text-right">{agingReport.buckets[bucket.key].length}</td>
+                        <td className={cn("p-3 text-right", bucket.color)}>{formatCurrency(agingReport.bucketTotals[bucket.key])}</td>
+                      </tr>
+                    ))}
+                    <tr className="border-t bg-muted/30 font-semibold">
+                      <td className="p-3">Total</td>
+                      <td className="p-3 text-right">{Object.values(agingReport.buckets).reduce((s, b) => s + b.length, 0)}</td>
+                      <td className="p-3 text-right">{formatCurrency(agingReport.totalOutstanding)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {Object.values(agingReport.buckets).some(b => b.length > 0) && (
+              <div>
+                <h4 className="text-sm font-semibold mb-3">Outstanding Invoices Detail</h4>
+                <div className="rounded-lg border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="p-3 text-left font-medium">Invoice</th>
+                        <th className="p-3 text-left font-medium">Vendor</th>
+                        <th className="p-3 text-left font-medium">Status</th>
+                        <th className="p-3 text-left font-medium">Submitted</th>
+                        <th className="p-3 text-right font-medium">Billed</th>
+                        <th className="p-3 text-right font-medium">Outstanding</th>
+                        <th className="p-3 text-right font-medium">Days</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(["current", "days1to30", "days31to60", "days61to90", "over90"] as const).flatMap(key =>
+                        agingReport.buckets[key].map(inv => (
+                          <tr key={inv.id} className="border-t">
+                            <td className="p-3">{inv.invoiceNumber || inv.title}</td>
+                            <td className="p-3">{inv.vendorName || "-"}</td>
+                            <td className="p-3"><Badge className={statusColors[inv.status || ""]}>{inv.status}</Badge></td>
+                            <td className="p-3 text-xs">{inv.submittedDate || "-"}</td>
+                            <td className="p-3 text-right">{formatCurrency(inv.currentBilled)}</td>
+                            <td className="p-3 text-right font-medium">{formatCurrency(inv.outstanding)}</td>
+                            <td className={cn("p-3 text-right", inv.daysOld > 90 ? "text-red-600 font-semibold" : inv.daysOld > 60 ? "text-orange-600" : inv.daysOld > 30 ? "text-amber-600" : "")}>{inv.daysOld}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {viewMode === "list" && <Card>
         <CardHeader className="pb-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <CardTitle className="text-lg">Payment Applications</CardTitle>
@@ -306,9 +425,9 @@ export default function ConstructionInvoicesTab({ projectId }: { projectId: numb
                             <CheckCircle className="mr-2 h-4 w-4" />Approve
                           </DropdownMenuItem>
                         )}
-                        {inv.status === "Approved" && (
-                          <DropdownMenuItem onClick={() => updateMutation.mutate({ projectId, invoiceId: inv.id, data: { status: "Paid" } })}>
-                            <DollarSign className="mr-2 h-4 w-4" />Mark Paid
+                        {(inv.status === "Approved" || inv.status === "Submitted" || inv.status === "Under Review") && (
+                          <DropdownMenuItem onClick={() => { setPaymentTarget(inv); setPaymentAmount(inv.currentBilled || "0"); setPaymentDate(new Date().toISOString().split("T")[0]); setPaymentNotes(""); }}>
+                            <CreditCard className="mr-2 h-4 w-4" />Record Payment
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuSeparator />
@@ -323,7 +442,48 @@ export default function ConstructionInvoicesTab({ projectId }: { projectId: numb
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card>}
+
+      <Dialog open={!!paymentTarget} onOpenChange={(open) => { if (!open) setPaymentTarget(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+            <DialogDescription>
+              Record payment for {paymentTarget?.title} ({paymentTarget?.invoiceNumber})
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Payment Amount *</Label>
+              <Input type="number" step="0.01" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} placeholder="0.00" />
+            </div>
+            <div className="space-y-2">
+              <Label>Payment Date</Label>
+              <Input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} placeholder="Payment notes..." rows={3} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPaymentTarget(null)}>Cancel</Button>
+            <Button onClick={() => {
+              if (!paymentTarget || !paymentAmount) return;
+              recordPaymentMutation.mutate({
+                projectId,
+                invoiceId: paymentTarget.id,
+                paidAmount: paymentAmount,
+                paidDate: paymentDate || undefined,
+                notes: paymentNotes || undefined,
+              }, { onSuccess: () => setPaymentTarget(null) });
+            }} disabled={recordPaymentMutation.isPending}>
+              {recordPaymentMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Record Payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) { setIsDialogOpen(false); resetForm(); } else setIsDialogOpen(true); }}>
         <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">

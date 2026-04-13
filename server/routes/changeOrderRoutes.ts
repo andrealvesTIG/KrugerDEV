@@ -149,6 +149,95 @@ export function registerChangeOrderRoutes(app: Express) {
     }
   });
 
+  app.get("/api/projects/:projectId/change-orders/report", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const projectId = Number(req.params.projectId);
+      const project = await verifyProjectAccess(userId, projectId);
+      if (!project) return res.status(403).json({ message: "Access denied" });
+
+      const allOrders = await db.select()
+        .from(changeOrders)
+        .where(and(eq(changeOrders.projectId, projectId), isNull(changeOrders.deletedAt)))
+        .orderBy(asc(changeOrders.tier), asc(changeOrders.changeOrderNumber));
+
+      let lineItemsAll: (typeof changeOrderLineItems.$inferSelect)[] = [];
+      if (allOrders.length > 0) {
+        const orderIds = allOrders.map(o => o.id);
+        lineItemsAll = await db.select()
+          .from(changeOrderLineItems)
+          .where(sql`${changeOrderLineItems.changeOrderId} IN (${sql.join(orderIds.map(id => sql`${id}`), sql`, `)})`);
+      }
+
+      const lineItemsByOrder = new Map<number, typeof lineItemsAll>();
+      for (const li of lineItemsAll) {
+        if (!lineItemsByOrder.has(li.changeOrderId)) lineItemsByOrder.set(li.changeOrderId, []);
+        lineItemsByOrder.get(li.changeOrderId)!.push(li);
+      }
+
+      const tiers = ["PCO", "COR", "CO"] as const;
+      const tierSummaries = tiers.map(tier => {
+        const tierOrders = allOrders.filter(o => o.tier === tier);
+        return {
+          tier,
+          total: tierOrders.length,
+          approved: tierOrders.filter(o => o.status === "Approved").length,
+          pending: tierOrders.filter(o => ["Pending", "Under Review"].includes(o.status)).length,
+          rejected: tierOrders.filter(o => o.status === "Rejected").length,
+          totalCostImpact: tierOrders.reduce((sum, o) => sum + parseFloat(o.costImpact || "0"), 0),
+          approvedCostImpact: tierOrders.filter(o => o.status === "Approved").reduce((sum, o) => sum + parseFloat(o.costImpact || "0"), 0),
+          totalScheduleImpact: tierOrders.filter(o => o.status === "Approved").reduce((sum, o) => sum + (o.scheduleImpactDays || 0), 0),
+        };
+      });
+
+      const originalContract = parseFloat(project.contractTotal || "0");
+      const totalApprovedImpact = allOrders
+        .filter(o => o.status === "Approved" && o.tier === "CO")
+        .reduce((sum, o) => sum + parseFloat(o.costImpact || "0"), 0);
+
+      const reasonCodeBreakdown: Record<string, { count: number; totalCost: number }> = {};
+      for (const o of allOrders) {
+        const code = o.reasonCode || "Unspecified";
+        if (!reasonCodeBreakdown[code]) reasonCodeBreakdown[code] = { count: 0, totalCost: 0 };
+        reasonCodeBreakdown[code].count++;
+        reasonCodeBreakdown[code].totalCost += parseFloat(o.costImpact || "0");
+      }
+
+      const log = allOrders.map(o => ({
+        id: o.id,
+        number: o.changeOrderNumber,
+        tier: o.tier,
+        title: o.title,
+        status: o.status,
+        reasonCode: o.reasonCode,
+        costImpact: o.costImpact,
+        scheduleImpactDays: o.scheduleImpactDays,
+        requestedBy: o.requestedBy,
+        requestedDate: o.requestedDate,
+        approvedBy: o.approvedBy,
+        approvedDate: o.approvedDate,
+        createdAt: o.createdAt,
+        lineItems: lineItemsByOrder.get(o.id) || [],
+      }));
+
+      res.json({
+        projectName: project.name,
+        originalContract,
+        revisedContract: originalContract + totalApprovedImpact,
+        netChange: totalApprovedImpact,
+        tierSummaries,
+        reasonCodeBreakdown,
+        log,
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (err: unknown) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
   app.get("/api/projects/:projectId/change-orders/:changeOrderId", async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -420,6 +509,18 @@ export function registerChangeOrderRoutes(app: Express) {
           await db.update(projects)
             .set({ contractTotal: String(newContract), updatedAt: now })
             .where(eq(projects.id, projectId));
+
+          await db.insert(projectFinancials).values({
+            projectId,
+            category: "CapEx",
+            lineItem: `CO-${existing.changeOrderNumber || changeOrderId}: ${existing.title}`,
+            description: `Approved change order (${existing.tier}) cost impact`,
+            fiscalYear: now.getFullYear(),
+            fiscalPeriod: `Q${Math.ceil((now.getMonth() + 1) / 3)}`,
+            budgetAmount: String(costImpact),
+            plannedAmount: String(costImpact),
+            actualAmount: String(costImpact),
+          });
         }
       }
 
