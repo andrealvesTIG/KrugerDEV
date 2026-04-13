@@ -55,6 +55,20 @@ const createTemplateSchema = z.object({
   })).min(1).max(100),
 }).strict();
 
+const updateTemplateSchema = z.object({
+  name: z.string().min(1).max(500).optional(),
+  description: z.string().max(5000).nullable().optional(),
+  category: z.string().max(200).nullable().optional(),
+  items: z.array(z.object({
+    id: z.number().int().optional(),
+    section: z.string().max(200).nullable().optional(),
+    itemText: z.string().min(1).max(1000),
+    itemType: z.string().max(50).default("pass_fail"),
+    sortOrder: z.number().int().min(0).default(0),
+    isRequired: z.boolean().default(true),
+  })).min(1).max(100).optional(),
+}).strict();
+
 const createInspectionSchema = z.object({
   templateId: z.number().int().nullable().optional(),
   title: z.string().min(1).max(500),
@@ -249,6 +263,56 @@ export function registerQualitySafetyRoutes(app: Express) {
       res.json({ message: "Template deleted" });
     } catch (err) {
       console.error("Error deleting inspection template:", err);
+      const c = classifyError(err); res.status(c.status).json({ message: c.message });
+    }
+  });
+
+  app.patch("/api/projects/:projectId/inspection-templates/:templateId", async (req, res) => {
+    try {
+      const ctx = await verifyProjectAccess(req, res);
+      if (!ctx) return;
+      const templateId = Number(req.params.templateId);
+      const existing = await db.select().from(inspectionTemplates)
+        .where(and(eq(inspectionTemplates.id, templateId), eq(inspectionTemplates.projectId, ctx.projectId), isNull(inspectionTemplates.deletedAt)))
+        .then(r => r[0]);
+      if (!existing) return res.status(404).json({ message: "Template not found" });
+
+      const parsed = updateTemplateSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Validation failed", errors: parsed.error.flatten() });
+
+      const result = await db.transaction(async (tx) => {
+        const updates: Record<string, unknown> = {};
+        if (parsed.data.name !== undefined) updates.name = parsed.data.name;
+        if (parsed.data.description !== undefined) updates.description = parsed.data.description;
+        if (parsed.data.category !== undefined) updates.category = parsed.data.category;
+        updates.updatedAt = new Date();
+
+        const [updated] = await tx.update(inspectionTemplates).set(updates)
+          .where(eq(inspectionTemplates.id, templateId)).returning();
+
+        if (parsed.data.items) {
+          await tx.delete(inspectionTemplateItems).where(eq(inspectionTemplateItems.templateId, templateId));
+          for (const item of parsed.data.items) {
+            await tx.insert(inspectionTemplateItems).values({
+              templateId: templateId,
+              section: item.section ?? null,
+              itemText: item.itemText,
+              itemType: item.itemType,
+              sortOrder: item.sortOrder,
+              isRequired: item.isRequired,
+            });
+          }
+        }
+
+        const items = await tx.select().from(inspectionTemplateItems)
+          .where(eq(inspectionTemplateItems.templateId, templateId))
+          .orderBy(asc(inspectionTemplateItems.sortOrder));
+        return { ...updated, items };
+      });
+
+      res.json(result);
+    } catch (err) {
+      console.error("Error updating inspection template:", err);
       const c = classifyError(err); res.status(c.status).json({ message: c.message });
     }
   });

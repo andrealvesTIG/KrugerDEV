@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   useInspections, useInspectionTemplates, useCreateInspection, useUpdateInspection, useDeleteInspection,
-  useCreateInspectionTemplate, useDeleteInspectionTemplate, useInspectionTemplate,
+  useCreateInspectionTemplate, useUpdateInspectionTemplate, useDeleteInspectionTemplate, useInspectionTemplate,
   useInspection, useSaveInspectionResults,
   useIncidents, useCreateIncident, useUpdateIncident, useDeleteIncident,
   useIncident, useCreateIncidentAction, useUpdateIncidentAction,
@@ -1634,26 +1634,15 @@ function ObservationDetailDialog({ projectId, observationId, organizationId, onC
   );
 }
 
-function TemplatesPanel({ projectId }: { projectId: number }) {
-  const { data: templates = [], isLoading } = useInspectionTemplates(projectId);
-  const createMutation = useCreateInspectionTemplate(projectId);
-  const deleteMutation = useDeleteInspectionTemplate(projectId);
-  const [showCreate, setShowCreate] = useState(false);
-  const [viewingId, setViewingId] = useState<number | null>(null);
-  const { toast } = useToast();
+interface TemplateFormData {
+  name: string; description: string; category: string;
+  items: Array<{ section: string; itemText: string; itemType: string; sortOrder: number; isRequired: boolean; }>;
+}
 
-  const [form, setForm] = useState({
-    name: "", description: "", category: "",
-    items: [{ section: "", itemText: "", itemType: "pass_fail", sortOrder: 0, isRequired: true }] as Array<{
-      section: string; itemText: string; itemType: string; sortOrder: number; isRequired: boolean;
-    }>,
-  });
-
-  const resetForm = () => setForm({
-    name: "", description: "", category: "",
-    items: [{ section: "", itemText: "", itemType: "pass_fail", sortOrder: 0, isRequired: true }],
-  });
-
+function TemplateFormFields({ form, setForm }: {
+  form: TemplateFormData;
+  setForm: React.Dispatch<React.SetStateAction<TemplateFormData>>;
+}) {
   const addItem = () => {
     setForm(f => ({
       ...f,
@@ -1666,27 +1655,136 @@ function TemplatesPanel({ projectId }: { projectId: number }) {
     setForm(f => ({ ...f, items: f.items.filter((_, i) => i !== idx).map((item, i) => ({ ...item, sortOrder: i })) }));
   };
 
-  const handleSubmit = async () => {
+  return (
+    <div className="space-y-3">
+      <div>
+        <Label>Template Name *</Label>
+        <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>Description</Label>
+          <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} />
+        </div>
+        <div>
+          <Label>Category</Label>
+          <Input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} placeholder="e.g., Safety, MEP, Fire" />
+        </div>
+      </div>
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <Label className="font-medium">Checklist Items *</Label>
+          <Button size="sm" variant="outline" onClick={addItem}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> Add Item
+          </Button>
+        </div>
+        <div className="space-y-2">
+          {form.items.map((item, i) => (
+            <div key={i} className="flex items-start gap-2 border rounded p-2">
+              <span className="text-xs text-muted-foreground mt-2 w-6">{i + 1}.</span>
+              <div className="flex-1 space-y-1">
+                <Input placeholder="Check item text *" value={item.itemText}
+                  onChange={e => {
+                    const updated = [...form.items];
+                    updated[i] = { ...updated[i], itemText: e.target.value };
+                    setForm(f => ({ ...f, items: updated }));
+                  }} className="text-sm" />
+                <div className="flex gap-2">
+                  <Input placeholder="Section (optional)" value={item.section}
+                    onChange={e => {
+                      const updated = [...form.items];
+                      updated[i] = { ...updated[i], section: e.target.value };
+                      setForm(f => ({ ...f, items: updated }));
+                    }} className="text-sm w-1/2" />
+                </div>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => removeItem(i)} disabled={form.items.length <= 1}>
+                <XCircle className="h-3.5 w-3.5 text-destructive" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const EMPTY_TEMPLATE_FORM: TemplateFormData = {
+  name: "", description: "", category: "",
+  items: [{ section: "", itemText: "", itemType: "pass_fail", sortOrder: 0, isRequired: true }],
+};
+
+function TemplatesPanel({ projectId }: { projectId: number }) {
+  const { data: templates = [], isLoading } = useInspectionTemplates(projectId);
+  const createMutation = useCreateInspectionTemplate(projectId);
+  const updateMutation = useUpdateInspectionTemplate(projectId);
+  const deleteMutation = useDeleteInspectionTemplate(projectId);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [viewingId, setViewingId] = useState<number | null>(null);
+  const { toast } = useToast();
+
+  const [form, setForm] = useState<TemplateFormData>({ ...EMPTY_TEMPLATE_FORM });
+  const resetForm = () => setForm({ ...EMPTY_TEMPLATE_FORM, items: [{ ...EMPTY_TEMPLATE_FORM.items[0] }] });
+
+  const openEdit = async (templateId: number) => {
+    const tmpl = templates.find(t => t.id === templateId);
+    if (!tmpl) return;
     try {
-      await createMutation.mutateAsync({
-        name: form.name,
-        description: form.description || null,
-        category: form.category || null,
-        items: form.items.map(item => ({
-          section: item.section || null,
-          itemText: item.itemText,
-          itemType: item.itemType,
-          sortOrder: item.sortOrder,
-          isRequired: item.isRequired,
-        })),
+      const res = await fetch(`/api/projects/${projectId}/inspection-templates/${templateId}`, { credentials: "include" });
+      const detail = await res.json();
+      setForm({
+        name: detail.name || "",
+        description: detail.description || "",
+        category: detail.category || "",
+        items: detail.items && detail.items.length > 0
+          ? detail.items.map((item: { section?: string | null; itemText: string; itemType?: string; sortOrder?: number; isRequired?: boolean }, i: number) => ({
+              section: item.section || "",
+              itemText: item.itemText || "",
+              itemType: item.itemType || "pass_fail",
+              sortOrder: item.sortOrder ?? i,
+              isRequired: item.isRequired ?? true,
+            }))
+          : [{ section: "", itemText: "", itemType: "pass_fail", sortOrder: 0, isRequired: true }],
       });
-      toast({ title: "Template created" });
-      setShowCreate(false);
+      setEditingId(templateId);
+      setViewingId(null);
+    } catch {
+      toast({ title: "Error loading template", variant: "destructive" });
+    }
+  };
+
+  const handleSubmit = async () => {
+    const payload = {
+      name: form.name,
+      description: form.description || null,
+      category: form.category || null,
+      items: form.items.map(item => ({
+        section: item.section || null,
+        itemText: item.itemText,
+        itemType: item.itemType,
+        sortOrder: item.sortOrder,
+        isRequired: item.isRequired,
+      })),
+    };
+    try {
+      if (editingId) {
+        await updateMutation.mutateAsync({ templateId: editingId, ...payload });
+        toast({ title: "Template updated" });
+        setEditingId(null);
+      } else {
+        await createMutation.mutateAsync(payload);
+        toast({ title: "Template created" });
+        setShowCreate(false);
+      }
       resetForm();
     } catch (err: unknown) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     }
   };
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
+  const dialogOpen = showCreate || editingId !== null;
 
   return (
     <div className="space-y-4">
@@ -1714,6 +1812,9 @@ function TemplatesPanel({ projectId }: { projectId: number }) {
                   </div>
                   <div className="flex items-center gap-2">
                     {t.createdByName && <span className="text-xs text-muted-foreground">{t.createdByName}</span>}
+                    <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); openEdit(t.id); }}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
                     <Button size="sm" variant="ghost" onClick={e => {
                       e.stopPropagation();
                       if (confirm("Delete this template?")) deleteMutation.mutate(t.id);
@@ -1729,69 +1830,28 @@ function TemplatesPanel({ projectId }: { projectId: number }) {
         </div>
       )}
 
-      {viewingId && <TemplateDetailDialog projectId={projectId} templateId={viewingId} onClose={() => setViewingId(null)} />}
+      {viewingId && (
+        <TemplateDetailDialog
+          projectId={projectId}
+          templateId={viewingId}
+          onClose={() => setViewingId(null)}
+          onEdit={() => openEdit(viewingId)}
+        />
+      )}
 
-      <Dialog open={showCreate} onOpenChange={open => { if (!open) { setShowCreate(false); resetForm(); } }}>
+      <Dialog open={dialogOpen} onOpenChange={open => { if (!open) { setShowCreate(false); setEditingId(null); resetForm(); } }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>New Inspection Template</DialogTitle>
-            <DialogDescription>Define checklist items for standardized inspections</DialogDescription>
+            <DialogTitle>{editingId ? "Edit Template" : "New Inspection Template"}</DialogTitle>
+            <DialogDescription>{editingId ? "Update template metadata and checklist items" : "Define checklist items for standardized inspections"}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>Template Name *</Label>
-              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Description</Label>
-                <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} />
-              </div>
-              <div>
-                <Label>Category</Label>
-                <Input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} placeholder="e.g., Safety, MEP, Fire" />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label className="font-medium">Checklist Items *</Label>
-                <Button size="sm" variant="outline" onClick={addItem}>
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Add Item
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {form.items.map((item, i) => (
-                  <div key={i} className="flex items-start gap-2 border rounded p-2">
-                    <span className="text-xs text-muted-foreground mt-2 w-6">{i + 1}.</span>
-                    <div className="flex-1 space-y-1">
-                      <Input placeholder="Check item text *" value={item.itemText}
-                        onChange={e => {
-                          const updated = [...form.items];
-                          updated[i] = { ...updated[i], itemText: e.target.value };
-                          setForm(f => ({ ...f, items: updated }));
-                        }} className="text-sm" />
-                      <div className="flex gap-2">
-                        <Input placeholder="Section (optional)" value={item.section}
-                          onChange={e => {
-                            const updated = [...form.items];
-                            updated[i] = { ...updated[i], section: e.target.value };
-                            setForm(f => ({ ...f, items: updated }));
-                          }} className="text-sm w-1/2" />
-                      </div>
-                    </div>
-                    <Button size="sm" variant="ghost" onClick={() => removeItem(i)} disabled={form.items.length <= 1}>
-                      <XCircle className="h-3.5 w-3.5 text-destructive" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <TemplateFormFields form={form} setForm={setForm} />
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowCreate(false); resetForm(); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setShowCreate(false); setEditingId(null); resetForm(); }}>Cancel</Button>
             <Button onClick={handleSubmit}
-              disabled={!form.name || form.items.some(i => !i.itemText) || createMutation.isPending}>
-              {createMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Create Template
+              disabled={!form.name || form.items.some(i => !i.itemText) || isPending}>
+              {isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              {editingId ? "Update Template" : "Create Template"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1800,8 +1860,8 @@ function TemplatesPanel({ projectId }: { projectId: number }) {
   );
 }
 
-function TemplateDetailDialog({ projectId, templateId, onClose }: {
-  projectId: number; templateId: number; onClose: () => void;
+function TemplateDetailDialog({ projectId, templateId, onClose, onEdit }: {
+  projectId: number; templateId: number; onClose: () => void; onEdit: () => void;
 }) {
   const { data: template, isLoading } = useInspectionTemplate(projectId, templateId);
 
@@ -1811,7 +1871,12 @@ function TemplateDetailDialog({ projectId, templateId, onClose }: {
     <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{template.name}</DialogTitle>
+          <DialogTitle className="flex items-center justify-between">
+            <span>{template.name}</span>
+            <Button size="sm" variant="outline" onClick={onEdit}>
+              <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+            </Button>
+          </DialogTitle>
           <DialogDescription>
             {template.category && <Badge variant="outline" className="mr-2">{template.category}</Badge>}
             {template.items?.length ?? 0} checklist items
@@ -1819,7 +1884,7 @@ function TemplateDetailDialog({ projectId, templateId, onClose }: {
         </DialogHeader>
         {template.description && <p className="text-sm text-muted-foreground">{template.description}</p>}
         <div className="space-y-1">
-          {template.items?.map((item, i) => (
+          {template.items?.map((item: { id: number; section?: string | null; itemText: string; isRequired?: boolean | null }, i: number) => (
             <div key={item.id} className="flex items-center gap-2 text-sm border rounded px-3 py-2">
               <span className="text-xs text-muted-foreground w-6">{i + 1}.</span>
               {item.section && <Badge variant="outline" className="text-xs">{item.section}</Badge>}

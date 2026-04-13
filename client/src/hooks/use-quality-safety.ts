@@ -41,6 +41,18 @@ export function useCreateInspectionTemplate(projectId: number) {
   });
 }
 
+export function useUpdateInspectionTemplate(projectId: number) {
+  return useMutation({
+    mutationFn: async ({ templateId, ...data }: { templateId: number; [key: string]: unknown }) => {
+      const res = await apiRequest("PATCH", `/api/projects/${projectId}/inspection-templates/${templateId}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/inspection-templates`] });
+    },
+  });
+}
+
 export function useDeleteInspectionTemplate(projectId: number) {
   return useMutation({
     mutationFn: async (templateId: number) => {
