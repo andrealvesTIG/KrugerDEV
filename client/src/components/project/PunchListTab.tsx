@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   usePunchItems,
   usePunchItemSummary,
@@ -11,6 +12,7 @@ import {
   useDeletePunchItemPhoto,
 } from "@/hooks/use-punch-list";
 import { useUpload } from "@/hooks/use-upload";
+import { useOrganization } from "@/hooks/use-organization";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,7 +32,21 @@ import {
   BarChart3, Download, History, ListPlus, AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { PunchItem, PunchItemPhoto, PunchItemStatusHistory } from "@shared/schema";
+import type { PunchItem, PunchItemPhoto, PunchItemStatusHistory, User } from "@shared/schema";
+
+interface OrgMember {
+  userId: string;
+  role: string;
+  user?: User;
+}
+
+function getMemberDisplayName(member: OrgMember): string {
+  if (member.user) {
+    if (member.user.firstName && member.user.lastName) return `${member.user.firstName} ${member.user.lastName}`;
+    return member.user.username || member.user.email || "Unknown";
+  }
+  return "Unknown";
+}
 
 const STATUSES = ["Open", "In Progress", "Ready for Review", "Closed"] as const;
 const PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
@@ -87,6 +103,12 @@ export default function PunchListTab({ projectId }: { projectId: number }) {
   const updateMutation = useUpdatePunchItem(projectId);
   const deleteMutation = useDeletePunchItem(projectId);
   const { toast } = useToast();
+  const { currentOrganization } = useOrganization();
+
+  const { data: orgMembers = [] } = useQuery<OrgMember[]>({
+    queryKey: [`/api/organizations/${currentOrganization?.id}/members`],
+    enabled: !!currentOrganization?.id,
+  });
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isBulkCreateOpen, setIsBulkCreateOpen] = useState(false);
@@ -182,6 +204,13 @@ export default function PunchListTab({ projectId }: { projectId: number }) {
       return;
     }
 
+    const assignedMember = formData.assignedTo
+      ? orgMembers.find(m => m.userId === formData.assignedTo)
+      : null;
+    const resolvedAssignedToName = assignedMember
+      ? getMemberDisplayName(assignedMember)
+      : formData.assignedToName || null;
+
     const payload: Record<string, unknown> = {
       title: formData.title.trim(),
       description: formData.description || null,
@@ -190,7 +219,7 @@ export default function PunchListTab({ projectId }: { projectId: number }) {
       priority: formData.priority,
       status: formData.status,
       assignedTo: formData.assignedTo || null,
-      assignedToName: formData.assignedToName || null,
+      assignedToName: resolvedAssignedToName,
       dueDate: formData.dueDate || null,
     };
 
@@ -223,17 +252,22 @@ export default function PunchListTab({ projectId }: { projectId: number }) {
       toast({ title: "At least one item with a title is required", variant: "destructive" });
       return;
     }
-    const payload = validItems.map(item => ({
-      title: item.title.trim(),
-      description: item.description || null,
-      location: item.location || null,
-      category: item.category || null,
-      priority: item.priority,
-      status: item.status,
-      assignedTo: item.assignedTo || null,
-      assignedToName: item.assignedToName || null,
-      dueDate: item.dueDate || null,
-    }));
+    const payload = validItems.map(item => {
+      const member = item.assignedTo
+        ? orgMembers.find(m => m.userId === item.assignedTo)
+        : null;
+      return {
+        title: item.title.trim(),
+        description: item.description || null,
+        location: item.location || null,
+        category: item.category || null,
+        priority: item.priority,
+        status: item.status,
+        assignedTo: item.assignedTo || null,
+        assignedToName: member ? getMemberDisplayName(member) : item.assignedToName || null,
+        dueDate: item.dueDate || null,
+      };
+    });
 
     bulkCreateMutation.mutate(payload, {
       onSuccess: (data) => {
@@ -511,16 +545,23 @@ export default function PunchListTab({ projectId }: { projectId: number }) {
               ))}
             </SelectContent>
           </Select>
-          {uniqueAssignees.length > 0 && (
+          {(uniqueAssignees.length > 0 || orgMembers.length > 0) && (
             <Select value={filters.assignedTo || "all"} onValueChange={(v) => updateFilter("assignedTo", v)}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Assignee" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Assignees</SelectItem>
-                {uniqueAssignees.map(([id, name]) => (
-                  <SelectItem key={id} value={id}>{name}</SelectItem>
-                ))}
+                {orgMembers.length > 0
+                  ? orgMembers.map((member) => (
+                      <SelectItem key={member.userId} value={member.userId}>
+                        {getMemberDisplayName(member)}
+                      </SelectItem>
+                    ))
+                  : uniqueAssignees.map(([id, name]) => (
+                      <SelectItem key={id} value={id}>{name}</SelectItem>
+                    ))
+                }
               </SelectContent>
             </Select>
           )}
@@ -580,6 +621,7 @@ export default function PunchListTab({ projectId }: { projectId: number }) {
         editingItem={editingItem}
         onSubmit={handleSubmit}
         isPending={createMutation.isPending || updateMutation.isPending}
+        orgMembers={orgMembers}
       />
 
       <Dialog open={isBulkCreateOpen} onOpenChange={setIsBulkCreateOpen}>
@@ -608,7 +650,7 @@ export default function PunchListTab({ projectId }: { projectId: number }) {
                     setBulkItems(updated);
                   }}
                 />
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <Input
                     placeholder="Location"
                     value={item.location}
@@ -645,6 +687,35 @@ export default function PunchListTab({ projectId }: { projectId: number }) {
                       {PRIORITIES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                  {orgMembers.length > 0 && (
+                    <Select
+                      value={item.assignedTo || "unassigned"}
+                      onValueChange={(v) => {
+                        const updated = [...bulkItems];
+                        if (v === "unassigned") {
+                          updated[idx] = { ...updated[idx], assignedTo: "", assignedToName: "" };
+                        } else {
+                          const member = orgMembers.find(m => m.userId === v);
+                          updated[idx] = {
+                            ...updated[idx],
+                            assignedTo: v,
+                            assignedToName: member ? getMemberDisplayName(member) : "",
+                          };
+                        }
+                        setBulkItems(updated);
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Assignee" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                        {orgMembers.map((member) => (
+                          <SelectItem key={member.userId} value={member.userId}>
+                            {getMemberDisplayName(member)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
               </div>
             ))}
@@ -705,6 +776,7 @@ function PunchItemFormDialog({
   editingItem,
   onSubmit,
   isPending,
+  orgMembers,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -713,6 +785,7 @@ function PunchItemFormDialog({
   editingItem: PunchItem | null;
   onSubmit: () => void;
   isPending: boolean;
+  orgMembers: OrgMember[];
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -794,12 +867,42 @@ function PunchItemFormDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Assigned To (Name)</Label>
-              <Input
-                value={formData.assignedToName}
-                onChange={(e) => setFormData({ ...formData, assignedToName: e.target.value })}
-                placeholder="Responsible party name"
-              />
+              <Label>Assigned To</Label>
+              {orgMembers.length > 0 ? (
+                <Select
+                  value={formData.assignedTo || "unassigned"}
+                  onValueChange={(v) => {
+                    if (v === "unassigned") {
+                      setFormData({ ...formData, assignedTo: "", assignedToName: "" });
+                    } else {
+                      const member = orgMembers.find(m => m.userId === v);
+                      setFormData({
+                        ...formData,
+                        assignedTo: v,
+                        assignedToName: member ? getMemberDisplayName(member) : "",
+                      });
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select assignee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {orgMembers.map((member) => (
+                      <SelectItem key={member.userId} value={member.userId}>
+                        {getMemberDisplayName(member)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  value={formData.assignedToName}
+                  onChange={(e) => setFormData({ ...formData, assignedToName: e.target.value })}
+                  placeholder="Responsible party name"
+                />
+              )}
             </div>
             <div>
               <Label>Due Date</Label>
