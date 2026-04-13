@@ -27,6 +27,7 @@ import TasksTab from "@/components/project/ProjectTasksTab";
 import RisksTab from "@/components/project/ProjectRisksTab";
 import { IssuesTab, FinancialsTab, ChangeRequestsTab, DocumentsTab, StatusReportTab, ScoringTab, BenefitsTab, DecisionsTab, LessonsLearnedTab, InvoicesTab } from "@/components/project/ProjectTabs";
 import ProjectAgentTab from "@/components/project/ProjectAgentTab";
+import DailyLogsTab from "@/components/project/DailyLogsTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -348,6 +349,7 @@ export default function ProjectDetails() {
     { id: 'invoices', label: 'Invoices' },
     { id: 'status-report', label: 'Status Report' },
     { id: 'ai-agent', label: 'AI Agent' },
+    { id: 'daily-logs', label: 'Daily Logs' },
   ];
   
   // All available tab IDs for ordering
@@ -1553,6 +1555,7 @@ export default function ProjectDetails() {
                  !pinnedTabs.includes(activeTab) && activeTab === 'benefits' ? 'Benefits' :
                  !pinnedTabs.includes(activeTab) && activeTab === 'decisions' ? 'Decisions' :
                  !pinnedTabs.includes(activeTab) && activeTab === 'ai-agent' ? 'AI Agent' :
+                 !pinnedTabs.includes(activeTab) && activeTab === 'daily-logs' ? 'Daily Logs' :
                  !pinnedTabs.includes(activeTab) && activeTab === 'lessons-learned' ? 'Lessons Learned' :
                  activeTab.startsWith('custom-') && !pinnedTabs.includes(activeTab) ? customTabs.find(t => `custom-${t.id}` === activeTab)?.name :
                  'More'}
@@ -1668,6 +1671,9 @@ export default function ProjectDetails() {
           </TabsContent>
           <TabsContent value="ai-agent">
             <ProjectAgentTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="daily-logs">
+            <DailyLogsTab projectId={project.id} />
           </TabsContent>
           {customTabs.map((tab) => (
             <TabsContent key={tab.id} value={`custom-${tab.id}`}>

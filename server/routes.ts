@@ -32,6 +32,7 @@ import { registerUserActivityRoutes } from "./routes/userActivityRoutes";
 import { registerProjectAgentRoutes } from "./routes/projectAgentRoutes";
 import { registerJarvisRoutes } from "./routes/jarvisRoutes";
 import { registerInvestorRoutes } from "./routes/investorRoutes";
+import { registerDailyLogRoutes } from "./routes/dailyLogRoutes";
 import { seedDatabase } from "./routes/helpers";
 
 export async function registerRoutes(
@@ -39,7 +40,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  const numericParams = ['id', 'projectId', 'portfolioId', 'taskId', 'issueId', 'milestoneId', 'riskId', 'resourceId', 'orgId', 'organizationId', 'memberId', 'ticketId', 'documentId', 'assessmentId', 'subscriptionId', 'planId', 'viewId', 'entryId', 'notificationId'];
+  const numericParams = ['id', 'projectId', 'portfolioId', 'taskId', 'issueId', 'milestoneId', 'riskId', 'resourceId', 'orgId', 'organizationId', 'memberId', 'ticketId', 'documentId', 'assessmentId', 'subscriptionId', 'planId', 'viewId', 'entryId', 'notificationId', 'logId'];
   for (const param of numericParams) {
     app.param(param, (req, res, next, value) => {
       const num = Number(value);
@@ -106,6 +107,7 @@ export async function registerRoutes(
   registerProjectAgentRoutes(app);
   registerJarvisRoutes(app);
   registerInvestorRoutes(app);
+  registerDailyLogRoutes(app);
 
   seedTrainingDataIfEmpty().catch(err => {
     console.error('[training] Failed to seed training data:', err.message);

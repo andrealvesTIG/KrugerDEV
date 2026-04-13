@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
@@ -98,6 +98,7 @@ const moduleDefinitions: Record<string, { name: string; href: string; icon: Reac
   "user-guide": { name: "User Guide", href: "/user-guide", icon: BookOpen },
   training: { name: "Training", href: "/training", icon: GraduationCap },
   templates: { name: "Templates", href: "/templates", icon: LayoutTemplate },
+  "daily-logs": { name: "Daily Logs", href: "/daily-logs", icon: ClipboardList },
 };
 
 const navigation = [
@@ -253,6 +254,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   ensureModule("invoices", "finance", "pmo-radar");
   ensureModule("user-guide", "help");
   ensureModule("training", "help", "user-guide");
+  ensureModule("daily-logs", "portfolio", "tasks");
   
   const helpGroup = updatedStructure.find(g => g.id === "help");
   if (!helpGroup) {

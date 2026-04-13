@@ -3028,3 +3028,74 @@ export const projectAgentLogs = pgTable("project_agent_logs", {
 
 export type ProjectAgentLog = typeof projectAgentLogs.$inferSelect;
 export type InsertProjectAgentLog = typeof projectAgentLogs.$inferInsert;
+
+// === DAILY LOGS (Field Management) ===
+
+export const dailyLogs = pgTable("daily_logs", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  logDate: date("log_date").notNull(),
+  weatherCondition: text("weather_condition"),
+  temperature: text("temperature"),
+  windSpeed: text("wind_speed"),
+  precipitation: text("precipitation"),
+  visitors: text("visitors"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("daily_logs_project_id_idx").on(table.projectId),
+  index("daily_logs_org_id_idx").on(table.organizationId),
+  index("daily_logs_log_date_idx").on(table.logDate),
+  uniqueIndex("daily_logs_project_date_unique").on(table.projectId, table.logDate),
+]);
+
+export const insertDailyLogSchema = createInsertSchema(dailyLogs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  deletedBy: true,
+});
+export type DailyLog = typeof dailyLogs.$inferSelect;
+export type InsertDailyLog = z.infer<typeof insertDailyLogSchema>;
+
+export const dailyLogLabor = pgTable("daily_log_labor", {
+  id: serial("id").primaryKey(),
+  dailyLogId: integer("daily_log_id").references(() => dailyLogs.id).notNull(),
+  company: text("company"),
+  trade: text("trade"),
+  headcount: integer("headcount").default(0),
+  hoursWorked: numeric("hours_worked"),
+  notes: text("notes"),
+}, (table) => [
+  index("daily_log_labor_log_id_idx").on(table.dailyLogId),
+]);
+
+export const insertDailyLogLaborSchema = createInsertSchema(dailyLogLabor).omit({
+  id: true,
+});
+export type DailyLogLabor = typeof dailyLogLabor.$inferSelect;
+export type InsertDailyLogLabor = z.infer<typeof insertDailyLogLaborSchema>;
+
+export const dailyLogEquipment = pgTable("daily_log_equipment", {
+  id: serial("id").primaryKey(),
+  dailyLogId: integer("daily_log_id").references(() => dailyLogs.id).notNull(),
+  equipmentName: text("equipment_name").notNull(),
+  quantity: integer("quantity").default(1),
+  hoursUsed: numeric("hours_used"),
+  status: text("status").default("Active"),
+  notes: text("notes"),
+}, (table) => [
+  index("daily_log_equipment_log_id_idx").on(table.dailyLogId),
+]);
+
+export const insertDailyLogEquipmentSchema = createInsertSchema(dailyLogEquipment).omit({
+  id: true,
+});
+export type DailyLogEquipment = typeof dailyLogEquipment.$inferSelect;
+export type InsertDailyLogEquipment = z.infer<typeof insertDailyLogEquipmentSchema>;

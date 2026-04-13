@@ -76,6 +76,7 @@ const Training = lazy(() => import("@/pages/Training"));
 const TrainingModule = lazy(() => import("@/pages/TrainingModule"));
 const Templates = lazy(() => import("@/pages/Templates"));
 const InvestorRoom = lazy(() => import("@/pages/InvestorRoom"));
+const DailyLogs = lazy(() => import("@/pages/DailyLogs"));
 
 function PageLoader() {
   return (
@@ -215,6 +216,7 @@ function Router() {
             <ModuleGuard moduleKey="resources"><ResourceDetails /></ModuleGuard>
           </Route>
           <GuardedRoute path="/resources" component={Resources} moduleKey="resources" />
+          <GuardedRoute path="/daily-logs" component={DailyLogs} moduleKey="daily-logs" />
           <GuardedRoute path="/calendar" component={Calendar} moduleKey="calendar" />
           <GuardedRoute path="/integrations" component={Integrations} moduleKey="integrations" />
           <Route path="/billing" component={Billing} />
