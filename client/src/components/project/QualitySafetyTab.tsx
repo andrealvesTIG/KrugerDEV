@@ -1766,7 +1766,14 @@ function TemplatesPanel({ projectId }: { projectId: number }) {
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [viewingId, setViewingId] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
+
+  const filtered = useMemo(() => {
+    if (!searchTerm) return templates;
+    const lower = searchTerm.toLowerCase();
+    return templates.filter(t => t.name.toLowerCase().includes(lower) || (t.category && t.category.toLowerCase().includes(lower)));
+  }, [templates, searchTerm]);
 
   const [form, setForm] = useState<TemplateFormData>({ ...EMPTY_TEMPLATE_FORM });
   const resetForm = () => setForm({ ...EMPTY_TEMPLATE_FORM, items: [{ ...EMPTY_TEMPLATE_FORM.items[0] }] });
@@ -1832,20 +1839,27 @@ function TemplatesPanel({ projectId }: { projectId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h3 className="text-sm font-medium">Inspection Templates</h3>
-        <Button size="sm" onClick={() => { resetForm(); setShowCreate(true); }}>
-          <Plus className="h-4 w-4 mr-1" /> New Template
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input placeholder="Search templates..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+              className="pl-8 h-8 w-48 text-sm" />
+          </div>
+          <Button size="sm" onClick={() => { resetForm(); setShowCreate(true); }}>
+            <Plus className="h-4 w-4 mr-1" /> New Template
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
-      ) : templates.length === 0 ? (
-        <Card><CardContent className="py-8 text-center text-muted-foreground">No templates yet. Create one to standardize your inspections.</CardContent></Card>
+      ) : filtered.length === 0 ? (
+        <Card><CardContent className="py-8 text-center text-muted-foreground">{searchTerm ? "No templates match your search." : "No templates yet. Create one to standardize your inspections."}</CardContent></Card>
       ) : (
         <div className="space-y-2">
-          {templates.map(t => (
+          {filtered.map(t => (
             <Card key={t.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setViewingId(t.id)}>
               <CardContent className="py-3 px-4">
                 <div className="flex items-center justify-between">
