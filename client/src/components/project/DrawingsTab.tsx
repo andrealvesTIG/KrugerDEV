@@ -1240,21 +1240,18 @@ export default function DrawingsTab({ projectId }: { projectId: number }) {
 
 function DrawingThumbnail({ projectId, drawingId }: { projectId: number; drawingId: number }) {
   const { data: drawingData } = useDrawing(projectId, drawingId);
+  const [imgError, setImgError] = useState(false);
   const latestRevision = drawingData?.revisions?.[0];
   const thumbnailUrl = latestRevision?.thumbnailUrl;
 
-  if (thumbnailUrl) {
+  if (thumbnailUrl && !imgError) {
     return (
       <div className="w-10 h-10 rounded-md overflow-hidden flex-shrink-0 border">
         <img
           src={thumbnailUrl}
           alt="Drawing thumbnail"
           className="w-full h-full object-cover"
-          onError={(e) => {
-            e.currentTarget.style.display = "none";
-            e.currentTarget.parentElement!.classList.add("bg-muted");
-            e.currentTarget.parentElement!.innerHTML = '<div class="flex items-center justify-center w-full h-full"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>';
-          }}
+          onError={() => setImgError(true)}
         />
       </div>
     );

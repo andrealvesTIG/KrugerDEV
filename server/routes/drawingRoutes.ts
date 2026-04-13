@@ -545,6 +545,56 @@ export function registerDrawingRoutes(app: Express) {
     }
   });
 
+  app.delete("/api/projects/:projectId/drawings/:drawingId/revisions/:revisionId", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const projectId = Number(req.params.projectId);
+      const drawingId = Number(req.params.drawingId);
+      const revisionId = Number(req.params.revisionId);
+
+      const project = await db.select().from(projects).where(eq(projects.id, projectId)).then(r => r[0]);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const drawing = await db.select().from(drawings)
+        .where(and(eq(drawings.id, drawingId), eq(drawings.projectId, projectId), isNull(drawings.deletedAt)))
+        .then(r => r[0]);
+      if (!drawing) return res.status(404).json({ message: "Drawing not found" });
+
+      const revision = await db.select().from(drawingRevisions)
+        .where(and(eq(drawingRevisions.id, revisionId), eq(drawingRevisions.drawingId, drawingId)))
+        .then(r => r[0]);
+      if (!revision) return res.status(404).json({ message: "Revision not found" });
+
+      await db.transaction(async (tx) => {
+        await tx.delete(drawingMarkups)
+          .where(and(eq(drawingMarkups.revisionId, revisionId), eq(drawingMarkups.drawingId, drawingId)));
+
+        await tx.delete(drawingRevisions).where(eq(drawingRevisions.id, revisionId));
+
+        const remaining = await tx.select().from(drawingRevisions)
+          .where(eq(drawingRevisions.drawingId, drawingId))
+          .orderBy(desc(drawingRevisions.revisionNumber));
+
+        await tx.update(drawings).set({
+          currentRevisionNumber: remaining.length > 0 ? remaining[0].revisionNumber : 0,
+          updatedAt: new Date(),
+        }).where(eq(drawings.id, drawingId));
+      });
+
+      logUserActivity(userId, "delete_drawing_revision", "drawing_revision", revisionId, { drawingId, projectId }, req);
+
+      res.json({ message: "Revision deleted" });
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: "Failed to delete revision" });
+    }
+  });
+
   app.get("/api/projects/:projectId/drawings/:drawingId/markups", async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
