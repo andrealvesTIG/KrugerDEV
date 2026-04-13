@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { PunchItem, PunchItemPhoto } from "@shared/schema";
+import type { PunchItem, PunchItemPhoto, PunchItemStatusHistory } from "@shared/schema";
 
 export function usePunchItems(projectId: number, filters?: Record<string, string>) {
   const params = new URLSearchParams();
@@ -37,7 +37,7 @@ export function usePunchItemSummary(projectId: number) {
 }
 
 export function usePunchItem(projectId: number, punchItemId: number) {
-  return useQuery<PunchItem & { photos: PunchItemPhoto[] }>({
+  return useQuery<PunchItem & { photos: PunchItemPhoto[]; statusHistory: PunchItemStatusHistory[] }>({
     queryKey: [`/api/projects/${projectId}/punch-items/${punchItemId}`],
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/projects/${projectId}/punch-items/${punchItemId}`);
@@ -134,5 +134,21 @@ export function useDeletePunchItemPhoto(projectId: number, punchItemId: number) 
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/punch-items/${punchItemId}/photos`] });
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/punch-items/${punchItemId}`] });
     },
+  });
+}
+
+export function usePunchListPdfData(projectId: number) {
+  return useQuery<{
+    project: { id: number; name: string };
+    items: PunchItem[];
+    summary: { total: number; statusCounts: Record<string, number>; percentComplete: number };
+    exportDate: string;
+  }>({
+    queryKey: [`/api/projects/${projectId}/punch-items/export/pdf-data`],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${projectId}/punch-items/export/pdf-data`);
+      return res.json();
+    },
+    enabled: false,
   });
 }

@@ -3401,6 +3401,7 @@ export const punchItems = pgTable("punch_items", {
   index("punch_items_assigned_to_idx").on(table.assignedTo),
   index("punch_items_category_idx").on(table.category),
   index("punch_items_priority_idx").on(table.priority),
+  uniqueIndex("punch_items_project_number_uniq").on(table.projectId, table.number),
 ]);
 
 export const insertPunchItemSchema = createInsertSchema(punchItems).omit({
@@ -3414,6 +3415,21 @@ export const insertPunchItemSchema = createInsertSchema(punchItems).omit({
 });
 export type PunchItem = typeof punchItems.$inferSelect;
 export type InsertPunchItem = z.infer<typeof insertPunchItemSchema>;
+
+// === Punch Item Status History ===
+export const punchItemStatusHistory = pgTable("punch_item_status_history", {
+  id: serial("id").primaryKey(),
+  punchItemId: integer("punch_item_id").references(() => punchItems.id).notNull(),
+  fromStatus: text("from_status"),
+  toStatus: text("to_status").notNull(),
+  changedBy: varchar("changed_by").references(() => users.id),
+  changedByName: text("changed_by_name"),
+  changedAt: timestamp("changed_at").defaultNow(),
+}, (table) => [
+  index("punch_item_status_history_item_id_idx").on(table.punchItemId),
+]);
+
+export type PunchItemStatusHistory = typeof punchItemStatusHistory.$inferSelect;
 
 // === Punch Item Photos ===
 export const punchItemPhotos = pgTable("punch_item_photos", {
