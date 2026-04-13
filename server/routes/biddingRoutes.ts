@@ -12,6 +12,8 @@ import {
   userHasOrgAccess,
   formatZodErrors,
 } from "./helpers";
+import * as storage from "../storage/miscStorage";
+import { organizationMembers } from "@shared/schema";
 
 async function getUserDisplayName(userId: string): Promise<string> {
   const result = await db.select().from(users).where(eq(users.id, userId)).then(r => r[0]);
@@ -64,6 +66,45 @@ async function verifyBidPackageOwnership(projectId: number, bidPackageId: number
   return !!pkg;
 }
 
+async function verifyVendorOrgOwnership(vendorId: number, orgId: number): Promise<boolean> {
+  const v = await db.select({ id: vendors.id }).from(vendors)
+    .where(and(eq(vendors.id, vendorId), eq(vendors.organizationId, orgId), isNull(vendors.deletedAt)))
+    .then(r => r[0]);
+  return !!v;
+}
+
+async function sendBiddingNotification(
+  recipientId: string,
+  type: string,
+  title: string,
+  message: string,
+  projectId: number,
+  fromUserId?: string,
+  fromUserName?: string,
+) {
+  try {
+    await storage.createNotification({
+      userId: recipientId,
+      type,
+      title,
+      message,
+      severity: "info",
+      projectId,
+      fromUserId: fromUserId || null,
+      fromUserName: fromUserName || null,
+    });
+  } catch (err) {
+    console.error("Error sending bidding notification:", err);
+  }
+}
+
+async function getOrgMemberUserIds(orgId: number): Promise<string[]> {
+  const members = await db.select({ userId: organizationMembers.userId })
+    .from(organizationMembers)
+    .where(eq(organizationMembers.organizationId, orgId));
+  return members.map(m => m.userId);
+}
+
 const createVendorSchema = z.object({
   companyName: z.string().min(1).max(500),
   contactName: z.string().max(500).nullable().optional(),
@@ -112,6 +153,7 @@ const createBidPackageSchema = z.object({
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   prebidDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   status: z.enum(["Draft", "Open", "Closed", "Under Review", "Awarded", "Cancelled"]).default("Draft"),
+  documents: z.string().max(10000).nullable().optional(),
 }).strict();
 
 const updateBidPackageSchema = createBidPackageSchema.partial().extend({
@@ -174,7 +216,20 @@ export function registerBiddingRoutes(app: Express) {
       const items = await db.select().from(vendors)
         .where(and(eq(vendors.organizationId, ctx.orgId), isNull(vendors.deletedAt)))
         .orderBy(desc(vendors.createdAt));
-      res.json(items);
+      const allPrequals = await db.select().from(vendorPrequalifications)
+        .where(eq(vendorPrequalifications.organizationId, ctx.orgId))
+        .orderBy(desc(vendorPrequalifications.createdAt));
+      const latestPrequalByVendor = new Map<number, typeof vendorPrequalifications.$inferSelect>();
+      for (const pq of allPrequals) {
+        if (!latestPrequalByVendor.has(pq.vendorId)) {
+          latestPrequalByVendor.set(pq.vendorId, pq);
+        }
+      }
+      const enriched = items.map(v => ({
+        ...v,
+        latestPrequalification: latestPrequalByVendor.get(v.id) || null,
+      }));
+      res.json(enriched);
     } catch (err: unknown) {
       console.error("Error fetching vendors:", err);
       const c = classifyError(err); res.status(c.status).json({ message: c.message });
@@ -273,6 +328,9 @@ export function registerBiddingRoutes(app: Express) {
       const ctx = await verifyOrgAccess(req, res);
       if (!ctx) return;
       const vendorId = Number(req.params.vendorId);
+      if (!await verifyVendorOrgOwnership(vendorId, ctx.orgId)) {
+        return res.status(400).json({ message: "Vendor does not belong to this organization" });
+      }
       const parsed = createPrequalificationSchema.safeParse({ ...req.body, vendorId });
       if (!parsed.success) return res.status(400).json({ message: formatZodErrors(parsed.error) });
       const [prequal] = await db.insert(vendorPrequalifications).values({
@@ -381,6 +439,20 @@ export function registerBiddingRoutes(app: Express) {
         .where(and(eq(bidPackages.id, bidPackageId), eq(bidPackages.projectId, ctx.projectId)))
         .returning();
       if (!updated) return res.status(404).json({ message: "Bid package not found" });
+      if (parsed.data.status === "Awarded" && parsed.data.awardedVendorId) {
+        const vendorInfo = await db.select().from(vendors).where(eq(vendors.id, parsed.data.awardedVendorId)).then(r => r[0]);
+        const senderName = await getUserDisplayName(ctx.userId);
+        const memberIds = await getOrgMemberUserIds(ctx.project.organizationId);
+        for (const memberId of memberIds) {
+          if (memberId !== ctx.userId) {
+            await sendBiddingNotification(
+              memberId, "bid_awarded", "Bid Package Awarded",
+              `"${updated.title}" has been awarded to ${vendorInfo?.companyName || "a vendor"}${parsed.data.awardedAmount ? ` for $${parsed.data.awardedAmount}` : ""}`,
+              ctx.projectId, ctx.userId, senderName,
+            );
+          }
+        }
+      }
       res.json(updated);
     } catch (err: unknown) {
       console.error("Error updating bid package:", err);
@@ -448,6 +520,11 @@ export function registerBiddingRoutes(app: Express) {
       if (!Array.isArray(vendorIds) || vendorIds.length === 0) {
         return res.status(400).json({ message: "vendorIds array is required" });
       }
+      for (const vid of vendorIds) {
+        if (!await verifyVendorOrgOwnership(vid, ctx.project.organizationId)) {
+          return res.status(400).json({ message: `Vendor ${vid} does not belong to this organization` });
+        }
+      }
       const created = [];
       for (const vendorId of vendorIds) {
         try {
@@ -460,6 +537,18 @@ export function registerBiddingRoutes(app: Express) {
         } catch (err: unknown) {
           if (err instanceof Error && err.message.includes("duplicate")) continue;
           throw err;
+        }
+      }
+      const pkg = await db.select().from(bidPackages).where(eq(bidPackages.id, bidPackageId)).then(r => r[0]);
+      const senderName = await getUserDisplayName(ctx.userId);
+      const memberIds = await getOrgMemberUserIds(ctx.project.organizationId);
+      for (const memberId of memberIds) {
+        if (memberId !== ctx.userId) {
+          await sendBiddingNotification(
+            memberId, "bid_invitation_sent", "Bid Invitations Sent",
+            `${senderName} invited ${created.length} vendor(s) to bid on "${pkg?.title || "a bid package"}"`,
+            ctx.projectId, ctx.userId, senderName,
+          );
         }
       }
       res.status(201).json(created);
@@ -564,6 +653,9 @@ export function registerBiddingRoutes(app: Express) {
       }
       const parsed = createBidSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: formatZodErrors(parsed.error) });
+      if (!await verifyVendorOrgOwnership(parsed.data.vendorId, ctx.project.organizationId)) {
+        return res.status(400).json({ message: "Vendor does not belong to this organization" });
+      }
       const { lineItems, ...bidData } = parsed.data;
       const result = await db.transaction(async (tx) => {
         const [bid] = await tx.insert(bids).values({
@@ -583,6 +675,19 @@ export function registerBiddingRoutes(app: Express) {
         }
         return bid;
       });
+      const pkg = await db.select().from(bidPackages).where(eq(bidPackages.id, bidPackageId)).then(r => r[0]);
+      const vendorInfo = await db.select().from(vendors).where(eq(vendors.id, parsed.data.vendorId)).then(r => r[0]);
+      const senderName = await getUserDisplayName(ctx.userId);
+      const memberIds = await getOrgMemberUserIds(ctx.project.organizationId);
+      for (const memberId of memberIds) {
+        if (memberId !== ctx.userId) {
+          await sendBiddingNotification(
+            memberId, "bid_submitted", "New Bid Submitted",
+            `${vendorInfo?.companyName || "A vendor"} submitted a bid of $${parsed.data.totalAmount} on "${pkg?.title || "a bid package"}"`,
+            ctx.projectId, ctx.userId, senderName,
+          );
+        }
+      }
       res.status(201).json(result);
     } catch (err: unknown) {
       console.error("Error creating bid:", err);

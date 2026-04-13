@@ -157,7 +157,15 @@ export default function Vendors() {
                     <h3 className="font-semibold truncate">{vendor.companyName}</h3>
                     {vendor.contactName && <p className="text-sm text-muted-foreground">{vendor.contactName}</p>}
                   </div>
-                  <Badge className={cn("text-xs shrink-0", vendorStatusColor(vendor.status))}>{vendor.status}</Badge>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Badge className={cn("text-xs", vendorStatusColor(vendor.status))}>{vendor.status}</Badge>
+                    {(vendor as any).latestPrequalification && (
+                      <Badge className={cn("text-xs", prequalStatusColor((vendor as any).latestPrequalification.qualificationStatus))}>
+                        <Shield className="h-3 w-3 mr-0.5" />
+                        {(vendor as any).latestPrequalification.qualificationStatus}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-1 text-xs text-muted-foreground">
                   {vendor.tradeSpecialty && <p className="font-medium text-foreground">{vendor.tradeSpecialty}</p>}

@@ -3806,6 +3806,7 @@ export const bidPackages = pgTable("bid_packages", {
   awardedVendorId: integer("awarded_vendor_id").references(() => vendors.id),
   awardedAmount: text("awarded_amount"),
   awardedDate: date("awarded_date"),
+  documents: text("documents"),
   createdBy: varchar("created_by").references(() => users.id),
   createdByName: text("created_by_name"),
   createdAt: timestamp("created_at").defaultNow(),

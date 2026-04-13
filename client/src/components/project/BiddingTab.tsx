@@ -187,10 +187,11 @@ function BidPackageFormDialog({ open, onOpenChange, initial, onSave }: {
   const [dueDate, setDueDate] = useState(initial?.dueDate || "");
   const [prebidDate, setPrebidDate] = useState(initial?.prebidDate || "");
   const [status, setStatus] = useState(initial?.status || "Draft");
+  const [documents, setDocuments] = useState(initial?.documents || "");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{initial ? "Edit Bid Package" : "New Bid Package"}</DialogTitle>
           <DialogDescription>{initial ? "Update bid package details" : "Create a new bid package for this project"}</DialogDescription>
@@ -221,6 +222,10 @@ function BidPackageFormDialog({ open, onOpenChange, initial, onSave }: {
             <Label>Scope of Work</Label>
             <Textarea value={scope} onChange={e => setScope(e.target.value)} rows={3} />
           </div>
+          <div className="grid gap-1.5">
+            <Label>Documents</Label>
+            <Textarea value={documents} onChange={e => setDocuments(e.target.value)} rows={2} placeholder="List document references, URLs, or file paths (one per line)" />
+          </div>
           <div className="grid grid-cols-3 gap-3">
             <div className="grid gap-1.5">
               <Label>Estimated Budget</Label>
@@ -242,6 +247,7 @@ function BidPackageFormDialog({ open, onOpenChange, initial, onSave }: {
             title, description: description || null, tradeCategory: tradeCategory || null,
             scope: scope || null, estimatedBudget: estimatedBudget || null,
             dueDate: dueDate || null, prebidDate: prebidDate || null, status,
+            documents: documents || null,
           })}>{initial ? "Save" : "Create"}</Button>
         </DialogFooter>
       </DialogContent>
@@ -293,10 +299,11 @@ function BidPackageDetail({ pkg, projectId, orgId, vendors, onBack, onEdit, onDe
               {pkg.awardedAmount && <div><Label className="text-xs text-muted-foreground">Awarded Amount</Label><p className="font-medium text-emerald-600">{formatCurrency(pkg.awardedAmount)}</p></div>}
               {pkg.awardedDate && <div><Label className="text-xs text-muted-foreground">Awarded Date</Label><p className="font-medium">{pkg.awardedDate}</p></div>}
             </CardContent>
-            {(pkg.description || pkg.scope) && (
+            {(pkg.description || pkg.scope || pkg.documents) && (
               <CardContent className="pt-0 space-y-3">
                 {pkg.description && <div><Label className="text-xs text-muted-foreground">Description</Label><p className="text-sm whitespace-pre-wrap">{pkg.description}</p></div>}
                 {pkg.scope && <div><Label className="text-xs text-muted-foreground">Scope of Work</Label><p className="text-sm whitespace-pre-wrap">{pkg.scope}</p></div>}
+                {pkg.documents && <div><Label className="text-xs text-muted-foreground">Documents</Label><p className="text-sm whitespace-pre-wrap">{pkg.documents}</p></div>}
               </CardContent>
             )}
           </Card>
