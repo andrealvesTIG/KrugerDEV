@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useOrganization } from "@/hooks/use-organization";
 import {
   useBidPackages, useCreateBidPackage, useUpdateBidPackage, useDeleteBidPackage,
-  useBidInvitations, useCreateBidInvitations, useDeleteBidInvitation,
+  useBidInvitations, useCreateBidInvitations, useUpdateBidInvitation, useDeleteBidInvitation,
   useBids, useCreateBid, useUpdateBid, useDeleteBid,
   useBidLeveling, useVendors,
 } from "@/hooks/use-bidding";
@@ -329,12 +329,17 @@ function InvitationsPanel({ projectId, bidPackageId, orgId, vendors }: {
   projectId: number; bidPackageId: number; orgId: number; vendors: Vendor[];
 }) {
   const { data: invitations = [], isLoading } = useBidInvitations(projectId, bidPackageId);
+  const { data: existingBids = [] } = useBids(projectId, bidPackageId);
   const createInvitations = useCreateBidInvitations();
   const deleteInvitation = useDeleteBidInvitation();
+  const createBid = useCreateBid();
+  const updateInvitation = useUpdateBidInvitation();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [selectedVendorIds, setSelectedVendorIds] = useState<number[]>([]);
+  const [submitBidForVendor, setSubmitBidForVendor] = useState<Vendor | null>(null);
 
   const invitedIds = new Set(invitations.map(i => i.vendorId));
+  const biddedVendorIds = new Set(existingBids.map(b => b.vendorId));
   const availableVendors = vendors.filter(v => !invitedIds.has(v.id));
 
   return (
@@ -358,7 +363,7 @@ function InvitationsPanel({ projectId, bidPackageId, orgId, vendors }: {
               <TableHead>Trade</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Invited</TableHead>
-              <TableHead className="w-12"></TableHead>
+              <TableHead className="w-[140px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -369,14 +374,39 @@ function InvitationsPanel({ projectId, bidPackageId, orgId, vendors }: {
                 <TableCell><Badge className={cn("text-xs", statusColor(inv.status))}>{inv.status}</Badge></TableCell>
                 <TableCell className="text-sm text-muted-foreground">{inv.invitedAt ? new Date(inv.invitedAt).toLocaleDateString() : "—"}</TableCell>
                 <TableCell>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deleteInvitation.mutate({ projectId, bidPackageId, invitationId: inv.id })}>
-                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    {!biddedVendorIds.has(inv.vendorId) && inv.status !== "Declined" && inv.vendor && (
+                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => {
+                        updateInvitation.mutate({ projectId, bidPackageId, invitationId: inv.id, data: { status: "Accepted" } });
+                        setSubmitBidForVendor(inv.vendor!);
+                      }}>
+                        <DollarSign className="h-3 w-3 mr-0.5" /> Submit Bid
+                      </Button>
+                    )}
+                    {biddedVendorIds.has(inv.vendorId) && (
+                      <Badge variant="outline" className="text-xs text-emerald-600">Bid Submitted</Badge>
+                    )}
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deleteInvitation.mutate({ projectId, bidPackageId, invitationId: inv.id })}>
+                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+      )}
+
+      {submitBidForVendor && (
+        <BidFormDialog
+          open={!!submitBidForVendor}
+          onOpenChange={() => setSubmitBidForVendor(null)}
+          vendors={[submitBidForVendor]}
+          onSave={(data) => {
+            createBid.mutate({ projectId, bidPackageId, data: { ...data, vendorId: submitBidForVendor.id } });
+            setSubmitBidForVendor(null);
+          }}
+        />
       )}
 
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
@@ -494,6 +524,19 @@ function BidsPanel({ projectId, bidPackageId, orgId, vendors }: {
   );
 }
 
+type LineItemDraft = {
+  description: string;
+  quantity: string;
+  unit: string;
+  unitPrice: string;
+  totalPrice: string;
+  category: string;
+};
+
+const emptyLineItem = (): LineItemDraft => ({
+  description: "", quantity: "", unit: "", unitPrice: "", totalPrice: "", category: "",
+});
+
 function BidFormDialog({ open, onOpenChange, vendors, initial, onSave }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -514,15 +557,33 @@ function BidFormDialog({ open, onOpenChange, vendors, initial, onSave }: {
   const [evaluationScore, setEvaluationScore] = useState(initial?.evaluationScore?.toString() || "");
   const [evaluationNotes, setEvaluationNotes] = useState(initial?.evaluationNotes || "");
   const [isRecommended, setIsRecommended] = useState(initial?.isRecommended || false);
+  const [lineItems, setLineItems] = useState<LineItemDraft[]>(
+    initial?.lineItems?.map(li => ({
+      description: li.description,
+      quantity: li.quantity || "",
+      unit: li.unit || "",
+      unitPrice: li.unitPrice || "",
+      totalPrice: li.totalPrice || "",
+      category: li.category || "",
+    })) || []
+  );
 
   const isEdit = !!initial;
 
+  const updateLineItem = (idx: number, field: keyof LineItemDraft, value: string) => {
+    setLineItems(prev => prev.map((li, i) => i === idx ? { ...li, [field]: value } : li));
+  };
+
+  const removeLineItem = (idx: number) => {
+    setLineItems(prev => prev.filter((_, i) => i !== idx));
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit Bid" : "Record Bid"}</DialogTitle>
-          <DialogDescription>{isEdit ? "Update bid details and evaluation" : "Record a bid from a vendor"}</DialogDescription>
+          <DialogTitle>{isEdit ? "Edit Bid" : "Submit Bid"}</DialogTitle>
+          <DialogDescription>{isEdit ? "Update bid details, breakdown, and evaluation" : "Submit a bid with amount, breakdown, attachments, and notes"}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-2">
           {!isEdit && (
@@ -554,17 +615,57 @@ function BidFormDialog({ open, onOpenChange, vendors, initial, onSave }: {
               <Label htmlFor="bond">Bond Included</Label>
             </div>
           </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">Line Items (Cost Breakdown)</Label>
+              <Button type="button" variant="outline" size="sm" onClick={() => setLineItems(prev => [...prev, emptyLineItem()])}>
+                <Plus className="h-3 w-3 mr-1" /> Add Item
+              </Button>
+            </div>
+            {lineItems.length > 0 && (
+              <div className="border rounded-md overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[200px]">Description</TableHead>
+                      <TableHead className="w-[70px]">Qty</TableHead>
+                      <TableHead className="w-[70px]">Unit</TableHead>
+                      <TableHead className="w-[90px]">Unit Price</TableHead>
+                      <TableHead className="w-[90px]">Total</TableHead>
+                      <TableHead className="w-[30px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {lineItems.map((li, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell className="p-1"><Input className="h-8 text-sm" value={li.description} onChange={e => updateLineItem(idx, "description", e.target.value)} placeholder="Item description" /></TableCell>
+                        <TableCell className="p-1"><Input className="h-8 text-sm" value={li.quantity} onChange={e => updateLineItem(idx, "quantity", e.target.value)} /></TableCell>
+                        <TableCell className="p-1"><Input className="h-8 text-sm" value={li.unit} onChange={e => updateLineItem(idx, "unit", e.target.value)} placeholder="ea" /></TableCell>
+                        <TableCell className="p-1"><Input className="h-8 text-sm" value={li.unitPrice} onChange={e => updateLineItem(idx, "unitPrice", e.target.value)} /></TableCell>
+                        <TableCell className="p-1"><Input className="h-8 text-sm" value={li.totalPrice} onChange={e => updateLineItem(idx, "totalPrice", e.target.value)} /></TableCell>
+                        <TableCell className="p-1"><Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => removeLineItem(idx)}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+
           <div className="grid gap-1.5">
             <Label>Notes</Label>
             <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} />
           </div>
-          <div className="grid gap-1.5">
-            <Label>Exclusions</Label>
-            <Textarea value={exclusions} onChange={e => setExclusions(e.target.value)} rows={2} />
-          </div>
-          <div className="grid gap-1.5">
-            <Label>Clarifications</Label>
-            <Textarea value={clarifications} onChange={e => setClarifications(e.target.value)} rows={2} />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label>Exclusions</Label>
+              <Textarea value={exclusions} onChange={e => setExclusions(e.target.value)} rows={2} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Clarifications</Label>
+              <Textarea value={clarifications} onChange={e => setClarifications(e.target.value)} rows={2} />
+            </div>
           </div>
           <div className="grid gap-1.5">
             <Label>Attachments</Label>
@@ -601,6 +702,7 @@ function BidFormDialog({ open, onOpenChange, vendors, initial, onSave }: {
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button disabled={(!isEdit && !vendorId) || !totalAmount.trim()} onClick={() => {
+            const validLineItems = lineItems.filter(li => li.description.trim());
             const data: Record<string, unknown> = {
               totalAmount,
               alternateAmount: alternateAmount || null,
@@ -610,6 +712,15 @@ function BidFormDialog({ open, onOpenChange, vendors, initial, onSave }: {
               clarifications: clarifications || null,
               attachments: attachments || null,
               validUntil: validUntil || null,
+              lineItems: validLineItems.length > 0 ? validLineItems.map((li, idx) => ({
+                description: li.description,
+                quantity: li.quantity || null,
+                unit: li.unit || null,
+                unitPrice: li.unitPrice || null,
+                totalPrice: li.totalPrice || null,
+                category: li.category || null,
+                sortOrder: idx,
+              })) : undefined,
             };
             if (!isEdit) data.vendorId = Number(vendorId);
             if (isEdit) {
