@@ -99,7 +99,7 @@ export default function ConstructionInvoicesTab({ projectId }: { projectId: numb
     setIsDialogOpen(true);
   };
 
-  const openEdit = (inv: ConstructionInvoice) => {
+  const openEdit = async (inv: ConstructionInvoice) => {
     setEditingInvoice(inv);
     setFormTitle(inv.title);
     setFormDescription(inv.description || "");
@@ -113,6 +113,26 @@ export default function ConstructionInvoicesTab({ projectId }: { projectId: numb
     setFormNotes(inv.notes || "");
     setFormLineItems([emptyLineItem()]);
     setIsDialogOpen(true);
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}/construction-invoices/${inv.id}`);
+      if (res.ok) {
+        const detail = await res.json();
+        if (detail.lineItems && detail.lineItems.length > 0) {
+          setFormLineItems(detail.lineItems.map((li: Record<string, unknown>) => ({
+            costCode: (li.costCode as string) || "",
+            description: (li.description as string) || "",
+            scheduledValue: String(li.scheduledValue || "0"),
+            previousBilled: String(li.previousBilled || "0"),
+            currentBilled: String(li.currentBilled || "0"),
+            balanceToFinish: String(li.balanceToFinish || "0"),
+            percentComplete: String(li.percentComplete || "0"),
+          })));
+        }
+      }
+    } catch {
+      // line items fail silently, user can still edit invoice fields
+    }
   };
 
   const handleSubmit = () => {

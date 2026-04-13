@@ -114,7 +114,7 @@ export default function ChangeOrdersTab({ projectId }: { projectId: number }) {
     setIsDialogOpen(true);
   };
 
-  const openEdit = (co: ChangeOrder) => {
+  const openEdit = async (co: ChangeOrder) => {
     setEditingCO(co);
     setFormTitle(co.title);
     setFormDescription(co.description || "");
@@ -128,6 +128,25 @@ export default function ChangeOrdersTab({ projectId }: { projectId: number }) {
     setFormNotes(co.notes || "");
     setFormLineItems([emptyLineItem()]);
     setIsDialogOpen(true);
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}/change-orders/${co.id}`);
+      if (res.ok) {
+        const detail = await res.json();
+        if (detail.lineItems && detail.lineItems.length > 0) {
+          setFormLineItems(detail.lineItems.map((li: Record<string, unknown>) => ({
+            costCode: (li.costCode as string) || "",
+            description: (li.description as string) || "",
+            quantity: String(li.quantity || "1"),
+            unitPrice: String(li.unitPrice || "0"),
+            totalPrice: String(li.totalPrice || "0"),
+            category: (li.category as string) || "",
+          })));
+        }
+      }
+    } catch {
+      // line items fail silently, user can still edit CO fields
+    }
   };
 
   const handleSubmit = () => {
