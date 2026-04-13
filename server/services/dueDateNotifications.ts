@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { rfis, submittals } from "@shared/schema";
-import { and, eq, isNull, lte, gte, isNotNull } from "drizzle-orm";
+import { and, eq, isNull, lte, isNotNull, or } from "drizzle-orm";
 import { storage } from "../storage";
 
 export async function checkDueDateNotifications(): Promise<number> {
@@ -10,6 +10,9 @@ export async function checkDueDateNotifications(): Promise<number> {
   const twoDaysFromNow = new Date(now);
   twoDaysFromNow.setDate(twoDaysFromNow.getDate() + 2);
   const today = now.toISOString().split("T")[0];
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const overdueFloor = sevenDaysAgo.toISOString().split("T")[0];
   const threshold = twoDaysFromNow.toISOString().split("T")[0];
 
   const dueRfis = await db.select().from(rfis).where(
@@ -18,21 +21,22 @@ export async function checkDueDateNotifications(): Promise<number> {
       isNull(rfis.closedAt),
       isNotNull(rfis.dueDate),
       lte(rfis.dueDate, threshold),
-      gte(rfis.dueDate, today),
-      eq(rfis.status, "Open")
+      or(eq(rfis.status, "Open"), eq(rfis.status, "Answered"))
     )
   );
 
   for (const rfi of dueRfis) {
+    if (rfi.dueDate! < overdueFloor) continue;
+
     const targetUserId = rfi.assignedTo || rfi.createdBy;
     if (!targetUserId) continue;
 
-    const isOverdue = rfi.dueDate! <= today;
+    const isOverdue = rfi.dueDate! < today;
     const title = isOverdue
       ? `RFI Overdue: ${rfi.rfiNumber}`
       : `RFI Due Soon: ${rfi.rfiNumber}`;
     const message = isOverdue
-      ? `RFI ${rfi.rfiNumber}: "${rfi.subject}" is overdue (due ${rfi.dueDate})`
+      ? `RFI ${rfi.rfiNumber}: "${rfi.subject}" is overdue (was due ${rfi.dueDate})`
       : `RFI ${rfi.rfiNumber}: "${rfi.subject}" is due on ${rfi.dueDate}`;
 
     try {
@@ -58,21 +62,22 @@ export async function checkDueDateNotifications(): Promise<number> {
       isNull(submittals.closedAt),
       isNotNull(submittals.requiredDate),
       lte(submittals.requiredDate, threshold),
-      gte(submittals.requiredDate, today),
-      eq(submittals.status, "Pending")
+      or(eq(submittals.status, "Pending"), eq(submittals.status, "Under Review"))
     )
   );
 
   for (const sub of dueSubmittals) {
+    if (sub.requiredDate! < overdueFloor) continue;
+
     const targetUserId = sub.reviewerId || sub.submittedBy || sub.createdBy;
     if (!targetUserId) continue;
 
-    const isOverdue = sub.requiredDate! <= today;
+    const isOverdue = sub.requiredDate! < today;
     const title = isOverdue
       ? `Submittal Overdue: ${sub.submittalNumber}`
       : `Submittal Due Soon: ${sub.submittalNumber}`;
     const message = isOverdue
-      ? `Submittal ${sub.submittalNumber}: "${sub.title}" is overdue (required by ${sub.requiredDate})`
+      ? `Submittal ${sub.submittalNumber}: "${sub.title}" is overdue (was required by ${sub.requiredDate})`
       : `Submittal ${sub.submittalNumber}: "${sub.title}" is required by ${sub.requiredDate}`;
 
     try {

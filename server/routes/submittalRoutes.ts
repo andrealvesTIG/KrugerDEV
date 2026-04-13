@@ -282,6 +282,9 @@ export function registerSubmittalRoutes(app: Express) {
           updateData.closedAt = new Date();
           updateData.closedBy = userId;
           updateData.reviewedDate = new Date().toISOString().split("T")[0];
+        } else if ((parsed.status === "Pending" || parsed.status === "Under Review") && existing.closedAt) {
+          updateData.closedAt = null;
+          updateData.closedBy = null;
         }
       }
 

@@ -255,6 +255,9 @@ export function registerRfiRoutes(app: Express) {
         if (parsed.status === "Closed" && existing.status !== "Closed") {
           updateData.closedAt = new Date();
           updateData.closedBy = userId;
+        } else if (parsed.status === "Open" && existing.closedAt) {
+          updateData.closedAt = null;
+          updateData.closedBy = null;
         }
       }
 
