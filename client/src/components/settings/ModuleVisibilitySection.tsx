@@ -12,7 +12,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Folder, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, CheckSquare, Eye, EyeOff, GripVertical, Pencil, X, Plus, ChevronUp, ChevronDown, Trash2, ExternalLink, Link as LinkIcon, BookOpen, Home, Radar, Clock, Lightbulb, Receipt, PlayCircle, Users, GraduationCap, LayoutTemplate, ClipboardList, MessageSquare, FileCheck, PenSquare, ClipboardCheck } from "lucide-react";
+import { Folder, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, CheckSquare, Eye, EyeOff, GripVertical, Pencil, X, Plus, ChevronUp, ChevronDown, Trash2, ExternalLink, Link as LinkIcon, BookOpen, Home, Radar, Clock, Lightbulb, Receipt, PlayCircle, Users, GraduationCap, LayoutTemplate, ClipboardList, MessageSquare, FileCheck, PenSquare, ClipboardCheck, Shield } from "lucide-react";
 import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, UniqueIdentifier } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -41,6 +41,7 @@ export const availableModules = [
   { key: "submittals", name: "Submittals", icon: FileCheck, description: "Submittal management and review" },
   { key: "drawings", name: "Drawings", icon: PenSquare, description: "Drawing management and markup" },
   { key: "punch-list", name: "Punch List", icon: ClipboardCheck, description: "Punch list items for project close-out" },
+  { key: "quality-safety", name: "Quality & Safety", icon: Shield, description: "Inspections, incidents, and safety observations" },
 ];
 
 export const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -66,6 +67,7 @@ export const moduleIconMap: Record<string, React.ComponentType<{ className?: str
   submittals: FileCheck,
   drawings: PenSquare,
   "punch-list": ClipboardCheck,
+  "quality-safety": Shield,
 };
 
 function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder?: string[] | null, hiddenGroups?: string[] | null): SidebarStructure {
@@ -203,6 +205,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   ensureModule("submittals", "portfolio", "rfis");
   ensureModule("drawings", "portfolio", "submittals");
   ensureModule("punch-list", "portfolio", "drawings");
+  ensureModule("quality-safety", "portfolio", "punch-list");
   
   const helpGroup = cleanedStructure.find(g => g.id === "help");
   if (!helpGroup) {

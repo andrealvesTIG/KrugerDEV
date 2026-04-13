@@ -3452,3 +3452,266 @@ export const insertPunchItemPhotoSchema = createInsertSchema(punchItemPhotos).om
 });
 export type PunchItemPhoto = typeof punchItemPhotos.$inferSelect;
 export type InsertPunchItemPhoto = z.infer<typeof insertPunchItemPhotoSchema>;
+
+// === Quality & Safety Module ===
+
+export const inspectionTemplates = pgTable("inspection_templates", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category"),
+  version: integer("version").default(1),
+  isActive: boolean("is_active").default(true),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("inspection_templates_project_id_idx").on(table.projectId),
+  index("inspection_templates_org_id_idx").on(table.organizationId),
+]);
+
+export const insertInspectionTemplateSchema = createInsertSchema(inspectionTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InspectionTemplate = typeof inspectionTemplates.$inferSelect;
+export type InsertInspectionTemplate = z.infer<typeof insertInspectionTemplateSchema>;
+
+export const inspectionTemplateItems = pgTable("inspection_template_items", {
+  id: serial("id").primaryKey(),
+  templateId: integer("template_id").references(() => inspectionTemplates.id).notNull(),
+  section: text("section"),
+  itemText: text("item_text").notNull(),
+  itemType: text("item_type").default("pass_fail"),
+  sortOrder: integer("sort_order").default(0),
+  isRequired: boolean("is_required").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("inspection_template_items_template_id_idx").on(table.templateId),
+]);
+
+export const insertInspectionTemplateItemSchema = createInsertSchema(inspectionTemplateItems).omit({
+  id: true,
+  createdAt: true,
+});
+export type InspectionTemplateItem = typeof inspectionTemplateItems.$inferSelect;
+export type InsertInspectionTemplateItem = z.infer<typeof insertInspectionTemplateItemSchema>;
+
+export const inspections = pgTable("inspections", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  templateId: integer("template_id").references(() => inspectionTemplates.id),
+  number: text("number").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  inspectionType: text("inspection_type"),
+  location: text("location"),
+  status: text("status").notNull().default("Scheduled"),
+  scheduledDate: date("scheduled_date"),
+  completedDate: date("completed_date"),
+  inspectorId: varchar("inspector_id").references(() => users.id),
+  inspectorName: text("inspector_name"),
+  overallResult: text("overall_result"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("inspections_project_id_idx").on(table.projectId),
+  index("inspections_org_id_idx").on(table.organizationId),
+  index("inspections_template_id_idx").on(table.templateId),
+  index("inspections_status_idx").on(table.status),
+  uniqueIndex("inspections_project_number_uniq").on(table.projectId, table.number),
+]);
+
+export const insertInspectionSchema = createInsertSchema(inspections).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type Inspection = typeof inspections.$inferSelect;
+export type InsertInspection = z.infer<typeof insertInspectionSchema>;
+
+export const inspectionResults = pgTable("inspection_results", {
+  id: serial("id").primaryKey(),
+  inspectionId: integer("inspection_id").references(() => inspections.id).notNull(),
+  templateItemId: integer("template_item_id").references(() => inspectionTemplateItems.id),
+  itemText: text("item_text").notNull(),
+  section: text("section"),
+  result: text("result"),
+  notes: text("notes"),
+  photoUrl: text("photo_url"),
+  deficiencyDescription: text("deficiency_description"),
+  correctiveAction: text("corrective_action"),
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  assignedToName: text("assigned_to_name"),
+  dueDate: date("due_date"),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("inspection_results_inspection_id_idx").on(table.inspectionId),
+]);
+
+export const insertInspectionResultSchema = createInsertSchema(inspectionResults).omit({
+  id: true,
+  createdAt: true,
+});
+export type InspectionResult = typeof inspectionResults.$inferSelect;
+export type InsertInspectionResult = z.infer<typeof insertInspectionResultSchema>;
+
+export const incidents = pgTable("incidents", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  number: text("number").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  incidentDate: timestamp("incident_date"),
+  incidentTime: text("incident_time"),
+  location: text("location"),
+  category: text("category"),
+  severity: text("severity").notNull().default("Minor"),
+  status: text("status").notNull().default("Reported"),
+  injuredParties: text("injured_parties"),
+  witnesses: text("witnesses"),
+  rootCause: text("root_cause"),
+  immediateActions: text("immediate_actions"),
+  investigationNotes: text("investigation_notes"),
+  investigationStatus: text("investigation_status").default("Pending"),
+  reportedBy: varchar("reported_by").references(() => users.id),
+  reportedByName: text("reported_by_name"),
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  assignedToName: text("assigned_to_name"),
+  closedAt: timestamp("closed_at"),
+  closedBy: varchar("closed_by").references(() => users.id),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("incidents_project_id_idx").on(table.projectId),
+  index("incidents_org_id_idx").on(table.organizationId),
+  index("incidents_status_idx").on(table.status),
+  index("incidents_severity_idx").on(table.severity),
+  uniqueIndex("incidents_project_number_uniq").on(table.projectId, table.number),
+]);
+
+export const insertIncidentSchema = createInsertSchema(incidents).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type Incident = typeof incidents.$inferSelect;
+export type InsertIncident = z.infer<typeof insertIncidentSchema>;
+
+export const incidentActions = pgTable("incident_actions", {
+  id: serial("id").primaryKey(),
+  incidentId: integer("incident_id").references(() => incidents.id).notNull(),
+  actionType: text("action_type").notNull().default("Corrective"),
+  description: text("description").notNull(),
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  assignedToName: text("assigned_to_name"),
+  dueDate: date("due_date"),
+  status: text("status").notNull().default("Open"),
+  completedAt: timestamp("completed_at"),
+  completedBy: varchar("completed_by").references(() => users.id),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("incident_actions_incident_id_idx").on(table.incidentId),
+  index("incident_actions_status_idx").on(table.status),
+]);
+
+export const insertIncidentActionSchema = createInsertSchema(incidentActions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type IncidentAction = typeof incidentActions.$inferSelect;
+export type InsertIncidentAction = z.infer<typeof insertIncidentActionSchema>;
+
+export const observations = pgTable("observations", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  number: text("number").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category").notNull().default("Safety"),
+  observationType: text("observation_type").notNull().default("Negative"),
+  location: text("location"),
+  severity: text("severity").default("Low"),
+  status: text("status").notNull().default("Open"),
+  photoUrl: text("photo_url"),
+  correctiveAction: text("corrective_action"),
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  assignedToName: text("assigned_to_name"),
+  dueDate: date("due_date"),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: varchar("resolved_by").references(() => users.id),
+  observedBy: varchar("observed_by").references(() => users.id),
+  observedByName: text("observed_by_name"),
+  observedDate: date("observed_date"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("observations_project_id_idx").on(table.projectId),
+  index("observations_org_id_idx").on(table.organizationId),
+  index("observations_category_idx").on(table.category),
+  index("observations_status_idx").on(table.status),
+  uniqueIndex("observations_project_number_uniq").on(table.projectId, table.number),
+]);
+
+export const insertObservationSchema = createInsertSchema(observations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type Observation = typeof observations.$inferSelect;
+export type InsertObservation = z.infer<typeof insertObservationSchema>;
+
+export const observationActions = pgTable("observation_actions", {
+  id: serial("id").primaryKey(),
+  observationId: integer("observation_id").references(() => observations.id).notNull(),
+  actionType: text("action_type").notNull().default("Corrective"),
+  description: text("description").notNull(),
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  assignedToName: text("assigned_to_name"),
+  dueDate: date("due_date"),
+  status: text("status").notNull().default("Open"),
+  completedAt: timestamp("completed_at"),
+  completedBy: varchar("completed_by").references(() => users.id),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("observation_actions_observation_id_idx").on(table.observationId),
+  index("observation_actions_status_idx").on(table.status),
+]);
+
+export const insertObservationActionSchema = createInsertSchema(observationActions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type ObservationAction = typeof observationActions.$inferSelect;
+export type InsertObservationAction = z.infer<typeof insertObservationActionSchema>;

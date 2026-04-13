@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate, ClipboardList, MessageSquare, FileCheck, PenSquare, ClipboardCheck } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate, ClipboardList, MessageSquare, FileCheck, PenSquare, ClipboardCheck, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
@@ -103,6 +103,7 @@ const moduleDefinitions: Record<string, { name: string; href: string; icon: Reac
   submittals: { name: "Submittals", href: "/submittals", icon: FileCheck },
   drawings: { name: "Drawings", href: "/drawings", icon: PenSquare },
   "punch-list": { name: "Punch List", href: "/punch-list", icon: ClipboardCheck },
+  "quality-safety": { name: "Quality & Safety", href: "/quality-safety", icon: Shield },
 };
 
 const navigation = [
@@ -263,6 +264,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   ensureModule("submittals", "portfolio", "rfis");
   ensureModule("drawings", "portfolio", "submittals");
   ensureModule("punch-list", "portfolio", "drawings");
+  ensureModule("quality-safety", "portfolio", "punch-list");
   
   const helpGroup = updatedStructure.find(g => g.id === "help");
   if (!helpGroup) {

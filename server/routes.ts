@@ -37,6 +37,7 @@ import { registerRfiRoutes } from "./routes/rfiRoutes";
 import { registerSubmittalRoutes } from "./routes/submittalRoutes";
 import { registerDrawingRoutes } from "./routes/drawingRoutes";
 import { registerPunchListRoutes } from "./routes/punchListRoutes";
+import { registerQualitySafetyRoutes } from "./routes/qualitySafetyRoutes";
 import { seedDatabase } from "./routes/helpers";
 
 export async function registerRoutes(
@@ -44,7 +45,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  const numericParams = ['id', 'projectId', 'portfolioId', 'taskId', 'issueId', 'milestoneId', 'riskId', 'resourceId', 'orgId', 'organizationId', 'memberId', 'ticketId', 'documentId', 'assessmentId', 'subscriptionId', 'planId', 'viewId', 'entryId', 'notificationId', 'logId', 'rfiId', 'submittalId', 'revisionId', 'responseId', 'drawingId', 'markupId', 'setId', 'punchItemId', 'photoId'];
+  const numericParams = ['id', 'projectId', 'portfolioId', 'taskId', 'issueId', 'milestoneId', 'riskId', 'resourceId', 'orgId', 'organizationId', 'memberId', 'ticketId', 'documentId', 'assessmentId', 'subscriptionId', 'planId', 'viewId', 'entryId', 'notificationId', 'logId', 'rfiId', 'submittalId', 'revisionId', 'responseId', 'drawingId', 'markupId', 'setId', 'punchItemId', 'photoId', 'templateId', 'inspectionId', 'incidentId', 'observationId', 'actionId'];
   for (const param of numericParams) {
     app.param(param, (req, res, next, value) => {
       const num = Number(value);
@@ -116,6 +117,7 @@ export async function registerRoutes(
   registerSubmittalRoutes(app);
   registerDrawingRoutes(app);
   registerPunchListRoutes(app);
+  registerQualitySafetyRoutes(app);
 
   seedTrainingDataIfEmpty().catch(err => {
     console.error('[training] Failed to seed training data:', err.message);

@@ -32,6 +32,7 @@ import RFIsTab from "@/components/project/RFIsTab";
 import SubmittalsTab from "@/components/project/SubmittalsTab";
 import DrawingsTab from "@/components/project/DrawingsTab";
 import PunchListTab from "@/components/project/PunchListTab";
+import QualitySafetyTab from "@/components/project/QualitySafetyTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -362,6 +363,7 @@ export default function ProjectDetails() {
     'submittals': 'submittals',
     'drawings': 'drawings',
     'punch-list': 'punch-list',
+    'quality-safety': 'quality-safety',
   };
 
   // Available tabs for pinning from the More menu
@@ -380,6 +382,7 @@ export default function ProjectDetails() {
     { id: 'submittals', label: 'Submittals' },
     { id: 'drawings', label: 'Drawings' },
     { id: 'punch-list', label: 'Punch List' },
+    { id: 'quality-safety', label: 'Quality & Safety' },
   ].filter(tab => {
     const moduleKey = moduleGatedTabs[tab.id];
     return !moduleKey || !isModuleHidden(moduleKey);
@@ -1728,6 +1731,11 @@ export default function ProjectDetails() {
           {!isModuleHidden('punch-list') && (
             <TabsContent value="punch-list">
               <PunchListTab projectId={project.id} />
+            </TabsContent>
+          )}
+          {!isModuleHidden('quality-safety') && (
+            <TabsContent value="quality-safety">
+              <QualitySafetyTab projectId={project.id} organizationId={project.organizationId!} />
             </TabsContent>
           )}
           {customTabs.map((tab) => (
