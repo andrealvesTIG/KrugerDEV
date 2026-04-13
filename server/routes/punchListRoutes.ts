@@ -448,6 +448,18 @@ export function registerPunchListRoutes(app: Express) {
         return results;
       });
 
+      for (const item of created) {
+        if (item.assignedTo && item.assignedTo !== userId) {
+          sendPunchNotification(
+            item.assignedTo,
+            "punch_item_assigned",
+            `Punch Item Assigned: ${item.number}`,
+            `You have been assigned to punch item "${item.title}" (${item.number}).`,
+            projectId,
+          );
+        }
+      }
+
       res.status(201).json(created);
     } catch (err) {
       console.error("Error bulk creating punch items:", err);
