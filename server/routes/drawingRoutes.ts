@@ -1,8 +1,9 @@
 import type { Express } from "express";
 import { db } from "../db";
 import { z } from "zod";
-import { eq, and, isNull, desc, asc, ilike } from "drizzle-orm";
-import { drawings, drawingRevisions, drawingMarkups, projects } from "@shared/schema";
+import { eq, and, isNull, desc, asc, ilike, or, sql as sqlTag } from "drizzle-orm";
+import { drawings, drawingSets, drawingRevisions, drawingMarkups, projects, users } from "@shared/schema";
+import type { SQL } from "drizzle-orm";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -26,11 +27,20 @@ const DISCIPLINES = [
 
 const STATUSES = ["Current", "Superseded", "Void"] as const;
 
+const createDrawingSetSchema = z.object({
+  name: z.string().min(1).max(300),
+  discipline: z.string().max(100).default("General"),
+  description: z.string().max(5000).nullable().optional(),
+}).strict();
+
+const updateDrawingSetSchema = createDrawingSetSchema.partial().strict();
+
 const createDrawingSchema = z.object({
   drawingNumber: z.string().min(1).max(100),
   title: z.string().min(1).max(500),
   discipline: z.string().max(100).default("General"),
   description: z.string().max(5000).nullable().optional(),
+  drawingSetId: z.number().int().positive().nullable().optional(),
 }).strict();
 
 const updateDrawingSchema = createDrawingSchema.partial().extend({
@@ -68,7 +78,155 @@ const createMarkupSchema = z.object({
   markupData: z.array(markupElementSchema).min(1).max(500),
 }).strict();
 
+async function getUserDisplayName(userId: string): Promise<string> {
+  const [user] = await db.select({
+    firstName: users.firstName,
+    lastName: users.lastName,
+    email: users.email,
+  }).from(users).where(eq(users.id, userId));
+  if (!user) return "Unknown";
+  const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim();
+  return fullName || user.email || "Unknown";
+}
+
 export function registerDrawingRoutes(app: Express) {
+
+  app.get("/api/projects/:projectId/drawing-sets", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const projectId = Number(req.params.projectId);
+      const project = await db.select().from(projects).where(eq(projects.id, projectId)).then(r => r[0]);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const results = await db.select().from(drawingSets)
+        .where(and(eq(drawingSets.projectId, projectId), isNull(drawingSets.deletedAt)))
+        .orderBy(asc(drawingSets.name));
+
+      res.json(results);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: "Error fetching drawing sets" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/drawing-sets", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const projectId = Number(req.params.projectId);
+      const project = await db.select().from(projects).where(eq(projects.id, projectId)).then(r => r[0]);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const parsed = createDrawingSetSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: formatZodErrors(parsed.error) });
+
+      const data = parsed.data;
+      const [set] = await db.insert(drawingSets).values({
+        projectId,
+        organizationId: project.organizationId!,
+        name: data.name,
+        discipline: data.discipline || "General",
+        description: data.description || null,
+        createdBy: userId,
+      }).returning();
+
+      logUserActivity(userId, "create_drawing_set", "drawing_set", set.id, { name: set.name, projectId }, req);
+      res.status(201).json(set);
+    } catch (err) {
+      const classified = classifyError(err);
+      if (classified.message?.includes("duplicate")) {
+        return res.status(409).json({ message: "A drawing set with this name already exists in the project" });
+      }
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to create drawing set" : classified.message });
+    }
+  });
+
+  app.patch("/api/projects/:projectId/drawing-sets/:setId", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const projectId = Number(req.params.projectId);
+      const setId = Number(req.params.setId);
+
+      const project = await db.select().from(projects).where(eq(projects.id, projectId)).then(r => r[0]);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const existing = await db.select().from(drawingSets)
+        .where(and(eq(drawingSets.id, setId), eq(drawingSets.projectId, projectId), isNull(drawingSets.deletedAt)))
+        .then(r => r[0]);
+      if (!existing) return res.status(404).json({ message: "Drawing set not found" });
+
+      const parsed = updateDrawingSetSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: formatZodErrors(parsed.error) });
+
+      const updateFields: Record<string, unknown> = { updatedAt: new Date() };
+      if (parsed.data.name !== undefined) updateFields.name = parsed.data.name;
+      if (parsed.data.discipline !== undefined) updateFields.discipline = parsed.data.discipline;
+      if (parsed.data.description !== undefined) updateFields.description = parsed.data.description;
+
+      const [updated] = await db.update(drawingSets).set(updateFields).where(eq(drawingSets.id, setId)).returning();
+      res.json(updated);
+    } catch (err) {
+      const classified = classifyError(err);
+      if (classified.message?.includes("duplicate")) {
+        return res.status(409).json({ message: "A drawing set with this name already exists" });
+      }
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to update drawing set" : classified.message });
+    }
+  });
+
+  app.delete("/api/projects/:projectId/drawing-sets/:setId", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const projectId = Number(req.params.projectId);
+      const setId = Number(req.params.setId);
+
+      const project = await db.select().from(projects).where(eq(projects.id, projectId)).then(r => r[0]);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const existing = await db.select().from(drawingSets)
+        .where(and(eq(drawingSets.id, setId), eq(drawingSets.projectId, projectId), isNull(drawingSets.deletedAt)))
+        .then(r => r[0]);
+      if (!existing) return res.status(404).json({ message: "Drawing set not found" });
+
+      await db.transaction(async (tx) => {
+        await tx.update(drawings).set({
+          drawingSetId: null,
+          updatedAt: new Date(),
+        }).where(and(eq(drawings.drawingSetId, setId), eq(drawings.projectId, projectId)));
+
+        await tx.update(drawingSets).set({
+          deletedAt: new Date(),
+          deletedBy: userId,
+          updatedAt: new Date(),
+        }).where(eq(drawingSets.id, setId));
+      });
+
+      res.json({ message: "Drawing set deleted" });
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: "Failed to delete drawing set" });
+    }
+  });
+
   app.get("/api/projects/:projectId/drawings", async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -81,7 +239,7 @@ export function registerDrawingRoutes(app: Express) {
         return res.status(403).json({ message: "Access denied" });
       }
 
-      const conditions: any[] = [eq(drawings.projectId, projectId), isNull(drawings.deletedAt)];
+      const conditions: SQL[] = [eq(drawings.projectId, projectId), isNull(drawings.deletedAt)];
 
       const disciplineParam = req.query.discipline as string | undefined;
       if (disciplineParam) {
@@ -96,10 +254,22 @@ export function registerDrawingRoutes(app: Express) {
         conditions.push(eq(drawings.status, statusParam));
       }
 
+      const setIdParam = req.query.drawingSetId ? Number(req.query.drawingSetId) : undefined;
+      if (setIdParam !== undefined) {
+        if (isNaN(setIdParam) || !Number.isInteger(setIdParam)) {
+          return res.status(400).json({ message: "Invalid drawingSetId filter" });
+        }
+        conditions.push(eq(drawings.drawingSetId, setIdParam));
+      }
+
       const searchParam = req.query.search as string | undefined;
       if (searchParam) {
+        const searchPattern = `%${searchParam}%`;
         conditions.push(
-          ilike(drawings.title, `%${searchParam}%`)
+          or(
+            ilike(drawings.title, searchPattern),
+            ilike(drawings.drawingNumber, searchPattern)
+          )!
         );
       }
 
@@ -162,9 +332,17 @@ export function registerDrawingRoutes(app: Express) {
 
       const data = parsed.data;
 
+      if (data.drawingSetId) {
+        const set = await db.select().from(drawingSets)
+          .where(and(eq(drawingSets.id, data.drawingSetId), eq(drawingSets.projectId, projectId), isNull(drawingSets.deletedAt)))
+          .then(r => r[0]);
+        if (!set) return res.status(400).json({ message: "Drawing set not found in this project" });
+      }
+
       const [drawing] = await db.insert(drawings).values({
         projectId,
         organizationId: project.organizationId!,
+        drawingSetId: data.drawingSetId || null,
         drawingNumber: data.drawingNumber,
         title: data.title,
         discipline: data.discipline || "General",
@@ -217,6 +395,15 @@ export function registerDrawingRoutes(app: Express) {
       if (fields.discipline !== undefined) updateData.discipline = fields.discipline;
       if (fields.description !== undefined) updateData.description = fields.description;
       if (fields.status !== undefined) updateData.status = fields.status;
+      if (fields.drawingSetId !== undefined) {
+        if (fields.drawingSetId) {
+          const set = await db.select().from(drawingSets)
+            .where(and(eq(drawingSets.id, fields.drawingSetId), eq(drawingSets.projectId, projectId), isNull(drawingSets.deletedAt)))
+            .then(r => r[0]);
+          if (!set) return res.status(400).json({ message: "Drawing set not found in this project" });
+        }
+        updateData.drawingSetId = fields.drawingSetId;
+      }
 
       const [updated] = await db.update(drawings).set(updateData).where(eq(drawings.id, drawingId)).returning();
 
@@ -321,8 +508,7 @@ export function registerDrawingRoutes(app: Express) {
       const data = parsed.data;
       const newRevNumber = (drawing.currentRevisionNumber || 0) + 1;
 
-      const user = await db.query.users?.findFirst?.({ where: (u: any, { eq: e }: any) => e(u.id, userId) });
-      const uploaderName = user ? `${(user as any).firstName || ""} ${(user as any).lastName || ""}`.trim() || (user as any).email || "Unknown" : "Unknown";
+      const uploaderName = await getUserDisplayName(userId);
 
       const result = await db.transaction(async (tx) => {
         const [revision] = await tx.insert(drawingRevisions).values({
@@ -380,7 +566,7 @@ export function registerDrawingRoutes(app: Express) {
         return res.status(400).json({ message: "Invalid revisionId query parameter" });
       }
 
-      const conditions: any[] = [eq(drawingMarkups.drawingId, drawingId)];
+      const conditions: SQL[] = [eq(drawingMarkups.drawingId, drawingId)];
       if (revisionIdParam) {
         conditions.push(eq(drawingMarkups.revisionId, revisionIdParam));
       }
@@ -425,8 +611,7 @@ export function registerDrawingRoutes(app: Express) {
         .then(r => r[0]);
       if (!revision) return res.status(404).json({ message: "Revision not found" });
 
-      const user = await db.query.users?.findFirst?.({ where: (u: any, { eq: e }: any) => e(u.id, userId) });
-      const creatorName = user ? `${(user as any).firstName || ""} ${(user as any).lastName || ""}`.trim() || (user as any).email || "Unknown" : "Unknown";
+      const creatorName = await getUserDisplayName(userId);
 
       const [markup] = await db.insert(drawingMarkups).values({
         revisionId: data.revisionId,

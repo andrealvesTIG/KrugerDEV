@@ -3246,11 +3246,41 @@ export const insertSubmittalRevisionSchema = createInsertSchema(submittalRevisio
 export type SubmittalRevision = typeof submittalRevisions.$inferSelect;
 export type InsertSubmittalRevision = z.infer<typeof insertSubmittalRevisionSchema>;
 
+// === Drawing Sets ===
+export const drawingSets = pgTable("drawing_sets", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  discipline: text("discipline").default("General"),
+  description: text("description"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("drawing_sets_project_id_idx").on(table.projectId),
+  index("drawing_sets_org_id_idx").on(table.organizationId),
+  uniqueIndex("drawing_sets_project_name_unique").on(table.projectId, table.name).where(sql`deleted_at IS NULL`),
+]);
+
+export const insertDrawingSetSchema = createInsertSchema(drawingSets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  deletedBy: true,
+});
+export type DrawingSet = typeof drawingSets.$inferSelect;
+export type InsertDrawingSet = z.infer<typeof insertDrawingSetSchema>;
+
 // === Drawings ===
 export const drawings = pgTable("drawings", {
   id: serial("id").primaryKey(),
   projectId: integer("project_id").references(() => projects.id).notNull(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  drawingSetId: integer("drawing_set_id").references(() => drawingSets.id),
   drawingNumber: text("drawing_number").notNull(),
   title: text("title").notNull(),
   discipline: text("discipline").default("General"),
