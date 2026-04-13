@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Loader2, Plus, Search, FileImage, Upload, Eye, Trash2, Pencil, MoreVertical, ZoomIn, ZoomOut, Maximize2, ArrowLeft, Layers, Type, ArrowRight, Square, PenTool, MousePointer, ChevronDown, FolderOpen, GitCompare, SplitSquareHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import PdfCanvasRenderer from "./PdfCanvasRenderer";
 
 const DISCIPLINES = [
   "Architectural",
@@ -190,11 +191,7 @@ function SingleRevisionPane({
         }}
       >
         {isPdf ? (
-          <iframe
-            src={fileUrl}
-            className="w-[1200px] h-[900px] border-0"
-            title={fileName}
-          />
+          <PdfCanvasRenderer fileUrl={fileUrl} />
         ) : (
           <img
             src={fileUrl}
@@ -296,7 +293,7 @@ function CompareRevisionPane({
           }}
         >
           {isPdf ? (
-            <iframe src={fileUrl} className="w-[1200px] h-[900px] border-0" title={fileName} />
+            <PdfCanvasRenderer fileUrl={fileUrl} />
           ) : (
             <img
               src={fileUrl}
