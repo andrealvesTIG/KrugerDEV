@@ -223,7 +223,7 @@ export function LandingFooter() {
         <div className="border-t border-slate-800 mt-8 pt-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-sm text-slate-400">
-              Copyright {currentYear} Friday Report LLC. All rights reserved.
+              Copyright {currentYear} Friday Report LLC. All rights reserved!
             </p>
             <div className="flex items-center gap-6">
               <Link 
