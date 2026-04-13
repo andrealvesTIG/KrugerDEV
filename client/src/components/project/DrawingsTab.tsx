@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useDrawings, useDrawing, useCreateDrawing, useUpdateDrawing, useDeleteDrawing, useCreateRevision, useDrawingMarkups, useSaveMarkup, useDeleteMarkup, useDrawingSets, useCreateDrawingSet, useDeleteDrawingSet } from "@/hooks/use-drawings";
+import { useAuth } from "@/hooks/use-auth";
 import { useUpload } from "@/hooks/use-upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -332,6 +333,7 @@ function DrawingViewer({
   fileName,
   revisionId,
   allRevisions,
+  currentUserId,
   onClose,
 }: {
   projectId: number;
@@ -340,6 +342,7 @@ function DrawingViewer({
   fileName: string;
   revisionId: number;
   allRevisions: RevisionInfo[];
+  currentUserId: string | null;
   onClose: () => void;
 }) {
   const [zoom, setZoom] = useState(1);
@@ -656,12 +659,14 @@ function DrawingViewer({
           {markups.map(m => (
             <Badge key={m.id} variant="outline" className="text-xs gap-1">
               {m.createdByName || "Unknown"} · {m.markupData?.length || 0} items
-              <button
-                className="ml-1 text-destructive hover:text-destructive/80"
-                onClick={() => deleteMarkupMutation.mutate({ projectId, drawingId, markupId: m.id })}
-              >
-                ×
-              </button>
+              {currentUserId && m.createdBy === currentUserId && (
+                <button
+                  className="ml-1 text-destructive hover:text-destructive/80"
+                  onClick={() => deleteMarkupMutation.mutate({ projectId, drawingId, markupId: m.id })}
+                >
+                  ×
+                </button>
+              )}
             </Badge>
           ))}
         </div>
@@ -671,6 +676,7 @@ function DrawingViewer({
 }
 
 export default function DrawingsTab({ projectId }: { projectId: number }) {
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [disciplineFilter, setDisciplineFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -838,6 +844,7 @@ export default function DrawingsTab({ projectId }: { projectId: number }) {
         fileName={viewingDrawing.fileName}
         revisionId={viewingDrawing.revisionId}
         allRevisions={viewingDrawing.allRevisions}
+        currentUserId={user?.id || null}
         onClose={() => setViewingDrawing(null)}
       />
     );

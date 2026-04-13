@@ -30,7 +30,7 @@ const STATUSES = ["Current", "Superseded", "Void"] as const;
 
 const createDrawingSetSchema = z.object({
   name: z.string().min(1).max(300),
-  discipline: z.string().max(100).default("General"),
+  discipline: z.enum(DISCIPLINES).default("General"),
   description: z.string().max(5000).nullable().optional(),
 }).strict();
 
@@ -39,7 +39,7 @@ const updateDrawingSetSchema = createDrawingSetSchema.partial().strict();
 const createDrawingSchema = z.object({
   drawingNumber: z.string().min(1).max(100),
   title: z.string().min(1).max(500),
-  discipline: z.string().max(100).default("General"),
+  discipline: z.enum(DISCIPLINES).default("General"),
   description: z.string().max(5000).nullable().optional(),
   drawingSetId: z.number().int().positive().nullable().optional(),
 }).strict();
