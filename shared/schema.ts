@@ -4138,6 +4138,30 @@ export const insertMeetingActionItemSchema = createInsertSchema(meetingActionIte
 export type MeetingActionItem = typeof meetingActionItems.$inferSelect;
 export type InsertMeetingActionItem = z.infer<typeof insertMeetingActionItemSchema>;
 
+export const meetingMinutes = pgTable("meeting_minutes", {
+  id: serial("id").primaryKey(),
+  meetingId: integer("meeting_id").references(() => meetings.id).notNull(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  content: text("content"),
+  recordedBy: varchar("recorded_by").references(() => users.id),
+  recordedByName: text("recorded_by_name"),
+  distributedAt: timestamp("distributed_at"),
+  distributedTo: text("distributed_to"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("meeting_minutes_meeting_id_idx").on(table.meetingId),
+  uniqueIndex("meeting_minutes_meeting_unique").on(table.meetingId),
+]);
+
+export const insertMeetingMinutesSchema = createInsertSchema(meetingMinutes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type MeetingMinutes = typeof meetingMinutes.$inferSelect;
+export type InsertMeetingMinutes = z.infer<typeof insertMeetingMinutesSchema>;
+
 // === CORRESPONDENCE MODULE ===
 
 export const correspondence = pgTable("correspondence", {

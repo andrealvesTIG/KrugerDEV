@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Loader2, Plus, Pencil, Trash2, MoreVertical, Calendar, MapPin, Users, Clock, CheckCircle, Circle, AlertCircle, ListTodo, ChevronDown, ChevronUp, Search, Download } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, MoreVertical, Calendar, MapPin, Users, Clock, CheckCircle, Circle, AlertCircle, ListTodo, ChevronDown, ChevronUp, Search, Download, Send } from "lucide-react";
 
 type ViewMode = "list" | "action-items";
 
@@ -62,6 +62,11 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
   const [minutesMeetingId, setMinutesMeetingId] = useState<number | null>(null);
   const [minutesNotes, setMinutesNotes] = useState("");
   const [minutesAgendaItems, setMinutesAgendaItems] = useState<{ id: number; title: string; notes: string }[]>([]);
+
+  const [isDistributeOpen, setIsDistributeOpen] = useState(false);
+  const [distributeMeetingId, setDistributeMeetingId] = useState<number | null>(null);
+  const [distributeEmails, setDistributeEmails] = useState("");
+  const [isDistributing, setIsDistributing] = useState(false);
 
   const [isActionDialogOpen, setIsActionDialogOpen] = useState(false);
   const [actionMeetingId, setActionMeetingId] = useState<number | null>(null);
@@ -191,11 +196,25 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
     setIsMinutesOpen(true);
   };
 
-  const saveMinutes = () => {
+  const saveMinutes = async () => {
     if (minutesMeetingId === null) return;
     const agendaItemNotes = minutesAgendaItems
       .filter(ai => ai.notes.trim())
       .map(ai => ({ id: ai.id, notes: ai.notes.trim() }));
+
+    const fullContent = [
+      ...minutesAgendaItems.filter(ai => ai.notes.trim()).map(ai => `[${ai.title}]: ${ai.notes.trim()}`),
+      minutesNotes.trim() ? `\n--- General Notes ---\n${minutesNotes.trim()}` : "",
+    ].filter(Boolean).join("\n\n");
+
+    try {
+      await fetch(`/api/projects/${projectId}/meetings/${minutesMeetingId}/minutes`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: fullContent || minutesNotes }),
+      });
+    } catch {}
+
     updateMutation.mutate({
       projectId,
       meetingId: minutesMeetingId,
@@ -267,6 +286,42 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
     } catch {
       toast({ title: "Export failed", variant: "destructive" });
     }
+  };
+
+  const openDistribute = (meeting: Record<string, unknown>) => {
+    setDistributeMeetingId(meeting.id as number);
+    const attendees = (meeting.attendees as string) || "";
+    setDistributeEmails(attendees);
+    setIsDistributeOpen(true);
+  };
+
+  const handleDistribute = async () => {
+    if (!distributeMeetingId || !distributeEmails.trim()) return;
+    setIsDistributing(true);
+    try {
+      const emails = distributeEmails.split(",").map(e => e.trim()).filter(e => e.includes("@"));
+      if (emails.length === 0) {
+        toast({ title: "Error", description: "Please enter valid email addresses", variant: "destructive" });
+        setIsDistributing(false);
+        return;
+      }
+      const res = await fetch(`/api/projects/${projectId}/meetings/${distributeMeetingId}/distribute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipients: emails }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast({ title: data.message });
+        setIsDistributeOpen(false);
+      } else {
+        const err = await res.json();
+        toast({ title: "Error", description: err.message || "Distribution failed", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Distribution failed", variant: "destructive" });
+    }
+    setIsDistributing(false);
   };
 
   const openAddAction = (meetingId: number) => {
@@ -471,6 +526,9 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
                         <DropdownMenuItem onClick={() => exportMinutesPdf(meeting)}>
                           <Download className="mr-2 h-4 w-4" />Export PDF
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openDistribute(meeting)}>
+                          <Send className="mr-2 h-4 w-4" />Distribute via Email
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteTarget(meeting)}>
                           <Trash2 className="mr-2 h-4 w-4" />Delete
@@ -619,6 +677,9 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => exportMinutesPdf(detailMeeting)}>
                   <Download className="mr-1 h-4 w-4" />Export PDF
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => { setIsDetailOpen(false); openDistribute(detailMeeting); }}>
+                  <Send className="mr-1 h-4 w-4" />Distribute
                 </Button>
               </div>
             </div>
@@ -838,6 +899,34 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
             <Button variant="destructive" onClick={handleConfirmDelete} disabled={deleteMutation.isPending}>
               {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Distribute Minutes Dialog */}
+      <Dialog open={isDistributeOpen} onOpenChange={setIsDistributeOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Distribute Meeting Minutes</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">Send meeting minutes via email to attendees. Enter comma-separated email addresses.</p>
+            <div>
+              <Label>Recipient Emails</Label>
+              <Textarea
+                value={distributeEmails}
+                onChange={e => setDistributeEmails(e.target.value)}
+                rows={3}
+                placeholder="john@example.com, jane@example.com"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDistributeOpen(false)}>Cancel</Button>
+            <Button onClick={handleDistribute} disabled={isDistributing}>
+              {isDistributing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Send className="mr-1 h-4 w-4" />Send
             </Button>
           </DialogFooter>
         </DialogContent>

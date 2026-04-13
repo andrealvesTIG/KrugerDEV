@@ -1,15 +1,15 @@
 import type { Express } from "express";
 import { db } from "../db";
 import { z } from "zod";
-import { eq, and, asc, desc, isNull, inArray } from "drizzle-orm";
-import { meetings, meetingAgendaItems, meetingActionItems } from "@shared/schema";
+import { eq, and, asc, desc, isNull, inArray, sql } from "drizzle-orm";
+import { meetings, meetingAgendaItems, meetingActionItems, meetingMinutes, projects, users } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
   userHasOrgAccess,
   logUserActivity,
 } from "./helpers";
-import { projects } from "@shared/schema";
+import { sendEmail } from "../services/email";
 
 async function verifyProjectAccess(userId: string | null, projectId: number) {
   if (!userId) return null;
@@ -63,16 +63,15 @@ const updateActionItemSchema = createActionItemSchema.partial().extend({
   status: z.string().optional(),
 });
 
-async function getNextMeetingNumber(projectId: number): Promise<string> {
-  const existing = await db.select({ meetingNumber: meetings.meetingNumber })
+async function getNextMeetingNumber(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], projectId: number): Promise<string> {
+  await tx.execute(
+    sql`SELECT id FROM meetings WHERE project_id = ${projectId} ORDER BY id DESC LIMIT 1 FOR UPDATE`
+  );
+  const result = await tx
+    .select({ maxNum: sql<number>`COALESCE(MAX(SUBSTRING(meeting_number FROM 5)::int), 0)` })
     .from(meetings)
-    .where(eq(meetings.projectId, projectId))
-    .orderBy(desc(meetings.id));
-  let maxNum = 0;
-  for (const row of existing) {
-    const match = row.meetingNumber?.match(/MTG-(\d+)/);
-    if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10));
-  }
+    .where(eq(meetings.projectId, projectId));
+  const maxNum = Number(result[0]?.maxNum ?? 0);
   return `MTG-${String(maxNum + 1).padStart(3, "0")}`;
 }
 
@@ -182,24 +181,28 @@ export function registerMeetingRoutes(app: Express) {
       }
 
       const { agendaItems, ...data } = parsed.data;
-      const meetingNumber = await getNextMeetingNumber(projectId);
 
-      const [created] = await db.insert(meetings).values({
-        ...data,
-        projectId,
-        meetingNumber,
-        createdBy: userId,
-      }).returning();
+      const created = await db.transaction(async (tx) => {
+        const meetingNumber = await getNextMeetingNumber(tx, projectId);
+        const [meeting] = await tx.insert(meetings).values({
+          ...data,
+          projectId,
+          meetingNumber,
+          createdBy: userId,
+        }).returning();
 
-      if (agendaItems && agendaItems.length > 0) {
-        await db.insert(meetingAgendaItems).values(
-          agendaItems.map((item, idx) => ({
-            ...item,
-            meetingId: created.id,
-            sortOrder: item.sortOrder ?? idx,
-          }))
-        );
-      }
+        if (agendaItems && agendaItems.length > 0) {
+          await tx.insert(meetingAgendaItems).values(
+            agendaItems.map((item, idx) => ({
+              ...item,
+              meetingId: meeting.id,
+              sortOrder: item.sortOrder ?? idx,
+            }))
+          );
+        }
+
+        return meeting;
+      });
 
       const agendaList = await db.select()
         .from(meetingAgendaItems)
@@ -416,6 +419,194 @@ export function registerMeetingRoutes(app: Express) {
       if (!deleted) return res.status(404).json({ message: "Action item not found" });
 
       res.json({ message: "Action item deleted" });
+    } catch (err: unknown) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.get("/api/projects/:projectId/meetings/:meetingId/minutes", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const projectId = Number(req.params.projectId);
+      const meetingId = Number(req.params.meetingId);
+      const project = await verifyProjectAccess(userId, projectId);
+      if (!project) return res.status(403).json({ message: "Access denied" });
+
+      const [minutes] = await db.select()
+        .from(meetingMinutes)
+        .where(eq(meetingMinutes.meetingId, meetingId));
+
+      const [meeting] = await db.select()
+        .from(meetings)
+        .where(and(eq(meetings.id, meetingId), eq(meetings.projectId, projectId), isNull(meetings.deletedAt)));
+
+      if (!meeting) return res.status(404).json({ message: "Meeting not found" });
+
+      const agendaList = await db.select()
+        .from(meetingAgendaItems)
+        .where(eq(meetingAgendaItems.meetingId, meetingId))
+        .orderBy(asc(meetingAgendaItems.sortOrder));
+
+      const actionItemsList = await db.select()
+        .from(meetingActionItems)
+        .where(eq(meetingActionItems.meetingId, meetingId))
+        .orderBy(asc(meetingActionItems.createdAt));
+
+      res.json({
+        minutes: minutes || null,
+        meeting,
+        agendaItems: agendaList,
+        actionItems: actionItemsList,
+      });
+    } catch (err: unknown) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.put("/api/projects/:projectId/meetings/:meetingId/minutes", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const projectId = Number(req.params.projectId);
+      const meetingId = Number(req.params.meetingId);
+      const project = await verifyProjectAccess(userId, projectId);
+      if (!project) return res.status(403).json({ message: "Access denied" });
+
+      const schema = z.object({ content: z.string().min(1) });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Content is required" });
+
+      const [meeting] = await db.select()
+        .from(meetings)
+        .where(and(eq(meetings.id, meetingId), eq(meetings.projectId, projectId), isNull(meetings.deletedAt)));
+      if (!meeting) return res.status(404).json({ message: "Meeting not found" });
+
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      const userName = user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.username || user.email || "Unknown") : "Unknown";
+
+      const [existing] = await db.select()
+        .from(meetingMinutes)
+        .where(eq(meetingMinutes.meetingId, meetingId));
+
+      let result;
+      if (existing) {
+        [result] = await db.update(meetingMinutes)
+          .set({ content: parsed.data.content, recordedBy: userId, recordedByName: userName, updatedAt: new Date() })
+          .where(eq(meetingMinutes.meetingId, meetingId))
+          .returning();
+      } else {
+        [result] = await db.insert(meetingMinutes)
+          .values({ meetingId, projectId, content: parsed.data.content, recordedBy: userId, recordedByName: userName })
+          .returning();
+      }
+
+      await db.update(meetings)
+        .set({ minutesRecordedAt: new Date(), minutesRecordedBy: userId, updatedAt: new Date() })
+        .where(eq(meetings.id, meetingId));
+
+      logUserActivity(userId, "meeting_minutes_recorded", projectId, { meetingId });
+
+      res.json(result);
+    } catch (err: unknown) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.message });
+    }
+  });
+
+  app.post("/api/projects/:projectId/meetings/:meetingId/distribute", async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const projectId = Number(req.params.projectId);
+      const meetingId = Number(req.params.meetingId);
+      const project = await verifyProjectAccess(userId, projectId);
+      if (!project) return res.status(403).json({ message: "Access denied" });
+
+      const schema = z.object({
+        recipients: z.array(z.string().email()).min(1, "At least one recipient email required"),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.errors.map(e => e.message).join(", ") });
+
+      const [meeting] = await db.select()
+        .from(meetings)
+        .where(and(eq(meetings.id, meetingId), eq(meetings.projectId, projectId), isNull(meetings.deletedAt)));
+      if (!meeting) return res.status(404).json({ message: "Meeting not found" });
+
+      const agendaList = await db.select()
+        .from(meetingAgendaItems)
+        .where(eq(meetingAgendaItems.meetingId, meetingId))
+        .orderBy(asc(meetingAgendaItems.sortOrder));
+
+      const actionItemsList = await db.select()
+        .from(meetingActionItems)
+        .where(eq(meetingActionItems.meetingId, meetingId))
+        .orderBy(asc(meetingActionItems.createdAt));
+
+      const [minutesRecord] = await db.select()
+        .from(meetingMinutes)
+        .where(eq(meetingMinutes.meetingId, meetingId));
+
+      const minutesContent = minutesRecord?.content || meeting.minutesNotes || "";
+
+      let html = `<h2>Meeting Minutes: ${meeting.title}</h2>`;
+      html += `<p><strong>${meeting.meetingNumber || ""}</strong> | ${meeting.date} | ${meeting.meetingType || "General"}</p>`;
+      if (meeting.location) html += `<p><strong>Location:</strong> ${meeting.location}</p>`;
+      if (meeting.attendees) html += `<p><strong>Attendees:</strong> ${meeting.attendees}</p>`;
+
+      if (agendaList.length > 0) {
+        html += `<h3>Agenda</h3><ol>`;
+        for (const ai of agendaList) {
+          html += `<li><strong>${ai.title}</strong>`;
+          if (ai.presenter) html += ` (${ai.presenter})`;
+          if (ai.duration) html += ` - ${ai.duration} min`;
+          if (ai.notes) html += `<br/><em>Notes: ${ai.notes}</em>`;
+          html += `</li>`;
+        }
+        html += `</ol>`;
+      }
+
+      if (minutesContent) {
+        html += `<h3>Minutes</h3><p>${minutesContent.replace(/\n/g, "<br/>")}</p>`;
+      }
+
+      if (actionItemsList.length > 0) {
+        html += `<h3>Action Items</h3><ul>`;
+        for (const ai of actionItemsList) {
+          html += `<li>[${ai.status}] <strong>${ai.title}</strong>`;
+          if (ai.assignee) html += ` - Assigned: ${ai.assignee}`;
+          if (ai.dueDate) html += ` | Due: ${ai.dueDate}`;
+          html += `</li>`;
+        }
+        html += `</ul>`;
+      }
+
+      const textContent = `Meeting Minutes: ${meeting.title}\n${meeting.meetingNumber || ""} | ${meeting.date}\n\n${minutesContent}`;
+
+      let successCount = 0;
+      for (const email of parsed.data.recipients) {
+        const sent = await sendEmail({
+          to: email,
+          subject: `Meeting Minutes: ${meeting.title} (${meeting.meetingNumber || ""})`,
+          text: textContent,
+          html,
+        });
+        if (sent) successCount++;
+      }
+
+      await db.update(meetingMinutes)
+        .set({ distributedAt: new Date(), distributedTo: parsed.data.recipients.join(", ") })
+        .where(eq(meetingMinutes.meetingId, meetingId));
+
+      logUserActivity(userId, "meeting_minutes_distributed", projectId, { meetingId, recipientCount: parsed.data.recipients.length });
+
+      res.json({ message: `Minutes distributed to ${successCount} of ${parsed.data.recipients.length} recipients`, successCount });
     } catch (err: unknown) {
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.message });

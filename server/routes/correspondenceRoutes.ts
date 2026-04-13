@@ -1,15 +1,14 @@
 import type { Express } from "express";
 import { db } from "../db";
 import { z } from "zod";
-import { eq, and, asc, desc, isNull } from "drizzle-orm";
-import { correspondence } from "@shared/schema";
+import { eq, and, asc, desc, isNull, sql } from "drizzle-orm";
+import { correspondence, projects } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
   userHasOrgAccess,
   logUserActivity,
 } from "./helpers";
-import { projects } from "@shared/schema";
 
 async function verifyProjectAccess(userId: string | null, projectId: number) {
   if (!userId) return null;
@@ -36,17 +35,16 @@ const createCorrespondenceSchema = z.object({
 
 const updateCorrespondenceSchema = createCorrespondenceSchema.partial();
 
-async function getNextCorrespondenceNumber(projectId: number, type: string): Promise<string> {
+async function getNextCorrespondenceNumber(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], projectId: number, type: string): Promise<string> {
   const prefix = type === "Transmittal" ? "TR" : type === "Notice" ? "NT" : type === "Email" ? "EM" : "LT";
-  const existing = await db.select({ correspondenceNumber: correspondence.correspondenceNumber })
+  await tx.execute(
+    sql`SELECT id FROM correspondence WHERE project_id = ${projectId} AND type = ${type} ORDER BY id DESC LIMIT 1 FOR UPDATE`
+  );
+  const result = await tx
+    .select({ maxNum: sql<number>`COALESCE(MAX(SUBSTRING(correspondence_number FROM ${prefix.length + 2})::int), 0)` })
     .from(correspondence)
-    .where(and(eq(correspondence.projectId, projectId), eq(correspondence.type, type)))
-    .orderBy(desc(correspondence.id));
-  let maxNum = 0;
-  for (const row of existing) {
-    const match = row.correspondenceNumber?.match(/\w+-(\d+)/);
-    if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10));
-  }
+    .where(and(eq(correspondence.projectId, projectId), eq(correspondence.type, type)));
+  const maxNum = Number(result[0]?.maxNum ?? 0);
   return `${prefix}-${String(maxNum + 1).padStart(3, "0")}`;
 }
 
@@ -61,9 +59,15 @@ export function registerCorrespondenceRoutes(app: Express) {
       const project = await verifyProjectAccess(userId, projectId);
       if (!project) return res.status(403).json({ message: "Access denied" });
 
+      const typeFilter = req.query.type as string | undefined;
+      const conditions = [eq(correspondence.projectId, projectId), isNull(correspondence.deletedAt)];
+      if (typeFilter && ["Letter", "Email", "Transmittal", "Notice"].includes(typeFilter)) {
+        conditions.push(eq(correspondence.type, typeFilter));
+      }
+
       const list = await db.select()
         .from(correspondence)
-        .where(and(eq(correspondence.projectId, projectId), isNull(correspondence.deletedAt)))
+        .where(and(...conditions))
         .orderBy(desc(correspondence.date));
 
       res.json(list);
@@ -114,14 +118,16 @@ export function registerCorrespondenceRoutes(app: Express) {
         return res.status(400).json({ message: parsed.error.errors.map(e => e.message).join(", ") });
       }
 
-      const correspondenceNumber = await getNextCorrespondenceNumber(projectId, parsed.data.type);
-
-      const [created] = await db.insert(correspondence).values({
-        ...parsed.data,
-        projectId,
-        correspondenceNumber,
-        createdBy: userId,
-      }).returning();
+      const created = await db.transaction(async (tx) => {
+        const correspondenceNumber = await getNextCorrespondenceNumber(tx, projectId, parsed.data.type);
+        const [item] = await tx.insert(correspondence).values({
+          ...parsed.data,
+          projectId,
+          correspondenceNumber,
+          createdBy: userId,
+        }).returning();
+        return item;
+      });
 
       logUserActivity(userId, "correspondence_created", projectId, { correspondenceId: created.id });
 
