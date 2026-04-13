@@ -569,7 +569,13 @@ export function registerBiddingRoutes(app: Express) {
         return res.status(404).json({ message: "Bid package not found" });
       }
       const invitationId = Number(req.params.invitationId);
-      const { status, declineReason } = req.body as { status?: string; declineReason?: string };
+      const invitationUpdateSchema = z.object({
+        status: z.enum(["Pending", "Accepted", "Declined"]).optional(),
+        declineReason: z.string().max(2000).nullable().optional(),
+      }).strict();
+      const parsed = invitationUpdateSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: formatZodErrors(parsed.error) });
+      const { status, declineReason } = parsed.data;
       const updateData: Record<string, unknown> = {};
       if (status) updateData.status = status;
       if (declineReason !== undefined) updateData.declineReason = declineReason;
