@@ -21,7 +21,7 @@ async function getUserDisplayName(userId: string): Promise<string> {
   return result.username || result.email || "Unknown";
 }
 
-async function getNextNumber(tx: typeof db, table: typeof inspections | typeof incidents | typeof observations, prefix: string, projectId: number): Promise<string> {
+async function getNextNumber(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], table: typeof inspections | typeof incidents | typeof observations, prefix: string, projectId: number): Promise<string> {
   await tx.execute(
     sql`SELECT id FROM ${table} WHERE ${table.projectId} = ${projectId} ORDER BY id DESC LIMIT 1 FOR UPDATE`
   );
@@ -412,6 +412,13 @@ export function registerQualitySafetyRoutes(app: Express) {
 
       const parsed = updateInspectionSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: formatZodErrors(parsed.error) });
+
+      if (parsed.data.templateId) {
+        const tmpl = await db.select().from(inspectionTemplates)
+          .where(and(eq(inspectionTemplates.id, parsed.data.templateId), eq(inspectionTemplates.projectId, ctx.projectId), isNull(inspectionTemplates.deletedAt)))
+          .then(r => r[0]);
+        if (!tmpl) return res.status(400).json({ message: "Template not found in this project" });
+      }
 
       const updateFields: Record<string, unknown> = { updatedAt: new Date() };
       for (const [key, value] of Object.entries(parsed.data)) {
