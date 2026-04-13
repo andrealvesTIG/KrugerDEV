@@ -103,7 +103,7 @@ export function registerInvestorRoutes(app: Express) {
               <p>We'd love to discuss how we're transforming project portfolio management with AI-powered insights.</p>
               <p style="margin-top: 24px;">Best regards,<br/>The FridayReport.AI Team</p>
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0 12px;">
-              <p style="font-size: 11px; color: #9ca3af; margin: 0; text-align: center;"><a href="https://fridayreport.ai/profile" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a></p>
+              <p style="font-size: 11px; color: #9ca3af; margin: 0; text-align: center;"><a href="https://fridayreport.ai/profile?section=notifications" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a></p>
             </div>
           </div>
         `,

@@ -336,7 +336,7 @@ function generateReportEmailHtml(
           You're receiving this because you subscribed to scheduled reports.<br>
           <a href="${appUrl}/settings/reports" style="color: #3b82f6; text-decoration: none;">Manage your report subscriptions</a>
         </p>
-        <p style="margin: 8px 0 0; font-size: 11px;"><a href="https://fridayreport.ai/profile" style="color: #94a3b8; text-decoration: underline;">Manage notification preferences</a></p>
+        <p style="margin: 8px 0 0; font-size: 11px;"><a href="https://fridayreport.ai/profile?section=notifications" style="color: #94a3b8; text-decoration: underline;">Manage notification preferences</a></p>
       </div>
     </div>
   </div>

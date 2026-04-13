@@ -101,7 +101,7 @@ The FridayReport.AI Partnerships Team`;
       This is an automated confirmation from FridayReport.AI Partner Program.
     </p>
     <p style="font-size: 11px; color: #9ca3af; margin: 12px 0 0; text-align: center;">
-      <a href="https://fridayreport.ai/profile" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
+      <a href="https://fridayreport.ai/profile?section=notifications" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
     </p>
   </div>
 </body>
@@ -157,7 +157,7 @@ Please review this application in the database.`;
       This is an automated notification from the FridayReport.AI Partner Program.
     </p>
     <p style="font-size: 11px; color: #9ca3af; margin: 12px 0 0; text-align: center;">
-      <a href="https://fridayreport.ai/profile" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
+      <a href="https://fridayreport.ai/profile?section=notifications" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
     </p>
   </div>
 </body>

@@ -55,7 +55,7 @@ function wrapEmailHtml(title: string, content: string, projectName: string): str
 <tr><td style="padding:24px 32px">${content}</td></tr>
 <tr><td style="padding:16px 32px;border-top:1px solid #e5e7eb;text-align:center">
 <p style="color:#9ca3af;font-size:11px;margin:0">Sent by AI Project Agent &middot; <a href="https://fridayreport.ai" style="color:#6366f1">FridayReport.AI</a></p>
-<p style="margin:8px 0 0;font-size:11px"><a href="https://fridayreport.ai/profile" style="color:#9ca3af;text-decoration:underline">Manage notification preferences</a></p>
+<p style="margin:8px 0 0;font-size:11px"><a href="https://fridayreport.ai/profile?section=notifications" style="color:#9ca3af;text-decoration:underline">Manage notification preferences</a></p>
 </td></tr>
 </table>
 </td></tr>

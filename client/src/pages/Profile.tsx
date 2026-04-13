@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -103,7 +104,9 @@ export default function Profile() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
-  const [activeSection, setActiveSection] = useState<Section>("profile");
+  const [searchParams] = useSearchParams();
+  const initialSection = (searchParams.get("section") as Section) || "profile";
+  const [activeSection, setActiveSection] = useState<Section>(initialSection);
   const [isEditing, setIsEditing] = useState(false);
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
