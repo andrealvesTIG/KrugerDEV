@@ -79,6 +79,7 @@ const InvestorRoom = lazy(() => import("@/pages/InvestorRoom"));
 const DailyLogs = lazy(() => import("@/pages/DailyLogs"));
 const RFIs = lazy(() => import("@/pages/RFIs"));
 const Submittals = lazy(() => import("@/pages/Submittals"));
+const Drawings = lazy(() => import("@/pages/Drawings"));
 
 function PageLoader() {
   return (
@@ -221,6 +222,7 @@ function Router() {
           <GuardedRoute path="/daily-logs" component={DailyLogs} moduleKey="daily-logs" />
           <GuardedRoute path="/rfis" component={RFIs} moduleKey="rfis" />
           <GuardedRoute path="/submittals" component={Submittals} moduleKey="submittals" />
+          <GuardedRoute path="/drawings" component={Drawings} moduleKey="drawings" />
           <GuardedRoute path="/calendar" component={Calendar} moduleKey="calendar" />
           <GuardedRoute path="/integrations" component={Integrations} moduleKey="integrations" />
           <Route path="/billing" component={Billing} />

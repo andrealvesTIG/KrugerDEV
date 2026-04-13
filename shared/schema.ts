@@ -3245,3 +3245,98 @@ export const insertSubmittalRevisionSchema = createInsertSchema(submittalRevisio
 });
 export type SubmittalRevision = typeof submittalRevisions.$inferSelect;
 export type InsertSubmittalRevision = z.infer<typeof insertSubmittalRevisionSchema>;
+
+// === Drawings ===
+export const drawings = pgTable("drawings", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  drawingNumber: text("drawing_number").notNull(),
+  title: text("title").notNull(),
+  discipline: text("discipline").default("General"),
+  status: text("status").notNull().default("Current"),
+  description: text("description"),
+  currentRevisionNumber: integer("current_revision_number").default(0),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("drawings_project_id_idx").on(table.projectId),
+  index("drawings_org_id_idx").on(table.organizationId),
+  index("drawings_discipline_idx").on(table.discipline),
+  index("drawings_status_idx").on(table.status),
+  uniqueIndex("drawings_project_number_unique").on(table.projectId, table.drawingNumber).where(sql`deleted_at IS NULL`),
+]);
+
+export const insertDrawingSchema = createInsertSchema(drawings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  deletedBy: true,
+});
+export type Drawing = typeof drawings.$inferSelect;
+export type InsertDrawing = z.infer<typeof insertDrawingSchema>;
+
+// === Drawing Revisions ===
+export const drawingRevisions = pgTable("drawing_revisions", {
+  id: serial("id").primaryKey(),
+  drawingId: integer("drawing_id").references(() => drawings.id).notNull(),
+  revisionNumber: integer("revision_number").notNull(),
+  version: text("version"),
+  fileUrl: text("file_url").notNull(),
+  fileName: text("file_name").notNull(),
+  fileSize: integer("file_size"),
+  fileType: text("file_type"),
+  thumbnailUrl: text("thumbnail_url"),
+  notes: text("notes"),
+  uploadedBy: varchar("uploaded_by").references(() => users.id),
+  uploadedByName: text("uploaded_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("drawing_revisions_drawing_id_idx").on(table.drawingId),
+  uniqueIndex("drawing_revisions_drawing_rev_unique").on(table.drawingId, table.revisionNumber),
+]);
+
+export const insertDrawingRevisionSchema = createInsertSchema(drawingRevisions).omit({
+  id: true,
+  createdAt: true,
+});
+export type DrawingRevision = typeof drawingRevisions.$inferSelect;
+export type InsertDrawingRevision = z.infer<typeof insertDrawingRevisionSchema>;
+
+// === Drawing Markups ===
+export const drawingMarkups = pgTable("drawing_markups", {
+  id: serial("id").primaryKey(),
+  revisionId: integer("revision_id").references(() => drawingRevisions.id).notNull(),
+  drawingId: integer("drawing_id").references(() => drawings.id).notNull(),
+  label: text("label"),
+  markupData: jsonb("markup_data").$type<Array<{
+    type: string;
+    x: number;
+    y: number;
+    width?: number;
+    height?: number;
+    points?: Array<{ x: number; y: number }>;
+    text?: string;
+    color?: string;
+    strokeWidth?: number;
+  }>>().notNull(),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("drawing_markups_revision_id_idx").on(table.revisionId),
+  index("drawing_markups_drawing_id_idx").on(table.drawingId),
+]);
+
+export const insertDrawingMarkupSchema = createInsertSchema(drawingMarkups).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type DrawingMarkup = typeof drawingMarkups.$inferSelect;
+export type InsertDrawingMarkup = z.infer<typeof insertDrawingMarkupSchema>;
