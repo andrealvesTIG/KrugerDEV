@@ -508,6 +508,7 @@ function BidFormDialog({ open, onOpenChange, vendors, initial, onSave }: {
   const [notes, setNotes] = useState(initial?.notes || "");
   const [exclusions, setExclusions] = useState(initial?.exclusions || "");
   const [clarifications, setClarifications] = useState(initial?.clarifications || "");
+  const [attachments, setAttachments] = useState(initial?.attachments || "");
   const [validUntil, setValidUntil] = useState(initial?.validUntil || "");
   const [status, setStatus] = useState(initial?.status || "Submitted");
   const [evaluationScore, setEvaluationScore] = useState(initial?.evaluationScore?.toString() || "");
@@ -565,6 +566,10 @@ function BidFormDialog({ open, onOpenChange, vendors, initial, onSave }: {
             <Label>Clarifications</Label>
             <Textarea value={clarifications} onChange={e => setClarifications(e.target.value)} rows={2} />
           </div>
+          <div className="grid gap-1.5">
+            <Label>Attachments</Label>
+            <Textarea value={attachments} onChange={e => setAttachments(e.target.value)} rows={2} placeholder="List document references, file paths, or URLs (one per line)" />
+          </div>
           {isEdit && (
             <>
               <hr />
@@ -603,6 +608,7 @@ function BidFormDialog({ open, onOpenChange, vendors, initial, onSave }: {
               notes: notes || null,
               exclusions: exclusions || null,
               clarifications: clarifications || null,
+              attachments: attachments || null,
               validUntil: validUntil || null,
             };
             if (!isEdit) data.vendorId = Number(vendorId);
@@ -727,6 +733,10 @@ function BidLevelingPanel({ projectId, bidPackageId }: { projectId: number; bidP
                 <TableRow>
                   <TableCell className="font-medium">Clarifications</TableCell>
                   {levelBids.map(bid => <TableCell key={bid.id} className="text-sm max-w-[200px]">{bid.clarifications || "—"}</TableCell>)}
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium">Attachments</TableCell>
+                  {levelBids.map(bid => <TableCell key={bid.id} className="text-sm max-w-[200px]">{bid.attachments || "—"}</TableCell>)}
                 </TableRow>
               </TableBody>
             </Table>

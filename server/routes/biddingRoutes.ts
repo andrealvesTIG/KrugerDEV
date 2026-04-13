@@ -171,6 +171,7 @@ const createBidSchema = z.object({
   exclusions: z.string().max(5000).nullable().optional(),
   clarifications: z.string().max(5000).nullable().optional(),
   validUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  attachments: z.string().max(10000).nullable().optional(),
   lineItems: z.array(z.object({
     description: z.string().min(1).max(1000),
     quantity: z.string().max(50).nullable().optional(),
@@ -190,6 +191,7 @@ const updateBidSchema = z.object({
   exclusions: z.string().max(5000).nullable().optional(),
   clarifications: z.string().max(5000).nullable().optional(),
   validUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  attachments: z.string().max(10000).nullable().optional(),
   status: z.enum(["Submitted", "Under Review", "Accepted", "Rejected", "Withdrawn"]).optional(),
   evaluationScore: z.number().int().min(0).max(100).nullable().optional(),
   evaluationNotes: z.string().max(5000).nullable().optional(),

@@ -3789,6 +3789,7 @@ export const insertVendorPrequalificationSchema = createInsertSchema(vendorPrequ
 });
 export type VendorPrequalification = typeof vendorPrequalifications.$inferSelect;
 export type InsertVendorPrequalification = z.infer<typeof insertVendorPrequalificationSchema>;
+export type VendorWithPrequalification = Vendor & { latestPrequalification: VendorPrequalification | null };
 
 export const bidPackages = pgTable("bid_packages", {
   id: serial("id").primaryKey(),
@@ -3867,6 +3868,7 @@ export const bids = pgTable("bids", {
   evaluationScore: integer("evaluation_score"),
   evaluationNotes: text("evaluation_notes"),
   isRecommended: boolean("is_recommended").default(false),
+  attachments: text("attachments"),
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

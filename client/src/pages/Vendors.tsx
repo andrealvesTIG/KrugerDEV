@@ -4,7 +4,7 @@ import {
   useVendors, useCreateVendor, useUpdateVendor, useDeleteVendor,
   useVendorPrequalifications, useCreatePrequalification, useUpdatePrequalification,
 } from "@/hooks/use-bidding";
-import type { Vendor, VendorPrequalification } from "@shared/schema";
+import type { Vendor, VendorPrequalification, VendorWithPrequalification } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -159,10 +159,10 @@ export default function Vendors() {
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <Badge className={cn("text-xs", vendorStatusColor(vendor.status))}>{vendor.status}</Badge>
-                    {(vendor as any).latestPrequalification && (
-                      <Badge className={cn("text-xs", prequalStatusColor((vendor as any).latestPrequalification.qualificationStatus))}>
+                    {vendor.latestPrequalification && (
+                      <Badge className={cn("text-xs", prequalStatusColor(vendor.latestPrequalification.qualificationStatus))}>
                         <Shield className="h-3 w-3 mr-0.5" />
-                        {(vendor as any).latestPrequalification.qualificationStatus}
+                        {vendor.latestPrequalification.qualificationStatus}
                       </Badge>
                     )}
                   </div>

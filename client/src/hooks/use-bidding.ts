@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import type { Vendor, VendorPrequalification, BidPackage, BidInvitation, Bid, BidLineItem } from "@shared/schema";
+import type { Vendor, VendorPrequalification, VendorWithPrequalification, BidPackage, BidInvitation, Bid, BidLineItem } from "@shared/schema";
 
 type BidWithDetails = Bid & {
   vendor: Vendor | null;
@@ -25,7 +25,7 @@ type BidLevelingData = {
 };
 
 export function useVendors(orgId: number | undefined) {
-  return useQuery<Vendor[]>({
+  return useQuery<VendorWithPrequalification[]>({
     queryKey: [`/api/organizations/${orgId}/vendors`],
     enabled: !!orgId,
   });
