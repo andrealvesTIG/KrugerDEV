@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Search, Users, Pencil, Trash2, DollarSign, MoreVertical, Download, Upload, GitMerge, ArrowRight, Check, ExternalLink, ClipboardList, ChevronDown, ChevronRight, FolderKanban, Building2, Layers, Wrench, Calendar, Clock, Percent, FileText, Target, ListTodo, User, Grid3X3, LayoutList, ZoomIn, ZoomOut, Maximize2, BarChart3, TrendingUp, CalendarDays, Sparkles, AlertTriangle, Lightbulb, ArrowUpDown, Loader2, RefreshCw } from "lucide-react";
+import { Plus, Search, Users, Pencil, Trash2, DollarSign, MoreVertical, Download, Upload, GitMerge, ArrowRight, Check, ExternalLink, ClipboardList, ChevronDown, ChevronRight, FolderKanban, Building2, Layers, Wrench, Calendar, Clock, Percent, FileText, Target, ListTodo, User, Grid3X3, LayoutList, ZoomIn, ZoomOut, Maximize2, BarChart3, TrendingUp, CalendarDays, Sparkles, AlertTriangle, Lightbulb, ArrowUpDown, Loader2, RefreshCw, CircleDot } from "lucide-react";
 import CapacityPlanningView from "@/components/resources/CapacityPlanningView";
 import WorkloadDashboard from "@/components/resources/WorkloadDashboard";
 import AvailabilityCalendar from "@/components/resources/AvailabilityCalendar";
@@ -1178,6 +1178,8 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
   const [timeScale, setTimeScale] = useState<TimeScale>("week");
   const [periodCount, setPeriodCount] = useState<number>(12);
   const [displayUnit, setDisplayUnit] = useState<DisplayUnit>("hours");
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const hasScrolledToToday = useRef(false);
 
   // Calculate data range from assignments
   const dataRange = useMemo(() => {
@@ -1246,44 +1248,63 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
     }
   };
 
-  // Generate time periods based on scale
   const today = new Date();
+
+  const pastPeriodCount = useMemo((): number => {
+    const { minDate } = dataRange;
+    const todayStart = startOfDay(today);
+    const minStart = startOfDay(minDate);
+    if (minStart >= todayStart) return 0;
+    const daysDiff = differenceInDays(todayStart, minStart);
+    if (daysDiff <= 0) return 0;
+    switch (timeScale) {
+      case "day": return Math.min(daysDiff, 60);
+      case "week": return Math.min(Math.ceil(daysDiff / 7), 26);
+      case "month": return Math.min(Math.ceil(daysDiff / 30), 12);
+      case "quarter": return Math.min(Math.ceil(daysDiff / 90), 8);
+      case "year": return Math.min(Math.ceil(daysDiff / 365), 5);
+    }
+  }, [dataRange, timeScale]);
+
   const periods = useMemo((): TimePeriod[] => {
     const result: TimePeriod[] = [];
+    const startOffset = -pastPeriodCount;
+    const totalCount = pastPeriodCount + periodCount;
     
-    for (let i = 0; i < periodCount; i++) {
+    for (let i = 0; i < totalCount; i++) {
+      const offset = startOffset + i;
       let periodStart: Date, periodEnd: Date, label: string, workDays: number;
       
       switch (timeScale) {
         case "day":
-          periodStart = startOfDay(addDays(today, i));
-          periodEnd = endOfDay(addDays(today, i));
+          periodStart = startOfDay(addDays(today, offset));
+          periodEnd = endOfDay(addDays(today, offset));
           label = format(periodStart, "MMM d");
           workDays = [0, 6].includes(periodStart.getDay()) ? 0 : 1;
           break;
         case "week":
-          periodStart = startOfWeek(addWeeks(today, i), { weekStartsOn: 1 });
-          periodEnd = endOfWeek(addWeeks(today, i), { weekStartsOn: 1 });
+          periodStart = startOfWeek(addWeeks(today, offset), { weekStartsOn: 1 });
+          periodEnd = endOfWeek(addWeeks(today, offset), { weekStartsOn: 1 });
           label = format(periodStart, "MMM d");
           workDays = 5;
           break;
         case "month":
-          periodStart = startOfMonth(addMonths(today, i));
-          periodEnd = endOfMonth(addMonths(today, i));
+          periodStart = startOfMonth(addMonths(today, offset));
+          periodEnd = endOfMonth(addMonths(today, offset));
           label = format(periodStart, "MMM yy");
-          workDays = 22; // Approx work days per month
+          workDays = 22;
           break;
         case "quarter":
-          periodStart = startOfQuarter(addQuarters(today, i));
-          periodEnd = endOfQuarter(addQuarters(today, i));
+          periodStart = startOfQuarter(addQuarters(today, offset));
+          periodEnd = endOfQuarter(addQuarters(today, offset));
           label = `Q${Math.floor(periodStart.getMonth() / 3) + 1} ${format(periodStart, "yy")}`;
-          workDays = 65; // Approx work days per quarter
+          workDays = 65;
           break;
         case "year":
-          periodStart = startOfYear(addYears(today, i));
-          periodEnd = endOfYear(addYears(today, i));
+          periodStart = startOfYear(addYears(today, offset));
+          periodEnd = endOfYear(addYears(today, offset));
           label = format(periodStart, "yyyy");
-          workDays = 260; // Approx work days per year
+          workDays = 260;
           break;
       }
       
@@ -1291,6 +1312,34 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
     }
     
     return result;
+  }, [timeScale, periodCount, pastPeriodCount]);
+
+  const todayIndex = useMemo((): number => {
+    const now = new Date();
+    return periods.findIndex(p => p.start <= now && p.end >= now);
+  }, [periods]);
+
+  const scrollToToday = () => {
+    const container = scrollContainerRef.current;
+    if (!container || todayIndex < 0) return;
+    const nameColWidth = 256;
+    const cellWidth = timeScale === "day" ? 50 : 65;
+    const targetScroll = nameColWidth + (todayIndex * cellWidth) - (container.clientWidth / 4);
+    container.scrollTo({ left: Math.max(0, targetScroll), behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    if (hasScrolledToToday.current) return;
+    if (todayIndex < 0 || !scrollContainerRef.current) return;
+    const timer = setTimeout(() => {
+      scrollToToday();
+      hasScrolledToToday.current = true;
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [todayIndex]);
+
+  useEffect(() => {
+    hasScrolledToToday.current = false;
   }, [timeScale, periodCount]);
 
   // Get capacity for a period based on timescale
@@ -1531,14 +1580,24 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
             <Maximize2 className="h-4 w-4 mr-1" />
             Autofit
           </Button>
+          {todayIndex >= 0 && (
+            <Button variant="outline" size="sm" className="h-8" onClick={scrollToToday} title="Scroll to today" data-testid="button-scroll-today">
+              <CircleDot className="h-4 w-4 mr-1" />
+              Today
+            </Button>
+          )}
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="min-w-[900px]">
+      <div
+        ref={scrollContainerRef}
+        className="overflow-auto border rounded-md"
+        style={{ maxHeight: "560px" }}
+      >
+        <div style={{ minWidth: `${256 + periods.length * (timeScale === "day" ? 50 : 65)}px` }}>
           {/* Header row with period labels */}
-          <div className="flex border-b sticky top-0 bg-background z-10">
-            <div className="w-64 flex-shrink-0 p-2 font-medium text-sm border-r">
+          <div className="flex border-b sticky top-0 bg-background z-20">
+            <div className="w-64 flex-shrink-0 p-2 font-medium text-sm border-r bg-background sticky left-0 z-30">
               {groupBy === "resource" ? "Resource" : 
                groupBy === "project" ? "Project" :
                groupBy === "portfolio" ? "Portfolio" :
@@ -1549,7 +1608,7 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
               {periods.map((period, idx) => (
                 <div 
                   key={idx} 
-                  className={`flex-1 p-2 text-center text-xs font-medium border-r text-muted-foreground ${timeScale === "day" ? "min-w-[50px]" : "min-w-[65px]"}`}
+                  className={`flex-1 p-2 text-center text-xs font-medium border-r text-muted-foreground ${timeScale === "day" ? "min-w-[50px]" : "min-w-[65px]"} ${idx === todayIndex ? "bg-primary/5 border-b-2 border-b-primary font-semibold text-primary" : ""}`}
                 >
                   {period.label}
                 </div>
@@ -1558,7 +1617,7 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
           </div>
 
         {/* Grouped rows */}
-        <ScrollArea className="h-[500px]">
+        <div>
           {groupedData.map((group) => {
             const isExpanded = expandedGroups.has(group.key);
             
@@ -1570,7 +1629,7 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
                   onClick={() => toggleGroup(group.key)}
                   data-testid={`heatmap-group-${group.key}`}
                 >
-                  <div className="w-64 flex-shrink-0 p-2 border-r">
+                  <div className="w-64 flex-shrink-0 p-2 border-r bg-muted/30 sticky left-0 z-10">
                     <div className="flex items-center gap-2">
                       {isExpanded ? (
                         <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -1595,10 +1654,11 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
                   <div className="flex-1 flex">
                     {group.weeks.map((weekData, weekIdx) => {
                       const periodCap = getPeriodCapacity(group.capacity, periods[weekIdx]);
+                      const isToday = weekIdx === todayIndex;
                       return (
                       <div
                         key={weekIdx}
-                        className={`flex-1 p-1.5 border-r min-w-[65px] ${getHeatColor(weekData.allocation, periodCap)} transition-colors`}
+                        className={`flex-1 p-1.5 border-r ${timeScale === "day" ? "min-w-[50px]" : "min-w-[65px]"} ${getHeatColor(weekData.allocation, periodCap)} transition-colors ${isToday ? "ring-1 ring-inset ring-primary/30" : ""}`}
                         title={weekData.tasks.length > 0 
                           ? `${weekData.tasks.map(t => `${t.name} (${t.allocation}%)`).join('\n')}\n\nTotal: ${formatTooltipValue(weekData.allocation, periodCap)}`
                           : "No assignments"
@@ -1622,7 +1682,7 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
                       className="flex border-b bg-background hover:bg-muted/10 transition-colors"
                       data-testid={`heatmap-assignment-${assignment.assignmentId}`}
                     >
-                      <div className="w-64 flex-shrink-0 p-2 border-r pl-10">
+                      <div className="w-64 flex-shrink-0 p-2 border-r pl-10 bg-background sticky left-0 z-10">
                         <div className="flex items-center gap-2">
                           <ListTodo className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                           <div className="min-w-0 flex-1">
@@ -1648,10 +1708,12 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
                         </div>
                       </div>
                       <div className="flex-1 flex">
-                        {assignmentData.weeks.map((weekData, weekIdx) => (
+                        {assignmentData.weeks.map((weekData, weekIdx) => {
+                          const isToday = weekIdx === todayIndex;
+                          return (
                           <div
                             key={weekIdx}
-                            className={`flex-1 p-1.5 border-r min-w-[65px] ${weekData.active ? 'bg-primary/10' : 'bg-slate-50 dark:bg-slate-900'} transition-colors cursor-pointer hover:opacity-80`}
+                            className={`flex-1 p-1.5 border-r ${timeScale === "day" ? "min-w-[50px]" : "min-w-[65px]"} ${weekData.active ? 'bg-primary/10' : 'bg-slate-50 dark:bg-slate-900'} transition-colors cursor-pointer hover:opacity-80 ${isToday ? "ring-1 ring-inset ring-primary/30" : ""}`}
                             onClick={(e) => {
                               e.stopPropagation();
                               if (weekData.active) {
@@ -1663,7 +1725,8 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
                               {weekData.active ? formatCellValue(weekData.allocation, getPeriodCapacity(group.capacity, periods[weekIdx])) : "-"}
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -1671,32 +1734,32 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
               </div>
             );
           })}
-        </ScrollArea>
+        </div>
+        </div>
+      </div>
 
-          {/* Legend */}
-          <div className="flex items-center gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground flex-wrap">
-            <span className="font-medium">Utilization:</span>
-            <div className="flex items-center gap-1">
-              <div className="w-4 h-4 rounded bg-emerald-100 dark:bg-emerald-900/30" />
-              <span>0-50%</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-4 h-4 rounded bg-emerald-300 dark:bg-emerald-700/50" />
-              <span>50-90%</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-4 h-4 rounded bg-emerald-400 dark:bg-emerald-600/60" />
-              <span>90-100%</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-4 h-4 rounded bg-yellow-300 dark:bg-yellow-700/50" />
-              <span>100-110%</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-4 h-4 rounded bg-red-400 dark:bg-red-600/60" />
-              <span>&gt;125%</span>
-            </div>
-          </div>
+      {/* Legend */}
+      <div className="flex items-center gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground flex-wrap">
+        <span className="font-medium">Utilization:</span>
+        <div className="flex items-center gap-1">
+          <div className="w-4 h-4 rounded bg-emerald-100 dark:bg-emerald-900/30" />
+          <span>0-50%</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-4 h-4 rounded bg-emerald-300 dark:bg-emerald-700/50" />
+          <span>50-90%</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-4 h-4 rounded bg-emerald-400 dark:bg-emerald-600/60" />
+          <span>90-100%</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-4 h-4 rounded bg-yellow-300 dark:bg-yellow-700/50" />
+          <span>100-110%</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-4 h-4 rounded bg-red-400 dark:bg-red-600/60" />
+          <span>&gt;125%</span>
         </div>
       </div>
     </div>
