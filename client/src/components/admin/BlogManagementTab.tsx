@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { BlogPost } from "@shared/schema";
+import type { BlogPost, InsertBlogPost } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,7 +34,7 @@ export function BlogManagementTab() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: Partial<InsertBlogPost>) => {
       const res = await apiRequest("POST", "/api/admin/media", data);
       return res.json();
     },
@@ -43,11 +43,11 @@ export function BlogManagementTab() {
       toast({ title: "Post created" });
       closeDialog();
     },
-    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, ...data }: any) => {
+    mutationFn: async ({ id, ...data }: Partial<InsertBlogPost> & { id: number }) => {
       const res = await apiRequest("PUT", `/api/admin/media/${id}`, data);
       return res.json();
     },
@@ -56,7 +56,7 @@ export function BlogManagementTab() {
       toast({ title: "Post updated" });
       closeDialog();
     },
-    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
@@ -68,7 +68,7 @@ export function BlogManagementTab() {
       toast({ title: "Post deleted" });
       setDeleteId(null);
     },
-    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
   const closeDialog = () => {
@@ -105,24 +105,25 @@ export function BlogManagementTab() {
   };
 
   const handleSave = () => {
-    const data: any = {
+    const baseData: Partial<InsertBlogPost> = {
       title,
       slug: slug || generateSlug(title),
-      excerpt: excerpt || null,
+      excerpt: excerpt || undefined,
       content,
-      coverImageUrl: coverImageUrl || null,
+      coverImageUrl: coverImageUrl || undefined,
       author,
       status,
-      publishedAt: status === "published" ? new Date().toISOString() : null,
+      publishedAt: status === "published" ? new Date() : undefined,
     };
 
     if (editingPost) {
+      const updateData = { ...baseData };
       if (editingPost.status === "published" && status === "published") {
-        delete data.publishedAt;
+        delete updateData.publishedAt;
       }
-      updateMutation.mutate({ id: editingPost.id, ...data });
+      updateMutation.mutate({ id: editingPost.id, ...updateData });
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate(baseData);
     }
   };
 
