@@ -460,10 +460,13 @@ function ProjectKanbanView({
   }, []);
 
   return (
-    <Card className="overflow-hidden transition-all duration-200">
+    <Card className={cn(
+      "overflow-hidden transition-all duration-200",
+      isFullscreen && "flex-1 flex flex-col min-h-0"
+    )}>
       <CardContent className={cn(
         "p-0 flex flex-col",
-        isFullscreen && "h-full"
+        isFullscreen && "h-full flex-1 min-h-0"
       )}>
         <div className="flex items-center gap-3 p-3 border-b bg-muted/30 flex-wrap">
           <div className="flex items-center gap-2">
@@ -528,7 +531,7 @@ function ProjectKanbanView({
             </span>
           </div>
         </div>
-        <div className={cn("p-4 relative", isFullscreen && "flex-1 overflow-hidden")}>
+        <div className={cn("p-4 relative", isFullscreen && "flex-1 overflow-hidden min-h-0")}>
           {!canDrag && (
             <div className="text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded mb-3 inline-block">
               {isReadOnly ? 'Project is read-only' : 'Drag and drop is available when grouping by Status, Assignee, or Custom Fields'}

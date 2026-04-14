@@ -705,13 +705,14 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     <div 
       data-schedule-export="true"
       className={cn(
-        "space-y-4",
-        isFullscreen && "fixed top-14 right-0 bottom-0 z-40 bg-background p-4 flex flex-col overflow-hidden"
+        isFullscreen
+          ? "fixed top-14 right-0 bottom-0 z-40 bg-background flex flex-col overflow-hidden gap-2 p-2 sm:gap-3 sm:p-4"
+          : "space-y-4"
       )}
       style={isFullscreen ? { left: isMobile ? 0 : sidebarWidth } : undefined}
     >
-      {/* Planner project banner */}
-      {isPlannerProject && (
+      {/* Planner project banner - hidden in fullscreen to save space */}
+      {isPlannerProject && !isFullscreen && (
         <div className="space-y-2">
           <div className="p-3 rounded-lg border bg-muted/50 space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -821,8 +822,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           )}
         </div>
       )}
-      {/* MS Project imported project banner */}
-      {isMsProjectImported && (
+      {/* MS Project imported project banner - hidden in fullscreen to save space */}
+      {isMsProjectImported && !isFullscreen && (
         <div className="p-3 rounded-lg border bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 space-y-3">
           <div className="flex items-start gap-3">
             <img src={msprojectLogoPath} alt="Microsoft Project" className="h-6 w-6 shrink-0 mt-0.5" />
@@ -1047,31 +1048,31 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <div data-schedule-toolbar="true" className="flex flex-wrap items-center justify-between gap-3">
+      <div data-schedule-toolbar="true" className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 flex-shrink-0">
         <Tabs value={view} onValueChange={(v) => setView(v as "table" | "gantt" | "kanban")}>
           <TabsList>
-            <TabsTrigger value="gantt" className="gap-2">
-              <GanttChartSquare className="h-4 w-4" />
+            <TabsTrigger value="gantt" className="gap-1.5 text-xs sm:text-sm sm:gap-2">
+              <GanttChartSquare className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Gantt
             </TabsTrigger>
-            <TabsTrigger value="table" className="gap-2">
-              <Table className="h-4 w-4" />
+            <TabsTrigger value="table" className="gap-1.5 text-xs sm:text-sm sm:gap-2">
+              <Table className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Table
             </TabsTrigger>
-            <TabsTrigger value="kanban" className="gap-2">
-              <Columns3 className="h-4 w-4" />
+            <TabsTrigger value="kanban" className="gap-1.5 text-xs sm:text-sm sm:gap-2">
+              <Columns3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Kanban
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <div className="flex items-center gap-3 flex-1 justify-end flex-wrap">
-          <div className="relative max-w-xs w-full sm:w-auto">
+        <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-end">
+          <div className={cn("relative", isFullscreen && isMobile ? "w-auto" : "max-w-xs w-full sm:w-auto")}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search tasks..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 w-full sm:w-60"
+              className={cn("pl-9", isFullscreen && isMobile ? "w-32" : "w-full sm:w-60")}
               data-testid="input-task-search"
             />
           </div>
@@ -1579,6 +1580,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           onOpenChange={setIsHistoryOpen} 
         />
       </div>
+      <div className={cn(isFullscreen && "flex-1 min-h-0 flex flex-col")}>
       {view === "table" ? (
         <Suspense fallback={<div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
         <ProjectGanttView 
@@ -1670,6 +1672,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           }}
         />
       )}
+      </div>
     </div>
   );
 }

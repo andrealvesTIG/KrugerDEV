@@ -5741,11 +5741,11 @@ function ProjectGanttView({
   return (
     <Card data-gantt-export="true" className={cn(
       "overflow-hidden transition-all duration-200",
-      isFullscreen && "flex-1 flex flex-col"
+      isFullscreen && "flex-1 flex flex-col min-h-0"
     )}>
       <CardContent className={cn(
         "p-0 flex flex-col",
-        isFullscreen && "h-full flex-1"
+        isFullscreen && "h-full flex-1 min-h-0"
       )}>
         <div data-gantt-toolbar="true" className="flex items-center justify-between gap-2 sm:gap-4 p-3 border-b bg-muted/30 flex-wrap flex-shrink-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -6135,7 +6135,7 @@ function ProjectGanttView({
         <ResizablePanelGroup 
           key={hideTimeline ? "table-mode" : "gantt-mode"} 
           direction="horizontal" 
-          className={cn("text-[11px]", isFullscreen ? "flex-1" : "h-[500px]")}
+          className={cn("text-[11px]", isFullscreen ? "flex-1 min-h-0" : "h-[500px]")}
           onLayout={hideTimeline ? undefined : handlePanelResize}
         >
           {/* Left pane: Metadata columns (horizontal scroll if columns exceed panel width) */}
