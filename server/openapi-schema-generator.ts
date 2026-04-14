@@ -26,6 +26,8 @@ export interface SchemaOptions {
   deprecated?: boolean;
   exclude?: string[];
   required?: string[];
+  additionalRequired?: string[];
+  excludeRequired?: string[];
   overrides?: Record<string, PropertyOverride>;
 }
 
@@ -92,6 +94,22 @@ function columnToJsonSchema(col: any, isArrayItem = false): JsonSchemaProperty {
   return prop;
 }
 
+function deriveRequired(
+  columns: Record<string, any>,
+  excludeSet: Set<string>,
+  overrides: Record<string, PropertyOverride>
+): string[] {
+  const required: string[] = [];
+  for (const [key, col] of Object.entries(columns)) {
+    if (excludeSet.has(key)) continue;
+    if (overrides[key]?.omit) continue;
+    if ((col as any).notNull) {
+      required.push(key);
+    }
+  }
+  return required;
+}
+
 export function drizzleTableToOpenApiSchema(
   table: PgTable,
   options: SchemaOptions = {}
@@ -117,6 +135,22 @@ export function drizzleTableToOpenApiSchema(
     properties[jsKey] = prop;
   }
 
+  let required: string[];
+  if (options.required) {
+    required = options.required;
+  } else {
+    required = deriveRequired(columns, excludeSet, overrides);
+    if (options.additionalRequired) {
+      for (const key of options.additionalRequired) {
+        if (!required.includes(key)) required.push(key);
+      }
+    }
+    if (options.excludeRequired) {
+      const excludeReqSet = new Set(options.excludeRequired);
+      required = required.filter(k => !excludeReqSet.has(k));
+    }
+  }
+
   const schema: Record<string, any> = {
     type: 'object',
     properties,
@@ -126,8 +160,8 @@ export function drizzleTableToOpenApiSchema(
     schema.description = options.description;
   }
 
-  if (options.required && options.required.length > 0) {
-    schema.required = options.required;
+  if (required.length > 0) {
+    schema.required = required;
   }
 
   if (options.example) {
@@ -158,4 +192,18 @@ export function createRequestSchema(
     ...options,
     exclude: [...new Set(exclude)],
   });
+}
+
+export function validateSchemas(schemas: Record<string, any>): string[] {
+  const errors: string[] = [];
+  for (const [name, schema] of Object.entries(schemas)) {
+    if (!schema.required || !schema.properties) continue;
+    const props = new Set(Object.keys(schema.properties));
+    for (const req of schema.required) {
+      if (!props.has(req)) {
+        errors.push(`${name}: required field "${req}" not found in properties`);
+      }
+    }
+  }
+  return errors;
 }

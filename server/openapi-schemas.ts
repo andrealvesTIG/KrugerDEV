@@ -1,4 +1,4 @@
-import { drizzleTableToOpenApiSchema, createRequestSchema } from './openapi-schema-generator';
+import { drizzleTableToOpenApiSchema, createRequestSchema, validateSchemas } from './openapi-schema-generator';
 import {
   organizations,
   portfolios,
@@ -45,8 +45,121 @@ import {
 
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 
+const STATUS_ENUMS = {
+  project: ['Initiation', 'Planning', 'Execution', 'Monitoring', 'Closing', 'Billing', 'On Hold', 'Cancelled', 'Closed'],
+  task: ['Not Started', 'In Progress', 'On Hold', 'Completed', 'Cancelled'],
+  priority: ['Low', 'Medium', 'High', 'Critical'],
+  health: ['Green', 'Yellow', 'Red'],
+  riskTolerance: ['Low', 'Medium', 'High'],
+  portfolioStatus: ['Active', 'On Hold', 'Closed', 'Archived'],
+  taskType: ['Work', 'Milestone', 'Summary', 'Fixed Duration', 'Fixed Units', 'Ongoing'],
+  constraintType: ['ASAP', 'ALAP', 'Start No Earlier Than', 'Finish No Later Than', 'Must Start On', 'Must Finish On'],
+  riskStatus: ['Identified', 'Open', 'In Mitigation', 'Mitigated', 'Closed', 'Accepted'],
+  issueStatus: ['Open', 'In Progress', 'Pending', 'Resolved', 'Closed', 'Escalated'],
+  probability: ['Very Low', 'Low', 'Medium', 'High', 'Very High'],
+  impact: ['Very Low', 'Low', 'Medium', 'High', 'Very High'],
+  responseStrategy: ['Avoid', 'Transfer', 'Mitigate', 'Accept'],
+  milestoneStatus: ['Backlog', 'To Do', 'In Progress', 'Done', 'Delayed'],
+  severity: ['Minor', 'Moderate', 'Major', 'Critical', 'Blocker'],
+  issueType: ['Bug', 'Enhancement', 'Task', 'Question', 'Defect', 'Support'],
+  escalationLevel: ['None', 'Team Lead', 'Manager', 'Director', 'Executive'],
+  timesheetStatus: ['Draft', 'Submitted', 'Approved', 'Rejected'],
+  invoiceStatus: ['Draft', 'Sent', 'Paid', 'Overdue', 'Cancelled'],
+  intakeStatus: ['draft', 'in_progress', 'approved', 'rejected', 'cancelled'],
+  changeRequestType: ['Scope', 'Schedule', 'Budget', 'Resource', 'Quality'],
+  changeRequestStatus: ['Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Implemented'],
+  notificationSeverity: ['info', 'warning', 'critical'],
+  helpTicketStatus: ['new', 'in_progress', 'resolved', 'closed'],
+  helpTicketPriority: ['low', 'normal', 'high', 'urgent'],
+  fileType: ['xml', 'csv', 'mpp'],
+  capexOpex: ['CapEx', 'OpEx'],
+  benefitStatus: ['Planned', 'In Progress', 'Partially Realized', 'Fully Realized', 'Not Achieved'],
+  decisionStatus: ['Pending', 'Approved', 'Rejected', 'Deferred', 'Implemented'],
+  keyDateType: ['Deadline', 'Governance', 'Deliverable', 'Phase Gate', 'External', 'Payment', 'Review', 'Go Live', 'Other'],
+  keyDateStatus: ['Upcoming', 'At Risk', 'Overdue', 'Completed'],
+  proximity: ['Imminent', 'Near-term', 'Mid-term', 'Long-term'],
+  resourceType: ['Employee', 'Contractor', 'Vendor', 'Equipment', 'Material'],
+  experienceLevel: ['Junior', 'Mid-Level', 'Senior', 'Lead', 'Principal'],
+  periodStatus: ['open', 'locked'],
+  projectSource: ['manual', 'imported', 'planner', 'planner_premium'],
+  aggregationMethod: ['average', 'sum', 'max', 'min', 'weighted-average'],
+};
+
+const taskFieldAliases: Record<string, string> = {
+  projectId: 'Also accepts: project_id',
+  taskIndex: 'Sequential ordering index. Auto-assigned if omitted. Also accepts: task_index',
+  taskNumber: 'Auto-generated (e.g. "TASK-001"). Also accepts: task_number',
+  taskType: 'Also accepts: task_type',
+  startDate: 'Also accepts: start_date',
+  endDate: 'Also accepts: end_date. Auto-calculated if durationDays is provided.',
+  baselineStartDate: 'Also accepts: baseline_start_date',
+  baselineEndDate: 'Also accepts: baseline_end_date',
+  actualStartDate: 'Also accepts: actual_start_date',
+  actualEndDate: 'Also accepts: actual_end_date',
+  estimatedHours: 'Also accepts: estimated_hours',
+  actualHours: 'Also accepts: actual_hours',
+  remainingHours: 'Also accepts: remaining_hours',
+  constraintType: 'Also accepts: constraint_type',
+  constraintDate: 'Also accepts: constraint_date',
+  ownerId: 'User ID of the task owner. Also accepts: owner_id',
+  outlineLevel: 'Hierarchy level (1, 2, 3...). Also accepts: outline_level',
+  parentId: 'ID of the parent task for creating subtasks. Also accepts: parent_id',
+  isMilestone: 'Also accepts: is_milestone',
+  isSummary: 'Also accepts: is_summary',
+  isCritical: 'Also accepts: is_critical',
+  isOngoing: 'Ongoing/operational task without scheduled dates. Also accepts: is_ongoing',
+  actualCost: 'Also accepts: actual_cost',
+  timesheetBlocked: 'Also accepts: timesheet_blocked',
+  externalId: 'Also accepts: external_id',
+};
+
+function taskOverrides(extra: Record<string, any> = {}): Record<string, any> {
+  const base: Record<string, any> = {};
+  for (const [key, desc] of Object.entries(taskFieldAliases)) {
+    base[key] = { description: desc };
+  }
+  base.wbs = { description: 'Work Breakdown Structure code (e.g. "1.2.3"). Auto-calculated.' };
+  base.taskType = { ...base.taskType, enum: STATUS_ENUMS.taskType };
+  base.priority = { enum: STATUS_ENUMS.priority };
+  base.durationDays = { type: 'number', format: 'decimal', description: 'Duration in days (supports decimals, e.g. 1.5 = 1 day 4 hours, 0.25 = 2 hours). If provided with startDate, endDate is auto-calculated. Also accepts: duration_days' };
+  base.progress = { minimum: 0, maximum: 100 };
+  base.status = { enum: STATUS_ENUMS.task };
+  base.constraintType = { ...base.constraintType, enum: STATUS_ENUMS.constraintType };
+  base.labels = { description: 'Comma-separated labels' };
+  base.completionOverridden = { description: 'True if user manually set progress' };
+  base.milestoneNumber = { description: 'Auto-generated milestone number (e.g. "MS-001")' };
+  base.milestoneType = { description: 'Governance, Deliverable, Phase Gate, External, Payment' };
+  base.deliverables = { description: 'Expected deliverables for milestone tasks' };
+  base.acceptanceCriteria = { description: 'Criteria for milestone completion' };
+  base.successMetrics = { description: 'How success will be measured' };
+  base.stakeholders = { description: 'Key stakeholders' };
+  base.schedulingMode = { omit: true };
+  base.parentTaskId = { omit: true };
+  return { ...base, ...extra };
+}
+
+const riskOmitFields: Record<string, { omit: true }> = {
+  severity: { omit: true }, type: { omit: true }, escalationLevel: { omit: true },
+  assigneeId: { omit: true }, reporterId: { omit: true }, reportedBy: { omit: true },
+  reportedDate: { omit: true }, targetResolutionDate: { omit: true },
+  actualResolutionDate: { omit: true }, resolution: { omit: true },
+  rootCause: { omit: true }, impactDescription: { omit: true },
+  impactCost: { omit: true }, impactSchedule: { omit: true },
+  relatedTaskId: { omit: true }, stepsToReproduce: { omit: true },
+  environment: { omit: true }, assignee: { omit: true },
+};
+
+const issueOmitFields: Record<string, { omit: true }> = {
+  probability: { omit: true }, riskScore: { omit: true },
+  responseStrategy: { omit: true }, mitigationPlan: { omit: true },
+  contingencyPlan: { omit: true }, triggerEvents: { omit: true },
+  residualRisk: { omit: true }, reviewerId: { omit: true },
+  identifiedDate: { omit: true }, targetResolutionDateRisk: { omit: true },
+  actualResolutionDateRisk: { omit: true }, proximity: { omit: true },
+};
+
 export function generateOpenApiSchemas(): Record<string, any> {
-  return {
+  const schemas: Record<string, any> = {
     Error: {
       type: 'object',
       properties: { message: { type: 'string' } },
@@ -54,7 +167,6 @@ export function generateOpenApiSchemas(): Record<string, any> {
     },
 
     Organization: drizzleTableToOpenApiSchema(organizations, {
-      required: ['id', 'name', 'slug', 'createdAt'],
       overrides: {
         slug: { description: 'URL-friendly unique identifier' },
         logoUrl: { description: 'Custom company logo URL' },
@@ -77,7 +189,6 @@ export function generateOpenApiSchemas(): Record<string, any> {
     }),
 
     Portfolio: drizzleTableToOpenApiSchema(portfolios, {
-      required: ['id', 'organizationId', 'name'],
       overrides: {
         strategy: { description: 'Strategic alignment description' },
         managerId: { description: 'Portfolio Manager user ID' },
@@ -85,10 +196,10 @@ export function generateOpenApiSchemas(): Record<string, any> {
         strategicObjective: { description: 'Key business objective this portfolio supports' },
         budgetAllocated: { description: 'Total budget allocated to portfolio' },
         budgetSpent: { description: 'Total budget spent across projects' },
-        riskTolerance: { enum: ['Low', 'Medium', 'High'], description: 'Acceptable risk level' },
+        riskTolerance: { enum: STATUS_ENUMS.riskTolerance, description: 'Acceptable risk level' },
         performanceMetrics: { description: 'KPIs for portfolio success' },
-        status: { enum: ['Active', 'On Hold', 'Closed', 'Archived'] },
-        healthScore: { enum: ['Green', 'Yellow', 'Red'] },
+        status: { enum: STATUS_ENUMS.portfolioStatus },
+        healthScore: { enum: STATUS_ENUMS.health },
         department: { description: 'Primary department/business unit' },
         teamMemberResourceIds: { description: 'Resource IDs with team member access' },
         isCustom: { description: 'Custom portfolios can include projects from any portfolio' },
@@ -99,17 +210,16 @@ export function generateOpenApiSchemas(): Record<string, any> {
     PortfolioRequest: createRequestSchema(portfolios, {
       description: 'Input schema for creating or updating a portfolio. Excludes server-generated fields (id, timestamps, calculated metrics, etc.).',
       extraExclude: ['createdBy', 'budgetSpent'],
-      required: ['organizationId', 'name'],
       overrides: {
         strategy: { description: 'Strategic alignment description' },
         managerId: { description: 'Portfolio Manager user ID' },
         businessOwnerId: { description: 'Business Owner/Executive Sponsor user ID' },
         strategicObjective: { description: 'Key business objective this portfolio supports' },
         budgetAllocated: { description: 'Total budget allocated to portfolio' },
-        riskTolerance: { enum: ['Low', 'Medium', 'High'], description: 'Acceptable risk level' },
+        riskTolerance: { enum: STATUS_ENUMS.riskTolerance, description: 'Acceptable risk level' },
         performanceMetrics: { description: 'KPIs for portfolio success' },
-        status: { enum: ['Active', 'On Hold', 'Closed', 'Archived'] },
-        healthScore: { enum: ['Green', 'Yellow', 'Red'] },
+        status: { enum: STATUS_ENUMS.portfolioStatus },
+        healthScore: { enum: STATUS_ENUMS.health },
         department: { description: 'Primary department/business unit' },
         teamMemberResourceIds: { description: 'Resource IDs with team member access' },
         isCustom: { description: 'Custom portfolios can include projects from any portfolio. Defaults to false.' },
@@ -117,11 +227,10 @@ export function generateOpenApiSchemas(): Record<string, any> {
     }),
 
     Project: drizzleTableToOpenApiSchema(projects, {
-      required: ['id', 'organizationId', 'name', 'status', 'priority', 'budget'],
       overrides: {
         projectCode: { description: 'Unique project identifier (e.g. "PRJ-2025-001")' },
-        status: { enum: ['Initiation', 'Planning', 'Execution', 'Monitoring', 'Closing', 'Billing', 'On Hold', 'Cancelled', 'Closed'] },
-        priority: { enum: ['Low', 'Medium', 'High', 'Critical'] },
+        status: { enum: STATUS_ENUMS.project },
+        priority: { enum: STATUS_ENUMS.priority },
         projectType: { description: 'Internal, External, Strategic, Operational, Regulatory' },
         methodology: { description: 'Waterfall, Agile, Hybrid, Scrum, Kanban' },
         baselineStartDate: { description: 'Original planned start' },
@@ -134,13 +243,13 @@ export function generateOpenApiSchemas(): Record<string, any> {
         businessSponsorId: { description: 'Executive Sponsor user ID' },
         completionPercentage: { minimum: 0, maximum: 100 },
         completionOverridden: { description: 'True if user manually set completion percentage' },
-        health: { enum: ['Green', 'Yellow', 'Red'] },
+        health: { enum: STATUS_ENUMS.health },
         scheduleVariance: { description: 'Days ahead/behind schedule (negative = behind)' },
         costVariance: { description: 'Budget variance (negative = over budget)' },
         dependencies: { description: 'External dependencies' },
         category: { description: 'IT, Marketing, Operations, etc.' },
-        riskLevel: { enum: ['Low', 'Medium', 'High'] },
-        source: { enum: ['manual', 'imported', 'planner', 'planner_premium'], description: '"manual" = created in app, "imported" = from MPP/external file, "planner" = from Microsoft Planner (Graph), "planner_premium" = from Planner Premium / Dataverse' },
+        riskLevel: { enum: STATUS_ENUMS.riskTolerance },
+        source: { enum: STATUS_ENUMS.projectSource, description: '"manual" = created in app, "imported" = from MPP/external file, "planner" = from Microsoft Planner (Graph), "planner_premium" = from Planner Premium / Dataverse' },
         plannerPlanId: { description: 'Microsoft Planner plan ID for syncing' },
         sourceFileName: { description: 'Original filename of imported file' },
         sourceFileUrl: { description: 'URL to the original imported file' },
@@ -153,115 +262,39 @@ export function generateOpenApiSchemas(): Record<string, any> {
     ProjectRequest: createRequestSchema(projects, {
       description: 'Input schema for creating or updating a project. Excludes server-generated fields (id, timestamps, calculated metrics, etc.). Fields with defaults (status, priority, budget, health, etc.) are optional on create.',
       extraExclude: ['actualCost', 'createdBy', 'updatedBy', 'completedAt', 'completedBy', 'plannerPlanId', 'dataverseOrgId', 'dataverseTenantId', 'sourceFileName', 'sourceFileUrl', 'source', 'completionPercentage', 'scheduleVariance', 'costVariance', 'healthReasonUpdatedAt'],
-      required: ['organizationId', 'name'],
       overrides: {
         projectCode: { description: 'Unique project identifier (e.g. "PRJ-2025-001")' },
-        status: { enum: ['Initiation', 'Planning', 'Execution', 'Monitoring', 'Closing', 'Billing', 'On Hold', 'Cancelled', 'Closed'] },
-        priority: { enum: ['Low', 'Medium', 'High', 'Critical'] },
+        status: { enum: STATUS_ENUMS.project },
+        priority: { enum: STATUS_ENUMS.priority },
         projectType: { description: 'Internal, External, Strategic, Operational, Regulatory' },
         methodology: { description: 'Waterfall, Agile, Hybrid, Scrum, Kanban' },
-        health: { enum: ['Green', 'Yellow', 'Red'] },
-        riskLevel: { enum: ['Low', 'Medium', 'High'] },
+        health: { enum: STATUS_ENUMS.health },
+        riskLevel: { enum: STATUS_ENUMS.riskTolerance },
         isInternal: { description: 'Internal project flag' },
       },
     }),
 
     Task: drizzleTableToOpenApiSchema(tasks, {
       description: 'Task object. Create and update endpoints accept both camelCase (e.g. parentId) and snake_case (e.g. parent_id) field names.',
-      required: ['id', 'projectId', 'name'],
-      overrides: {
-        projectId: { description: 'Also accepts: project_id' },
-        taskIndex: { description: 'Sequential ordering index. Auto-assigned if omitted. Also accepts: task_index' },
-        taskNumber: { description: 'Auto-generated (e.g. "TASK-001"). Also accepts: task_number' },
-        wbs: { description: 'Work Breakdown Structure code (e.g. "1.2.3"). Auto-calculated.' },
-        taskType: { enum: ['Work', 'Milestone', 'Summary', 'Fixed Duration', 'Fixed Units', 'Ongoing'], description: 'Also accepts: task_type' },
-        priority: { enum: ['Low', 'Medium', 'High', 'Critical'] },
-        startDate: { description: 'Also accepts: start_date' },
-        endDate: { description: 'Also accepts: end_date. Auto-calculated if durationDays is provided.' },
-        baselineStartDate: { description: 'Also accepts: baseline_start_date' },
-        baselineEndDate: { description: 'Also accepts: baseline_end_date' },
-        actualStartDate: { description: 'Also accepts: actual_start_date' },
-        actualEndDate: { description: 'Also accepts: actual_end_date' },
-        durationDays: { type: 'number', format: 'decimal', description: 'Duration in days (supports decimals, e.g. 1.5 = 1 day 4 hours, 0.25 = 2 hours). If provided with startDate, endDate is auto-calculated. Also accepts: duration_days' },
-        estimatedHours: { description: 'Also accepts: estimated_hours' },
-        actualHours: { description: 'Also accepts: actual_hours' },
-        remainingHours: { description: 'Also accepts: remaining_hours' },
-        progress: { minimum: 0, maximum: 100 },
-        status: { enum: ['Not Started', 'In Progress', 'On Hold', 'Completed', 'Cancelled'] },
-        constraintType: { enum: ['ASAP', 'ALAP', 'Start No Earlier Than', 'Finish No Later Than', 'Must Start On', 'Must Finish On'], description: 'Also accepts: constraint_type' },
-        constraintDate: { description: 'Also accepts: constraint_date' },
-        ownerId: { description: 'User ID of the task owner. Also accepts: owner_id' },
-        outlineLevel: { description: 'Hierarchy level (1, 2, 3...). Also accepts: outline_level' },
-        parentId: { description: 'ID of the parent task for creating subtasks. Also accepts: parent_id' },
-        isMilestone: { description: 'Also accepts: is_milestone' },
-        isSummary: { description: 'Also accepts: is_summary' },
-        isCritical: { description: 'Also accepts: is_critical' },
-        isOngoing: { description: 'Ongoing/operational task without scheduled dates. Also accepts: is_ongoing' },
-        actualCost: { description: 'Also accepts: actual_cost' },
-        labels: { description: 'Comma-separated labels' },
-        timesheetBlocked: { description: 'Also accepts: timesheet_blocked' },
-        externalId: { description: 'Also accepts: external_id' },
-        completionOverridden: { description: 'True if user manually set progress' },
-        milestoneNumber: { description: 'Auto-generated milestone number (e.g. "MS-001")' },
-        milestoneType: { description: 'Governance, Deliverable, Phase Gate, External, Payment' },
-        deliverables: { description: 'Expected deliverables for milestone tasks' },
-        acceptanceCriteria: { description: 'Criteria for milestone completion' },
-        successMetrics: { description: 'How success will be measured' },
-        stakeholders: { description: 'Key stakeholders' },
-        schedulingMode: { omit: true },
-        parentTaskId: { omit: true },
-      },
+      overrides: taskOverrides(),
       example: { id: 1, projectId: 1, name: 'Design wireframes', status: 'In Progress', priority: 'High', progress: 60, startDate: '2025-04-01', endDate: '2025-04-15', durationDays: 10 },
     }),
 
     TaskRequest: createRequestSchema(tasks, {
       description: 'Input schema for creating or updating a task. Excludes server-generated fields (id, taskNumber, wbs, timestamps, etc.). Accepts both camelCase and snake_case field names. Fields with defaults (priority, status, progress, boolean flags) are optional on create.',
       extraExclude: ['taskNumber', 'wbs', 'schedulingMode', 'parentTaskId'],
-      required: ['projectId', 'name'],
-      overrides: {
-        projectId: { description: 'Also accepts: project_id' },
-        taskType: { enum: ['Work', 'Milestone', 'Summary', 'Fixed Duration', 'Fixed Units', 'Ongoing'], description: 'Also accepts: task_type' },
-        priority: { enum: ['Low', 'Medium', 'High', 'Critical'] },
-        startDate: { description: 'Also accepts: start_date' },
-        endDate: { description: 'Also accepts: end_date. Auto-calculated if durationDays is provided.' },
-        baselineStartDate: { description: 'Also accepts: baseline_start_date' },
-        baselineEndDate: { description: 'Also accepts: baseline_end_date' },
-        actualStartDate: { description: 'Also accepts: actual_start_date' },
-        actualEndDate: { description: 'Also accepts: actual_end_date' },
-        durationDays: { type: 'number', format: 'decimal', description: 'Duration in days (supports decimals, e.g. 1.5 = 1 day 4 hours, 0.25 = 2 hours). If provided with startDate, endDate is auto-calculated. Also accepts: duration_days' },
-        estimatedHours: { description: 'Also accepts: estimated_hours' },
-        actualHours: { description: 'Also accepts: actual_hours' },
-        remainingHours: { description: 'Also accepts: remaining_hours' },
-        progress: { minimum: 0, maximum: 100 },
-        status: { enum: ['Not Started', 'In Progress', 'On Hold', 'Completed', 'Cancelled'] },
-        constraintType: { enum: ['ASAP', 'ALAP', 'Start No Earlier Than', 'Finish No Later Than', 'Must Start On', 'Must Finish On'], description: 'Also accepts: constraint_type' },
-        constraintDate: { description: 'Also accepts: constraint_date' },
-        ownerId: { description: 'User ID of the task owner. Also accepts: owner_id' },
-        outlineLevel: { description: 'Hierarchy level (1, 2, 3...). Also accepts: outline_level' },
-        parentId: { description: 'ID of the parent task for creating subtasks. Also accepts: parent_id' },
-        isMilestone: { description: 'Also accepts: is_milestone' },
-        isSummary: { description: 'Also accepts: is_summary' },
-        isCritical: { description: 'Also accepts: is_critical' },
-        isOngoing: { description: 'Ongoing/operational task without scheduled dates. Also accepts: is_ongoing' },
-        actualCost: { description: 'Also accepts: actual_cost' },
-        labels: { description: 'Comma-separated labels' },
-        timesheetBlocked: { description: 'Also accepts: timesheet_blocked' },
-        externalId: { description: 'Also accepts: external_id' },
-        completionOverridden: { description: 'True if user manually set progress' },
-        milestoneType: { description: 'Governance, Deliverable, Phase Gate, External, Payment' },
-      },
+      overrides: taskOverrides(),
     }),
 
     Milestone: drizzleTableToOpenApiSchema(milestones, {
       deprecated: true,
       description: 'DEPRECATED: Legacy task milestone (from tasks table with isMilestone=true). For portfolio-level key dates, use PortfolioKeyDate instead.',
-      required: ['id', 'projectId', 'title', 'dueDate'],
       overrides: {
         milestoneNumber: { description: 'Auto-generated (e.g. "MS-001")' },
         milestoneType: { description: 'Governance, Deliverable, Phase Gate, External, Payment' },
         baselineDueDate: { description: 'Original planned due date' },
-        status: { enum: ['Backlog', 'To Do', 'In Progress', 'Done', 'Delayed'] },
-        priority: { enum: ['Low', 'Medium', 'High', 'Critical'] },
+        status: { enum: STATUS_ENUMS.milestoneStatus },
+        priority: { enum: STATUS_ENUMS.priority },
         ownerId: { description: 'Milestone owner user ID' },
         deliverables: { description: 'Expected deliverables' },
       },
@@ -270,23 +303,21 @@ export function generateOpenApiSchemas(): Record<string, any> {
     MilestoneRequest: createRequestSchema(milestones, {
       deprecated: true,
       description: 'DEPRECATED: Request body for creating or updating a task milestone (legacy milestones table). Fields with defaults (completed, status, priority) are optional on create.',
-      required: ['projectId', 'title', 'dueDate'],
       overrides: {
         milestoneType: { description: 'Governance, Deliverable, Phase Gate, External, Payment' },
-        status: { enum: ['Backlog', 'To Do', 'In Progress', 'Done', 'Delayed'] },
-        priority: { enum: ['Low', 'Medium', 'High', 'Critical'] },
+        status: { enum: STATUS_ENUMS.milestoneStatus },
+        priority: { enum: STATUS_ENUMS.priority },
         ownerId: { description: 'Milestone owner user ID' },
       },
     }),
 
     PortfolioKeyDate: drizzleTableToOpenApiSchema(portfolioKeyDates, {
       description: 'Portfolio-level key date. Stored in the portfolio_key_dates table, completely separate from task milestones.',
-      required: ['id', 'portfolioId', 'title', 'date'],
       overrides: {
         portfolioId: { description: 'The portfolio this key date belongs to' },
-        keyDateType: { enum: ['Deadline', 'Governance', 'Deliverable', 'Phase Gate', 'External', 'Payment', 'Review', 'Go Live', 'Other'], description: 'Type of key date' },
+        keyDateType: { enum: STATUS_ENUMS.keyDateType, description: 'Type of key date' },
         date: { description: 'The key date' },
-        status: { enum: ['Upcoming', 'At Risk', 'Overdue', 'Completed'] },
+        status: { enum: STATUS_ENUMS.keyDateStatus },
         createdBy: { description: 'User ID of creator' },
       },
     }),
@@ -294,96 +325,64 @@ export function generateOpenApiSchemas(): Record<string, any> {
     PortfolioKeyDateRequest: createRequestSchema(portfolioKeyDates, {
       description: 'Request body for creating or updating a portfolio key date. Fields with defaults (keyDateType, status, completed) are optional on create.',
       exclude: ['id', 'createdAt', 'updatedAt', 'deletedAt', 'deletedBy', 'isDemo', 'portfolioId', 'organizationId', 'createdBy'],
-      required: ['title', 'date'],
       overrides: {
-        keyDateType: { enum: ['Deadline', 'Governance', 'Deliverable', 'Phase Gate', 'External', 'Payment', 'Review', 'Go Live', 'Other'] },
-        status: { enum: ['Upcoming', 'At Risk', 'Overdue', 'Completed'] },
+        keyDateType: { enum: STATUS_ENUMS.keyDateType },
+        status: { enum: STATUS_ENUMS.keyDateStatus },
       },
     }),
 
     Risk: drizzleTableToOpenApiSchema(issues, {
       description: 'Risk record. Risks and Issues share the same database table (issues) distinguished by itemType. This schema shows the risk-specific view.',
-      required: ['id', 'projectId', 'itemType', 'title'],
       overrides: {
         itemType: { enum: ['risk'], description: 'Always "risk" for risk records' },
         issueNumber: { description: 'Auto-generated (e.g. "RISK-001")' },
         category: { description: 'Technical, Schedule, Resource, External, Organizational, Financial' },
-        priority: { enum: ['Low', 'Medium', 'High', 'Critical'] },
-        status: { enum: ['Identified', 'Open', 'In Mitigation', 'Mitigated', 'Closed', 'Accepted'] },
-        probability: { enum: ['Very Low', 'Low', 'Medium', 'High', 'Very High'] },
-        impact: { enum: ['Very Low', 'Low', 'Medium', 'High', 'Very High'] },
+        priority: { enum: STATUS_ENUMS.priority },
+        status: { enum: STATUS_ENUMS.riskStatus },
+        probability: { enum: STATUS_ENUMS.probability },
+        impact: { enum: STATUS_ENUMS.impact },
         riskScore: { description: 'Calculated score (probability x impact)' },
-        responseStrategy: { enum: ['Avoid', 'Transfer', 'Mitigate', 'Accept'] },
+        responseStrategy: { enum: STATUS_ENUMS.responseStrategy },
         contingencyPlan: { description: 'Backup plan if risk occurs' },
         residualRisk: { description: 'Remaining risk after mitigation' },
         ownerId: { description: 'Risk owner user ID' },
         costExposure: { description: 'Expected monetary value (probability x impact cost)' },
         dueDate: { description: 'Risk due date for time-based placement' },
-        proximity: { enum: ['Imminent', 'Near-term', 'Mid-term', 'Long-term'] },
+        proximity: { enum: STATUS_ENUMS.proximity },
         escalatedToPortfolio: { description: 'Whether escalated to portfolio level' },
-        severity: { omit: true },
-        type: { omit: true },
-        escalationLevel: { omit: true },
-        assigneeId: { omit: true },
-        reporterId: { omit: true },
-        reportedBy: { omit: true },
-        reportedDate: { omit: true },
-        targetResolutionDate: { omit: true },
-        actualResolutionDate: { omit: true },
-        resolution: { omit: true },
-        rootCause: { omit: true },
-        impactDescription: { omit: true },
-        impactCost: { omit: true },
-        impactSchedule: { omit: true },
-        relatedTaskId: { omit: true },
-        stepsToReproduce: { omit: true },
-        environment: { omit: true },
-        assignee: { omit: true },
+        ...riskOmitFields,
       },
     }),
 
     Issue: drizzleTableToOpenApiSchema(issues, {
       description: 'Issue record. Risks and Issues share the same database table (issues) distinguished by itemType. This schema shows the issue-specific view.',
-      required: ['id', 'projectId', 'itemType', 'title'],
       overrides: {
         itemType: { enum: ['issue'], description: 'Always "issue" for issue records' },
         issueNumber: { description: 'Auto-generated (e.g. "ISS-001")' },
         category: { description: 'Technical, Process, Resource, External, Scope' },
-        priority: { enum: ['Low', 'Medium', 'High', 'Critical'] },
-        severity: { enum: ['Minor', 'Moderate', 'Major', 'Critical', 'Blocker'] },
-        status: { enum: ['Open', 'In Progress', 'Pending', 'Resolved', 'Closed', 'Escalated'] },
-        type: { enum: ['Bug', 'Enhancement', 'Task', 'Question', 'Defect', 'Support'] },
-        escalationLevel: { enum: ['None', 'Team Lead', 'Manager', 'Director', 'Executive'] },
+        priority: { enum: STATUS_ENUMS.priority },
+        severity: { enum: STATUS_ENUMS.severity },
+        status: { enum: STATUS_ENUMS.issueStatus },
+        type: { enum: STATUS_ENUMS.issueType },
+        escalationLevel: { enum: STATUS_ENUMS.escalationLevel },
         assigneeId: { description: 'Assignee user ID' },
         reporterId: { description: 'Reporter user ID' },
         reportedBy: { description: 'Reporter name (for external reports)' },
         labels: { description: 'Comma-separated labels' },
-        probability: { omit: true },
-        riskScore: { omit: true },
-        responseStrategy: { omit: true },
-        mitigationPlan: { omit: true },
-        contingencyPlan: { omit: true },
-        triggerEvents: { omit: true },
-        residualRisk: { omit: true },
-        reviewerId: { omit: true },
-        identifiedDate: { omit: true },
-        targetResolutionDateRisk: { omit: true },
-        actualResolutionDateRisk: { omit: true },
-        proximity: { omit: true },
+        ...issueOmitFields,
       },
     }),
 
     Resource: drizzleTableToOpenApiSchema(resources, {
-      required: ['id', 'organizationId', 'displayName'],
       overrides: {
         userId: { description: 'Linked organization member user ID (for auto-synced resources)' },
         resourceCode: { description: 'Unique identifier (e.g. "EMP-001")' },
-        resourceType: { enum: ['Employee', 'Contractor', 'Vendor', 'Equipment', 'Material'], description: 'Resource classification' },
+        resourceType: { enum: STATUS_ENUMS.resourceType, description: 'Resource classification' },
         title: { description: 'Job title/role' },
         managerId: { description: 'Direct manager user ID' },
         skills: { description: 'Comma-separated skills' },
         certifications: { description: 'Comma-separated certifications' },
-        experienceLevel: { enum: ['Junior', 'Mid-Level', 'Senior', 'Lead', 'Principal'] },
+        experienceLevel: { enum: STATUS_ENUMS.experienceLevel },
         overtimeRate: { description: 'Overtime hourly rate' },
         costRate: { description: 'Internal cost rate' },
         weeklyCapacity: { description: 'Hours per week available' },
@@ -396,21 +395,19 @@ export function generateOpenApiSchemas(): Record<string, any> {
     }),
 
     TimesheetEntry: drizzleTableToOpenApiSchema(timesheetEntries, {
-      required: ['id', 'organizationId', 'userId', 'resourceId', 'taskId', 'projectId', 'entryDate', 'hours'],
       overrides: {
         userId: { description: 'The user logging time' },
         resourceId: { description: 'The resource record' },
         hours: { description: 'Hours worked (supports decimals like 0.25, 0.5)' },
-        status: { enum: ['Draft', 'Submitted', 'Approved', 'Rejected'] },
+        status: { enum: STATUS_ENUMS.timesheetStatus },
         approvedBy: { description: 'User ID of approver' },
         proxyUserId: { description: 'User ID if time was logged on behalf of another user' },
       },
     }),
 
     Invoice: drizzleTableToOpenApiSchema(projectInvoices, {
-      required: ['id', 'projectId', 'title'],
       overrides: {
-        status: { enum: ['Draft', 'Sent', 'Paid', 'Overdue', 'Cancelled'] },
+        status: { enum: STATUS_ENUMS.invoiceStatus },
         fileSize: { description: 'Size in bytes' },
         source: { description: 'Source system: manual, dynamics365, etc.' },
         externalId: { description: 'ID in the source system' },
@@ -420,12 +417,11 @@ export function generateOpenApiSchemas(): Record<string, any> {
 
     ProjectIntake: drizzleTableToOpenApiSchema(projectIntakes, {
       description: 'Full project intake response object including server-generated fields.',
-      required: ['id', 'organizationId', 'projectName'],
       overrides: {
         intakeNumber: { description: 'Auto-generated (e.g. "INT-2026-001")' },
         fundingSource: { description: 'Business Funded, IT Funded, Shared, etc.' },
         currentStep: { description: 'Current workflow step' },
-        status: { enum: ['draft', 'in_progress', 'approved', 'rejected', 'cancelled'] },
+        status: { enum: STATUS_ENUMS.intakeStatus },
         createdProjectId: { description: 'Populated after approval when project is created' },
       },
     }),
@@ -433,11 +429,10 @@ export function generateOpenApiSchemas(): Record<string, any> {
     ProjectIntakeRequest: createRequestSchema(projectIntakes, {
       description: 'Input schema for creating or updating a project intake. Excludes server-generated fields (id, timestamps, approval tracking, etc.).',
       extraExclude: ['intakeNumber', 'pmoApproved', 'pmoApprovedAt', 'pmoApprovedBy', 'approvedAt', 'approvedBy', 'rejectedAt', 'rejectedBy', 'rejectionReason', 'securityApprovalDate', 'securityApproverId', 'createdProjectId'],
-      required: ['organizationId', 'projectName'],
       overrides: {
         fundingSource: { description: 'Business Funded, IT Funded, Shared, etc.' },
         currentStep: { description: 'Current workflow step' },
-        status: { enum: ['draft', 'in_progress', 'approved', 'rejected', 'cancelled'] },
+        status: { enum: STATUS_ENUMS.intakeStatus },
       },
     }),
 
@@ -448,7 +443,6 @@ export function generateOpenApiSchemas(): Record<string, any> {
     },
 
     TaskDependency: drizzleTableToOpenApiSchema(taskDependencies, {
-      required: ['id', 'taskId', 'dependsOnTaskId'],
       overrides: {
         id: { description: 'Unique identifier for the dependency record' },
         taskId: { description: 'The dependent task (the task that depends on another)' },
@@ -538,7 +532,6 @@ export function generateOpenApiSchemas(): Record<string, any> {
     },
 
     User: drizzleTableToOpenApiSchema(users, {
-      required: ['id'],
       exclude: ['password', 'passwordHash', 'emailVerificationToken', 'emailVerificationExpiry'],
       overrides: {
         profileImageUrl: { description: 'Avatar URL' },
@@ -560,7 +553,7 @@ export function generateOpenApiSchemas(): Record<string, any> {
     }),
 
     Document: drizzleTableToOpenApiSchema(projectDocuments, {
-      required: ['id', 'projectId', 'title', 'fileUrl'],
+      additionalRequired: ['fileUrl'],
       overrides: {
         fileSize: { description: 'Size in bytes' },
         uploadedBy: { description: 'User who uploaded the document' },
@@ -568,7 +561,6 @@ export function generateOpenApiSchemas(): Record<string, any> {
     }),
 
     Comment: drizzleTableToOpenApiSchema(projectComments, {
-      required: ['id', 'projectId', 'content'],
       overrides: {
         userId: { description: 'User who made the comment' },
         parentCommentId: { description: 'Parent comment ID for threaded replies' },
@@ -576,13 +568,12 @@ export function generateOpenApiSchemas(): Record<string, any> {
     }),
 
     ChangeRequest: drizzleTableToOpenApiSchema(changeRequests, {
-      required: ['id', 'projectId', 'title'],
       overrides: {
         requestNumber: { description: 'Auto-generated CR number (e.g. "CR-001")' },
         justification: { description: 'Business justification for the change' },
-        type: { enum: ['Scope', 'Schedule', 'Budget', 'Resource', 'Quality'] },
-        priority: { enum: ['Low', 'Medium', 'High', 'Critical'] },
-        status: { enum: ['Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Implemented'] },
+        type: { enum: STATUS_ENUMS.changeRequestType },
+        priority: { enum: STATUS_ENUMS.priority },
+        status: { enum: STATUS_ENUMS.changeRequestStatus },
         impact: { description: 'Description of impact on project' },
         estimatedEffort: { description: 'Effort estimate (e.g. "5 days")' },
         affectedAreas: { description: 'Comma-separated list of affected areas' },
@@ -590,18 +581,16 @@ export function generateOpenApiSchemas(): Record<string, any> {
     }),
 
     Notification: drizzleTableToOpenApiSchema(notifications, {
-      required: ['id', 'userId', 'type', 'title', 'message', 'severity', 'isRead', 'createdAt'],
       overrides: {
         type: { description: 'mention, comment_reply, task_overdue, task_deadline_warning, project_health_alert, task_assignment, risk_assignment, issue_assignment, project_assignment, milestone_approaching, milestone_overdue, status_change' },
         riskIssueId: { description: 'Polymorphic: can reference risks or issues' },
-        severity: { enum: ['info', 'warning', 'critical'] },
+        severity: { enum: STATUS_ENUMS.notificationSeverity },
         actionUrl: { description: 'Deep link to the relevant item' },
         metadata: { description: 'JSON string for additional context' },
       },
     }),
 
     CustomDashboard: drizzleTableToOpenApiSchema(customDashboards, {
-      required: ['id', 'organizationId', 'userId', 'name', 'config'],
       overrides: {
         description: { description: "User's original request" },
         config: {
@@ -634,7 +623,6 @@ export function generateOpenApiSchemas(): Record<string, any> {
     }),
 
     Plan: drizzleTableToOpenApiSchema(plans, {
-      required: ['id', 'code', 'name'],
       overrides: {
         code: { description: 'Unique plan code (e.g. FREE, BASIC, TEAM, ENTERPRISE)' },
         name: { description: 'Display name of the plan' },
@@ -646,19 +634,17 @@ export function generateOpenApiSchemas(): Record<string, any> {
     }),
 
     HelpTicket: drizzleTableToOpenApiSchema(helpTickets, {
-      required: ['id', 'userId', 'userEmail', 'subject', 'description', 'status'],
       overrides: {
         imageUrls: { description: 'Image URLs stored in object storage' },
-        status: { enum: ['new', 'in_progress', 'resolved', 'closed'] },
-        priority: { enum: ['low', 'normal', 'high', 'urgent'] },
+        status: { enum: STATUS_ENUMS.helpTicketStatus },
+        priority: { enum: STATUS_ENUMS.helpTicketPriority },
       },
     }),
 
     MppImport: drizzleTableToOpenApiSchema(mppImports, {
-      required: ['id', 'organizationId', 'fileName', 'fileType'],
       overrides: {
         projectId: { description: 'Link to existing project' },
-        fileType: { enum: ['xml', 'csv', 'mpp'] },
+        fileType: { enum: STATUS_ENUMS.fileType },
         fileUrl: { description: 'URL to original uploaded file' },
         status: { enum: ['active', 'archived'] },
       },
@@ -666,9 +652,8 @@ export function generateOpenApiSchemas(): Record<string, any> {
 
     ProjectFinancial: drizzleTableToOpenApiSchema(projectFinancials, {
       description: 'Budget/Plan/Actuals with CapEx/OpEx breakdown per fiscal year and period.',
-      required: ['id', 'projectId', 'category', 'lineItem', 'fiscalYear'],
       overrides: {
-        category: { enum: ['CapEx', 'OpEx'] },
+        category: { enum: STATUS_ENUMS.capexOpex },
         lineItem: { description: 'Name of expense item (e.g. Hardware, Software Licenses, Consulting)' },
         fiscalYear: { description: 'e.g. 2025, 2026' },
         fiscalPeriod: { description: 'e.g. Q1, Q2, Jan, Full Year' },
@@ -680,7 +665,6 @@ export function generateOpenApiSchemas(): Record<string, any> {
 
     CostItem: drizzleTableToOpenApiSchema(costItems, {
       description: 'Detailed cost tracking with monthly forecast/actual breakdown (fiscal year Oct-Sep: M1=Oct through M12=Sep).',
-      required: ['id', 'projectId', 'name', 'fiscalYear'],
       overrides: {
         parentId: { description: 'Self-reference for hierarchy (null = root level)' },
         category: { description: 'Direct Expense, Licenses, Outside Services, Travel/Meals, Project Material, etc.' },
@@ -691,8 +675,8 @@ export function generateOpenApiSchemas(): Record<string, any> {
     }),
 
     RiskAssessment: drizzleTableToOpenApiSchema(projectRiskAssessments, {
-      required: ['id', 'riskScore', 'summary'],
       exclude: ['projectId', 'category', 'details', 'factors', 'updatedAt'],
+      excludeRequired: ['projectId'],
       overrides: {
         riskScore: { description: 'Calculated risk score (0-100)' },
         reportJson: { description: 'Full assessment report as JSON', type: 'object' },
@@ -700,16 +684,12 @@ export function generateOpenApiSchemas(): Record<string, any> {
     }),
 
     CustomField: drizzleTableToOpenApiSchema(customFieldDefinitions, {
-      required: ['id', 'organizationId', 'name', 'fieldType'],
       exclude: ['createdAt', 'entityType', 'isActive', 'sortOrder'],
     }),
 
-    CustomTab: drizzleTableToOpenApiSchema(customProjectTabs, {
-      required: ['id', 'organizationId', 'name'],
-    }),
+    CustomTab: drizzleTableToOpenApiSchema(customProjectTabs, {}),
 
     ScoringCriterion: drizzleTableToOpenApiSchema(projectScoringCriteria, {
-      required: ['id', 'organizationId', 'name'],
       overrides: {
         category: { description: 'Strategic, Financial, Risk, Resource, Technical' },
         weight: { description: 'Numeric weight stored as string (default "1")' },
@@ -720,7 +700,6 @@ export function generateOpenApiSchemas(): Record<string, any> {
 
     ScoringCriterionRequest: createRequestSchema(projectScoringCriteria, {
       description: 'Input schema for creating or updating a scoring criterion.',
-      required: ['organizationId', 'name'],
       overrides: {
         category: { description: 'Strategic, Financial, Risk, Resource, Technical' },
         weight: { description: 'Numeric weight (default "1")' },
@@ -728,7 +707,6 @@ export function generateOpenApiSchemas(): Record<string, any> {
     }),
 
     ProjectScore: drizzleTableToOpenApiSchema(projectScores, {
-      required: ['id', 'projectId', 'criteriaId', 'score'],
       overrides: {
         score: { description: 'Score value (typically 0-10)' },
         justification: { description: 'Rationale for the score' },
@@ -749,14 +727,12 @@ export function generateOpenApiSchemas(): Record<string, any> {
 
     PortfolioScoringConfig: drizzleTableToOpenApiSchema(portfolioScoringConfig, {
       description: 'Per-portfolio override for how project scores are aggregated per criterion.',
-      required: ['id', 'portfolioId', 'criteriaId', 'aggregationMethod'],
       overrides: {
-        aggregationMethod: { enum: ['average', 'sum', 'max', 'min', 'weighted-average'], description: 'How project scores are combined for this criterion' },
+        aggregationMethod: { enum: STATUS_ENUMS.aggregationMethod, description: 'How project scores are combined for this criterion' },
       },
     }),
 
     ProjectBenefit: drizzleTableToOpenApiSchema(projectBenefits, {
-      required: ['id', 'projectId', 'name'],
       overrides: {
         category: { description: 'Financial, Operational, Strategic, Customer, etc.' },
         benefitType: { description: 'Tangible or Intangible' },
@@ -765,16 +741,15 @@ export function generateOpenApiSchemas(): Record<string, any> {
         targetValue: { description: 'Expected/target value (numeric stored as string)' },
         actualValue: { description: 'Realized/actual value (numeric stored as string)' },
         baselineValue: { description: 'Value before project (numeric stored as string)' },
-        status: { enum: ['Planned', 'In Progress', 'Partially Realized', 'Fully Realized', 'Not Achieved'] },
+        status: { enum: STATUS_ENUMS.benefitStatus },
         owner: { description: 'User ID of benefit owner' },
       },
     }),
 
     ProjectDecision: drizzleTableToOpenApiSchema(projectDecisions, {
-      required: ['id', 'projectId', 'title'],
       overrides: {
         decisionType: { description: 'Strategic, Financial, Resource, Risk, Scope, etc.' },
-        status: { enum: ['Pending', 'Approved', 'Rejected', 'Deferred', 'Implemented'] },
+        status: { enum: STATUS_ENUMS.decisionStatus },
         rationale: { description: 'Why this decision was made' },
         alternatives: { description: 'Alternatives considered' },
         impact: { description: 'Expected impact of the decision' },
@@ -787,55 +762,47 @@ export function generateOpenApiSchemas(): Record<string, any> {
     }),
 
     LessonLearned: drizzleTableToOpenApiSchema(lessonsLearned, {
-      required: ['id', 'projectId', 'title'],
       overrides: {
         lessonType: { description: 'Positive or Negative' },
       },
     }),
 
-    ReportSubscription: drizzleTableToOpenApiSchema(reportSubscriptions, {
-      required: ['id', 'organizationId'],
-    }),
+    ReportSubscription: drizzleTableToOpenApiSchema(reportSubscriptions, {}),
 
     TimesheetPeriod: drizzleTableToOpenApiSchema(timesheetPeriods, {
-      required: ['id', 'organizationId'],
       overrides: {
-        status: { enum: ['open', 'locked'] },
+        status: { enum: STATUS_ENUMS.periodStatus },
       },
     }),
 
     ProjectView: drizzleTableToOpenApiSchema(projectViews, {
-      required: ['id', 'name'],
       overrides: {
         viewType: { description: 'gantt, board, list, calendar, etc.' },
       },
     }),
 
     ProjectTemplate: drizzleTableToOpenApiSchema(projectTemplates, {
-      required: ['id', 'organizationId', 'name'],
       overrides: {
         source: { description: 'file or project' },
       },
     }),
 
-    TimesheetAuditLog: drizzleTableToOpenApiSchema(timesheetAuditLog, {
-      required: ['id', 'organizationId'],
-    }),
+    TimesheetAuditLog: drizzleTableToOpenApiSchema(timesheetAuditLog, {}),
 
-    TimesheetComment: drizzleTableToOpenApiSchema(timesheetComments, {
-      required: ['id', 'entryId', 'userId'],
-    }),
+    TimesheetComment: drizzleTableToOpenApiSchema(timesheetComments, {}),
 
-    TimesheetReminderSettings: drizzleTableToOpenApiSchema(timesheetReminderSettings, {
-      required: ['organizationId'],
-    }),
+    TimesheetReminderSettings: drizzleTableToOpenApiSchema(timesheetReminderSettings, {}),
 
-    TimesheetSettings: drizzleTableToOpenApiSchema(timesheetSettings, {
-      required: ['organizationId'],
-    }),
+    TimesheetSettings: drizzleTableToOpenApiSchema(timesheetSettings, {}),
 
-    ReferralCode: drizzleTableToOpenApiSchema(referralCodes, {
-      required: ['id', 'userId', 'code'],
-    }),
+    ReferralCode: drizzleTableToOpenApiSchema(referralCodes, {}),
   };
+
+  const errors = validateSchemas(schemas);
+  if (errors.length > 0) {
+    console.error('[OpenAPI Schema Validation Errors]');
+    errors.forEach(e => console.error('  -', e));
+  }
+
+  return schemas;
 }
