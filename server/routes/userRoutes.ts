@@ -42,10 +42,16 @@ import {
   seedDatabase,
   formatZodErrors,
 } from "./helpers";
+import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
 
 export function registerUserRoutes(app: Express) {
   // --- Users (Admin) ---
-  app.get('/api/users', async (req, res) => {
+  apiRoute(app, 'get', '/api/users', {
+    tag: 'Users',
+    summary: 'List all users',
+    parameters: [qInt('organizationId', false, 'Filter by organization')],
+    responses: { ...r200('List of users', arrOf('User')), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -102,7 +108,13 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  app.put('/api/users/:userId/role', async (req, res) => {
+  apiRoute(app, 'put', '/api/users/:userId/role', {
+    tag: 'Users',
+    summary: 'Update user role',
+    parameters: [pathId('userId')],
+    requestBody: body({ type: 'object', properties: { role: { type: 'string' } } }),
+    responses: { ...r200('Role updated'), ...updateRes },
+  }, async (req, res) => {
     try {
       // SECURITY: Only super_admin can change user roles
       const userId = req.session?.userId || (req.user as any)?.id;
@@ -141,8 +153,13 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  // Toggle technician status (super admin only)
-  app.put('/api/users/:userId/technician', async (req, res) => {
+  apiRoute(app, 'put', '/api/users/:userId/technician', {
+    tag: 'Users',
+    summary: 'Update user technician status',
+    parameters: [pathId('userId')],
+    requestBody: body({ type: 'object', properties: { isTechnician: { type: 'boolean' } } }),
+    responses: { ...r200('Technician status updated'), ...updateRes },
+  }, async (req, res) => {
     try {
       const currentUserId = req.session?.userId || (req.user as any)?.id;
       const currentUser = currentUserId ? await storage.getUser(currentUserId) : null;
@@ -172,8 +189,12 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  // Deactivate user (super admin only)
-  app.put('/api/users/:userId/deactivate', async (req, res) => {
+  apiRoute(app, 'put', '/api/users/:userId/deactivate', {
+    tag: 'Users',
+    summary: 'Deactivate a user',
+    parameters: [pathId('userId')],
+    responses: { ...r200('User deactivated'), ...fullRes },
+  }, async (req, res) => {
     try {
       const currentUserId = req.session?.userId || (req.user as any)?.id;
       const currentUser = currentUserId ? await storage.getUser(currentUserId) : null;
@@ -201,8 +222,12 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  // Reactivate user (super admin only)
-  app.put('/api/users/:userId/reactivate', async (req, res) => {
+  apiRoute(app, 'put', '/api/users/:userId/reactivate', {
+    tag: 'Users',
+    summary: 'Reactivate a user',
+    parameters: [pathId('userId')],
+    responses: { ...r200('User reactivated'), ...fullRes },
+  }, async (req, res) => {
     try {
       const currentUserId = req.session?.userId || (req.user as any)?.id;
       const currentUser = currentUserId ? await storage.getUser(currentUserId) : null;
@@ -225,8 +250,13 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  // Update user profile
-  app.patch('/api/users/:userId/profile', async (req, res) => {
+  apiRoute(app, 'patch', '/api/users/:userId/profile', {
+    tag: 'Users',
+    summary: 'Update user profile',
+    parameters: [pathId('userId')],
+    requestBody: body({ type: 'object', properties: { firstName: { type: 'string' }, lastName: { type: 'string' }, email: { type: 'string' } } }),
+    responses: { ...r200('Profile updated'), ...updateRes },
+  }, async (req, res) => {
     try {
       const currentUserId = getUserIdFromRequest(req);
       if (!currentUserId) {
@@ -274,7 +304,11 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  app.get('/api/admin/selfie-leads', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/selfie-leads', {
+    tag: 'Users',
+    summary: 'List selfie leads (admin)',
+    responses: { ...r200('Selfie leads list'), ...stdRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -331,7 +365,11 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  app.post('/api/admin/selfie-leads/send-followup', async (req, res) => {
+  apiRoute(app, 'post', '/api/admin/selfie-leads/send-followup', {
+    tag: 'Users',
+    summary: 'Send selfie lead followup emails',
+    responses: { ...r200('Followup emails sent'), ...stdRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -437,8 +475,12 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  // Profile analytics - engagement stats, ranking, and badges
-  app.get('/api/users/:userId/profile-analytics', async (req, res) => {
+  apiRoute(app, 'get', '/api/users/:userId/profile-analytics', {
+    tag: 'Users',
+    summary: 'Get user profile analytics',
+    parameters: [pathId('userId')],
+    responses: { ...r200('Profile analytics data'), ...idRes },
+  }, async (req, res) => {
     try {
       const currentUserId = getUserIdFromRequest(req);
       if (!currentUserId) {
@@ -674,7 +716,12 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  app.get('/api/users/:userId/public-profile', async (req, res) => {
+  apiRoute(app, 'get', '/api/users/:userId/public-profile', {
+    tag: 'Users',
+    summary: 'Get user public profile',
+    parameters: [pathId('userId')],
+    responses: { ...r200('Public profile data'), ...idRes },
+  }, async (req, res) => {
     try {
       const targetUserId = req.params.userId;
       const targetUser = await storage.getUser(targetUserId);
@@ -856,7 +903,12 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  app.get('/api/users/:userId/badge-card.png', async (req, res) => {
+  apiRoute(app, 'get', '/api/users/:userId/badge-card.png', {
+    tag: 'Users',
+    summary: 'Get user badge card image',
+    parameters: [pathId('userId')],
+    responses: { '200': { description: 'Badge card PNG image', content: { 'image/png': { schema: { type: 'string', format: 'binary' } } } }, ...idRes },
+  }, async (req, res) => {
     try {
       const { getBadgeOgData, generateBadgeOgImage } = await import("../badge-og");
       const ogData = await getBadgeOgData(req.params.userId);
@@ -876,7 +928,12 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  app.get('/api/users/:userId/badges/:badgeId/image.png', async (req, res) => {
+  apiRoute(app, 'get', '/api/users/:userId/badges/:badgeId/image.png', {
+    tag: 'Users',
+    summary: 'Get user badge image',
+    parameters: [pathId('userId'), pathId('badgeId')],
+    responses: { '200': { description: 'Badge PNG image', content: { 'image/png': { schema: { type: 'string', format: 'binary' } } } }, ...idRes },
+  }, async (req, res) => {
     try {
       const { getSingleBadgeOgData, generateSingleBadgeImage } = await import("../badge-og");
       const badgeData = await getSingleBadgeOgData(req.params.userId, req.params.badgeId);
@@ -906,7 +963,12 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  app.post('/api/uncon2026/selfie', (req, res, next) => {
+  apiRoute(app, 'post', '/api/uncon2026/selfie', {
+    tag: 'Users',
+    summary: 'Submit UnCon selfie',
+    requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { photo: { type: 'string', format: 'binary' }, name: { type: 'string' }, email: { type: 'string' }, interviewer: { type: 'string' } } } } } },
+    responses: { ...r200('Selfie submitted'), ...inputRes },
+  }, (req, res, next) => {
     selfieUpload.single('photo')(req, res, (err: any) => {
       if (err) {
         return res.status(400).json({ message: err.message || 'Invalid file upload' });
@@ -1012,7 +1074,12 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  app.get('/api/uncon2026/selfie/:shareToken/og.png', async (req, res) => {
+  apiRoute(app, 'get', '/api/uncon2026/selfie/:shareToken/og.png', {
+    tag: 'Users',
+    summary: 'Get selfie OG image',
+    parameters: [pathStr('shareToken')],
+    responses: { '200': { description: 'OG PNG image', content: { 'image/png': { schema: { type: 'string', format: 'binary' } } } }, ...e404 },
+  }, async (req, res) => {
     try {
       const { unconSelfieLeads } = await import("@shared/schema");
       const [lead] = await db.select().from(unconSelfieLeads)
@@ -1068,7 +1135,12 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  app.get('/api/uncon2026/selfie/:shareToken/share', async (req, res) => {
+  apiRoute(app, 'get', '/api/uncon2026/selfie/:shareToken/share', {
+    tag: 'Users',
+    summary: 'Get selfie share page',
+    parameters: [pathStr('shareToken')],
+    responses: { '200': { description: 'HTML share page' }, ...e404 },
+  }, async (req, res) => {
     try {
       const { unconSelfieLeads } = await import("@shared/schema");
       const [lead] = await db.select().from(unconSelfieLeads)
@@ -1179,8 +1251,13 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  // Update user avatar (image URL or emoji)
-  app.patch('/api/users/:userId/avatar', async (req, res) => {
+  apiRoute(app, 'patch', '/api/users/:userId/avatar', {
+    tag: 'Users',
+    summary: 'Update user avatar URL',
+    parameters: [pathId('userId')],
+    requestBody: body({ type: 'object', properties: { avatarUrl: { type: 'string' } } }),
+    responses: { ...r200('Avatar updated'), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
       if (!userId || userId !== req.params.userId) {
@@ -1217,8 +1294,13 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  // Request avatar upload URL (legacy - may fail due to sidecar issues)
-  app.post('/api/users/:userId/avatar/upload-url', async (req, res) => {
+  apiRoute(app, 'post', '/api/users/:userId/avatar/upload-url', {
+    tag: 'Users',
+    summary: 'Get presigned avatar upload URL',
+    parameters: [pathId('userId')],
+    requestBody: body({ type: 'object', properties: { contentType: { type: 'string' } } }),
+    responses: { ...r200('Upload URL generated'), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
       if (!userId || userId !== req.params.userId) {
@@ -1239,8 +1321,13 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  // Direct avatar upload (uses local storage as fallback when object storage is unavailable)
-  app.post('/api/users/:userId/avatar/upload', imageUpload.single('avatar'), async (req, res) => {
+  apiRoute(app, 'post', '/api/users/:userId/avatar/upload', {
+    tag: 'Users',
+    summary: 'Upload user avatar directly',
+    parameters: [pathId('userId')],
+    requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } } } },
+    responses: { ...r200('Avatar uploaded'), ...createRes },
+  }, imageUpload.single('avatar'), async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
       if (!userId || userId !== req.params.userId) {
@@ -1315,8 +1402,12 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  // Delete user (Super Admin only)
-  app.delete('/api/users/:userId', async (req, res) => {
+  apiRoute(app, 'delete', '/api/users/:userId', {
+    tag: 'Users',
+    summary: 'Delete a user',
+    parameters: [pathId('userId')],
+    responses: { ...r200('User deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const currentUserId = getUserIdFromRequest(req);
       if (!currentUserId) {
@@ -1349,7 +1440,11 @@ export function registerUserRoutes(app: Express) {
 
   // ===== USER CONSENT ENDPOINTS =====
 
-  app.get('/api/consents/status', async (req, res) => {
+  apiRoute(app, 'get', '/api/consents/status', {
+    tag: 'Users',
+    summary: 'Get user consent status',
+    responses: { ...r200('Consent status'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1376,7 +1471,11 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  app.get('/api/consents', async (req, res) => {
+  apiRoute(app, 'get', '/api/consents', {
+    tag: 'Users',
+    summary: 'Get user consents',
+    responses: { ...r200('User consents list'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1392,7 +1491,12 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  app.post('/api/consents', async (req, res) => {
+  apiRoute(app, 'post', '/api/consents', {
+    tag: 'Users',
+    summary: 'Record user consent',
+    requestBody: body({ type: 'object', properties: { consentType: { type: 'string' }, version: { type: 'string' }, method: { type: 'string' } } }),
+    responses: { ...r201('Consent recorded'), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1425,7 +1529,11 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  app.post('/api/consents/accept-all', async (req, res) => {
+  apiRoute(app, 'post', '/api/consents/accept-all', {
+    tag: 'Users',
+    summary: 'Accept all current consents',
+    responses: { ...r201('All consents accepted'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1466,7 +1574,12 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  app.get('/api/admin/consents', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/consents', {
+    tag: 'Users',
+    summary: 'List all user consents (admin)',
+    parameters: [qInt('limit', false, 'Limit'), qInt('offset', false, 'Offset')],
+    responses: { ...r200('All consents list'), ...stdRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1502,7 +1615,11 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  app.get('/api/admin/consents/stats', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/consents/stats', {
+    tag: 'Users',
+    summary: 'Get consent statistics (admin)',
+    responses: { ...r200('Consent statistics'), ...stdRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1531,7 +1648,13 @@ export function registerUserRoutes(app: Express) {
 
   // ============ DELEGATE / ACT-AS MODE ============
 
-  app.post("/api/organizations/:orgId/act-as", async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:orgId/act-as', {
+    tag: 'Users',
+    summary: 'Start delegate mode (act as another user)',
+    parameters: [pathId('orgId')],
+    requestBody: body({ type: 'object', properties: { targetUserId: { type: 'string' } } }),
+    responses: { ...r200('Delegate mode started'), ...fullRes, ...e400 },
+  }, async (req, res) => {
     try {
       const realUserId = (req as any).session.userId;
       if (!realUserId) {
@@ -1607,7 +1730,12 @@ export function registerUserRoutes(app: Express) {
     }
   });
 
-  app.delete("/api/organizations/:orgId/act-as", async (req, res) => {
+  apiRoute(app, 'delete', '/api/organizations/:orgId/act-as', {
+    tag: 'Users',
+    summary: 'Stop delegate mode',
+    parameters: [pathId('orgId')],
+    responses: { ...r200('Delegate mode stopped'), ...authRes },
+  }, async (req, res) => {
     try {
       const realUserId = (req as any).session.userId;
       if (!realUserId) {

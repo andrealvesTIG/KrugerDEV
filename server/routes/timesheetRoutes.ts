@@ -9,12 +9,18 @@ import {
   hasAdminAccess,
   userHasOrgAccess,
 } from "./helpers";
+import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
 
 export function registerTimesheetRoutes(app: Express) {
   // ==================== TIMESHEETS ====================
 
   // Get timesheet entries - returns all entries for admins, or user's own entries for non-admins
-  app.get('/api/timesheets', async (req, res) => {
+  apiRoute(app, 'get', '/api/timesheets', {
+    tag: 'Timesheets',
+    summary: 'List timesheet entries',
+    parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true, 'Start date (YYYY-MM-DD)'), qStr('endDate', true, 'End date (YYYY-MM-DD)')],
+    responses: { ...r200('Timesheet entries', arrOf('TimesheetEntry')), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -50,7 +56,12 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Get all team timesheet entries for approvers/admins (used by dashboards)
-  app.get('/api/timesheets/team', async (req, res) => {
+  apiRoute(app, 'get', '/api/timesheets/team', {
+    tag: 'Timesheets',
+    summary: 'Get team timesheet report',
+    parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true, 'Start date (YYYY-MM-DD)'), qStr('endDate', true, 'End date (YYYY-MM-DD)')],
+    responses: { ...r200('Team report'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -92,7 +103,12 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Get timesheet entries for approval (managers/approvers)
-  app.get('/api/timesheets/approval', async (req, res) => {
+  apiRoute(app, 'get', '/api/timesheets/approval', {
+    tag: 'Timesheets',
+    summary: 'Get entries pending approval',
+    parameters: [qInt('organizationId', true, 'Organization ID'), qStr('status', false, 'Filter by status')],
+    responses: { ...r200('Pending approvals'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -139,7 +155,11 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Get tasks assigned to current user
-  app.get('/api/timesheets/assigned-tasks', async (req, res) => {
+  apiRoute(app, 'get', '/api/timesheets/assigned-tasks', {
+    tag: 'Timesheets',
+    summary: 'Get tasks assigned to current user for time logging',
+    responses: { ...r200('Assigned tasks'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -192,7 +212,11 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Get current user's resource record
-  app.get('/api/timesheets/current-resource', async (req, res) => {
+  apiRoute(app, 'get', '/api/timesheets/current-resource', {
+    tag: 'Timesheets',
+    summary: 'Get current user resource for timesheets',
+    responses: { ...r200('Current resource'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -357,7 +381,12 @@ export function registerTimesheetRoutes(app: Express) {
   }
 
   // Create timesheet entry
-  app.post('/api/timesheets', async (req, res) => {
+  apiRoute(app, 'post', '/api/timesheets', {
+    tag: 'Timesheets',
+    summary: 'Create timesheet entry',
+    requestBody: body(ref('TimesheetEntry')),
+    responses: { ...r201('Timesheet entry created', ref('TimesheetEntry')), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -449,7 +478,12 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Bulk upsert timesheet entries
-  app.post('/api/timesheets/bulk', async (req, res) => {
+  apiRoute(app, 'post', '/api/timesheets/bulk', {
+    tag: 'Timesheets',
+    summary: 'Create/update timesheet entries in bulk',
+    requestBody: body({ type: 'object', properties: { entries: { type: 'array', items: ref('TimesheetEntry') } } }),
+    responses: { ...r201('Timesheet entries created'), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -691,7 +725,13 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Update timesheet entry
-  app.put('/api/timesheets/:id', async (req, res) => {
+  apiRoute(app, 'put', '/api/timesheets/:id', {
+    tag: 'Timesheets',
+    summary: 'Update timesheet entry',
+    parameters: [pathId()],
+    requestBody: body(ref('TimesheetEntry')),
+    responses: { ...r200('Entry updated'), ...updateRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -775,7 +815,12 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Delete timesheet entry
-  app.delete('/api/timesheets/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/timesheets/:id', {
+    tag: 'Timesheets',
+    summary: 'Delete timesheet entry',
+    parameters: [pathId()],
+    responses: { ...r204('Entry deleted'), ...fullRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -821,7 +866,12 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Submit timesheet week for approval
-  app.post('/api/timesheets/submit-week', async (req, res) => {
+  apiRoute(app, 'post', '/api/timesheets/submit-week', {
+    tag: 'Timesheets',
+    summary: 'Submit a week of timesheets for approval',
+    requestBody: body({ type: 'object', properties: { weekStartDate: { type: 'string', format: 'date' } } }),
+    responses: { ...r200('Week submitted'), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -911,7 +961,12 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Bulk approve timesheet entries (single DB round-trip)
-  app.post('/api/timesheets/bulk-approve', async (req, res) => {
+  apiRoute(app, 'post', '/api/timesheets/bulk-approve', {
+    tag: 'Timesheets',
+    summary: 'Bulk approve multiple timesheet entries',
+    requestBody: body({ type: 'object', properties: { entryIds: { type: 'array', items: { type: 'integer' } } }, required: ['entryIds'] }),
+    responses: { ...r200('Entries approved'), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -967,7 +1022,12 @@ export function registerTimesheetRoutes(app: Express) {
     }
   });
 
-  app.post('/api/timesheets/:id/approve', async (req, res) => {
+  apiRoute(app, 'post', '/api/timesheets/:id/approve', {
+    tag: 'Timesheets',
+    summary: 'Approve a timesheet entry',
+    parameters: [pathId()],
+    responses: { ...r200('Entry approved'), ...fullRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1028,7 +1088,13 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Reject timesheet entry
-  app.post('/api/timesheets/:id/reject', async (req, res) => {
+  apiRoute(app, 'post', '/api/timesheets/:id/reject', {
+    tag: 'Timesheets',
+    summary: 'Reject a timesheet entry',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { reason: { type: 'string' } } }, false),
+    responses: { ...r200('Entry rejected'), ...fullRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1090,7 +1156,12 @@ export function registerTimesheetRoutes(app: Express) {
     }
   });
 
-  app.get('/api/timesheets/my-report', async (req, res) => {
+  apiRoute(app, 'get', '/api/timesheets/my-report', {
+    tag: 'Timesheets',
+    summary: 'Get current user timesheet report',
+    parameters: [qStr('startDate'), qStr('endDate')],
+    responses: { ...r200('My report'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1162,7 +1233,12 @@ export function registerTimesheetRoutes(app: Express) {
   // ===== Timesheet Periods (Period Closing/Locking) =====
   
   // Get all timesheet periods for organization (approvers only)
-  app.get('/api/timesheet-periods', async (req, res) => {
+  apiRoute(app, 'get', '/api/timesheet-periods', {
+    tag: 'Timesheets',
+    summary: 'List timesheet periods',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Timesheet periods', arrOf('TimesheetPeriod')), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1192,7 +1268,12 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Get closed periods for a date range (for checking if dates are editable)
-  app.get('/api/timesheet-periods/closed', async (req, res) => {
+  apiRoute(app, 'get', '/api/timesheet-periods/closed', {
+    tag: 'Timesheets',
+    summary: 'List closed timesheet periods',
+    parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true), qStr('endDate', true)],
+    responses: { ...r200('Closed periods'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1236,7 +1317,12 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Create a new timesheet period (approvers only)
-  app.post('/api/timesheet-periods', async (req, res) => {
+  apiRoute(app, 'post', '/api/timesheet-periods', {
+    tag: 'Timesheets',
+    summary: 'Create timesheet period',
+    requestBody: body(ref('TimesheetPeriod')),
+    responses: { ...r201('Period created'), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1276,7 +1362,12 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Close a timesheet period (approvers only)
-  app.post('/api/timesheet-periods/:id/close', async (req, res) => {
+  apiRoute(app, 'post', '/api/timesheet-periods/:id/close', {
+    tag: 'Timesheets',
+    summary: 'Close a timesheet period',
+    parameters: [pathId()],
+    responses: { ...r200('Period closed'), ...fullRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1308,7 +1399,12 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Reopen a timesheet period (approvers only)
-  app.post('/api/timesheet-periods/:id/reopen', async (req, res) => {
+  apiRoute(app, 'post', '/api/timesheet-periods/:id/reopen', {
+    tag: 'Timesheets',
+    summary: 'Reopen a closed timesheet period',
+    parameters: [pathId()],
+    responses: { ...r200('Period reopened'), ...fullRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1340,7 +1436,12 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Delete a timesheet period (approvers only)
-  app.delete('/api/timesheet-periods/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/timesheet-periods/:id', {
+    tag: 'Timesheets',
+    summary: 'Delete timesheet period',
+    parameters: [pathId()],
+    responses: { ...r200('Period deleted'), ...fullRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1373,7 +1474,12 @@ export function registerTimesheetRoutes(app: Express) {
 
   // ===== Timesheet Settings (Org-level Policies) =====
 
-  app.get('/api/timesheet-settings', async (req, res) => {
+  apiRoute(app, 'get', '/api/timesheet-settings', {
+    tag: 'Timesheets',
+    summary: 'Get timesheet settings',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Timesheet settings', ref('TimesheetSettings')), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1401,7 +1507,12 @@ export function registerTimesheetRoutes(app: Express) {
     }
   });
 
-  app.put('/api/timesheet-settings', async (req, res) => {
+  apiRoute(app, 'put', '/api/timesheet-settings', {
+    tag: 'Timesheets',
+    summary: 'Update timesheet settings',
+    requestBody: body(ref('TimesheetSettings')),
+    responses: { ...r200('Settings updated'), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1441,7 +1552,12 @@ export function registerTimesheetRoutes(app: Express) {
 
   // ===== Timesheet Reminder Settings =====
 
-  app.get('/api/timesheet-reminder-settings', async (req, res) => {
+  apiRoute(app, 'get', '/api/timesheet-reminder-settings', {
+    tag: 'Timesheets',
+    summary: 'Get timesheet reminder settings',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Reminder settings', ref('TimesheetReminderSettings')), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1475,7 +1591,12 @@ export function registerTimesheetRoutes(app: Express) {
     }
   });
 
-  app.put('/api/timesheet-reminder-settings', async (req, res) => {
+  apiRoute(app, 'put', '/api/timesheet-reminder-settings', {
+    tag: 'Timesheets',
+    summary: 'Update timesheet reminder settings',
+    requestBody: body(ref('TimesheetReminderSettings')),
+    responses: { ...r200('Reminder settings updated'), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1553,7 +1674,12 @@ export function registerTimesheetRoutes(app: Express) {
     }
   });
 
-  app.post('/api/timesheet-reminder-snooze', async (req, res) => {
+  apiRoute(app, 'post', '/api/timesheet-reminder-snooze', {
+    tag: 'Timesheets',
+    summary: 'Snooze timesheet reminder',
+    requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, durationMinutes: { type: 'integer' } }, required: ['organizationId'] }),
+    responses: { ...r200('Reminder snoozed'), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1586,7 +1712,12 @@ export function registerTimesheetRoutes(app: Express) {
     }
   });
 
-  app.post('/api/timesheet-reminder-send-now', async (req, res) => {
+  apiRoute(app, 'post', '/api/timesheet-reminder-send-now', {
+    tag: 'Timesheets',
+    summary: 'Send timesheet reminders now',
+    requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' } }, required: ['organizationId'] }),
+    responses: { ...r200('Reminders sent'), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1621,7 +1752,12 @@ export function registerTimesheetRoutes(app: Express) {
 
   // ===== Timesheet Audit Log =====
 
-  app.get('/api/timesheet-audit-log', async (req, res) => {
+  apiRoute(app, 'get', '/api/timesheet-audit-log', {
+    tag: 'Timesheets',
+    summary: 'Get timesheet audit log',
+    parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', false), qStr('endDate', false), qStr('action', false), qInt('page', false), qInt('pageSize', false)],
+    responses: { ...r200('Audit log entries'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1650,7 +1786,12 @@ export function registerTimesheetRoutes(app: Express) {
     }
   });
 
-  app.get('/api/timesheet-audit-log/entry/:entryId', async (req, res) => {
+  apiRoute(app, 'get', '/api/timesheet-audit-log/entry/:entryId', {
+    tag: 'Timesheets',
+    summary: 'Get audit log for a specific timesheet entry',
+    parameters: [pathId('entryId')],
+    responses: { ...r200('Entry audit log'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1676,7 +1817,12 @@ export function registerTimesheetRoutes(app: Express) {
 
   // ===== Proxy Timesheet Entry =====
 
-  app.post('/api/timesheets/proxy', async (req, res) => {
+  apiRoute(app, 'post', '/api/timesheets/proxy', {
+    tag: 'Timesheets',
+    summary: 'Create proxy timesheet entry on behalf of another user',
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('Proxy entry created'), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1772,7 +1918,12 @@ export function registerTimesheetRoutes(app: Express) {
 
   // ===== Compliance Reporting =====
 
-  app.get('/api/timesheet-compliance', async (req, res) => {
+  apiRoute(app, 'get', '/api/timesheet-compliance', {
+    tag: 'Timesheets',
+    summary: 'Get timesheet compliance report',
+    parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true), qStr('endDate', true)],
+    responses: { ...r200('Compliance report'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1938,7 +2089,12 @@ export function registerTimesheetRoutes(app: Express) {
 
   // ===== Approval Delegations =====
 
-  app.get('/api/approval-delegations/is-delegate', async (req, res) => {
+  apiRoute(app, 'get', '/api/approval-delegations/is-delegate', {
+    tag: 'Timesheets',
+    summary: 'Check if current user is a delegate',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Delegate status'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1954,7 +2110,12 @@ export function registerTimesheetRoutes(app: Express) {
     }
   });
 
-  app.get('/api/approval-delegations', async (req, res) => {
+  apiRoute(app, 'get', '/api/approval-delegations', {
+    tag: 'Timesheets',
+    summary: 'List approval delegations',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Delegations'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1985,7 +2146,12 @@ export function registerTimesheetRoutes(app: Express) {
     }
   });
 
-  app.post('/api/approval-delegations', async (req, res) => {
+  apiRoute(app, 'post', '/api/approval-delegations', {
+    tag: 'Timesheets',
+    summary: 'Create approval delegation',
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('Delegation created'), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -2037,7 +2203,12 @@ export function registerTimesheetRoutes(app: Express) {
     }
   });
 
-  app.post('/api/approval-delegations/:id/revoke', async (req, res) => {
+  apiRoute(app, 'post', '/api/approval-delegations/:id/revoke', {
+    tag: 'Timesheets',
+    summary: 'Revoke an approval delegation',
+    parameters: [pathId()],
+    responses: { ...r200('Delegation revoked'), ...fullRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -2069,7 +2240,12 @@ export function registerTimesheetRoutes(app: Express) {
 
   // ===== Rejection Templates =====
 
-  app.get('/api/rejection-templates', async (req, res) => {
+  apiRoute(app, 'get', '/api/rejection-templates', {
+    tag: 'Timesheets',
+    summary: 'List rejection templates',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Rejection templates'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -2107,7 +2283,12 @@ export function registerTimesheetRoutes(app: Express) {
     }
   });
 
-  app.post('/api/rejection-templates', async (req, res) => {
+  apiRoute(app, 'post', '/api/rejection-templates', {
+    tag: 'Timesheets',
+    summary: 'Create rejection template',
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('Template created'), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -2129,7 +2310,13 @@ export function registerTimesheetRoutes(app: Express) {
     }
   });
 
-  app.put('/api/rejection-templates/:id', async (req, res) => {
+  apiRoute(app, 'put', '/api/rejection-templates/:id', {
+    tag: 'Timesheets',
+    summary: 'Update rejection template',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Template updated'), ...updateRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -2151,7 +2338,12 @@ export function registerTimesheetRoutes(app: Express) {
     }
   });
 
-  app.delete('/api/rejection-templates/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/rejection-templates/:id', {
+    tag: 'Timesheets',
+    summary: 'Delete rejection template',
+    parameters: [pathId()],
+    responses: { ...r200('Template deleted'), ...fullRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -2174,7 +2366,12 @@ export function registerTimesheetRoutes(app: Express) {
 
   // ===== Timesheet Comments =====
 
-  app.get('/api/timesheet-comments/:entryId', async (req, res) => {
+  apiRoute(app, 'get', '/api/timesheet-comments/:entryId', {
+    tag: 'Timesheets',
+    summary: 'List timesheet comments for an entry',
+    parameters: [pathId('entryId')],
+    responses: { ...r200('Comments', arrOf('TimesheetComment')), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -2210,7 +2407,12 @@ export function registerTimesheetRoutes(app: Express) {
     }
   });
 
-  app.post('/api/timesheet-comments', async (req, res) => {
+  apiRoute(app, 'post', '/api/timesheet-comments', {
+    tag: 'Timesheets',
+    summary: 'Add a comment to a timesheet entry',
+    requestBody: body({ type: 'object', properties: { entryId: { type: 'integer' }, text: { type: 'string' }, commentType: { type: 'string', nullable: true } }, required: ['entryId', 'text'] }),
+    responses: { ...r201('Comment created', ref('TimesheetComment')), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -2261,7 +2463,12 @@ export function registerTimesheetRoutes(app: Express) {
 
   // ===== Team Review Dashboard =====
 
-  app.get('/api/timesheets/team-review', async (req, res) => {
+  apiRoute(app, 'get', '/api/timesheets/team-review', {
+    tag: 'Timesheets',
+    summary: 'Get team review dashboard data',
+    parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true), qStr('endDate', true)],
+    responses: { ...r200('Team review data'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -2349,7 +2556,12 @@ export function registerTimesheetRoutes(app: Express) {
 
   // ===== SLA Metrics =====
 
-  app.get('/api/timesheets/sla-metrics', async (req, res) => {
+  apiRoute(app, 'get', '/api/timesheets/sla-metrics', {
+    tag: 'Timesheets',
+    summary: 'Get SLA metrics for timesheet approvals',
+    parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true), qStr('endDate', true)],
+    responses: { ...r200('SLA metrics'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -2480,7 +2692,12 @@ export function registerTimesheetRoutes(app: Express) {
   // ===== Time Categories (Non-Project Time Types) =====
   
   // Get time categories for organization
-  app.get('/api/time-categories', async (req, res) => {
+  apiRoute(app, 'get', '/api/time-categories', {
+    tag: 'Timesheets',
+    summary: 'List time categories',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Time categories'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -2541,7 +2758,12 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Create time category (admin only)
-  app.post('/api/time-categories', async (req, res) => {
+  apiRoute(app, 'post', '/api/time-categories', {
+    tag: 'Timesheets',
+    summary: 'Create time category',
+    requestBody: body({ type: 'object', properties: { name: { type: 'string' }, organizationId: { type: 'integer' } } }),
+    responses: { ...r201('Category created'), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -2578,7 +2800,13 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Update time category (admin only)
-  app.put('/api/time-categories/:id', async (req, res) => {
+  apiRoute(app, 'put', '/api/time-categories/:id', {
+    tag: 'Timesheets',
+    summary: 'Update time category',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { name: { type: 'string' } } }),
+    responses: { ...r200('Category updated'), ...updateRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -2616,7 +2844,12 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Delete time category (admin only)
-  app.delete('/api/time-categories/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/time-categories/:id', {
+    tag: 'Timesheets',
+    summary: 'Delete time category',
+    parameters: [pathId()],
+    responses: { ...r200('Category deleted'), ...fullRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -2648,7 +2881,12 @@ export function registerTimesheetRoutes(app: Express) {
   // ===== Non-Project Time Entries =====
 
   // Get non-project time entries
-  app.get('/api/non-project-time', async (req, res) => {
+  apiRoute(app, 'get', '/api/non-project-time', {
+    tag: 'Timesheets',
+    summary: 'List non-project time entries',
+    parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true), qStr('endDate', true)],
+    responses: { ...r200('Non-project time entries'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -2686,7 +2924,12 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Create non-project time entry
-  app.post('/api/non-project-time', async (req, res) => {
+  apiRoute(app, 'post', '/api/non-project-time', {
+    tag: 'Timesheets',
+    summary: 'Create non-project time entry',
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('Entry created'), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -2758,7 +3001,13 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Update non-project time entry
-  app.put('/api/non-project-time/:id', async (req, res) => {
+  apiRoute(app, 'put', '/api/non-project-time/:id', {
+    tag: 'Timesheets',
+    summary: 'Update non-project time entry',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Entry updated'), ...updateRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -2803,7 +3052,12 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Delete non-project time entry
-  app.delete('/api/non-project-time/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/non-project-time/:id', {
+    tag: 'Timesheets',
+    summary: 'Delete non-project time entry',
+    parameters: [pathId()],
+    responses: { ...r200('Entry deleted'), ...fullRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -2840,7 +3094,11 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Admin: Get all referral stats (Super Admin only)
-  app.get('/api/admin/referrals', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/referrals', {
+    tag: 'Timesheets',
+    summary: 'Get admin referral stats',
+    responses: { ...r200('Referral stats'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -2878,7 +3136,13 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Dashboard Export Routes
-  app.post('/api/dashboard/:type/export', async (req, res) => {
+  apiRoute(app, 'post', '/api/dashboard/:type/export', {
+    tag: 'Timesheets',
+    summary: 'Export dashboard data',
+    parameters: [pathStr('type')],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Dashboard exported'), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -2920,7 +3184,13 @@ export function registerTimesheetRoutes(app: Express) {
   });
 
   // Dashboard Share Route
-  app.post('/api/dashboard/:type/share', async (req, res) => {
+  apiRoute(app, 'post', '/api/dashboard/:type/share', {
+    tag: 'Timesheets',
+    summary: 'Share dashboard report via email',
+    parameters: [pathStr('type')],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Dashboard shared'), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });

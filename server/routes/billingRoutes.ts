@@ -10,12 +10,17 @@ import {
   hasAdminAccess,
   userHasOrgAccess,
 } from "./helpers";
+import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
 
 export async function registerBillingRoutes(app: Express) {
   // ============= BILLING ROUTES =============
   
   // Get all plans with meter rules
-  app.get('/api/billing/plans', async (req, res) => {
+  apiRoute(app, 'get', '/api/billing/plans', {
+    tag: 'Billing',
+    summary: 'List available billing plans',
+    responses: { ...r200('Plans list', arrOf('Plan')), ...authRes },
+  }, async (req, res) => {
     try {
       const { plans, meters, planMeterRules } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
@@ -65,7 +70,12 @@ export async function registerBillingRoutes(app: Express) {
   });
 
   // Get subscription - supports both user and org-based subscriptions
-  app.get('/api/billing/subscription', async (req, res) => {
+  apiRoute(app, 'get', '/api/billing/subscription', {
+    tag: 'Billing',
+    summary: 'Get current subscription',
+    parameters: [qInt('orgId', true)],
+    responses: { ...r200('Subscription details'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -111,7 +121,12 @@ export async function registerBillingRoutes(app: Express) {
   });
 
   // Get usage summary (credits-based)
-  app.get('/api/billing/usage', async (req, res) => {
+  apiRoute(app, 'get', '/api/billing/usage', {
+    tag: 'Billing',
+    summary: 'Get current usage metrics',
+    parameters: [qInt('orgId', true)],
+    responses: { ...r200('Usage data'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -219,7 +234,12 @@ export async function registerBillingRoutes(app: Express) {
   });
 
   // Get AI operation credit costs for frontend warnings
-  app.get('/api/billing/ai-costs', async (req, res) => {
+  apiRoute(app, 'get', '/api/billing/ai-costs', {
+    tag: 'Billing',
+    summary: 'Get AI feature costs',
+    parameters: [qInt('orgId', true)],
+    responses: { ...r200('AI costs'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -335,7 +355,12 @@ export async function registerBillingRoutes(app: Express) {
   });
 
   // Get billing/payment history
-  app.get('/api/billing/history', async (req, res) => {
+  apiRoute(app, 'get', '/api/billing/history', {
+    tag: 'Billing',
+    summary: 'Get billing history',
+    parameters: [qInt('orgId', true)],
+    responses: { ...r200('Billing history'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -360,7 +385,12 @@ export async function registerBillingRoutes(app: Express) {
     }
   });
 
-  app.get('/api/billing/cycle-history', async (req, res) => {
+  apiRoute(app, 'get', '/api/billing/cycle-history', {
+    tag: 'Billing',
+    summary: 'Get billing cycle history',
+    parameters: [qInt('orgId', true)],
+    responses: { ...r200('Cycle history'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -450,7 +480,12 @@ export async function registerBillingRoutes(app: Express) {
   });
 
   // Get credit usage ledger - detailed history of all credit transactions
-  app.get('/api/billing/credit-ledger', async (req, res) => {
+  apiRoute(app, 'get', '/api/billing/credit-ledger', {
+    tag: 'Billing',
+    summary: 'Get credit ledger',
+    parameters: [qInt('orgId', true)],
+    responses: { ...r200('Credit ledger'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -560,7 +595,12 @@ export async function registerBillingRoutes(app: Express) {
   });
 
   // Enterprise plan inquiry - sends email to both user and sales
-  app.post('/api/billing/enterprise-inquiry', async (req, res) => {
+  apiRoute(app, 'post', '/api/billing/enterprise-inquiry', {
+    tag: 'Billing',
+    summary: 'Submit enterprise plan inquiry',
+    requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, message: { type: 'string' } } }),
+    responses: { ...r201('Inquiry submitted'), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -601,7 +641,12 @@ export async function registerBillingRoutes(app: Express) {
   });
 
   // Create subscription
-  app.post('/api/billing/subscription', async (req, res) => {
+  apiRoute(app, 'post', '/api/billing/subscription', {
+    tag: 'Billing',
+    summary: 'Create new subscription',
+    requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, planId: { type: 'integer' }, billingCycle: { type: 'string' } } }),
+    responses: { ...r201('Subscription created'), ...inputRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -631,7 +676,13 @@ export async function registerBillingRoutes(app: Express) {
   });
 
   // Change plan
-  app.patch('/api/billing/subscription/:id/plan', async (req, res) => {
+  apiRoute(app, 'patch', '/api/billing/subscription/:id/plan', {
+    tag: 'Billing',
+    summary: 'Change subscription plan',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { planId: { type: 'integer' } } }),
+    responses: { ...r200('Plan changed'), ...updateRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -659,7 +710,12 @@ export async function registerBillingRoutes(app: Express) {
   // ============= ADMIN PLAN ROUTES =============
 
   // Create a new plan (super admin only)
-  app.post('/api/admin/plans', async (req, res) => {
+  apiRoute(app, 'post', '/api/admin/plans', {
+    tag: 'Billing',
+    summary: 'Create a new plan',
+    requestBody: body({ type: 'object', properties: { code: { type: 'string' }, name: { type: 'string' }, description: { type: 'string' }, monthlyPriceCents: { type: 'integer' }, maxSeats: { type: 'integer' } } }),
+    responses: { ...r201('Plan created'), ...createRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -735,7 +791,12 @@ export async function registerBillingRoutes(app: Express) {
   });
 
   // Reorder plans (super admin only) - MUST be before :id route
-  app.put('/api/admin/plans/reorder', async (req, res) => {
+  apiRoute(app, 'put', '/api/admin/plans/reorder', {
+    tag: 'Billing',
+    summary: 'Reorder plans',
+    requestBody: body({ type: 'object', properties: { orderedIds: { type: 'array', items: { type: 'integer' } } } }),
+    responses: { ...r200('Plans reordered'), ...stdRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -769,7 +830,13 @@ export async function registerBillingRoutes(app: Express) {
   });
 
   // Update a plan (super admin only)
-  app.put('/api/admin/plans/:id', async (req, res) => {
+  apiRoute(app, 'put', '/api/admin/plans/:id', {
+    tag: 'Billing',
+    summary: 'Update a plan',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Plan updated'), ...updateRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -809,7 +876,11 @@ export async function registerBillingRoutes(app: Express) {
   });
 
   // Initialize extra seat prices for plans (super admin only)
-  app.post('/api/admin/plans/init-extra-seat-prices', async (req, res) => {
+  apiRoute(app, 'post', '/api/admin/plans/init-extra-seat-prices', {
+    tag: 'Billing',
+    summary: 'Initialize extra seat prices',
+    responses: { ...r200('Seat prices initialized'), ...stdRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -852,7 +923,12 @@ export async function registerBillingRoutes(app: Express) {
   });
 
   // Delete a plan (super admin only)
-  app.delete('/api/admin/plans/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/admin/plans/:id', {
+    tag: 'Billing',
+    summary: 'Delete a plan',
+    parameters: [pathId()],
+    responses: { ...r200('Plan deleted'), ...fullRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -885,7 +961,12 @@ export async function registerBillingRoutes(app: Express) {
   });
 
   // Get plan meter rules
-  app.get('/api/admin/plans/:id/rules', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/plans/:id/rules', {
+    tag: 'Billing',
+    summary: 'Get plan meter rules',
+    parameters: [pathId()],
+    responses: { ...r200('Plan rules'), ...idRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -929,7 +1010,13 @@ export async function registerBillingRoutes(app: Express) {
   });
 
   // Create plan meter rule
-  app.post('/api/admin/plans/:planId/rules', async (req, res) => {
+  apiRoute(app, 'post', '/api/admin/plans/:planId/rules', {
+    tag: 'Billing',
+    summary: 'Create plan meter rule',
+    parameters: [pathId('planId')],
+    requestBody: body({ type: 'object', properties: { meterId: { type: 'integer' }, ruleType: { type: 'string' } } }),
+    responses: { ...r201('Rule created'), ...createRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -970,7 +1057,13 @@ export async function registerBillingRoutes(app: Express) {
   });
 
   // Update plan meter rule
-  app.put('/api/admin/plans/:planId/rules/:ruleId', async (req, res) => {
+  apiRoute(app, 'put', '/api/admin/plans/:planId/rules/:ruleId', {
+    tag: 'Billing',
+    summary: 'Update plan meter rule',
+    parameters: [pathId('planId'), pathId('ruleId')],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Rule updated'), ...updateRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -1007,7 +1100,11 @@ export async function registerBillingRoutes(app: Express) {
   // === CREDIT COST MANAGEMENT (Super Admin) ===
   
   // Get all credit costs
-  app.get('/api/admin/credit-costs', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/credit-costs', {
+    tag: 'Billing',
+    summary: 'Get all credit costs',
+    responses: { ...r200('Credit costs'), ...stdRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -1032,7 +1129,13 @@ export async function registerBillingRoutes(app: Express) {
   });
 
   // Update a credit cost
-  app.put('/api/admin/credit-costs/:resourceType', async (req, res) => {
+  apiRoute(app, 'put', '/api/admin/credit-costs/:resourceType', {
+    tag: 'Billing',
+    summary: 'Update credit cost',
+    parameters: [pathStr('resourceType')],
+    requestBody: body({ type: 'object', properties: { creditCost: { type: 'integer' }, displayName: { type: 'string' }, description: { type: 'string' } } }),
+    responses: { ...r200('Credit cost updated'), ...updateRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -1076,7 +1179,12 @@ export async function registerBillingRoutes(app: Express) {
   });
 
   // Get plan credits summary (for plan management UI)
-  app.get('/api/admin/plans/:id/credits', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/plans/:id/credits', {
+    tag: 'Billing',
+    summary: 'Get plan credits summary',
+    parameters: [pathId()],
+    responses: { ...r200('Plan credits'), ...idRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -1153,17 +1261,60 @@ export async function registerBillingRoutes(app: Express) {
         getPayPalClientId 
       } = await import("../paypalSubscriptions");
 
-      app.get("/api/paypal/subscription/client-id", getPayPalClientId);
-      app.post("/api/paypal/subscription/product", createProduct);
-      app.post("/api/paypal/subscription/plan", createPlan);
-      app.get("/api/paypal/subscription/plans", listPayPalPlans);
-      app.post("/api/paypal/subscription/create", createSubscription);
-      app.get("/api/paypal/subscription/:subscriptionId", getSubscription);
-      app.post("/api/paypal/subscription/:subscriptionId/cancel", cancelSubscription);
-      app.post("/api/paypal/subscription/:subscriptionId/activate", activateSubscription);
+      apiRoute(app, 'get', '/api/paypal/subscription/client-id', {
+        tag: 'Billing',
+        summary: 'Get PayPal client ID',
+        responses: { ...r200('PayPal client ID'), ...authRes },
+      }, getPayPalClientId);
+      apiRoute(app, 'post', '/api/paypal/subscription/product', {
+        tag: 'Billing',
+        summary: 'Create PayPal product',
+        requestBody: body({ type: 'object' }),
+        responses: { ...r201('Product created'), ...createRes },
+      }, createProduct);
+      apiRoute(app, 'post', '/api/paypal/subscription/plan', {
+        tag: 'Billing',
+        summary: 'Create PayPal plan',
+        requestBody: body({ type: 'object' }),
+        responses: { ...r201('Plan created'), ...createRes },
+      }, createPlan);
+      apiRoute(app, 'get', '/api/paypal/subscription/plans', {
+        tag: 'Billing',
+        summary: 'List PayPal plans',
+        responses: { ...r200('PayPal plans'), ...authRes },
+      }, listPayPalPlans);
+      apiRoute(app, 'post', '/api/paypal/subscription/create', {
+        tag: 'Billing',
+        summary: 'Create PayPal subscription',
+        requestBody: body({ type: 'object', properties: { planId: { type: 'string' } } }),
+        responses: { ...r200('Subscription created'), ...inputRes },
+      }, createSubscription);
+      apiRoute(app, 'get', '/api/paypal/subscription/:subscriptionId', {
+        tag: 'Billing',
+        summary: 'Get PayPal subscription details',
+        parameters: [pathStr('subscriptionId')],
+        responses: { ...r200('Subscription details'), ...idRes },
+      }, getSubscription);
+      apiRoute(app, 'post', '/api/paypal/subscription/:subscriptionId/cancel', {
+        tag: 'Billing',
+        summary: 'Cancel PayPal subscription',
+        parameters: [pathStr('subscriptionId')],
+        responses: { ...r200('Subscription cancelled'), ...fullRes },
+      }, cancelSubscription);
+      apiRoute(app, 'post', '/api/paypal/subscription/:subscriptionId/activate', {
+        tag: 'Billing',
+        summary: 'Activate PayPal subscription',
+        parameters: [pathStr('subscriptionId')],
+        responses: { ...r200('Subscription activated'), ...fullRes },
+      }, activateSubscription);
       
       // Get payment method from user's active PayPal subscription
-      app.get("/api/billing/payment-method", async (req, res) => {
+      apiRoute(app, 'get', '/api/billing/payment-method', {
+        tag: 'Billing',
+        summary: 'Get payment method on file',
+        parameters: [qInt('orgId', true)],
+        responses: { ...r200('Payment method'), ...authRes },
+      }, async (req, res) => {
         const userId = getUserIdFromRequest(req);
         if (!userId) {
           return res.status(401).json({ message: "Authentication required" });
@@ -1234,7 +1385,11 @@ export async function registerBillingRoutes(app: Express) {
       });
 
       // Admin: Sync all billing plans to PayPal
-      app.post("/api/admin/paypal/sync-plans", async (req, res) => {
+      apiRoute(app, 'post', '/api/admin/paypal/sync-plans', {
+        tag: 'Billing',
+        summary: 'Sync billing plans to PayPal',
+        responses: { ...r200('Plans synced'), ...stdRes },
+      }, async (req, res) => {
         const userId = getUserIdFromRequest(req);
         if (!userId) {
           return res.status(401).json({ message: "Authentication required" });
@@ -1432,7 +1587,12 @@ export async function registerBillingRoutes(app: Express) {
       });
 
       // Update subscription with PayPal subscription ID
-      app.post("/api/billing/subscription/paypal", async (req, res) => {
+      apiRoute(app, 'post', '/api/billing/subscription/paypal', {
+        tag: 'Billing',
+        summary: 'Create PayPal subscription',
+        requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, planId: { type: 'integer' }, subscriptionId: { type: 'string' } } }),
+        responses: { ...r201('Subscription created'), ...inputRes },
+      }, async (req, res) => {
         const userId = getUserIdFromRequest(req);
         if (!userId) {
           return res.status(401).json({ message: "Authentication required" });
@@ -1694,7 +1854,12 @@ export async function registerBillingRoutes(app: Express) {
       });
 
       // PayPal Webhook handler for recording payment transactions
-      app.post("/api/webhooks/paypal", async (req, res) => {
+      apiRoute(app, 'post', '/api/webhooks/paypal', {
+        tag: 'Billing',
+        summary: 'PayPal webhook handler',
+        security: [],
+        responses: { ...r200('Webhook processed') },
+      }, async (req, res) => {
         try {
           const { event_type, resource, create_time } = req.body;
 

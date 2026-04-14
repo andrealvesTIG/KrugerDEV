@@ -40,10 +40,15 @@ import {
   seedDatabase,
   formatZodErrors,
 } from "./helpers";
+import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400 } from "../route-registry";
 
 export function registerOrganizationRoutes(app: Express) {
   // --- Organizations ---
-  app.get('/api/organizations', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations', {
+    tag: 'Organizations',
+    summary: 'List all organizations',
+    responses: { ...r200('List of organizations', arrOf('Organization')), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -65,7 +70,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  app.get('/api/organizations/:id', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:id', {
+    tag: 'Organizations',
+    summary: 'Get organization by ID',
+    parameters: [pathId()],
+    responses: { ...r200('Organization details', ref('Organization')), ...idRes },
+  }, async (req, res) => {
     const orgId = Number(req.params.id);
     const userId = getUserIdFromRequest(req);
     
@@ -79,7 +89,12 @@ export function registerOrganizationRoutes(app: Express) {
     res.json(org);
   });
 
-  app.post('/api/organizations', async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations', {
+    tag: 'Organizations',
+    summary: 'Create a new organization',
+    requestBody: body({ type: 'object', required: ['name'], properties: { name: { type: 'string' }, description: { type: 'string' } } }),
+    responses: { ...r201('Organization created', ref('Organization')), ...inputRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       
@@ -123,7 +138,13 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  app.put('/api/organizations/:id', async (req, res) => {
+  apiRoute(app, 'put', '/api/organizations/:id', {
+    tag: 'Organizations',
+    summary: 'Update organization',
+    parameters: [pathId()],
+    requestBody: body(ref('Organization')),
+    responses: { ...r200('Organization updated'), ...updateRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -146,7 +167,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  app.get('/api/organizations/:id/risk-assessment-config', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:id/risk-assessment-config', {
+    tag: 'Organizations',
+    summary: 'Get risk assessment configuration',
+    parameters: [pathId()],
+    responses: { ...r200('Risk assessment config'), ...idRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -178,7 +204,13 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  app.put('/api/organizations/:id/risk-assessment-config', async (req, res) => {
+  apiRoute(app, 'put', '/api/organizations/:id/risk-assessment-config', {
+    tag: 'Organizations',
+    summary: 'Update risk assessment configuration',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Config updated'), ...updateRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -215,7 +247,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  app.get('/api/organizations/:id/scheduling-defaults', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:id/scheduling-defaults', {
+    tag: 'Organizations',
+    summary: 'Get organization scheduling defaults',
+    parameters: [pathId()],
+    responses: { ...r200('Scheduling defaults', { type: 'object', properties: { defaultDependencyType: { type: 'string', enum: ['FS', 'SS', 'FF', 'SF'] }, defaultLagDays: { type: 'integer' } } }), ...idRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -232,7 +269,13 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  app.put('/api/organizations/:id/scheduling-defaults', async (req, res) => {
+  apiRoute(app, 'put', '/api/organizations/:id/scheduling-defaults', {
+    tag: 'Organizations',
+    summary: 'Update organization scheduling defaults',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { defaultDependencyType: { type: 'string', enum: ['FS', 'SS', 'FF', 'SF'] }, defaultLagDays: { type: 'integer' } } }),
+    responses: { ...r200('Scheduling defaults updated'), ...updateRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -260,8 +303,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Get all organization integrations with status
-  app.get('/api/organizations/:id/integrations', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:id/integrations', {
+    tag: 'Organizations',
+    summary: 'Get organization integrations',
+    parameters: [pathId()],
+    responses: { ...r200('Integration settings'), ...idRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -280,8 +327,13 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Dashboard tab order - admin only
-  app.put('/api/organizations/:id/dashboard-tab-order', async (req, res) => {
+  apiRoute(app, 'put', '/api/organizations/:id/dashboard-tab-order', {
+    tag: 'Organizations',
+    summary: 'Update dashboard tab order',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { tabOrder: { type: 'array', items: { type: 'string' } } } }),
+    responses: { ...r200('Tab order updated'), ...updateRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -329,8 +381,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Get dashboard tab order
-  app.get('/api/organizations/:id/dashboard-tab-order', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:id/dashboard-tab-order', {
+    tag: 'Organizations',
+    summary: 'Get dashboard tab order',
+    parameters: [pathId()],
+    responses: { ...r200('Tab order'), ...idRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -347,8 +403,13 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Organization logo upload URL
-  app.post('/api/organizations/:id/logo/upload-url', async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:id/logo/upload-url', {
+    tag: 'Organizations',
+    summary: 'Get presigned logo upload URL',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { contentType: { type: 'string' } } }),
+    responses: { ...r200('Upload URL'), ...createRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -378,8 +439,13 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Direct logo upload (uses local storage as fallback when object storage is unavailable)
-  app.post('/api/organizations/:id/logo/upload', imageUpload.single('logo'), async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:id/logo/upload', {
+    tag: 'Organizations',
+    summary: 'Upload organization logo directly',
+    parameters: [pathId()],
+    requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } } } },
+    responses: { ...r200('Logo uploaded'), ...createRes },
+  }, imageUpload.single('logo'), async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -454,8 +520,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Deactivate organization (soft delete)
-  app.delete('/api/organizations/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/organizations/:id', {
+    tag: 'Organizations',
+    summary: 'Delete organization',
+    parameters: [pathId()],
+    responses: { ...r200('Organization deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -476,8 +546,11 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Get deactivated organizations (super_admin only)
-  app.get('/api/admin/organizations/deactivated', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/organizations/deactivated', {
+    tag: 'Admin',
+    summary: 'List deactivated organizations',
+    responses: { ...r200('Deactivated orgs'), ...stdRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -497,8 +570,11 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Get all organization members (super_admin only)
-  app.get('/api/admin/organization-members', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/organization-members', {
+    tag: 'Admin',
+    summary: 'List all organization members (admin)',
+    responses: { ...r200('All org members'), ...stdRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -522,8 +598,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Reactivate (restore) organization (super_admin only)
-  app.post('/api/admin/organizations/:id/reactivate', async (req, res) => {
+  apiRoute(app, 'post', '/api/admin/organizations/:id/reactivate', {
+    tag: 'Admin',
+    summary: 'Reactivate a deactivated organization',
+    parameters: [pathId()],
+    responses: { ...r200('Organization reactivated'), ...fullRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -545,7 +625,11 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  app.get('/api/admin/organizations/subscriptions', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/organizations/subscriptions', {
+    tag: 'Admin',
+    summary: 'List all organization subscriptions',
+    responses: { ...r200('All subscriptions'), ...stdRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -569,8 +653,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Send upgrade offer email to users (super_admin or marketing)
-  app.post('/api/admin/send-upgrade-offer', async (req, res) => {
+  apiRoute(app, 'post', '/api/admin/send-upgrade-offer', {
+    tag: 'Admin',
+    summary: 'Send upgrade offer email to users',
+    requestBody: body({ type: 'object', required: ['userIds', 'customMessage'], properties: { userIds: { type: 'array', items: { type: 'string' } }, customMessage: { type: 'string' } } }),
+    responses: { ...r200('Upgrade offers sent'), ...stdRes, ...e400 },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -627,8 +715,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Get organization billing info (super_admin only)
-  app.get('/api/admin/organizations/:id/billing', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/organizations/:id/billing', {
+    tag: 'Admin',
+    summary: 'Get organization billing info',
+    parameters: [pathId()],
+    responses: { ...r200('Organization billing info'), ...fullRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -677,8 +769,13 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Update organization billing (super_admin only) - change plan and/or bonus seats
-  app.put('/api/admin/organizations/:id/billing', async (req, res) => {
+  apiRoute(app, 'put', '/api/admin/organizations/:id/billing', {
+    tag: 'Admin',
+    summary: 'Update organization billing',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { planCode: { type: 'string' }, bonusSeats: { type: 'integer' }, billingHidden: { type: 'boolean' } } }),
+    responses: { ...r200('Organization billing updated'), ...fullRes, ...e400 },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -787,8 +884,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // --- Get all task resource assignments for organization (for grouping) ---
-  app.get('/api/organizations/:id/task-assignments', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:id/task-assignments', {
+    tag: 'Organizations',
+    summary: 'Get all task assignments for organization',
+    parameters: [pathId()],
+    responses: { ...r200('Task assignments'), ...idRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);

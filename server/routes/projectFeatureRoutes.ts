@@ -17,12 +17,17 @@ import {
   parseXmlMspdi,
   parseCsv,
 } from "./helpers";
+import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
 
 export function registerProjectFeatureRoutes(app: Express) {
   // =========== CHANGE REQUESTS ===========
   
-  // Get all change requests for a project
-  app.get('/api/projects/:projectId/change-requests', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/change-requests', {
+    tag: 'Change Requests',
+    summary: 'List change requests for project',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Change requests', arrOf('ChangeRequest')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -41,8 +46,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Create a change request
-  app.post('/api/projects/:projectId/change-requests', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/change-requests', {
+    tag: 'Change Requests',
+    summary: 'Create change request',
+    parameters: [pathId('projectId')],
+    requestBody: body(ref('ChangeRequest')),
+    responses: { ...r201('Change request created', ref('ChangeRequest')), ...createRes },
+  }, async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
       const userId = getUserIdFromRequest(req);
@@ -94,8 +104,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Update a change request
-  app.patch('/api/change-requests/:id', async (req, res) => {
+  apiRoute(app, 'patch', '/api/change-requests/:id', {
+    tag: 'Change Requests',
+    summary: 'Update change request',
+    parameters: [pathId()],
+    requestBody: body(ref('ChangeRequest')),
+    responses: { ...r200('Change request updated'), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -126,8 +141,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Delete a change request
-  app.delete('/api/change-requests/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/change-requests/:id', {
+    tag: 'Change Requests',
+    summary: 'Delete change request',
+    parameters: [pathId()],
+    responses: { ...r200('Change request deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -149,8 +168,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // =========== PROJECT DOCUMENTS ===========
   
-  // Get all documents for a project
-  app.get('/api/projects/:projectId/documents', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/documents', {
+    tag: 'Documents',
+    summary: 'List project documents',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Documents list', arrOf('Document')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -169,8 +192,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Create a document record (metadata only - actual file upload handled separately)
-  app.post('/api/projects/:projectId/documents', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/documents', {
+    tag: 'Documents',
+    summary: 'Add document to project',
+    parameters: [pathId('projectId')],
+    requestBody: body(ref('Document')),
+    responses: { ...r201('Document added', ref('Document')), ...createRes },
+  }, async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
       const userId = getUserIdFromRequest(req);
@@ -223,8 +251,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Update a document
-  app.patch('/api/documents/:id', async (req, res) => {
+  apiRoute(app, 'patch', '/api/documents/:id', {
+    tag: 'Documents',
+    summary: 'Update document',
+    parameters: [pathId()],
+    requestBody: body(ref('Document')),
+    responses: { ...r200('Document updated'), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -255,8 +288,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Delete a document
-  app.delete('/api/documents/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/documents/:id', {
+    tag: 'Documents',
+    summary: 'Delete document',
+    parameters: [pathId()],
+    responses: { ...r200('Document deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -278,8 +315,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // =========== PROJECT COMMENTS ===========
   
-  // Get all comments for a project
-  app.get('/api/projects/:projectId/comments', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/comments', {
+    tag: 'Comments',
+    summary: 'List project comments',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Comments list', arrOf('Comment')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -307,8 +348,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Create a comment for a project (supports replies via parentId and @mentions)
-  app.post('/api/projects/:projectId/comments', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/comments', {
+    tag: 'Comments',
+    summary: 'Add comment to project',
+    parameters: [pathId('projectId')],
+    requestBody: body({ type: 'object', properties: { content: { type: 'string' } } }),
+    responses: { ...r201('Comment added', ref('Comment')), ...createRes },
+  }, async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
       const userId = getUserIdFromRequest(req);
@@ -412,8 +458,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Delete a comment
-  app.delete('/api/comments/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/comments/:id', {
+    tag: 'Comments',
+    summary: 'Delete comment',
+    parameters: [pathId()],
+    responses: { ...r200('Comment deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       const id = Number(req.params.id);
@@ -449,8 +499,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // =========== BILLABLE STATUS COMMENTS ===========
   
-  // Get all billable status comments for a project
-  app.get('/api/projects/:projectId/billable-status-comments', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/billable-status-comments', {
+    tag: 'Comments',
+    summary: 'List billable status comments for project',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Billable status comments'), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -477,8 +531,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Create a billable status comment for a project
-  app.post('/api/projects/:projectId/billable-status-comments', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/billable-status-comments', {
+    tag: 'Comments',
+    summary: 'Add billable status comment',
+    parameters: [pathId('projectId')],
+    requestBody: body({ type: 'object', properties: { content: { type: 'string' }, billableStatus: { type: 'string' } } }),
+    responses: { ...r201('Comment added'), ...createRes },
+  }, async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
       const userId = getUserIdFromRequest(req);
@@ -529,8 +588,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // =========== HEALTH STATUS HISTORY ===========
   
-  // Get health status history for a project
-  app.get('/api/projects/:projectId/health-status-history', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/health-status-history', {
+    tag: 'Comments',
+    summary: 'Get project health status history',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Health status history'), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -559,8 +622,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // =========== PROJECT INVOICES ===========
   
-  // Get all invoices for an organization
-  app.get('/api/organizations/:organizationId/invoices', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:organizationId/invoices', {
+    tag: 'Invoices',
+    summary: 'List organization invoices',
+    parameters: [pathId('organizationId')],
+    responses: { ...r200('Invoices list'), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -582,8 +649,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Get all invoices for a project
-  app.get('/api/projects/:projectId/invoices', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/invoices', {
+    tag: 'Invoices',
+    summary: 'List project invoices',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Project invoices'), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       const projectId = Number(req.params.projectId);
@@ -609,8 +680,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Create a new invoice
-  app.post('/api/projects/:projectId/invoices', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/invoices', {
+    tag: 'Invoices',
+    summary: 'Create project invoice',
+    parameters: [pathId('projectId')],
+    requestBody: body(ref('Invoice')),
+    responses: { ...r201('Invoice created'), ...createRes },
+  }, async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
       const userId = getUserIdFromRequest(req);
@@ -661,8 +737,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Update an invoice
-  app.patch('/api/invoices/:invoiceId', async (req, res) => {
+  apiRoute(app, 'patch', '/api/invoices/:invoiceId', {
+    tag: 'Invoices',
+    summary: 'Update invoice',
+    parameters: [pathId('invoiceId')],
+    requestBody: body(ref('Invoice')),
+    responses: { ...r200('Invoice updated'), ...updateRes },
+  }, async (req, res) => {
     try {
       const invoiceId = Number(req.params.invoiceId);
       const userId = getUserIdFromRequest(req);
@@ -707,8 +788,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Delete an invoice
-  app.delete('/api/invoices/:invoiceId', async (req, res) => {
+  apiRoute(app, 'delete', '/api/invoices/:invoiceId', {
+    tag: 'Invoices',
+    summary: 'Delete invoice',
+    parameters: [pathId('invoiceId')],
+    responses: { ...r200('Invoice deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const invoiceId = Number(req.params.invoiceId);
       const userId = getUserIdFromRequest(req);
@@ -743,8 +828,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // =========== INVOICE NOTES ===========
   
-  // Get all notes for an invoice
-  app.get('/api/invoices/:invoiceId/notes', async (req, res) => {
+  apiRoute(app, 'get', '/api/invoices/:invoiceId/notes', {
+    tag: 'Invoice Notes',
+    summary: 'List invoice notes',
+    parameters: [pathId('invoiceId')],
+    responses: { ...r200('Invoice notes'), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       const invoiceId = Number(req.params.invoiceId);
@@ -775,8 +864,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Create a note for an invoice
-  app.post('/api/invoices/:invoiceId/notes', async (req, res) => {
+  apiRoute(app, 'post', '/api/invoices/:invoiceId/notes', {
+    tag: 'Invoice Notes',
+    summary: 'Create invoice note',
+    parameters: [pathId('invoiceId')],
+    requestBody: body({ type: 'object', properties: { note: { type: 'string' } } }),
+    responses: { ...r201('Note created'), ...createRes },
+  }, async (req, res) => {
     try {
       const invoiceId = Number(req.params.invoiceId);
       const userId = getUserIdFromRequest(req);
@@ -828,8 +922,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // =========== PROJECT VIEWS ===========
   
-  // Get all views for a user in a specific mode (grid or gantt)
-  app.get('/api/organizations/:orgId/project-views', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:orgId/project-views', {
+    tag: 'Project Views',
+    summary: 'List project views for organization',
+    parameters: [pathId('orgId'), qStr('mode', true, 'View mode (grid or gantt)')],
+    responses: { ...r200('Project views'), ...idRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
       const mode = req.query.mode as string;
@@ -857,8 +955,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Create a new project view
-  app.post('/api/organizations/:orgId/project-views', async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:orgId/project-views', {
+    tag: 'Project Views',
+    summary: 'Create project view',
+    parameters: [pathId('orgId')],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('View created'), ...createRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
       const userId = getUserIdFromRequest(req);
@@ -919,8 +1022,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Update a project view
-  app.patch('/api/project-views/:id', async (req, res) => {
+  apiRoute(app, 'patch', '/api/project-views/:id', {
+    tag: 'Project Views',
+    summary: 'Update project view',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('View updated'), ...updateRes },
+  }, async (req, res) => {
     try {
       const viewId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -977,8 +1085,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Delete a project view
-  app.delete('/api/project-views/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/project-views/:id', {
+    tag: 'Project Views',
+    summary: 'Delete project view',
+    parameters: [pathId()],
+    responses: { ...r200('View deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const viewId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -1011,8 +1123,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Set a view as default
-  app.post('/api/project-views/:id/set-default', async (req, res) => {
+  apiRoute(app, 'post', '/api/project-views/:id/set-default', {
+    tag: 'Project Views',
+    summary: 'Set project view as default',
+    parameters: [pathId()],
+    responses: { ...r200('Default view set'), ...fullRes },
+  }, async (req, res) => {
     try {
       const viewId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -1042,8 +1158,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // =========== SYSTEM PROJECT VIEWS (Admin-managed org-level views) ===========
   
-  // Get all system views for an organization (read-only for all members)
-  app.get('/api/organizations/:orgId/system-project-views', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:orgId/system-project-views', {
+    tag: 'System Project Views',
+    summary: 'List system project views for organization',
+    parameters: [pathId('orgId'), qStr('mode', true, 'View mode (grid or gantt)')],
+    responses: { ...r200('System project views'), ...idRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
       const mode = req.query.mode as string;
@@ -1071,8 +1191,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Get all system views for org settings (admin only, includes inactive)
-  app.get('/api/organizations/:orgId/system-project-views/all', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:orgId/system-project-views/all', {
+    tag: 'System Project Views',
+    summary: 'List all system project views including inactive',
+    parameters: [pathId('orgId')],
+    responses: { ...r200('All system project views'), ...fullRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
       const userId = getUserIdFromRequest(req);
@@ -1103,8 +1227,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Create a new system project view (admin only)
-  app.post('/api/organizations/:orgId/system-project-views', async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:orgId/system-project-views', {
+    tag: 'System Project Views',
+    summary: 'Create system project view',
+    parameters: [pathId('orgId')],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('System view created'), ...createRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
       const userId = getUserIdFromRequest(req);
@@ -1160,8 +1289,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Update a system project view (admin only)
-  app.patch('/api/system-project-views/:id', async (req, res) => {
+  apiRoute(app, 'patch', '/api/system-project-views/:id', {
+    tag: 'System Project Views',
+    summary: 'Update system project view',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('System view updated'), ...updateRes },
+  }, async (req, res) => {
     try {
       const viewId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -1206,8 +1340,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Delete a system project view (admin only)
-  app.delete('/api/system-project-views/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/system-project-views/:id', {
+    tag: 'System Project Views',
+    summary: 'Delete system project view',
+    parameters: [pathId()],
+    responses: { ...r204('System view deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const viewId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -1243,7 +1381,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // ==================== COST ITEMS (Financial Grid) ====================
 
-  app.get('/api/projects/:projectId/cost-items', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/cost-items', {
+    tag: 'Cost Items',
+    summary: 'List cost items for project',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Cost items', arrOf('CostItem')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1259,7 +1402,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.get('/api/cost-items/:id', async (req, res) => {
+  apiRoute(app, 'get', '/api/cost-items/:id', {
+    tag: 'Cost Items',
+    summary: 'Get cost item by ID',
+    parameters: [pathId()],
+    responses: { ...r200('Cost item', ref('CostItem')), ...idRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const item = await storage.getCostItem(Number(req.params.id));
@@ -1267,7 +1415,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     res.json(item);
   });
 
-  app.post('/api/projects/:projectId/cost-items', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/cost-items', {
+    tag: 'Cost Items',
+    summary: 'Create cost item',
+    parameters: [pathId('projectId')],
+    requestBody: body(ref('CostItem')),
+    responses: { ...r201('Cost item created'), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1307,7 +1461,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.put('/api/cost-items/:id', async (req, res) => {
+  apiRoute(app, 'put', '/api/cost-items/:id', {
+    tag: 'Cost Items',
+    summary: 'Update cost item',
+    parameters: [pathId()],
+    requestBody: body(ref('CostItem')),
+    responses: { ...r200('Cost item updated'), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1335,7 +1495,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.delete('/api/cost-items/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/cost-items/:id', {
+    tag: 'Cost Items',
+    summary: 'Delete cost item',
+    parameters: [pathId()],
+    responses: { ...r200('Cost item deleted'), ...fullRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const id = Number(req.params.id);
@@ -1348,8 +1513,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // ==================== MPP IMPORTS ====================
   
-  // Get all MPP imports for an organization
-  app.get('/api/mpp-imports', async (req, res) => {
+  apiRoute(app, 'get', '/api/mpp-imports', {
+    tag: 'MPP Imports',
+    summary: 'List MPP imports for organization',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('MPP imports list'), ...authRes },
+  }, async (req, res) => {
     try {
       const organizationId = Number(req.query.organizationId);
       if (isNaN(organizationId)) {
@@ -1364,8 +1533,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Get tasks for a specific import
-  app.get('/api/mpp-imports/:id/tasks', async (req, res) => {
+  apiRoute(app, 'get', '/api/mpp-imports/:id/tasks', {
+    tag: 'MPP Imports',
+    summary: 'Get tasks for MPP import',
+    parameters: [pathId()],
+    responses: { ...r200('Import tasks'), ...idRes },
+  }, async (req, res) => {
     try {
       const id = Number(req.params.id);
       const tasks = await storage.getMppImportTasks(id);
@@ -1377,8 +1550,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Upload and parse MPP file (XML or CSV)
-  app.post('/api/mpp-imports/upload', upload.single('file'), async (req, res) => {
+  apiRoute(app, 'post', '/api/mpp-imports/upload', {
+    tag: 'MPP Imports',
+    summary: 'Upload and parse MPP file',
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('File uploaded and parsed'), ...createRes },
+  }, upload.single('file'), async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       
@@ -1504,8 +1681,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Convert MPP import to a project with tasks
-  app.post('/api/mpp-imports/:id/convert', async (req, res) => {
+  apiRoute(app, 'post', '/api/mpp-imports/:id/convert', {
+    tag: 'MPP Imports',
+    summary: 'Convert MPP import to project',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Import converted to project'), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -1568,8 +1750,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Sync MPP import to an existing project (update tasks)
-  app.post('/api/mpp-imports/:id/sync', async (req, res) => {
+  apiRoute(app, 'post', '/api/mpp-imports/:id/sync', {
+    tag: 'MPP Imports',
+    summary: 'Sync MPP import to existing project',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Import synced to project'), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -1635,8 +1822,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Delete an MPP import
-  app.delete('/api/mpp-imports/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/mpp-imports/:id', {
+    tag: 'MPP Imports',
+    summary: 'Delete MPP import',
+    parameters: [pathId()],
+    responses: { ...r200('Import deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const id = Number(req.params.id);
       await storage.deleteMppImport(id);
@@ -1650,7 +1841,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // =========== PROJECT TEMPLATES ===========
 
-  app.get('/api/project-templates', async (req, res) => {
+  apiRoute(app, 'get', '/api/project-templates', {
+    tag: 'Project Templates',
+    summary: 'List project templates',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Templates list'), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1666,7 +1862,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.get('/api/project-templates/:id', async (req, res) => {
+  apiRoute(app, 'get', '/api/project-templates/:id', {
+    tag: 'Project Templates',
+    summary: 'Get project template by ID',
+    parameters: [pathId()],
+    responses: { ...r200('Template details'), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1683,7 +1884,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.post('/api/project-templates/from-mpp', upload.single('file'), async (req, res) => {
+  apiRoute(app, 'post', '/api/project-templates/from-mpp', {
+    tag: 'Project Templates',
+    summary: 'Create template from MPP file',
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('Template created from file'), ...createRes },
+  }, upload.single('file'), async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1782,7 +1988,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.post('/api/project-templates/from-project', async (req, res) => {
+  apiRoute(app, 'post', '/api/project-templates/from-project', {
+    tag: 'Project Templates',
+    summary: 'Create template from existing project',
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('Template created from project'), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1886,7 +2097,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.put('/api/project-templates/:id', async (req, res) => {
+  apiRoute(app, 'put', '/api/project-templates/:id', {
+    tag: 'Project Templates',
+    summary: 'Update project template',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Template updated'), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1909,7 +2126,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.delete('/api/project-templates/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/project-templates/:id', {
+    tag: 'Project Templates',
+    summary: 'Delete project template',
+    parameters: [pathId()],
+    responses: { ...r200('Template deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1953,7 +2175,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.post('/api/project-templates/:id/duplicate', async (req, res) => {
+  apiRoute(app, 'post', '/api/project-templates/:id/duplicate', {
+    tag: 'Project Templates',
+    summary: 'Duplicate project template',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }, false),
+    responses: { ...r201('Template duplicated'), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2042,7 +2270,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.get('/api/project-templates/:id/download', async (req, res) => {
+  apiRoute(app, 'get', '/api/project-templates/:id/download', {
+    tag: 'Project Templates',
+    summary: 'Download project template file',
+    parameters: [pathId()],
+    responses: { ...r200('Template file download'), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2094,7 +2327,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.post('/api/project-templates/:id/reimport', upload.single('file'), async (req, res) => {
+  apiRoute(app, 'post', '/api/project-templates/:id/reimport', {
+    tag: 'Project Templates',
+    summary: 'Reimport template from new file',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Template reimported'), ...updateRes },
+  }, upload.single('file'), async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2215,7 +2454,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.post('/api/project-templates/:id/create-project', async (req, res) => {
+  apiRoute(app, 'post', '/api/project-templates/:id/create-project', {
+    tag: 'Project Templates',
+    summary: 'Create project from template',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('Project created from template'), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });

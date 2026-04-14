@@ -9,6 +9,7 @@ import {
   runStatusReport,
   calculateNextWeeklyRun,
 } from "../services/projectAgentService";
+import { apiRoute, pathId, r200, r201, body, authRes, fullRes, inputRes } from "../route-registry";
 
 function getUserIdFromRequest(req: Request): string | null {
   const user = req.user as any;
@@ -16,7 +17,12 @@ function getUserIdFromRequest(req: Request): string | null {
 }
 
 export function registerProjectAgentRoutes(app: Express) {
-  app.get("/api/projects/:projectId/agent", async (req: Request, res: Response) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/agent', {
+    tag: 'Projects',
+    summary: 'Get project agent configuration',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Agent config'), ...authRes },
+  }, async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: "Authentication required" });
 
@@ -25,7 +31,12 @@ export function registerProjectAgentRoutes(app: Express) {
     res.json(agent || null);
   });
 
-  app.get("/api/projects/:projectId/agent/stakeholders", async (req: Request, res: Response) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/agent/stakeholders', {
+    tag: 'Projects',
+    summary: 'Get project agent stakeholders',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Stakeholder list'), ...authRes },
+  }, async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: "Authentication required" });
 
@@ -34,7 +45,28 @@ export function registerProjectAgentRoutes(app: Express) {
     res.json(stakeholders);
   });
 
-  app.put("/api/projects/:projectId/agent", async (req: Request, res: Response) => {
+  apiRoute(app, 'put', '/api/projects/:projectId/agent', {
+    tag: 'Projects',
+    summary: 'Create or update project agent configuration',
+    parameters: [pathId('projectId')],
+    requestBody: body({
+      type: 'object',
+      properties: {
+        enabled: { type: 'boolean' },
+        agendaEnabled: { type: 'boolean' },
+        agendaDay: { type: 'integer' },
+        agendaTime: { type: 'string' },
+        taskFollowUpEnabled: { type: 'boolean' },
+        taskFollowUpDay: { type: 'integer' },
+        taskFollowUpTime: { type: 'string' },
+        statusReportEnabled: { type: 'boolean' },
+        statusReportDay: { type: 'integer' },
+        statusReportTime: { type: 'string' },
+        timezone: { type: 'string' },
+      },
+    }),
+    responses: { ...r200('Updated agent'), ...fullRes },
+  }, async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: "Authentication required" });
 
@@ -110,7 +142,12 @@ export function registerProjectAgentRoutes(app: Express) {
     res.json(agent);
   });
 
-  app.get("/api/projects/:projectId/agent/logs", async (req: Request, res: Response) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/agent/logs', {
+    tag: 'Projects',
+    summary: 'Get project agent execution logs',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Agent logs'), ...authRes },
+  }, async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: "Authentication required" });
 
@@ -128,7 +165,12 @@ export function registerProjectAgentRoutes(app: Express) {
     res.json(logs);
   });
 
-  app.post("/api/projects/:projectId/agent/trigger/:action", async (req: Request, res: Response) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/agent/trigger/:action', {
+    tag: 'Projects',
+    summary: 'Manually trigger a project agent action',
+    parameters: [pathId('projectId'), { name: 'action', in: 'path', required: true, schema: { type: 'string', enum: ['meeting_agenda', 'task_follow_up', 'status_report'] } }],
+    responses: { ...r200('Action result'), ...fullRes, ...inputRes },
+  }, async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: "Authentication required" });
 

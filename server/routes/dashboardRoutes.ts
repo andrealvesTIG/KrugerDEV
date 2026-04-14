@@ -11,11 +11,17 @@ import {
   userHasOrgAccess,
   openai,
 } from "./helpers";
+import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
 
 export function registerDashboardRoutes(app: Express) {
   // ==================== DASHBOARD AGGREGATION ENDPOINTS ====================
 
-  app.get('/api/dashboard/summary', async (req, res) => {
+  apiRoute(app, 'get', '/api/dashboard/summary', {
+    tag: 'Dashboards',
+    summary: 'Get dashboard summary',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Dashboard summary data'), ...authRes },
+  }, async (req, res) => {
     try {
       const organizationId = Number(req.query.organizationId);
       if (!organizationId) {
@@ -191,7 +197,12 @@ export function registerDashboardRoutes(app: Express) {
     }
   });
 
-  app.get('/api/risks', async (req, res) => {
+  apiRoute(app, 'get', '/api/risks', {
+    tag: 'Dashboards',
+    summary: 'List all risks across projects',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Risks list'), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       const organizationId = Number(req.query.organizationId);
@@ -219,8 +230,12 @@ export function registerDashboardRoutes(app: Express) {
     }
   });
 
-  // Get all resource assignments (dashboard)
-  app.get('/api/resource-assignments', async (req, res) => {
+  apiRoute(app, 'get', '/api/resource-assignments', {
+    tag: 'Dashboards',
+    summary: 'Get all resource assignments',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Resource assignments list'), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -241,8 +256,12 @@ export function registerDashboardRoutes(app: Express) {
     }
   });
 
-  // Get dashboard utilization data
-  app.get('/api/dashboard/utilization', async (req, res) => {
+  apiRoute(app, 'get', '/api/dashboard/utilization', {
+    tag: 'Dashboards',
+    summary: 'Get dashboard utilization data',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Utilization data'), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -262,8 +281,11 @@ export function registerDashboardRoutes(app: Express) {
     }
   });
 
-  // Onboarding endpoints
-  app.get('/api/onboarding/status', async (req, res) => {
+  apiRoute(app, 'get', '/api/onboarding/status', {
+    tag: 'Dashboards',
+    summary: 'Get onboarding status',
+    responses: { ...r200('Onboarding status'), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -277,7 +299,12 @@ export function registerDashboardRoutes(app: Express) {
     }
   });
 
-  app.post('/api/onboarding/complete', async (req, res) => {
+  apiRoute(app, 'post', '/api/onboarding/complete', {
+    tag: 'Dashboards',
+    summary: 'Complete onboarding',
+    requestBody: body({ type: 'object', properties: { companyName: { type: 'string' }, industry: { type: 'string' }, createDemoData: { type: 'boolean' } } }),
+    responses: { ...r200('Onboarding completed'), ...inputRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -295,7 +322,11 @@ export function registerDashboardRoutes(app: Express) {
     }
   });
 
-  app.post('/api/onboarding/skip', async (req, res) => {
+  apiRoute(app, 'post', '/api/onboarding/skip', {
+    tag: 'Dashboards',
+    summary: 'Skip onboarding',
+    responses: { ...r200('Onboarding skipped'), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -308,7 +339,11 @@ export function registerDashboardRoutes(app: Express) {
     }
   });
 
-  app.post('/api/onboarding/generate-sample-data', async (req, res) => {
+  apiRoute(app, 'post', '/api/onboarding/generate-sample-data', {
+    tag: 'Dashboards',
+    summary: 'Generate sample data for onboarding',
+    responses: { ...r200('Sample data generated'), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -325,8 +360,11 @@ export function registerDashboardRoutes(app: Express) {
     }
   });
 
-  // Demo Data Generation (Org Admin or Super Admin)
-  app.get('/api/demo-data/industries', async (req, res) => {
+  apiRoute(app, 'get', '/api/demo-data/industries', {
+    tag: 'Dashboards',
+    summary: 'List available demo data industries',
+    responses: { ...r200('Industries list'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     const user = userId ? await storage.getUser(userId) : null;
     
@@ -353,7 +391,12 @@ export function registerDashboardRoutes(app: Express) {
     res.json(industries);
   });
 
-  app.post('/api/demo-data/generate', async (req, res) => {
+  apiRoute(app, 'post', '/api/demo-data/generate', {
+    tag: 'Dashboards',
+    summary: 'Generate demo data for organization',
+    requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, industry: { type: 'string' }, customIndustry: { type: 'string' }, dataTypes: { type: 'array', items: { type: 'string' } } } }),
+    responses: { ...r201('Demo data generated'), ...createRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     const user = userId ? await storage.getUser(userId) : null;
     
@@ -934,7 +977,12 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
     }
   });
 
-  app.delete('/api/demo-data/:organizationId', async (req, res) => {
+  apiRoute(app, 'delete', '/api/demo-data/:organizationId', {
+    tag: 'Dashboards',
+    summary: 'Delete demo data for organization',
+    parameters: [pathId('organizationId')],
+    responses: { ...r200('Demo data deleted'), ...fullRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     const user = userId ? await storage.getUser(userId) : null;
     
@@ -974,7 +1022,12 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
     }
   });
 
-  app.get('/api/dashboard/kpi-metrics', async (req, res) => {
+  apiRoute(app, 'get', '/api/dashboard/kpi-metrics', {
+    tag: 'Dashboards',
+    summary: 'Get KPI metrics for organization',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('KPI metrics data'), ...authRes },
+  }, async (req, res) => {
     try {
       const organizationId = Number(req.query.organizationId);
       if (!organizationId) {
@@ -1179,7 +1232,11 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
     }
   });
 
-  app.get('/api/admin/kpi-metrics', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/kpi-metrics', {
+    tag: 'Dashboards',
+    summary: 'Get admin KPI metrics',
+    responses: { ...r200('Admin KPI metrics data'), ...stdRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {

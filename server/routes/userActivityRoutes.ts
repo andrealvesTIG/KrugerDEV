@@ -5,10 +5,15 @@ import {
   users, organizations, userActivityLogs,
 } from "@shared/schema";
 import { getUserIdFromRequest, hasAdminAccess } from "./helpers";
+import { apiRoute, r200, authRes, stdRes, qStr } from "../route-registry";
 
 export function registerUserActivityRoutes(app: Express) {
 
-  app.get('/api/admin/user-activity-kpi', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/user-activity-kpi', {
+    tag: 'Admin',
+    summary: 'Get user activity KPI dashboard data',
+    responses: { ...r200('Activity KPIs'), ...stdRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -166,7 +171,12 @@ export function registerUserActivityRoutes(app: Express) {
     }
   });
 
-  app.get('/api/admin/user-activity-kpi/organizations', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/user-activity-kpi/organizations', {
+    tag: 'Admin',
+    summary: 'Get per-organization activity KPI breakdown',
+    parameters: [qStr('period', false, 'Time period (7d, 14d, 30d, 90d, 6m, 1y, all)')],
+    responses: { ...r200('Organization activity data'), ...stdRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });

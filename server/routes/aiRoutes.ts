@@ -10,12 +10,18 @@ import {
   requireEmailVerified,
   openai,
 } from "./helpers";
+import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
 
 export function registerAiRoutes(app: Express) {
   // =========== AI PROJECT GENERATION ===========
   
   // Generate a project with tasks, issues, and risks using AI
-  app.post('/api/ai/generate-project', async (req, res) => {
+  apiRoute(app, 'post', '/api/ai/generate-project', {
+    tag: 'AI',
+    summary: 'Generate project structure from description',
+    requestBody: body({ type: 'object', properties: { description: { type: 'string' }, organizationId: { type: 'integer' } } }),
+    responses: { ...r201('Project generated'), ...inputRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       
@@ -250,7 +256,12 @@ Return ONLY valid JSON, no markdown or explanations.`;
   });
 
   // Smart AI Create - can create projects, tasks, risks, issues, milestones, or resources
-  app.post('/api/ai/smart-create', async (req, res) => {
+  apiRoute(app, 'post', '/api/ai/smart-create', {
+    tag: 'AI',
+    summary: 'Smart create with AI',
+    requestBody: body({ type: 'object', properties: { prompt: { type: 'string' }, organizationId: { type: 'integer' } } }),
+    responses: { ...r200('Smart create result'), ...inputRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       
@@ -687,7 +698,12 @@ Return ONLY valid JSON.`;
   });
 
   // ==================== AI VOICE INPUT USAGE METERING ====================
-  app.post('/api/ai/voice-usage', async (req, res) => {
+  apiRoute(app, 'post', '/api/ai/voice-usage', {
+    tag: 'AI',
+    summary: 'Log AI voice usage',
+    requestBody: body({ type: 'object', properties: { durationSeconds: { type: 'number' } } }),
+    responses: { ...r200('Usage logged'), ...inputRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -725,7 +741,12 @@ Return ONLY valid JSON.`;
   });
 
   // ==================== AI SMART-CREATE PREVIEW (Parse Only) ====================
-  app.post('/api/ai/smart-create/preview', async (req, res) => {
+  apiRoute(app, 'post', '/api/ai/smart-create/preview', {
+    tag: 'AI',
+    summary: 'Preview AI smart create result',
+    requestBody: body({ type: 'object', properties: { prompt: { type: 'string' }, organizationId: { type: 'integer' } } }),
+    responses: { ...r200('Preview data'), ...inputRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -963,7 +984,12 @@ Return ONLY valid JSON.`;
   });
 
   // ==================== AI SMART-CREATE CONFIRMED EXECUTE ====================
-  app.post('/api/ai/smart-create/execute', async (req, res) => {
+  apiRoute(app, 'post', '/api/ai/smart-create/execute', {
+    tag: 'AI',
+    summary: 'Execute AI smart create',
+    requestBody: body({ type: 'object', properties: { plan: { type: 'object' }, organizationId: { type: 'integer' } } }),
+    responses: { ...r201('Entities created'), ...inputRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {

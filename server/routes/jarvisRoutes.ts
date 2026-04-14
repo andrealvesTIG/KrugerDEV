@@ -7,6 +7,7 @@ import {
   getUserOrgRole,
   logUserActivity,
 } from "./helpers";
+import { apiRoute, body, r200, inputRes, authRes, stdRes } from "../route-registry";
 
 const MAX_MESSAGES = 50;
 const MAX_MESSAGE_LENGTH = 200000;
@@ -73,7 +74,22 @@ const actionRequestSchema = z.object({
 });
 
 export function registerJarvisRoutes(app: Express) {
-  app.post("/api/jarvis/chat", async (req, res) => {
+  apiRoute(app, 'post', '/api/jarvis/chat', {
+    tag: 'AI',
+    summary: 'Stream a JARVIS AI chat response',
+    requestBody: body({
+      type: 'object',
+      properties: {
+        messages: { type: 'array', items: { type: 'object', properties: { role: { type: 'string' }, content: { type: 'string' } } } },
+        organizationId: { type: 'integer' },
+        concise: { type: 'boolean' },
+        pageContext: { type: 'object', nullable: true },
+        attachments: { type: 'array', items: { type: 'object' } },
+      },
+      required: ['messages', 'organizationId'],
+    }),
+    responses: { ...r200('SSE stream'), ...inputRes, ...stdRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -132,7 +148,26 @@ export function registerJarvisRoutes(app: Express) {
     }
   });
 
-  app.post("/api/jarvis/action", async (req, res) => {
+  apiRoute(app, 'post', '/api/jarvis/action', {
+    tag: 'AI',
+    summary: 'Execute a JARVIS AI action',
+    requestBody: body({
+      type: 'object',
+      properties: {
+        organizationId: { type: 'integer' },
+        action: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', enum: ['create_task', 'create_mitigation', 'assign_owner', 'add_note', 'flag_for_review'] },
+            projectId: { type: 'integer' },
+            data: { type: 'object' },
+          },
+        },
+      },
+      required: ['organizationId', 'action'],
+    }),
+    responses: { ...r200('Action result'), ...inputRes, ...stdRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {

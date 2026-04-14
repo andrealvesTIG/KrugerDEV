@@ -14,10 +14,16 @@ import {
   logUserActivity,
   formatZodErrors,
 } from "./helpers";
+import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
 
 export function registerPortfolioRoutes(app: Express) {
   // --- Portfolios ---
-  app.get(api.portfolios.list.path, async (req, res) => {
+  apiRoute(app, 'get', '/api/portfolios', {
+    tag: 'Portfolios',
+    summary: 'List portfolios',
+    parameters: [qInt('organizationId', false, 'Filter by organization')],
+    responses: { ...r200('List of portfolios', arrOf('Portfolio')), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     
     // Deny access if user is not a member of any organization
@@ -61,7 +67,12 @@ export function registerPortfolioRoutes(app: Express) {
     res.json(filteredPortfolios);
   });
 
-  app.get(api.portfolios.get.path, async (req, res) => {
+  apiRoute(app, 'get', '/api/portfolios/:id', {
+    tag: 'Portfolios',
+    summary: 'Get portfolio by ID',
+    parameters: [pathId()],
+    responses: { ...r200('Portfolio details', ref('Portfolio')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -82,7 +93,12 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.post(api.portfolios.create.path, async (req, res) => {
+  apiRoute(app, 'post', '/api/portfolios', {
+    tag: 'Portfolios',
+    summary: 'Create a new portfolio',
+    requestBody: body(ref('PortfolioRequest')),
+    responses: { ...r201('Portfolio created', ref('Portfolio')), ...inputRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       
@@ -147,7 +163,13 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.put(api.portfolios.update.path, async (req, res) => {
+  apiRoute(app, 'put', '/api/portfolios/:id', {
+    tag: 'Portfolios',
+    summary: 'Update portfolio',
+    parameters: [pathId()],
+    requestBody: body(ref('PortfolioRequest'), false),
+    responses: { ...r200('Portfolio updated'), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -183,7 +205,12 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.delete(api.portfolios.delete.path, async (req, res) => {
+  apiRoute(app, 'delete', '/api/portfolios/:id', {
+    tag: 'Portfolios',
+    summary: 'Delete portfolio',
+    parameters: [pathId()],
+    responses: { ...r204('Portfolio deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -202,7 +229,12 @@ export function registerPortfolioRoutes(app: Express) {
   });
 
   // --- Portfolio Aggregations ---
-  app.get('/api/portfolios/:id/projects', async (req, res) => {
+  apiRoute(app, 'get', '/api/portfolios/:id/projects', {
+    tag: 'Portfolios',
+    summary: 'List projects in portfolio',
+    parameters: [pathId()],
+    responses: { ...r200('Portfolio projects', arrOf('Project')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -220,7 +252,13 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.post('/api/portfolios/:id/custom-projects', async (req, res) => {
+  apiRoute(app, 'post', '/api/portfolios/:id/custom-projects', {
+    tag: 'Portfolios',
+    summary: 'Add custom project to portfolio',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { projectId: { type: 'integer' } } }),
+    responses: { ...r201('Project added to portfolio'), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -244,7 +282,12 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.delete('/api/portfolios/:id/custom-projects/:projectId', async (req, res) => {
+  apiRoute(app, 'delete', '/api/portfolios/:id/custom-projects/:projectId', {
+    tag: 'Portfolios',
+    summary: 'Remove custom project from portfolio',
+    parameters: [pathId(), pathId('projectId')],
+    responses: { ...r200('Project removed'), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -262,7 +305,12 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.get('/api/portfolios/:id/risks', async (req, res) => {
+  apiRoute(app, 'get', '/api/portfolios/:id/risks', {
+    tag: 'Portfolios',
+    summary: 'List risks across portfolio projects',
+    parameters: [pathId()],
+    responses: { ...r200('Portfolio risks', arrOf('Risk')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -280,7 +328,12 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.get('/api/portfolios/:id/issues', async (req, res) => {
+  apiRoute(app, 'get', '/api/portfolios/:id/issues', {
+    tag: 'Portfolios',
+    summary: 'List issues across portfolio projects',
+    parameters: [pathId()],
+    responses: { ...r200('Portfolio issues', arrOf('Issue')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -298,7 +351,13 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.get('/api/portfolios/:id/milestones', async (req, res) => {
+  apiRoute(app, 'get', '/api/portfolios/:id/milestones', {
+    tag: 'Portfolios',
+    summary: 'List task milestones across portfolio projects (legacy)',
+    parameters: [pathId()],
+    responses: { ...r200('Task milestones from projects in this portfolio', arrOf('Milestone')), ...idRes },
+    deprecated: true,
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -317,7 +376,12 @@ export function registerPortfolioRoutes(app: Express) {
   });
 
   // --- Portfolio Key Dates (new table) ---
-  app.get('/api/portfolios/:id/key-dates', async (req, res) => {
+  apiRoute(app, 'get', '/api/portfolios/:id/key-dates', {
+    tag: 'Portfolio Key Dates',
+    summary: 'List portfolio key dates',
+    parameters: [pathId()],
+    responses: { ...r200('Portfolio key dates', arrOf('PortfolioKeyDate')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -335,7 +399,13 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.post('/api/portfolios/:id/key-dates', async (req, res) => {
+  apiRoute(app, 'post', '/api/portfolios/:id/key-dates', {
+    tag: 'Portfolio Key Dates',
+    summary: 'Create a portfolio key date',
+    parameters: [pathId()],
+    requestBody: body(ref('PortfolioKeyDateRequest')),
+    responses: { ...r201('Key date created', ref('PortfolioKeyDate')), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -367,7 +437,13 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.patch('/api/portfolios/:id/key-dates/:keyDateId', async (req, res) => {
+  apiRoute(app, 'patch', '/api/portfolios/:id/key-dates/:keyDateId', {
+    tag: 'Portfolio Key Dates',
+    summary: 'Update a portfolio key date',
+    parameters: [pathId(), pathId('keyDateId')],
+    requestBody: body(ref('PortfolioKeyDateRequest'), false),
+    responses: { ...r200('Key date updated', ref('PortfolioKeyDate')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -399,7 +475,12 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.delete('/api/portfolios/:id/key-dates/:keyDateId', async (req, res) => {
+  apiRoute(app, 'delete', '/api/portfolios/:id/key-dates/:keyDateId', {
+    tag: 'Portfolio Key Dates',
+    summary: 'Delete a portfolio key date',
+    parameters: [pathId(), pathId('keyDateId')],
+    responses: { ...r204('Key date deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -427,7 +508,12 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.post('/api/portfolios/:id/risk-assessment', async (req, res) => {
+  apiRoute(app, 'post', '/api/portfolios/:id/risk-assessment', {
+    tag: 'Portfolios',
+    summary: 'Run AI risk assessment for portfolio',
+    parameters: [pathId()],
+    responses: { ...r201('Risk assessment created', ref('RiskAssessment')), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -515,7 +601,12 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.get('/api/portfolios/:id/risk-assessment/latest', async (req, res) => {
+  apiRoute(app, 'get', '/api/portfolios/:id/risk-assessment/latest', {
+    tag: 'Portfolios',
+    summary: 'Get latest portfolio risk assessment',
+    parameters: [pathId()],
+    responses: { ...r200('Latest assessment', ref('RiskAssessment')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -544,7 +635,12 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.get('/api/portfolios/:id/risk-assessment/history', async (req, res) => {
+  apiRoute(app, 'get', '/api/portfolios/:id/risk-assessment/history', {
+    tag: 'Portfolios',
+    summary: 'Get portfolio risk assessment history',
+    parameters: [pathId()],
+    responses: { ...r200('Assessment history', arrOf('RiskAssessment')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -566,7 +662,12 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.get('/api/portfolio-risk-assessments/org/:orgId', async (req, res) => {
+  apiRoute(app, 'get', '/api/portfolio-risk-assessments/org/:orgId', {
+    tag: 'Portfolios',
+    summary: 'Get all portfolio risk assessments for org',
+    parameters: [pathId('orgId')],
+    responses: { ...r200('Org portfolio assessments'), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -596,7 +697,12 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.get('/api/project-risk-assessments/org/:orgId', async (req, res) => {
+  apiRoute(app, 'get', '/api/project-risk-assessments/org/:orgId', {
+    tag: 'Portfolios',
+    summary: 'Get all project risk assessments for org',
+    parameters: [pathId('orgId')],
+    responses: { ...r200('Org project assessments'), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -627,7 +733,13 @@ export function registerPortfolioRoutes(app: Express) {
   });
 
   // Public endpoint - accessible via share token without authentication
-  app.get('/api/portfolio-risk-assessments/share/:token', async (req, res) => {
+  apiRoute(app, 'get', '/api/portfolio-risk-assessments/share/:token', {
+    tag: 'Portfolios',
+    summary: 'View shared risk assessment (public)',
+    parameters: [pathStr('token')],
+    security: [],
+    responses: { ...r200('Shared assessment'), ...e404 },
+  }, async (req, res) => {
     try {
       const assessment = await storage.getPortfolioRiskAssessmentByShareToken(req.params.token);
       if (!assessment) return res.status(404).json({ message: "Report not found" });
@@ -653,7 +765,13 @@ export function registerPortfolioRoutes(app: Express) {
   });
 
   // Public endpoint - accessible via share token without authentication
-  app.get('/api/portfolio-risk-assessments/share/:token/pdf', async (req, res) => {
+  apiRoute(app, 'get', '/api/portfolio-risk-assessments/share/:token/pdf', {
+    tag: 'Portfolios',
+    summary: 'Download shared risk assessment as PDF (public)',
+    parameters: [pathStr('token')],
+    security: [],
+    responses: { '200': { description: 'PDF file', content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } } } }, ...e404 },
+  }, async (req, res) => {
     try {
       const assessment = await storage.getPortfolioRiskAssessmentByShareToken(req.params.token);
       if (!assessment) return res.status(404).json({ message: "Report not found" });
@@ -674,7 +792,12 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.get('/api/portfolios/:id/risk-assessment/:assessmentId/pdf', async (req, res) => {
+  apiRoute(app, 'get', '/api/portfolios/:id/risk-assessment/:assessmentId/pdf', {
+    tag: 'Portfolios',
+    summary: 'Download portfolio risk assessment PDF',
+    parameters: [pathId(), pathId('assessmentId')],
+    responses: { '200': { description: 'PDF file', content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } } } }, ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -703,7 +826,12 @@ export function registerPortfolioRoutes(app: Express) {
 
   // === Project Risk Assessment Endpoints ===
 
-  app.post('/api/projects/:id/risk-assessment', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:id/risk-assessment', {
+    tag: 'Projects',
+    summary: 'Run AI risk assessment for project',
+    parameters: [pathId()],
+    responses: { ...r201('Risk assessment created', ref('RiskAssessment')), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -791,7 +919,12 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.get('/api/projects/:id/risk-assessment/latest', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:id/risk-assessment/latest', {
+    tag: 'Projects',
+    summary: 'Get latest project risk assessment',
+    parameters: [pathId()],
+    responses: { ...r200('Latest assessment', ref('RiskAssessment')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -815,7 +948,12 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.get('/api/projects/:id/risk-assessment/history', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:id/risk-assessment/history', {
+    tag: 'Projects',
+    summary: 'Get project risk assessment history',
+    parameters: [pathId()],
+    responses: { ...r200('Assessment history', arrOf('RiskAssessment')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -838,7 +976,13 @@ export function registerPortfolioRoutes(app: Express) {
   });
 
   // Public endpoint - accessible via share token without authentication
-  app.get('/api/project-risk-assessments/share/:token', async (req, res) => {
+  apiRoute(app, 'get', '/api/project-risk-assessments/share/:token', {
+    tag: 'Projects',
+    summary: 'View shared project risk assessment (public)',
+    parameters: [pathStr('token')],
+    security: [],
+    responses: { ...r200('Shared assessment'), ...e404 },
+  }, async (req, res) => {
     try {
       const assessment = await storage.getProjectRiskAssessmentByShareToken(req.params.token);
       if (!assessment) return res.status(404).json({ message: "Report not found" });
@@ -864,7 +1008,13 @@ export function registerPortfolioRoutes(app: Express) {
   });
 
   // Public endpoint - accessible via share token without authentication
-  app.get('/api/project-risk-assessments/share/:token/pdf', async (req, res) => {
+  apiRoute(app, 'get', '/api/project-risk-assessments/share/:token/pdf', {
+    tag: 'Projects',
+    summary: 'Download shared project risk assessment as PDF (public)',
+    parameters: [pathStr('token')],
+    security: [],
+    responses: { '200': { description: 'PDF file', content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } } } }, ...e404 },
+  }, async (req, res) => {
     try {
       const assessment = await storage.getProjectRiskAssessmentByShareToken(req.params.token);
       if (!assessment) return res.status(404).json({ message: "Report not found" });
@@ -885,7 +1035,12 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.get('/api/projects/:id/risk-assessment/:assessmentId/pdf', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:id/risk-assessment/:assessmentId/pdf', {
+    tag: 'Projects',
+    summary: 'Download project risk assessment PDF',
+    parameters: [pathId(), pathId('assessmentId')],
+    responses: { '200': { description: 'PDF file', content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } } } }, ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -908,7 +1063,12 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.get('/api/portfolios/:id/overview', async (req, res) => {
+  apiRoute(app, 'get', '/api/portfolios/:id/overview', {
+    tag: 'Portfolios',
+    summary: 'Get portfolio overview with stats',
+    parameters: [pathId()],
+    responses: { ...r200('Portfolio overview'), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -961,7 +1121,12 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.get('/api/portfolios/:id/scoring-rollup', async (req, res) => {
+  apiRoute(app, 'get', '/api/portfolios/:id/scoring-rollup', {
+    tag: 'Portfolios',
+    summary: 'Get portfolio scoring rollup',
+    parameters: [pathId()],
+    responses: { ...r200('Scoring rollup'), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1108,7 +1273,13 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
-  app.put('/api/portfolios/:id/scoring-config', async (req, res) => {
+  apiRoute(app, 'put', '/api/portfolios/:id/scoring-config', {
+    tag: 'Portfolios',
+    summary: 'Update portfolio scoring aggregation config',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { criteriaId: { type: 'integer' }, aggregationMethod: { type: 'string', enum: ['average', 'sum', 'max', 'min', 'weighted-average'] } }, required: ['criteriaId', 'aggregationMethod'] }),
+    responses: { ...r200('Scoring config updated', ref('PortfolioScoringConfig')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });

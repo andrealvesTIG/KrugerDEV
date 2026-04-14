@@ -10,12 +10,16 @@ import {
   getUserOrgIds,
   requireEmailVerified,
 } from "./helpers";
+import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400 } from "../route-registry";
 
 export function registerIntakeRoutes(app: Express) {
-  // ==================== PROJECT INTAKES ====================
 
-  // Get all project intakes for an organization
-  app.get('/api/project-intakes', async (req, res) => {
+  apiRoute(app, 'get', '/api/project-intakes', {
+    tag: 'Project Intakes',
+    summary: 'List project intakes',
+    parameters: [qInt('organizationId', true, 'Organization ID'), qStr('status', false, 'Filter by status')],
+    responses: { ...r200('Intakes list', arrOf('ProjectIntake')), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -35,8 +39,12 @@ export function registerIntakeRoutes(app: Express) {
     }
   });
 
-  // Get a single project intake
-  app.get('/api/project-intakes/:id', async (req, res) => {
+  apiRoute(app, 'get', '/api/project-intakes/:id', {
+    tag: 'Project Intakes',
+    summary: 'Get intake by ID',
+    parameters: [pathId()],
+    responses: { ...r200('Intake details', ref('ProjectIntake')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -46,7 +54,6 @@ export function registerIntakeRoutes(app: Express) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
       
-      // If organizationId is provided, validate the intake belongs to that organization
       const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
       if (organizationId && intake.organizationId !== organizationId) {
         return res.status(404).json({ message: "Project intake not found in this organization" });
@@ -60,12 +67,15 @@ export function registerIntakeRoutes(app: Express) {
     }
   });
 
-  // Create a new project intake
-  app.post('/api/project-intakes', async (req, res) => {
+  apiRoute(app, 'post', '/api/project-intakes', {
+    tag: 'Project Intakes',
+    summary: 'Create a new intake',
+    requestBody: body(ref('ProjectIntakeRequest')),
+    responses: { ...r201('Intake created', ref('ProjectIntake')), ...inputRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       
-      // Require email verification before creating
       const emailCheck = await requireEmailVerified(userId);
       if (!emailCheck.verified) {
         return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
@@ -77,7 +87,6 @@ export function registerIntakeRoutes(app: Express) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
 
-      // Check intake limit before creation
       if (userId) {
         const { checkAndEnforceLimit, METER_CODES } = await import("../services/billing");
         const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.INTAKES);
@@ -96,7 +105,6 @@ export function registerIntakeRoutes(app: Express) {
         currentStep: input.currentStep || 'intake_capture',
       });
       
-      // Record usage after successful creation
       if (userId) {
         const { recordResourceUsage, METER_CODES } = await import("../services/billing");
         await recordResourceUsage(userId, METER_CODES.INTAKES, intake.id, 1, input.organizationId);
@@ -110,8 +118,13 @@ export function registerIntakeRoutes(app: Express) {
     }
   });
 
-  // Update a project intake
-  app.put('/api/project-intakes/:id', async (req, res) => {
+  apiRoute(app, 'put', '/api/project-intakes/:id', {
+    tag: 'Project Intakes',
+    summary: 'Update intake',
+    parameters: [pathId()],
+    requestBody: body(ref('ProjectIntakeRequest'), false),
+    responses: { ...r200('Intake updated'), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -150,8 +163,12 @@ export function registerIntakeRoutes(app: Express) {
     }
   });
 
-  // Delete a project intake
-  app.delete('/api/project-intakes/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/project-intakes/:id', {
+    tag: 'Project Intakes',
+    summary: 'Delete intake',
+    parameters: [pathId()],
+    responses: { ...r200('Intake deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -190,8 +207,12 @@ export function registerIntakeRoutes(app: Express) {
     }
   });
 
-  // Check if user can approve intakes for an organization
-  app.get('/api/organizations/:orgId/can-approve-intakes', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:orgId/can-approve-intakes', {
+    tag: 'Project Intakes',
+    summary: 'Check if user can approve intakes',
+    parameters: [pathId('orgId')],
+    responses: { ...r200('Approval permission', { type: 'object', properties: { canApprove: { type: 'boolean' } } }), ...idRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
       const userId = getUserIdFromRequest(req);
@@ -205,12 +226,10 @@ export function registerIntakeRoutes(app: Express) {
         return res.status(401).json({ message: "Authentication required" });
       }
 
-      // Admin roles can always approve
       if (hasAdminAccess(user)) {
         return res.json({ canApprove: true });
       }
 
-      // Check if user is org_admin or owner for this organization
       const memberships = await storage.getUserOrganizations(userId);
       const isOrgAdmin = memberships.some(m => m.organizationId === orgId && (m.role === 'org_admin' || m.role === 'owner'));
       
@@ -218,7 +237,6 @@ export function registerIntakeRoutes(app: Express) {
         return res.json({ canApprove: true });
       }
 
-      // Check if user's resource has isIntakeApprover flag
       const resources = await storage.getResources(orgId);
       const userResource = resources.find(r => r.userId === userId);
       const isIntakeApprover = userResource?.isIntakeApprover === true;
@@ -231,8 +249,12 @@ export function registerIntakeRoutes(app: Express) {
     }
   });
 
-  // Approve a project intake and create project
-  app.post('/api/project-intakes/:id/approve', async (req, res) => {
+  apiRoute(app, 'post', '/api/project-intakes/:id/approve', {
+    tag: 'Project Intakes',
+    summary: 'Approve intake and convert to project',
+    parameters: [pathId()],
+    responses: { ...r200('Intake approved, project created'), ...fullRes, ...e400 },
+  }, async (req, res) => {
     try {
       const id = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -248,12 +270,10 @@ export function registerIntakeRoutes(app: Express) {
         return res.status(400).json({ message: "Project intake is already approved" });
       }
 
-      // Check PMO approval requirement
       if (!existing.pmoApproved) {
         return res.status(403).json({ message: "PM approval is required before converting to a project. Please ensure the PM has approved this intake." });
       }
 
-      // Check user permission - must be super_admin, org_admin/owner, or have isIntakeApprover flag
       const user = await storage.getUser(userId);
       if (!user) {
         return res.status(401).json({ message: "Authentication required" });
@@ -261,11 +281,9 @@ export function registerIntakeRoutes(app: Express) {
 
       const isSuperAdmin = hasAdminAccess(user);
       if (!isSuperAdmin) {
-        // Check if user is org_admin or owner for this organization
         const memberships = await storage.getUserOrganizations(userId);
         const isOrgAdmin = memberships.some(m => m.organizationId === existing.organizationId && (m.role === 'org_admin' || m.role === 'owner'));
         
-        // Check if user's resource has isIntakeApprover flag
         const resources = await storage.getResources(existing.organizationId);
         const userResource = resources.find(r => r.userId === userId);
         const isIntakeApprover = userResource?.isIntakeApprover === true;
@@ -287,8 +305,13 @@ export function registerIntakeRoutes(app: Express) {
     }
   });
 
-  // Reject a project intake
-  app.post('/api/project-intakes/:id/reject', async (req, res) => {
+  apiRoute(app, 'post', '/api/project-intakes/:id/reject', {
+    tag: 'Project Intakes',
+    summary: 'Reject an intake',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { reason: { type: 'string' } } }, false),
+    responses: { ...r200('Intake rejected'), ...fullRes },
+  }, async (req, res) => {
     try {
       const id = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -301,7 +324,6 @@ export function registerIntakeRoutes(app: Express) {
       const existing = await storage.getProjectIntake(id);
       if (!existing) return res.status(404).json({ message: "Project intake not found" });
       
-      // Check user permission - must be super_admin, org_admin/owner, or have isIntakeApprover flag
       const user = await storage.getUser(userId);
       if (!user) {
         return res.status(401).json({ message: "Authentication required" });
@@ -336,12 +358,12 @@ export function registerIntakeRoutes(app: Express) {
     }
   });
 
-
-
-  // =========== INTAKE WORKFLOW CONFIGURATION ===========
-
-  // Get intake workflow steps for an organization
-  app.get('/api/organizations/:orgId/intake-workflow', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:orgId/intake-workflow', {
+    tag: 'Intake Workflow',
+    summary: 'Get intake workflow configuration',
+    parameters: [pathId('orgId')],
+    responses: { ...r200('Workflow config'), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -350,7 +372,6 @@ export function registerIntakeRoutes(app: Express) {
       
       const orgId = Number(req.params.orgId);
       
-      // Check user has access to the organization
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(orgId)) {
         return res.status(403).json({ message: "You don't have access to this organization" });
@@ -358,7 +379,6 @@ export function registerIntakeRoutes(app: Express) {
       
       let steps = await storage.getIntakeWorkflowSteps(orgId);
       
-      // If no steps exist, initialize with defaults
       if (steps.length === 0) {
         steps = await storage.resetIntakeWorkflowToDefaults(orgId);
       }
@@ -371,8 +391,13 @@ export function registerIntakeRoutes(app: Express) {
     }
   });
 
-  // Update intake workflow steps for an organization
-  app.put('/api/organizations/:orgId/intake-workflow', async (req, res) => {
+  apiRoute(app, 'put', '/api/organizations/:orgId/intake-workflow', {
+    tag: 'Intake Workflow',
+    summary: 'Update intake workflow configuration',
+    parameters: [pathId('orgId')],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Workflow updated'), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -381,19 +406,16 @@ export function registerIntakeRoutes(app: Express) {
       
       const orgId = Number(req.params.orgId);
       
-      // Check user has access to the organization
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(orgId)) {
         return res.status(403).json({ message: "You don't have access to this organization" });
       }
       
-      // Validate the steps array
       const { steps } = req.body;
       if (!Array.isArray(steps)) {
         return res.status(400).json({ message: "Steps must be an array" });
       }
       
-      // Validate each step has required fields
       for (const step of steps) {
         if (!step.stepKey || !step.label || step.position === undefined) {
           return res.status(400).json({ message: "Each step must have stepKey, label, and position" });
@@ -409,8 +431,12 @@ export function registerIntakeRoutes(app: Express) {
     }
   });
 
-  // Reset intake workflow to defaults
-  app.post('/api/organizations/:orgId/intake-workflow/reset', async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:orgId/intake-workflow/reset', {
+    tag: 'Intake Workflow',
+    summary: 'Reset intake workflow to defaults',
+    parameters: [pathId('orgId')],
+    responses: { ...r200('Workflow reset'), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -419,7 +445,6 @@ export function registerIntakeRoutes(app: Express) {
       
       const orgId = Number(req.params.orgId);
       
-      // Check user has access to the organization
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(orgId)) {
         return res.status(403).json({ message: "You don't have access to this organization" });

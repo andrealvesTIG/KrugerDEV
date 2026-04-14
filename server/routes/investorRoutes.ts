@@ -3,9 +3,16 @@ import { db } from "../db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { sendEmail } from "../services/email";
+import { apiRoute, body, r200, r201, inputRes, authRes } from "../route-registry";
 
 export function registerInvestorRoutes(app: Express) {
-  app.post("/api/investor/verify-password", (req: Request, res: Response) => {
+  apiRoute(app, 'post', '/api/investor/verify-password', {
+    tag: 'Other',
+    summary: 'Verify investor room password (legacy)',
+    security: [],
+    requestBody: body({ type: 'object', properties: { password: { type: 'string' } }, required: ['password'] }),
+    responses: { ...r200('Access granted'), '401': { description: 'Incorrect password' } },
+  }, (req: Request, res: Response) => {
     const { password } = req.body;
     const correctPassword = process.env.INVESTOR_ACCESS_PASSWORD;
     if (!correctPassword) {
@@ -20,7 +27,13 @@ export function registerInvestorRoutes(app: Express) {
     res.status(401).json({ success: false, message: "Incorrect password" });
   });
 
-  app.post("/api/investor/verify", (req: Request, res: Response) => {
+  apiRoute(app, 'post', '/api/investor/verify', {
+    tag: 'Other',
+    summary: 'Verify investor room password',
+    security: [],
+    requestBody: body({ type: 'object', properties: { password: { type: 'string' } }, required: ['password'] }),
+    responses: { ...r200('Access granted'), '401': { description: 'Incorrect password' } },
+  }, (req: Request, res: Response) => {
     const { password } = req.body;
     const correctPassword = process.env.INVESTOR_ACCESS_PASSWORD;
     if (!correctPassword) {
@@ -35,19 +48,34 @@ export function registerInvestorRoutes(app: Express) {
     res.status(401).json({ error: "Incorrect password" });
   });
 
-  app.get("/api/investor/session", (req: Request, res: Response) => {
+  apiRoute(app, 'get', '/api/investor/session', {
+    tag: 'Other',
+    summary: 'Check investor session status',
+    security: [],
+    responses: r200('Session status'),
+  }, (req: Request, res: Response) => {
     const hasAccess = !!(req.session as any)?.investorAccess;
     res.json({ authenticated: hasAccess });
   });
 
-  app.post("/api/investor/logout", (req: Request, res: Response) => {
+  apiRoute(app, 'post', '/api/investor/logout', {
+    tag: 'Other',
+    summary: 'End investor session',
+    security: [],
+    responses: r200('Logged out'),
+  }, (req: Request, res: Response) => {
     if ((req.session as any)?.investorAccess) {
       delete (req.session as any).investorAccess;
     }
     res.json({ success: true });
   });
 
-  app.get("/api/investor/check-access", async (req: Request, res: Response) => {
+  apiRoute(app, 'get', '/api/investor/check-access', {
+    tag: 'Other',
+    summary: 'Check investor access level',
+    security: [],
+    responses: r200('Access check result'),
+  }, async (req: Request, res: Response) => {
     if ((req.session as any)?.investorAccess) {
       return res.json({ hasAccess: true });
     }
@@ -63,7 +91,21 @@ export function registerInvestorRoutes(app: Express) {
     res.json({ hasAccess: false });
   });
 
-  app.post("/api/investor/email-pdf", async (req: Request, res: Response) => {
+  apiRoute(app, 'post', '/api/investor/email-pdf', {
+    tag: 'Other',
+    summary: 'Email investor deck PDF',
+    security: [],
+    requestBody: body({
+      type: 'object',
+      properties: {
+        email: { type: 'string' },
+        recipientEmail: { type: 'string' },
+        recipientName: { type: 'string' },
+        pdfBase64: { type: 'string', format: 'byte' },
+      },
+    }),
+    responses: { ...r200('Email sent'), ...inputRes, ...authRes },
+  }, async (req: Request, res: Response) => {
     try {
       const hasSessionAccess = (req.session as any)?.investorAccess;
       const userId = req.session?.userId || (req.user as any)?.id;
