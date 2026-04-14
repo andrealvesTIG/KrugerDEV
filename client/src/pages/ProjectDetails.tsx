@@ -585,13 +585,41 @@ export default function ProjectDetails() {
 
       const data = await res.json();
       if (!res.ok) {
-        toast({ title: "Import failed", description: data.message || "Failed to import CSV", variant: "destructive" });
+        const errorDetails = data.errors ? `\n${data.errors.join('\n')}` : '';
+        toast({ 
+          title: "CSV Import Failed", 
+          description: (data.message || "Failed to import CSV") + errorDetails, 
+          variant: "destructive",
+          duration: 6000,
+        });
       } else {
-        toast({ title: "Import successful", description: data.message });
-        queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id, 'tasks'] });
+        const created = data.created ?? 0;
+        const updated = data.updated ?? 0;
+        const skipped = data.skipped ?? 0;
+        const depsCreated = data.dependenciesCreated ?? 0;
+        const parentLinks = data.parentLinksSet ?? 0;
+        const description = `${created} created, ${updated} updated, ${skipped} skipped, ${depsCreated} dependencies, ${parentLinks} parent links.`;
+        toast({ 
+          title: "CSV Import Successful", 
+          description,
+          duration: 5000,
+        });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id, 'tasks'] }),
+          queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id, 'dependencies'] }),
+          queryClient.invalidateQueries({ queryKey: [`/api/projects/${project.id}/dependencies`] }),
+          queryClient.invalidateQueries({ queryKey: [`/api/projects/${project.id}/task-custom-field-values`] }),
+          queryClient.invalidateQueries({ queryKey: [`/api/projects/${project.id}/task-assignments`] }),
+          queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] }),
+        ]);
       }
     } catch (err) {
-      toast({ title: "Import failed", description: "An error occurred while importing the CSV file", variant: "destructive" });
+      toast({ 
+        title: "CSV Import Failed", 
+        description: "An error occurred while importing the CSV file. Please check the file format and try again.", 
+        variant: "destructive",
+        duration: 6000,
+      });
     } finally {
       setIsImportingCsv(false);
       if (csvImportInputRef.current) {
