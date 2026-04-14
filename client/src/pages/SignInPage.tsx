@@ -378,9 +378,6 @@ export default function SignInPage() {
                 <Link href="/partners" className="hidden sm:inline text-slate-200 hover:text-orange-400 text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-partners">
                   Partners
                 </Link>
-                <Link href="/investor-room" className="hidden sm:inline text-slate-200 hover:text-orange-400 text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-investor-room">
-                  Investors
-                </Link>
                 <Link href="/media" className="hidden sm:inline text-slate-200 hover:text-orange-400 text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-media">
                   Media
                 </Link>
