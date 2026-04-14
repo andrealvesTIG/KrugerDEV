@@ -186,7 +186,7 @@ export function registerProjectItemRoutes(app: Express) {
     tag: 'Risks',
     summary: 'Get risk change history',
     parameters: [pathId()],
-    responses: { ...r200('Risk history'), ...idRes },
+    responses: { ...r200('Risk history', { type: 'array', items: { type: 'object' } }), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -208,7 +208,7 @@ export function registerProjectItemRoutes(app: Express) {
     tag: 'Risks',
     summary: 'Convert risk to issue',
     parameters: [pathId()],
-    responses: { ...r200('Risk converted to issue'), ...fullRes },
+    responses: { ...r200('Risk converted to issue', { type: 'object' }), ...fullRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -251,7 +251,7 @@ export function registerProjectItemRoutes(app: Express) {
     tag: 'Risks',
     summary: 'Get AI-powered risk mitigation suggestions',
     requestBody: body({ type: 'object', properties: { title: { type: 'string' }, description: { type: 'string' }, probability: { type: 'string' }, impact: { type: 'string' }, projectContext: { type: 'string' }, organizationId: { type: 'integer' } } }),
-    responses: { ...r200('Mitigation suggestions'), ...authRes },
+    responses: { ...r200('Mitigation suggestions', ref('Risk')), ...authRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -685,7 +685,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     tag: 'Issues',
     summary: 'Get issue change history',
     parameters: [pathId()],
-    responses: { ...r200('Issue history'), ...idRes },
+    responses: { ...r200('Issue history', { type: 'array', items: { type: 'object' } }), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -708,7 +708,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     summary: 'Escalate issue to portfolio',
     parameters: [pathId()],
     requestBody: body({ type: 'object', properties: { escalate: { type: 'boolean' } } }),
-    responses: { ...r200('Escalation updated'), ...fullRes },
+    responses: { ...r200('Escalation updated', ref('Issue')), ...fullRes },
   }, async (req, res) => {
     try {
       const issueId = Number(req.params.id);
@@ -757,7 +757,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     tag: 'Issues',
     summary: 'Get portfolio escalated items',
     parameters: [pathId()],
-    responses: { ...r200('Escalated items'), ...fullRes },
+    responses: { ...r200('Escalated items', ref('Issue')), ...fullRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1111,7 +1111,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     tag: 'Tasks',
     summary: 'List all tasks',
     parameters: [qInt('organizationId', false), qInt('limit', false), qInt('offset', false), qStr('startDateFrom', false), qStr('startDateTo', false), qStr('endDateFrom', false), qStr('endDateTo', false), qStr('overdue', false), qStr('today', false), qStr('sortBy', false), qStr('sortOrder', false)],
-    responses: { ...r200('Tasks list'), ...authRes },
+    responses: { ...r200('Tasks list', arrOf('Task')), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     
@@ -1440,7 +1440,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     tag: 'Tasks',
     summary: 'Bulk update tasks',
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('Tasks updated'), ...createRes },
+    responses: { ...r200('Tasks updated', ref('Task')), ...createRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1592,7 +1592,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     tag: 'Tasks',
     summary: 'Bulk delete tasks',
     requestBody: body({ type: 'object', properties: { taskIds: { type: 'array', items: { type: 'integer' } } } }),
-    responses: { ...r200('Tasks deleted'), ...createRes },
+    responses: { ...r200('Tasks deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...createRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1633,7 +1633,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     summary: 'Update task',
     parameters: [pathId()],
     requestBody: body(ref('TaskRequest'), false),
-    responses: { ...r200('Task updated'), ...updateRes },
+    responses: { ...r200('Task updated', ref('Task')), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1959,7 +1959,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     tag: 'Tasks',
     summary: 'Get task change history',
     parameters: [pathId()],
-    responses: { ...r200('Task history'), ...idRes },
+    responses: { ...r200('Task history', { type: 'array', items: { type: 'object' } }), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1983,7 +1983,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     tag: 'Tasks',
     summary: 'Get task notes history',
     parameters: [pathId()],
-    responses: { ...r200('Notes history'), ...idRes },
+    responses: { ...r200('Notes history', { type: 'array', items: { type: 'object' } }), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -2445,7 +2445,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     tag: 'Tasks',
     summary: 'Recalculate project schedule (CPM)',
     parameters: [pathId('projectId')],
-    responses: { ...r200('Schedule recalculated'), ...createRes },
+    responses: { ...r200('Schedule recalculated', { type: 'object' }), ...createRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -2472,7 +2472,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     summary: 'Reorder tasks in project',
     parameters: [pathId('projectId')],
     requestBody: body({ type: 'object', properties: { taskIds: { type: 'array', items: { type: 'integer' } } } }),
-    responses: { ...r200('Tasks reordered'), ...createRes },
+    responses: { ...r200('Tasks reordered', { type: 'object' }), ...createRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -2524,7 +2524,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     tag: 'Tasks',
     summary: 'Reindex task row indices',
     parameters: [pathId('projectId')],
-    responses: { ...r200('Tasks reindexed'), ...createRes },
+    responses: { ...r200('Tasks reindexed', { type: 'object' }), ...createRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -2565,7 +2565,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     summary: 'Set or clear task baseline dates',
     parameters: [pathId('projectId')],
     requestBody: body({ type: 'object', properties: { taskIds: { type: 'array', items: { type: 'integer' } }, clearBaseline: { type: 'boolean' } } }, false),
-    responses: { ...r200('Baseline result'), ...idRes },
+    responses: { ...r200('Baseline result', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -2723,7 +2723,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     summary: 'Import tasks from CSV file',
     parameters: [pathId()],
     requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } } } },
-    responses: { ...r200('Tasks imported'), ...createRes },
+    responses: { ...r200('Tasks imported', { type: 'object' }), ...createRes },
   }, upload.single('file'), async (req, res) => {
     try {
       const projectId = Number(req.params.id);

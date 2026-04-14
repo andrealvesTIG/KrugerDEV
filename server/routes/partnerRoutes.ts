@@ -185,7 +185,7 @@ export function registerPartnerRoutes(app: Express) {
       },
       required: ['name', 'email', 'partnerType'],
     }),
-    responses: { ...r201('Application submitted'), ...inputRes },
+    responses: { ...r201('Application submitted', { type: 'object' }), ...inputRes },
   }, async (req, res) => {
     try {
       const clientIp = req.ip || req.socket.remoteAddress || "unknown";

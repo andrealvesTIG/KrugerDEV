@@ -88,7 +88,7 @@ export function registerJarvisRoutes(app: Express) {
       },
       required: ['messages', 'organizationId'],
     }),
-    responses: { ...r200('SSE stream'), ...inputRes, ...stdRes },
+    responses: { ...r200('SSE stream', { type: 'object' }), ...inputRes, ...stdRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -166,7 +166,7 @@ export function registerJarvisRoutes(app: Express) {
       },
       required: ['organizationId', 'action'],
     }),
-    responses: { ...r200('Action result'), ...inputRes, ...stdRes },
+    responses: { ...r200('Action result', { type: 'object' }), ...inputRes, ...stdRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);

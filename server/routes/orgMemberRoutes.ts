@@ -47,7 +47,7 @@ export function registerOrgMemberRoutes(app: Express) {
     tag: 'Organization Members',
     summary: 'List pending invites',
     parameters: [pathId()],
-    responses: { ...r200('List of invites'), ...idRes },
+    responses: { ...r200('List of invites', arrOf('User')), ...idRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -69,7 +69,7 @@ export function registerOrgMemberRoutes(app: Express) {
     summary: 'Send organization invite',
     parameters: [pathId()],
     requestBody: body({ type: 'object', properties: { email: { type: 'string' }, role: { type: 'string' } } }),
-    responses: { ...r201('Invite sent'), ...createRes },
+    responses: { ...r201('Invite sent', ref('User')), ...createRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -238,7 +238,7 @@ export function registerOrgMemberRoutes(app: Express) {
     tag: 'Organization Members',
     summary: 'Cancel an invite',
     parameters: [pathId(), pathId('inviteId')],
-    responses: { ...r200('Invite cancelled'), ...fullRes },
+    responses: { ...r200('Invite cancelled', { type: 'object' }), ...fullRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -262,7 +262,7 @@ export function registerOrgMemberRoutes(app: Express) {
     tag: 'Organization Members',
     summary: 'Resend an invite',
     parameters: [pathId(), pathId('inviteId')],
-    responses: { ...r200('Invite resent'), ...fullRes },
+    responses: { ...r200('Invite resent', ref('User')), ...fullRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -324,7 +324,7 @@ export function registerOrgMemberRoutes(app: Express) {
     tag: 'Organization Members',
     summary: 'Accept an invite',
     requestBody: body({ type: 'object', properties: { token: { type: 'string' } } }),
-    responses: { ...r200('Invite accepted'), ...inputRes },
+    responses: { ...r200('Invite accepted', { type: 'object' }), ...inputRes },
   }, async (req, res) => {
     try {
       const currentUserId = getUserIdFromRequest(req);
@@ -416,7 +416,7 @@ export function registerOrgMemberRoutes(app: Express) {
     tag: 'Organization Members',
     summary: 'Get invite details by token',
     parameters: [pathStr('token')],
-    responses: { ...r200('Invite details'), ...e404 },
+    responses: { ...r200('Invite details', ref('User')), ...e404 },
   }, async (req, res) => {
     try {
       const { token } = req.params;
@@ -463,7 +463,7 @@ export function registerOrgMemberRoutes(app: Express) {
     tag: 'Organization Members',
     summary: 'Search organization directory',
     parameters: [pathId(), qStr('q', true, 'Search query')],
-    responses: { ...r200('Search results'), ...idRes },
+    responses: { ...r200('Search results', { type: 'array', items: { type: 'object' } }), ...idRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -595,7 +595,7 @@ export function registerOrgMemberRoutes(app: Express) {
     summary: 'Submit access request',
     parameters: [pathId()],
     requestBody: body({ type: 'object', properties: { message: { type: 'string' } } }),
-    responses: { ...r201('Request submitted'), ...createRes },
+    responses: { ...r201('Request submitted', { type: 'object' }), ...createRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -667,7 +667,7 @@ export function registerOrgMemberRoutes(app: Express) {
     tag: 'Organization Members',
     summary: 'List access requests',
     parameters: [pathId()],
-    responses: { ...r200('Access requests'), ...idRes },
+    responses: { ...r200('Access requests', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -714,7 +714,7 @@ export function registerOrgMemberRoutes(app: Express) {
     tag: 'Organization Members',
     summary: 'Get current user access request status',
     parameters: [pathId()],
-    responses: { ...r200('Request status'), ...idRes },
+    responses: { ...r200('Request status', ref('User')), ...idRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -738,7 +738,7 @@ export function registerOrgMemberRoutes(app: Express) {
     tag: 'Organization Members',
     summary: 'Resend access request notification',
     parameters: [pathId(), pathId('requestId')],
-    responses: { ...r200('Notification resent'), ...fullRes },
+    responses: { ...r200('Notification resent', ref('User')), ...fullRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -800,7 +800,7 @@ export function registerOrgMemberRoutes(app: Express) {
     tag: 'Organization Members',
     summary: 'Approve access request',
     parameters: [pathId(), pathId('requestId')],
-    responses: { ...r200('Request approved'), ...fullRes },
+    responses: { ...r200('Request approved', ref('User')), ...fullRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -876,7 +876,7 @@ export function registerOrgMemberRoutes(app: Express) {
     tag: 'Organization Members',
     summary: 'Reject access request',
     parameters: [pathId(), pathId('requestId')],
-    responses: { ...r200('Request rejected'), ...fullRes },
+    responses: { ...r200('Request rejected', ref('User')), ...fullRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -936,7 +936,7 @@ export function registerOrgMemberRoutes(app: Express) {
     tag: 'Organization Members',
     summary: 'List organization members',
     parameters: [pathId()],
-    responses: { ...r200('List of members'), ...idRes },
+    responses: { ...r200('List of members', arrOf('User')), ...idRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -992,7 +992,7 @@ export function registerOrgMemberRoutes(app: Express) {
     summary: 'Add member to organization',
     parameters: [pathId()],
     requestBody: body({ type: 'object', properties: { userId: { type: 'string' }, role: { type: 'string' } } }),
-    responses: { ...r201('Member added'), ...createRes },
+    responses: { ...r201('Member added', ref('User')), ...createRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -1053,7 +1053,7 @@ export function registerOrgMemberRoutes(app: Express) {
     summary: 'Update member role',
     parameters: [pathId(), pathId('userId')],
     requestBody: body({ type: 'object', properties: { role: { type: 'string' } } }),
-    responses: { ...r200('Member updated'), ...updateRes },
+    responses: { ...r200('Member updated', ref('User')), ...updateRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -1098,7 +1098,7 @@ export function registerOrgMemberRoutes(app: Express) {
     tag: 'Organization Members',
     summary: 'Remove member from organization',
     parameters: [pathId(), pathId('userId')],
-    responses: { ...r200('Member removed'), ...fullRes },
+    responses: { ...r200('Member removed', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -1146,7 +1146,7 @@ export function registerOrgMemberRoutes(app: Express) {
     tag: 'Organization Members',
     summary: 'Get seat usage info',
     parameters: [pathId()],
-    responses: { ...r200('Seat info'), ...idRes },
+    responses: { ...r200('Seat info', ref('User')), ...idRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -1208,7 +1208,7 @@ export function registerOrgMemberRoutes(app: Express) {
     summary: 'Remove extra seats',
     parameters: [pathId()],
     requestBody: body({ type: 'object', properties: { count: { type: 'integer' } } }),
-    responses: { ...r200('Seats removed'), ...createRes },
+    responses: { ...r200('Seats removed', { type: 'object', properties: { message: { type: 'string' } } }), ...createRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -1272,7 +1272,7 @@ export function registerOrgMemberRoutes(app: Express) {
     summary: 'Purchase additional seats',
     parameters: [pathId()],
     requestBody: body({ type: 'object', properties: { count: { type: 'integer' } } }),
-    responses: { ...r200('Seats purchased'), ...createRes },
+    responses: { ...r200('Seats purchased', { type: 'object' }), ...createRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);

@@ -143,7 +143,7 @@ export function registerOrganizationRoutes(app: Express) {
     summary: 'Update organization',
     parameters: [pathId()],
     requestBody: body(ref('Organization')),
-    responses: { ...r200('Organization updated'), ...updateRes },
+    responses: { ...r200('Organization updated', ref('Organization')), ...updateRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -171,7 +171,7 @@ export function registerOrganizationRoutes(app: Express) {
     tag: 'Organizations',
     summary: 'Get risk assessment configuration',
     parameters: [pathId()],
-    responses: { ...r200('Risk assessment config'), ...idRes },
+    responses: { ...r200('Risk assessment config', ref('Organization')), ...idRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -209,7 +209,7 @@ export function registerOrganizationRoutes(app: Express) {
     summary: 'Update risk assessment configuration',
     parameters: [pathId()],
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('Config updated'), ...updateRes },
+    responses: { ...r200('Config updated', ref('Organization')), ...updateRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -274,7 +274,7 @@ export function registerOrganizationRoutes(app: Express) {
     summary: 'Update organization scheduling defaults',
     parameters: [pathId()],
     requestBody: body({ type: 'object', properties: { defaultDependencyType: { type: 'string', enum: ['FS', 'SS', 'FF', 'SF'] }, defaultLagDays: { type: 'integer' } } }),
-    responses: { ...r200('Scheduling defaults updated'), ...updateRes },
+    responses: { ...r200('Scheduling defaults updated', ref('Organization')), ...updateRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -307,7 +307,7 @@ export function registerOrganizationRoutes(app: Express) {
     tag: 'Organizations',
     summary: 'Get organization integrations',
     parameters: [pathId()],
-    responses: { ...r200('Integration settings'), ...idRes },
+    responses: { ...r200('Integration settings', ref('Organization')), ...idRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -332,7 +332,7 @@ export function registerOrganizationRoutes(app: Express) {
     summary: 'Update dashboard tab order',
     parameters: [pathId()],
     requestBody: body({ type: 'object', properties: { tabOrder: { type: 'array', items: { type: 'string' } } } }),
-    responses: { ...r200('Tab order updated'), ...updateRes },
+    responses: { ...r200('Tab order updated', ref('Organization')), ...updateRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -385,7 +385,7 @@ export function registerOrganizationRoutes(app: Express) {
     tag: 'Organizations',
     summary: 'Get dashboard tab order',
     parameters: [pathId()],
-    responses: { ...r200('Tab order'), ...idRes },
+    responses: { ...r200('Tab order', ref('Organization')), ...idRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -408,7 +408,7 @@ export function registerOrganizationRoutes(app: Express) {
     summary: 'Get presigned logo upload URL',
     parameters: [pathId()],
     requestBody: body({ type: 'object', properties: { contentType: { type: 'string' } } }),
-    responses: { ...r200('Upload URL'), ...createRes },
+    responses: { ...r200('Upload URL', ref('Organization')), ...createRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -444,7 +444,7 @@ export function registerOrganizationRoutes(app: Express) {
     summary: 'Upload organization logo directly',
     parameters: [pathId()],
     requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } } } },
-    responses: { ...r200('Logo uploaded'), ...createRes },
+    responses: { ...r200('Logo uploaded', { type: 'array', items: { type: 'object' } }), ...createRes },
   }, imageUpload.single('logo'), async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -524,7 +524,7 @@ export function registerOrganizationRoutes(app: Express) {
     tag: 'Organizations',
     summary: 'Delete organization',
     parameters: [pathId()],
-    responses: { ...r200('Organization deleted'), ...fullRes },
+    responses: { ...r200('Organization deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -549,7 +549,7 @@ export function registerOrganizationRoutes(app: Express) {
   apiRoute(app, 'get', '/api/admin/organizations/deactivated', {
     tag: 'Admin',
     summary: 'List deactivated organizations',
-    responses: { ...r200('Deactivated orgs'), ...stdRes },
+    responses: { ...r200('Deactivated orgs', { type: 'object' }), ...stdRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -573,7 +573,7 @@ export function registerOrganizationRoutes(app: Express) {
   apiRoute(app, 'get', '/api/admin/organization-members', {
     tag: 'Admin',
     summary: 'List all organization members (admin)',
-    responses: { ...r200('All org members'), ...stdRes },
+    responses: { ...r200('All org members', { type: 'array', items: { type: 'object' } }), ...stdRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -602,7 +602,7 @@ export function registerOrganizationRoutes(app: Express) {
     tag: 'Admin',
     summary: 'Reactivate a deactivated organization',
     parameters: [pathId()],
-    responses: { ...r200('Organization reactivated'), ...fullRes },
+    responses: { ...r200('Organization reactivated', { type: 'object' }), ...fullRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -628,7 +628,7 @@ export function registerOrganizationRoutes(app: Express) {
   apiRoute(app, 'get', '/api/admin/organizations/subscriptions', {
     tag: 'Admin',
     summary: 'List all organization subscriptions',
-    responses: { ...r200('All subscriptions'), ...stdRes },
+    responses: { ...r200('All subscriptions', { type: 'array', items: { type: 'object' } }), ...stdRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -657,7 +657,7 @@ export function registerOrganizationRoutes(app: Express) {
     tag: 'Admin',
     summary: 'Send upgrade offer email to users',
     requestBody: body({ type: 'object', required: ['userIds', 'customMessage'], properties: { userIds: { type: 'array', items: { type: 'string' } }, customMessage: { type: 'string' } } }),
-    responses: { ...r200('Upgrade offers sent'), ...stdRes, ...e400 },
+    responses: { ...r200('Upgrade offers sent', { type: 'object' }), ...stdRes, ...e400 },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -719,7 +719,7 @@ export function registerOrganizationRoutes(app: Express) {
     tag: 'Admin',
     summary: 'Get organization billing info',
     parameters: [pathId()],
-    responses: { ...r200('Organization billing info'), ...fullRes },
+    responses: { ...r200('Organization billing info', { type: 'object' }), ...fullRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -774,7 +774,7 @@ export function registerOrganizationRoutes(app: Express) {
     summary: 'Update organization billing',
     parameters: [pathId()],
     requestBody: body({ type: 'object', properties: { planCode: { type: 'string' }, bonusSeats: { type: 'integer' }, billingHidden: { type: 'boolean' } } }),
-    responses: { ...r200('Organization billing updated'), ...fullRes, ...e400 },
+    responses: { ...r200('Organization billing updated', { type: 'object' }), ...fullRes, ...e400 },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -888,7 +888,7 @@ export function registerOrganizationRoutes(app: Express) {
     tag: 'Organizations',
     summary: 'Get all task assignments for organization',
     parameters: [pathId()],
-    responses: { ...r200('Task assignments'), ...idRes },
+    responses: { ...r200('Task assignments', arrOf('Organization')), ...idRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);

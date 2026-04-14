@@ -47,7 +47,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'Find duplicate resources',
     parameters: [qInt('organizationId', true, 'Organization ID')],
-    responses: { ...r200('Duplicate groups'), ...authRes },
+    responses: { ...r200('Duplicate groups', { type: 'object' }), ...authRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -186,7 +186,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'Merge duplicate resources',
     requestBody: body({ type: 'object', properties: { primaryId: { type: 'integer' }, duplicateIds: { type: 'array', items: { type: 'integer' } } } }),
-    responses: { ...r200('Resources merged'), ...createRes },
+    responses: { ...r200('Resources merged', ref('Resource')), ...createRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -243,7 +243,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'Get resource assignments across all projects',
     parameters: [qInt('organizationId', true, 'Organization ID')],
-    responses: { ...r200('Assignments'), ...authRes },
+    responses: { ...r200('Assignments', arrOf('Resource')), ...authRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -323,7 +323,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'Get resource task assignments',
     parameters: [pathId()],
-    responses: { ...r200('Task assignments'), ...idRes },
+    responses: { ...r200('Task assignments', ref('Resource')), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -362,7 +362,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'Get resource issue assignments',
     parameters: [pathId()],
-    responses: { ...r200('Issue assignments'), ...idRes },
+    responses: { ...r200('Issue assignments', ref('Resource')), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -458,7 +458,7 @@ export function registerResourceRoutes(app: Express) {
     summary: 'Update resource',
     parameters: [pathId()],
     requestBody: body(ref('Resource')),
-    responses: { ...r200('Resource updated'), ...updateRes },
+    responses: { ...r200('Resource updated', ref('Resource')), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -522,7 +522,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'Invite resource via email',
     requestBody: body({ type: 'object', properties: { email: { type: 'string' }, organizationId: { type: 'integer' } } }),
-    responses: { ...r201('Invitation sent'), ...createRes },
+    responses: { ...r201('Invitation sent', ref('Resource')), ...createRes },
   }, async (req, res) => {
     try {
       const currentUserId = getUserIdFromRequest(req);
@@ -693,7 +693,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'Get full task assignments for organization',
     parameters: [pathId()],
-    responses: { ...r200('Task assignments with resource data'), ...idRes },
+    responses: { ...r200('Task assignments with resource data', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -715,7 +715,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'Get all task resource assignments for a project',
     parameters: [pathId()],
-    responses: { ...r200('Task resource assignments'), ...idRes },
+    responses: { ...r200('Task resource assignments', arrOf('Resource')), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -739,7 +739,7 @@ export function registerResourceRoutes(app: Express) {
     summary: 'Add team member to project',
     parameters: [pathId()],
     requestBody: body({ type: 'object', properties: { resourceId: { type: 'integer' } } }),
-    responses: { ...r200('Team member added'), ...updateRes },
+    responses: { ...r200('Team member added', ref('Resource')), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -776,7 +776,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'Remove team member from project',
     parameters: [pathId(), pathId('resourceId')],
-    responses: { ...r200('Team member removed'), ...fullRes },
+    responses: { ...r200('Team member removed', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -812,7 +812,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'Get all issue resource assignments for organization',
     parameters: [pathId()],
-    responses: { ...r200('Issue assignments'), ...idRes },
+    responses: { ...r200('Issue assignments', arrOf('Resource')), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -834,7 +834,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'Get resources assigned to a task',
     parameters: [pathId('taskId')],
-    responses: { ...r200('Task resources'), ...idRes },
+    responses: { ...r200('Task resources', arrOf('Resource')), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -860,7 +860,7 @@ export function registerResourceRoutes(app: Express) {
     summary: 'Update task resource assignments',
     parameters: [pathId('taskId')],
     requestBody: body({ type: 'object', properties: { resourceIds: { type: 'array', items: { type: 'integer' } } } }),
-    responses: { ...r200('Assignments updated'), ...updateRes },
+    responses: { ...r200('Assignments updated', ref('Resource')), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -975,7 +975,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'Get resources assigned to an issue',
     parameters: [pathId('issueId')],
-    responses: { ...r200('Issue resources'), ...idRes },
+    responses: { ...r200('Issue resources', arrOf('Resource')), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1004,7 +1004,7 @@ export function registerResourceRoutes(app: Express) {
     summary: 'Update issue resource assignments',
     parameters: [pathId('issueId')],
     requestBody: body({ type: 'object', properties: { resourceIds: { type: 'array', items: { type: 'integer' } } } }),
-    responses: { ...r200('Assignments updated'), ...updateRes },
+    responses: { ...r200('Assignments updated', ref('Resource')), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1070,7 +1070,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'Get resources assigned to a risk',
     parameters: [pathId('riskId')],
-    responses: { ...r200('Risk resources'), ...idRes },
+    responses: { ...r200('Risk resources', arrOf('Resource')), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1099,7 +1099,7 @@ export function registerResourceRoutes(app: Express) {
     summary: 'Update risk resource assignments',
     parameters: [pathId('riskId')],
     requestBody: body({ type: 'object', properties: { resourceIds: { type: 'array', items: { type: 'integer' } } } }),
-    responses: { ...r200('Assignments updated'), ...updateRes },
+    responses: { ...r200('Assignments updated', ref('Resource')), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1164,7 +1164,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'Get resource skills',
     parameters: [pathId('orgId'), pathId('resourceId')],
-    responses: { ...r200('Resource skills'), ...idRes },
+    responses: { ...r200('Resource skills', { type: 'array', items: { type: 'object' } }), ...idRes },
   }, async (req, res) => {
     try {
       const skills = await storage.getResourceSkills(Number(req.params.resourceId));
@@ -1180,7 +1180,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'List all resource skills for org',
     parameters: [pathId('orgId')],
-    responses: { ...r200('All resource skills'), ...idRes },
+    responses: { ...r200('All resource skills', arrOf('Resource')), ...idRes },
   }, async (req, res) => {
     try {
       const skills = await storage.getResourceSkillsByOrg(Number(req.params.orgId));
@@ -1197,7 +1197,7 @@ export function registerResourceRoutes(app: Express) {
     summary: 'Add skill to resource',
     parameters: [pathId('orgId'), pathId('resourceId')],
     requestBody: body({ type: 'object', properties: { name: { type: 'string' }, level: { type: 'string' } } }),
-    responses: { ...r201('Skill added'), ...createRes },
+    responses: { ...r201('Skill added', ref('Resource')), ...createRes },
   }, async (req, res) => {
     try {
       const skill = await storage.addResourceSkill({
@@ -1218,7 +1218,7 @@ export function registerResourceRoutes(app: Express) {
     summary: 'Update a resource skill',
     parameters: [pathId('orgId'), pathId()],
     requestBody: body({ type: 'object', properties: { name: { type: 'string' }, level: { type: 'string' } } }),
-    responses: { ...r200('Skill updated'), ...updateRes },
+    responses: { ...r200('Skill updated', ref('Resource')), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1246,7 +1246,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'Delete a resource skill',
     parameters: [pathId('orgId'), pathId()],
-    responses: { ...r200('Skill deleted'), ...fullRes },
+    responses: { ...r200('Skill deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1270,7 +1270,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'Get resource availability',
     parameters: [pathId('orgId'), pathId('resourceId')],
-    responses: { ...r200('Availability data'), ...idRes },
+    responses: { ...r200('Availability data', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const entries = await storage.getResourceAvailability(Number(req.params.resourceId));
@@ -1286,7 +1286,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'List all resource availability for org',
     parameters: [pathId('orgId')],
-    responses: { ...r200('All availability'), ...idRes },
+    responses: { ...r200('All availability', arrOf('Resource')), ...idRes },
   }, async (req, res) => {
     try {
       const { startDate, endDate } = req.query;
@@ -1308,7 +1308,7 @@ export function registerResourceRoutes(app: Express) {
     summary: 'Add availability entry for resource',
     parameters: [pathId('orgId'), pathId('resourceId')],
     requestBody: body({ type: 'object', properties: { startDate: { type: 'string', format: 'date' }, endDate: { type: 'string', format: 'date' }, hoursPerWeek: { type: 'number' } } }),
-    responses: { ...r201('Availability entry created'), ...createRes },
+    responses: { ...r201('Availability entry created', ref('Resource')), ...createRes },
   }, async (req, res) => {
     try {
       const entry = await storage.addResourceAvailability({
@@ -1329,7 +1329,7 @@ export function registerResourceRoutes(app: Express) {
     summary: 'Update an availability entry',
     parameters: [pathId('orgId'), pathId()],
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('Availability updated'), ...updateRes },
+    responses: { ...r200('Availability updated', ref('Resource')), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1358,7 +1358,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'Delete an availability entry',
     parameters: [pathId('orgId'), pathId()],
-    responses: { ...r200('Availability deleted'), ...fullRes },
+    responses: { ...r200('Availability deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1383,7 +1383,7 @@ export function registerResourceRoutes(app: Express) {
     summary: 'Run AI resource optimization',
     parameters: [pathId('orgId')],
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('Optimization results'), ...createRes },
+    responses: { ...r200('Optimization results', { type: 'array', items: { type: 'object' } }), ...createRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1418,7 +1418,7 @@ export function registerResourceRoutes(app: Express) {
     tag: 'Resources',
     summary: 'Get resource utilization report',
     parameters: [pathId('orgId')],
-    responses: { ...r200('Utilization data'), ...idRes },
+    responses: { ...r200('Utilization data', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);

@@ -11,7 +11,7 @@ export function registerInvestorRoutes(app: Express) {
     summary: 'Verify investor room password (legacy)',
     security: [],
     requestBody: body({ type: 'object', properties: { password: { type: 'string' } }, required: ['password'] }),
-    responses: { ...r200('Access granted'), '401': { description: 'Incorrect password' } },
+    responses: { ...r200('Access granted', { type: 'object' }), '401': { description: 'Incorrect password' } },
   }, (req: Request, res: Response) => {
     const { password } = req.body;
     const correctPassword = process.env.INVESTOR_ACCESS_PASSWORD;
@@ -32,7 +32,7 @@ export function registerInvestorRoutes(app: Express) {
     summary: 'Verify investor room password',
     security: [],
     requestBody: body({ type: 'object', properties: { password: { type: 'string' } }, required: ['password'] }),
-    responses: { ...r200('Access granted'), '401': { description: 'Incorrect password' } },
+    responses: { ...r200('Access granted', { type: 'object' }), '401': { description: 'Incorrect password' } },
   }, (req: Request, res: Response) => {
     const { password } = req.body;
     const correctPassword = process.env.INVESTOR_ACCESS_PASSWORD;
@@ -52,7 +52,7 @@ export function registerInvestorRoutes(app: Express) {
     tag: 'Other',
     summary: 'Check investor session status',
     security: [],
-    responses: r200('Session status'),
+    responses: r200('Session status', { type: 'object' }),
   }, (req: Request, res: Response) => {
     const hasAccess = !!(req.session as any)?.investorAccess;
     res.json({ authenticated: hasAccess });
@@ -62,7 +62,7 @@ export function registerInvestorRoutes(app: Express) {
     tag: 'Other',
     summary: 'End investor session',
     security: [],
-    responses: r200('Logged out'),
+    responses: r200('Logged out', { type: 'array', items: { type: 'object' } }),
   }, (req: Request, res: Response) => {
     if ((req.session as any)?.investorAccess) {
       delete (req.session as any).investorAccess;
@@ -74,7 +74,7 @@ export function registerInvestorRoutes(app: Express) {
     tag: 'Other',
     summary: 'Check investor access level',
     security: [],
-    responses: r200('Access check result'),
+    responses: r200('Access check result', { type: 'object' }),
   }, async (req: Request, res: Response) => {
     if ((req.session as any)?.investorAccess) {
       return res.json({ hasAccess: true });
@@ -104,7 +104,7 @@ export function registerInvestorRoutes(app: Express) {
         pdfBase64: { type: 'string', format: 'byte' },
       },
     }),
-    responses: { ...r200('Email sent'), ...inputRes, ...authRes },
+    responses: { ...r200('Email sent', { type: 'object' }), ...inputRes, ...authRes },
   }, async (req: Request, res: Response) => {
     try {
       const hasSessionAccess = (req.session as any)?.investorAccess;

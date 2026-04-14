@@ -15,7 +15,7 @@ import {
   classifyError,
   formatZodErrors,
 } from "./helpers";
-import { apiRoute, pathId, body, r200, r201, r204, inputRes, authRes, fullRes, createRes } from "../route-registry";
+import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, inputRes, authRes, fullRes, createRes } from "../route-registry";
 
 const createRefSchema = z.object({
   organizationId: z.number(),
@@ -58,7 +58,7 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
       { name: 'entityType', in: 'query', required: true, schema: { type: 'string', enum: ['task', 'project'] } },
       { name: 'entityId', in: 'query', required: true, schema: { type: 'integer' } },
     ],
-    responses: { ...r200('List of references'), ...inputRes, ...authRes },
+    responses: { ...r200('List of references', arrOf('Project')), ...inputRes, ...authRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -91,7 +91,7 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
     tag: 'Projects',
     summary: 'Get all cross-project references for a project',
     parameters: [pathId('projectId')],
-    responses: { ...r200('Project references'), ...fullRes },
+    responses: { ...r200('Project references', arrOf('Project')), ...fullRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -132,7 +132,7 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
       },
       required: ['organizationId', 'referenceType', 'sourceType', 'sourceId', 'sourceProjectId', 'targetType', 'targetId', 'targetProjectId', 'relationshipType'],
     }),
-    responses: { ...r201('Reference created'), ...createRes, '409': { description: 'Reference already exists' } },
+    responses: { ...r201('Reference created', ref('Project')), ...createRes, '409': { description: 'Reference already exists' } },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -242,7 +242,7 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
     tag: 'Projects',
     summary: 'Get tasks available for cross-project referencing',
     parameters: [pathId('projectId')],
-    responses: { ...r200('Task list'), ...fullRes },
+    responses: { ...r200('Task list', arrOf('Project')), ...fullRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);

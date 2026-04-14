@@ -9,7 +9,7 @@ import {
   runStatusReport,
   calculateNextWeeklyRun,
 } from "../services/projectAgentService";
-import { apiRoute, pathId, r200, r201, body, authRes, fullRes, inputRes } from "../route-registry";
+import { apiRoute, pathId, ref, arrOf, r200, r201, body, authRes, fullRes, inputRes } from "../route-registry";
 
 function getUserIdFromRequest(req: Request): string | null {
   const user = req.user as any;
@@ -21,7 +21,7 @@ export function registerProjectAgentRoutes(app: Express) {
     tag: 'Projects',
     summary: 'Get project agent configuration',
     parameters: [pathId('projectId')],
-    responses: { ...r200('Agent config'), ...authRes },
+    responses: { ...r200('Agent config', ref('Project')), ...authRes },
   }, async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -35,7 +35,7 @@ export function registerProjectAgentRoutes(app: Express) {
     tag: 'Projects',
     summary: 'Get project agent stakeholders',
     parameters: [pathId('projectId')],
-    responses: { ...r200('Stakeholder list'), ...authRes },
+    responses: { ...r200('Stakeholder list', arrOf('Project')), ...authRes },
   }, async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -65,7 +65,7 @@ export function registerProjectAgentRoutes(app: Express) {
         timezone: { type: 'string' },
       },
     }),
-    responses: { ...r200('Updated agent'), ...fullRes },
+    responses: { ...r200('Updated agent', ref('Project')), ...fullRes },
   }, async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -146,7 +146,7 @@ export function registerProjectAgentRoutes(app: Express) {
     tag: 'Projects',
     summary: 'Get project agent execution logs',
     parameters: [pathId('projectId')],
-    responses: { ...r200('Agent logs'), ...authRes },
+    responses: { ...r200('Agent logs', { type: 'array', items: { type: 'object' } }), ...authRes },
   }, async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -169,7 +169,7 @@ export function registerProjectAgentRoutes(app: Express) {
     tag: 'Projects',
     summary: 'Manually trigger a project agent action',
     parameters: [pathId('projectId'), { name: 'action', in: 'path', required: true, schema: { type: 'string', enum: ['meeting_agenda', 'task_follow_up', 'status_report'] } }],
-    responses: { ...r200('Action result'), ...fullRes, ...inputRes },
+    responses: { ...r200('Action result', { type: 'object' }), ...fullRes, ...inputRes },
   }, async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: "Authentication required" });

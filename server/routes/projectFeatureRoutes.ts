@@ -109,7 +109,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     summary: 'Update change request',
     parameters: [pathId()],
     requestBody: body(ref('ChangeRequest')),
-    responses: { ...r200('Change request updated'), ...updateRes },
+    responses: { ...r200('Change request updated', ref('ChangeRequest')), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -145,7 +145,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Change Requests',
     summary: 'Delete change request',
     parameters: [pathId()],
-    responses: { ...r200('Change request deleted'), ...fullRes },
+    responses: { ...r200('Change request deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -256,7 +256,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     summary: 'Update document',
     parameters: [pathId()],
     requestBody: body(ref('Document')),
-    responses: { ...r200('Document updated'), ...updateRes },
+    responses: { ...r200('Document updated', ref('Document')), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -292,7 +292,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Documents',
     summary: 'Delete document',
     parameters: [pathId()],
-    responses: { ...r200('Document deleted'), ...fullRes },
+    responses: { ...r200('Document deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -462,7 +462,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Comments',
     summary: 'Delete comment',
     parameters: [pathId()],
-    responses: { ...r200('Comment deleted'), ...fullRes },
+    responses: { ...r200('Comment deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -503,7 +503,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Comments',
     summary: 'List billable status comments for project',
     parameters: [pathId('projectId')],
-    responses: { ...r200('Billable status comments'), ...idRes },
+    responses: { ...r200('Billable status comments', ref('Comment')), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -536,7 +536,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     summary: 'Add billable status comment',
     parameters: [pathId('projectId')],
     requestBody: body({ type: 'object', properties: { content: { type: 'string' }, billableStatus: { type: 'string' } } }),
-    responses: { ...r201('Comment added'), ...createRes },
+    responses: { ...r201('Comment added', ref('Comment')), ...createRes },
   }, async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
@@ -592,7 +592,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Comments',
     summary: 'Get project health status history',
     parameters: [pathId('projectId')],
-    responses: { ...r200('Health status history'), ...idRes },
+    responses: { ...r200('Health status history', { type: 'array', items: { type: 'object' } }), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -626,7 +626,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Invoices',
     summary: 'List organization invoices',
     parameters: [pathId('organizationId')],
-    responses: { ...r200('Invoices list'), ...idRes },
+    responses: { ...r200('Invoices list', arrOf('Invoice')), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -653,7 +653,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Invoices',
     summary: 'List project invoices',
     parameters: [pathId('projectId')],
-    responses: { ...r200('Project invoices'), ...idRes },
+    responses: { ...r200('Project invoices', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -685,7 +685,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     summary: 'Create project invoice',
     parameters: [pathId('projectId')],
     requestBody: body(ref('Invoice')),
-    responses: { ...r201('Invoice created'), ...createRes },
+    responses: { ...r201('Invoice created', ref('Invoice')), ...createRes },
   }, async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
@@ -742,7 +742,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     summary: 'Update invoice',
     parameters: [pathId('invoiceId')],
     requestBody: body(ref('Invoice')),
-    responses: { ...r200('Invoice updated'), ...updateRes },
+    responses: { ...r200('Invoice updated', ref('Invoice')), ...updateRes },
   }, async (req, res) => {
     try {
       const invoiceId = Number(req.params.invoiceId);
@@ -792,7 +792,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Invoices',
     summary: 'Delete invoice',
     parameters: [pathId('invoiceId')],
-    responses: { ...r200('Invoice deleted'), ...fullRes },
+    responses: { ...r200('Invoice deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     try {
       const invoiceId = Number(req.params.invoiceId);
@@ -832,7 +832,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Invoice Notes',
     summary: 'List invoice notes',
     parameters: [pathId('invoiceId')],
-    responses: { ...r200('Invoice notes'), ...idRes },
+    responses: { ...r200('Invoice notes', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -869,7 +869,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     summary: 'Create invoice note',
     parameters: [pathId('invoiceId')],
     requestBody: body({ type: 'object', properties: { note: { type: 'string' } } }),
-    responses: { ...r201('Note created'), ...createRes },
+    responses: { ...r201('Note created', ref('Invoice')), ...createRes },
   }, async (req, res) => {
     try {
       const invoiceId = Number(req.params.invoiceId);
@@ -926,7 +926,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Project Views',
     summary: 'List project views for organization',
     parameters: [pathId('orgId'), qStr('mode', true, 'View mode (grid or gantt)')],
-    responses: { ...r200('Project views'), ...idRes },
+    responses: { ...r200('Project views', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
@@ -960,7 +960,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     summary: 'Create project view',
     parameters: [pathId('orgId')],
     requestBody: body({ type: 'object' }),
-    responses: { ...r201('View created'), ...createRes },
+    responses: { ...r201('View created', ref('ProjectView')), ...createRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
@@ -1027,7 +1027,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     summary: 'Update project view',
     parameters: [pathId()],
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('View updated'), ...updateRes },
+    responses: { ...r200('View updated', ref('ProjectView')), ...updateRes },
   }, async (req, res) => {
     try {
       const viewId = Number(req.params.id);
@@ -1089,7 +1089,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Project Views',
     summary: 'Delete project view',
     parameters: [pathId()],
-    responses: { ...r200('View deleted'), ...fullRes },
+    responses: { ...r200('View deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     try {
       const viewId = Number(req.params.id);
@@ -1127,7 +1127,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Project Views',
     summary: 'Set project view as default',
     parameters: [pathId()],
-    responses: { ...r200('Default view set'), ...fullRes },
+    responses: { ...r200('Default view set', { type: 'object' }), ...fullRes },
   }, async (req, res) => {
     try {
       const viewId = Number(req.params.id);
@@ -1162,7 +1162,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'System Project Views',
     summary: 'List system project views for organization',
     parameters: [pathId('orgId'), qStr('mode', true, 'View mode (grid or gantt)')],
-    responses: { ...r200('System project views'), ...idRes },
+    responses: { ...r200('System project views', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
@@ -1195,7 +1195,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'System Project Views',
     summary: 'List all system project views including inactive',
     parameters: [pathId('orgId')],
-    responses: { ...r200('All system project views'), ...fullRes },
+    responses: { ...r200('All system project views', arrOf('ProjectView')), ...fullRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
@@ -1232,7 +1232,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     summary: 'Create system project view',
     parameters: [pathId('orgId')],
     requestBody: body({ type: 'object' }),
-    responses: { ...r201('System view created'), ...createRes },
+    responses: { ...r201('System view created', ref('ProjectView')), ...createRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
@@ -1294,7 +1294,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     summary: 'Update system project view',
     parameters: [pathId()],
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('System view updated'), ...updateRes },
+    responses: { ...r200('System view updated', ref('ProjectView')), ...updateRes },
   }, async (req, res) => {
     try {
       const viewId = Number(req.params.id);
@@ -1420,7 +1420,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     summary: 'Create cost item',
     parameters: [pathId('projectId')],
     requestBody: body(ref('CostItem')),
-    responses: { ...r201('Cost item created'), ...createRes },
+    responses: { ...r201('Cost item created', ref('CostItem')), ...createRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1466,7 +1466,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     summary: 'Update cost item',
     parameters: [pathId()],
     requestBody: body(ref('CostItem')),
-    responses: { ...r200('Cost item updated'), ...updateRes },
+    responses: { ...r200('Cost item updated', ref('CostItem')), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1499,7 +1499,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Cost Items',
     summary: 'Delete cost item',
     parameters: [pathId()],
-    responses: { ...r200('Cost item deleted'), ...fullRes },
+    responses: { ...r200('Cost item deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1517,7 +1517,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'MPP Imports',
     summary: 'List MPP imports for organization',
     parameters: [qInt('organizationId', true, 'Organization ID')],
-    responses: { ...r200('MPP imports list'), ...authRes },
+    responses: { ...r200('MPP imports list', { type: 'array', items: { type: 'object' } }), ...authRes },
   }, async (req, res) => {
     try {
       const organizationId = Number(req.query.organizationId);
@@ -1537,7 +1537,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'MPP Imports',
     summary: 'Get tasks for MPP import',
     parameters: [pathId()],
-    responses: { ...r200('Import tasks'), ...idRes },
+    responses: { ...r200('Import tasks', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const id = Number(req.params.id);
@@ -1554,7 +1554,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'MPP Imports',
     summary: 'Upload and parse MPP file',
     requestBody: body({ type: 'object' }),
-    responses: { ...r201('File uploaded and parsed'), ...createRes },
+    responses: { ...r201('File uploaded and parsed', { type: 'object' }), ...createRes },
   }, upload.single('file'), async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1686,7 +1686,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     summary: 'Convert MPP import to project',
     parameters: [pathId()],
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('Import converted to project'), ...updateRes },
+    responses: { ...r200('Import converted to project', { type: 'object' }), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1755,7 +1755,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     summary: 'Sync MPP import to existing project',
     parameters: [pathId()],
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('Import synced to project'), ...updateRes },
+    responses: { ...r200('Import synced to project', { type: 'object' }), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1826,7 +1826,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'MPP Imports',
     summary: 'Delete MPP import',
     parameters: [pathId()],
-    responses: { ...r200('Import deleted'), ...fullRes },
+    responses: { ...r200('Import deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     try {
       const id = Number(req.params.id);
@@ -1845,7 +1845,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Project Templates',
     summary: 'List project templates',
     parameters: [qInt('organizationId', true, 'Organization ID')],
-    responses: { ...r200('Templates list'), ...authRes },
+    responses: { ...r200('Templates list', arrOf('ProjectTemplate')), ...authRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1866,7 +1866,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Project Templates',
     summary: 'Get project template by ID',
     parameters: [pathId()],
-    responses: { ...r200('Template details'), ...idRes },
+    responses: { ...r200('Template details', ref('ProjectTemplate')), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1888,7 +1888,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Project Templates',
     summary: 'Create template from MPP file',
     requestBody: body({ type: 'object' }),
-    responses: { ...r201('Template created from file'), ...createRes },
+    responses: { ...r201('Template created from file', ref('ProjectTemplate')), ...createRes },
   }, upload.single('file'), async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1992,7 +1992,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Project Templates',
     summary: 'Create template from existing project',
     requestBody: body({ type: 'object' }),
-    responses: { ...r201('Template created from project'), ...createRes },
+    responses: { ...r201('Template created from project', ref('ProjectTemplate')), ...createRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -2102,7 +2102,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     summary: 'Update project template',
     parameters: [pathId()],
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('Template updated'), ...updateRes },
+    responses: { ...r200('Template updated', ref('ProjectTemplate')), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -2130,7 +2130,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Project Templates',
     summary: 'Delete project template',
     parameters: [pathId()],
-    responses: { ...r200('Template deleted'), ...fullRes },
+    responses: { ...r200('Template deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -2180,7 +2180,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     summary: 'Duplicate project template',
     parameters: [pathId()],
     requestBody: body({ type: 'object' }, false),
-    responses: { ...r201('Template duplicated'), ...fullRes },
+    responses: { ...r201('Template duplicated', { type: 'object' }), ...fullRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -2274,7 +2274,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     tag: 'Project Templates',
     summary: 'Download project template file',
     parameters: [pathId()],
-    responses: { ...r200('Template file download'), ...idRes },
+    responses: { ...r200('Template file download', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -2332,7 +2332,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     summary: 'Reimport template from new file',
     parameters: [pathId()],
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('Template reimported'), ...updateRes },
+    responses: { ...r200('Template reimported', { type: 'object' }), ...updateRes },
   }, upload.single('file'), async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -2459,7 +2459,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     summary: 'Create project from template',
     parameters: [pathId()],
     requestBody: body({ type: 'object' }),
-    responses: { ...r201('Project created from template'), ...createRes },
+    responses: { ...r201('Project created from template', ref('ProjectTemplate')), ...createRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);

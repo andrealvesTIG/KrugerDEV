@@ -123,7 +123,7 @@ export function registerIntakeRoutes(app: Express) {
     summary: 'Update intake',
     parameters: [pathId()],
     requestBody: body(ref('ProjectIntakeRequest'), false),
-    responses: { ...r200('Intake updated'), ...updateRes },
+    responses: { ...r200('Intake updated', ref('ProjectIntake')), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -167,7 +167,7 @@ export function registerIntakeRoutes(app: Express) {
     tag: 'Project Intakes',
     summary: 'Delete intake',
     parameters: [pathId()],
-    responses: { ...r200('Intake deleted'), ...fullRes },
+    responses: { ...r200('Intake deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -253,7 +253,7 @@ export function registerIntakeRoutes(app: Express) {
     tag: 'Project Intakes',
     summary: 'Approve intake and convert to project',
     parameters: [pathId()],
-    responses: { ...r200('Intake approved, project created'), ...fullRes, ...e400 },
+    responses: { ...r200('Intake approved, project created', ref('ProjectIntake')), ...fullRes, ...e400 },
   }, async (req, res) => {
     try {
       const id = Number(req.params.id);
@@ -310,7 +310,7 @@ export function registerIntakeRoutes(app: Express) {
     summary: 'Reject an intake',
     parameters: [pathId()],
     requestBody: body({ type: 'object', properties: { reason: { type: 'string' } } }, false),
-    responses: { ...r200('Intake rejected'), ...fullRes },
+    responses: { ...r200('Intake rejected', ref('ProjectIntake')), ...fullRes },
   }, async (req, res) => {
     try {
       const id = Number(req.params.id);
@@ -362,7 +362,7 @@ export function registerIntakeRoutes(app: Express) {
     tag: 'Intake Workflow',
     summary: 'Get intake workflow configuration',
     parameters: [pathId('orgId')],
-    responses: { ...r200('Workflow config'), ...idRes },
+    responses: { ...r200('Workflow config', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -396,7 +396,7 @@ export function registerIntakeRoutes(app: Express) {
     summary: 'Update intake workflow configuration',
     parameters: [pathId('orgId')],
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('Workflow updated'), ...updateRes },
+    responses: { ...r200('Workflow updated', { type: 'object' }), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -435,7 +435,7 @@ export function registerIntakeRoutes(app: Express) {
     tag: 'Intake Workflow',
     summary: 'Reset intake workflow to defaults',
     parameters: [pathId('orgId')],
-    responses: { ...r200('Workflow reset'), ...fullRes },
+    responses: { ...r200('Workflow reset', { type: 'object' }), ...fullRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);

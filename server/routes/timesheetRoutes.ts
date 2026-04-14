@@ -60,7 +60,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Get team timesheet report',
     parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true, 'Start date (YYYY-MM-DD)'), qStr('endDate', true, 'End date (YYYY-MM-DD)')],
-    responses: { ...r200('Team report'), ...authRes },
+    responses: { ...r200('Team report', { type: 'object' }), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -107,7 +107,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Get entries pending approval',
     parameters: [qInt('organizationId', true, 'Organization ID'), qStr('status', false, 'Filter by status')],
-    responses: { ...r200('Pending approvals'), ...authRes },
+    responses: { ...r200('Pending approvals', arrOf('TimesheetEntry')), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -158,7 +158,7 @@ export function registerTimesheetRoutes(app: Express) {
   apiRoute(app, 'get', '/api/timesheets/assigned-tasks', {
     tag: 'Timesheets',
     summary: 'Get tasks assigned to current user for time logging',
-    responses: { ...r200('Assigned tasks'), ...authRes },
+    responses: { ...r200('Assigned tasks', ref('TimesheetEntry')), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -215,7 +215,7 @@ export function registerTimesheetRoutes(app: Express) {
   apiRoute(app, 'get', '/api/timesheets/current-resource', {
     tag: 'Timesheets',
     summary: 'Get current user resource for timesheets',
-    responses: { ...r200('Current resource'), ...authRes },
+    responses: { ...r200('Current resource', ref('TimesheetEntry')), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -482,7 +482,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Create/update timesheet entries in bulk',
     requestBody: body({ type: 'object', properties: { entries: { type: 'array', items: ref('TimesheetEntry') } } }),
-    responses: { ...r201('Timesheet entries created'), ...inputRes },
+    responses: { ...r201('Timesheet entries created', ref('TimesheetEntry')), ...inputRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -730,7 +730,7 @@ export function registerTimesheetRoutes(app: Express) {
     summary: 'Update timesheet entry',
     parameters: [pathId()],
     requestBody: body(ref('TimesheetEntry')),
-    responses: { ...r200('Entry updated'), ...updateRes },
+    responses: { ...r200('Entry updated', ref('TimesheetEntry')), ...updateRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -870,7 +870,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Submit a week of timesheets for approval',
     requestBody: body({ type: 'object', properties: { weekStartDate: { type: 'string', format: 'date' } } }),
-    responses: { ...r200('Week submitted'), ...inputRes },
+    responses: { ...r200('Week submitted', { type: 'object' }), ...inputRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -965,7 +965,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Bulk approve multiple timesheet entries',
     requestBody: body({ type: 'object', properties: { entryIds: { type: 'array', items: { type: 'integer' } } }, required: ['entryIds'] }),
-    responses: { ...r200('Entries approved'), ...inputRes },
+    responses: { ...r200('Entries approved', ref('TimesheetEntry')), ...inputRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1026,7 +1026,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Approve a timesheet entry',
     parameters: [pathId()],
-    responses: { ...r200('Entry approved'), ...fullRes },
+    responses: { ...r200('Entry approved', ref('TimesheetEntry')), ...fullRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1093,7 +1093,7 @@ export function registerTimesheetRoutes(app: Express) {
     summary: 'Reject a timesheet entry',
     parameters: [pathId()],
     requestBody: body({ type: 'object', properties: { reason: { type: 'string' } } }, false),
-    responses: { ...r200('Entry rejected'), ...fullRes },
+    responses: { ...r200('Entry rejected', ref('TimesheetEntry')), ...fullRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1160,7 +1160,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Get current user timesheet report',
     parameters: [qStr('startDate'), qStr('endDate')],
-    responses: { ...r200('My report'), ...authRes },
+    responses: { ...r200('My report', { type: 'object' }), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1272,7 +1272,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'List closed timesheet periods',
     parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true), qStr('endDate', true)],
-    responses: { ...r200('Closed periods'), ...authRes },
+    responses: { ...r200('Closed periods', ref('TimesheetEntry')), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1321,7 +1321,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Create timesheet period',
     requestBody: body(ref('TimesheetPeriod')),
-    responses: { ...r201('Period created'), ...inputRes },
+    responses: { ...r201('Period created', ref('TimesheetEntry')), ...inputRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1366,7 +1366,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Close a timesheet period',
     parameters: [pathId()],
-    responses: { ...r200('Period closed'), ...fullRes },
+    responses: { ...r200('Period closed', ref('TimesheetEntry')), ...fullRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1403,7 +1403,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Reopen a closed timesheet period',
     parameters: [pathId()],
-    responses: { ...r200('Period reopened'), ...fullRes },
+    responses: { ...r200('Period reopened', ref('TimesheetEntry')), ...fullRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1440,7 +1440,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Delete timesheet period',
     parameters: [pathId()],
-    responses: { ...r200('Period deleted'), ...fullRes },
+    responses: { ...r200('Period deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1511,7 +1511,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Update timesheet settings',
     requestBody: body(ref('TimesheetSettings')),
-    responses: { ...r200('Settings updated'), ...inputRes },
+    responses: { ...r200('Settings updated', ref('TimesheetEntry')), ...inputRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1595,7 +1595,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Update timesheet reminder settings',
     requestBody: body(ref('TimesheetReminderSettings')),
-    responses: { ...r200('Reminder settings updated'), ...inputRes },
+    responses: { ...r200('Reminder settings updated', ref('TimesheetEntry')), ...inputRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1678,7 +1678,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Snooze timesheet reminder',
     requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, durationMinutes: { type: 'integer' } }, required: ['organizationId'] }),
-    responses: { ...r200('Reminder snoozed'), ...inputRes },
+    responses: { ...r200('Reminder snoozed', { type: 'object' }), ...inputRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1716,7 +1716,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Send timesheet reminders now',
     requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' } }, required: ['organizationId'] }),
-    responses: { ...r200('Reminders sent'), ...inputRes },
+    responses: { ...r200('Reminders sent', ref('TimesheetEntry')), ...inputRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1756,7 +1756,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Get timesheet audit log',
     parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', false), qStr('endDate', false), qStr('action', false), qInt('page', false), qInt('pageSize', false)],
-    responses: { ...r200('Audit log entries'), ...authRes },
+    responses: { ...r200('Audit log entries', { type: 'array', items: { type: 'object' } }), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1790,7 +1790,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Get audit log for a specific timesheet entry',
     parameters: [pathId('entryId')],
-    responses: { ...r200('Entry audit log'), ...authRes },
+    responses: { ...r200('Entry audit log', { type: 'array', items: { type: 'object' } }), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1821,7 +1821,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Create proxy timesheet entry on behalf of another user',
     requestBody: body({ type: 'object' }),
-    responses: { ...r201('Proxy entry created'), ...inputRes },
+    responses: { ...r201('Proxy entry created', ref('TimesheetEntry')), ...inputRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1922,7 +1922,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Get timesheet compliance report',
     parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true), qStr('endDate', true)],
-    responses: { ...r200('Compliance report'), ...authRes },
+    responses: { ...r200('Compliance report', { type: 'object' }), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2093,7 +2093,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Check if current user is a delegate',
     parameters: [qInt('organizationId', true, 'Organization ID')],
-    responses: { ...r200('Delegate status'), ...authRes },
+    responses: { ...r200('Delegate status', ref('TimesheetEntry')), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2114,7 +2114,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'List approval delegations',
     parameters: [qInt('organizationId', true, 'Organization ID')],
-    responses: { ...r200('Delegations'), ...authRes },
+    responses: { ...r200('Delegations', { type: 'object' }), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2150,7 +2150,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Create approval delegation',
     requestBody: body({ type: 'object' }),
-    responses: { ...r201('Delegation created'), ...inputRes },
+    responses: { ...r201('Delegation created', ref('TimesheetEntry')), ...inputRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2207,7 +2207,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Revoke an approval delegation',
     parameters: [pathId()],
-    responses: { ...r200('Delegation revoked'), ...fullRes },
+    responses: { ...r200('Delegation revoked', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2244,7 +2244,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'List rejection templates',
     parameters: [qInt('organizationId', true, 'Organization ID')],
-    responses: { ...r200('Rejection templates'), ...authRes },
+    responses: { ...r200('Rejection templates', { type: 'object' }), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2287,7 +2287,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Create rejection template',
     requestBody: body({ type: 'object' }),
-    responses: { ...r201('Template created'), ...inputRes },
+    responses: { ...r201('Template created', ref('TimesheetEntry')), ...inputRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2315,7 +2315,7 @@ export function registerTimesheetRoutes(app: Express) {
     summary: 'Update rejection template',
     parameters: [pathId()],
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('Template updated'), ...updateRes },
+    responses: { ...r200('Template updated', ref('TimesheetEntry')), ...updateRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2342,7 +2342,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Delete rejection template',
     parameters: [pathId()],
-    responses: { ...r200('Template deleted'), ...fullRes },
+    responses: { ...r200('Template deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2467,7 +2467,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Get team review dashboard data',
     parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true), qStr('endDate', true)],
-    responses: { ...r200('Team review data'), ...authRes },
+    responses: { ...r200('Team review data', { type: 'object' }), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2560,7 +2560,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Get SLA metrics for timesheet approvals',
     parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true), qStr('endDate', true)],
-    responses: { ...r200('SLA metrics'), ...authRes },
+    responses: { ...r200('SLA metrics', { type: 'object' }), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2696,7 +2696,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'List time categories',
     parameters: [qInt('organizationId', true, 'Organization ID')],
-    responses: { ...r200('Time categories'), ...authRes },
+    responses: { ...r200('Time categories', { type: 'array', items: { type: 'object' } }), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -2762,7 +2762,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Create time category',
     requestBody: body({ type: 'object', properties: { name: { type: 'string' }, organizationId: { type: 'integer' } } }),
-    responses: { ...r201('Category created'), ...inputRes },
+    responses: { ...r201('Category created', ref('TimesheetEntry')), ...inputRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -2805,7 +2805,7 @@ export function registerTimesheetRoutes(app: Express) {
     summary: 'Update time category',
     parameters: [pathId()],
     requestBody: body({ type: 'object', properties: { name: { type: 'string' } } }),
-    responses: { ...r200('Category updated'), ...updateRes },
+    responses: { ...r200('Category updated', ref('TimesheetEntry')), ...updateRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -2848,7 +2848,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Delete time category',
     parameters: [pathId()],
-    responses: { ...r200('Category deleted'), ...fullRes },
+    responses: { ...r200('Category deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -2885,7 +2885,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'List non-project time entries',
     parameters: [qInt('organizationId', true, 'Organization ID'), qStr('startDate', true), qStr('endDate', true)],
-    responses: { ...r200('Non-project time entries'), ...authRes },
+    responses: { ...r200('Non-project time entries', { type: 'array', items: { type: 'object' } }), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -2928,7 +2928,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Create non-project time entry',
     requestBody: body({ type: 'object' }),
-    responses: { ...r201('Entry created'), ...inputRes },
+    responses: { ...r201('Entry created', ref('TimesheetEntry')), ...inputRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -3006,7 +3006,7 @@ export function registerTimesheetRoutes(app: Express) {
     summary: 'Update non-project time entry',
     parameters: [pathId()],
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('Entry updated'), ...updateRes },
+    responses: { ...r200('Entry updated', ref('TimesheetEntry')), ...updateRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -3056,7 +3056,7 @@ export function registerTimesheetRoutes(app: Express) {
     tag: 'Timesheets',
     summary: 'Delete non-project time entry',
     parameters: [pathId()],
-    responses: { ...r200('Entry deleted'), ...fullRes },
+    responses: { ...r200('Entry deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -3097,7 +3097,7 @@ export function registerTimesheetRoutes(app: Express) {
   apiRoute(app, 'get', '/api/admin/referrals', {
     tag: 'Timesheets',
     summary: 'Get admin referral stats',
-    responses: { ...r200('Referral stats'), ...authRes },
+    responses: { ...r200('Referral stats', { type: 'object' }), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -3141,7 +3141,7 @@ export function registerTimesheetRoutes(app: Express) {
     summary: 'Export dashboard data',
     parameters: [pathStr('type')],
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('Dashboard exported'), ...inputRes },
+    responses: { ...r200('Dashboard exported', { type: 'object' }), ...inputRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -3189,7 +3189,7 @@ export function registerTimesheetRoutes(app: Express) {
     summary: 'Share dashboard report via email',
     parameters: [pathStr('type')],
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('Dashboard shared'), ...inputRes },
+    responses: { ...r200('Dashboard shared', { type: 'object' }), ...inputRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {

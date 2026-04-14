@@ -12,7 +12,7 @@ export function registerUserActivityRoutes(app: Express) {
   apiRoute(app, 'get', '/api/admin/user-activity-kpi', {
     tag: 'Admin',
     summary: 'Get user activity KPI dashboard data',
-    responses: { ...r200('Activity KPIs'), ...stdRes },
+    responses: { ...r200('Activity KPIs', { type: 'object' }), ...stdRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -175,7 +175,7 @@ export function registerUserActivityRoutes(app: Express) {
     tag: 'Admin',
     summary: 'Get per-organization activity KPI breakdown',
     parameters: [qStr('period', false, 'Time period (7d, 14d, 30d, 90d, 6m, 1y, all)')],
-    responses: { ...r200('Organization activity data'), ...stdRes },
+    responses: { ...r200('Organization activity data', { type: 'object' }), ...stdRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);

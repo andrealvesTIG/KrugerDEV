@@ -42,7 +42,7 @@ export function registerAnalyticsRoutes(app: Express) {
   apiRoute(app, 'get', '/api/user/api-key', {
     tag: 'User Account',
     summary: 'Get current user API key status',
-    responses: { ...r200('API key info'), ...authRes },
+    responses: { ...r200('API key info', ref('User')), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -92,7 +92,7 @@ export function registerAnalyticsRoutes(app: Express) {
   apiRoute(app, 'delete', '/api/user/api-key', {
     tag: 'User Account',
     summary: 'Revoke API key',
-    responses: { ...r200('API key revoked'), ...authRes },
+    responses: { ...r200('API key revoked', { type: 'object', properties: { message: { type: 'string' } } }), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -107,7 +107,7 @@ export function registerAnalyticsRoutes(app: Express) {
   apiRoute(app, 'delete', '/api/user/account', {
     tag: 'User Account',
     summary: 'Delete own account',
-    responses: { ...r200('Account deleted'), ...authRes },
+    responses: { ...r200('Account deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...authRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -288,7 +288,7 @@ export function registerAnalyticsRoutes(app: Express) {
     tag: 'API Tokens',
     summary: 'Revoke a Bearer token',
     parameters: [pathId('orgId'), pathId('tokenId')],
-    responses: { ...r200('Token revoked'), ...fullRes },
+    responses: { ...r200('Token revoked', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -622,7 +622,7 @@ export function registerAnalyticsRoutes(app: Express) {
     summary: 'Get summary analytics for Power BI',
     security: [{ basicAuth: [] }, { bearerAuth: [] }],
     parameters: [qInt('organizationId', false, 'Organization ID (optional with Bearer token)')],
-    responses: { ...r200('Summary analytics'), ...e401 },
+    responses: { ...r200('Summary analytics', { type: 'object' }), ...e401 },
   }, async (req, res) => {
     try {
       const scope = await resolveAnalyticsScope(req, res, { organizations: [] });

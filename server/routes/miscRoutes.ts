@@ -20,7 +20,7 @@ export async function registerMiscRoutes(app: Express) {
   // --- External Shares (Cross-organization sharing) ---
 
   // Get all external shares for the current user
-  apiRoute(app, 'get', '/api/external-shares', { tag: 'External Shares', summary: 'Get all external shares for current user', responses: { ...r200('External shares list'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/external-shares', { tag: 'External Shares', summary: 'Get all external shares for current user', responses: { ...r200('External shares list', arrOf('Organization')), ...authRes } }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -37,7 +37,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Get external projects for the current user (with full project details)
-  apiRoute(app, 'get', '/api/external-projects', { tag: 'External Shares', summary: 'Get external projects for current user', responses: { ...r200('External projects list'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/external-projects', { tag: 'External Shares', summary: 'Get external projects for current user', responses: { ...r200('External projects list', arrOf('Organization')), ...authRes } }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -80,7 +80,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'get', '/api/external-tasks', { tag: 'External Shares', summary: 'Get external tasks for current user', responses: { ...r200('External tasks list'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/external-tasks', { tag: 'External Shares', summary: 'Get external tasks for current user', responses: { ...r200('External tasks list', arrOf('Organization')), ...authRes } }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -128,7 +128,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'get', '/api/external-risks', { tag: 'External Shares', summary: 'Get external risks for current user', responses: { ...r200('External risks list'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/external-risks', { tag: 'External Shares', summary: 'Get external risks for current user', responses: { ...r200('External risks list', arrOf('Organization')), ...authRes } }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -176,7 +176,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'get', '/api/external-issues', { tag: 'External Shares', summary: 'Get external issues for current user', responses: { ...r200('External issues list'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/external-issues', { tag: 'External Shares', summary: 'Get external issues for current user', responses: { ...r200('External issues list', arrOf('Organization')), ...authRes } }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -225,7 +225,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // --- Recycle Bin ---
-  apiRoute(app, 'get', '/api/organizations/:id/recycle-bin', { tag: 'Recycle Bin', summary: 'Get deleted items for organization', parameters: [pathId()], responses: { ...r200('Deleted items list'), ...fullRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:id/recycle-bin', { tag: 'Recycle Bin', summary: 'Get deleted items for organization', parameters: [pathId()], responses: { ...r200('Deleted items list', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes } }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -243,7 +243,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'post', '/api/organizations/:id/recycle-bin/restore', { tag: 'Recycle Bin', summary: 'Restore a deleted item', parameters: [pathId()], requestBody: body({ type: 'object', properties: { type: { type: 'string' }, itemId: { type: 'integer' } }, required: ['type', 'itemId'] }), responses: { ...r200('Item restored'), ...fullRes, ...e400 } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:id/recycle-bin/restore', { tag: 'Recycle Bin', summary: 'Restore a deleted item', parameters: [pathId()], requestBody: body({ type: 'object', properties: { type: { type: 'string' }, itemId: { type: 'integer' } }, required: ['type', 'itemId'] }), responses: { ...r200('Item restored', { type: 'object' }), ...fullRes, ...e400 } }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -269,7 +269,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'delete', '/api/organizations/:id/recycle-bin/:type/:itemId', { tag: 'Recycle Bin', summary: 'Permanently delete an item', parameters: [pathId(), pathStr('type'), pathId('itemId')], responses: { ...r200('Item permanently deleted'), ...fullRes } }, async (req, res) => {
+  apiRoute(app, 'delete', '/api/organizations/:id/recycle-bin/:type/:itemId', { tag: 'Recycle Bin', summary: 'Permanently delete an item', parameters: [pathId(), pathStr('type'), pathId('itemId')], responses: { ...r200('Item permanently deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes } }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -292,7 +292,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // --- Global Search ---
-  apiRoute(app, 'get', '/api/search', { tag: 'Search', summary: 'Global search across all entities', parameters: [qStr('q', true, 'Search query'), qInt('organizationId', false, 'Filter by organization')], responses: { ...r200('Search results'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/search', { tag: 'Search', summary: 'Global search across all entities', parameters: [qStr('q', true, 'Search query'), qInt('organizationId', false, 'Filter by organization')], responses: { ...r200('Search results', { type: 'array', items: { type: 'object' } }), ...authRes } }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       const query = req.query.q as string;
@@ -330,7 +330,7 @@ export async function registerMiscRoutes(app: Express) {
   // === Custom Dashboards API ===
 
   // Get all custom dashboards for an organization
-  apiRoute(app, 'get', '/api/custom-dashboards', { tag: 'Custom Dashboards', summary: 'List custom dashboards for organization', parameters: [qInt('organizationId', true, 'Organization ID')], responses: { ...r200('Dashboards list'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/custom-dashboards', { tag: 'Custom Dashboards', summary: 'List custom dashboards for organization', parameters: [qInt('organizationId', true, 'Organization ID')], responses: { ...r200('Dashboards list', arrOf('CustomDashboard')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -362,7 +362,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Get a specific custom dashboard
-  apiRoute(app, 'get', '/api/custom-dashboards/:id', { tag: 'Custom Dashboards', summary: 'Get a specific custom dashboard', parameters: [pathId()], responses: { ...r200('Dashboard details'), ...idRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/custom-dashboards/:id', { tag: 'Custom Dashboards', summary: 'Get a specific custom dashboard', parameters: [pathId()], responses: { ...r200('Dashboard details', { type: 'object' }), ...idRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -392,7 +392,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Create a new custom dashboard directly
-  apiRoute(app, 'post', '/api/custom-dashboards', { tag: 'Custom Dashboards', summary: 'Create a custom dashboard', requestBody: body({ type: 'object' }), responses: { ...r201('Dashboard created'), ...createRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/custom-dashboards', { tag: 'Custom Dashboards', summary: 'Create a custom dashboard', requestBody: body({ type: 'object' }), responses: { ...r201('Dashboard created', ref('CustomDashboard')), ...createRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -429,7 +429,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Generate a new custom dashboard using AI
-  apiRoute(app, 'post', '/api/custom-dashboards/generate', { tag: 'Custom Dashboards', summary: 'Generate a custom dashboard using AI', requestBody: body({ type: 'object', properties: { description: { type: 'string' }, organizationId: { type: 'integer' } } }), responses: { ...r201('Dashboard generated'), ...createRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/custom-dashboards/generate', { tag: 'Custom Dashboards', summary: 'Generate a custom dashboard using AI', requestBody: body({ type: 'object', properties: { description: { type: 'string' }, organizationId: { type: 'integer' } } }), responses: { ...r201('Dashboard generated', { type: 'object' }), ...createRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -470,7 +470,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Update a custom dashboard
-  apiRoute(app, 'patch', '/api/custom-dashboards/:id', { tag: 'Custom Dashboards', summary: 'Update a custom dashboard', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Dashboard updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'patch', '/api/custom-dashboards/:id', { tag: 'Custom Dashboards', summary: 'Update a custom dashboard', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Dashboard updated', ref('CustomDashboard')), ...updateRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -507,7 +507,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Delete a custom dashboard
-  apiRoute(app, 'delete', '/api/custom-dashboards/:id', { tag: 'Custom Dashboards', summary: 'Delete a custom dashboard', parameters: [pathId()], responses: { ...r200('Dashboard deleted'), ...fullRes } }, async (req, res) => {
+  apiRoute(app, 'delete', '/api/custom-dashboards/:id', { tag: 'Custom Dashboards', summary: 'Delete a custom dashboard', parameters: [pathId()], responses: { ...r200('Dashboard deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -539,7 +539,7 @@ export async function registerMiscRoutes(app: Express) {
   // ===== USER CONSENT ENDPOINTS =====
 
   // Get current terms/privacy versions and user's consent status
-  apiRoute(app, 'get', '/api/consents/status', { tag: 'Consents', summary: 'Get current consent status', responses: { ...r200('Consent status'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/consents/status', { tag: 'Consents', summary: 'Get current consent status', responses: { ...r200('Consent status', ref('User')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -567,7 +567,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Get user's consent history
-  apiRoute(app, 'get', '/api/consents', { tag: 'Consents', summary: 'Get user consent history', responses: { ...r200('Consent history'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/consents', { tag: 'Consents', summary: 'Get user consent history', responses: { ...r200('Consent history', ref('User')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -584,7 +584,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Record user consent
-  apiRoute(app, 'post', '/api/consents', { tag: 'Consents', summary: 'Record user consent', requestBody: body({ type: 'object', properties: { consentType: { type: 'string' }, version: { type: 'string' }, method: { type: 'string' } }, required: ['consentType', 'version'] }), responses: { ...r201('Consent recorded'), ...inputRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/consents', { tag: 'Consents', summary: 'Record user consent', requestBody: body({ type: 'object', properties: { consentType: { type: 'string' }, version: { type: 'string' }, method: { type: 'string' } }, required: ['consentType', 'version'] }), responses: { ...r201('Consent recorded', ref('User')), ...inputRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -618,7 +618,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Accept both terms and privacy in one request
-  apiRoute(app, 'post', '/api/consents/accept-all', { tag: 'Consents', summary: 'Accept all terms and privacy', requestBody: body({ type: 'object', properties: { method: { type: 'string' } } }, false), responses: { ...r201('Consents recorded'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/consents/accept-all', { tag: 'Consents', summary: 'Accept all terms and privacy', requestBody: body({ type: 'object', properties: { method: { type: 'string' } } }, false), responses: { ...r201('Consents recorded', ref('User')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -660,7 +660,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Admin: Get all user consents (super_admin only)
-  apiRoute(app, 'get', '/api/admin/consents', { tag: 'Consents', summary: 'Get all user consents (admin)', parameters: [qInt('limit', false), qInt('offset', false)], responses: { ...r200('All consents'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/consents', { tag: 'Consents', summary: 'Get all user consents (admin)', parameters: [qInt('limit', false), qInt('offset', false)], responses: { ...r200('All consents', ref('User')), ...stdRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -698,7 +698,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Admin: Get consent statistics (super_admin only)
-  apiRoute(app, 'get', '/api/admin/consents/stats', { tag: 'Consents', summary: 'Get consent statistics (admin)', responses: { ...r200('Consent statistics'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/consents/stats', { tag: 'Consents', summary: 'Get consent statistics (admin)', responses: { ...r200('Consent statistics', ref('User')), ...stdRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -730,7 +730,7 @@ export async function registerMiscRoutes(app: Express) {
   // ============================================
 
   // Get all custom field definitions for an organization
-  apiRoute(app, 'get', '/api/organizations/:organizationId/custom-fields', { tag: 'Custom Fields', summary: 'List custom field definitions for organization', parameters: [pathId('organizationId')], responses: { ...r200('Custom fields list'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:organizationId/custom-fields', { tag: 'Custom Fields', summary: 'List custom field definitions for organization', parameters: [pathId('organizationId')], responses: { ...r200('Custom fields list', arrOf('CustomField')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -748,7 +748,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Create a custom field definition
-  apiRoute(app, 'post', '/api/organizations/:organizationId/custom-fields', { tag: 'Custom Fields', summary: 'Create a custom field definition', parameters: [pathId('organizationId')], requestBody: body({ type: 'object' }), responses: { ...r201('Custom field created'), ...createRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:organizationId/custom-fields', { tag: 'Custom Fields', summary: 'Create a custom field definition', parameters: [pathId('organizationId')], requestBody: body({ type: 'object' }), responses: { ...r201('Custom field created', ref('CustomField')), ...createRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -781,7 +781,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Update a custom field definition
-  apiRoute(app, 'put', '/api/custom-fields/:id', { tag: 'Custom Fields', summary: 'Update a custom field definition', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Custom field updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/custom-fields/:id', { tag: 'Custom Fields', summary: 'Update a custom field definition', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Custom field updated', ref('CustomField')), ...updateRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -838,7 +838,7 @@ export async function registerMiscRoutes(app: Express) {
   // ============================================
 
   // Get all custom field values for a project
-  apiRoute(app, 'get', '/api/organizations/:organizationId/project-custom-field-values', { tag: 'Custom Fields', summary: 'Get all project custom field values for organization', parameters: [pathId('organizationId')], responses: { ...r200('Custom field values'), ...fullRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:organizationId/project-custom-field-values', { tag: 'Custom Fields', summary: 'Get all project custom field values for organization', parameters: [pathId('organizationId')], responses: { ...r200('Custom field values', arrOf('CustomField')), ...fullRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -858,7 +858,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'get', '/api/projects/:projectId/custom-field-values', { tag: 'Custom Fields', summary: 'Get custom field values for a project', parameters: [pathId('projectId')], responses: { ...r200('Custom field values'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/custom-field-values', { tag: 'Custom Fields', summary: 'Get custom field values for a project', parameters: [pathId('projectId')], responses: { ...r200('Custom field values', ref('CustomField')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -876,7 +876,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Update/create a custom field value for a project
-  apiRoute(app, 'put', '/api/projects/:projectId/custom-field-values/:fieldDefinitionId', { tag: 'Custom Fields', summary: 'Update a project custom field value', parameters: [pathId('projectId'), pathId('fieldDefinitionId')], requestBody: body({ type: 'object', properties: { value: { type: 'string' } } }), responses: { ...r200('Custom field value updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/projects/:projectId/custom-field-values/:fieldDefinitionId', { tag: 'Custom Fields', summary: 'Update a project custom field value', parameters: [pathId('projectId'), pathId('fieldDefinitionId')], requestBody: body({ type: 'object', properties: { value: { type: 'string' } } }), responses: { ...r200('Custom field value updated', ref('CustomField')), ...updateRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -901,7 +901,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Bulk update custom field values for a project
-  apiRoute(app, 'put', '/api/projects/:projectId/custom-field-values', { tag: 'Custom Fields', summary: 'Bulk update project custom field values', parameters: [pathId('projectId')], requestBody: body({ type: 'object' }), responses: { ...r200('Custom field values updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/projects/:projectId/custom-field-values', { tag: 'Custom Fields', summary: 'Bulk update project custom field values', parameters: [pathId('projectId')], requestBody: body({ type: 'object' }), responses: { ...r200('Custom field values updated', ref('CustomField')), ...updateRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -951,7 +951,7 @@ export async function registerMiscRoutes(app: Express) {
   // TASK CUSTOM FIELD VALUES ROUTES
   // ============================================
 
-  apiRoute(app, 'get', '/api/projects/:projectId/task-custom-field-values', { tag: 'Custom Fields', summary: 'Get task custom field values for project', parameters: [pathId('projectId')], responses: { ...r200('Task custom field values'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/task-custom-field-values', { tag: 'Custom Fields', summary: 'Get task custom field values for project', parameters: [pathId('projectId')], responses: { ...r200('Task custom field values', ref('CustomField')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     try {
@@ -965,7 +965,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'get', '/api/tasks/:taskId/custom-field-values', { tag: 'Custom Fields', summary: 'Get custom field values for a task', parameters: [pathId('taskId')], responses: { ...r200('Task custom field values'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/tasks/:taskId/custom-field-values', { tag: 'Custom Fields', summary: 'Get custom field values for a task', parameters: [pathId('taskId')], responses: { ...r200('Task custom field values', ref('CustomField')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     try {
@@ -979,7 +979,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'put', '/api/tasks/:taskId/custom-field-values/:fieldDefinitionId', { tag: 'Custom Fields', summary: 'Update a task custom field value', parameters: [pathId('taskId'), pathId('fieldDefinitionId')], requestBody: body({ type: 'object', properties: { value: { type: 'string' } } }), responses: { ...r200('Task custom field value updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/tasks/:taskId/custom-field-values/:fieldDefinitionId', { tag: 'Custom Fields', summary: 'Update a task custom field value', parameters: [pathId('taskId'), pathId('fieldDefinitionId')], requestBody: body({ type: 'object', properties: { value: { type: 'string' } } }), responses: { ...r200('Task custom field value updated', ref('CustomField')), ...updateRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     try {
@@ -995,7 +995,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'put', '/api/tasks/:taskId/custom-field-values', { tag: 'Custom Fields', summary: 'Bulk update task custom field values', parameters: [pathId('taskId')], requestBody: body({ type: 'object' }), responses: { ...r200('Task custom field values updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/tasks/:taskId/custom-field-values', { tag: 'Custom Fields', summary: 'Bulk update task custom field values', parameters: [pathId('taskId')], requestBody: body({ type: 'object' }), responses: { ...r200('Task custom field values updated', ref('CustomField')), ...updateRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     try {
@@ -1033,7 +1033,7 @@ export async function registerMiscRoutes(app: Express) {
   // RESOURCE CUSTOM FIELD VALUES ROUTES
   // ============================================
 
-  apiRoute(app, 'get', '/api/resources/:resourceId/custom-field-values', { tag: 'Custom Fields', summary: 'Get custom field values for a resource', parameters: [pathId('resourceId')], responses: { ...r200('Resource custom field values'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/resources/:resourceId/custom-field-values', { tag: 'Custom Fields', summary: 'Get custom field values for a resource', parameters: [pathId('resourceId')], responses: { ...r200('Resource custom field values', ref('CustomField')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     try {
@@ -1047,7 +1047,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'put', '/api/resources/:resourceId/custom-field-values/:fieldDefinitionId', { tag: 'Custom Fields', summary: 'Update a resource custom field value', parameters: [pathId('resourceId'), pathId('fieldDefinitionId')], requestBody: body({ type: 'object', properties: { value: { type: 'string' } } }), responses: { ...r200('Resource custom field value updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/resources/:resourceId/custom-field-values/:fieldDefinitionId', { tag: 'Custom Fields', summary: 'Update a resource custom field value', parameters: [pathId('resourceId'), pathId('fieldDefinitionId')], requestBody: body({ type: 'object', properties: { value: { type: 'string' } } }), responses: { ...r200('Resource custom field value updated', ref('CustomField')), ...updateRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     try {
@@ -1063,7 +1063,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'put', '/api/resources/:resourceId/custom-field-values', { tag: 'Custom Fields', summary: 'Bulk update resource custom field values', parameters: [pathId('resourceId')], requestBody: body({ type: 'object' }), responses: { ...r200('Resource custom field values updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/resources/:resourceId/custom-field-values', { tag: 'Custom Fields', summary: 'Bulk update resource custom field values', parameters: [pathId('resourceId')], requestBody: body({ type: 'object' }), responses: { ...r200('Resource custom field values updated', ref('CustomField')), ...updateRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     try {
@@ -1102,7 +1102,7 @@ export async function registerMiscRoutes(app: Express) {
   // ============================================
 
   // Get all custom tabs for an organization
-  apiRoute(app, 'get', '/api/organizations/:organizationId/custom-tabs', { tag: 'Custom Tabs', summary: 'List custom tabs for organization', parameters: [pathId('organizationId')], responses: { ...r200('Custom tabs list'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:organizationId/custom-tabs', { tag: 'Custom Tabs', summary: 'List custom tabs for organization', parameters: [pathId('organizationId')], responses: { ...r200('Custom tabs list', arrOf('CustomTab')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1120,7 +1120,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Get a single custom tab with sections and fields
-  apiRoute(app, 'get', '/api/custom-tabs/:id/full', { tag: 'Custom Tabs', summary: 'Get custom tab with sections and fields', parameters: [pathId()], responses: { ...r200('Full custom tab'), ...idRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/custom-tabs/:id/full', { tag: 'Custom Tabs', summary: 'Get custom tab with sections and fields', parameters: [pathId()], responses: { ...r200('Full custom tab', ref('CustomTab')), ...idRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1141,7 +1141,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Create a custom tab
-  apiRoute(app, 'post', '/api/organizations/:organizationId/custom-tabs', { tag: 'Custom Tabs', summary: 'Create a custom tab', parameters: [pathId('organizationId')], requestBody: body({ type: 'object' }), responses: { ...r201('Custom tab created'), ...createRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:organizationId/custom-tabs', { tag: 'Custom Tabs', summary: 'Create a custom tab', parameters: [pathId('organizationId')], requestBody: body({ type: 'object' }), responses: { ...r201('Custom tab created', ref('CustomTab')), ...createRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1163,7 +1163,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Update a custom tab
-  apiRoute(app, 'put', '/api/custom-tabs/:id', { tag: 'Custom Tabs', summary: 'Update a custom tab', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Custom tab updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/custom-tabs/:id', { tag: 'Custom Tabs', summary: 'Update a custom tab', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Custom tab updated', ref('CustomTab')), ...updateRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1216,7 +1216,7 @@ export async function registerMiscRoutes(app: Express) {
   // ============================================
 
   // Get sections for a tab
-  apiRoute(app, 'get', '/api/custom-tabs/:tabId/sections', { tag: 'Custom Tabs', summary: 'Get sections for a tab', parameters: [pathId('tabId')], responses: { ...r200('Tab sections list'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/custom-tabs/:tabId/sections', { tag: 'Custom Tabs', summary: 'Get sections for a tab', parameters: [pathId('tabId')], responses: { ...r200('Tab sections list', arrOf('CustomTab')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1234,7 +1234,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Create a section
-  apiRoute(app, 'post', '/api/custom-tabs/:tabId/sections', { tag: 'Custom Tabs', summary: 'Create a tab section', parameters: [pathId('tabId')], requestBody: body({ type: 'object' }), responses: { ...r201('Section created'), ...createRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/custom-tabs/:tabId/sections', { tag: 'Custom Tabs', summary: 'Create a tab section', parameters: [pathId('tabId')], requestBody: body({ type: 'object' }), responses: { ...r201('Section created', ref('CustomTab')), ...createRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1255,7 +1255,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Update a section
-  apiRoute(app, 'put', '/api/custom-tab-sections/:id', { tag: 'Custom Tabs', summary: 'Update a tab section', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Section updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/custom-tab-sections/:id', { tag: 'Custom Tabs', summary: 'Update a tab section', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Section updated', ref('CustomTab')), ...updateRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1308,7 +1308,7 @@ export async function registerMiscRoutes(app: Express) {
   // ============================================
 
   // Get fields for a section
-  apiRoute(app, 'get', '/api/custom-tab-sections/:sectionId/fields', { tag: 'Custom Tabs', summary: 'Get fields for a section', parameters: [pathId('sectionId')], responses: { ...r200('Section fields list'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/custom-tab-sections/:sectionId/fields', { tag: 'Custom Tabs', summary: 'Get fields for a section', parameters: [pathId('sectionId')], responses: { ...r200('Section fields list', arrOf('CustomTab')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1326,7 +1326,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Create a field
-  apiRoute(app, 'post', '/api/custom-tab-sections/:sectionId/fields', { tag: 'Custom Tabs', summary: 'Create a tab field', parameters: [pathId('sectionId')], requestBody: body({ type: 'object' }), responses: { ...r201('Field created'), ...createRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/custom-tab-sections/:sectionId/fields', { tag: 'Custom Tabs', summary: 'Create a tab field', parameters: [pathId('sectionId')], requestBody: body({ type: 'object' }), responses: { ...r201('Field created', ref('CustomTab')), ...createRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1347,7 +1347,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Update a field
-  apiRoute(app, 'put', '/api/custom-tab-fields/:id', { tag: 'Custom Tabs', summary: 'Update a tab field', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Field updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/custom-tab-fields/:id', { tag: 'Custom Tabs', summary: 'Update a tab field', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Field updated', ref('CustomTab')), ...updateRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1403,7 +1403,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Get project field definitions for tab builder
-  apiRoute(app, 'get', '/api/project-field-definitions', { tag: 'Custom Tabs', summary: 'Get project field definitions for tab builder', responses: { ...r200('Project field definitions'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/project-field-definitions', { tag: 'Custom Tabs', summary: 'Get project field definitions for tab builder', responses: { ...r200('Project field definitions', ref('CustomTab')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -1423,7 +1423,7 @@ export async function registerMiscRoutes(app: Express) {
   // PORTFOLIO SCORING CRITERIA ROUTES
   // ============================================
 
-  apiRoute(app, 'get', '/api/organizations/:organizationId/scoring-criteria', { tag: 'Scoring', summary: 'List scoring criteria for organization', parameters: [pathId('organizationId')], responses: { ...r200('Scoring criteria list'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:organizationId/scoring-criteria', { tag: 'Scoring', summary: 'List scoring criteria for organization', parameters: [pathId('organizationId')], responses: { ...r200('Scoring criteria list', arrOf('ScoringCriterion')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1438,7 +1438,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'post', '/api/organizations/:organizationId/scoring-criteria', { tag: 'Scoring', summary: 'Create scoring criteria', parameters: [pathId('organizationId')], requestBody: body({ type: 'object' }), responses: { ...r201('Scoring criteria created'), ...createRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:organizationId/scoring-criteria', { tag: 'Scoring', summary: 'Create scoring criteria', parameters: [pathId('organizationId')], requestBody: body({ type: 'object' }), responses: { ...r201('Scoring criteria created', ref('ScoringCriterion')), ...createRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1457,7 +1457,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'put', '/api/scoring-criteria/:id', { tag: 'Scoring', summary: 'Update scoring criteria', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Scoring criteria updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/scoring-criteria/:id', { tag: 'Scoring', summary: 'Update scoring criteria', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Scoring criteria updated', ref('ScoringCriterion')), ...updateRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1499,7 +1499,7 @@ export async function registerMiscRoutes(app: Express) {
   // PROJECT SCORES ROUTES
   // ============================================
 
-  apiRoute(app, 'get', '/api/projects/:projectId/scores', { tag: 'Scoring', summary: 'Get project scores', parameters: [pathId('projectId')], responses: { ...r200('Project scores'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/scores', { tag: 'Scoring', summary: 'Get project scores', parameters: [pathId('projectId')], responses: { ...r200('Project scores', ref('ScoringCriterion')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1514,7 +1514,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'post', '/api/projects/:projectId/scores', { tag: 'Scoring', summary: 'Save project score', parameters: [pathId('projectId')], requestBody: body({ type: 'object' }), responses: { ...r201('Score saved'), ...createRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/scores', { tag: 'Scoring', summary: 'Save project score', parameters: [pathId('projectId')], requestBody: body({ type: 'object' }), responses: { ...r201('Score saved', { type: 'object' }), ...createRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1549,7 +1549,7 @@ export async function registerMiscRoutes(app: Express) {
   // PROJECT BENEFITS ROUTES
   // ============================================
 
-  apiRoute(app, 'get', '/api/projects/:projectId/benefits', { tag: 'Project Benefits', summary: 'List project benefits', parameters: [pathId('projectId')], responses: { ...r200('Benefits list'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/benefits', { tag: 'Project Benefits', summary: 'List project benefits', parameters: [pathId('projectId')], responses: { ...r200('Benefits list', arrOf('ProjectBenefit')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1564,7 +1564,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'post', '/api/projects/:projectId/benefits', { tag: 'Project Benefits', summary: 'Create project benefit', parameters: [pathId('projectId')], requestBody: body({ type: 'object' }), responses: { ...r201('Benefit created'), ...createRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/benefits', { tag: 'Project Benefits', summary: 'Create project benefit', parameters: [pathId('projectId')], requestBody: body({ type: 'object' }), responses: { ...r201('Benefit created', ref('ProjectBenefit')), ...createRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1583,7 +1583,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'put', '/api/project-benefits/:id', { tag: 'Project Benefits', summary: 'Update project benefit', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Benefit updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/project-benefits/:id', { tag: 'Project Benefits', summary: 'Update project benefit', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Benefit updated', ref('ProjectBenefit')), ...updateRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1628,7 +1628,7 @@ export async function registerMiscRoutes(app: Express) {
   // PROJECT DECISIONS ROUTES
   // ============================================
 
-  apiRoute(app, 'get', '/api/projects/:projectId/decisions', { tag: 'Project Decisions', summary: 'List project decisions', parameters: [pathId('projectId')], responses: { ...r200('Decisions list'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/decisions', { tag: 'Project Decisions', summary: 'List project decisions', parameters: [pathId('projectId')], responses: { ...r200('Decisions list', arrOf('ProjectDecision')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1643,7 +1643,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'post', '/api/projects/:projectId/decisions', { tag: 'Project Decisions', summary: 'Create project decision', parameters: [pathId('projectId')], requestBody: body({ type: 'object' }), responses: { ...r201('Decision created'), ...createRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/decisions', { tag: 'Project Decisions', summary: 'Create project decision', parameters: [pathId('projectId')], requestBody: body({ type: 'object' }), responses: { ...r201('Decision created', ref('ProjectDecision')), ...createRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1662,7 +1662,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'put', '/api/project-decisions/:id', { tag: 'Project Decisions', summary: 'Update project decision', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Decision updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/project-decisions/:id', { tag: 'Project Decisions', summary: 'Update project decision', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Decision updated', ref('ProjectDecision')), ...updateRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1709,7 +1709,7 @@ export async function registerMiscRoutes(app: Express) {
   // ============================================
 
   // Get lessons learned for a specific project
-  apiRoute(app, 'get', '/api/projects/:projectId/lessons-learned', { tag: 'Lessons Learned', summary: 'List lessons learned for project', parameters: [pathId('projectId')], responses: { ...r200('Lessons learned list'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/lessons-learned', { tag: 'Lessons Learned', summary: 'List lessons learned for project', parameters: [pathId('projectId')], responses: { ...r200('Lessons learned list', arrOf('LessonLearned')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1725,7 +1725,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Get all lessons learned for an organization
-  apiRoute(app, 'get', '/api/organizations/:organizationId/lessons-learned', { tag: 'Lessons Learned', summary: 'List all lessons learned for organization', parameters: [pathId('organizationId')], responses: { ...r200('Lessons learned list'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:organizationId/lessons-learned', { tag: 'Lessons Learned', summary: 'List all lessons learned for organization', parameters: [pathId('organizationId')], responses: { ...r200('Lessons learned list', arrOf('LessonLearned')), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1741,7 +1741,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Create a lesson learned
-  apiRoute(app, 'post', '/api/projects/:projectId/lessons-learned', { tag: 'Lessons Learned', summary: 'Create lesson learned', parameters: [pathId('projectId')], requestBody: body({ type: 'object' }), responses: { ...r201('Lesson learned created'), ...createRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/lessons-learned', { tag: 'Lessons Learned', summary: 'Create lesson learned', parameters: [pathId('projectId')], requestBody: body({ type: 'object' }), responses: { ...r201('Lesson learned created', ref('LessonLearned')), ...createRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1761,7 +1761,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Update a lesson learned
-  apiRoute(app, 'put', '/api/lessons-learned/:id', { tag: 'Lessons Learned', summary: 'Update lesson learned', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Lesson learned updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/lessons-learned/:id', { tag: 'Lessons Learned', summary: 'Update lesson learned', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Lesson learned updated', ref('LessonLearned')), ...updateRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
@@ -1823,7 +1823,7 @@ export async function registerMiscRoutes(app: Express) {
   };
 
   // Get monitoring dashboard overview
-  apiRoute(app, 'get', '/api/admin/monitoring/overview', { tag: 'Admin Monitoring', summary: 'Get monitoring dashboard overview', responses: { ...r200('Monitoring overview'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/monitoring/overview', { tag: 'Admin Monitoring', summary: 'Get monitoring dashboard overview', responses: { ...r200('Monitoring overview', { type: 'object' }), ...stdRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
@@ -2037,7 +2037,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Get API request logs with pagination and filtering
-  apiRoute(app, 'get', '/api/admin/monitoring/api-logs', { tag: 'Admin Monitoring', summary: 'Get API request logs', parameters: [qInt('page', false), qInt('limit', false), qStr('method', false), qStr('path', false)], responses: { ...r200('API logs'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/monitoring/api-logs', { tag: 'Admin Monitoring', summary: 'Get API request logs', parameters: [qInt('page', false), qInt('limit', false), qStr('method', false), qStr('path', false)], responses: { ...r200('API logs', { type: 'array', items: { type: 'object' } }), ...stdRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
@@ -2092,7 +2092,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Get user activity statistics
-  apiRoute(app, 'get', '/api/admin/users/activity-counts', { tag: 'Admin Monitoring', summary: 'Get user activity statistics', responses: { ...r200('Activity counts'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/users/activity-counts', { tag: 'Admin Monitoring', summary: 'Get user activity statistics', responses: { ...r200('Activity counts', { type: 'object' }), ...stdRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
@@ -2142,7 +2142,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'get', '/api/admin/monitoring/user-activity', { tag: 'Admin Monitoring', summary: 'Get user activity details', responses: { ...r200('User activity'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/monitoring/user-activity', { tag: 'Admin Monitoring', summary: 'Get user activity details', responses: { ...r200('User activity', { type: 'object' }), ...stdRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
@@ -2201,7 +2201,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Get comprehensive activity ledger - all user actions as a general ledger
-  apiRoute(app, 'get', '/api/admin/monitoring/activity-ledger', { tag: 'Admin Monitoring', summary: 'Get comprehensive activity ledger', parameters: [qInt('page', false), qInt('limit', false), qStr('search', false), qStr('action', false)], responses: { ...r200('Activity ledger'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/monitoring/activity-ledger', { tag: 'Admin Monitoring', summary: 'Get comprehensive activity ledger', parameters: [qInt('page', false), qInt('limit', false), qStr('search', false), qStr('action', false)], responses: { ...r200('Activity ledger', { type: 'object' }), ...stdRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
@@ -2351,7 +2351,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Get feature usage statistics
-  apiRoute(app, 'get', '/api/admin/monitoring/feature-usage', { tag: 'Admin Monitoring', summary: 'Get feature usage statistics', responses: { ...r200('Feature usage'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/monitoring/feature-usage', { tag: 'Admin Monitoring', summary: 'Get feature usage statistics', responses: { ...r200('Feature usage', { type: 'object' }), ...stdRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
@@ -2441,7 +2441,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Get performance metrics
-  apiRoute(app, 'get', '/api/admin/monitoring/performance', { tag: 'Admin Monitoring', summary: 'Get performance metrics', responses: { ...r200('Performance metrics'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/monitoring/performance', { tag: 'Admin Monitoring', summary: 'Get performance metrics', responses: { ...r200('Performance metrics', { type: 'object' }), ...stdRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
@@ -2517,7 +2517,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Get database statistics
-  apiRoute(app, 'get', '/api/admin/monitoring/database', { tag: 'Admin Monitoring', summary: 'Get database statistics', responses: { ...r200('Database stats'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/monitoring/database', { tag: 'Admin Monitoring', summary: 'Get database statistics', responses: { ...r200('Database stats', { type: 'object' }), ...stdRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
@@ -2578,7 +2578,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'get', '/api/admin/organizations/credit-usage', { tag: 'Admin Organizations', summary: 'Get organization credit usage', responses: { ...r200('Credit usage'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/organizations/credit-usage', { tag: 'Admin Organizations', summary: 'Get organization credit usage', responses: { ...r200('Credit usage', { type: 'object' }), ...stdRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
@@ -2618,7 +2618,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Get organization usage statistics (comprehensive dashboard)
-  apiRoute(app, 'get', '/api/admin/monitoring/organization-usage', { tag: 'Admin Monitoring', summary: 'Get organization usage statistics', responses: { ...r200('Organization usage'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/monitoring/organization-usage', { tag: 'Admin Monitoring', summary: 'Get organization usage statistics', responses: { ...r200('Organization usage', { type: 'object' }), ...stdRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
@@ -2712,7 +2712,7 @@ export async function registerMiscRoutes(app: Express) {
   // ========== ANALYTICS DASHBOARD API ==========
 
   // Comprehensive analytics dashboard for Super Admin
-  apiRoute(app, 'get', '/api/admin/analytics/dashboard', { tag: 'Admin Analytics', summary: 'Get comprehensive analytics dashboard', responses: { ...r200('Analytics dashboard'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/analytics/dashboard', { tag: 'Admin Analytics', summary: 'Get comprehensive analytics dashboard', responses: { ...r200('Analytics dashboard', { type: 'object' }), ...stdRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
@@ -3102,7 +3102,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Get all help tickets (superadmin only)
-  apiRoute(app, 'get', '/api/admin/help-tickets', { tag: 'Help Tickets', summary: 'List all help tickets (admin)', responses: { ...r200('Help tickets list'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/help-tickets', { tag: 'Help Tickets', summary: 'List all help tickets (admin)', responses: { ...r200('Help tickets list', arrOf('HelpTicket')), ...stdRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
@@ -3119,7 +3119,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Get a single help ticket (superadmin only)
-  apiRoute(app, 'get', '/api/admin/help-tickets/:id', { tag: 'Help Tickets', summary: 'Get help ticket by ID (admin)', parameters: [pathId()], responses: { ...r200('Help ticket details'), ...fullRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/help-tickets/:id', { tag: 'Help Tickets', summary: 'Get help ticket by ID (admin)', parameters: [pathId()], responses: { ...r200('Help ticket details', ref('HelpTicket')), ...fullRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
@@ -3142,7 +3142,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Update a help ticket (superadmin only)
-  apiRoute(app, 'patch', '/api/admin/help-tickets/:id', { tag: 'Help Tickets', summary: 'Update help ticket (admin)', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Help ticket updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'patch', '/api/admin/help-tickets/:id', { tag: 'Help Tickets', summary: 'Update help ticket (admin)', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Help ticket updated', ref('HelpTicket')), ...updateRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
@@ -3182,7 +3182,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Delete a help ticket (superadmin only)
-  apiRoute(app, 'delete', '/api/admin/help-tickets/:id', { tag: 'Help Tickets', summary: 'Delete help ticket (admin)', parameters: [pathId()], responses: { ...r200('Help ticket deleted'), ...fullRes } }, async (req, res) => {
+  apiRoute(app, 'delete', '/api/admin/help-tickets/:id', { tag: 'Help Tickets', summary: 'Delete help ticket (admin)', parameters: [pathId()], responses: { ...r200('Help ticket deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
@@ -3202,7 +3202,7 @@ export async function registerMiscRoutes(app: Express) {
   // ===== REPORT SUBSCRIPTIONS (Scheduled Email Reports) =====
   
   // Get available dashboards for report subscriptions
-  apiRoute(app, 'get', '/api/report-subscriptions/dashboards', { tag: 'Report Subscriptions', summary: 'List available dashboards for subscriptions', responses: { ...r200('Available dashboards'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/report-subscriptions/dashboards', { tag: 'Report Subscriptions', summary: 'List available dashboards for subscriptions', responses: { ...r200('Available dashboards', { type: 'object' }), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -3238,7 +3238,7 @@ export async function registerMiscRoutes(app: Express) {
   });
   
   // Create a new report subscription
-  apiRoute(app, 'post', '/api/organizations/:orgId/report-subscriptions', { tag: 'Report Subscriptions', summary: 'Create report subscription', parameters: [pathId('orgId')], requestBody: body(ref('ReportSubscription')), responses: { ...r201('Subscription created'), ...createRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:orgId/report-subscriptions', { tag: 'Report Subscriptions', summary: 'Create report subscription', parameters: [pathId('orgId')], requestBody: body(ref('ReportSubscription')), responses: { ...r201('Subscription created', ref('ReportSubscription')), ...createRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -3286,7 +3286,7 @@ export async function registerMiscRoutes(app: Express) {
   });
   
   // Update a report subscription
-  apiRoute(app, 'put', '/api/organizations/:orgId/report-subscriptions/:id', { tag: 'Report Subscriptions', summary: 'Update report subscription', parameters: [pathId('orgId'), pathId()], requestBody: body(ref('ReportSubscription')), responses: { ...r200('Subscription updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/organizations/:orgId/report-subscriptions/:id', { tag: 'Report Subscriptions', summary: 'Update report subscription', parameters: [pathId('orgId'), pathId()], requestBody: body(ref('ReportSubscription')), responses: { ...r200('Subscription updated', ref('ReportSubscription')), ...updateRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -3346,7 +3346,7 @@ export async function registerMiscRoutes(app: Express) {
   });
   
   // Delete a report subscription
-  apiRoute(app, 'delete', '/api/organizations/:orgId/report-subscriptions/:id', { tag: 'Report Subscriptions', summary: 'Delete report subscription', parameters: [pathId('orgId'), pathId()], responses: { ...r200('Subscription deleted'), ...fullRes } }, async (req, res) => {
+  apiRoute(app, 'delete', '/api/organizations/:orgId/report-subscriptions/:id', { tag: 'Report Subscriptions', summary: 'Delete report subscription', parameters: [pathId('orgId'), pathId()], responses: { ...r200('Subscription deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -3383,7 +3383,7 @@ export async function registerMiscRoutes(app: Express) {
   });
   
   // Send a test report immediately
-  apiRoute(app, 'post', '/api/organizations/:orgId/report-subscriptions/:id/send-now', { tag: 'Report Subscriptions', summary: 'Send report immediately', parameters: [pathId('orgId'), pathId()], responses: { ...r200('Report sent'), ...fullRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:orgId/report-subscriptions/:id/send-now', { tag: 'Report Subscriptions', summary: 'Send report immediately', parameters: [pathId('orgId'), pathId()], responses: { ...r200('Report sent', ref('ReportSubscription')), ...fullRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -3423,7 +3423,7 @@ export async function registerMiscRoutes(app: Express) {
   });
   
   // Admin endpoint to manually trigger scheduled report check (for testing/cron)
-  apiRoute(app, 'post', '/api/admin/report-subscriptions/check', { tag: 'Report Subscriptions', summary: 'Manually trigger scheduled report check (admin)', responses: { ...r200('Reports checked'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/admin/report-subscriptions/check', { tag: 'Report Subscriptions', summary: 'Manually trigger scheduled report check (admin)', responses: { ...r200('Reports checked', { type: 'object' }), ...stdRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
@@ -3484,7 +3484,7 @@ export async function registerMiscRoutes(app: Express) {
     2138,  // Wanna See The Code? - Code review anxiety
   ];
   
-  apiRoute(app, 'get', '/api/xkcd/random', { tag: 'Other', summary: 'Get random XKCD comic', security: [], responses: { ...r200('XKCD comic data') } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/xkcd/random', { tag: 'Other', summary: 'Get random XKCD comic', security: [], responses: { ...r200('XKCD comic data', { type: 'object' }) } }, async (req, res) => {
     try {
       // Pick a random comic from our curated PM-relevant list
       const randomIndex = Math.floor(Math.random() * PM_XKCD_COMICS.length);
@@ -3512,7 +3512,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'get', '/api/home/recent-activity', { tag: 'Other', summary: 'Get recent activity feed', parameters: [qInt('organizationId', false, 'Filter by organization')], responses: { ...r200('Recent activity'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/home/recent-activity', { tag: 'Other', summary: 'Get recent activity feed', parameters: [qInt('organizationId', false, 'Filter by organization')], responses: { ...r200('Recent activity', { type: 'object' }), ...authRes } }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -3531,7 +3531,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'post', '/api/contact-sales', { tag: 'Other', summary: 'Submit contact sales form', security: [], requestBody: body({ type: 'object', properties: { name: { type: 'string' }, email: { type: 'string' }, company: { type: 'string' }, message: { type: 'string' } } }), responses: { ...r200('Form submitted'), ...e400 } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/contact-sales', { tag: 'Other', summary: 'Submit contact sales form', security: [], requestBody: body({ type: 'object', properties: { name: { type: 'string' }, email: { type: 'string' }, company: { type: 'string' }, message: { type: 'string' } } }), responses: { ...r200('Form submitted', { type: 'object' }), ...e400 } }, async (req, res) => {
     try {
       const schema = z.object({
         email: z.string().email(),
@@ -3557,7 +3557,7 @@ export async function registerMiscRoutes(app: Express) {
 
   // === TRAINING CONTENT MANAGEMENT (SuperAdmin) ===
 
-  apiRoute(app, 'get', '/api/admin/training/modules', { tag: 'Training', summary: 'List all training modules (admin)', responses: { ...r200('All modules'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/training/modules', { tag: 'Training', summary: 'List all training modules (admin)', responses: { ...r200('All modules', arrOf('User')), ...stdRes } }, async (req, res) => {
     try {
       const user = req.user as User | undefined;
       if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
@@ -3569,7 +3569,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'post', '/api/admin/training/modules', { tag: 'Training', summary: 'Create training module (admin)', requestBody: body({ type: 'object', properties: { moduleKey: { type: 'string' }, name: { type: 'string' }, subtitle: { type: 'string' }, certPrefix: { type: 'string' }, sortOrder: { type: 'integer' }, isActive: { type: 'boolean' } } }), responses: { ...r201('Module created'), ...createRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/admin/training/modules', { tag: 'Training', summary: 'Create training module (admin)', requestBody: body({ type: 'object', properties: { moduleKey: { type: 'string' }, name: { type: 'string' }, subtitle: { type: 'string' }, certPrefix: { type: 'string' }, sortOrder: { type: 'integer' }, isActive: { type: 'boolean' } } }), responses: { ...r201('Module created', ref('User')), ...createRes } }, async (req, res) => {
     try {
       const user = req.user as User | undefined;
       if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
@@ -3589,7 +3589,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'put', '/api/admin/training/modules/:id', { tag: 'Training', summary: 'Update training module (admin)', parameters: [pathId()], requestBody: body({ type: 'object', properties: { moduleKey: { type: 'string' }, name: { type: 'string' }, subtitle: { type: 'string' }, certPrefix: { type: 'string' }, sortOrder: { type: 'integer' }, isActive: { type: 'boolean' } } }, false), responses: { ...r200('Module updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/admin/training/modules/:id', { tag: 'Training', summary: 'Update training module (admin)', parameters: [pathId()], requestBody: body({ type: 'object', properties: { moduleKey: { type: 'string' }, name: { type: 'string' }, subtitle: { type: 'string' }, certPrefix: { type: 'string' }, sortOrder: { type: 'integer' }, isActive: { type: 'boolean' } } }, false), responses: { ...r200('Module updated', ref('User')), ...updateRes } }, async (req, res) => {
     try {
       const user = req.user as User | undefined;
       if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
@@ -3611,7 +3611,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'delete', '/api/admin/training/modules/:id', { tag: 'Training', summary: 'Delete training module (admin)', parameters: [pathId()], responses: { ...r200('Module deleted'), ...fullRes } }, async (req, res) => {
+  apiRoute(app, 'delete', '/api/admin/training/modules/:id', { tag: 'Training', summary: 'Delete training module (admin)', parameters: [pathId()], responses: { ...r200('Module deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes } }, async (req, res) => {
     try {
       const user = req.user as User | undefined;
       if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
@@ -3624,7 +3624,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'get', '/api/admin/training/modules/:moduleId/lessons', { tag: 'Training', summary: 'List lessons for module (admin)', parameters: [pathId('moduleId')], responses: { ...r200('Lessons list'), ...fullRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/training/modules/:moduleId/lessons', { tag: 'Training', summary: 'List lessons for module (admin)', parameters: [pathId('moduleId')], responses: { ...r200('Lessons list', arrOf('User')), ...fullRes } }, async (req, res) => {
     try {
       const user = req.user as User | undefined;
       if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
@@ -3637,7 +3637,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'post', '/api/admin/training/lessons', { tag: 'Training', summary: 'Create lesson (admin)', requestBody: body({ type: 'object' }), responses: { ...r201('Lesson created'), ...createRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/admin/training/lessons', { tag: 'Training', summary: 'Create lesson (admin)', requestBody: body({ type: 'object' }), responses: { ...r201('Lesson created', ref('User')), ...createRes } }, async (req, res) => {
     try {
       const user = req.user as User | undefined;
       if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
@@ -3660,7 +3660,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'put', '/api/admin/training/lessons/:id', { tag: 'Training', summary: 'Update lesson (admin)', parameters: [pathId()], requestBody: body({ type: 'object' }), responses: { ...r200('Lesson updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/admin/training/lessons/:id', { tag: 'Training', summary: 'Update lesson (admin)', parameters: [pathId()], requestBody: body({ type: 'object' }), responses: { ...r200('Lesson updated', ref('User')), ...updateRes } }, async (req, res) => {
     try {
       const user = req.user as User | undefined;
       if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
@@ -3685,7 +3685,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'delete', '/api/admin/training/lessons/:id', { tag: 'Training', summary: 'Delete lesson (admin)', parameters: [pathId()], responses: { ...r200('Lesson deleted'), ...fullRes } }, async (req, res) => {
+  apiRoute(app, 'delete', '/api/admin/training/lessons/:id', { tag: 'Training', summary: 'Delete lesson (admin)', parameters: [pathId()], responses: { ...r200('Lesson deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes } }, async (req, res) => {
     try {
       const user = req.user as User | undefined;
       if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
@@ -3698,7 +3698,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'get', '/api/admin/training/lessons/:lessonId/questions', { tag: 'Training', summary: 'List questions for lesson (admin)', parameters: [pathId('lessonId')], responses: { ...r200('Questions list'), ...fullRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/training/lessons/:lessonId/questions', { tag: 'Training', summary: 'List questions for lesson (admin)', parameters: [pathId('lessonId')], responses: { ...r200('Questions list', arrOf('User')), ...fullRes } }, async (req, res) => {
     try {
       const user = req.user as User | undefined;
       if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
@@ -3711,7 +3711,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'post', '/api/admin/training/questions', { tag: 'Training', summary: 'Create quiz question (admin)', requestBody: body({ type: 'object' }), responses: { ...r201('Question created'), ...createRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/admin/training/questions', { tag: 'Training', summary: 'Create quiz question (admin)', requestBody: body({ type: 'object' }), responses: { ...r201('Question created', ref('User')), ...createRes } }, async (req, res) => {
     try {
       const user = req.user as User | undefined;
       if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
@@ -3736,7 +3736,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'put', '/api/admin/training/questions/:id', { tag: 'Training', summary: 'Update quiz question (admin)', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Question updated'), ...updateRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/admin/training/questions/:id', { tag: 'Training', summary: 'Update quiz question (admin)', parameters: [pathId()], requestBody: body({ type: 'object' }, false), responses: { ...r200('Question updated', ref('User')), ...updateRes } }, async (req, res) => {
     try {
       const user = req.user as User | undefined;
       if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
@@ -3763,7 +3763,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'delete', '/api/admin/training/questions/:id', { tag: 'Training', summary: 'Delete quiz question (admin)', parameters: [pathId()], responses: { ...r200('Question deleted'), ...fullRes } }, async (req, res) => {
+  apiRoute(app, 'delete', '/api/admin/training/questions/:id', { tag: 'Training', summary: 'Delete quiz question (admin)', parameters: [pathId()], responses: { ...r200('Question deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes } }, async (req, res) => {
     try {
       const user = req.user as User | undefined;
       if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
@@ -3776,7 +3776,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'put', '/api/admin/training/reorder', { tag: 'Training', summary: 'Reorder training items (admin)', requestBody: body({ type: 'object' }), responses: { ...r200('Items reordered'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'put', '/api/admin/training/reorder', { tag: 'Training', summary: 'Reorder training items (admin)', requestBody: body({ type: 'object' }), responses: { ...r200('Items reordered', { type: 'object' }), ...stdRes } }, async (req, res) => {
     try {
       const user = req.user as User | undefined;
       if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
@@ -3803,7 +3803,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'post', '/api/admin/training/seed', { tag: 'Training', summary: 'Seed training data (admin)', responses: { ...r200('Seed result'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/admin/training/seed', { tag: 'Training', summary: 'Seed training data (admin)', responses: { ...r200('Seed result', { type: 'object' }), ...stdRes } }, async (req, res) => {
     try {
       const user = req.user as User | undefined;
       if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
@@ -3818,7 +3818,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'post', '/api/admin/training/seed-from-static', { tag: 'Training', summary: 'Seed training data from static content (admin)', requestBody: body({ type: 'object' }), responses: { ...r200('Seed result'), ...stdRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/admin/training/seed-from-static', { tag: 'Training', summary: 'Seed training data from static content (admin)', requestBody: body({ type: 'object' }), responses: { ...r200('Seed result', { type: 'object' }), ...stdRes } }, async (req, res) => {
     try {
       const user = req.user as User | undefined;
       if (user?.role !== 'super_admin') return res.status(403).json({ message: "Super admin access required" });
@@ -3897,7 +3897,7 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'get', '/api/training/modules', { tag: 'Training', summary: 'List all active training modules', responses: { ...r200('Training modules list'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/training/modules', { tag: 'Training', summary: 'List all active training modules', responses: { ...r200('Training modules list', arrOf('User')), ...authRes } }, async (req, res) => {
     try {
       const modules = await db.select().from(trainingModules).where(eq(trainingModules.isActive, true)).orderBy(asc(trainingModules.sortOrder), asc(trainingModules.id));
       const allLessons = await db.select().from(trainingLessons).where(eq(trainingLessons.isActive, true)).orderBy(asc(trainingLessons.sortOrder), asc(trainingLessons.id));
@@ -3973,7 +3973,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Get referral statistics for a user
-  apiRoute(app, 'get', '/api/referral/stats', { tag: 'Referrals', summary: 'Get referral statistics for current user', responses: { ...r200('Referral stats'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/referral/stats', { tag: 'Referrals', summary: 'Get referral statistics for current user', responses: { ...r200('Referral stats', { type: 'object' }), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -4040,7 +4040,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Validate a referral code (public endpoint for signup)
-  apiRoute(app, 'get', '/api/referral/validate/:code', { tag: 'Referrals', summary: 'Validate a referral code', security: [], parameters: [{ name: 'code', in: 'path', required: true, schema: { type: 'string' } }], responses: { ...r200('Validation result'), ...e400 } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/referral/validate/:code', { tag: 'Referrals', summary: 'Validate a referral code', security: [], parameters: [{ name: 'code', in: 'path', required: true, schema: { type: 'string' } }], responses: { ...r200('Validation result', { type: 'object' }), ...e400 } }, async (req, res) => {
     try {
       const { referralCodes } = await import("@shared/schema");
       const code = req.params.code.toUpperCase();
@@ -4067,7 +4067,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Track a referral (called when a new user signs up with a referral code)
-  apiRoute(app, 'post', '/api/referral/track', { tag: 'Referrals', summary: 'Track a referral during signup', security: [], requestBody: body({ type: 'object', properties: { code: { type: 'string' }, referredUserId: { type: 'string' } }, required: ['code'] }), responses: { ...r200('Referral tracked'), ...inputRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/referral/track', { tag: 'Referrals', summary: 'Track a referral during signup', security: [], requestBody: body({ type: 'object', properties: { code: { type: 'string' }, referredUserId: { type: 'string' } }, required: ['code'] }), responses: { ...r200('Referral tracked', { type: 'object' }), ...inputRes } }, async (req, res) => {
     try {
       const { referralCodes, referrals } = await import("@shared/schema");
       const { code, email, userId } = req.body;
@@ -4107,7 +4107,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Request a payout (user requesting their earnings)
-  apiRoute(app, 'post', '/api/referral/request-payout', { tag: 'Referrals', summary: 'Request a referral payout', responses: { ...r200('Payout requested'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/referral/request-payout', { tag: 'Referrals', summary: 'Request a referral payout', responses: { ...r200('Payout requested', { type: 'object' }), ...authRes } }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -4164,7 +4164,7 @@ export async function registerMiscRoutes(app: Express) {
   // =========== NOTIFICATIONS ===========
   
   // Get all notifications for the current user
-  apiRoute(app, 'get', '/api/notifications', { tag: 'Other', summary: 'GET /api/notifications', responses: { ...r200('Success'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/notifications', { tag: 'Other', summary: 'GET /api/notifications', responses: { ...r200('Success', { type: 'object' }), ...authRes } }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -4183,7 +4183,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Get unread notification count
-  apiRoute(app, 'get', '/api/notifications/unread-count', { tag: 'Other', summary: 'GET /api/notifications/unread-count', responses: { ...r200('Success'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'get', '/api/notifications/unread-count', { tag: 'Other', summary: 'GET /api/notifications/unread-count', responses: { ...r200('Success', { type: 'object' }), ...authRes } }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -4200,7 +4200,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Mark a notification as read
-  apiRoute(app, 'patch', '/api/notifications/:id/read', { tag: 'Other', summary: 'PATCH /api/notifications/:id/read', responses: { ...r200('Success'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'patch', '/api/notifications/:id/read', { tag: 'Other', summary: 'PATCH /api/notifications/:id/read', responses: { ...r200('Success', { type: 'object' }), ...authRes } }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -4218,7 +4218,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Mark all notifications as read
-  apiRoute(app, 'patch', '/api/notifications/read-all', { tag: 'Other', summary: 'PATCH /api/notifications/read-all', responses: { ...r200('Success'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'patch', '/api/notifications/read-all', { tag: 'Other', summary: 'PATCH /api/notifications/read-all', responses: { ...r200('Success', { type: 'object' }), ...authRes } }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -4235,7 +4235,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Run notification checks for an organization (generates notifications for overdue tasks, deadlines, health alerts, etc.)
-  apiRoute(app, 'post', '/api/organizations/:orgId/notifications/check', { tag: 'Other', summary: 'POST /api/organizations/:orgId/notifications/check', responses: { ...r200('Success'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:orgId/notifications/check', { tag: 'Other', summary: 'POST /api/organizations/:orgId/notifications/check', responses: { ...r200('Success', { type: 'object' }), ...authRes } }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -4270,7 +4270,7 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // Run notification checks for all organizations (super admin only - for scheduled jobs)
-  apiRoute(app, 'post', '/api/admin/notifications/check-all', { tag: 'Other', summary: 'POST /api/admin/notifications/check-all', responses: { ...r200('Success'), ...authRes } }, async (req, res) => {
+  apiRoute(app, 'post', '/api/admin/notifications/check-all', { tag: 'Other', summary: 'POST /api/admin/notifications/check-all', responses: { ...r200('Success', { type: 'object' }), ...authRes } }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {

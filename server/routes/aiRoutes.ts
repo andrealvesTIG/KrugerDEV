@@ -20,7 +20,7 @@ export function registerAiRoutes(app: Express) {
     tag: 'AI',
     summary: 'Generate project structure from description',
     requestBody: body({ type: 'object', properties: { description: { type: 'string' }, organizationId: { type: 'integer' } } }),
-    responses: { ...r201('Project generated'), ...inputRes },
+    responses: { ...r201('Project generated', { type: 'object' }), ...inputRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -260,7 +260,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
     tag: 'AI',
     summary: 'Smart create with AI',
     requestBody: body({ type: 'object', properties: { prompt: { type: 'string' }, organizationId: { type: 'integer' } } }),
-    responses: { ...r200('Smart create result'), ...inputRes },
+    responses: { ...r200('Smart create result', { type: 'object' }), ...inputRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -702,7 +702,7 @@ Return ONLY valid JSON.`;
     tag: 'AI',
     summary: 'Log AI voice usage',
     requestBody: body({ type: 'object', properties: { durationSeconds: { type: 'number' } } }),
-    responses: { ...r200('Usage logged'), ...inputRes },
+    responses: { ...r200('Usage logged', { type: 'object' }), ...inputRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -745,7 +745,7 @@ Return ONLY valid JSON.`;
     tag: 'AI',
     summary: 'Preview AI smart create result',
     requestBody: body({ type: 'object', properties: { prompt: { type: 'string' }, organizationId: { type: 'integer' } } }),
-    responses: { ...r200('Preview data'), ...inputRes },
+    responses: { ...r200('Preview data', { type: 'object' }), ...inputRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -988,7 +988,7 @@ Return ONLY valid JSON.`;
     tag: 'AI',
     summary: 'Execute AI smart create',
     requestBody: body({ type: 'object', properties: { plan: { type: 'object' }, organizationId: { type: 'integer' } } }),
-    responses: { ...r201('Entities created'), ...inputRes },
+    responses: { ...r201('Entities created', { type: 'object' }), ...inputRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);

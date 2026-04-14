@@ -20,7 +20,7 @@ export function registerDashboardRoutes(app: Express) {
     tag: 'Dashboards',
     summary: 'Get dashboard summary',
     parameters: [qInt('organizationId', true, 'Organization ID')],
-    responses: { ...r200('Dashboard summary data'), ...authRes },
+    responses: { ...r200('Dashboard summary data', { type: 'object' }), ...authRes },
   }, async (req, res) => {
     try {
       const organizationId = Number(req.query.organizationId);
@@ -201,7 +201,7 @@ export function registerDashboardRoutes(app: Express) {
     tag: 'Dashboards',
     summary: 'List all risks across projects',
     parameters: [qInt('organizationId', true, 'Organization ID')],
-    responses: { ...r200('Risks list'), ...authRes },
+    responses: { ...r200('Risks list', arrOf('Organization')), ...authRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -234,7 +234,7 @@ export function registerDashboardRoutes(app: Express) {
     tag: 'Dashboards',
     summary: 'Get all resource assignments',
     parameters: [qInt('organizationId', true, 'Organization ID')],
-    responses: { ...r200('Resource assignments list'), ...authRes },
+    responses: { ...r200('Resource assignments list', arrOf('Organization')), ...authRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -260,7 +260,7 @@ export function registerDashboardRoutes(app: Express) {
     tag: 'Dashboards',
     summary: 'Get dashboard utilization data',
     parameters: [qInt('organizationId', true, 'Organization ID')],
-    responses: { ...r200('Utilization data'), ...authRes },
+    responses: { ...r200('Utilization data', { type: 'object' }), ...authRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -284,7 +284,7 @@ export function registerDashboardRoutes(app: Express) {
   apiRoute(app, 'get', '/api/onboarding/status', {
     tag: 'Dashboards',
     summary: 'Get onboarding status',
-    responses: { ...r200('Onboarding status'), ...authRes },
+    responses: { ...r200('Onboarding status', ref('Organization')), ...authRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -303,7 +303,7 @@ export function registerDashboardRoutes(app: Express) {
     tag: 'Dashboards',
     summary: 'Complete onboarding',
     requestBody: body({ type: 'object', properties: { companyName: { type: 'string' }, industry: { type: 'string' }, createDemoData: { type: 'boolean' } } }),
-    responses: { ...r200('Onboarding completed'), ...inputRes },
+    responses: { ...r200('Onboarding completed', { type: 'object' }), ...inputRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -325,7 +325,7 @@ export function registerDashboardRoutes(app: Express) {
   apiRoute(app, 'post', '/api/onboarding/skip', {
     tag: 'Dashboards',
     summary: 'Skip onboarding',
-    responses: { ...r200('Onboarding skipped'), ...authRes },
+    responses: { ...r200('Onboarding skipped', { type: 'object' }), ...authRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -342,7 +342,7 @@ export function registerDashboardRoutes(app: Express) {
   apiRoute(app, 'post', '/api/onboarding/generate-sample-data', {
     tag: 'Dashboards',
     summary: 'Generate sample data for onboarding',
-    responses: { ...r200('Sample data generated'), ...authRes },
+    responses: { ...r200('Sample data generated', { type: 'object' }), ...authRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -363,7 +363,7 @@ export function registerDashboardRoutes(app: Express) {
   apiRoute(app, 'get', '/api/demo-data/industries', {
     tag: 'Dashboards',
     summary: 'List available demo data industries',
-    responses: { ...r200('Industries list'), ...authRes },
+    responses: { ...r200('Industries list', arrOf('Organization')), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     const user = userId ? await storage.getUser(userId) : null;
@@ -395,7 +395,7 @@ export function registerDashboardRoutes(app: Express) {
     tag: 'Dashboards',
     summary: 'Generate demo data for organization',
     requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, industry: { type: 'string' }, customIndustry: { type: 'string' }, dataTypes: { type: 'array', items: { type: 'string' } } } }),
-    responses: { ...r201('Demo data generated'), ...createRes },
+    responses: { ...r201('Demo data generated', { type: 'object' }), ...createRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     const user = userId ? await storage.getUser(userId) : null;
@@ -981,7 +981,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
     tag: 'Dashboards',
     summary: 'Delete demo data for organization',
     parameters: [pathId('organizationId')],
-    responses: { ...r200('Demo data deleted'), ...fullRes },
+    responses: { ...r200('Demo data deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     const user = userId ? await storage.getUser(userId) : null;
@@ -1026,7 +1026,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
     tag: 'Dashboards',
     summary: 'Get KPI metrics for organization',
     parameters: [qInt('organizationId', true, 'Organization ID')],
-    responses: { ...r200('KPI metrics data'), ...authRes },
+    responses: { ...r200('KPI metrics data', { type: 'object' }), ...authRes },
   }, async (req, res) => {
     try {
       const organizationId = Number(req.query.organizationId);
@@ -1235,7 +1235,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
   apiRoute(app, 'get', '/api/admin/kpi-metrics', {
     tag: 'Dashboards',
     summary: 'Get admin KPI metrics',
-    responses: { ...r200('Admin KPI metrics data'), ...stdRes },
+    responses: { ...r200('Admin KPI metrics data', { type: 'object' }), ...stdRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);

@@ -74,7 +74,7 @@ export async function registerBillingRoutes(app: Express) {
     tag: 'Billing',
     summary: 'Get current subscription',
     parameters: [qInt('orgId', true)],
-    responses: { ...r200('Subscription details'), ...authRes },
+    responses: { ...r200('Subscription details', ref('Plan')), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -125,7 +125,7 @@ export async function registerBillingRoutes(app: Express) {
     tag: 'Billing',
     summary: 'Get current usage metrics',
     parameters: [qInt('orgId', true)],
-    responses: { ...r200('Usage data'), ...authRes },
+    responses: { ...r200('Usage data', { type: 'object' }), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -238,7 +238,7 @@ export async function registerBillingRoutes(app: Express) {
     tag: 'Billing',
     summary: 'Get AI feature costs',
     parameters: [qInt('orgId', true)],
-    responses: { ...r200('AI costs'), ...authRes },
+    responses: { ...r200('AI costs', ref('Plan')), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -359,7 +359,7 @@ export async function registerBillingRoutes(app: Express) {
     tag: 'Billing',
     summary: 'Get billing history',
     parameters: [qInt('orgId', true)],
-    responses: { ...r200('Billing history'), ...authRes },
+    responses: { ...r200('Billing history', { type: 'array', items: { type: 'object' } }), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -389,7 +389,7 @@ export async function registerBillingRoutes(app: Express) {
     tag: 'Billing',
     summary: 'Get billing cycle history',
     parameters: [qInt('orgId', true)],
-    responses: { ...r200('Cycle history'), ...authRes },
+    responses: { ...r200('Cycle history', { type: 'array', items: { type: 'object' } }), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -484,7 +484,7 @@ export async function registerBillingRoutes(app: Express) {
     tag: 'Billing',
     summary: 'Get credit ledger',
     parameters: [qInt('orgId', true)],
-    responses: { ...r200('Credit ledger'), ...authRes },
+    responses: { ...r200('Credit ledger', ref('Plan')), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -599,7 +599,7 @@ export async function registerBillingRoutes(app: Express) {
     tag: 'Billing',
     summary: 'Submit enterprise plan inquiry',
     requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, message: { type: 'string' } } }),
-    responses: { ...r201('Inquiry submitted'), ...inputRes },
+    responses: { ...r201('Inquiry submitted', { type: 'object' }), ...inputRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -645,7 +645,7 @@ export async function registerBillingRoutes(app: Express) {
     tag: 'Billing',
     summary: 'Create new subscription',
     requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, planId: { type: 'integer' }, billingCycle: { type: 'string' } } }),
-    responses: { ...r201('Subscription created'), ...inputRes },
+    responses: { ...r201('Subscription created', ref('Plan')), ...inputRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -681,7 +681,7 @@ export async function registerBillingRoutes(app: Express) {
     summary: 'Change subscription plan',
     parameters: [pathId()],
     requestBody: body({ type: 'object', properties: { planId: { type: 'integer' } } }),
-    responses: { ...r200('Plan changed'), ...updateRes },
+    responses: { ...r200('Plan changed', { type: 'object' }), ...updateRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -714,7 +714,7 @@ export async function registerBillingRoutes(app: Express) {
     tag: 'Billing',
     summary: 'Create a new plan',
     requestBody: body({ type: 'object', properties: { code: { type: 'string' }, name: { type: 'string' }, description: { type: 'string' }, monthlyPriceCents: { type: 'integer' }, maxSeats: { type: 'integer' } } }),
-    responses: { ...r201('Plan created'), ...createRes },
+    responses: { ...r201('Plan created', ref('Plan')), ...createRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -795,7 +795,7 @@ export async function registerBillingRoutes(app: Express) {
     tag: 'Billing',
     summary: 'Reorder plans',
     requestBody: body({ type: 'object', properties: { orderedIds: { type: 'array', items: { type: 'integer' } } } }),
-    responses: { ...r200('Plans reordered'), ...stdRes },
+    responses: { ...r200('Plans reordered', { type: 'object' }), ...stdRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -835,7 +835,7 @@ export async function registerBillingRoutes(app: Express) {
     summary: 'Update a plan',
     parameters: [pathId()],
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('Plan updated'), ...updateRes },
+    responses: { ...r200('Plan updated', ref('Plan')), ...updateRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -879,7 +879,7 @@ export async function registerBillingRoutes(app: Express) {
   apiRoute(app, 'post', '/api/admin/plans/init-extra-seat-prices', {
     tag: 'Billing',
     summary: 'Initialize extra seat prices',
-    responses: { ...r200('Seat prices initialized'), ...stdRes },
+    responses: { ...r200('Seat prices initialized', { type: 'object' }), ...stdRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -927,7 +927,7 @@ export async function registerBillingRoutes(app: Express) {
     tag: 'Billing',
     summary: 'Delete a plan',
     parameters: [pathId()],
-    responses: { ...r200('Plan deleted'), ...fullRes },
+    responses: { ...r200('Plan deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -965,7 +965,7 @@ export async function registerBillingRoutes(app: Express) {
     tag: 'Billing',
     summary: 'Get plan meter rules',
     parameters: [pathId()],
-    responses: { ...r200('Plan rules'), ...idRes },
+    responses: { ...r200('Plan rules', ref('Plan')), ...idRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1015,7 +1015,7 @@ export async function registerBillingRoutes(app: Express) {
     summary: 'Create plan meter rule',
     parameters: [pathId('planId')],
     requestBody: body({ type: 'object', properties: { meterId: { type: 'integer' }, ruleType: { type: 'string' } } }),
-    responses: { ...r201('Rule created'), ...createRes },
+    responses: { ...r201('Rule created', ref('Plan')), ...createRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1062,7 +1062,7 @@ export async function registerBillingRoutes(app: Express) {
     summary: 'Update plan meter rule',
     parameters: [pathId('planId'), pathId('ruleId')],
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('Rule updated'), ...updateRes },
+    responses: { ...r200('Rule updated', ref('Plan')), ...updateRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1103,7 +1103,7 @@ export async function registerBillingRoutes(app: Express) {
   apiRoute(app, 'get', '/api/admin/credit-costs', {
     tag: 'Billing',
     summary: 'Get all credit costs',
-    responses: { ...r200('Credit costs'), ...stdRes },
+    responses: { ...r200('Credit costs', arrOf('Plan')), ...stdRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1134,7 +1134,7 @@ export async function registerBillingRoutes(app: Express) {
     summary: 'Update credit cost',
     parameters: [pathStr('resourceType')],
     requestBody: body({ type: 'object', properties: { creditCost: { type: 'integer' }, displayName: { type: 'string' }, description: { type: 'string' } } }),
-    responses: { ...r200('Credit cost updated'), ...updateRes },
+    responses: { ...r200('Credit cost updated', ref('Plan')), ...updateRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1183,7 +1183,7 @@ export async function registerBillingRoutes(app: Express) {
     tag: 'Billing',
     summary: 'Get plan credits summary',
     parameters: [pathId()],
-    responses: { ...r200('Plan credits'), ...idRes },
+    responses: { ...r200('Plan credits', ref('Plan')), ...idRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1264,48 +1264,48 @@ export async function registerBillingRoutes(app: Express) {
       apiRoute(app, 'get', '/api/paypal/subscription/client-id', {
         tag: 'Billing',
         summary: 'Get PayPal client ID',
-        responses: { ...r200('PayPal client ID'), ...authRes },
+        responses: { ...r200('PayPal client ID', ref('Plan')), ...authRes },
       }, getPayPalClientId);
       apiRoute(app, 'post', '/api/paypal/subscription/product', {
         tag: 'Billing',
         summary: 'Create PayPal product',
         requestBody: body({ type: 'object' }),
-        responses: { ...r201('Product created'), ...createRes },
+        responses: { ...r201('Product created', ref('Plan')), ...createRes },
       }, createProduct);
       apiRoute(app, 'post', '/api/paypal/subscription/plan', {
         tag: 'Billing',
         summary: 'Create PayPal plan',
         requestBody: body({ type: 'object' }),
-        responses: { ...r201('Plan created'), ...createRes },
+        responses: { ...r201('Plan created', ref('Plan')), ...createRes },
       }, createPlan);
       apiRoute(app, 'get', '/api/paypal/subscription/plans', {
         tag: 'Billing',
         summary: 'List PayPal plans',
-        responses: { ...r200('PayPal plans'), ...authRes },
+        responses: { ...r200('PayPal plans', { type: 'object' }), ...authRes },
       }, listPayPalPlans);
       apiRoute(app, 'post', '/api/paypal/subscription/create', {
         tag: 'Billing',
         summary: 'Create PayPal subscription',
         requestBody: body({ type: 'object', properties: { planId: { type: 'string' } } }),
-        responses: { ...r200('Subscription created'), ...inputRes },
+        responses: { ...r200('Subscription created', ref('Plan')), ...inputRes },
       }, createSubscription);
       apiRoute(app, 'get', '/api/paypal/subscription/:subscriptionId', {
         tag: 'Billing',
         summary: 'Get PayPal subscription details',
         parameters: [pathStr('subscriptionId')],
-        responses: { ...r200('Subscription details'), ...idRes },
+        responses: { ...r200('Subscription details', ref('Plan')), ...idRes },
       }, getSubscription);
       apiRoute(app, 'post', '/api/paypal/subscription/:subscriptionId/cancel', {
         tag: 'Billing',
         summary: 'Cancel PayPal subscription',
         parameters: [pathStr('subscriptionId')],
-        responses: { ...r200('Subscription cancelled'), ...fullRes },
+        responses: { ...r200('Subscription cancelled', { type: 'object' }), ...fullRes },
       }, cancelSubscription);
       apiRoute(app, 'post', '/api/paypal/subscription/:subscriptionId/activate', {
         tag: 'Billing',
         summary: 'Activate PayPal subscription',
         parameters: [pathStr('subscriptionId')],
-        responses: { ...r200('Subscription activated'), ...fullRes },
+        responses: { ...r200('Subscription activated', { type: 'object' }), ...fullRes },
       }, activateSubscription);
       
       // Get payment method from user's active PayPal subscription
@@ -1313,7 +1313,7 @@ export async function registerBillingRoutes(app: Express) {
         tag: 'Billing',
         summary: 'Get payment method on file',
         parameters: [qInt('orgId', true)],
-        responses: { ...r200('Payment method'), ...authRes },
+        responses: { ...r200('Payment method', ref('Plan')), ...authRes },
       }, async (req, res) => {
         const userId = getUserIdFromRequest(req);
         if (!userId) {
@@ -1388,7 +1388,7 @@ export async function registerBillingRoutes(app: Express) {
       apiRoute(app, 'post', '/api/admin/paypal/sync-plans', {
         tag: 'Billing',
         summary: 'Sync billing plans to PayPal',
-        responses: { ...r200('Plans synced'), ...stdRes },
+        responses: { ...r200('Plans synced', ref('Plan')), ...stdRes },
       }, async (req, res) => {
         const userId = getUserIdFromRequest(req);
         if (!userId) {
@@ -1591,7 +1591,7 @@ export async function registerBillingRoutes(app: Express) {
         tag: 'Billing',
         summary: 'Create PayPal subscription',
         requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, planId: { type: 'integer' }, subscriptionId: { type: 'string' } } }),
-        responses: { ...r201('Subscription created'), ...inputRes },
+        responses: { ...r201('Subscription created', ref('Plan')), ...inputRes },
       }, async (req, res) => {
         const userId = getUserIdFromRequest(req);
         if (!userId) {
@@ -1858,7 +1858,7 @@ export async function registerBillingRoutes(app: Express) {
         tag: 'Billing',
         summary: 'PayPal webhook handler',
         security: [],
-        responses: { ...r200('Webhook processed') },
+        responses: { ...r200('Webhook processed', { type: 'object' }) },
       }, async (req, res) => {
         try {
           const { event_type, resource, create_time } = req.body;

@@ -168,7 +168,7 @@ export function registerPortfolioRoutes(app: Express) {
     summary: 'Update portfolio',
     parameters: [pathId()],
     requestBody: body(ref('PortfolioRequest'), false),
-    responses: { ...r200('Portfolio updated'), ...updateRes },
+    responses: { ...r200('Portfolio updated', ref('Portfolio')), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -257,7 +257,7 @@ export function registerPortfolioRoutes(app: Express) {
     summary: 'Add custom project to portfolio',
     parameters: [pathId()],
     requestBody: body({ type: 'object', properties: { projectId: { type: 'integer' } } }),
-    responses: { ...r201('Project added to portfolio'), ...createRes },
+    responses: { ...r201('Project added to portfolio', { type: 'object', properties: { message: { type: 'string' } } }), ...createRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -286,7 +286,7 @@ export function registerPortfolioRoutes(app: Express) {
     tag: 'Portfolios',
     summary: 'Remove custom project from portfolio',
     parameters: [pathId(), pathId('projectId')],
-    responses: { ...r200('Project removed'), ...fullRes },
+    responses: { ...r200('Project removed', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -666,7 +666,7 @@ export function registerPortfolioRoutes(app: Express) {
     tag: 'Portfolios',
     summary: 'Get all portfolio risk assessments for org',
     parameters: [pathId('orgId')],
-    responses: { ...r200('Org portfolio assessments'), ...idRes },
+    responses: { ...r200('Org portfolio assessments', { type: 'array', items: ref('RiskAssessment') }), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -701,7 +701,7 @@ export function registerPortfolioRoutes(app: Express) {
     tag: 'Portfolios',
     summary: 'Get all project risk assessments for org',
     parameters: [pathId('orgId')],
-    responses: { ...r200('Org project assessments'), ...idRes },
+    responses: { ...r200('Org project assessments', { type: 'array', items: ref('RiskAssessment') }), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -738,7 +738,7 @@ export function registerPortfolioRoutes(app: Express) {
     summary: 'View shared risk assessment (public)',
     parameters: [pathStr('token')],
     security: [],
-    responses: { ...r200('Shared assessment'), ...e404 },
+    responses: { ...r200('Shared assessment', ref('RiskAssessment')), ...e404 },
   }, async (req, res) => {
     try {
       const assessment = await storage.getPortfolioRiskAssessmentByShareToken(req.params.token);
@@ -981,7 +981,7 @@ export function registerPortfolioRoutes(app: Express) {
     summary: 'View shared project risk assessment (public)',
     parameters: [pathStr('token')],
     security: [],
-    responses: { ...r200('Shared assessment'), ...e404 },
+    responses: { ...r200('Shared assessment', ref('RiskAssessment')), ...e404 },
   }, async (req, res) => {
     try {
       const assessment = await storage.getProjectRiskAssessmentByShareToken(req.params.token);
@@ -1067,7 +1067,7 @@ export function registerPortfolioRoutes(app: Express) {
     tag: 'Portfolios',
     summary: 'Get portfolio overview with stats',
     parameters: [pathId()],
-    responses: { ...r200('Portfolio overview'), ...idRes },
+    responses: { ...r200('Portfolio overview', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -1125,7 +1125,7 @@ export function registerPortfolioRoutes(app: Express) {
     tag: 'Portfolios',
     summary: 'Get portfolio scoring rollup',
     parameters: [pathId()],
-    responses: { ...r200('Scoring rollup'), ...idRes },
+    responses: { ...r200('Scoring rollup', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);

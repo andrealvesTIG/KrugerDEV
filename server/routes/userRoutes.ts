@@ -113,7 +113,7 @@ export function registerUserRoutes(app: Express) {
     summary: 'Update user role',
     parameters: [pathId('userId')],
     requestBody: body({ type: 'object', properties: { role: { type: 'string' } } }),
-    responses: { ...r200('Role updated'), ...updateRes },
+    responses: { ...r200('Role updated', ref('User')), ...updateRes },
   }, async (req, res) => {
     try {
       // SECURITY: Only super_admin can change user roles
@@ -158,7 +158,7 @@ export function registerUserRoutes(app: Express) {
     summary: 'Update user technician status',
     parameters: [pathId('userId')],
     requestBody: body({ type: 'object', properties: { isTechnician: { type: 'boolean' } } }),
-    responses: { ...r200('Technician status updated'), ...updateRes },
+    responses: { ...r200('Technician status updated', ref('User')), ...updateRes },
   }, async (req, res) => {
     try {
       const currentUserId = req.session?.userId || (req.user as any)?.id;
@@ -193,7 +193,7 @@ export function registerUserRoutes(app: Express) {
     tag: 'Users',
     summary: 'Deactivate a user',
     parameters: [pathId('userId')],
-    responses: { ...r200('User deactivated'), ...fullRes },
+    responses: { ...r200('User deactivated', { type: 'object' }), ...fullRes },
   }, async (req, res) => {
     try {
       const currentUserId = req.session?.userId || (req.user as any)?.id;
@@ -226,7 +226,7 @@ export function registerUserRoutes(app: Express) {
     tag: 'Users',
     summary: 'Reactivate a user',
     parameters: [pathId('userId')],
-    responses: { ...r200('User reactivated'), ...fullRes },
+    responses: { ...r200('User reactivated', { type: 'object' }), ...fullRes },
   }, async (req, res) => {
     try {
       const currentUserId = req.session?.userId || (req.user as any)?.id;
@@ -255,7 +255,7 @@ export function registerUserRoutes(app: Express) {
     summary: 'Update user profile',
     parameters: [pathId('userId')],
     requestBody: body({ type: 'object', properties: { firstName: { type: 'string' }, lastName: { type: 'string' }, email: { type: 'string' } } }),
-    responses: { ...r200('Profile updated'), ...updateRes },
+    responses: { ...r200('Profile updated', ref('User')), ...updateRes },
   }, async (req, res) => {
     try {
       const currentUserId = getUserIdFromRequest(req);
@@ -307,7 +307,7 @@ export function registerUserRoutes(app: Express) {
   apiRoute(app, 'get', '/api/admin/selfie-leads', {
     tag: 'Users',
     summary: 'List selfie leads (admin)',
-    responses: { ...r200('Selfie leads list'), ...stdRes },
+    responses: { ...r200('Selfie leads list', arrOf('User')), ...stdRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -368,7 +368,7 @@ export function registerUserRoutes(app: Express) {
   apiRoute(app, 'post', '/api/admin/selfie-leads/send-followup', {
     tag: 'Users',
     summary: 'Send selfie lead followup emails',
-    responses: { ...r200('Followup emails sent'), ...stdRes },
+    responses: { ...r200('Followup emails sent', ref('User')), ...stdRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -479,7 +479,7 @@ export function registerUserRoutes(app: Express) {
     tag: 'Users',
     summary: 'Get user profile analytics',
     parameters: [pathId('userId')],
-    responses: { ...r200('Profile analytics data'), ...idRes },
+    responses: { ...r200('Profile analytics data', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const currentUserId = getUserIdFromRequest(req);
@@ -720,7 +720,7 @@ export function registerUserRoutes(app: Express) {
     tag: 'Users',
     summary: 'Get user public profile',
     parameters: [pathId('userId')],
-    responses: { ...r200('Public profile data'), ...idRes },
+    responses: { ...r200('Public profile data', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const targetUserId = req.params.userId;
@@ -967,7 +967,7 @@ export function registerUserRoutes(app: Express) {
     tag: 'Users',
     summary: 'Submit UnCon selfie',
     requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { photo: { type: 'string', format: 'binary' }, name: { type: 'string' }, email: { type: 'string' }, interviewer: { type: 'string' } } } } } },
-    responses: { ...r200('Selfie submitted'), ...inputRes },
+    responses: { ...r200('Selfie submitted', { type: 'object' }), ...inputRes },
   }, (req, res, next) => {
     selfieUpload.single('photo')(req, res, (err: any) => {
       if (err) {
@@ -1256,7 +1256,7 @@ export function registerUserRoutes(app: Express) {
     summary: 'Update user avatar URL',
     parameters: [pathId('userId')],
     requestBody: body({ type: 'object', properties: { avatarUrl: { type: 'string' } } }),
-    responses: { ...r200('Avatar updated'), ...updateRes },
+    responses: { ...r200('Avatar updated', ref('User')), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
@@ -1299,7 +1299,7 @@ export function registerUserRoutes(app: Express) {
     summary: 'Get presigned avatar upload URL',
     parameters: [pathId('userId')],
     requestBody: body({ type: 'object', properties: { contentType: { type: 'string' } } }),
-    responses: { ...r200('Upload URL generated'), ...createRes },
+    responses: { ...r200('Upload URL generated', ref('User')), ...createRes },
   }, async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
@@ -1326,7 +1326,7 @@ export function registerUserRoutes(app: Express) {
     summary: 'Upload user avatar directly',
     parameters: [pathId('userId')],
     requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } } } },
-    responses: { ...r200('Avatar uploaded'), ...createRes },
+    responses: { ...r200('Avatar uploaded', { type: 'object' }), ...createRes },
   }, imageUpload.single('avatar'), async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
@@ -1406,7 +1406,7 @@ export function registerUserRoutes(app: Express) {
     tag: 'Users',
     summary: 'Delete a user',
     parameters: [pathId('userId')],
-    responses: { ...r200('User deleted'), ...fullRes },
+    responses: { ...r200('User deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
   }, async (req, res) => {
     try {
       const currentUserId = getUserIdFromRequest(req);
@@ -1443,7 +1443,7 @@ export function registerUserRoutes(app: Express) {
   apiRoute(app, 'get', '/api/consents/status', {
     tag: 'Users',
     summary: 'Get user consent status',
-    responses: { ...r200('Consent status'), ...authRes },
+    responses: { ...r200('Consent status', ref('User')), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1474,7 +1474,7 @@ export function registerUserRoutes(app: Express) {
   apiRoute(app, 'get', '/api/consents', {
     tag: 'Users',
     summary: 'Get user consents',
-    responses: { ...r200('User consents list'), ...authRes },
+    responses: { ...r200('User consents list', ref('User')), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1495,7 +1495,7 @@ export function registerUserRoutes(app: Express) {
     tag: 'Users',
     summary: 'Record user consent',
     requestBody: body({ type: 'object', properties: { consentType: { type: 'string' }, version: { type: 'string' }, method: { type: 'string' } } }),
-    responses: { ...r201('Consent recorded'), ...inputRes },
+    responses: { ...r201('Consent recorded', ref('User')), ...inputRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1532,7 +1532,7 @@ export function registerUserRoutes(app: Express) {
   apiRoute(app, 'post', '/api/consents/accept-all', {
     tag: 'Users',
     summary: 'Accept all current consents',
-    responses: { ...r201('All consents accepted'), ...authRes },
+    responses: { ...r201('All consents accepted', ref('User')), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1578,7 +1578,7 @@ export function registerUserRoutes(app: Express) {
     tag: 'Users',
     summary: 'List all user consents (admin)',
     parameters: [qInt('limit', false, 'Limit'), qInt('offset', false, 'Offset')],
-    responses: { ...r200('All consents list'), ...stdRes },
+    responses: { ...r200('All consents list', ref('User')), ...stdRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1618,7 +1618,7 @@ export function registerUserRoutes(app: Express) {
   apiRoute(app, 'get', '/api/admin/consents/stats', {
     tag: 'Users',
     summary: 'Get consent statistics (admin)',
-    responses: { ...r200('Consent statistics'), ...stdRes },
+    responses: { ...r200('Consent statistics', ref('User')), ...stdRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -1653,7 +1653,7 @@ export function registerUserRoutes(app: Express) {
     summary: 'Start delegate mode (act as another user)',
     parameters: [pathId('orgId')],
     requestBody: body({ type: 'object', properties: { targetUserId: { type: 'string' } } }),
-    responses: { ...r200('Delegate mode started'), ...fullRes, ...e400 },
+    responses: { ...r200('Delegate mode started', { type: 'object' }), ...fullRes, ...e400 },
   }, async (req, res) => {
     try {
       const realUserId = (req as any).session.userId;
@@ -1734,7 +1734,7 @@ export function registerUserRoutes(app: Express) {
     tag: 'Users',
     summary: 'Stop delegate mode',
     parameters: [pathId('orgId')],
-    responses: { ...r200('Delegate mode stopped'), ...authRes },
+    responses: { ...r200('Delegate mode stopped', { type: 'object' }), ...authRes },
   }, async (req, res) => {
     try {
       const realUserId = (req as any).session.userId;
