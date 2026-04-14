@@ -32,12 +32,12 @@ import {
   BarChart3, Download, History, ListPlus, AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { PunchItem, PunchItemPhoto, PunchItemStatusHistory, User } from "@shared/schema";
+import type { PunchItem, PunchItemPhoto, PunchItemStatusHistory, User as SchemaUser } from "@shared/schema";
 
 interface OrgMember {
   userId: string;
   role: string;
-  user?: User;
+  user?: SchemaUser;
 }
 
 function getMemberDisplayName(member: OrgMember): string {
