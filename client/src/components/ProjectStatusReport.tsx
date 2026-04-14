@@ -3,21 +3,9 @@ import { format, differenceInDays, isAfter, isBefore } from "date-fns";
 import type { Project, Risk, Issue, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle2, Circle, Clock, Target, TrendingUp, Users, DollarSign, Calendar, Flag, FileText, GitPullRequest, ChevronDown, ChevronUp, HardHat, ClipboardCheck, FileQuestion, Send, Pencil, ShieldCheck, Gavel, Receipt, MessagesSquare, Mail } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Circle, Clock, Target, TrendingUp, Users, DollarSign, Calendar, Flag, FileText, GitPullRequest, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Legend, Tooltip } from "recharts";
-
-export interface ConstructionSummaryData {
-  dailyLogs?: { totalDays: number; totalLaborHours: number; totalEquipmentHours: number };
-  rfis?: { total: number; open: number; closed: number; overdue: number };
-  submittals?: { total: number; open: number; approved: number; rejected: number };
-  drawings?: { total: number; revisions: number };
-  punchList?: { total: number; open: number; closed: number; percentComplete: number };
-  qualitySafety?: { inspections: number; incidents: number; observations: number; openCorrectiveActions: number };
-  changeOrders?: { totalCount: number; approvedCount: number; pendingCount: number; approvedCostImpact: number; totalCostImpact: number };
-  meetings?: { total: number; upcoming: number; actionItems: number; openActionItems: number };
-  correspondence?: { total: number; letters: number; emails: number; transmittals: number; notices: number };
-}
 
 interface ProjectStatusReportProps {
   project: Project;
@@ -28,7 +16,6 @@ interface ProjectStatusReportProps {
   changeRequests?: ChangeRequest[];
   documents?: ProjectDocument[];
   executiveSummary?: string;
-  constructionSummary?: ConstructionSummaryData;
 }
 
 function HealthIndicator({ value, label, icon: Icon }: { value: "Green" | "Yellow" | "Red" | string; label: string; icon?: React.ElementType }) {
@@ -77,8 +64,7 @@ export function ProjectStatusReport({
   tasks,
   changeRequests = [],
   documents = [],
-  executiveSummary,
-  constructionSummary
+  executiveSummary
 }: ProjectStatusReportProps) {
   const MILESTONE_PREVIEW_COUNT = 5;
   const [showAllMilestones, setShowAllMilestones] = useState(false);
@@ -620,213 +606,6 @@ export function ProjectStatusReport({
               ))}
               {changeRequests.length > 5 && (
                 <p className="text-xs text-muted-foreground pt-2">+ {changeRequests.length - 5} more change requests</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Construction Summary Section */}
-        {constructionSummary && (Object.keys(constructionSummary).length > 0) && (
-          <div className="border rounded-lg p-4">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <HardHat className="h-5 w-5 text-primary" />
-              Construction Management Summary
-            </h2>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {constructionSummary.dailyLogs && (
-                <div className="border rounded-lg p-3 bg-muted/30">
-                  <div className="flex items-center gap-2 mb-2">
-                    <ClipboardCheck className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium">Daily Logs</span>
-                  </div>
-                  <div className="text-2xl font-bold">{constructionSummary.dailyLogs.totalDays}</div>
-                  <div className="text-xs text-muted-foreground">days logged</div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {constructionSummary.dailyLogs.totalLaborHours.toLocaleString()} labor hrs
-                  </div>
-                </div>
-              )}
-
-              {constructionSummary.rfis && (
-                <div className="border rounded-lg p-3 bg-muted/30">
-                  <div className="flex items-center gap-2 mb-2">
-                    <FileQuestion className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium">RFIs</span>
-                  </div>
-                  <div className="text-2xl font-bold">{constructionSummary.rfis.total}</div>
-                  <div className="text-xs text-muted-foreground">total RFIs</div>
-                  <div className="mt-1 space-y-0.5">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Open</span>
-                      <span className={cn("font-medium", constructionSummary.rfis.open > 0 ? "text-yellow-600" : "text-green-600")}>{constructionSummary.rfis.open}</span>
-                    </div>
-                    {constructionSummary.rfis.overdue > 0 && (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Overdue</span>
-                        <span className="font-medium text-red-600">{constructionSummary.rfis.overdue}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {constructionSummary.submittals && (
-                <div className="border rounded-lg p-3 bg-muted/30">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Send className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium">Submittals</span>
-                  </div>
-                  <div className="text-2xl font-bold">{constructionSummary.submittals.total}</div>
-                  <div className="text-xs text-muted-foreground">total submittals</div>
-                  <div className="mt-1 space-y-0.5">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Open</span>
-                      <span className="font-medium">{constructionSummary.submittals.open}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Approved</span>
-                      <span className="font-medium text-green-600">{constructionSummary.submittals.approved}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {constructionSummary.punchList && (
-                <div className="border rounded-lg p-3 bg-muted/30">
-                  <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle2 className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium">Punch List</span>
-                  </div>
-                  <div className="text-2xl font-bold">{constructionSummary.punchList.total}</div>
-                  <div className="text-xs text-muted-foreground">total items</div>
-                  <div className="mt-1 space-y-0.5">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Open</span>
-                      <span className={cn("font-medium", constructionSummary.punchList.open > 0 ? "text-yellow-600" : "text-green-600")}>{constructionSummary.punchList.open}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Complete</span>
-                      <span className="font-medium text-green-600">{constructionSummary.punchList.percentComplete}%</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {constructionSummary.qualitySafety && (
-                <div className="border rounded-lg p-3 bg-muted/30">
-                  <div className="flex items-center gap-2 mb-2">
-                    <ShieldCheck className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium">Quality & Safety</span>
-                  </div>
-                  <div className="text-2xl font-bold">{constructionSummary.qualitySafety.inspections}</div>
-                  <div className="text-xs text-muted-foreground">inspections</div>
-                  <div className="mt-1 space-y-0.5">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Incidents</span>
-                      <span className={cn("font-medium", constructionSummary.qualitySafety.incidents > 0 ? "text-red-600" : "text-green-600")}>{constructionSummary.qualitySafety.incidents}</span>
-                    </div>
-                    {constructionSummary.qualitySafety.openCorrectiveActions > 0 && (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Open CAs</span>
-                        <span className="font-medium text-yellow-600">{constructionSummary.qualitySafety.openCorrectiveActions}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {constructionSummary.changeOrders && (
-                <div className="border rounded-lg p-3 bg-muted/30">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Gavel className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium">Change Orders</span>
-                  </div>
-                  <div className="text-2xl font-bold">{constructionSummary.changeOrders.totalCount}</div>
-                  <div className="text-xs text-muted-foreground">total COs</div>
-                  <div className="mt-1 space-y-0.5">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Approved</span>
-                      <span className="font-medium text-green-600">{constructionSummary.changeOrders.approvedCount}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Pending</span>
-                      <span className={cn("font-medium", constructionSummary.changeOrders.pendingCount > 0 ? "text-yellow-600" : "text-green-600")}>{constructionSummary.changeOrders.pendingCount}</span>
-                    </div>
-                    {constructionSummary.changeOrders.approvedCostImpact !== 0 && (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Cost Impact</span>
-                        <span className={cn("font-medium", constructionSummary.changeOrders.approvedCostImpact > 0 ? "text-red-600" : "text-green-600")}>
-                          {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(constructionSummary.changeOrders.approvedCostImpact)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {constructionSummary.meetings && (
-                <div className="border rounded-lg p-3 bg-muted/30">
-                  <div className="flex items-center gap-2 mb-2">
-                    <MessagesSquare className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium">Meetings</span>
-                  </div>
-                  <div className="text-2xl font-bold">{constructionSummary.meetings.total}</div>
-                  <div className="text-xs text-muted-foreground">meetings held</div>
-                  <div className="mt-1 space-y-0.5">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Upcoming</span>
-                      <span className="font-medium">{constructionSummary.meetings.upcoming}</span>
-                    </div>
-                    {constructionSummary.meetings.openActionItems > 0 && (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Open Actions</span>
-                        <span className="font-medium text-yellow-600">{constructionSummary.meetings.openActionItems}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {constructionSummary.correspondence && (
-                <div className="border rounded-lg p-3 bg-muted/30">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Mail className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium">Correspondence</span>
-                  </div>
-                  <div className="text-2xl font-bold">{constructionSummary.correspondence.total}</div>
-                  <div className="text-xs text-muted-foreground">total items</div>
-                  <div className="mt-1 space-y-0.5">
-                    {constructionSummary.correspondence.letters > 0 && (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Letters</span>
-                        <span className="font-medium">{constructionSummary.correspondence.letters}</span>
-                      </div>
-                    )}
-                    {constructionSummary.correspondence.transmittals > 0 && (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Transmittals</span>
-                        <span className="font-medium">{constructionSummary.correspondence.transmittals}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {constructionSummary.drawings && constructionSummary.drawings.total > 0 && (
-                <div className="border rounded-lg p-3 bg-muted/30">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Pencil className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium">Drawings</span>
-                  </div>
-                  <div className="text-2xl font-bold">{constructionSummary.drawings.total}</div>
-                  <div className="text-xs text-muted-foreground">drawings</div>
-                  {constructionSummary.drawings.revisions > 0 && (
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {constructionSummary.drawings.revisions} revisions
-                    </div>
-                  )}
-                </div>
               )}
             </div>
           </div>
