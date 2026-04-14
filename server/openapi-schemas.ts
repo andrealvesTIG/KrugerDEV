@@ -373,6 +373,49 @@ export function generateOpenApiSchemas(): Record<string, any> {
       },
     }),
 
+    RiskRequest: createRequestSchema(issues, {
+      description: 'Input schema for creating or updating a risk. Excludes server-generated fields (id, timestamps, calculated fields).',
+      extraExclude: ['issueNumber', 'riskScore', 'escalatedAt'],
+      overrides: {
+        itemType: { enum: ['risk'], description: 'Must be "risk"' },
+        title: { description: 'Risk title' },
+        category: { description: 'Technical, Schedule, Resource, External, Organizational, Financial' },
+        priority: { enum: STATUS_ENUMS.priority },
+        status: { enum: STATUS_ENUMS.riskStatus },
+        probability: { enum: STATUS_ENUMS.probability },
+        impact: { enum: STATUS_ENUMS.impact },
+        responseStrategy: { enum: STATUS_ENUMS.responseStrategy },
+        contingencyPlan: { description: 'Backup plan if risk occurs' },
+        residualRisk: { description: 'Remaining risk after mitigation' },
+        ownerId: { description: 'Risk owner user ID' },
+        costExposure: { description: 'Expected monetary value (probability x impact cost)' },
+        dueDate: { description: 'Risk due date' },
+        proximity: { enum: STATUS_ENUMS.proximity },
+        escalatedToPortfolio: { description: 'Whether escalated to portfolio level' },
+        ...riskOmitFields,
+      },
+    }),
+
+    IssueRequest: createRequestSchema(issues, {
+      description: 'Input schema for creating or updating an issue. Excludes server-generated fields (id, timestamps, calculated fields).',
+      extraExclude: ['issueNumber', 'riskScore', 'escalatedAt'],
+      overrides: {
+        itemType: { enum: ['issue'], description: 'Must be "issue"' },
+        title: { description: 'Issue title' },
+        category: { description: 'Technical, Process, Resource, External, Scope' },
+        priority: { enum: STATUS_ENUMS.priority },
+        severity: { enum: STATUS_ENUMS.severity },
+        status: { enum: STATUS_ENUMS.issueStatus },
+        type: { enum: STATUS_ENUMS.issueType },
+        escalationLevel: { enum: STATUS_ENUMS.escalationLevel },
+        assigneeId: { description: 'Assignee user ID' },
+        reporterId: { description: 'Reporter user ID' },
+        reportedBy: { description: 'Reporter name (for external reports)' },
+        labels: { description: 'Comma-separated labels' },
+        ...issueOmitFields,
+      },
+    }),
+
     Resource: drizzleTableToOpenApiSchema(resources, {
       overrides: {
         userId: { description: 'Linked organization member user ID (for auto-synced resources)' },
