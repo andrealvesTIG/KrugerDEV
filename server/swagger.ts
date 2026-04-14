@@ -524,9 +524,6 @@ const spec = {
       }),
     },
     '/admin/plans': {
-      get: op('Admin', 'List all billing plans (admin)', {
-        responses: { ...r200('Plans list', arrOf('Plan')), ...stdRes },
-      }),
       post: op('Admin', 'Create a billing plan', {
         requestBody: body(ref('Plan')),
         responses: { ...r201('Plan created'), ...createRes },
@@ -550,8 +547,14 @@ const spec = {
       }),
     },
     '/admin/plans/{id}/rules': {
-      post: op('Admin', 'Add rule to billing plan', {
+      get: op('Admin', 'List rules for a billing plan', {
         parameters: [pathId()],
+        responses: { ...r200('Plan rules'), ...idRes },
+      }),
+    },
+    '/admin/plans/{planId}/rules': {
+      post: op('Admin', 'Add rule to billing plan', {
+        parameters: [pathId('planId')],
         requestBody: body({ type: 'object' }),
         responses: { ...r201('Rule created'), ...createRes },
       }),
@@ -562,10 +565,6 @@ const spec = {
         requestBody: body({ type: 'object' }),
         responses: { ...r200('Rule updated'), ...updateRes },
       }),
-      delete: op('Admin', 'Delete a plan rule', {
-        parameters: [pathId('planId'), pathId('ruleId')],
-        responses: { ...r200('Rule deleted'), ...fullRes },
-      }),
     },
     '/admin/plans/init-extra-seat-prices': {
       post: op('Admin', 'Initialize extra seat prices for all plans', {
@@ -573,7 +572,7 @@ const spec = {
       }),
     },
     '/admin/plans/reorder': {
-      post: op('Admin', 'Reorder billing plans', {
+      put: op('Admin', 'Reorder billing plans', {
         requestBody: body({ type: 'object', properties: { order: { type: 'array', items: { type: 'integer' } } } }),
         responses: { ...r200('Plans reordered'), ...createRes },
       }),
@@ -581,6 +580,11 @@ const spec = {
     '/admin/referrals': {
       get: op('Admin', 'List referral data', {
         responses: { ...r200('Referrals list'), ...stdRes },
+      }),
+    },
+    '/admin/selfie-leads': {
+      get: op('Admin', 'List UNCON2026 selfie leads', {
+        responses: { ...r200('Selfie leads list'), ...stdRes },
       }),
     },
     '/admin/report-subscriptions/check': {
@@ -599,7 +603,7 @@ const spec = {
       }),
     },
     '/admin/credit-costs/{resourceType}': {
-      post: op('Admin', 'Update credit cost for resource type', {
+      put: op('Admin', 'Update credit cost for resource type', {
         parameters: [pathStr('resourceType')],
         requestBody: body({ type: 'object', properties: { cost: { type: 'number' } } }),
         responses: { ...r200('Cost updated'), ...createRes },
@@ -1003,10 +1007,11 @@ const spec = {
         },
       }),
     },
-    '/projects/import-csv': {
-      post: op('Projects', 'Import project from CSV file', {
-        requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' }, organizationId: { type: 'integer' }, portfolioId: { type: 'integer', nullable: true } } } } } },
-        responses: { ...r201('Project imported', ref('Project')), ...createRes },
+    '/projects/{id}/import-csv': {
+      post: op('Projects', 'Import tasks from CSV file into a project', {
+        parameters: [pathId()],
+        requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } } } },
+        responses: { ...r200('Import results', { type: 'object', properties: { created: { type: 'integer' }, updated: { type: 'integer' }, skipped: { type: 'integer' }, dependenciesCreated: { type: 'integer' }, parentLinksCreated: { type: 'integer' } } }), ...createRes },
       }),
     },
     '/projects/{id}/make-editable': {
@@ -1021,30 +1026,29 @@ const spec = {
         responses: { ...r200('Planner synced'), ...updateRes },
       }),
     },
-    '/projects/{id}/tasks-baseline': {
+    '/projects/{projectId}/tasks/baseline': {
       post: op('Projects', 'Create a baseline snapshot of current task data', {
-        parameters: [pathId()],
+        parameters: [pathId('projectId')],
         requestBody: body({ type: 'object', properties: { name: { type: 'string' }, description: { type: 'string', nullable: true } } }),
         responses: { ...r201('Baseline created'), ...createRes },
       }),
     },
-    '/projects/{id}/status-report': {
-      post: op('Projects', 'Generate AI status report for project', {
+    '/projects/{id}/status-report/email': {
+      post: op('Projects', 'Email AI status report for project', {
         parameters: [pathId()],
-        responses: { ...r201('Status report generated', { type: 'object', properties: { id: { type: 'integer' }, content: { type: 'string' }, generatedAt: { type: 'string', format: 'date-time' } } }), ...createRes },
+        responses: { ...r200('Status report emailed'), ...createRes },
       }),
     },
-    '/projects/{id}/risks/pdf': {
-      get: op('Projects', 'Export project risk register as PDF', {
+    '/projects/{id}/status-report/history': {
+      get: op('Projects', 'Get status report history for project', {
         parameters: [pathId()],
-        responses: { '200': { description: 'Risk register PDF', content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } } } }, ...idRes },
+        responses: { ...r200('Status report history', { type: 'array', items: { type: 'object', properties: { id: { type: 'integer' }, content: { type: 'string' }, generatedAt: { type: 'string', format: 'date-time' } } } }), ...idRes },
       }),
     },
-    '/projects/{id}/share': {
-      post: op('Projects', 'Share project with users or generate share link', {
-        parameters: [pathId()],
-        requestBody: body({ type: 'object', properties: { emails: { type: 'array', items: { type: 'string' } }, permission: { type: 'string', enum: ['view', 'edit'] } } }),
-        responses: { ...r200('Project shared'), ...createRes },
+    '/projects/{id}/risk-assessment/{assessmentId}/pdf': {
+      get: op('Projects', 'Export project risk assessment as PDF', {
+        parameters: [pathId(), pathId('assessmentId')],
+        responses: { '200': { description: 'Risk assessment PDF', content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } } } }, ...idRes },
       }),
     },
 
@@ -1420,16 +1424,16 @@ const spec = {
         responses: { ...r204('Resource deleted'), ...fullRes },
       }),
     },
-    '/resources/{id}/availability': {
+    '/organizations/{orgId}/resources/{resourceId}/availability': {
       get: op('Resources', 'Get resource availability', {
-        parameters: [pathId()],
+        parameters: [pathId('orgId'), pathId('resourceId')],
         responses: { ...r200('Availability data'), ...idRes },
       }),
     },
-    '/resources/{id}/assignments': {
-      get: op('Resources', 'Get resource assignments', {
-        parameters: [pathId()],
-        responses: { ...r200('Assignments'), ...idRes },
+    '/resources/assignments': {
+      get: op('Resources', 'Get resource assignments across all projects', {
+        parameters: [qInt('organizationId', true, 'Organization ID')],
+        responses: { ...r200('Assignments'), ...authRes },
       }),
     },
     '/resources/{id}/task-assignments': {
@@ -1683,11 +1687,6 @@ const spec = {
       }),
     },
     '/timesheet-periods/{id}': {
-      put: op('Timesheets', 'Update timesheet period', {
-        parameters: [pathId()],
-        requestBody: body(ref('TimesheetPeriod')),
-        responses: { ...r200('Period updated'), ...updateRes },
-      }),
       delete: op('Timesheets', 'Delete timesheet period', {
         parameters: [pathId()],
         responses: { ...r200('Period deleted'), ...fullRes },
@@ -1753,17 +1752,19 @@ const spec = {
         responses: { ...r200('Audit log entries', { type: 'object', properties: { logs: arrOf('TimesheetAuditLog'), total: { type: 'integer' }, page: { type: 'integer' }, pageSize: { type: 'integer' } } }), ...authRes },
       }),
     },
-    '/timesheet-comments': {
+    '/timesheet-comments/{entryId}': {
       get: op('Timesheets', 'List timesheet comments for an entry', {
-        parameters: [qInt('entryId', true, 'Timesheet entry ID')],
+        parameters: [pathId('entryId')],
         responses: { ...r200('Comments', arrOf('TimesheetComment')), ...authRes },
       }),
+    },
+    '/timesheet-comments': {
       post: op('Timesheets', 'Add a comment to a timesheet entry', {
         requestBody: body({ type: 'object', properties: { entryId: { type: 'integer' }, text: { type: 'string' }, commentType: { type: 'string', nullable: true } }, required: ['entryId', 'text'] }),
         responses: { ...r201('Comment created', ref('TimesheetComment')), ...inputRes },
       }),
     },
-    '/timesheet-reminder': {
+    '/timesheet-reminder-settings': {
       get: op('Timesheets', 'Get timesheet reminder settings', {
         parameters: [qInt('organizationId', true, 'Organization ID')],
         responses: { ...r200('Reminder settings', ref('TimesheetReminderSettings')), ...authRes },
@@ -1773,10 +1774,16 @@ const spec = {
         responses: { ...r200('Reminder settings updated'), ...inputRes },
       }),
     },
-    '/timesheet-reminder/send': {
+    '/timesheet-reminder-send-now': {
       post: op('Timesheets', 'Send timesheet reminders now', {
         requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' } }, required: ['organizationId'] }),
         responses: { ...r200('Reminders sent'), ...inputRes },
+      }),
+    },
+    '/timesheet-reminder-snooze': {
+      post: op('Timesheets', 'Snooze timesheet reminder', {
+        requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, durationMinutes: { type: 'integer' } }, required: ['organizationId'] }),
+        responses: { ...r200('Reminder snoozed'), ...inputRes },
       }),
     },
     '/timesheets/bulk-approve': {
@@ -2271,7 +2278,7 @@ const spec = {
       }),
     },
     '/billing/subscription/{id}/plan': {
-      put: op('Billing', 'Change subscription plan', {
+      patch: op('Billing', 'Change subscription plan', {
         parameters: [pathId()],
         requestBody: body({ type: 'object', properties: { planId: { type: 'integer' } } }),
         responses: { ...r200('Plan changed'), ...updateRes },
@@ -2325,22 +2332,27 @@ const spec = {
         responses: { ...r201('Subscription created'), ...inputRes },
       }),
     },
-    '/paypal/setup': {
-      post: op('Billing', 'Setup PayPal payment', {
-        requestBody: body({ type: 'object' }),
-        responses: { ...r200('PayPal setup data'), ...inputRes },
+    '/paypal/subscription/client-id': {
+      get: op('Billing', 'Get PayPal client ID', {
+        responses: { ...r200('PayPal client ID'), ...authRes },
       }),
     },
-    '/paypal/order': {
-      post: op('Billing', 'Create PayPal order', {
-        requestBody: body({ type: 'object', properties: { amount: { type: 'number' } } }),
-        responses: { ...r200('PayPal order created'), ...inputRes },
+    '/paypal/subscription/create': {
+      post: op('Billing', 'Create PayPal subscription', {
+        requestBody: body({ type: 'object', properties: { planId: { type: 'string' } } }),
+        responses: { ...r200('Subscription created'), ...inputRes },
       }),
     },
-    '/paypal/order/{orderID}/capture': {
-      post: op('Billing', 'Capture PayPal order', {
-        parameters: [pathStr('orderID')],
-        responses: { ...r200('Order captured'), ...fullRes },
+    '/paypal/subscription/{subscriptionId}': {
+      get: op('Billing', 'Get PayPal subscription details', {
+        parameters: [pathStr('subscriptionId')],
+        responses: { ...r200('Subscription details'), ...idRes },
+      }),
+    },
+    '/paypal/subscription/{subscriptionId}/cancel': {
+      post: op('Billing', 'Cancel PayPal subscription', {
+        parameters: [pathStr('subscriptionId')],
+        responses: { ...r200('Subscription cancelled'), ...fullRes },
       }),
     },
     '/webhooks/paypal': {
@@ -2749,8 +2761,10 @@ const spec = {
         parameters: [qInt('organizationId', true, 'Organization ID')],
         responses: { ...r200('Project templates', arrOf('ProjectTemplate')), ...authRes },
       }),
-      post: op('Project Templates', 'Create a project template', {
-        requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' }, organizationId: { type: 'integer' }, file: { type: 'string', format: 'binary' } }, required: ['name', 'organizationId'] } } } },
+    },
+    '/project-templates/from-mpp': {
+      post: op('Project Templates', 'Create a template from an MPP/XML/CSV file', {
+        requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' }, organizationId: { type: 'integer' }, file: { type: 'string', format: 'binary' } }, required: ['name', 'organizationId', 'file'] } } } },
         responses: { ...r201('Template created', ref('ProjectTemplate')), ...inputRes },
       }),
     },
@@ -2775,17 +2789,23 @@ const spec = {
         responses: { ...r204('Template deleted'), ...fullRes },
       }),
     },
-    '/project-templates/{id}/apply': {
-      post: op('Project Templates', 'Apply a template to create a new project', {
+    '/project-templates/{id}/duplicate': {
+      post: op('Project Templates', 'Duplicate a project template', {
         parameters: [pathId()],
-        requestBody: body({ type: 'object', properties: { projectName: { type: 'string' }, portfolioId: { type: 'integer', nullable: true }, organizationId: { type: 'integer' } }, required: ['projectName', 'organizationId'] }),
-        responses: { ...r201('Project created from template', ref('Project')), ...createRes },
+        responses: { ...r201('Template duplicated', ref('ProjectTemplate')), ...createRes },
       }),
     },
-    '/project-templates/{id}/preview': {
-      get: op('Project Templates', 'Preview what applying a template would produce', {
+    '/project-templates/{id}/download': {
+      get: op('Project Templates', 'Download original template file', {
         parameters: [pathId()],
-        responses: { ...r200('Template preview', { type: 'object', properties: { tasks: { type: 'array', items: { type: 'object' } }, milestones: { type: 'array', items: { type: 'object' } }, resources: { type: 'array', items: { type: 'object' } } } }), ...idRes },
+        responses: { '200': { description: 'Template file', content: { 'application/octet-stream': { schema: { type: 'string', format: 'binary' } } } }, ...idRes },
+      }),
+    },
+    '/project-templates/{id}/reimport': {
+      post: op('Project Templates', 'Re-import template from updated file', {
+        parameters: [pathId()],
+        requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } } } },
+        responses: { ...r200('Template reimported'), ...createRes },
       }),
     },
     '/project-templates/{id}/create-project': {
@@ -2810,38 +2830,33 @@ const spec = {
     },
 
     // ======================== REFERRALS ========================
-    '/referral-code': {
-      get: op('Referrals', 'Get current user referral code', {
+    '/referral/my-code': {
+      get: op('Referrals', 'Get or create current user referral code', {
         responses: { ...r200('Referral code', ref('ReferralCode')), ...authRes },
       }),
-      post: op('Referrals', 'Create or regenerate referral code', {
-        responses: { ...r201('Referral code created', ref('ReferralCode')), ...authRes },
-      }),
     },
-    '/referral-code/validate/{code}': {
+    '/referral/validate/{code}': {
       get: op('Referrals', 'Validate a referral code', {
         security: [],
         parameters: [{ name: 'code', in: 'path', required: true, schema: { type: 'string' } }],
         responses: { ...r200('Validation result', { type: 'object', properties: { valid: { type: 'boolean' }, referrerName: { type: 'string', nullable: true } } }), ...e400 },
       }),
     },
-    '/referral-stats': {
+    '/referral/stats': {
       get: op('Referrals', 'Get referral statistics for current user', {
         responses: { ...r200('Referral stats', { type: 'object', properties: { totalReferrals: { type: 'integer' }, pendingPayouts: { type: 'integer' }, totalEarningsCents: { type: 'integer' }, referrals: { type: 'array', items: { type: 'object' } } } }), ...authRes },
       }),
     },
-    '/referral-payouts': {
-      get: op('Referrals', 'List referral payouts', {
-        responses: { ...r200('Payouts list'), ...authRes },
+    '/referral/track': {
+      post: op('Referrals', 'Track a referral during signup', {
+        security: [],
+        requestBody: body({ type: 'object', properties: { code: { type: 'string' }, referredUserId: { type: 'string' } }, required: ['code'] }),
+        responses: { ...r200('Referral tracked'), ...inputRes },
       }),
     },
-    '/admin/referral-payouts': {
-      get: op('Referrals', 'Admin list all pending referral payouts', {
-        responses: { ...r200('All pending payouts'), ...stdRes },
-      }),
-      post: op('Referrals', 'Admin process referral payout', {
-        requestBody: body({ type: 'object', properties: { payoutId: { type: 'integer' }, status: { type: 'string', enum: ['approved', 'rejected'] } }, required: ['payoutId', 'status'] }),
-        responses: { ...r200('Payout processed'), ...createRes },
+    '/referral/request-payout': {
+      post: op('Referrals', 'Request a referral payout', {
+        responses: { ...r200('Payout requested'), ...authRes },
       }),
     },
 
@@ -2855,37 +2870,23 @@ const spec = {
 
     // ======================== UNCON2026 ========================
     '/uncon2026/selfie': {
-      get: op('Other', 'Get UNCON2026 selfie for current user', {
-        responses: { ...r200('Selfie data', { type: 'object', properties: { id: { type: 'integer' }, imageUrl: { type: 'string' }, createdAt: { type: 'string', format: 'date-time' } } }), ...authRes },
-      }),
       post: op('Other', 'Upload UNCON2026 selfie', {
-        requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { image: { type: 'string', format: 'binary' } }, required: ['image'] } } } },
+        requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { photo: { type: 'string', format: 'binary' } }, required: ['photo'] } } } },
         responses: { ...r201('Selfie uploaded'), ...createRes },
       }),
-      delete: op('Other', 'Delete UNCON2026 selfie', {
-        responses: { ...r204('Selfie deleted'), ...authRes },
-      }),
     },
-    '/uncon2026/selfie/all': {
-      get: op('Other', 'Get all UNCON2026 selfies (gallery)', {
+    '/uncon2026/selfie/{shareToken}/og.png': {
+      get: op('Other', 'Get UNCON2026 selfie Open Graph image', {
         security: [],
-        responses: { ...r200('All selfies', { type: 'array', items: { type: 'object', properties: { id: { type: 'integer' }, userId: { type: 'string' }, imageUrl: { type: 'string' } } } }) },
+        parameters: [pathStr('shareToken')],
+        responses: { '200': { description: 'OG image', content: { 'image/png': { schema: { type: 'string', format: 'binary' } } } } },
       }),
     },
-    '/uncon2026/selfie/collage': {
-      get: op('Other', 'Get UNCON2026 selfie collage image', {
+    '/uncon2026/selfie/{shareToken}/share': {
+      get: op('Other', 'Get UNCON2026 selfie share page', {
         security: [],
-        responses: { '200': { description: 'Collage image', content: { 'image/png': { schema: { type: 'string', format: 'binary' } } } } },
-      }),
-    },
-    '/uncon2026/selfie/{id}': {
-      get: op('Other', 'Get specific UNCON2026 selfie by ID', {
-        parameters: [pathId()],
-        responses: { ...r200('Selfie data'), ...idRes },
-      }),
-      delete: op('Other', 'Delete specific UNCON2026 selfie (admin)', {
-        parameters: [pathId()],
-        responses: { ...r204('Selfie deleted'), ...fullRes },
+        parameters: [pathStr('shareToken')],
+        responses: { '200': { description: 'Share page HTML', content: { 'text/html': { schema: { type: 'string' } } } } },
       }),
     },
 
