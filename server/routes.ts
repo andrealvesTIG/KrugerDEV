@@ -43,6 +43,7 @@ import { registerChangeOrderRoutes } from "./routes/changeOrderRoutes";
 import { registerConstructionInvoiceRoutes } from "./routes/constructionInvoiceRoutes";
 import { registerMeetingRoutes } from "./routes/meetingRoutes";
 import { registerCorrespondenceRoutes } from "./routes/correspondenceRoutes";
+import { registerBlogRoutes } from "./routes/blogRoutes";
 import { seedDatabase } from "./routes/helpers";
 
 export async function registerRoutes(
@@ -128,6 +129,7 @@ export async function registerRoutes(
   registerConstructionInvoiceRoutes(app);
   registerMeetingRoutes(app);
   registerCorrespondenceRoutes(app);
+  registerBlogRoutes(app);
 
   seedTrainingDataIfEmpty().catch(err => {
     console.error('[training] Failed to seed training data:', err.message);

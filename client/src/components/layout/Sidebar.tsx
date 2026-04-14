@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate, ClipboardList, MessageSquare, FileCheck, PenSquare, ClipboardCheck, Shield, Gavel, FileSignature, CalendarDays, MailOpen } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate, ClipboardList, MessageSquare, FileCheck, PenSquare, ClipboardCheck, Shield, Gavel, FileSignature, CalendarDays, MailOpen, Newspaper } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
@@ -110,6 +110,7 @@ const moduleDefinitions: Record<string, { name: string; href: string; icon: Reac
   "construction-invoices": { name: "Payment Apps", href: "/construction-invoices", icon: Receipt },
   meetings: { name: "Meetings", href: "/meetings", icon: CalendarDays },
   correspondence: { name: "Correspondence", href: "/correspondence", icon: MailOpen },
+  media: { name: "Media", href: "/media", icon: Newspaper },
 };
 
 const navigation = [
@@ -277,6 +278,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   ensureModule("construction-invoices", "portfolio", "change-orders");
   ensureModule("meetings", "portfolio", "construction-invoices");
   ensureModule("correspondence", "portfolio", "meetings");
+  ensureModule("media", "help", "training");
   
   const helpGroup = updatedStructure.find(g => g.id === "help");
   if (!helpGroup) {
