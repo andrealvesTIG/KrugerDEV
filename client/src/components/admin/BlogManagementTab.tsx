@@ -30,17 +30,17 @@ export function BlogManagementTab() {
   const [status, setStatus] = useState("draft");
 
   const { data: posts, isLoading } = useQuery<BlogPost[]>({
-    queryKey: ["/api/admin/blog"],
+    queryKey: ["/api/admin/media"],
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", "/api/admin/blog", data);
+      const res = await apiRequest("POST", "/api/admin/media", data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/blog"] });
-      toast({ title: "Blog post created" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/media"] });
+      toast({ title: "Post created" });
       closeDialog();
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
@@ -48,12 +48,12 @@ export function BlogManagementTab() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...data }: any) => {
-      const res = await apiRequest("PUT", `/api/admin/blog/${id}`, data);
+      const res = await apiRequest("PUT", `/api/admin/media/${id}`, data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/blog"] });
-      toast({ title: "Blog post updated" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/media"] });
+      toast({ title: "Post updated" });
       closeDialog();
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
@@ -61,11 +61,11 @@ export function BlogManagementTab() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/admin/blog/${id}`);
+      await apiRequest("DELETE", `/api/admin/media/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/blog"] });
-      toast({ title: "Blog post deleted" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/media"] });
+      toast({ title: "Post deleted" });
       setDeleteId(null);
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
@@ -138,7 +138,7 @@ export function BlogManagementTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold">Blog Posts</h3>
+          <h3 className="text-lg font-semibold">Media Posts</h3>
           <p className="text-sm text-muted-foreground">{posts?.length || 0} posts</p>
         </div>
         <Button onClick={openCreate}>
@@ -160,7 +160,7 @@ export function BlogManagementTab() {
                 </div>
                 <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                   <span>by {post.author}</span>
-                  <span>/blog/{post.slug}</span>
+                  <span>/media/{post.slug}</span>
                   {post.publishedAt && <span>Published {format(new Date(post.publishedAt), "MMM d, yyyy")}</span>}
                 </div>
                 {post.excerpt && (
@@ -170,7 +170,7 @@ export function BlogManagementTab() {
               <div className="flex items-center gap-1 shrink-0">
                 {post.status === "published" && (
                   <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                    <a href={`/blog/${post.slug}`} target="_blank" rel="noopener noreferrer">
+                    <a href={`/media/${post.slug}`} target="_blank" rel="noopener noreferrer">
                       <Eye className="h-4 w-4" />
                     </a>
                   </Button>
@@ -188,7 +188,7 @@ export function BlogManagementTab() {
         {(!posts || posts.length === 0) && (
           <div className="text-center py-12 text-muted-foreground">
             <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p>No blog posts yet</p>
+            <p>No media posts yet</p>
             <p className="text-sm">Create your first post to get started</p>
           </div>
         )}
@@ -197,7 +197,7 @@ export function BlogManagementTab() {
       <Dialog open={isDialogOpen} onOpenChange={(o) => { if (!o) closeDialog(); }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingPost ? "Edit Post" : "New Blog Post"}</DialogTitle>
+            <DialogTitle>{editingPost ? "Edit Post" : "New Media Post"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -241,7 +241,7 @@ export function BlogManagementTab() {
             </div>
             <div className="space-y-2">
               <Label>Content</Label>
-              <Textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Write your blog post content here..." rows={12} className="font-mono text-sm" />
+              <Textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Write your post content here..." rows={12} className="font-mono text-sm" />
             </div>
           </div>
           <DialogFooter>
@@ -257,9 +257,9 @@ export function BlogManagementTab() {
       <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Blog Post</DialogTitle>
+            <DialogTitle>Delete Post</DialogTitle>
           </DialogHeader>
-          <p className="text-muted-foreground">Are you sure you want to permanently delete this blog post?</p>
+          <p className="text-muted-foreground">Are you sure you want to permanently delete this post?</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId && deleteMutation.mutate(deleteId)} disabled={deleteMutation.isPending}>

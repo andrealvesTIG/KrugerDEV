@@ -179,10 +179,10 @@ export default function LandingPageNew() {
           <Button
             variant="ghost"
             className="text-sm font-medium"
-            onClick={() => setLocation("/blog")}
-            data-testid="button-blog"
+            onClick={() => setLocation("/media")}
+            data-testid="button-media"
           >
-            Blog
+            Media
           </Button>
           <Button
             variant="ghost"
@@ -224,10 +224,10 @@ export default function LandingPageNew() {
             <Button
               variant="ghost"
               className="w-full justify-start"
-              onClick={() => { setLocation("/blog"); setMobileMenuOpen(false); }}
-              data-testid="button-blog-mobile"
+              onClick={() => { setLocation("/media"); setMobileMenuOpen(false); }}
+              data-testid="button-media-mobile"
             >
-              Blog
+              Media
             </Button>
             <Button
               variant="ghost"
@@ -488,7 +488,7 @@ export default function LandingPageNew() {
           <span className="text-muted-foreground">|</span>
           <a href="/guide" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-guide">User Guide</a>
           <span className="text-muted-foreground">|</span>
-          <a href="/blog" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-blog">Blog</a>
+          <a href="/media" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-media">Media</a>
         </div>
         <p className="text-sm text-muted-foreground text-center" data-testid="text-footer">
           &copy; {new Date().getFullYear()} Built by{" "}

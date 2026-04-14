@@ -102,9 +102,9 @@ export default function SuperAdmin() {
               <MousePointerClick className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               User Activity
             </TabsTrigger>
-            <TabsTrigger value="blog" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2" data-testid="tab-blog">
+            <TabsTrigger value="media" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2" data-testid="tab-media">
               <Newspaper className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              Blog
+              Media
             </TabsTrigger>
           </TabsList>
         </div>
@@ -139,7 +139,7 @@ export default function SuperAdmin() {
           <TabsContent value="user-activity">
             <UserActivityTab />
           </TabsContent>
-          <TabsContent value="blog">
+          <TabsContent value="media">
             <BlogManagementTab />
           </TabsContent>
         </div>

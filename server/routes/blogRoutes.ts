@@ -15,7 +15,7 @@ async function requireAdmin(req: any, res: any): Promise<boolean> {
 }
 
 export function registerBlogRoutes(app: Express) {
-  app.get("/api/blog", async (_req, res) => {
+  app.get("/api/media", async (_req, res) => {
     try {
       const posts = await getPublishedBlogPosts();
       res.json(posts);
@@ -24,7 +24,7 @@ export function registerBlogRoutes(app: Express) {
     }
   });
 
-  app.get("/api/blog/:slug", async (req, res) => {
+  app.get("/api/media/:slug", async (req, res) => {
     try {
       const post = await getBlogPostBySlug(req.params.slug);
       if (!post || post.status !== "published") {
@@ -36,7 +36,7 @@ export function registerBlogRoutes(app: Express) {
     }
   });
 
-  app.get("/api/admin/blog", async (req: any, res) => {
+  app.get("/api/admin/media", async (req: any, res) => {
     if (!(await requireAdmin(req, res))) return;
     try {
       const posts = await getBlogPosts();
@@ -46,7 +46,7 @@ export function registerBlogRoutes(app: Express) {
     }
   });
 
-  app.post("/api/admin/blog", async (req: any, res) => {
+  app.post("/api/admin/media", async (req: any, res) => {
     if (!(await requireAdmin(req, res))) return;
     const parsed = insertBlogPostSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -63,7 +63,7 @@ export function registerBlogRoutes(app: Express) {
     }
   });
 
-  app.put("/api/admin/blog/:id", async (req: any, res) => {
+  app.put("/api/admin/media/:id", async (req: any, res) => {
     if (!(await requireAdmin(req, res))) return;
     try {
       const id = parseInt(req.params.id);
@@ -79,7 +79,7 @@ export function registerBlogRoutes(app: Express) {
     }
   });
 
-  app.delete("/api/admin/blog/:id", async (req: any, res) => {
+  app.delete("/api/admin/media/:id", async (req: any, res) => {
     if (!(await requireAdmin(req, res))) return;
     try {
       const id = parseInt(req.params.id);

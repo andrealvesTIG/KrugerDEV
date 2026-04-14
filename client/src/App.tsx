@@ -340,10 +340,10 @@ function App() {
                 <Route path="/badges/:userId">
                   <Suspense fallback={<PageLoader />}><PublicBadgeProfile /></Suspense>
                 </Route>
-                <Route path="/blog/:slug">
+                <Route path="/media/:slug">
                   <Suspense fallback={<PageLoader />}><BlogPost /></Suspense>
                 </Route>
-                <Route path="/blog">
+                <Route path="/media">
                   <Suspense fallback={<PageLoader />}><Blog /></Suspense>
                 </Route>
                 <Route path="/investor-room">

@@ -11,7 +11,7 @@ export default function BlogPost() {
   const params = useParams<{ slug: string }>();
 
   const { data: post, isLoading, error } = useQuery<BlogPostType>({
-    queryKey: [`/api/blog/${params.slug}`],
+    queryKey: [`/api/media/${params.slug}`],
     enabled: !!params.slug,
   });
 
@@ -24,11 +24,11 @@ export default function BlogPost() {
             <span className="font-display font-bold text-lg text-gray-900">FridayReport.AI</span>
           </a>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => setLocation("/blog")}>
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/media")}>
               <ArrowLeft className="h-4 w-4 mr-1" />
               All Posts
             </Button>
-            <Button size="sm" onClick={() => setLocation("/auth?source=blog")}>Get Started</Button>
+            <Button size="sm" onClick={() => setLocation("/auth?source=media")}>Get Started</Button>
           </div>
         </div>
       </header>
@@ -41,10 +41,10 @@ export default function BlogPost() {
         ) : error || !post ? (
           <div className="text-center py-20">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Post not found</h2>
-            <p className="text-gray-500 mb-6">The blog post you're looking for doesn't exist or has been removed.</p>
-            <Button onClick={() => setLocation("/blog")}>
+            <p className="text-gray-500 mb-6">The post you're looking for doesn't exist or has been removed.</p>
+            <Button onClick={() => setLocation("/media")}>
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Blog
+              Back to Media
             </Button>
           </div>
         ) : (

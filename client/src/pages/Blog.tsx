@@ -10,7 +10,7 @@ export default function Blog() {
   const [, setLocation] = useLocation();
 
   const { data: posts, isLoading, error } = useQuery<BlogPost[]>({
-    queryKey: ["/api/blog"],
+    queryKey: ["/api/media"],
   });
 
   return (
@@ -23,14 +23,14 @@ export default function Blog() {
           </a>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" onClick={() => setLocation("/")}>Home</Button>
-            <Button size="sm" onClick={() => setLocation("/auth?source=blog")}>Get Started</Button>
+            <Button size="sm" onClick={() => setLocation("/auth?source=media")}>Get Started</Button>
           </div>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
         <div className="text-center mb-12">
-          <h1 className="text-3xl sm:text-4xl font-display font-bold text-gray-900 mb-3">Blog</h1>
+          <h1 className="text-3xl sm:text-4xl font-display font-bold text-gray-900 mb-3">Media</h1>
           <p className="text-lg text-gray-500 max-w-2xl mx-auto">
             Insights on project management, PMO best practices, and product updates from the FridayReport.AI team.
           </p>
@@ -56,7 +56,7 @@ export default function Blog() {
               <article
                 key={post.id}
                 className="group cursor-pointer rounded-xl border border-gray-100 bg-white overflow-hidden hover:shadow-lg transition-shadow"
-                onClick={() => setLocation(`/blog/${post.slug}`)}
+                onClick={() => setLocation(`/media/${post.slug}`)}
               >
                 {post.coverImageUrl && (
                   <div className="aspect-video overflow-hidden bg-gray-50">
