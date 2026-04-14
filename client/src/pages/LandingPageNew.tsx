@@ -178,6 +178,14 @@ export default function LandingPageNew() {
           </Button>
           <Button
             variant="ghost"
+            className="text-sm font-medium"
+            onClick={() => setLocation("/blog")}
+            data-testid="button-blog"
+          >
+            Blog
+          </Button>
+          <Button
+            variant="ghost"
             onClick={() => setLocation("/auth?source=signup")}
             data-testid="button-login"
           >
@@ -212,6 +220,14 @@ export default function LandingPageNew() {
               data-testid="button-partners-mobile"
             >
               Partners
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => { setLocation("/blog"); setMobileMenuOpen(false); }}
+              data-testid="button-blog-mobile"
+            >
+              Blog
             </Button>
             <Button
               variant="ghost"
@@ -471,6 +487,8 @@ export default function LandingPageNew() {
           <a href="/privacy" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-privacy">Privacy Statement</a>
           <span className="text-muted-foreground">|</span>
           <a href="/guide" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-guide">User Guide</a>
+          <span className="text-muted-foreground">|</span>
+          <a href="/blog" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-blog">Blog</a>
         </div>
         <p className="text-sm text-muted-foreground text-center" data-testid="text-footer">
           &copy; {new Date().getFullYear()} Built by{" "}

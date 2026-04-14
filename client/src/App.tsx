@@ -76,6 +76,8 @@ const Training = lazy(() => import("@/pages/Training"));
 const TrainingModule = lazy(() => import("@/pages/TrainingModule"));
 const Templates = lazy(() => import("@/pages/Templates"));
 const InvestorRoom = lazy(() => import("@/pages/InvestorRoom"));
+const Blog = lazy(() => import("@/pages/Blog"));
+const BlogPost = lazy(() => import("@/pages/BlogPost"));
 
 function PageLoader() {
   return (
@@ -337,6 +339,12 @@ function App() {
                 </Route>
                 <Route path="/badges/:userId">
                   <Suspense fallback={<PageLoader />}><PublicBadgeProfile /></Suspense>
+                </Route>
+                <Route path="/blog/:slug">
+                  <Suspense fallback={<PageLoader />}><BlogPost /></Suspense>
+                </Route>
+                <Route path="/blog">
+                  <Suspense fallback={<PageLoader />}><Blog /></Suspense>
                 </Route>
                 <Route path="/investor-room">
                   <Suspense fallback={<PageLoader />}><InvestorRoom /></Suspense>

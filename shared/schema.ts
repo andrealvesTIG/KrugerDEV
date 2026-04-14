@@ -3028,3 +3028,25 @@ export const projectAgentLogs = pgTable("project_agent_logs", {
 
 export type ProjectAgentLog = typeof projectAgentLogs.$inferSelect;
 export type InsertProjectAgentLog = typeof projectAgentLogs.$inferInsert;
+
+export const blogPosts = pgTable("blog_posts", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  slug: text("slug").notNull().unique(),
+  excerpt: text("excerpt"),
+  content: text("content").notNull(),
+  coverImageUrl: text("cover_image_url"),
+  author: text("author").notNull().default("Friday Report Team"),
+  status: text("status").notNull().default("draft"),
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("blog_posts_slug_idx").on(table.slug),
+  index("blog_posts_status_idx").on(table.status),
+  index("blog_posts_published_at_idx").on(table.publishedAt),
+]);
+
+export const insertBlogPostSchema = createInsertSchema(blogPosts).omit({ id: true, createdAt: true, updatedAt: true });
+export type BlogPost = typeof blogPosts.$inferSelect;
+export type InsertBlogPost = typeof blogPosts.$inferInsert;
