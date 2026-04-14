@@ -339,15 +339,6 @@ export default function ProjectDetails() {
   const urlRiskId = urlParams.get('riskId');
 
   // Default tab order - main tabs first, then "More" tabs
-  const defaultMainTabs = [
-    { id: 'summary', label: 'Summary' },
-    { id: 'tasks', label: 'Tasks' },
-    { id: 'team', label: 'Team' },
-    { id: 'risks', label: 'Risks' },
-    { id: 'issues', label: 'Issues' },
-    { id: 'financials', label: 'Financials' },
-  ];
-  
   const isModuleHidden = (moduleKey: string): boolean => {
     const sidebarStructure = currentOrganization?.sidebarStructure as Array<{ items: Array<{ type: string; key?: string; hidden?: boolean }> }> | null;
     if (sidebarStructure && Array.isArray(sidebarStructure)) {
@@ -376,17 +367,13 @@ export default function ProjectDetails() {
     'correspondence': 'correspondence',
   };
 
-  // Available tabs for pinning from the More menu
-  const moreTabItems = [
-    { id: 'scoring', label: 'Scoring' },
-    { id: 'benefits', label: 'Benefits' },
-    { id: 'decisions', label: 'Decisions' },
-    { id: 'lessons-learned', label: 'Lessons Learned' },
-    { id: 'change-requests', label: 'Change Requests' },
-    { id: 'documents', label: 'Documents' },
-    { id: 'invoices', label: 'Invoices' },
-    { id: 'status-report', label: 'Status Report' },
-    { id: 'ai-agent', label: 'AI Agent' },
+  const allDefaultMainTabs = [
+    { id: 'summary', label: 'Summary' },
+    { id: 'tasks', label: 'Tasks' },
+    { id: 'team', label: 'Team' },
+    { id: 'risks', label: 'Risks' },
+    { id: 'issues', label: 'Issues' },
+    { id: 'financials', label: 'Financials' },
     { id: 'daily-logs', label: 'Daily Logs' },
     { id: 'rfis', label: 'RFIs' },
     { id: 'submittals', label: 'Submittals' },
@@ -398,10 +385,24 @@ export default function ProjectDetails() {
     { id: 'construction-invoices', label: 'Payment Apps' },
     { id: 'meetings', label: 'Meetings' },
     { id: 'correspondence', label: 'Correspondence' },
-  ].filter(tab => {
+  ];
+  const defaultMainTabs = allDefaultMainTabs.filter(tab => {
     const moduleKey = moduleGatedTabs[tab.id];
     return !moduleKey || !isModuleHidden(moduleKey);
   });
+
+  // Available tabs for pinning from the More menu
+  const moreTabItems = [
+    { id: 'scoring', label: 'Scoring' },
+    { id: 'benefits', label: 'Benefits' },
+    { id: 'decisions', label: 'Decisions' },
+    { id: 'lessons-learned', label: 'Lessons Learned' },
+    { id: 'change-requests', label: 'Change Requests' },
+    { id: 'documents', label: 'Documents' },
+    { id: 'invoices', label: 'Invoices' },
+    { id: 'status-report', label: 'Status Report' },
+    { id: 'ai-agent', label: 'AI Agent' },
+  ];
   
   // All available tab IDs for ordering
   const allTabIds = [...defaultMainTabs.map(t => t.id), ...moreTabItems.map(t => t.id)];
@@ -1593,23 +1594,21 @@ export default function ProjectDetails() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
-                variant={['change-requests', 'documents', 'invoices', 'status-report', 'scoring', 'benefits', 'decisions', 'lessons-learned', 'ai-agent', ...customTabs.map(t => `custom-${t.id}`)].filter(t => !pinnedTabs.includes(t)).includes(activeTab) ? 'default' : 'ghost'} 
+                variant={[...moreTabItems.map(t => t.id), ...customTabs.map(t => `custom-${t.id}`)].filter(t => !pinnedTabs.includes(t)).includes(activeTab) ? 'default' : 'ghost'} 
                 size="sm" 
                 className="rounded-lg px-4 py-2 font-medium gap-1"
                 data-testid="button-more-tabs"
               >
-                {!pinnedTabs.includes(activeTab) && activeTab === 'change-requests' ? 'Change Requests' : 
-                 !pinnedTabs.includes(activeTab) && activeTab === 'documents' ? 'Documents' : 
-                 !pinnedTabs.includes(activeTab) && activeTab === 'invoices' ? 'Invoices' :
-                 !pinnedTabs.includes(activeTab) && activeTab === 'status-report' ? 'Status Report' :
-                 !pinnedTabs.includes(activeTab) && activeTab === 'scoring' ? 'Scoring' :
-                 !pinnedTabs.includes(activeTab) && activeTab === 'benefits' ? 'Benefits' :
-                 !pinnedTabs.includes(activeTab) && activeTab === 'decisions' ? 'Decisions' :
-                 !pinnedTabs.includes(activeTab) && activeTab === 'ai-agent' ? 'AI Agent' :
-                 !pinnedTabs.includes(activeTab) && activeTab === 'daily-logs' ? 'Daily Logs' :
-                 !pinnedTabs.includes(activeTab) && activeTab === 'lessons-learned' ? 'Lessons Learned' :
-                 activeTab.startsWith('custom-') && !pinnedTabs.includes(activeTab) ? customTabs.find(t => `custom-${t.id}` === activeTab)?.name :
-                 'More'}
+                {(() => {
+                  if (!pinnedTabs.includes(activeTab)) {
+                    const moreTab = moreTabItems.find(t => t.id === activeTab);
+                    if (moreTab) return moreTab.label;
+                  }
+                  if (activeTab.startsWith('custom-') && !pinnedTabs.includes(activeTab)) {
+                    return customTabs.find(t => `custom-${t.id}` === activeTab)?.name || 'More';
+                  }
+                  return 'More';
+                })()}
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
