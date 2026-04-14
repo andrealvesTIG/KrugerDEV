@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate, Newspaper } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
@@ -98,6 +98,7 @@ const moduleDefinitions: Record<string, { name: string; href: string; icon: Reac
   "user-guide": { name: "User Guide", href: "/user-guide", icon: BookOpen },
   training: { name: "Training", href: "/training", icon: GraduationCap },
   templates: { name: "Templates", href: "/templates", icon: LayoutTemplate },
+  media: { name: "Media", href: "/media", icon: Newspaper },
 };
 
 const navigation = [
@@ -115,6 +116,7 @@ const navigation = [
   { name: "Timesheets", href: "/timesheets", icon: Clock, key: "timesheets" },
   { name: "Resources", href: "/resources", icon: Users, key: "resources" },
   { name: "Calendar", href: "/calendar", icon: Calendar, key: "calendar" },
+  { name: "Media", href: "/media", icon: Newspaper, key: "media" },
 ];
 
 const helpNavigation = [
@@ -149,6 +151,7 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
       { type: "module" as const, key: "lessons-learned", hidden: false },
       { type: "module" as const, key: "user-guide", hidden: false },
       { type: "module" as const, key: "training", hidden: false },
+      { type: "module" as const, key: "media", hidden: false },
     ]},
   ];
 }
@@ -194,6 +197,7 @@ function migrateOldFlatStructure(structure: SidebarStructure): SidebarStructure 
       { type: "module" as const, key: "lessons-learned", hidden: getItemHidden("lessons-learned") },
       { type: "module" as const, key: "user-guide", hidden: helpGroup?.items.find(i => i.type === "module" && i.key === "user-guide")?.hidden ?? false },
       { type: "module" as const, key: "training", hidden: helpGroup?.items.find(i => i.type === "module" && i.key === "training")?.hidden ?? false },
+      { type: "module" as const, key: "media", hidden: helpGroup?.items.find(i => i.type === "module" && i.key === "media")?.hidden ?? false },
       ...customLinks,
     ]},
   ];
@@ -253,6 +257,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   ensureModule("invoices", "finance", "pmo-radar");
   ensureModule("user-guide", "help");
   ensureModule("training", "help", "user-guide");
+  ensureModule("media", "help", "training");
   
   const helpGroup = updatedStructure.find(g => g.id === "help");
   if (!helpGroup) {
