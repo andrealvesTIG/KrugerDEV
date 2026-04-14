@@ -381,9 +381,6 @@ export default function SignInPage() {
                 <Link href="/investor-room" className="hidden sm:inline text-slate-200 hover:text-orange-400 text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-investor-room">
                   Investors
                 </Link>
-                <Link href="/media" className="hidden sm:inline text-slate-200 hover:text-orange-400 text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-media">
-                  Media
-                </Link>
                 <Button onClick={scrollToSignIn} size="sm" className="bg-orange-500 hover:bg-orange-400 text-white font-semibold text-xs sm:text-sm px-3 sm:px-4 shadow-lg shadow-orange-500/30" data-testid="button-nav-get-started">
                   <span className="hidden sm:inline">Get Started Free</span>
                   <span className="sm:hidden">Start Free</span>
@@ -432,13 +429,6 @@ export default function SignInPage() {
                         className="block text-sm font-medium text-slate-200 hover:text-orange-400 hover:bg-slate-700/40 rounded-md px-3 py-2.5 transition-colors"
                       >
                         Partners
-                      </Link>
-                      <Link
-                        href="/media"
-                        onClick={() => setMobileMenuOpen(false)}
-                        className="block text-sm font-medium text-slate-200 hover:text-orange-400 hover:bg-slate-700/40 rounded-md px-3 py-2.5 transition-colors"
-                      >
-                        Media
                       </Link>
                     </div>
                   </div>

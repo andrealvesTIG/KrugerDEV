@@ -88,8 +88,6 @@ const ChangeOrders = lazy(() => import("@/pages/ChangeOrders"));
 const ConstructionInvoices = lazy(() => import("@/pages/ConstructionInvoices"));
 const Meetings = lazy(() => import("@/pages/Meetings"));
 const Correspondence = lazy(() => import("@/pages/Correspondence"));
-const Blog = lazy(() => import("@/pages/Blog"));
-const BlogPost = lazy(() => import("@/pages/BlogPost"));
 
 function PageLoader() {
   return (
@@ -366,12 +364,6 @@ function App() {
                 </Route>
                 <Route path="/investor-room">
                   <Suspense fallback={<PageLoader />}><InvestorRoom /></Suspense>
-                </Route>
-                <Route path="/media/:slug">
-                  <Suspense fallback={<PageLoader />}><BlogPost /></Suspense>
-                </Route>
-                <Route path="/media">
-                  <Suspense fallback={<PageLoader />}><Blog /></Suspense>
                 </Route>
                 <Route>
                   <Router />

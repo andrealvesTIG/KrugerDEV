@@ -151,7 +151,6 @@ const footerSections = {
       { name: "User Management", href: "/guide#users", icon: Users },
       { name: "Settings", href: "/guide#settings", icon: Settings },
       { name: "Investor Room", href: "/investor-room", icon: BarChart3 },
-      { name: "Media", href: "/media", icon: FileText },
     ]
   }
 };
