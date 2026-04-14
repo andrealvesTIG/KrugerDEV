@@ -18,7 +18,7 @@ import { useLessonsLearned, useCreateLessonLearned, useUpdateLessonLearned, useD
 import { insertIssueSchema } from "@shared/schema";
 import type { Issue, ProjectFinancial, ChangeRequest, ProjectDocument, Risk, Task, ProjectInvoice, InvoiceNote } from "@shared/schema";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
-import { ProjectStatusReport } from "@/components/ProjectStatusReport";
+import { ProjectStatusReport, type ConstructionSummaryData } from "@/components/ProjectStatusReport";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1881,6 +1881,112 @@ export function StatusReportTab({
   const [recipientEmail, setRecipientEmail] = useState("");
   const [isSendingEmail, setIsSendingEmail] = useState(false);
 
+  const { data: dailyLogSummary } = useQuery({
+    queryKey: [`/api/projects/${project.id}/daily-logs/summary`],
+    enabled: !!project.id,
+  });
+  const { data: rfis } = useQuery<Array<{ status?: string; dueDate?: string }>>({
+    queryKey: [`/api/projects/${project.id}/rfis`],
+    enabled: !!project.id,
+  });
+  const { data: submittals } = useQuery<Array<{ status?: string }>>({
+    queryKey: [`/api/projects/${project.id}/submittals`],
+    enabled: !!project.id,
+  });
+  const { data: drawings } = useQuery<Array<{ currentRevisionNumber?: number }>>({
+    queryKey: [`/api/projects/${project.id}/drawings`],
+    enabled: !!project.id,
+  });
+  const { data: punchSummary } = useQuery({
+    queryKey: [`/api/projects/${project.id}/punch-items/summary`],
+    enabled: !!project.id,
+  });
+  const { data: safetyDashboard } = useQuery<{ inspections?: { total?: number }; incidents?: { total?: number }; observations?: { total?: number }; openCorrectiveActions?: number }>({
+    queryKey: [`/api/projects/${project.id}/safety-dashboard`],
+    enabled: !!project.id,
+  });
+  const { data: changeOrderSummary } = useQuery<{ totalCount?: number; approvedCount?: number; pendingCount?: number; approvedCostImpact?: number; totalCostImpact?: number }>({
+    queryKey: [`/api/projects/${project.id}/change-orders/summary`],
+    enabled: !!project.id,
+  });
+  const { data: meetings } = useQuery<Array<{ date?: string; status?: string }>>({
+    queryKey: [`/api/projects/${project.id}/meetings`],
+    enabled: !!project.id,
+  });
+  const { data: meetingActionItems } = useQuery<Array<{ status?: string }>>({
+    queryKey: [`/api/projects/${project.id}/meetings/action-items`],
+    enabled: !!project.id,
+  });
+  const { data: correspondence } = useQuery<Array<{ type?: string; correspondenceType?: string }>>({
+    queryKey: [`/api/projects/${project.id}/correspondence`],
+    enabled: !!project.id,
+  });
+
+  const constructionSummary = useMemo<ConstructionSummaryData>(() => {
+    const summary: ConstructionSummaryData = {};
+    const dls = dailyLogSummary as { totalDays?: number; totalLaborHours?: number; totalEquipmentHours?: number } | undefined;
+    if (dls && dls.totalDays) {
+      summary.dailyLogs = { totalDays: dls.totalDays || 0, totalLaborHours: dls.totalLaborHours || 0, totalEquipmentHours: dls.totalEquipmentHours || 0 };
+    }
+    if (rfis && rfis.length > 0) {
+      const today = new Date().toISOString().split('T')[0];
+      const open = rfis.filter(r => r.status !== 'Closed' && r.status !== 'Answered').length;
+      const closed = rfis.filter(r => r.status === 'Closed' || r.status === 'Answered').length;
+      const overdue = rfis.filter(r => r.dueDate && r.dueDate < today && r.status !== 'Closed' && r.status !== 'Answered').length;
+      summary.rfis = { total: rfis.length, open, closed, overdue };
+    }
+    if (submittals && submittals.length > 0) {
+      const open = submittals.filter(s => s.status !== 'Approved' && s.status !== 'Rejected' && s.status !== 'Closed').length;
+      const approved = submittals.filter(s => s.status === 'Approved').length;
+      const rejected = submittals.filter(s => s.status === 'Rejected').length;
+      summary.submittals = { total: submittals.length, open, approved, rejected };
+    }
+    if (drawings && drawings.length > 0) {
+      const revisions = drawings.reduce((sum, d) => sum + ((d.currentRevisionNumber || 1) - 1), 0);
+      summary.drawings = { total: drawings.length, revisions };
+    }
+    const ps = punchSummary as { total?: number; statusCounts?: Record<string, number>; percentComplete?: number } | undefined;
+    if (ps && ps.total) {
+      const closed = (ps.statusCounts?.['Closed'] || 0) + (ps.statusCounts?.['Verified'] || 0);
+      summary.punchList = { total: ps.total, open: ps.total - closed, closed, percentComplete: ps.percentComplete || 0 };
+    }
+    if (safetyDashboard) {
+      summary.qualitySafety = {
+        inspections: safetyDashboard.inspections?.total || 0,
+        incidents: safetyDashboard.incidents?.total || 0,
+        observations: safetyDashboard.observations?.total || 0,
+        openCorrectiveActions: safetyDashboard.openCorrectiveActions || 0,
+      };
+    }
+    if (changeOrderSummary && changeOrderSummary.totalCount) {
+      summary.changeOrders = {
+        totalCount: changeOrderSummary.totalCount || 0,
+        approvedCount: changeOrderSummary.approvedCount || 0,
+        pendingCount: changeOrderSummary.pendingCount || 0,
+        approvedCostImpact: changeOrderSummary.approvedCostImpact || 0,
+        totalCostImpact: changeOrderSummary.totalCostImpact || 0,
+      };
+    }
+    if (meetings && meetings.length > 0) {
+      const today = new Date().toISOString().split('T')[0];
+      const upcoming = meetings.filter(m => m.date && m.date >= today).length;
+      const totalAI = meetingActionItems?.length || 0;
+      const openAI = meetingActionItems?.filter(ai => ai.status !== 'Completed' && ai.status !== 'Closed').length || 0;
+      summary.meetings = { total: meetings.length, upcoming, actionItems: totalAI, openActionItems: openAI };
+    }
+    if (correspondence && correspondence.length > 0) {
+      const getType = (c: { type?: string; correspondenceType?: string }) => c.correspondenceType || c.type || '';
+      summary.correspondence = {
+        total: correspondence.length,
+        letters: correspondence.filter(c => getType(c) === 'Letter').length,
+        emails: correspondence.filter(c => getType(c) === 'Email').length,
+        transmittals: correspondence.filter(c => getType(c) === 'Transmittal').length,
+        notices: correspondence.filter(c => getType(c) === 'Notice').length,
+      };
+    }
+    return summary;
+  }, [dailyLogSummary, rfis, submittals, drawings, punchSummary, safetyDashboard, changeOrderSummary, meetings, meetingActionItems, correspondence]);
+
   const handleDownloadPdf = async () => {
     setIsGeneratingPdf(true);
     try {
@@ -2069,12 +2175,12 @@ export function StatusReportTab({
           project={project}
           risks={risks}
           issues={issues}
-
           financials={financials}
           tasks={tasks}
           changeRequests={changeRequests}
           documents={documents}
           executiveSummary={project.description || ""}
+          constructionSummary={constructionSummary}
         />
       </CardContent>
     </Card>
