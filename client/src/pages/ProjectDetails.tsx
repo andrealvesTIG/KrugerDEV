@@ -65,11 +65,12 @@ const PROJECT_STAGES = [
   { value: "Monitoring", label: "Monitoring", description: "Track & control" },
   { value: "Closing", label: "Closing", description: "Project completion" },
   { value: "Billing", label: "Billing", description: "Pending invoices & accounting" },
+  { value: "On Hold", label: "On Hold", description: "Project temporarily paused", isTerminal: true },
   { value: "Closed", label: "Closed", description: "Project archived & locked", isTerminal: true },
 ];
 
 // Helper to check if a project status is the terminal locked state
-const isProjectStatusLocked = (status: string) => status === "Closed";
+const isProjectStatusLocked = (status: string) => status === "Closed" || status === "On Hold";
 
 function BusinessProcessFlow({ 
   currentStatus, 
@@ -163,7 +164,7 @@ function BusinessProcessFlow({
           })}
       </div>
 
-      <div className="sm:hidden grid grid-cols-4 gap-2">
+      <div className="sm:hidden grid grid-cols-4 gap-1.5">
         {PROJECT_STAGES.map((stage, index) => {
             const isCompleted = index < currentIndex;
             const isCurrent = index === currentIndex;
@@ -1008,21 +1009,16 @@ export default function ProjectDetails() {
   };
 
   const handleStatusChange = (status: string) => {
-    // If trying to lock the project, show confirmation
-    if (status === "Closed" && !isProjectLocked) {
-      const confirmed = window.confirm(
-        "Are you sure you want to close this project?\n\n" +
-        "This will:\n" +
-        "• Lock the project from all edits\n" +
-        "• Remove it from Active Projects listings\n" +
-        "• Archive it for historical reference\n\n" +
-        "You can reopen the project later if needed."
-      );
-      if (!confirmed) return;
+    const isTargetTerminal = status === "Closed" || status === "On Hold";
+
+    if (isTargetTerminal && !isProjectLocked) {
+      const message = status === "Closed"
+        ? "Are you sure you want to close this project?\n\nThis will:\n• Lock the project from all edits\n• Remove it from Active Projects listings\n• Archive it for historical reference\n\nYou can reopen the project later if needed."
+        : "Are you sure you want to put this project on hold?\n\nThis will:\n• Lock the project from all edits\n• Pause active work\n\nYou can resume the project later if needed.";
+      if (!window.confirm(message)) return;
     }
     
-    // If project is locked and trying to reopen (change to anything other than Closed)
-    if (isProjectLocked && status !== "Closed") {
+    if (isProjectLocked && !isTargetTerminal) {
       const confirmed = window.confirm(
         `Are you sure you want to reopen this project?\n\n` +
         `This will:\n` +
@@ -1040,6 +1036,11 @@ export default function ProjectDetails() {
           toast({ 
             title: "Project Closed & Locked", 
             description: "This project is now archived and protected from changes."
+          });
+        } else if (status === "On Hold") {
+          toast({ 
+            title: "Project On Hold", 
+            description: "This project is now paused and locked from changes."
           });
         } else if (isProjectLocked) {
           toast({ 
