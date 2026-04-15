@@ -16,7 +16,7 @@ import { ModuleVisibilitySection } from "@/components/settings/ModuleVisibilityS
 import { SystemViewsSection } from "@/components/settings/SystemViewsSection";
 import { CustomFieldsSection } from "@/components/settings/CustomFieldsSection";
 import { CustomTabsSection } from "@/components/settings/CustomTabsSection";
-import { IntakeWorkflowSection } from "@/components/settings/IntakeWorkflowSection";
+import { GovernanceSection } from "@/components/settings/GovernanceSection";
 import { MembersSection } from "@/components/settings/MembersSection";
 import { RecycleBinSection } from "@/components/settings/RecycleBinSection";
 import { DemoDataSection } from "@/components/settings/DemoDataSection";
@@ -93,7 +93,7 @@ const settingsTabs = [
   { value: "system-views", label: "System Views", icon: Columns },
   { value: "custom-fields", label: "Custom Fields", icon: FileText },
   { value: "custom-tabs", label: "Custom Tabs", icon: LayoutGrid },
-  { value: "intake", label: "Intake Workflow", icon: GitBranch },
+  { value: "governance", label: "Governance", icon: GitBranch },
   { value: "members", label: "Team Members", icon: Users },
   { value: "recycle", label: "Recycle Bin", icon: Trash2 },
   { value: "demo", label: "Demo Data", icon: Sparkles },
@@ -222,8 +222,8 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         <TabsContent value="custom-tabs" className="mt-0">
           <CustomTabsSection organizationId={currentOrganization.id} />
         </TabsContent>
-        <TabsContent value="intake" className="mt-0">
-          <IntakeWorkflowSection organizationId={currentOrganization.id} />
+        <TabsContent value="governance" className="mt-0">
+          <GovernanceSection organizationId={currentOrganization.id} />
         </TabsContent>
         <TabsContent value="members" className="mt-0">
           <MembersSection organizationId={currentOrganization.id} orgName={currentOrganization.name} />
