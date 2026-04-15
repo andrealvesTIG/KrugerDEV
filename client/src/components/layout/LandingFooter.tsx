@@ -35,8 +35,10 @@ import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
 
 function FooterLink({ href, name, icon: Icon, testId }: { href: string; name: string; icon: React.ElementType; testId: string }) {
   const [, setLocation] = useLocation();
+  const isExternal = href.startsWith('http');
   
   const handleClick = (e: React.MouseEvent) => {
+    if (isExternal) return;
     e.preventDefault();
     const [path, hash] = href.split('#');
     setLocation(path);
@@ -54,6 +56,7 @@ function FooterLink({ href, name, icon: Icon, testId }: { href: string; name: st
       onClick={handleClick}
       className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors cursor-pointer"
       data-testid={testId}
+      {...(isExternal ? { target: "_blank", rel: "noopener noreferrer" } : {})}
     >
       <Icon className="h-3.5 w-3.5" />
       {name}
@@ -150,7 +153,7 @@ const footerSections = {
       { name: "Organizations", href: "/guide#organizations", icon: Building2 },
       { name: "User Management", href: "/guide#users", icon: Users },
       { name: "Settings", href: "/guide#settings", icon: Settings },
-      { name: "Investor Room", href: "/investor-room", icon: BarChart3 },
+      { name: "Investor Room", href: "https://investor.fridayreport.ai/", icon: BarChart3 },
       { name: "Media", href: "/media", icon: FileText },
     ]
   }
