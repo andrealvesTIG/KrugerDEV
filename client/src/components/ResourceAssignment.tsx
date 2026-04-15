@@ -37,7 +37,7 @@ function AllocationInput({ value, onChange, resourceId }: { value: number; onCha
   };
 
   return (
-    <Input
+    <input
       type="number"
       min={0}
       max={100}
@@ -46,11 +46,13 @@ function AllocationInput({ value, onChange, resourceId }: { value: number; onCha
       onFocus={(e) => { setIsFocused(true); e.target.select(); }}
       onChange={(e) => setLocalValue(e.target.value)}
       onBlur={commit}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
         if (e.key === 'Enter') { commit(); (e.target as HTMLInputElement).blur(); }
         e.stopPropagation();
       }}
-      className="h-6 w-14 text-xs text-center px-1 border-0 bg-transparent focus-visible:ring-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      className="h-6 w-14 text-xs text-center px-1 rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring cursor-text"
       data-testid={`input-allocation-${resourceId}`}
     />
   );
