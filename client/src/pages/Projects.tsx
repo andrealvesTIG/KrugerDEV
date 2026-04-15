@@ -172,6 +172,63 @@ const HEALTH_CONFIG: Record<string, { dot: string; bg: string; label: string }> 
   Red: { dot: "bg-rose-500", bg: "bg-rose-500", label: "Off Track" },
 };
 
+interface ListColumn {
+  id: string;
+  label: string;
+  width: string;
+  align?: "left" | "right";
+  alwaysVisible?: boolean;
+  defaultVisible?: boolean;
+}
+
+const LIST_COLUMNS: ListColumn[] = [
+  { id: "name", label: "Project", width: "minmax(0,1fr)", alwaysVisible: true, defaultVisible: true },
+  { id: "status", label: "Status", width: "110px", defaultVisible: true },
+  { id: "priority", label: "Priority", width: "90px", defaultVisible: true },
+  { id: "health", label: "Health", width: "80px", defaultVisible: true },
+  { id: "progress", label: "Progress", width: "140px", defaultVisible: true },
+  { id: "budget", label: "Budget", width: "100px", align: "right", defaultVisible: true },
+  { id: "endDate", label: "Due Date", width: "100px", align: "right", defaultVisible: true },
+  { id: "startDate", label: "Start Date", width: "100px", align: "right", defaultVisible: false },
+  { id: "projectType", label: "Type", width: "100px", defaultVisible: false },
+  { id: "methodology", label: "Methodology", width: "100px", defaultVisible: false },
+  { id: "createdAt", label: "Created", width: "100px", align: "right", defaultVisible: false },
+  { id: "updatedAt", label: "Updated", width: "100px", align: "right", defaultVisible: false },
+  { id: "actions", label: "", width: "40px", alwaysVisible: true, defaultVisible: true },
+];
+
+const LIST_COLUMNS_STORAGE_KEY = "project-list-visible-columns";
+const LIST_SORT_STORAGE_KEY = "project-list-sort";
+
+function loadVisibleColumns(): string[] {
+  try {
+    const stored = localStorage.getItem(LIST_COLUMNS_STORAGE_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return LIST_COLUMNS.filter(c => c.defaultVisible).map(c => c.id);
+}
+
+function saveVisibleColumns(cols: string[]) {
+  try { localStorage.setItem(LIST_COLUMNS_STORAGE_KEY, JSON.stringify(cols)); } catch {}
+}
+
+interface ListSortState {
+  columnId: string;
+  direction: "asc" | "desc";
+}
+
+function loadListSort(): ListSortState | null {
+  try {
+    const stored = localStorage.getItem(LIST_SORT_STORAGE_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return null;
+}
+
+function saveListSort(sort: ListSortState | null) {
+  try { localStorage.setItem(LIST_SORT_STORAGE_KEY, JSON.stringify(sort)); } catch {}
+}
+
 type ListGroupByOption = "none" | "portfolio" | "status" | "priority" | "health" | "projectType" | "methodology" | `cf_${number}`;
 
 const LIST_GROUP_BY_STANDARD: { value: ListGroupByOption; label: string }[] = [
@@ -230,10 +287,75 @@ function ProjectsListView({
   customFieldValues,
 }: ProjectsListViewProps) {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(loadVisibleColumns);
+  const [listSort, setListSort] = useState<ListSortState | null>(loadListSort);
+  const [manageColumnsOpen, setManageColumnsOpen] = useState(false);
 
   const toggleGroup = useCallback((groupKey: string) => {
     setCollapsedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
   }, []);
+
+  const toggleColumn = useCallback((colId: string) => {
+    setVisibleColumnIds(prev => {
+      const next = prev.includes(colId) ? prev.filter(id => id !== colId) : [...prev, colId];
+      saveVisibleColumns(next);
+      return next;
+    });
+  }, []);
+
+  const resetColumns = useCallback(() => {
+    const defaults = LIST_COLUMNS.filter(c => c.defaultVisible).map(c => c.id);
+    setVisibleColumnIds(defaults);
+    saveVisibleColumns(defaults);
+  }, []);
+
+  const handleSort = useCallback((columnId: string) => {
+    if (columnId === "actions" || columnId === "progress") return;
+    setListSort(prev => {
+      let next: ListSortState | null;
+      if (!prev || prev.columnId !== columnId) {
+        next = { columnId, direction: "asc" };
+      } else if (prev.direction === "asc") {
+        next = { columnId, direction: "desc" };
+      } else {
+        next = null;
+      }
+      saveListSort(next);
+      return next;
+    });
+  }, []);
+
+  const visibleColumns = useMemo(() => {
+    return LIST_COLUMNS.filter(c => c.alwaysVisible || visibleColumnIds.includes(c.id));
+  }, [visibleColumnIds]);
+
+  const getProjectFieldValue = useCallback((project: Project, columnId: string): any => {
+    switch (columnId) {
+      case "name": return project.name;
+      case "status": return project.status;
+      case "priority": {
+        const order: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+        return order[project.priority || "Medium"] ?? 4;
+      }
+      case "health": {
+        const order: Record<string, number> = { Red: 0, Yellow: 1, Green: 2 };
+        return order[project.health || "Green"] ?? 3;
+      }
+      case "budget": return Number(project.budget) || 0;
+      case "endDate": return project.endDate ? new Date(project.endDate) : null;
+      case "startDate": return project.startDate ? new Date(project.startDate) : null;
+      case "projectType": return (project as any).projectType || "";
+      case "methodology": return (project as any).methodology || "";
+      case "createdAt": return project.createdAt ? new Date(project.createdAt) : null;
+      case "updatedAt": return (project as any).updatedAt ? new Date((project as any).updatedAt) : null;
+      default: return "";
+    }
+  }, []);
+
+  const sortedProjects = useMemo(() => {
+    if (!listSort) return projects;
+    return sortData(projects, { columnId: listSort.columnId, direction: listSort.direction }, getProjectFieldValue);
+  }, [projects, listSort, getProjectFieldValue]);
 
   const cfValuesMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -261,7 +383,7 @@ function ProjectsListView({
 
   const groupedProjects = useMemo(() => {
     if (groupBy === "none") {
-      return [{ key: "__all__", label: "", projects, meta: null as any }];
+      return [{ key: "__all__", label: "", projects: sortedProjects, meta: null as any }];
     }
 
     const portfolioMap = new Map<number, Portfolio>();
@@ -322,7 +444,7 @@ function ProjectsListView({
     };
 
     const groupMap = new Map<string, { label: string; projects: Project[]; sortOrder: number; portfolio: Portfolio | null }>();
-    projects.forEach(project => {
+    sortedProjects.forEach(project => {
       const { key, label, sortOrder } = getGroupKeyAndLabel(project);
       if (!groupMap.has(key)) {
         const portfolio = groupBy === "portfolio" && project.portfolioId ? portfolioMap.get(project.portfolioId) || null : null;
@@ -337,7 +459,7 @@ function ProjectsListView({
         return a.label.localeCompare(b.label);
       })
       .map(([key, val]) => ({ key, label: val.label, projects: val.projects, meta: val.portfolio }));
-  }, [projects, portfolios, groupBy, cfValuesMap, customFieldDefs]);
+  }, [sortedProjects, portfolios, groupBy, cfValuesMap, customFieldDefs]);
 
   const allCollapsed = groupedProjects.length > 0 && groupedProjects.every(g => collapsedGroups[g.key] === true);
 
@@ -351,12 +473,200 @@ function ProjectsListView({
     setCollapsedGroups({});
   }, []);
 
-  const renderProjectRow = (project: Project, index: number) => {
+  const renderCellContent = (project: Project, columnId: string) => {
     const progress = projectProgress[project.id] || 0;
     const health = HEALTH_CONFIG[project.health || 'Green'] || HEALTH_CONFIG.Green;
     const riskData = getRiskScoreForProject(project.id);
     const showRisk = riskData && ((Date.now() - new Date(riskData.generatedAt).getTime()) / (1000 * 60 * 60 * 24)) <= 5;
 
+    switch (columnId) {
+      case "name":
+        return (
+          <div className="flex items-center gap-3 min-w-0 pl-1">
+            <div className={cn("w-1 h-8 rounded-full shrink-0", health.bg)} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors" title={project.name}>
+                  {project.name}
+                </span>
+                {(project as any).isInternal && (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-violet-300 text-violet-600 dark:border-violet-700 dark:text-violet-400 shrink-0">
+                    Internal
+                  </Badge>
+                )}
+                {project.timesheetBlocked && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <LockIcon className="h-3 w-3 text-amber-500 shrink-0" />
+                    </TooltipTrigger>
+                    <TooltipContent>Timesheet entries blocked</TooltipContent>
+                  </Tooltip>
+                )}
+                {project.source === "planner" && project.plannerPlanId && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(`https://planner.cloud.microsoft/webui/plan/${project.plannerPlanId}/view/board`, '_blank'); }} className="shrink-0">
+                        <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Synced from Microsoft Planner</TooltipContent>
+                  </Tooltip>
+                )}
+                {(project.source === "planner-premium" || project.source === "planner_premium") && project.plannerPlanId && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); const tenantId = project.dataverseTenantId || ''; const planId = project.plannerPlanId; const premiumUrl = tenantId ? `https://planner.cloud.microsoft/${tenantId}/en-US/Home/Planner/#/plantaskboard?planId=${planId}` : `https://planner.cloud.microsoft/webui/plan/${planId}/view/board`; window.open(premiumUrl, '_blank'); }} className="shrink-0 flex items-center gap-0.5">
+                        <img src={plannerLogoPath} alt="Planner Premium" className="h-4 w-4" />
+                        <Crown className="h-2.5 w-2.5 text-purple-500" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Synced from Planner Premium</TooltipContent>
+                  </Tooltip>
+                )}
+                {project.source === "imported" && project.sourceFileUrl && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); const link = document.createElement('a'); link.href = project.sourceFileUrl!; link.download = project.sourceFileName || 'project.mpp'; link.click(); }} className="shrink-0">
+                        <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Imported from MS Project</TooltipContent>
+                  </Tooltip>
+                )}
+                {(project as any).isExternal && (
+                  <ExternalBadge organizationName={(project as any).sourceOrganizationName} accessRole={(project as any).accessRole} />
+                )}
+                {showRisk && riskData && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 gap-0.5 shrink-0 ${getRiskScoreColor(riskData.riskScore)}`}>
+                          <Shield className="h-2.5 w-2.5" />
+                          {riskData.riskScore}
+                        </Badge>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">{riskData.summary}</TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      case "status":
+        return (
+          <div className="flex items-center sm:justify-start" onClick={(e) => e.preventDefault()}>
+            <Select value={project.status} onValueChange={(newStatus) => handleStatusChange(project.id, newStatus)}>
+              <SelectTrigger className={cn("h-6 w-auto text-[11px] font-medium border-0 px-2 py-0 rounded-md shadow-none", STATUS_COLORS[project.status] || STATUS_COLORS.Initiation)} onClick={(e) => e.preventDefault()}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent onClick={(e) => e.stopPropagation()}>
+                {PROJECT_STATUS_LIST.map(status => (
+                  <SelectItem key={status} value={status}>{status}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        );
+      case "priority":
+        return (
+          <Badge className={cn("text-[11px] font-medium px-2 py-0.5 rounded-md border-0", PRIORITY_COLORS[project.priority || 'Medium'])}>
+            {project.priority}
+          </Badge>
+        );
+      case "health":
+        return (
+          <div className="flex items-center gap-1.5">
+            <div className={cn("w-2 h-2 rounded-full shrink-0", health.dot)} />
+            <span className="text-xs text-muted-foreground hidden lg:inline">{health.label}</span>
+          </div>
+        );
+      case "progress":
+        return (
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-20 rounded-full bg-muted overflow-hidden">
+              <div className={cn("h-full rounded-full transition-all duration-500", health.bg)} style={{ width: `${progress}%` }} />
+            </div>
+            <span className="text-xs font-medium text-muted-foreground w-8">{progress}%</span>
+          </div>
+        );
+      case "budget":
+        return (
+          <span className="text-sm font-medium text-foreground tabular-nums">
+            {Number(project.budget) > 0 ? `$${Number(project.budget).toLocaleString()}` : '\u2014'}
+          </span>
+        );
+      case "endDate":
+        return (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : '\u2014'}
+          </span>
+        );
+      case "startDate":
+        return (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : '\u2014'}
+          </span>
+        );
+      case "projectType":
+        return (
+          <span className="text-xs text-muted-foreground truncate">
+            {(project as any).projectType || '\u2014'}
+          </span>
+        );
+      case "methodology":
+        return (
+          <span className="text-xs text-muted-foreground truncate">
+            {(project as any).methodology || '\u2014'}
+          </span>
+        );
+      case "createdAt":
+        return (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {project.createdAt ? format(new Date(project.createdAt), 'MMM d, yyyy') : '\u2014'}
+          </span>
+        );
+      case "updatedAt":
+        return (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {(project as any).updatedAt ? format(new Date((project as any).updatedAt), 'MMM d, yyyy') : '\u2014'}
+          </span>
+        );
+      case "actions":
+        return (
+          <div className="flex justify-end" onClick={(e) => e.preventDefault()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.preventDefault()}>
+                  <MoreVertical className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href={`/projects/${project.id}`}>
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Details
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={(e) => { e.preventDefault(); setRiskAssessProjectId(project.id); }}>
+                  <Shield className="h-4 w-4 mr-2" />
+                  AI Risk Assessment
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={(e) => { e.preventDefault(); setDeleteProjectId(project.id); }} className="text-red-600 focus:text-red-600">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const renderProjectRow = (project: Project, index: number) => {
     return (
       <motion.div
         key={project.id}
@@ -365,210 +675,15 @@ function ProjectsListView({
         transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.3) }}
       >
         <Link href={`/projects/${project.id}`}>
-          <div className="group grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_110px_90px_80px_140px_100px_100px_40px] gap-3 sm:gap-0 items-center px-4 py-3 hover:bg-muted/40 transition-colors duration-150 cursor-pointer">
-            <div className="flex items-center gap-3 min-w-0 pl-1">
-              <div className={cn("w-1 h-8 rounded-full shrink-0", health.bg)} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors" title={project.name}>
-                    {project.name}
-                  </span>
-                  {(project as any).isInternal && (
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-violet-300 text-violet-600 dark:border-violet-700 dark:text-violet-400 shrink-0">
-                      Internal
-                    </Badge>
-                  )}
-                  {project.timesheetBlocked && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <LockIcon className="h-3 w-3 text-amber-500 shrink-0" />
-                      </TooltipTrigger>
-                      <TooltipContent>Timesheet entries blocked</TooltipContent>
-                    </Tooltip>
-                  )}
-                  {project.source === "planner" && project.plannerPlanId && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            window.open(`https://planner.cloud.microsoft/webui/plan/${project.plannerPlanId}/view/board`, '_blank');
-                          }}
-                          className="shrink-0"
-                        >
-                          <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>Synced from Microsoft Planner</TooltipContent>
-                    </Tooltip>
-                  )}
-                  {(project.source === "planner-premium" || project.source === "planner_premium") && project.plannerPlanId && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const tenantId = project.dataverseTenantId || '';
-                            const planId = project.plannerPlanId;
-                            const premiumUrl = tenantId 
-                              ? `https://planner.cloud.microsoft/${tenantId}/en-US/Home/Planner/#/plantaskboard?planId=${planId}`
-                              : `https://planner.cloud.microsoft/webui/plan/${planId}/view/board`;
-                            window.open(premiumUrl, '_blank');
-                          }}
-                          className="shrink-0 flex items-center gap-0.5"
-                        >
-                          <img src={plannerLogoPath} alt="Planner Premium" className="h-4 w-4" />
-                          <Crown className="h-2.5 w-2.5 text-purple-500" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>Synced from Planner Premium</TooltipContent>
-                    </Tooltip>
-                  )}
-                  {project.source === "imported" && project.sourceFileUrl && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const link = document.createElement('a');
-                            link.href = project.sourceFileUrl!;
-                            link.download = project.sourceFileName || 'project.mpp';
-                            link.click();
-                          }}
-                          className="shrink-0"
-                        >
-                          <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>Imported from MS Project</TooltipContent>
-                    </Tooltip>
-                  )}
-                  {(project as any).isExternal && (
-                    <ExternalBadge 
-                      organizationName={(project as any).sourceOrganizationName}
-                      accessRole={(project as any).accessRole}
-                    />
-                  )}
-                  {showRisk && riskData && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div>
-                          <Badge
-                            variant="secondary"
-                            className={`text-[10px] px-1.5 py-0 gap-0.5 shrink-0 ${getRiskScoreColor(riskData.riskScore)}`}
-                          >
-                            <Shield className="h-2.5 w-2.5" />
-                            {riskData.riskScore}
-                          </Badge>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">{riskData.summary}</TooltipContent>
-                    </Tooltip>
-                  )}
-                </div>
+          <div
+            className="group grid grid-cols-1 gap-3 sm:gap-0 items-center px-4 py-3 hover:bg-muted/40 transition-colors duration-150 cursor-pointer"
+            style={{ gridTemplateColumns: visibleColumns.map(c => c.width).join(" ") }}
+          >
+            {visibleColumns.map(col => (
+              <div key={col.id} className={col.align === "right" ? "text-right" : ""}>
+                {renderCellContent(project, col.id)}
               </div>
-            </div>
-
-            <div className="flex items-center sm:justify-start" onClick={(e) => e.preventDefault()}>
-              <Select 
-                value={project.status} 
-                onValueChange={(newStatus) => handleStatusChange(project.id, newStatus)}
-              >
-                <SelectTrigger 
-                  className={cn(
-                    "h-6 w-auto text-[11px] font-medium border-0 px-2 py-0 rounded-md shadow-none",
-                    STATUS_COLORS[project.status] || STATUS_COLORS.Initiation
-                  )}
-                  onClick={(e) => e.preventDefault()}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent onClick={(e) => e.stopPropagation()}>
-                  {PROJECT_STATUS_LIST.map(status => (
-                    <SelectItem key={status} value={status}>{status}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Badge className={cn(
-                "text-[11px] font-medium px-2 py-0.5 rounded-md border-0",
-                PRIORITY_COLORS[project.priority || 'Medium']
-              )}>
-                {project.priority}
-              </Badge>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <div className={cn("w-2 h-2 rounded-full shrink-0", health.dot)} />
-              <span className="text-xs text-muted-foreground hidden lg:inline">{health.label}</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="h-1.5 w-20 rounded-full bg-muted overflow-hidden">
-                <div 
-                  className={cn("h-full rounded-full transition-all duration-500", health.bg)}
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <span className="text-xs font-medium text-muted-foreground w-8">{progress}%</span>
-            </div>
-
-            <div className="text-right">
-              <span className="text-sm font-medium text-foreground tabular-nums">
-                {Number(project.budget) > 0 ? `$${Number(project.budget).toLocaleString()}` : '\u2014'}
-              </span>
-            </div>
-
-            <div className="text-right">
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : '\u2014'}
-              </span>
-            </div>
-
-            <div className="flex justify-end" onClick={(e) => e.preventDefault()}>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button 
-                    size="icon" 
-                    variant="ghost"
-                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => e.preventDefault()}
-                  >
-                    <MoreVertical className="h-3.5 w-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem asChild>
-                    <Link href={`/projects/${project.id}`}>
-                      <Eye className="h-4 w-4 mr-2" />
-                      View Details
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={(e) => { e.preventDefault(); setRiskAssessProjectId(project.id); }}
-                  >
-                    <Shield className="h-4 w-4 mr-2" />
-                    AI Risk Assessment
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={(e) => { e.preventDefault(); setDeleteProjectId(project.id); }} 
-                    className="text-red-600 focus:text-red-600"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            ))}
           </div>
         </Link>
       </motion.div>
@@ -580,21 +695,65 @@ function ProjectsListView({
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="flex items-center justify-between gap-2 px-4 py-2 bg-muted/20 border-b border-border">
-        <div className="flex items-center gap-2">
-          <Layers className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium text-muted-foreground">Group by:</span>
-          <Select value={groupBy} onValueChange={(v) => onGroupByChange(v as ListGroupByOption)}>
-            <SelectTrigger className="h-7 w-auto min-w-[120px] text-xs border-border/60 bg-background shadow-none gap-1">
-              <SelectValue>{currentGroupLabel}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {groupByOptions.map(opt => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground">Group by:</span>
+            <Select value={groupBy} onValueChange={(v) => onGroupByChange(v as ListGroupByOption)}>
+              <SelectTrigger className="h-7 w-auto min-w-[120px] text-xs border-border/60 bg-background shadow-none gap-1">
+                <SelectValue>{currentGroupLabel}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {groupByOptions.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Popover open={manageColumnsOpen} onOpenChange={setManageColumnsOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground">
+                <Settings2 className="h-3.5 w-3.5" />
+                Columns
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-2" align="start">
+              <div className="flex items-center justify-between px-2 pb-2 border-b border-border mb-1">
+                <span className="text-xs font-semibold text-foreground">Manage Columns</span>
+                <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 text-muted-foreground" onClick={resetColumns}>
+                  Reset
+                </Button>
+              </div>
+              <div className="space-y-0.5 max-h-[300px] overflow-auto">
+                {LIST_COLUMNS.filter(c => !c.alwaysVisible).map(col => (
+                  <label
+                    key={col.id}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer text-sm"
+                  >
+                    <Checkbox
+                      checked={visibleColumnIds.includes(col.id)}
+                      onCheckedChange={() => toggleColumn(col.id)}
+                      className="h-3.5 w-3.5"
+                    />
+                    <span className="text-xs">{col.label}</span>
+                  </label>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+          {listSort && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-[11px] px-2 text-muted-foreground hover:text-foreground gap-1"
+              onClick={() => { setListSort(null); saveListSort(null); }}
+            >
+              <X className="h-3 w-3" />
+              Clear sort
+            </Button>
+          )}
         </div>
         {groupBy !== "none" && groupedProjects.length > 1 && (
           <Button
@@ -617,20 +776,36 @@ function ProjectsListView({
           </Button>
         )}
       </div>
-      <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_110px_90px_80px_140px_100px_100px_40px] gap-0 px-4 py-2.5 bg-muted/50 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-        <span className="pl-3">Project</span>
-        <span>Status</span>
-        <span>Priority</span>
-        <span>Health</span>
-        <span>Progress</span>
-        <span className="text-right">Budget</span>
-        <span className="text-right">Due Date</span>
-        <span></span>
+      <div
+        className="hidden sm:grid gap-0 px-4 py-2.5 bg-muted/50 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+        style={{ gridTemplateColumns: visibleColumns.map(c => c.width).join(" ") }}
+      >
+        {visibleColumns.map(col => {
+          const isSortable = col.id !== "actions" && col.id !== "progress";
+          const sortDir = listSort?.columnId === col.id ? listSort.direction : null;
+          return (
+            <span
+              key={col.id}
+              className={cn(
+                col.align === "right" ? "text-right" : col.id === "name" ? "pl-3" : "",
+                isSortable && "cursor-pointer select-none hover:text-foreground transition-colors group/sort"
+              )}
+              onClick={isSortable ? () => handleSort(col.id) : undefined}
+            >
+              <span className="inline-flex items-center gap-1">
+                {col.label}
+                {isSortable && sortDir === "asc" && <ArrowUp className="h-3 w-3 text-primary" />}
+                {isSortable && sortDir === "desc" && <ArrowDown className="h-3 w-3 text-primary" />}
+                {isSortable && !sortDir && <ChevronsUpDown className="h-3 w-3 opacity-0 group-hover/sort:opacity-50 transition-opacity" />}
+              </span>
+            </span>
+          );
+        })}
       </div>
 
       <div className="divide-y divide-border">
         {groupBy === "none" ? (
-          projects.map((project, index) => renderProjectRow(project, index))
+          sortedProjects.map((project, index) => renderProjectRow(project, index))
         ) : (
           groupedProjects.map((group) => {
             const isCollapsed = collapsedGroups[group.key] === true;
