@@ -18,6 +18,44 @@ export interface ResourceAllocation {
   allocationPercentage: number; // 0-100%
 }
 
+function AllocationInput({ value, onChange, resourceId }: { value: number; onChange: (v: number) => void; resourceId: number }) {
+  const [localValue, setLocalValue] = useState(String(value));
+  const [isFocused, setIsFocused] = useState(false);
+
+  React.useEffect(() => {
+    if (!isFocused) {
+      setLocalValue(String(value));
+    }
+  }, [value, isFocused]);
+
+  const commit = () => {
+    const parsed = parseInt(localValue);
+    const clamped = isNaN(parsed) ? 0 : Math.min(100, Math.max(0, parsed));
+    onChange(clamped);
+    setLocalValue(String(clamped));
+    setIsFocused(false);
+  };
+
+  return (
+    <Input
+      type="number"
+      min={0}
+      max={100}
+      step={1}
+      value={localValue}
+      onFocus={(e) => { setIsFocused(true); e.target.select(); }}
+      onChange={(e) => setLocalValue(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') { commit(); (e.target as HTMLInputElement).blur(); }
+        e.stopPropagation();
+      }}
+      className="h-6 w-14 text-xs text-center px-1 border-0 bg-transparent focus-visible:ring-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      data-testid={`input-allocation-${resourceId}`}
+    />
+  );
+}
+
 interface ResourceAssignmentProps {
   organizationId: number | null;
   selectedResourceIds: number[];
@@ -257,14 +295,10 @@ export function ResourceAssignment({
             <div className="flex items-center gap-2">
               {showAllocations && onAllocationsChange && (
                 <div className="flex items-center gap-1 bg-muted/50 rounded-md px-2 py-1">
-                  <Input
-                    type="number"
-                    min={0}
-                    max={100}
+                  <AllocationInput
                     value={getAllocation(resource.id)}
-                    onChange={(e) => updateAllocation(resource.id, parseInt(e.target.value) || 0)}
-                    className="h-6 w-12 text-xs text-center px-1 border-0 bg-transparent focus-visible:ring-1"
-                    data-testid={`input-allocation-${resource.id}`}
+                    onChange={(v) => updateAllocation(resource.id, v)}
+                    resourceId={resource.id}
                   />
                   <span className="text-xs text-muted-foreground font-medium">%</span>
                 </div>
