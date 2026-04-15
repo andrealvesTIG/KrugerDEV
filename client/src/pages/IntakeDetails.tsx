@@ -268,27 +268,27 @@ export default function IntakeDetails() {
     <div className="space-y-6">
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
-            <div className="flex items-center gap-4 min-w-0">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-3 min-w-0">
               <Button variant="ghost" size="icon" onClick={() => navigate('/intakes')} className="shrink-0">
                 <ChevronLeft className="h-5 w-5" />
               </Button>
               <div className="min-w-0">
-                <div className="flex items-center gap-3 flex-wrap min-w-0">
-                  <h1 className="text-2xl font-display font-bold text-foreground truncate" title={intake.projectName}>{intake.projectName}</h1>
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <h1 className="text-xl sm:text-2xl font-display font-bold text-foreground truncate" title={intake.projectName}>{intake.projectName}</h1>
                   {getStatusBadge(intake.status || "draft")}
                   {intake.intakeNumber && (
-                    <span className="text-sm text-muted-foreground font-mono shrink-0">{intake.intakeNumber}</span>
+                    <span className="text-xs sm:text-sm text-muted-foreground font-mono shrink-0">{intake.intakeNumber}</span>
                   )}
                 </div>
               </div>
             </div>
             
             {!isLocked && (
-              <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={handleSave} disabled={updateIntake.isPending}>
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Progress
+              <div className="flex items-center gap-2 pl-11 sm:pl-0">
+                <Button variant="outline" size="sm" onClick={handleSave} disabled={updateIntake.isPending}>
+                  <Save className="h-4 w-4 mr-1" />
+                  Save
                 </Button>
               </div>
             )}
@@ -305,7 +305,7 @@ export default function IntakeDetails() {
                 <div key={step.stepKey} className="flex items-center flex-1">
                   <div 
                     className={cn(
-                      "flex flex-col items-center text-center min-w-[80px]",
+                      "flex flex-col items-center text-center min-w-[40px] sm:min-w-[80px]",
                       isClickable ? "cursor-pointer" : "",
                       isClickable ? "opacity-100" : "opacity-50"
                     )}
@@ -317,7 +317,7 @@ export default function IntakeDetails() {
                   >
                     <div 
                       className={cn(
-                        "flex items-center justify-center w-10 h-10 rounded-full text-sm font-medium mb-2 transition-colors",
+                        "flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full text-sm font-medium mb-1 sm:mb-2 transition-colors",
                         isCompleted 
                           ? "bg-primary text-primary-foreground" 
                           : isCurrent 
@@ -325,10 +325,10 @@ export default function IntakeDetails() {
                             : "border border-muted-foreground/30 text-muted-foreground"
                       )}
                     >
-                      {isCompleted ? <Check className="w-5 h-5" /> : <Icon className="w-4 h-4" />}
+                      {isCompleted ? <Check className="w-4 h-4 sm:w-5 sm:h-5" /> : <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                     </div>
                     <span className={cn(
-                      "text-xs",
+                      "text-[10px] sm:text-xs leading-tight",
                       isCurrent ? "font-medium text-foreground" : "text-muted-foreground"
                     )}>
                       {step.label}
@@ -336,7 +336,7 @@ export default function IntakeDetails() {
                   </div>
                   {index < workflowSteps.length - 1 && (
                     <div className={cn(
-                      "flex-1 h-0.5 mx-2 min-w-[20px]",
+                      "flex-1 h-0.5 mx-1 sm:mx-2 min-w-[12px] sm:min-w-[20px]",
                       isCompleted ? "bg-primary" : "bg-muted-foreground/30"
                     )} />
                   )}
@@ -399,8 +399,8 @@ export default function IntakeDetails() {
           )}
           
           {currentStep?.helpText && !isLocked && (
-            <div className="mt-4 p-3 bg-muted/50 rounded-md text-sm text-muted-foreground">
-              <StepIcon className="inline h-4 w-4 mr-2" />
+            <div className="mt-4 p-3 bg-muted/50 rounded-md text-xs sm:text-sm text-muted-foreground">
+              <StepIcon className="inline h-4 w-4 mr-1 sm:mr-2" />
               <strong>Gate {currentStepIndex + 1} - {currentStep.label}:</strong> {currentStep.helpText}
             </div>
           )}
@@ -408,21 +408,21 @@ export default function IntakeDetails() {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList>
+        <TabsList className="flex w-full flex-wrap h-auto gap-1 justify-start">
           <TabsTrigger value="details" data-testid="tab-details">
-            <Lightbulb className="h-4 w-4 mr-2" />
-            Intake Details
+            <Lightbulb className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Intake </span>Details
           </TabsTrigger>
           <TabsTrigger value="business-case" data-testid="tab-business-case">
-            <FileText className="h-4 w-4 mr-2" />
-            Business Case
+            <FileText className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Business </span>Case
           </TabsTrigger>
           <TabsTrigger value="technical" data-testid="tab-technical">
-            <Calculator className="h-4 w-4 mr-2" />
-            Technical Evaluation
+            <Calculator className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Technical </span>Eval
           </TabsTrigger>
           <TabsTrigger value="governance" data-testid="tab-governance">
-            <Shield className="h-4 w-4 mr-2" />
+            <Shield className="h-4 w-4 mr-1 sm:mr-2" />
             Governance
           </TabsTrigger>
         </TabsList>
