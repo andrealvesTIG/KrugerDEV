@@ -117,15 +117,16 @@ function ProjectsAdminTab() {
         <CardDescription>Manage all projects in the system</CardDescription>
       </CardHeader>
       <CardContent>
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Health</TableHead>
-              <TableHead>Priority</TableHead>
-              <TableHead>Budget</TableHead>
-              <TableHead>Progress</TableHead>
+              <TableHead className="hidden sm:table-cell">Priority</TableHead>
+              <TableHead className="hidden md:table-cell">Budget</TableHead>
+              <TableHead className="hidden md:table-cell">Progress</TableHead>
               <TableHead className="w-[100px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -143,9 +144,9 @@ function ProjectsAdminTab() {
                     "bg-rose-100 text-rose-800"
                   )}>{project.health}</Badge>
                 </TableCell>
-                <TableCell>{project.priority}</TableCell>
-                <TableCell><CompactCurrency value={project.budget} /></TableCell>
-                <TableCell>{project.completionPercentage}%</TableCell>
+                <TableCell className="hidden sm:table-cell">{project.priority}</TableCell>
+                <TableCell className="hidden md:table-cell"><CompactCurrency value={project.budget} /></TableCell>
+                <TableCell className="hidden md:table-cell">{project.completionPercentage}%</TableCell>
                 <TableCell>
                   <Button 
                     variant="ghost" 
@@ -160,6 +161,7 @@ function ProjectsAdminTab() {
             ))}
           </TableBody>
         </Table>
+        </div>
         {projects?.length === 0 && (
           <div className="text-center py-8 text-slate-500">No projects found.</div>
         )}
@@ -202,13 +204,14 @@ function ResourcesAdminTab() {
         <CardDescription>View all users and their roles</CardDescription>
       </CardHeader>
       <CardContent>
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
+              <TableHead className="hidden sm:table-cell">Email</TableHead>
               <TableHead>Role</TableHead>
-              <TableHead>Joined</TableHead>
+              <TableHead className="hidden sm:table-cell">Joined</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -217,19 +220,20 @@ function ResourcesAdminTab() {
                 <TableCell className="font-medium">
                   {user.firstName} {user.lastName}
                 </TableCell>
-                <TableCell>{user.email || 'N/A'}</TableCell>
+                <TableCell className="hidden sm:table-cell">{user.email || 'N/A'}</TableCell>
                 <TableCell>
                   <Badge variant={user.role === 'admin' ? 'default' : 'outline'}>
                     {user.role || 'user'}
                   </Badge>
                 </TableCell>
-                <TableCell>
+                <TableCell className="hidden sm:table-cell">
                   {user.createdAt ? format(new Date(user.createdAt), 'MMM d, yyyy') : 'N/A'}
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+        </div>
         {(!users || users.length === 0) && (
           <div className="text-center py-8 text-slate-500">No users found.</div>
         )}
@@ -284,11 +288,12 @@ function RisksAdminTab() {
         <CardDescription>View risks across all projects</CardDescription>
       </CardHeader>
       <CardContent>
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Title</TableHead>
-              <TableHead>Project</TableHead>
+              <TableHead className="hidden sm:table-cell">Project</TableHead>
               <TableHead>Probability</TableHead>
               <TableHead>Impact</TableHead>
               <TableHead>Status</TableHead>
@@ -298,7 +303,7 @@ function RisksAdminTab() {
             {risks?.map(risk => (
               <TableRow key={risk.id} data-testid={`admin-risk-${risk.id}`}>
                 <TableCell className="font-medium">{risk.title}</TableCell>
-                <TableCell>{getProjectName(risk.projectId)}</TableCell>
+                <TableCell className="hidden sm:table-cell">{getProjectName(risk.projectId)}</TableCell>
                 <TableCell>
                   <Badge variant="outline" className={cn(
                     risk.probability === 'High' ? "bg-destructive/10 text-destructive" : "bg-slate-50 dark:bg-slate-800"
@@ -316,6 +321,7 @@ function RisksAdminTab() {
             ))}
           </TableBody>
         </Table>
+        </div>
         {(!risks || risks.length === 0) && (
           <div className="text-center py-8 text-slate-500">No risks recorded.</div>
         )}
@@ -369,15 +375,16 @@ function IssuesAdminTab() {
         <CardDescription>Manage issues across all projects</CardDescription>
       </CardHeader>
       <CardContent>
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Title</TableHead>
-              <TableHead>Project</TableHead>
-              <TableHead>Type</TableHead>
+              <TableHead className="hidden sm:table-cell">Project</TableHead>
+              <TableHead className="hidden md:table-cell">Type</TableHead>
               <TableHead>Priority</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Assignee</TableHead>
+              <TableHead className="hidden lg:table-cell">Assignee</TableHead>
               <TableHead className="w-[100px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -385,8 +392,8 @@ function IssuesAdminTab() {
             {issues?.map(issue => (
               <TableRow key={issue.id} data-testid={`admin-issue-${issue.id}`}>
                 <TableCell className="font-medium">{issue.title}</TableCell>
-                <TableCell>{getProjectName(issue.projectId)}</TableCell>
-                <TableCell>{issue.type}</TableCell>
+                <TableCell className="hidden sm:table-cell">{getProjectName(issue.projectId)}</TableCell>
+                <TableCell className="hidden md:table-cell">{issue.type}</TableCell>
                 <TableCell>
                   <Badge variant="outline" className={priorityColors[issue.priority || 'Medium']}>
                     {issue.priority}
@@ -397,7 +404,7 @@ function IssuesAdminTab() {
                     {issue.status}
                   </Badge>
                 </TableCell>
-                <TableCell>{issue.assignee || 'Unassigned'}</TableCell>
+                <TableCell className="hidden lg:table-cell">{issue.assignee || 'Unassigned'}</TableCell>
                 <TableCell>
                   <Button 
                     variant="ghost" 
@@ -412,6 +419,7 @@ function IssuesAdminTab() {
             ))}
           </TableBody>
         </Table>
+        </div>
         {(!issues || issues.length === 0) && (
           <div className="text-center py-8 text-slate-500">No issues found.</div>
         )}

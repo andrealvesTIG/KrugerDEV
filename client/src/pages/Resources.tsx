@@ -489,14 +489,15 @@ export default function Resources() {
               <p>No resources found. Add your first team member to get started.</p>
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Rate</TableHead>
+                  <TableHead className="hidden sm:table-cell">Email</TableHead>
+                  <TableHead className="hidden md:table-cell">Title</TableHead>
+                  <TableHead className="hidden lg:table-cell">Department</TableHead>
+                  <TableHead className="hidden sm:table-cell">Rate</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
@@ -546,16 +547,16 @@ export default function Resources() {
                         <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-50 transition-opacity" />
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="text-muted-foreground hidden sm:table-cell">
                       {resource.email || "-"}
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="text-muted-foreground hidden md:table-cell">
                       {resource.title || "-"}
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="text-muted-foreground hidden lg:table-cell">
                       {resource.department || "-"}
                     </TableCell>
-                    <TableCell className="text-muted-foreground tabular-nums">
+                    <TableCell className="text-muted-foreground tabular-nums hidden sm:table-cell">
                       {resource.hourlyRate ? `${formatCurrency(resource.hourlyRate, { showCents: true })}/hr` : "-"}
                     </TableCell>
                     <TableCell>
@@ -617,6 +618,7 @@ export default function Resources() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
             </CardContent>
           </Card>
