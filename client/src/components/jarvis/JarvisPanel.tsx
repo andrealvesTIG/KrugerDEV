@@ -429,6 +429,10 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
     if (mode === "chat") {
       if (isListening) stopListening();
     }
+    if (mode === "voice" && open && !isListening && !isLoading && !isSpeaking) {
+      const timer = setTimeout(() => startListening(), 300);
+      return () => clearTimeout(timer);
+    }
   }, [mode]);
 
   const [pendingFiles, setPendingFiles] = useState<FileAttachment[]>([]);
