@@ -28,7 +28,16 @@ function AllocationInput({ value, onChange, resourceId }: { value: number; onCha
     }
   }, [value, isFocused]);
 
-  const commit = () => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setLocalValue(raw);
+    const parsed = parseInt(raw);
+    if (!isNaN(parsed)) {
+      onChange(Math.min(100, Math.max(0, parsed)));
+    }
+  };
+
+  const handleBlur = () => {
     const parsed = parseInt(localValue);
     const clamped = isNaN(parsed) ? 0 : Math.min(100, Math.max(0, parsed));
     onChange(clamped);
@@ -44,12 +53,12 @@ function AllocationInput({ value, onChange, resourceId }: { value: number; onCha
       step={1}
       value={localValue}
       onFocus={(e) => { setIsFocused(true); e.target.select(); }}
-      onChange={(e) => setLocalValue(e.target.value)}
-      onBlur={commit}
+      onChange={handleChange}
+      onBlur={handleBlur}
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') { commit(); (e.target as HTMLInputElement).blur(); }
+        if (e.key === 'Enter') { handleBlur(); (e.target as HTMLInputElement).blur(); }
         e.stopPropagation();
       }}
       className="h-6 w-14 text-xs text-center px-1 rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring cursor-text"
