@@ -40,7 +40,7 @@ import { ViewsDropdown, type ProjectFilterView } from "@/components/ViewsDropdow
 import { useColumnState, sortData, type SortDirection } from "@/hooks/use-column-state";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { PageTransition, FadeIn } from "@/components/ui/page-transition";
-import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues, useBulkUpdateProjectCustomFieldValues } from "@/hooks/use-custom-fields";
+import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues, useBulkUpdateProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
 import type { CustomFieldDefinition, ProjectCustomFieldValue } from "@shared/schema";
 
 const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing", "Closed"];
@@ -1035,6 +1035,7 @@ export default function Projects() {
     localStorage.setItem("projects-view-preference", newView);
   };
   const updateProject = useUpdateProject();
+  const updateCfValue = useUpdateProjectCustomFieldValue();
   const createProject = useCreateProject();
   const { toast } = useToast();
   const [deleteProjectId, setDeleteProjectId] = useState<number | null>(null);
@@ -1473,6 +1474,34 @@ export default function Projects() {
     );
   };
 
+  const handleKanbanProjectUpdate = (projectId: number, updates: Partial<Project>) => {
+    updateProject.mutate(
+      { id: projectId, ...updates },
+      {
+        onSuccess: () => {
+          toast({ title: "Project updated" });
+        },
+        onError: (err) => {
+          toast({ title: "Error", description: err.message, variant: "destructive" });
+        }
+      }
+    );
+  };
+
+  const handleKanbanCfChange = (projectId: number, fieldDefinitionId: number, value: string | null) => {
+    updateCfValue.mutate(
+      { projectId, fieldDefinitionId, value },
+      {
+        onSuccess: () => {
+          toast({ title: "Project updated" });
+        },
+        onError: (err) => {
+          toast({ title: "Error", description: err.message, variant: "destructive" });
+        }
+      }
+    );
+  };
+
   return (
     <PageTransition className="space-y-8">
       <FadeIn className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1786,6 +1815,10 @@ export default function Projects() {
                 portfolios={portfolios || []}
                 onStatusChange={handleStatusChange}
                 onPortfolioChange={handlePortfolioChange}
+                onProjectUpdate={handleKanbanProjectUpdate}
+                customFieldDefs={exportCustomFieldDefs || []}
+                cfValues={exportCfValues || []}
+                onCustomFieldChange={handleKanbanCfChange}
               />
             ) : (
               <ProjectsGanttView projects={filteredProjects || []} organizationId={currentOrganization?.id || null} />
@@ -1839,6 +1872,10 @@ export default function Projects() {
           portfolios={portfolios || []}
           onStatusChange={handleStatusChange}
           onPortfolioChange={handlePortfolioChange}
+          onProjectUpdate={handleKanbanProjectUpdate}
+          customFieldDefs={exportCustomFieldDefs || []}
+          cfValues={exportCfValues || []}
+          onCustomFieldChange={handleKanbanCfChange}
         />
       ) : !isFullscreen ? (
         <ProjectsGanttView projects={filteredProjects || []} organizationId={currentOrganization?.id || null} />
@@ -3448,19 +3485,53 @@ const PROJECT_STATUSES = [
   { id: "Closed", label: "Closed", color: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200", isLocked: true },
 ];
 
+const KANBAN_PRIORITY_COLUMNS = [
+  { id: "Critical", label: "Critical", color: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400" },
+  { id: "High", label: "High", color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
+  { id: "Medium", label: "Medium", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+  { id: "Low", label: "Low", color: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
+];
+
+const KANBAN_HEALTH_COLUMNS = [
+  { id: "Green", label: "On Track", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
+  { id: "Yellow", label: "At Risk", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+  { id: "Red", label: "Off Track", color: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400" },
+];
+
+type KanbanGroupBy = "status" | "portfolio" | "priority" | "health" | "projectType" | "methodology" | `cf_${number}`;
+
+const KANBAN_GROUP_BY_OPTIONS: { value: KanbanGroupBy; label: string }[] = [
+  { value: "status", label: "Status" },
+  { value: "portfolio", label: "Portfolio" },
+  { value: "priority", label: "Priority" },
+  { value: "health", label: "Health" },
+  { value: "projectType", label: "Project Type" },
+  { value: "methodology", label: "Methodology" },
+];
+
+const DRAGGABLE_GROUPS = new Set<string>(["status", "portfolio", "priority", "health"]);
+
 function ProjectsKanbanView({ 
   projects, 
   portfolios,
   onStatusChange,
   onPortfolioChange,
+  onProjectUpdate,
+  customFieldDefs,
+  cfValues,
+  onCustomFieldChange,
 }: { 
   projects: Project[]; 
   portfolios: Portfolio[];
   onStatusChange: (projectId: number, newStatus: string) => void;
   onPortfolioChange: (projectId: number, portfolioId: number | null) => void;
+  onProjectUpdate: (projectId: number, updates: Partial<Project>) => void;
+  customFieldDefs: CustomFieldDefinition[];
+  cfValues: ProjectCustomFieldValue[];
+  onCustomFieldChange: (projectId: number, fieldDefinitionId: number, value: string | null) => void;
 }) {
   const [activeProject, setActiveProject] = useState<Project | null>(null);
-  const [groupBy, setGroupBy] = useState<"status" | "portfolio">("status");
+  const [groupBy, setGroupBy] = useState<KanbanGroupBy>("status");
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -3470,7 +3541,38 @@ function ProjectsKanbanView({
     })
   );
 
+  const projectCustomFields = useMemo(() => {
+    return customFieldDefs.filter(d => d.entityType === "project" && d.isActive);
+  }, [customFieldDefs]);
+
+  const cfValuesMap = useMemo(() => {
+    const map = new Map<string, ProjectCustomFieldValue>();
+    cfValues.forEach(v => {
+      map.set(`${v.projectId}_${v.fieldDefinitionId}`, v);
+    });
+    return map;
+  }, [cfValues]);
+
+  const groupByOptions = useMemo(() => {
+    const options = [...KANBAN_GROUP_BY_OPTIONS];
+    projectCustomFields.forEach(def => {
+      options.push({ value: `cf_${def.id}` as KanbanGroupBy, label: def.name });
+    });
+    return options;
+  }, [projectCustomFields]);
+
+  const isDraggable = useMemo(() => {
+    if (DRAGGABLE_GROUPS.has(groupBy)) return true;
+    if (groupBy.startsWith("cf_")) {
+      const defId = parseInt(groupBy.slice(3));
+      const cfDef = projectCustomFields.find(d => d.id === defId);
+      return cfDef?.fieldType === "select" || cfDef?.fieldType === "checkbox";
+    }
+    return false;
+  }, [groupBy, projectCustomFields]);
+
   const handleDragStart = (event: DragStartEvent) => {
+    if (!isDraggable) return;
     const projectId = Number(event.active.id);
     const project = projects.find(p => p.id === projectId);
     if (project) setActiveProject(project);
@@ -3478,78 +3580,173 @@ function ProjectsKanbanView({
 
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveProject(null);
+    if (!isDraggable) return;
     const { active, over } = event;
     if (!over) return;
     
     const projectId = Number(active.id);
     const targetId = String(over.id);
     const project = projects.find(p => p.id === projectId);
+    if (!project) return;
     
     if (groupBy === "status") {
-      if (project && project.status !== targetId && PROJECT_STATUSES.some(s => s.id === targetId)) {
+      if (project.status !== targetId && PROJECT_STATUSES.some(s => s.id === targetId)) {
         onStatusChange(projectId, targetId);
       }
-    } else {
+    } else if (groupBy === "portfolio") {
       const newPortfolioId = targetId === "unassigned" ? null : Number(targetId);
-      const currentPortfolioId = project?.portfolioId ?? null;
-      if (project && currentPortfolioId !== newPortfolioId) {
+      const currentPortfolioId = project.portfolioId ?? null;
+      if (currentPortfolioId !== newPortfolioId) {
         onPortfolioChange(projectId, newPortfolioId);
+      }
+    } else if (groupBy === "priority") {
+      if (project.priority !== targetId) {
+        onProjectUpdate(projectId, { priority: targetId });
+      }
+    } else if (groupBy === "health") {
+      if (project.health !== targetId) {
+        onProjectUpdate(projectId, { health: targetId });
+      }
+    } else if (groupBy.startsWith("cf_")) {
+      const defId = parseInt(groupBy.slice(3));
+      const cfDef = projectCustomFields.find(d => d.id === defId);
+      if (cfDef) {
+        const newValue = targetId === "__unset__" ? null : targetId;
+        const currentVal = cfValuesMap.get(`${projectId}_${defId}`)?.value || null;
+        if (currentVal !== newValue) {
+          onCustomFieldChange(projectId, defId, newValue);
+        }
       }
     }
   };
 
-  const portfolioColumns = useMemo(() => {
-    const cols: { id: string; label: string; color: string }[] = portfolios.map(p => ({
-      id: String(p.id),
-      label: p.name,
-      color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200",
-    }));
-    cols.push({
-      id: "unassigned",
-      label: "Unassigned",
-      color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200",
-    });
-    return cols;
-  }, [portfolios]);
+  const columns = useMemo(() => {
+    const defaultColor = "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200";
 
-  const columns = groupBy === "status" ? PROJECT_STATUSES : portfolioColumns;
+    switch (groupBy) {
+      case "status":
+        return PROJECT_STATUSES;
+      case "portfolio": {
+        const cols = portfolios.map(p => ({
+          id: String(p.id),
+          label: p.name,
+          color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200",
+        }));
+        cols.push({ id: "unassigned", label: "Unassigned", color: defaultColor });
+        return cols;
+      }
+      case "priority":
+        return KANBAN_PRIORITY_COLUMNS;
+      case "health":
+        return KANBAN_HEALTH_COLUMNS;
+      case "projectType": {
+        const types = new Set<string>();
+        projects.forEach(p => { if (p.projectType) types.add(p.projectType); });
+        const cols = Array.from(types).sort().map(t => ({ id: t, label: t, color: defaultColor }));
+        cols.push({ id: "__unset__", label: "No Type", color: defaultColor });
+        return cols;
+      }
+      case "methodology": {
+        const methods = new Set<string>();
+        projects.forEach(p => { if (p.methodology) methods.add(p.methodology); });
+        const cols = Array.from(methods).sort().map(m => ({ id: m, label: m, color: defaultColor }));
+        cols.push({ id: "__unset__", label: "No Methodology", color: defaultColor });
+        return cols;
+      }
+      default: {
+        if (groupBy.startsWith("cf_")) {
+          const defId = parseInt(groupBy.slice(3));
+          const cfDef = projectCustomFields.find(d => d.id === defId);
+          if (cfDef) {
+            if (cfDef.fieldType === "select" && cfDef.options) {
+              try {
+                const options: string[] = JSON.parse(cfDef.options);
+                const cols = options.map(opt => ({ id: opt, label: opt, color: defaultColor }));
+                cols.push({ id: "__unset__", label: "Not Set", color: defaultColor });
+                return cols;
+              } catch { /* fallthrough */ }
+            }
+            if (cfDef.fieldType === "checkbox") {
+              return [
+                { id: "true", label: "Yes", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
+                { id: "false", label: "No", color: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
+              ];
+            }
+            const values = new Set<string>();
+            projects.forEach(p => {
+              const val = cfValuesMap.get(`${p.id}_${defId}`)?.value;
+              if (val) {
+                if (cfDef.fieldType === "multiselect") {
+                  try { JSON.parse(val).forEach((v: string) => values.add(v)); } catch { values.add(val); }
+                } else {
+                  values.add(val);
+                }
+              }
+            });
+            const cols = Array.from(values).sort().map(v => ({ id: v, label: v, color: defaultColor }));
+            cols.push({ id: "__unset__", label: "Not Set", color: defaultColor });
+            return cols;
+          }
+        }
+        return PROJECT_STATUSES;
+      }
+    }
+  }, [groupBy, portfolios, projects, projectCustomFields, cfValuesMap]);
 
-  const getProjectsForColumn = (columnId: string) => {
-    if (groupBy === "status") {
-      return projects.filter(p => p.status === columnId);
+  const getProjectsForColumn = useCallback((columnId: string) => {
+    switch (groupBy) {
+      case "status":
+        return projects.filter(p => p.status === columnId);
+      case "portfolio":
+        if (columnId === "unassigned") {
+          return projects.filter(p => !p.portfolioId || !portfolios.some(pf => pf.id === p.portfolioId));
+        }
+        return projects.filter(p => p.portfolioId === Number(columnId));
+      case "priority":
+        return projects.filter(p => (p.priority || "Medium") === columnId);
+      case "health":
+        return projects.filter(p => (p.health || "Green") === columnId);
+      case "projectType":
+        if (columnId === "__unset__") return projects.filter(p => !p.projectType);
+        return projects.filter(p => p.projectType === columnId);
+      case "methodology":
+        if (columnId === "__unset__") return projects.filter(p => !p.methodology);
+        return projects.filter(p => p.methodology === columnId);
+      default: {
+        if (groupBy.startsWith("cf_")) {
+          const defId = parseInt(groupBy.slice(3));
+          const cfDef = projectCustomFields.find(d => d.id === defId);
+          return projects.filter(p => {
+            const val = cfValuesMap.get(`${p.id}_${defId}`)?.value || "";
+            if (columnId === "__unset__") return !val;
+            if (cfDef?.fieldType === "multiselect") {
+              try { return (JSON.parse(val) as string[]).includes(columnId); } catch { return val === columnId; }
+            }
+            if (cfDef?.fieldType === "checkbox") {
+              return (val || "false") === columnId;
+            }
+            return val === columnId;
+          });
+        }
+        return projects.filter(p => p.status === columnId);
+      }
     }
-    if (columnId === "unassigned") {
-      return projects.filter(p => !p.portfolioId || !portfolios.some(pf => pf.id === p.portfolioId));
-    }
-    return projects.filter(p => p.portfolioId === Number(columnId));
-  };
+  }, [groupBy, projects, portfolios, projectCustomFields, cfValuesMap]);
 
   return (
     <div>
       <div className="flex items-center gap-2 mb-4">
         <span className="text-xs text-muted-foreground font-medium">Group by:</span>
-        <div className="flex items-center rounded-md border border-border overflow-hidden">
-          <button
-            type="button"
-            className={cn(
-              "px-3 py-1 text-xs font-medium transition-colors",
-              groupBy === "status" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
-            )}
-            onClick={() => setGroupBy("status")}
-          >
-            Status
-          </button>
-          <button
-            type="button"
-            className={cn(
-              "px-3 py-1 text-xs font-medium transition-colors",
-              groupBy === "portfolio" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
-            )}
-            onClick={() => setGroupBy("portfolio")}
-          >
-            Portfolio
-          </button>
-        </div>
+        <Select value={groupBy} onValueChange={(v) => setGroupBy(v as KanbanGroupBy)}>
+          <SelectTrigger className="w-[160px] h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {groupByOptions.map(opt => (
+              <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <DndContext 
         sensors={sensors} 
@@ -3559,13 +3756,14 @@ function ProjectsKanbanView({
       >
         <div className={cn(
           "grid grid-cols-1 gap-4",
-          columns.length <= 5 ? "md:grid-cols-5" : columns.length <= 7 ? "md:grid-cols-4 lg:grid-cols-7" : "md:grid-cols-4"
+          columns.length <= 3 ? "md:grid-cols-3" : columns.length <= 5 ? "md:grid-cols-5" : columns.length <= 7 ? "md:grid-cols-4 lg:grid-cols-7" : "md:grid-cols-4"
         )}>
           {columns.map(col => (
             <ProjectKanbanColumn
               key={col.id}
               column={col}
               projects={getProjectsForColumn(col.id)}
+              isDraggable={isDraggable}
             />
           ))}
         </div>
@@ -3588,10 +3786,12 @@ function ProjectsKanbanView({
 
 function ProjectKanbanColumn({ 
   column, 
-  projects 
+  projects,
+  isDraggable,
 }: { 
   column: { id: string; label: string; color: string }; 
   projects: Project[];
+  isDraggable: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
@@ -3602,7 +3802,7 @@ function ProjectKanbanColumn({
       ref={setNodeRef}
       className={cn(
         "space-y-3 min-h-[300px] rounded-lg transition-colors p-2",
-        isOver && "bg-primary/5 ring-2 ring-primary ring-dashed"
+        isDraggable && isOver && "bg-primary/5 ring-2 ring-primary ring-dashed"
       )}
     >
       <div className={cn("rounded-lg p-3 font-semibold text-center", column.color)}>
@@ -3610,11 +3810,11 @@ function ProjectKanbanColumn({
       </div>
       <div className="space-y-3">
         {projects.map(project => (
-          <DraggableProjectCard key={project.id} project={project} />
+          <DraggableProjectCard key={project.id} project={project} isDraggable={isDraggable} />
         ))}
         {projects.length === 0 && (
           <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
-            Drop projects here
+            {isDraggable ? "Drop projects here" : "No projects"}
           </div>
         )}
       </div>
@@ -3622,7 +3822,7 @@ function ProjectKanbanColumn({
   );
 }
 
-function DraggableProjectCard({ project }: { project: Project }) {
+function DraggableProjectCard({ project, isDraggable = true }: { project: Project; isDraggable?: boolean }) {
   const {
     attributes,
     listeners,
@@ -3631,6 +3831,7 @@ function DraggableProjectCard({ project }: { project: Project }) {
     isDragging,
   } = useDraggable({
     id: project.id,
+    disabled: !isDraggable,
   });
 
   const style = transform ? {
@@ -3641,8 +3842,7 @@ function DraggableProjectCard({ project }: { project: Project }) {
     <div
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
+      {...(isDraggable ? { ...attributes, ...listeners } : {})}
       className={cn(isDragging && "opacity-50")}
     >
       <Link href={`/projects/${project.id}`}>
