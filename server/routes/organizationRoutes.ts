@@ -364,7 +364,7 @@ export function registerOrganizationRoutes(app: Express) {
     tag: 'Organizations',
     summary: 'Get organization scheduling defaults',
     parameters: [pathId()],
-    responses: { ...r200('Scheduling defaults', { type: 'object', properties: { defaultDependencyType: { type: 'string', enum: ['FS', 'SS', 'FF', 'SF'] }, defaultLagDays: { type: 'integer' } } }), ...idRes },
+    responses: { ...r200('Scheduling defaults', { type: 'object', properties: { defaultDependencyType: { type: 'string', enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'] }, defaultLagDays: { type: 'integer' }, enforceDefaults: { type: 'boolean' } } }), ...idRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -386,8 +386,8 @@ export function registerOrganizationRoutes(app: Express) {
     tag: 'Organizations',
     summary: 'Update organization scheduling defaults',
     parameters: [pathId()],
-    requestBody: body({ type: 'object', properties: { defaultDependencyType: { type: 'string', enum: ['FS', 'SS', 'FF', 'SF'] }, defaultLagDays: { type: 'integer' } } }),
-    responses: { ...r200('Scheduling defaults updated', ref('Organization')), ...updateRes },
+    requestBody: body({ type: 'object', properties: { defaultDependencyType: { type: 'string', enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'] }, defaultLagDays: { type: 'integer' }, enforceDefaults: { type: 'boolean' } } }),
+    responses: { ...r200('Scheduling defaults updated', { type: 'object', properties: { defaultDependencyType: { type: 'string', enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'] }, defaultLagDays: { type: 'integer' }, enforceDefaults: { type: 'boolean' } } }), ...updateRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);

@@ -179,7 +179,7 @@ export function generateOpenApiSchemas(): Record<string, any> {
         dashboardHiddenTabs: { description: 'Tab IDs hidden in overflow menu' },
         billingHidden: { description: 'Whether billing section is hidden' },
         riskAssessmentConfig: { description: 'AI risk assessment configuration (model, temperature, thresholds, etc.)' },
-        schedulingDefaults: { description: 'Default scheduling settings (dependency type, lag days)', properties: { defaultDependencyType: { type: 'string', enum: ['FS', 'SS', 'FF', 'SF'] }, defaultLagDays: { type: 'integer' } } },
+        schedulingDefaults: { description: 'Default scheduling settings (dependency type, lag days)', properties: { defaultDependencyType: { type: 'string', enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'] }, defaultLagDays: { type: 'integer' }, enforceDefaults: { type: 'boolean' } } },
         timesheetPolicies: { omit: true },
         timezone: { omit: true },
         deactivatedAt: { description: 'Soft delete timestamp' },
