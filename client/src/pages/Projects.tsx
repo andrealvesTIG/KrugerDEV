@@ -25,6 +25,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format, differenceInDays, parseISO, addDays, startOfMonth, eachDayOfInterval } from "date-fns";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -633,7 +634,7 @@ function ProjectsListView({
       case "budget":
         return (
           <span className="text-sm font-medium text-foreground tabular-nums">
-            {Number(project.budget) > 0 ? `$${Number(project.budget).toLocaleString()}` : '\u2014'}
+            {Number(project.budget) > 0 ? <CompactCurrency value={project.budget} /> : '\u2014'}
           </span>
         );
       case "endDate":
@@ -908,7 +909,7 @@ function ProjectsListView({
                         )}
                         {portfolio.budgetAllocated && Number(portfolio.budgetAllocated) > 0 && (
                           <span className="text-[11px] text-muted-foreground shrink-0">
-                            Budget: ${Number(portfolio.budgetAllocated).toLocaleString()}
+                            Budget: <CompactCurrency value={portfolio.budgetAllocated} />
                           </span>
                         )}
                       </>
@@ -2823,7 +2824,7 @@ function ProjectsGridView({
       case "budget":
         return (
           <div className="flex items-center gap-2 group">
-            <span className="text-sm font-medium">${Number(project.budget || 0).toLocaleString()}</span>
+            <CompactCurrency value={project.budget || 0} className="text-sm font-medium" />
             <Button 
               size="icon" 
               variant="ghost" 
@@ -2944,14 +2945,14 @@ function ProjectsGridView({
       case "actualEndDate":
         return <span className="text-sm">{project.actualEndDate ? format(new Date(project.actualEndDate), 'MMM d, yyyy') : "-"}</span>;
       case "actualCost":
-        return <span className="text-sm">${Number(project.actualCost || 0).toLocaleString()}</span>;
+        return <CompactCurrency value={project.actualCost || 0} className="text-sm" />;
       case "forecastCost":
-        return <span className="text-sm">{project.forecastCost ? `$${Number(project.forecastCost).toLocaleString()}` : "-"}</span>;
+        return project.forecastCost ? <CompactCurrency value={project.forecastCost} className="text-sm" /> : <span className="text-sm">-</span>;
       case "costVariance":
         const costVar = Number(project.costVariance || 0);
         return (
           <span className={cn("text-sm", costVar < 0 ? "text-rose-600" : costVar > 0 ? "text-emerald-600" : "")}>
-            {project.costVariance ? `$${costVar.toLocaleString()}` : "-"}
+            {project.costVariance ? <CompactCurrency value={costVar} /> : "-"}
           </span>
         );
       case "scheduleVariance":
@@ -3360,7 +3361,7 @@ function ProjectsGridView({
                                   )}
                                   {portfolio.budgetAllocated && Number(portfolio.budgetAllocated) > 0 && (
                                     <span className="text-[11px] text-muted-foreground shrink-0">
-                                      Budget: ${Number(portfolio.budgetAllocated).toLocaleString()}
+                                      Budget: <CompactCurrency value={portfolio.budgetAllocated} />
                                     </span>
                                   )}
                                 </>

@@ -289,6 +289,7 @@ export interface IResourceStorage {
 
 export interface IFinancialStorage {
   getProjectFinancials(projectId: number): Promise<ProjectFinancial[]>;
+  getFinancialBudgetTotals(projectIds: number[]): Promise<Record<number, number>>;
   getProjectFinancial(id: number): Promise<ProjectFinancial | undefined>;
   createProjectFinancial(financial: InsertProjectFinancial): Promise<ProjectFinancial>;
   updateProjectFinancial(id: number, updates: UpdateProjectFinancialRequest): Promise<ProjectFinancial>;

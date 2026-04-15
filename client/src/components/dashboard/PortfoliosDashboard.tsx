@@ -15,6 +15,7 @@ import { Loader2, FolderKanban, Target, TrendingUp, DollarSign, ArrowRight, Acti
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { isWithinInterval } from "date-fns";
 import { formatCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import { cn } from "@/lib/utils";
 
 const COLORS = {
@@ -226,7 +227,7 @@ export function PortfoliosDashboard() {
             </div>
             <span className="text-xs text-muted-foreground">Budget</span>
           </div>
-          <div className="text-2xl font-bold">{formatBudget(totalBudget)}</div>
+          <div className="text-2xl font-bold"><CompactCurrency value={totalBudget} /></div>
           <div className="text-xs text-muted-foreground">allocated</div>
         </Card>
 

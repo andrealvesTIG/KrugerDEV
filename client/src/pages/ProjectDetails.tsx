@@ -1,5 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { formatDuration } from "@/lib/workingDays";
+import { formatCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import { useRoute, Link } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory, useProjects, useDeleteProject } from "@/hooks/use-projects";
@@ -1430,7 +1432,7 @@ export default function ProjectDetails() {
             </CardTitle>
           </CardHeader>
           <CardContent className="py-1 px-4">
-            <div className="text-base font-semibold flex items-center"><DollarSign className="h-4 w-4 mr-1 text-muted-foreground" />{displayBudget.toLocaleString()}</div>
+            <div className="text-base font-semibold flex items-center"><CompactCurrency value={displayBudget} /></div>
           </CardContent>
         </Card>
         <Card className="py-2">
@@ -3030,7 +3032,7 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
     return projectFieldLabels[field.fieldKey] || field.fieldKey;
   };
 
-  const formatDisplayValue = (value: any, fieldKey: string): string => {
+  const formatDisplayValue = (value: any, fieldKey: string): React.ReactNode => {
     if (value === null || value === undefined || value === '') return 'Not set';
     if (fieldKey.endsWith('Date') && value) {
       try {
@@ -3038,7 +3040,7 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
       } catch { return String(value); }
     }
     if (fieldKey === 'budget' || fieldKey === 'actualCost' || fieldKey === 'forecastCost') {
-      return `$${Number(value).toLocaleString()}`;
+      return <CompactCurrency value={value} />;
     }
     if (fieldKey === 'completionPercentage') {
       return `${value}%`;
@@ -4131,7 +4133,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
               {editingField === 'budget' ? (
                 <Input type="number" value={editValues.budget} onChange={(e) => setEditValues(prev => ({ ...prev, budget: e.target.value }))} onBlur={() => handleFieldBlur('budget')} onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('budget')} autoFocus className="h-8 text-sm" data-testid="input-project-budget" />
               ) : (
-                <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-2 py-1.5 -mx-1 transition-colors h-8 flex items-center" onClick={() => setEditingField('budget')} data-testid="text-project-budget">${Number(project.budget).toLocaleString()}</p>
+                <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-2 py-1.5 -mx-1 transition-colors h-8 flex items-center" onClick={() => setEditingField('budget')} data-testid="text-project-budget"><CompactCurrency value={project.budget} /></p>
               )}
             </div>
             <div>

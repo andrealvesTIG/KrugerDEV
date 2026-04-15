@@ -1084,8 +1084,15 @@ export function registerPortfolioRoutes(app: Express) {
       const issues = await storage.getPortfolioIssues(portfolioId);
       const keyDates = await storage.getPortfolioKeyDates(portfolioId);
       
-      // Calculate metrics
-      const totalBudget = projects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
+      const projectIds = projects.map(p => p.id);
+      const financialBudgets = await storage.getFinancialBudgetTotals(projectIds);
+      
+      const getEffectiveBudget = (p: typeof projects[0]) => {
+        if (p.id in financialBudgets) return financialBudgets[p.id];
+        return Number(p.budget || 0);
+      };
+      
+      const totalBudget = projects.reduce((sum, p) => sum + getEffectiveBudget(p), 0);
       const avgCompletion = projects.length > 0 
         ? Math.round(projects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / projects.length)
         : 0;
@@ -1113,7 +1120,8 @@ export function registerPortfolioRoutes(app: Express) {
           openIssues,
           keyDateCount: keyDates.length,
           upcomingKeyDates: upcomingKeyDates,
-        }
+        },
+        financialBudgets,
       });
     } catch (err) {
       const classified = classifyError(err);

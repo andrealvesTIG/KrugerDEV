@@ -1,6 +1,8 @@
 import { X, ExternalLink, Pencil } from "lucide-react";
 import { Link } from "wouter";
 import type { RiskSignal } from "./RadarCanvas";
+import { formatCurrency as sharedFmtCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 
 interface DetailsDrawerProps {
   signal: RiskSignal | null;
@@ -27,11 +29,7 @@ function getRiskBg(score: number) {
   return "bg-green-500/10 border-green-500/30";
 }
 
-function formatCurrency(value: number): string {
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`;
-  return `$${value.toLocaleString()}`;
-}
+const fmtCurrency = (value: number) => sharedFmtCurrency(value, { autoCompact: true });
 
 export default function DetailsDrawer({ signal, onClose, isDark, onEdit }: DetailsDrawerProps) {
   const panelBg = isDark ? "bg-slate-900 border-l border-green-500/10 shadow-black/50" : "bg-white border-l border-green-600/10 shadow-slate-300/50";
@@ -195,7 +193,7 @@ export default function DetailsDrawer({ signal, onClose, isDark, onEdit }: Detai
                   Cost Exposure
                 </div>
                 <div className={`text-lg font-bold ${isOverdue ? "text-red-500" : titleText}`}>
-                  {formatCurrency(signal.costExposure)}
+                  <CompactCurrency value={signal.costExposure} />
                 </div>
               </div>
             )}

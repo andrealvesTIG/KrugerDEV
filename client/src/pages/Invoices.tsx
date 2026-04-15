@@ -17,6 +17,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertProjectInvoiceSchema, type ProjectInvoice } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
+import { formatCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import { Link } from "wouter";
 import { z } from "zod";
 import { format } from "date-fns";
@@ -37,20 +39,12 @@ const statusIcons: Record<string, React.ComponentType<{ className?: string }>> =
   Cancelled: XCircle,
 };
 
-function formatCurrency(amount: string | number | null | undefined, currency: string = "USD"): string {
-  const num = typeof amount === "string" ? parseFloat(amount) : (amount ?? 0);
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currency,
-    minimumFractionDigits: 2,
-  }).format(num);
-}
-
-function StatCard({ title, value, icon: Icon, description, className }: {
+function StatCard({ title, value, icon: Icon, description, descriptionAmount, className }: {
   title: string;
   value: string | number;
   icon: React.ComponentType<{ className?: string }>;
   description?: string;
+  descriptionAmount?: number | string | null;
   className?: string;
 }) {
   return (
@@ -61,7 +55,12 @@ function StatCard({ title, value, icon: Icon, description, className }: {
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
-        {description && <p className="text-xs text-muted-foreground mt-1">{description}</p>}
+        {descriptionAmount != null && (
+          <div className="text-xs text-muted-foreground mt-1">
+            <CompactCurrency value={descriptionAmount} />
+          </div>
+        )}
+        {description && !descriptionAmount && <p className="text-xs text-muted-foreground mt-1">{description}</p>}
       </CardContent>
     </Card>
   );
@@ -260,27 +259,27 @@ export default function Invoices() {
             title="Total Invoices"
             value={stats.total}
             icon={Receipt}
-            description={formatCurrency(stats.totalAmount)}
+            descriptionAmount={stats.totalAmount}
           />
           <StatCard
             title="Paid"
             value={stats.paid}
             icon={CheckCircle}
-            description={formatCurrency(stats.paidAmount)}
+            descriptionAmount={stats.paidAmount}
             className="border-l-4 border-l-emerald-500"
           />
           <StatCard
             title="Pending"
             value={stats.pending}
             icon={Clock}
-            description={formatCurrency(stats.pendingAmount)}
+            descriptionAmount={stats.pendingAmount}
             className="border-l-4 border-l-blue-500"
           />
           <StatCard
             title="Overdue"
             value={stats.overdue}
             icon={AlertCircle}
-            description={formatCurrency(stats.overdueAmount)}
+            descriptionAmount={stats.overdueAmount}
             className="border-l-4 border-l-rose-500"
           />
         </div>
@@ -380,7 +379,7 @@ export default function Invoices() {
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0 pl-[52px] sm:pl-0">
                         <div className="text-left sm:text-right">
-                          <div className="font-semibold">{formatCurrency(invoice.amount, invoice.currency || "USD")}</div>
+                          <div className="font-semibold">{formatCurrency(invoice.amount, { showCents: true, currency: invoice.currency || "USD" })}</div>
                         </div>
                         <Badge className={cn("flex items-center gap-1 whitespace-nowrap", statusColors[invoice.status || "Draft"])}>
                           <StatusIcon className="h-3 w-3" />

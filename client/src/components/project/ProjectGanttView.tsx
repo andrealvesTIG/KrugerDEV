@@ -5,6 +5,8 @@ import { DndContext, DragEndEvent, closestCorners, useSensor, useSensors, Pointe
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { format, addDays, differenceInDays, parseISO, eachDayOfInterval, startOfMonth, endOfMonth } from "date-fns";
+import { formatCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, calculateStartDateFromEndAndDuration, parseDurationInput, formatDuration } from "@/lib/workingDays";
 import { calculateCPM, type CPMResult } from "@/lib/cpm";
 import { useUpdateTask, useCreateTask, useDeleteTask, useAddTaskDependency, useRemoveTaskDependency, useReorderTask, useProjectDependencies, useBulkUpdateTasks, useBulkDeleteTasks, useTaskNotesHistory } from "@/hooks/use-tasks";
@@ -1959,7 +1961,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell {...cellEditProps}
                   value={task.cost != null ? Number(task.cost) : null}
-                  displayValue={task.cost != null ? `$${Number(task.cost).toLocaleString()}` : '—'}
+                  displayValue={task.cost != null ? <CompactCurrency value={task.cost} /> : '—'}
                   editType="number"
                   min={0}
                   onSave={(val) => handleInlineUpdate('cost', val != null ? String(val) : null, task.cost)}
@@ -1970,7 +1972,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell {...cellEditProps}
                   value={task.actualCost != null ? Number(task.actualCost) : null}
-                  displayValue={task.actualCost != null ? `$${Number(task.actualCost).toLocaleString()}` : '—'}
+                  displayValue={task.actualCost != null ? <CompactCurrency value={task.actualCost} /> : '—'}
                   editType="number"
                   min={0}
                   onSave={(val) => handleInlineUpdate('actualCost', val != null ? String(val) : null, task.actualCost)}

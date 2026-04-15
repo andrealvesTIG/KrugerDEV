@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { formatCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import { useQuery } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { queryClient } from "@/lib/queryClient";
@@ -539,9 +541,7 @@ export default function PmoRadar() {
   }, [editingRisk, updateRisk, updateRiskResources, selectedResourceIds, toast, currentOrganization]);
 
   function formatCompactCurrency(val: number): string {
-    if (val >= 1_000_000) { const v = val / 1_000_000; return `$${v % 1 === 0 ? v : v.toFixed(1)}M`; }
-    if (val >= 1_000) { const v = val / 1_000; return `$${v % 1 === 0 ? v : v.toFixed(1)}K`; }
-    return `$${val.toLocaleString()}`;
+    return formatCurrency(val, { autoCompact: true });
   }
 
   const showCostTiles = horizontalMetric === "costExposureNorm";
@@ -667,7 +667,7 @@ export default function PmoRadar() {
                 <TooltipTrigger asChild>
                   <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-md ${isDark ? "bg-slate-800/80" : "bg-slate-100"} cursor-default`}>
                     <span className={`text-xs ${statLabel} opacity-70`}>Cost Exposure</span>
-                    <span className={`font-bold text-sm ${accentGreen}`}>{formatCompactCurrency(stats.costExposureFuture)}</span>
+                    <span className={`font-bold text-sm ${accentGreen}`}><CompactCurrency value={stats.costExposureFuture} /></span>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="bottom"><p>Cost exposure from upcoming risks (not yet due)</p></TooltipContent>
@@ -677,7 +677,7 @@ export default function PmoRadar() {
                   <TooltipTrigger asChild>
                     <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-md cursor-default ${isDark ? "bg-red-950/40 border border-red-500/20" : "bg-red-50 border border-red-200"}`}>
                       <span className="text-xs text-red-400 opacity-80">Overdue Exposure</span>
-                      <span className="font-bold text-sm text-red-500">{formatCompactCurrency(stats.costExposurePast)}</span>
+                      <span className="font-bold text-sm text-red-500"><CompactCurrency value={stats.costExposurePast} /></span>
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="bottom"><p>Cost exposure from overdue risks (past due date)</p></TooltipContent>

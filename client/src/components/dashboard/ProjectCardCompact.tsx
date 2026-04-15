@@ -9,6 +9,7 @@ import { StatusReportDialog } from "@/components/StatusReportDialog";
 import { FileText, TrendingUp, Calendar, DollarSign } from "lucide-react";
 import type { Project, Risk, Issue, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
 import { formatCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 
 interface ProjectCardCompactProps {
   project: Project;
@@ -142,8 +143,7 @@ export function ProjectCardCompact({ project, showBudget = true, showProgress = 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           {showBudget && project.budget && (
             <div className="flex items-center gap-1">
-              <DollarSign className="h-3 w-3" />
-              <span>{formatBudget(Number(project.budget))}</span>
+              <CompactCurrency value={project.budget} />
             </div>
           )}
           {project.endDate && (

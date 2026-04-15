@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Loader2, Trash2, Shield, FolderKanban, AlertTriangle, CircleDot, Users, ShieldAlert } from "lucide-react";
 import { format } from "date-fns";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -143,7 +144,7 @@ function ProjectsAdminTab() {
                   )}>{project.health}</Badge>
                 </TableCell>
                 <TableCell>{project.priority}</TableCell>
-                <TableCell>${Number(project.budget).toLocaleString()}</TableCell>
+                <TableCell><CompactCurrency value={project.budget} /></TableCell>
                 <TableCell>{project.completionPercentage}%</TableCell>
                 <TableCell>
                   <Button 

@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import { format, subMonths, eachMonthOfInterval } from "date-fns";
 import { formatCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 
@@ -173,7 +174,7 @@ export function FinancialSummaryDashboard() {
             </div>
             <span className="text-xs text-muted-foreground">Total Budget</span>
           </div>
-          <div className="text-2xl font-bold">{formatCompact(financials.totalBudget)}</div>
+          <div className="text-2xl font-bold"><CompactCurrency value={financials.totalBudget} /></div>
           <p className="text-[10px] text-muted-foreground mt-1">Allocated across {projects.length} projects</p>
         </Card>
 
@@ -184,7 +185,7 @@ export function FinancialSummaryDashboard() {
             </div>
             <span className="text-xs text-muted-foreground">Actual Cost</span>
           </div>
-          <div className="text-2xl font-bold">{formatCompact(financials.totalActualCost)}</div>
+          <div className="text-2xl font-bold"><CompactCurrency value={financials.totalActualCost} /></div>
           <p className="text-[10px] text-muted-foreground mt-1">{financials.budgetUtilization.toFixed(1)}% utilized</p>
         </Card>
 
@@ -196,7 +197,7 @@ export function FinancialSummaryDashboard() {
             <span className="text-xs text-muted-foreground">Budget Variance</span>
           </div>
           <div className={`text-2xl font-bold ${financials.budgetVariance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'}`}>
-            {financials.budgetVariance >= 0 ? '+' : ''}{formatCompact(financials.budgetVariance)}
+            {financials.budgetVariance >= 0 ? '+' : ''}<CompactCurrency value={financials.budgetVariance} />
           </div>
           <div className="flex items-center gap-1 mt-1">
             {financials.budgetVariance >= 0 ? (
@@ -232,7 +233,7 @@ export function FinancialSummaryDashboard() {
             </div>
             <span className="text-xs text-muted-foreground">EAC Forecast</span>
           </div>
-          <div className="text-2xl font-bold">{formatCompact(financials.totalForecastCost)}</div>
+          <div className="text-2xl font-bold"><CompactCurrency value={financials.totalForecastCost} /></div>
           <p className="text-[10px] text-muted-foreground mt-1">Estimate at Completion</p>
         </Card>
 
@@ -451,7 +452,7 @@ export function FinancialSummaryDashboard() {
                 <span className="text-xs text-muted-foreground">Budget at Completion (BAC)</span>
                 <Banknote className="h-4 w-4 text-blue-500" />
               </div>
-              <div className="text-xl font-bold">{formatCompact(financials.totalBudget)}</div>
+              <div className="text-xl font-bold"><CompactCurrency value={financials.totalBudget} /></div>
               <Progress value={100} className="h-1 mt-2" />
             </div>
             <div className="p-4 rounded-lg border">
@@ -459,7 +460,7 @@ export function FinancialSummaryDashboard() {
                 <span className="text-xs text-muted-foreground">Actual Cost (AC)</span>
                 <CreditCard className="h-4 w-4 text-emerald-500" />
               </div>
-              <div className="text-xl font-bold">{formatCompact(financials.totalActualCost)}</div>
+              <div className="text-xl font-bold"><CompactCurrency value={financials.totalActualCost} /></div>
               <Progress value={financials.budgetUtilization} className="h-1 mt-2" />
             </div>
             <div className="p-4 rounded-lg border">
@@ -467,7 +468,7 @@ export function FinancialSummaryDashboard() {
                 <span className="text-xs text-muted-foreground">Estimate at Completion (EAC)</span>
                 <Target className="h-4 w-4 text-purple-500" />
               </div>
-              <div className="text-xl font-bold">{formatCompact(financials.totalForecastCost)}</div>
+              <div className="text-xl font-bold"><CompactCurrency value={financials.totalForecastCost} /></div>
               <p className="text-[10px] text-muted-foreground mt-1">Based on CPI</p>
             </div>
             <div className="p-4 rounded-lg border">
@@ -480,7 +481,7 @@ export function FinancialSummaryDashboard() {
                 )}
               </div>
               <div className={`text-xl font-bold ${financials.budgetVariance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'}`}>
-                {formatCompact(financials.budgetVariance)}
+                <CompactCurrency value={financials.budgetVariance} />
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">BAC - EAC</p>
             </div>

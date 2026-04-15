@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { formatCurrency } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -131,13 +132,13 @@ const meterLabels: Record<string, string> = {
 };
 
 function formatPrice(microcents: number): string {
-  return `$${(microcents / 1000000).toFixed(2)}`;
+  return formatCurrency(microcents / 1000000, { showCents: true });
 }
 
 function formatPlanPrice(cents: number | null | undefined, isContactUs?: boolean): string {
   if (cents === null || cents === undefined) return "Contact Us";
   if (cents === 0) return "Free";
-  return `$${(cents / 100).toFixed(2)}`;
+  return formatCurrency(cents / 100, { showCents: true });
 }
 
 function isContactUsPlan(plan: PlanWithRules): boolean {
@@ -309,15 +310,15 @@ export function BillingContent() {
       const annualTotal = discountedMonthly * 12;
       const savings = monthlyPrice * 12 * YEARLY_DISCOUNT;
       return { 
-        displayPrice: `$${discountedMonthly.toFixed(2)}`,
+        displayPrice: formatCurrency(discountedMonthly, { showCents: true }),
         periodLabel: "/mo",
-        annualTotal: `$${annualTotal.toFixed(2)}/year`,
-        savings: `Save $${savings.toFixed(2)}`
+        annualTotal: `${formatCurrency(annualTotal, { showCents: true })}/year`,
+        savings: `Save ${formatCurrency(savings, { showCents: true })}`
       };
     }
     
     return { 
-      displayPrice: `$${monthlyPrice.toFixed(2)}`,
+      displayPrice: formatCurrency(monthlyPrice, { showCents: true }),
       periodLabel: "/mo"
     };
   }
@@ -677,7 +678,7 @@ export function BillingContent() {
                   {currentPlan.monthlyPriceCents === null || currentPlan.monthlyPriceCents === undefined
                     ? "Custom pricing" 
                     : currentPlan.monthlyPriceCents > 0 
-                      ? `$${(currentPlan.monthlyPriceCents / 100).toFixed(2)}` 
+                      ? formatCurrency(currentPlan.monthlyPriceCents / 100, { showCents: true }) 
                       : "Free"}
                 </span>
               </div>
@@ -685,10 +686,10 @@ export function BillingContent() {
               {seatInfo?.bonusSeats !== undefined && seatInfo.bonusSeats > 0 && seatInfo.extraSeatPriceCents && seatInfo.extraSeatPriceCents > 0 && (
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">
-                    Extra Seats ({seatInfo.bonusSeats} × ${(seatInfo.extraSeatPriceCents / 100).toFixed(2)})
+                    Extra Seats ({seatInfo.bonusSeats} × {formatCurrency(seatInfo.extraSeatPriceCents / 100, { showCents: true })})
                   </span>
                   <span className="font-medium">
-                    ${((seatInfo.bonusSeats * seatInfo.extraSeatPriceCents) / 100).toFixed(2)}
+                    {formatCurrency((seatInfo.bonusSeats * seatInfo.extraSeatPriceCents) / 100, { showCents: true })}
                   </span>
                 </div>
               )}
@@ -706,7 +707,7 @@ export function BillingContent() {
                         ? seatInfo.bonusSeats * seatInfo.extraSeatPriceCents 
                         : 0;
                       const total = planPrice + extraSeatsPrice;
-                      return total > 0 ? `$${(total / 100).toFixed(2)}/mo` : "Free";
+                      return total > 0 ? `${formatCurrency(total / 100, { showCents: true })}/mo` : "Free";
                     })()}
                   </span>
                 </div>
@@ -781,7 +782,7 @@ export function BillingContent() {
                     <div className="flex-1">
                       <div className="text-sm font-medium">Extra Seats</div>
                       <div className="text-xs text-muted-foreground">
-                        ${(seatInfo.extraSeatPriceCents / 100).toFixed(2)}/seat/month
+                        {formatCurrency(seatInfo.extraSeatPriceCents / 100, { showCents: true })}/seat/month
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -961,7 +962,7 @@ export function BillingContent() {
                           )}
                           {plan.maxSeats && plan.extraSeatPriceCents && plan.extraSeatPriceCents > 0 && (
                             <div className="ml-5 text-[10px] text-muted-foreground">
-                              +${(plan.extraSeatPriceCents / 100).toFixed(2)}/seat/month for extra seats
+                              +{formatCurrency(plan.extraSeatPriceCents / 100, { showCents: true })}/seat/month for extra seats
                             </div>
                           )}
                           {!plan.maxSeats && (
@@ -1301,7 +1302,7 @@ export function BillingContent() {
                               ? "text-destructive" 
                               : "text-muted-foreground"
                         }`}>
-                          ${(transaction.amountCents / 100).toFixed(2)} {transaction.currency}
+                          {formatCurrency(transaction.amountCents / 100, { showCents: true, currency: transaction.currency || "USD" })}
                         </p>
                         <Badge 
                           variant={
