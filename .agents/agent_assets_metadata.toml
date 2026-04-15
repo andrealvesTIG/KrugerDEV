@@ -54,3 +54,9 @@ id = "jeVuNb0AjGmejMPVC2ls3"
 uri = "file://.local/data_quality_report.md"
 type = "text"
 title = "Data Quality & Mismatch Analysis Report"
+
+[[outputs]]
+id = "jbSjSUY2vIWJPGMubiFP8"
+uri = "file://.local/timesheet_quality_report.md"
+type = "text"
+title = "Timesheet Dashboard Data Quality & Mismatch Analysis Report"
