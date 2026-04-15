@@ -113,7 +113,34 @@ export async function registerRoutes(
     console.error('[training] Failed to seed training data:', err.message);
   });
 
+  syncAllProjectProgress().catch(err => {
+    console.error('[progress] Failed to sync project progress:', err.message);
+  });
+
   return httpServer;
+}
+
+async function syncAllProjectProgress() {
+  const allProjects = await storage.getProjects();
+  let updated = 0;
+  for (const project of allProjects) {
+    const tasks = await storage.getTasks(project.id);
+    let avg = 0;
+    if (tasks.length > 0) {
+      const childIds = new Set(tasks.filter(t => t.parentId).map(t => t.parentId!));
+      const leafTasks = tasks.filter(t => !childIds.has(t.id));
+      if (leafTasks.length > 0) {
+        avg = Math.round(leafTasks.reduce((sum, t) => sum + (t.progress || 0), 0) / leafTasks.length);
+      }
+    }
+    if (project.completionPercentage !== avg) {
+      await storage.updateProject(project.id, { completionPercentage: avg });
+      updated++;
+    }
+  }
+  if (updated > 0) {
+    console.log(`[progress] Synced progress for ${updated} projects`);
+  }
 }
 
 async function seedTrainingDataIfEmpty() {
