@@ -128,13 +128,15 @@ export function registerJarvisRoutes(app: Express) {
             pageContext: pageContext?.entityType ? `${pageContext.entityType}:${pageContext.entityId}` : undefined,
           }, req).catch(() => {});
         },
-        (error) => {
-          console.error("[JARVIS] Stream error:", error);
+        (error: Error & { logDetails?: string; originalError?: any }) => {
+          const userMessage = error.message || "An unexpected error occurred. Please try again.";
+          const logDetails = error.logDetails || error.message;
+          console.error(`[JARVIS] Stream error: ${logDetails}`, error.originalError?.stack || error.stack || "");
           if (res.headersSent) {
-            res.write(`data: ${JSON.stringify({ error: "An error occurred while processing your request." })}\n\n`);
+            res.write(`data: ${JSON.stringify({ error: userMessage })}\n\n`);
             res.end();
           } else {
-            res.status(500).json({ message: "Failed to process JARVIS request" });
+            res.status(500).json({ message: userMessage });
           }
         },
         pageContext ? { path: pageContext.path, entityType: pageContext.entityType, entityId: pageContext.entityId } : undefined,

@@ -97,6 +97,24 @@ export const DEFAULT_RISK_ASSESSMENT_CONFIG: RiskAssessmentConfig = {
   customModel: "",
 };
 
+export const fridayAgentConfigSchema = z.object({
+  useOrgAzure: z.boolean().default(false),
+  azureEndpoint: z.string().max(500).default(""),
+  azureApiKey: z.string().max(500).default(""),
+  azureDeployment: z.string().max(200).default(""),
+  azureApiVersion: z.string().max(50).default("2024-12-01-preview"),
+});
+
+export type FridayAgentConfig = z.infer<typeof fridayAgentConfigSchema>;
+
+export const DEFAULT_FRIDAY_AGENT_CONFIG: FridayAgentConfig = {
+  useOrgAzure: false,
+  azureEndpoint: "",
+  azureApiKey: "",
+  azureDeployment: "",
+  azureApiVersion: "2024-12-01-preview",
+};
+
 // === TABLE DEFINITIONS ===
 
 // Users (Imported from ./models/auth)
@@ -118,6 +136,7 @@ export const organizations = pgTable("organizations", {
   dashboardHiddenTabs: text("dashboard_hidden_tabs").array(), // Array of tab IDs hidden in overflow menu
   billingHidden: boolean("billing_hidden").default(false),
   riskAssessmentConfig: jsonb("risk_assessment_config").$type<RiskAssessmentConfig>(),
+  fridayAgentConfig: jsonb("friday_agent_config").$type<FridayAgentConfig>(),
   schedulingDefaults: jsonb("scheduling_defaults").$type<SchedulingDefaults>(),
   timezone: text("timezone").default("UTC"),
   deactivatedAt: timestamp("deactivated_at"), // Soft delete timestamp

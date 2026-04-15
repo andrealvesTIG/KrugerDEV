@@ -4,7 +4,7 @@ import { useOrganization } from "@/hooks/use-organization";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Settings, Users, ShieldAlert, Trash2, Eye, FileText, GitBranch, Plug, Calendar, Sparkles, Building2, Zap, LayoutGrid, Columns, Code2, UserCheck, Bell, Target } from "lucide-react";
+import { Loader2, Settings, Users, ShieldAlert, Trash2, Eye, FileText, GitBranch, Plug, Calendar, Sparkles, Building2, Zap, LayoutGrid, Columns, Code2, UserCheck, Bell, Target, Bot } from "lucide-react";
 import { ChevronDown, PanelLeftClose, PanelLeft } from "lucide-react";
 import type { Organization } from "@shared/schema";
 import IntegrationsPage from "@/pages/Integrations";
@@ -22,6 +22,7 @@ import { RecycleBinSection } from "@/components/settings/RecycleBinSection";
 import { DemoDataSection } from "@/components/settings/DemoDataSection";
 import { ReminderSettingsSection } from "@/components/settings/ReminderSettingsSection";
 import { RiskAssessmentConfigSection } from "@/components/settings/RiskAssessmentConfigSection";
+import { FridayAgentConfigSection } from "@/components/settings/FridayAgentConfigSection";
 import { DeveloperSection } from "@/components/settings/DeveloperSection";
 import { ActAsSection } from "@/components/settings/ActAsSection";
 import { ScoringCriteriaSection } from "@/components/settings/ScoringCriteriaSection";
@@ -99,6 +100,7 @@ const settingsTabs = [
   { value: "demo", label: "Demo Data", icon: Sparkles },
   { value: "reminders", label: "Reminders & Escalation", icon: Bell },
   { value: "integrations", label: "Integrations", icon: Plug },
+  { value: "friday-agent", label: "Friday Agent", icon: Bot },
   { value: "risk-assessment", label: "Risk Assessment", icon: ShieldAlert },
   { value: "scoring", label: "Portfolio Scoring", icon: Target },
   { value: "developer", label: "Developer", icon: Code2 },
@@ -239,6 +241,9 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         </TabsContent>
         <TabsContent value="integrations" className="mt-0">
           <IntegrationsPage />
+        </TabsContent>
+        <TabsContent value="friday-agent" className="mt-0">
+          <FridayAgentConfigSection organizationId={currentOrganization.id} />
         </TabsContent>
         <TabsContent value="risk-assessment" className="mt-0">
           <RiskAssessmentConfigSection organizationId={currentOrganization.id} />

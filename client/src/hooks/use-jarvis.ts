@@ -235,7 +235,7 @@ export function useJarvis() {
           const isOversize = err.message?.toLowerCase().includes("character") || err.message?.toLowerCase().includes("too large") || err.message?.toLowerCase().includes("size");
           last.content = isOversize
             ? `Sorry, the content is too large to process in one go. If you're uploading a large CSV file, try splitting it into smaller files and uploading each one separately. I can process up to 500KB per file.`
-            : `Sorry, I encountered an error: ${err.message}. Please try again.`;
+            : `Sorry, I encountered an error: ${err.message.replace(/\.+$/, '')}. Please try again.`;
         }
         return updated;
       });
