@@ -371,7 +371,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
   }, [messages, isLoading, voiceEnabled, speak]);
 
   useEffect(() => {
-    if (mode === "voice" && !isSpeaking && !isLoading && !isListening && open && messages.length > 0) {
+    if ((mode === "voice" || mode === "dictate") && !isSpeaking && !isLoading && !isListening && open && messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg.role === "assistant" && lastMsg.content) {
         const timer = setTimeout(() => {
@@ -381,7 +381,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
           if (!isListening && !isSpeaking && !isLoading) {
             startListening();
           }
-        }, 800);
+        }, mode === "dictate" ? 400 : 800);
         return () => clearTimeout(timer);
       }
     }
@@ -429,7 +429,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
     if (mode === "chat") {
       if (isListening) stopListening();
     }
-    if (mode === "voice" && open && !isListening && !isLoading && !isSpeaking) {
+    if ((mode === "voice" || mode === "dictate") && open && !isListening && !isLoading && !isSpeaking) {
       const timer = setTimeout(() => startListening(), 300);
       return () => clearTimeout(timer);
     }
@@ -907,7 +907,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                     onKeyDown={handleKeyDown}
                     placeholder={
                       mode === "dictate"
-                        ? (isListening ? "Listening... speak now" : "Tap mic to dictate or type here")
+                        ? (isListening ? "Listening... speak now" : "Speak or type here")
                         : (pageContext.entityType ? `Ask about this ${pageContext.entityType}...` : "Ask Friday anything...")
                     }
                     className="min-h-[38px] max-h-[80px] resize-none text-sm bg-slate-900/50 border-cyan-900/30 text-cyan-100 placeholder:text-cyan-800 focus-visible:ring-cyan-500/30 focus-visible:border-cyan-700/50 pr-2"
