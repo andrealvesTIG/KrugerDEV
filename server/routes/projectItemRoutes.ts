@@ -1062,7 +1062,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
     const project = await storage.getProject(projectId);
     if (project && project.completionPercentage !== avg) {
-      await storage.updateProject(projectId, { completionPercentage: avg } as any);
+      await storage.updateProject(projectId, { completionPercentage: avg });
     }
   }
   
