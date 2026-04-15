@@ -198,6 +198,7 @@ const LIST_COLUMNS: ListColumn[] = [
 ];
 
 const LIST_COLUMNS_STORAGE_KEY = "project-list-visible-columns";
+const LIST_COLUMN_ORDER_KEY = "project-list-column-order";
 const LIST_SORT_STORAGE_KEY = "project-list-sort";
 
 function loadVisibleColumns(): string[] {
@@ -210,6 +211,18 @@ function loadVisibleColumns(): string[] {
 
 function saveVisibleColumns(cols: string[]) {
   try { localStorage.setItem(LIST_COLUMNS_STORAGE_KEY, JSON.stringify(cols)); } catch {}
+}
+
+function loadListColumnOrder(): string[] {
+  try {
+    const stored = localStorage.getItem(LIST_COLUMN_ORDER_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return LIST_COLUMNS.map(c => c.id);
+}
+
+function saveListColumnOrder(order: string[]) {
+  try { localStorage.setItem(LIST_COLUMN_ORDER_KEY, JSON.stringify(order)); } catch {}
 }
 
 interface ListSortState {
@@ -262,6 +275,9 @@ interface ProjectsListViewProps {
   onGroupByChange: (value: ListGroupByOption) => void;
   customFieldDefs?: CustomFieldDefinition[];
   customFieldValues?: ProjectCustomFieldValue[];
+  filterView?: ProjectFilterView;
+  onFilterViewChange?: (filterView: ProjectFilterView) => void;
+  organizationId?: number | null;
 }
 
 function ProjectsListView({
@@ -285,9 +301,13 @@ function ProjectsListView({
   onGroupByChange,
   customFieldDefs,
   customFieldValues,
+  filterView = "all",
+  onFilterViewChange,
+  organizationId,
 }: ProjectsListViewProps) {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(loadVisibleColumns);
+  const [listColumnOrder, setListColumnOrder] = useState<string[]>(loadListColumnOrder);
   const [listSort, setListSort] = useState<ListSortState | null>(loadListSort);
   const [manageColumnsOpen, setManageColumnsOpen] = useState(false);
 
@@ -307,6 +327,9 @@ function ProjectsListView({
     const defaults = LIST_COLUMNS.filter(c => c.defaultVisible).map(c => c.id);
     setVisibleColumnIds(defaults);
     saveVisibleColumns(defaults);
+    const defaultOrder = LIST_COLUMNS.map(c => c.id);
+    setListColumnOrder(defaultOrder);
+    saveListColumnOrder(defaultOrder);
   }, []);
 
   const handleSort = useCallback((columnId: string) => {
@@ -325,9 +348,26 @@ function ProjectsListView({
     });
   }, []);
 
+  const allListColumns = useMemo(() => LIST_COLUMNS.map(c => ({ id: c.id, label: c.label })), []);
+  const defaultListColumns = useMemo(() => LIST_COLUMNS.filter(c => c.defaultVisible).map(c => c.id), []);
+  const defaultListColumnOrder = useMemo(() => LIST_COLUMNS.map(c => c.id), []);
+
+  const handleApplyView = useCallback((view: { visibleColumns: string[]; columnOrder: string[] }) => {
+    setVisibleColumnIds(view.visibleColumns);
+    saveVisibleColumns(view.visibleColumns);
+    setListColumnOrder(view.columnOrder);
+    saveListColumnOrder(view.columnOrder);
+  }, []);
+
   const visibleColumns = useMemo(() => {
-    return LIST_COLUMNS.filter(c => c.alwaysVisible || visibleColumnIds.includes(c.id));
-  }, [visibleColumnIds]);
+    const cols = LIST_COLUMNS.filter(c => c.alwaysVisible || visibleColumnIds.includes(c.id));
+    const orderMap = new Map(listColumnOrder.map((id, i) => [id, i]));
+    return cols.sort((a, b) => {
+      const ai = orderMap.get(a.id) ?? 999;
+      const bi = orderMap.get(b.id) ?? 999;
+      return ai - bi;
+    });
+  }, [visibleColumnIds, listColumnOrder]);
 
   const getProjectFieldValue = useCallback((project: Project, columnId: string): any => {
     switch (columnId) {
@@ -696,6 +736,18 @@ function ProjectsListView({
     <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="flex items-center justify-between gap-2 px-4 py-2 bg-muted/20 border-b border-border">
         <div className="flex items-center gap-4">
+          <ViewsDropdown
+            mode="list"
+            organizationId={organizationId ?? null}
+            allColumns={allListColumns}
+            visibleColumns={visibleColumnIds}
+            columnOrder={listColumnOrder}
+            onApplyView={handleApplyView}
+            defaultColumns={defaultListColumns}
+            defaultColumnOrder={defaultListColumnOrder}
+            filterView={filterView}
+            onFilterViewChange={onFilterViewChange}
+          />
           <div className="flex items-center gap-2">
             <Layers className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-xs font-medium text-muted-foreground">Group by:</span>
@@ -1707,6 +1759,9 @@ export default function Projects() {
                 onGroupByChange={setListGroupBy}
                 customFieldDefs={exportCustomFieldDefs}
                 customFieldValues={exportCfValues}
+                filterView={filterView}
+                onFilterViewChange={setFilterView}
+                organizationId={currentOrganization?.id || null}
               />
             ) : view === "grid" ? (
               <ProjectsGridView 
@@ -1762,6 +1817,9 @@ export default function Projects() {
           onGroupByChange={setListGroupBy}
           customFieldDefs={exportCustomFieldDefs}
           customFieldValues={exportCfValues}
+          filterView={filterView}
+          onFilterViewChange={setFilterView}
+          organizationId={currentOrganization?.id || null}
         />
       ) : !isFullscreen && view === "grid" ? (
         <ProjectsGridView 

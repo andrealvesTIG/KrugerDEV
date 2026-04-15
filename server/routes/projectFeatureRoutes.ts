@@ -925,7 +925,7 @@ export function registerProjectFeatureRoutes(app: Express) {
   apiRoute(app, 'get', '/api/organizations/:orgId/project-views', {
     tag: 'Project Views',
     summary: 'List project views for organization',
-    parameters: [pathId('orgId'), qStr('mode', true, 'View mode (grid or gantt)')],
+    parameters: [pathId('orgId'), qStr('mode', true, 'View mode (grid, gantt, or list)')],
     responses: { ...r200('Project views', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
@@ -937,8 +937,8 @@ export function registerProjectFeatureRoutes(app: Express) {
         return res.status(401).json({ message: "Authentication required" });
       }
       
-      if (!mode || !['grid', 'gantt'].includes(mode)) {
-        return res.status(400).json({ message: "Mode must be 'grid' or 'gantt'" });
+      if (!mode || !['grid', 'gantt', 'list'].includes(mode)) {
+        return res.status(400).json({ message: "Mode must be 'grid', 'gantt', or 'list'" });
       }
       
       const accessibleOrgIds = await getUserOrgIds(userId);
@@ -977,8 +977,8 @@ export function registerProjectFeatureRoutes(app: Express) {
       
       const { mode, name, visibleColumns, columnOrder, columnWidths, frozenColumns, isDefault } = req.body;
       
-      if (!mode || !['grid', 'gantt'].includes(mode)) {
-        return res.status(400).json({ message: "Mode must be 'grid' or 'gantt'" });
+      if (!mode || !['grid', 'gantt', 'list'].includes(mode)) {
+        return res.status(400).json({ message: "Mode must be 'grid', 'gantt', or 'list'" });
       }
       
       if (!name || name.trim().length === 0) {
@@ -1161,7 +1161,7 @@ export function registerProjectFeatureRoutes(app: Express) {
   apiRoute(app, 'get', '/api/organizations/:orgId/system-project-views', {
     tag: 'System Project Views',
     summary: 'List system project views for organization',
-    parameters: [pathId('orgId'), qStr('mode', true, 'View mode (grid or gantt)')],
+    parameters: [pathId('orgId'), qStr('mode', true, 'View mode (grid, gantt, or list)')],
     responses: { ...r200('System project views', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
@@ -1173,8 +1173,8 @@ export function registerProjectFeatureRoutes(app: Express) {
         return res.status(401).json({ message: "Authentication required" });
       }
       
-      if (!mode || !['grid', 'gantt'].includes(mode)) {
-        return res.status(400).json({ message: "Mode must be 'grid' or 'gantt'" });
+      if (!mode || !['grid', 'gantt', 'list'].includes(mode)) {
+        return res.status(400).json({ message: "Mode must be 'grid', 'gantt', or 'list'" });
       }
       
       const accessibleOrgIds = await getUserOrgIds(userId);
@@ -1254,8 +1254,8 @@ export function registerProjectFeatureRoutes(app: Express) {
       
       const { mode, name, description, visibleColumns, columnOrder, columnWidths, filterCriteria, isActive, displayOrder } = req.body;
       
-      if (!mode || !['grid', 'gantt'].includes(mode)) {
-        return res.status(400).json({ message: "Mode must be 'grid' or 'gantt'" });
+      if (!mode || !['grid', 'gantt', 'list'].includes(mode)) {
+        return res.status(400).json({ message: "Mode must be 'grid', 'gantt', or 'list'" });
       }
       
       if (!name || name.trim().length === 0) {
