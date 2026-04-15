@@ -60,29 +60,31 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { useLocation } from "wouter";
 
-const PROJECT_STAGES = [
-  { value: "Initiation", label: "Initiation", description: "Project kickoff" },
-  { value: "Planning", label: "Planning", description: "Define scope & schedule" },
-  { value: "Execution", label: "Execution", description: "Active development" },
-  { value: "Monitoring", label: "Monitoring", description: "Track & control" },
-  { value: "Closing", label: "Closing", description: "Project completion" },
-  { value: "Billing", label: "Billing", description: "Pending invoices & accounting" },
+const DEFAULT_PROJECT_STAGES = [
+  { value: "Initiation", label: "Initiation", description: "Project kickoff", isTerminal: false },
+  { value: "Planning", label: "Planning", description: "Define scope & schedule", isTerminal: false },
+  { value: "Execution", label: "Execution", description: "Active development", isTerminal: false },
+  { value: "Monitoring", label: "Monitoring", description: "Track & control", isTerminal: false },
+  { value: "Closing", label: "Closing", description: "Project completion", isTerminal: false },
+  { value: "Billing", label: "Billing", description: "Pending invoices & accounting", isTerminal: false },
   { value: "On Hold", label: "On Hold", description: "Project temporarily paused", isTerminal: true },
   { value: "Closed", label: "Closed", description: "Project archived & locked", isTerminal: true },
 ];
 
-// Helper to check if a project status is the terminal locked state
-const isProjectStatusLocked = (status: string) => status === "Closed" || status === "On Hold";
+type ProjectStage = { value: string; label: string; description: string; isTerminal: boolean };
 
 function BusinessProcessFlow({ 
   currentStatus, 
-  onStatusChange 
+  onStatusChange,
+  stages,
 }: { 
   currentStatus: string; 
   onStatusChange: (status: string) => void;
+  stages?: ProjectStage[];
 }) {
+  const PROJECT_STAGES = stages && stages.length > 0 ? stages : DEFAULT_PROJECT_STAGES;
   const currentIndex = PROJECT_STAGES.findIndex(s => s.value === currentStatus);
-  const isCurrentlyLocked = isProjectStatusLocked(currentStatus);
+  const isCurrentlyLocked = PROJECT_STAGES.some(s => s.value === currentStatus && s.isTerminal);
   
   return (
     <>
@@ -91,7 +93,7 @@ function BusinessProcessFlow({
             const isCompleted = index < currentIndex;
             const isCurrent = index === currentIndex;
             const isUpcoming = index > currentIndex;
-            const isTerminalStage = (stage as any).isTerminal;
+            const isTerminalStage = stage.isTerminal;
             const isClickDisabled = isCurrent;
             
             return (
@@ -171,7 +173,7 @@ function BusinessProcessFlow({
             const isCompleted = index < currentIndex;
             const isCurrent = index === currentIndex;
             const isUpcoming = index > currentIndex;
-            const isTerminalStage = (stage as any).isTerminal;
+            const isTerminalStage = stage.isTerminal;
             const isClickDisabled = isCurrent;
             
             return (
@@ -290,6 +292,28 @@ export default function ProjectDetails() {
   const { user } = useAuth();
   const { data: customTabs = [] } = useCustomProjectTabs(currentOrganization?.id);
   const [, setLocation] = useLocation();
+
+  const { data: orgWorkflowSteps } = useQuery<Array<{ id: number; stepKey: string; position: number; label: string; description: string | null; isTerminal: boolean | null; isActive: boolean | null }>>({
+    queryKey: ['/api/organizations', currentOrganization?.id, 'project-workflow'],
+    queryFn: async () => {
+      const res = await fetch(`/api/organizations/${currentOrganization!.id}/project-workflow`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  const projectStages = useMemo<ProjectStage[]>(() => {
+    if (!orgWorkflowSteps || orgWorkflowSteps.length === 0) return DEFAULT_PROJECT_STAGES;
+    return orgWorkflowSteps
+      .filter(s => s.isActive !== false)
+      .map(s => ({
+        value: s.stepKey,
+        label: s.label,
+        description: s.description || "",
+        isTerminal: s.isTerminal ?? false,
+      }));
+  }, [orgWorkflowSteps]);
 
   const [projectListOpen, setProjectListOpen] = useState(false);
   const { data: allOrgProjects } = useProjects(currentOrganization?.id);
@@ -563,8 +587,7 @@ export default function ProjectDetails() {
     return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
-  // Check if project is in locked (terminal) state
-  const isProjectLocked = isProjectStatusLocked(project.status);
+  const isProjectLocked = projectStages.some(s => s.value === project.status && s.isTerminal);
 
   const handleCsvImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1035,12 +1058,10 @@ export default function ProjectDetails() {
   };
 
   const handleStatusChange = (status: string) => {
-    const isTargetTerminal = status === "Closed" || status === "On Hold";
+    const isTargetTerminal = projectStages.some(s => s.value === status && s.isTerminal);
 
     if (isTargetTerminal && !isProjectLocked) {
-      const message = status === "Closed"
-        ? "Are you sure you want to close this project?\n\nThis will:\n• Lock the project from all edits\n• Remove it from Active Projects listings\n• Archive it for historical reference\n\nYou can reopen the project later if needed."
-        : "Are you sure you want to put this project on hold?\n\nThis will:\n• Lock the project from all edits\n• Pause active work\n\nYou can resume the project later if needed.";
+      const message = `Are you sure you want to set this project to "${status}"?\n\nThis will:\n• Lock the project from all edits\n• Pause active work\n\nYou can change the status later if needed.`;
       if (!window.confirm(message)) return;
     }
     
@@ -1058,15 +1079,10 @@ export default function ProjectDetails() {
     
     updateProject({ id: project.id, status }, {
       onSuccess: () => {
-        if (status === "Closed") {
+        if (isTargetTerminal) {
           toast({ 
-            title: "Project Closed & Locked", 
-            description: "This project is now archived and protected from changes."
-          });
-        } else if (status === "On Hold") {
-          toast({ 
-            title: "Project On Hold", 
-            description: "This project is now paused and locked from changes."
+            title: `Project: ${status}`, 
+            description: "This project is now locked from changes."
           });
         } else if (isProjectLocked) {
           toast({ 
@@ -1414,7 +1430,8 @@ export default function ProjectDetails() {
             <div className="px-4 pb-4">
               <BusinessProcessFlow 
                 currentStatus={project.status} 
-                onStatusChange={handleStatusChange} 
+                onStatusChange={handleStatusChange}
+                stages={projectStages}
               />
             </div>
           </CollapsibleContent>

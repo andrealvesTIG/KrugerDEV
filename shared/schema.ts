@@ -1355,6 +1355,19 @@ export const intakeWorkflowSteps = pgTable("intake_workflow_steps", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const projectWorkflowSteps = pgTable("project_workflow_steps", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  stepKey: text("step_key").notNull(),
+  position: integer("position").notNull(),
+  label: text("label").notNull(),
+  description: text("description"),
+  isTerminal: boolean("is_terminal").default(false),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // MPP Imports - Store imported Microsoft Project data
 export const mppImports = pgTable("mpp_imports", {
   id: serial("id").primaryKey(),
@@ -1802,6 +1815,8 @@ export type InsertStatusReportHistory = z.infer<typeof insertStatusReportHistory
 
 export type IntakeWorkflowStep = typeof intakeWorkflowSteps.$inferSelect;
 export type InsertIntakeWorkflowStep = z.infer<typeof insertIntakeWorkflowStepSchema>;
+
+export type ProjectWorkflowStep = typeof projectWorkflowSteps.$inferSelect;
 
 // API Request/Response Types
 export type CreatePortfolioRequest = InsertPortfolio;

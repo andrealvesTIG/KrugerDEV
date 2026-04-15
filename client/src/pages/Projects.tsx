@@ -44,7 +44,7 @@ import { PageTransition, FadeIn } from "@/components/ui/page-transition";
 import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues, useBulkUpdateProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
 import type { CustomFieldDefinition, ProjectCustomFieldValue } from "@shared/schema";
 
-const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing", "Closed"];
+const DEFAULT_PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing", "Closed"];
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
@@ -279,6 +279,7 @@ interface ProjectsListViewProps {
   filterView?: ProjectFilterView;
   onFilterViewChange?: (filterView: ProjectFilterView) => void;
   organizationId?: number | null;
+  statusList?: string[];
 }
 
 function ProjectsListView({
@@ -305,7 +306,9 @@ function ProjectsListView({
   filterView = "all",
   onFilterViewChange,
   organizationId,
+  statusList = DEFAULT_PROJECT_STATUS_LIST,
 }: ProjectsListViewProps) {
+  const PROJECT_STATUS_LIST = statusList;
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(loadVisibleColumns);
   const [listColumnOrder, setListColumnOrder] = useState<string[]>(loadListColumnOrder);
@@ -987,6 +990,21 @@ export default function Projects() {
     queryKey: ['/api/project-risk-assessments/org', currentOrganization?.id],
     enabled: !!currentOrganization?.id,
   });
+
+  const { data: orgWorkflowSteps } = useQuery<Array<{ id: number; stepKey: string; position: number; label: string; description: string | null; isTerminal: boolean | null; isActive: boolean | null }>>({
+    queryKey: ['/api/organizations', currentOrganization?.id, 'project-workflow'],
+    queryFn: async () => {
+      const res = await fetch(`/api/organizations/${currentOrganization!.id}/project-workflow`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  const PROJECT_STATUS_LIST = useMemo(() => {
+    if (!orgWorkflowSteps || orgWorkflowSteps.length === 0) return DEFAULT_PROJECT_STATUS_LIST;
+    return orgWorkflowSteps.filter(s => s.isActive !== false).map(s => s.stepKey);
+  }, [orgWorkflowSteps]);
 
   const { data: exportCustomFieldDefs } = useCustomFieldDefinitions(currentOrganization?.id);
   const { data: exportCfValues } = useOrganizationProjectCustomFieldValues(currentOrganization?.id);
@@ -1792,6 +1810,7 @@ export default function Projects() {
                 filterView={filterView}
                 onFilterViewChange={setFilterView}
                 organizationId={currentOrganization?.id || null}
+                statusList={PROJECT_STATUS_LIST}
               />
             ) : view === "grid" ? (
               <ProjectsGridView 
@@ -1809,6 +1828,7 @@ export default function Projects() {
                 }}
                 filterView={filterView}
                 onFilterViewChange={setFilterView}
+                statusList={PROJECT_STATUS_LIST}
               />
             ) : view === "kanban" ? (
               <ProjectsKanbanView 
@@ -1854,6 +1874,7 @@ export default function Projects() {
           filterView={filterView}
           onFilterViewChange={setFilterView}
           organizationId={currentOrganization?.id || null}
+          statusList={PROJECT_STATUS_LIST}
         />
       ) : !isFullscreen && view === "grid" ? (
         <ProjectsGridView 
@@ -1866,6 +1887,7 @@ export default function Projects() {
           organizationId={currentOrganization?.id || null}
           filterView={filterView}
           onFilterViewChange={setFilterView}
+          statusList={PROJECT_STATUS_LIST}
         />
       ) : !isFullscreen && view === "kanban" ? (
         <ProjectsKanbanView 
@@ -2181,6 +2203,7 @@ function ProjectsGridView({
   onExitFullscreen,
   filterView,
   onFilterViewChange,
+  statusList = DEFAULT_PROJECT_STATUS_LIST,
 }: { 
   projects: Project[];
   portfolios: Portfolio[];
@@ -2193,7 +2216,9 @@ function ProjectsGridView({
   onExitFullscreen?: () => void;
   filterView?: ProjectFilterView;
   onFilterViewChange?: (filterView: ProjectFilterView) => void;
+  statusList?: string[];
 }) {
+  const PROJECT_STATUS_LIST = statusList;
   const { toast } = useToast();
   const [visibleColumns, setVisibleColumns] = useState<string[]>(getStoredColumns);
   const [columnOrder, setColumnOrder] = useState<string[]>(getStoredColumnOrder);

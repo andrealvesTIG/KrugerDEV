@@ -36,7 +36,7 @@ import type {
   InvoiceNote, InsertInvoiceNote,
   Notification, InsertNotification,
   StatusReportHistory, InsertStatusReportHistory,
-  IntakeWorkflowStep, InsertIntakeWorkflowStep,
+  IntakeWorkflowStep, InsertIntakeWorkflowStep, ProjectWorkflowStep,
   TimesheetEntry, InsertTimesheetEntry, UpdateTimesheetEntryRequest,
   TimeCategory, InsertTimeCategory,
   NonProjectTimeEntry, InsertNonProjectTimeEntry,
@@ -377,6 +377,9 @@ export interface IIntakeStorage {
   getIntakeWorkflowSteps(organizationId: number): Promise<IntakeWorkflowStep[]>;
   upsertIntakeWorkflowSteps(organizationId: number, steps: InsertIntakeWorkflowStep[]): Promise<IntakeWorkflowStep[]>;
   resetIntakeWorkflowToDefaults(organizationId: number): Promise<IntakeWorkflowStep[]>;
+  getProjectWorkflowSteps(organizationId: number): Promise<ProjectWorkflowStep[]>;
+  upsertProjectWorkflowSteps(organizationId: number, steps: Array<{ stepKey: string; position: number; label: string; description?: string; isTerminal?: boolean; isActive?: boolean }>): Promise<ProjectWorkflowStep[]>;
+  resetProjectWorkflowToDefaults(organizationId: number): Promise<ProjectWorkflowStep[]>;
 }
 
 export interface IMiscStorage {

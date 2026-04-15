@@ -2,12 +2,13 @@ import { db } from "../db";
 import { calculateEndDate, formatDateStr } from "../lib/workingDays";
 import {
   projectIntakes, mppImports, mppImportTasks, changeRequests,
-  intakeWorkflowSteps, projects, tasks, taskDependencies,
+  intakeWorkflowSteps, projectWorkflowSteps, projects, tasks, taskDependencies,
   type ProjectIntake, type InsertProjectIntake, type UpdateProjectIntakeRequest,
   type MppImport, type InsertMppImport,
   type MppImportTask, type InsertMppImportTask,
   type ChangeRequest, type InsertChangeRequest, type UpdateChangeRequestRequest,
   type IntakeWorkflowStep, type InsertIntakeWorkflowStep,
+  type ProjectWorkflowStep,
   type Project, type Task,
 } from "@shared/schema";
 import { eq, and, desc, isNull, sql } from "drizzle-orm";
@@ -644,4 +645,47 @@ export async function resetIntakeWorkflowToDefaults(organizationId: number): Pro
   ];
   
   return upsertIntakeWorkflowSteps(organizationId, defaultSteps);
+}
+
+const DEFAULT_PROJECT_WORKFLOW_STEPS = [
+  { stepKey: "Initiation", position: 0, label: "Initiation", description: "Project kickoff", isTerminal: false },
+  { stepKey: "Planning", position: 1, label: "Planning", description: "Define scope & schedule", isTerminal: false },
+  { stepKey: "Execution", position: 2, label: "Execution", description: "Active development", isTerminal: false },
+  { stepKey: "Monitoring", position: 3, label: "Monitoring", description: "Track & control", isTerminal: false },
+  { stepKey: "Closing", position: 4, label: "Closing", description: "Project completion", isTerminal: false },
+  { stepKey: "Billing", position: 5, label: "Billing", description: "Pending invoices & accounting", isTerminal: false },
+  { stepKey: "On Hold", position: 6, label: "On Hold", description: "Project temporarily paused", isTerminal: true },
+  { stepKey: "Closed", position: 7, label: "Closed", description: "Project archived & locked", isTerminal: true },
+];
+
+export async function getProjectWorkflowSteps(organizationId: number): Promise<ProjectWorkflowStep[]> {
+  return await db.select().from(projectWorkflowSteps)
+    .where(eq(projectWorkflowSteps.organizationId, organizationId))
+    .orderBy(projectWorkflowSteps.position);
+}
+
+export async function upsertProjectWorkflowSteps(
+  organizationId: number,
+  steps: Array<{ stepKey: string; position: number; label: string; description?: string; isTerminal?: boolean; isActive?: boolean }>
+): Promise<ProjectWorkflowStep[]> {
+  await db.delete(projectWorkflowSteps).where(eq(projectWorkflowSteps.organizationId, organizationId));
+
+  if (steps.length === 0) return [];
+
+  const stepsWithOrg = steps.map(step => ({
+    organizationId,
+    stepKey: step.stepKey,
+    position: step.position,
+    label: step.label,
+    description: step.description || null,
+    isTerminal: step.isTerminal ?? false,
+    isActive: step.isActive ?? true,
+  }));
+
+  return await db.insert(projectWorkflowSteps).values(stepsWithOrg).returning();
+}
+
+export async function resetProjectWorkflowToDefaults(organizationId: number): Promise<ProjectWorkflowStep[]> {
+  const steps = DEFAULT_PROJECT_WORKFLOW_STEPS.map(s => ({ ...s, organizationId }));
+  return upsertProjectWorkflowSteps(organizationId, steps);
 }

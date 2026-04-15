@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { IntakeWorkflowSection } from "./IntakeWorkflowSection";
+import { ProjectWorkflowSection } from "./ProjectWorkflowSection";
 import { GitBranch, FolderKanban } from "lucide-react";
 
 export function GovernanceSection({ organizationId }: { organizationId: number }) {
@@ -33,19 +33,7 @@ export function GovernanceSection({ organizationId }: { organizationId: number }
         </TabsContent>
 
         <TabsContent value="project" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Project Governance</CardTitle>
-              <CardDescription>
-                Define governance policies, approval workflows, and compliance requirements for projects.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Project governance configuration coming soon.
-              </p>
-            </CardContent>
-          </Card>
+          <ProjectWorkflowSection organizationId={organizationId} />
         </TabsContent>
       </Tabs>
     </div>
