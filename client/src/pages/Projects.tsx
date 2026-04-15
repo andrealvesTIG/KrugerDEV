@@ -14,7 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { z } from "zod";
 import type { Project, Resource, Portfolio } from "@shared/schema";
 import { Link, useLocation } from "wouter";
-import { Plus, Search, Calendar, AlertCircle, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, ChevronLeft, ChevronRight, Download, Loader2, ExternalLink, Table2, Settings2, Check, Crown, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown, FileSpreadsheet, Cloud, Rocket, Lock as LockIcon, Shield } from "lucide-react";
+import { Plus, Search, Calendar, AlertCircle, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, ChevronLeft, ChevronRight, Download, Loader2, ExternalLink, Table2, Settings2, Check, Crown, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown, FileSpreadsheet, Cloud, Rocket, Lock as LockIcon, Shield, Layers, FolderOpen } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -172,6 +172,18 @@ const HEALTH_CONFIG: Record<string, { dot: string; bg: string; label: string }> 
   Red: { dot: "bg-rose-500", bg: "bg-rose-500", label: "Off Track" },
 };
 
+type ListGroupByOption = "none" | "portfolio" | "status" | "priority" | "health" | "projectType" | "methodology" | `cf_${number}`;
+
+const LIST_GROUP_BY_STANDARD: { value: ListGroupByOption; label: string }[] = [
+  { value: "none", label: "None" },
+  { value: "portfolio", label: "Portfolio" },
+  { value: "status", label: "Status" },
+  { value: "priority", label: "Priority" },
+  { value: "health", label: "Health" },
+  { value: "projectType", label: "Project Type" },
+  { value: "methodology", label: "Methodology" },
+];
+
 interface ProjectsListViewProps {
   projects: Project[];
   filteredProjects: Project[];
@@ -189,6 +201,10 @@ interface ProjectsListViewProps {
   onPageSizeChange?: (size: number) => void;
   selectedPageSize?: number;
   isLoading?: boolean;
+  groupBy: ListGroupByOption;
+  onGroupByChange: (value: ListGroupByOption) => void;
+  customFieldDefs?: CustomFieldDefinition[];
+  customFieldValues?: ProjectCustomFieldValue[];
 }
 
 function ProjectsListView({
@@ -208,6 +224,10 @@ function ProjectsListView({
   onPageSizeChange,
   selectedPageSize,
   isLoading,
+  groupBy,
+  onGroupByChange,
+  customFieldDefs,
+  customFieldValues,
 }: ProjectsListViewProps) {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
@@ -215,38 +235,109 @@ function ProjectsListView({
     setCollapsedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
   }, []);
 
+  const cfValuesMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (customFieldValues || []).forEach(v => {
+      if (v.value != null) map.set(`${v.projectId}_${v.fieldDefinitionId}`, v.value);
+    });
+    return map;
+  }, [customFieldValues]);
+
+  const groupByOptions = useMemo(() => {
+    const options = [...LIST_GROUP_BY_STANDARD];
+    (customFieldDefs || []).forEach(def => {
+      if (def.entityType === "project" && def.isActive) {
+        options.push({ value: `cf_${def.id}` as ListGroupByOption, label: def.name });
+      }
+    });
+    return options;
+  }, [customFieldDefs]);
+
+  useEffect(() => {
+    if (groupBy !== "none" && !groupByOptions.some(o => o.value === groupBy)) {
+      onGroupByChange("none");
+    }
+  }, [groupBy, groupByOptions, onGroupByChange]);
+
   const groupedProjects = useMemo(() => {
-    const groups: { key: string; portfolio: Portfolio | null; projects: Project[] }[] = [];
+    if (groupBy === "none") {
+      return [{ key: "__all__", label: "", projects, meta: null as any }];
+    }
+
     const portfolioMap = new Map<number, Portfolio>();
     portfolios.forEach(p => portfolioMap.set(p.id, p));
 
-    const byPortfolio = new Map<number | null, Project[]>();
-    projects.forEach(project => {
-      const pid = project.portfolioId ?? null;
-      const resolvedPid = pid !== null && portfolioMap.has(pid) ? pid : null;
-      if (!byPortfolio.has(resolvedPid)) byPortfolio.set(resolvedPid, []);
-      byPortfolio.get(resolvedPid)!.push(project);
-    });
-
-    const sortedPortfolioIds = Array.from(byPortfolio.keys()).sort((a, b) => {
-      if (a === null) return 1;
-      if (b === null) return -1;
-      const nameA = portfolioMap.get(a)?.name || '';
-      const nameB = portfolioMap.get(b)?.name || '';
-      return nameA.localeCompare(nameB);
-    });
-
-    sortedPortfolioIds.forEach(pid => {
-      const portfolioProjects = byPortfolio.get(pid) || [];
-      if (pid === null) {
-        groups.push({ key: 'unassigned', portfolio: null, projects: portfolioProjects });
-      } else {
-        groups.push({ key: `portfolio-${pid}`, portfolio: portfolioMap.get(pid)!, projects: portfolioProjects });
+    const getGroupKeyAndLabel = (project: Project): { key: string; label: string; sortOrder: number } => {
+      switch (groupBy) {
+        case "portfolio": {
+          const pid = project.portfolioId ?? null;
+          const resolvedPid = pid !== null && portfolioMap.has(pid) ? pid : null;
+          if (resolvedPid === null) return { key: "unassigned", label: "Unassigned", sortOrder: 999 };
+          const p = portfolioMap.get(resolvedPid)!;
+          return { key: `portfolio-${resolvedPid}`, label: p.name, sortOrder: 0 };
+        }
+        case "status": {
+          const s = project.status || "Unknown";
+          const idx = PROJECT_STATUS_LIST.indexOf(s);
+          return { key: `status-${s}`, label: s, sortOrder: idx >= 0 ? idx : 999 };
+        }
+        case "priority": {
+          const p = project.priority || "Medium";
+          const order: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+          return { key: `priority-${p}`, label: p, sortOrder: order[p] ?? 4 };
+        }
+        case "health": {
+          const h = project.health || "Green";
+          const order: Record<string, number> = { Red: 0, Yellow: 1, Green: 2 };
+          const labels: Record<string, string> = { Green: "On Track", Yellow: "At Risk", Red: "Off Track" };
+          return { key: `health-${h}`, label: labels[h] || h, sortOrder: order[h] ?? 3 };
+        }
+        case "projectType": {
+          const t = (project as any).projectType || "";
+          if (!t) return { key: "type-unset", label: "No Type", sortOrder: 999 };
+          return { key: `type-${t}`, label: t, sortOrder: 0 };
+        }
+        case "methodology": {
+          const m = (project as any).methodology || "";
+          if (!m) return { key: "method-unset", label: "No Methodology", sortOrder: 999 };
+          return { key: `method-${m}`, label: m, sortOrder: 0 };
+        }
+        default: {
+          if (groupBy.startsWith("cf_")) {
+            const defId = parseInt(groupBy.slice(3));
+            const raw = cfValuesMap.get(`${project.id}_${defId}`) || "";
+            if (!raw) return { key: `cf-${defId}-unset`, label: "Not Set", sortOrder: 999 };
+            const cfDef = (customFieldDefs || []).find(d => d.id === defId);
+            let displayLabel = raw;
+            if (cfDef?.fieldType === "checkbox") {
+              displayLabel = raw === "true" ? "Yes" : "No";
+            } else if (cfDef?.fieldType === "multiselect") {
+              try { displayLabel = JSON.parse(raw).join(", "); } catch { /* use raw */ }
+            }
+            return { key: `cf-${defId}-${raw}`, label: displayLabel, sortOrder: 0 };
+          }
+          return { key: "__all__", label: "", sortOrder: 0 };
+        }
       }
+    };
+
+    const groupMap = new Map<string, { label: string; projects: Project[]; sortOrder: number; portfolio: Portfolio | null }>();
+    projects.forEach(project => {
+      const { key, label, sortOrder } = getGroupKeyAndLabel(project);
+      if (!groupMap.has(key)) {
+        const portfolio = groupBy === "portfolio" && project.portfolioId ? portfolioMap.get(project.portfolioId) || null : null;
+        groupMap.set(key, { label, projects: [], sortOrder, portfolio });
+      }
+      groupMap.get(key)!.projects.push(project);
     });
 
-    return groups;
-  }, [projects, portfolios]);
+    return Array.from(groupMap.entries())
+      .sort(([, a], [, b]) => {
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+        return a.label.localeCompare(b.label);
+      })
+      .map(([key, val]) => ({ key, label: val.label, projects: val.projects, meta: val.portfolio }));
+  }, [projects, portfolios, groupBy, cfValuesMap, customFieldDefs]);
 
   const allCollapsed = groupedProjects.length > 0 && groupedProjects.every(g => collapsedGroups[g.key] === true);
 
@@ -484,10 +575,28 @@ function ProjectsListView({
     );
   };
 
+  const currentGroupLabel = groupByOptions.find(o => o.value === groupBy)?.label || "None";
+
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      {groupedProjects.length > 1 && (
-        <div className="flex items-center justify-end gap-1 px-4 py-1.5 bg-muted/30 border-b border-border">
+      <div className="flex items-center justify-between gap-2 px-4 py-2 bg-muted/20 border-b border-border">
+        <div className="flex items-center gap-2">
+          <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-medium text-muted-foreground">Group by:</span>
+          <Select value={groupBy} onValueChange={(v) => onGroupByChange(v as ListGroupByOption)}>
+            <SelectTrigger className="h-7 w-auto min-w-[120px] text-xs border-border/60 bg-background shadow-none gap-1">
+              <SelectValue>{currentGroupLabel}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {groupByOptions.map(opt => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {groupBy !== "none" && groupedProjects.length > 1 && (
           <Button
             variant="ghost"
             size="sm"
@@ -506,8 +615,8 @@ function ProjectsListView({
               </>
             )}
           </Button>
-        </div>
-      )}
+        )}
+      </div>
       <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_110px_90px_80px_140px_100px_100px_40px] gap-0 px-4 py-2.5 bg-muted/50 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wider">
         <span className="pl-3">Project</span>
         <span>Status</span>
@@ -520,28 +629,44 @@ function ProjectsListView({
       </div>
 
       <div className="divide-y divide-border">
-        {groupedProjects.length === 1 && !groupedProjects[0].portfolio ? (
-          groupedProjects[0].projects.map((project, index) => renderProjectRow(project, index))
+        {groupBy === "none" ? (
+          projects.map((project, index) => renderProjectRow(project, index))
         ) : (
           groupedProjects.map((group) => {
             const isCollapsed = collapsedGroups[group.key] === true;
-            const portfolio = group.portfolio;
+            const portfolio = groupBy === "portfolio" ? group.meta as Portfolio | null : null;
             const portfolioHealth = portfolio ? (HEALTH_CONFIG[portfolio.healthScore || 'Green'] || HEALTH_CONFIG.Green) : null;
+
+            const statusColor = groupBy === "status" ? (STATUS_COLORS[group.label] || "") : "";
+            const priorityColor = groupBy === "priority" ? (PRIORITY_COLORS[group.label] || "") : "";
+            const healthConfig = groupBy === "health" ? (Object.values(HEALTH_CONFIG).find(h => h.label === group.label) || null) : null;
 
             return (
               <div key={group.key}>
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.key)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 bg-muted/30 hover:bg-muted/50 transition-colors duration-150 border-b border-border cursor-pointer"
+                  className="w-full flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-muted/60 to-muted/30 hover:from-muted/80 hover:to-muted/50 transition-all duration-150 border-b-2 border-border/60 cursor-pointer"
                 >
                   <ChevronRight className={cn("h-4 w-4 text-muted-foreground shrink-0 transition-transform duration-200", isCollapsed ? "" : "rotate-90")} />
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <span className="text-sm font-semibold text-foreground truncate">
-                      {portfolio ? portfolio.name : "Unassigned"}
+                    {groupBy === "portfolio" && (
+                      <FolderOpen className="h-4 w-4 text-primary/70 shrink-0" />
+                    )}
+                    {groupBy === "status" && statusColor && (
+                      <div className={cn("w-3 h-3 rounded-sm shrink-0", statusColor.split(" ")[0])} />
+                    )}
+                    {groupBy === "health" && healthConfig && (
+                      <div className={cn("w-3 h-3 rounded-full shrink-0", healthConfig.dot)} />
+                    )}
+                    {groupBy === "priority" && priorityColor && (
+                      <div className={cn("w-3 h-3 rounded-sm shrink-0", priorityColor.split(" ")[0])} />
+                    )}
+                    <span className="text-sm font-bold text-foreground truncate tracking-tight">
+                      {group.label}
                     </span>
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
-                      {group.projects.length} {group.projects.length === 1 ? 'project' : 'projects'}
+                    <Badge variant="secondary" className="text-[10px] px-2 py-0.5 shrink-0 font-semibold rounded-full bg-primary/10 text-primary border-0">
+                      {group.projects.length}
                     </Badge>
                     {portfolio && portfolioHealth && (
                       <>
@@ -618,6 +743,7 @@ export default function Projects() {
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [filterView, setFilterView] = useState<ProjectFilterView>("active");
   const [sortBy, setSortBy] = useState<"createdAt" | "startDate" | "updatedAt">("updatedAt");
+  const [listGroupBy, setListGroupBy] = useState<ListGroupByOption>("portfolio");
   const { data: projects, isLoading } = useProjects(currentOrganization?.id, selectedPortfolio !== "all" ? parseInt(selectedPortfolio) : undefined);
   const { data: externalProjects } = useExternalProjects();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
@@ -1402,6 +1528,10 @@ export default function Projects() {
                 onPageSizeChange={handleListPageSizeChange}
                 selectedPageSize={listPageSize}
                 isLoading={isLoading}
+                groupBy={listGroupBy}
+                onGroupByChange={setListGroupBy}
+                customFieldDefs={exportCustomFieldDefs}
+                customFieldValues={exportCfValues}
               />
             ) : view === "grid" ? (
               <ProjectsGridView 
@@ -1453,6 +1583,10 @@ export default function Projects() {
           onPageSizeChange={handleListPageSizeChange}
           selectedPageSize={listPageSize}
           isLoading={isLoading}
+          groupBy={listGroupBy}
+          onGroupByChange={setListGroupBy}
+          customFieldDefs={exportCustomFieldDefs}
+          customFieldValues={exportCfValues}
         />
       ) : !isFullscreen && view === "grid" ? (
         <ProjectsGridView 
