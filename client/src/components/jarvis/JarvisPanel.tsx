@@ -302,16 +302,11 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
     setInterimText("");
     if (!transcript.trim()) return;
 
-    if (mode === "voice") {
+    if (mode === "voice" || mode === "dictate") {
       stopSpeakingRef.current();
       window.speechSynthesis.cancel();
       if (isLoadingRef.current) stopGeneration();
       sendMessage(transcript.trim());
-    } else if (mode === "dictate") {
-      setInput(prev => {
-        const separator = prev.trim() ? " " : "";
-        return prev + separator + transcript.trim();
-      });
     }
   }, [mode, sendMessage, stopGeneration]);
 
