@@ -11,6 +11,7 @@ import {
   requireEmailVerified,
 } from "./helpers";
 import { createTaskAssignmentNotification, createTaskUnassignmentNotification, createRiskAssignmentNotification } from "../services/notificationEngine";
+import { sendTaskAssignmentNotificationEmail } from "../services/email";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
 
 export function registerResourceRoutes(app: Express) {
@@ -965,6 +966,91 @@ export function registerResourceRoutes(app: Express) {
     } catch (err) {
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? "Error updating task assignments" : classified.message });
+    }
+  });
+
+  // Send assignment notification emails to all resources assigned to a task
+  apiRoute(app, 'post', '/api/tasks/:taskId/notify-assignees', {
+    tag: 'Resources',
+    summary: 'Send assignment notification emails to all resources assigned to a task',
+    parameters: [pathId('taskId')],
+    responses: { ...r200('Notification result', { type: 'object' }), ...idRes, ...e400, ...e404 },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+      const taskId = Number(req.params.taskId);
+      if (!Number.isInteger(taskId) || taskId <= 0) {
+        return res.status(400).json({ message: 'Invalid task ID' });
+      }
+
+      const task = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+      if (!task[0]) return res.status(404).json({ message: 'Task not found' });
+
+      const project = await db.select().from(projects).where(eq(projects.id, task[0].projectId)).limit(1);
+      if (!project[0]) return res.status(404).json({ message: 'Project not found' });
+
+      if (!await userHasOrgAccess(userId, project[0].organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const userRole = await getUserOrgRole(userId, project[0].organizationId);
+      if (userRole === 'viewer') {
+        return res.status(403).json({ message: 'Viewers cannot send notifications' });
+      }
+
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error });
+      }
+
+      const assignments = await storage.getTaskResourceAssignments(taskId);
+      if (assignments.length === 0) {
+        return res.status(400).json({ message: 'No resources assigned to this task' });
+      }
+
+      const appUrl = process.env.REPLIT_DEV_DOMAIN
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : process.env.APP_URL || 'https://fridayreport.ai';
+      const projectUrl = `${appUrl}/projects/${project[0].id}`;
+
+      const formatDate = (d: Date | string | null) => {
+        if (!d) return null;
+        const date = typeof d === 'string' ? new Date(d) : d;
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      };
+
+      let sent = 0;
+      let skipped = 0;
+      for (const assignment of assignments) {
+        const resource = await db.select().from(resources).where(eq(resources.id, assignment.resourceId)).limit(1);
+        if (!resource[0] || !resource[0].email) {
+          skipped++;
+          continue;
+        }
+        try {
+          const success = await sendTaskAssignmentNotificationEmail(
+            resource[0].email,
+            resource[0].displayName,
+            task[0].name,
+            project[0].name,
+            formatDate(task[0].startDate),
+            formatDate(task[0].endDate),
+            projectUrl
+          );
+          if (success) sent++;
+          else skipped++;
+        } catch (emailErr) {
+          console.error('Error sending assignment notification email:', emailErr);
+          skipped++;
+        }
+      }
+
+      res.json({ sent, skipped, total: assignments.length });
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error sending assignment notifications" : classified.message });
     }
   });
 

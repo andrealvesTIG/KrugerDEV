@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { DndContext, DragEndEvent, closestCorners, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -37,7 +37,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
-import { Loader2, Plus, Trash2, Pencil, Check, X, GripVertical, Flag, Columns3, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, Search, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown, Undo2, Redo2, FolderKanban, RefreshCw, Focus, Link2, Link as LinkIcon, IndentIncrease, IndentDecrease, Type, Lock as LockIcon, Calendar as CalendarIcon, ClipboardPaste, History, RotateCcw, Filter, Users } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, Check, X, GripVertical, Flag, Columns3, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, Search, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown, Undo2, Redo2, FolderKanban, RefreshCw, Focus, Link2, Link as LinkIcon, IndentIncrease, IndentDecrease, Type, Lock as LockIcon, Calendar as CalendarIcon, ClipboardPaste, History, RotateCcw, Filter, Users, Bell } from "lucide-react";
 
 export { type ZoomLevel, type GanttColumn, type GanttColumnConfig, GANTT_COLUMNS, COLUMN_CATEGORIES, DEFAULT_GANTT_COLUMNS };
 
@@ -1245,6 +1245,26 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const updateTask = useUpdateTask();
   const { toast } = useToast();
+
+  const notifyAssigneesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/tasks/${task.id}/notify-assignees`);
+      return response.json();
+    },
+    onSuccess: (data: { sent: number; skipped: number }) => {
+      toast({
+        title: "Notifications sent",
+        description: `Assignment notifications sent to ${data.sent} team member${data.sent !== 1 ? 's' : ''}${data.skipped > 0 ? ` (${data.skipped} skipped - no email)` : ''}.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to send notifications",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    }
+  });
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [allocations, setAllocations] = useState<ResourceAllocation[]>([]);
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -1579,34 +1599,60 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                 {hasChildren ? (
                   <span className="text-muted-foreground/70 italic truncate w-full">Summary</span>
                 ) : taskAssignments && taskAssignments.length > 0 ? (
-                  <div className="flex items-center gap-1 truncate w-full">
-                    {taskAssignments.slice(0, 3).map((assignment, idx) => (
-                      <MicrosoftContactCard
-                        key={assignment.resourceId}
-                        displayName={assignment.resource.displayName}
-                        email={assignment.resource.email}
-                        title={assignment.resource.title}
-                        department={assignment.resource.department}
-                        phone={assignment.resource.phone}
-                        photoUrl={assignment.resource.photoUrl}
-                        side="top"
-                      >
-                        <span className="text-xs hover:text-primary hover:underline cursor-pointer">
-                          {assignment.resource.displayName}{idx < Math.min(taskAssignments.length, 3) - 1 ? ',' : ''}
-                        </span>
-                      </MicrosoftContactCard>
-                    ))}
-                    {taskAssignments.length > 3 && (
+                  <div className="flex items-center gap-1 truncate w-full group/res">
+                    <div className="flex items-center gap-1 truncate min-w-0">
+                      {taskAssignments.slice(0, 3).map((assignment, idx) => (
+                        <MicrosoftContactCard
+                          key={assignment.resourceId}
+                          displayName={assignment.resource.displayName}
+                          email={assignment.resource.email}
+                          title={assignment.resource.title}
+                          department={assignment.resource.department}
+                          phone={assignment.resource.phone}
+                          photoUrl={assignment.resource.photoUrl}
+                          side="top"
+                        >
+                          <span className="text-xs hover:text-primary hover:underline cursor-pointer">
+                            {assignment.resource.displayName}{idx < Math.min(taskAssignments.length, 3) - 1 ? ',' : ''}
+                          </span>
+                        </MicrosoftContactCard>
+                      ))}
+                      {taskAssignments.length > 3 && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-xs text-muted-foreground">+{taskAssignments.length - 3} more</span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <div className="space-y-1">
+                              {taskAssignments.slice(3).map(a => (
+                                <p key={a.resourceId} className="text-xs">{a.resource.displayName}</p>
+                              ))}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
+                    {!isReadOnly && (
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <span className="text-xs text-muted-foreground">+{taskAssignments.length - 3} more</span>
+                          <button
+                            type="button"
+                            className="opacity-0 group-hover/res:opacity-100 shrink-0 p-0.5 rounded hover:bg-primary/10 hover:text-primary transition-all ml-auto"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              notifyAssigneesMutation.mutate();
+                            }}
+                            disabled={notifyAssigneesMutation.isPending}
+                          >
+                            {notifyAssigneesMutation.isPending ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Bell className="h-3 w-3" />
+                            )}
+                          </button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <div className="space-y-1">
-                            {taskAssignments.slice(3).map(a => (
-                              <p key={a.resourceId} className="text-xs">{a.resource.displayName}</p>
-                            ))}
-                          </div>
+                          <p>Send assignment notification email</p>
                         </TooltipContent>
                       </Tooltip>
                     )}
