@@ -333,11 +333,10 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
   useEffect(() => { stopSpeakingRef.current = stopSpeaking; }, [stopSpeaking]);
 
   useEffect(() => {
-    if (isListening && (isSpeaking || window.speechSynthesis.speaking)) {
-      stopSpeaking();
-      window.speechSynthesis.cancel();
+    if (isSpeaking && isListening && mode === "voice") {
+      stopListening();
     }
-  }, [isListening, isSpeaking, stopSpeaking]);
+  }, [isSpeaking, isListening, stopListening, mode]);
 
   const voiceEnabled = mode === "voice";
 
