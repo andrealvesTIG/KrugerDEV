@@ -10,7 +10,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { OnboardingDialog } from "@/components/OnboardingDialog";
 import { TermsConsentModal } from "@/components/TermsConsentModal";
 import NotFound from "@/pages/not-found";
-import { ReactNode, useEffect, lazy, Suspense } from "react";
+import { ReactNode, useEffect, useMemo, lazy, Suspense } from "react";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
 import { Loader2 } from "lucide-react";
@@ -87,16 +87,26 @@ function PageLoader() {
   );
 }
 
+const TEAM_MEMBER_RESTRICTED_MODULES = new Set([
+  'resources', 'simulation', 'pmo-radar', 'invoices', 'intakes', 'templates'
+]);
+
 function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: string }) {
-  const { currentOrganization, isLoading } = useOrganization();
+  const { currentOrganization, memberships, isLoading } = useOrganization();
   const [, setLocation] = useLocation();
   
-  // Check sidebarStructure (new) first, fallback to hiddenModules (legacy)
+  const currentOrgRole = useMemo(() => {
+    if (!currentOrganization || !memberships.length) return null;
+    const membership = memberships.find(m => m.organizationId === currentOrganization.id);
+    return membership?.role || null;
+  }, [currentOrganization, memberships]);
+
+  const isTeamMemberRestricted = currentOrgRole === 'team_member' && TEAM_MEMBER_RESTRICTED_MODULES.has(moduleKey);
+
   const sidebarStructure = currentOrganization?.sidebarStructure as Array<{ items: Array<{ type: string; key?: string; hidden?: boolean }> }> | null;
   
   let isHidden = false;
   if (sidebarStructure && Array.isArray(sidebarStructure)) {
-    // Find the module in sidebarStructure and check its hidden status
     for (const group of sidebarStructure) {
       const item = group.items?.find(i => i.type === "module" && i.key === moduleKey);
       if (item) {
@@ -105,14 +115,15 @@ function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: 
       }
     }
   } else {
-    // Fallback to legacy hiddenModules array
     const hiddenModules = currentOrganization?.hiddenModules || [];
     isHidden = hiddenModules.includes(moduleKey);
   }
+
+  isHidden = isHidden || isTeamMemberRestricted;
   
   useEffect(() => {
     if (!isLoading && isHidden) {
-      setLocation("/org-settings");
+      setLocation("/");
     }
   }, [isLoading, isHidden, setLocation]);
   
@@ -128,6 +139,26 @@ function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: 
     return null;
   }
   
+  return <>{children}</>;
+}
+
+function TeamMemberGuard({ children }: { children: ReactNode }) {
+  const { currentOrganization, memberships, isLoading } = useOrganization();
+  const [, setLocation] = useLocation();
+
+  const isTeamMember = useMemo(() => {
+    if (!currentOrganization || !memberships.length) return false;
+    const membership = memberships.find(m => m.organizationId === currentOrganization.id);
+    return membership?.role === 'team_member';
+  }, [currentOrganization, memberships]);
+
+  useEffect(() => {
+    if (!isLoading && isTeamMember) {
+      setLocation("/");
+    }
+  }, [isLoading, isTeamMember, setLocation]);
+
+  if (isLoading || isTeamMember) return null;
   return <>{children}</>;
 }
 
@@ -219,16 +250,24 @@ function Router() {
           <GuardedRoute path="/resources" component={Resources} moduleKey="resources" />
           <GuardedRoute path="/calendar" component={Calendar} moduleKey="calendar" />
           <GuardedRoute path="/integrations" component={Integrations} moduleKey="integrations" />
-          <Route path="/billing" component={Billing} />
-          <Route path="/admin" component={Admin} />
+          <Route path="/billing">
+            <TeamMemberGuard><Billing /></TeamMemberGuard>
+          </Route>
+          <Route path="/admin">
+            <TeamMemberGuard><Admin /></TeamMemberGuard>
+          </Route>
           <Route path="/super-admin" component={SuperAdmin} />
-          <Route path="/org-settings" component={OrgSettings} />
+          <Route path="/org-settings">
+            <TeamMemberGuard><OrgSettings /></TeamMemberGuard>
+          </Route>
           <Route path="/profile" component={Profile} />
           <Route path="/user-guide" component={UserGuide} />
           <GuardedRoute path="/training/schedule-management" component={TrainingModule} moduleKey="training" />
           <GuardedRoute path="/training/:moduleId" component={TrainingModule} moduleKey="training" />
           <GuardedRoute path="/training" component={Training} moduleKey="training" />
-          <Route path="/scheduled-reports" component={ReportSubscriptions} />
+          <Route path="/scheduled-reports">
+            <TeamMemberGuard><ReportSubscriptions /></TeamMemberGuard>
+          </Route>
           <Route path="/risk-assessment/share/:token" component={SharedRiskAssessment} />
           <Route path="/project-risk-assessment/share/:token" component={SharedProjectRiskAssessment} />
           <Route path="/embed" component={Embed} />

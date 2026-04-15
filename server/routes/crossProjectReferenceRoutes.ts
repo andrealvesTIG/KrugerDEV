@@ -14,6 +14,8 @@ import {
   userHasOrgAccess,
   classifyError,
   formatZodErrors,
+  isTeamMemberInOrg,
+  getTeamMemberProjectIds,
 } from "./helpers";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, inputRes, authRes, fullRes, createRes } from "../route-registry";
 
@@ -76,7 +78,14 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
       const orgChecked = await Promise.all(
         refs.map(async (ref) => {
           const hasAccess = await userHasOrgAccess(userId, ref.organizationId);
-          return hasAccess ? ref : null;
+          if (!hasAccess) return null;
+          if (await isTeamMemberInOrg(userId, ref.organizationId)) {
+            const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, ref.organizationId));
+            if (!allowedProjectIds.has(ref.sourceProjectId) || !allowedProjectIds.has(ref.targetProjectId)) {
+              return null;
+            }
+          }
+          return ref;
         })
       );
 
@@ -105,7 +114,18 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
         return res.status(403).json({ message: "Access denied" });
       }
 
-      const refs = await getCrossProjectReferencesByProject(projectId);
+      if (await isTeamMemberInOrg(userId, project.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, project.organizationId));
+        if (!allowedProjectIds.has(projectId)) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      let refs = await getCrossProjectReferencesByProject(projectId);
+      if (await isTeamMemberInOrg(userId, project.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, project.organizationId));
+        refs = refs.filter(ref => allowedProjectIds.has(ref.sourceProjectId) && allowedProjectIds.has(ref.targetProjectId));
+      }
       res.json(refs);
     } catch (err) {
       const classified = classifyError(err);
@@ -142,6 +162,13 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
 
       if (!await userHasOrgAccess(userId, input.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
+      }
+
+      if (await isTeamMemberInOrg(userId, input.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, input.organizationId));
+        if (!allowedProjectIds.has(input.sourceProjectId) || !allowedProjectIds.has(input.targetProjectId)) {
+          return res.status(403).json({ message: "Access denied" });
+        }
       }
 
       const sourceProject = await storage.getProject(input.sourceProjectId);
@@ -222,6 +249,13 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
         return res.status(403).json({ message: "Access denied" });
       }
 
+      if (await isTeamMemberInOrg(userId, ref.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, ref.organizationId));
+        if (!allowedProjectIds.has(ref.sourceProjectId) || !allowedProjectIds.has(ref.targetProjectId)) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
       if (ref.createdBy && ref.createdBy !== userId) {
         const members = await storage.getOrganizationMembers(ref.organizationId);
         const member = members.find(m => m.userId === userId);
@@ -254,6 +288,13 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
 
       if (!await userHasOrgAccess(userId, project.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
+      }
+
+      if (await isTeamMemberInOrg(userId, project.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, project.organizationId));
+        if (!allowedProjectIds.has(projectId)) {
+          return res.status(403).json({ message: "Access denied" });
+        }
       }
 
       const projectTasks = await storage.getTasks(projectId);

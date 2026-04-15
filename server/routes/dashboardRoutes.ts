@@ -10,6 +10,11 @@ import {
   hasAdminAccess,
   userHasOrgAccess,
   openai,
+  isTeamMemberInOrg,
+  getTeamMemberProjectIds,
+  getTeamMemberRiskIds,
+  getTeamMemberIssueIds,
+  getTeamMemberTaskIds,
 } from "./helpers";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
 
@@ -32,7 +37,7 @@ export function registerDashboardRoutes(app: Express) {
         return res.status(403).json({ message: "Access denied" });
       }
 
-      const orgProjects = await db.select({
+      let orgProjects = await db.select({
         id: projects.id,
         status: projects.status,
         health: projects.health,
@@ -43,6 +48,19 @@ export function registerDashboardRoutes(app: Express) {
       }).from(projects).where(
         and(eq(projects.organizationId, organizationId), sql`${projects.deletedAt} IS NULL`)
       );
+
+      const isTeamMember = userId ? await isTeamMemberInOrg(userId, organizationId) : false;
+      let allowedTaskIdsList: number[] | null = null;
+      let allowedRiskIdsList: number[] | null = null;
+      let allowedIssueIdsList: number[] | null = null;
+
+      if (isTeamMember) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId!, organizationId));
+        orgProjects = orgProjects.filter(p => allowedProjectIds.has(p.id));
+        allowedTaskIdsList = await getTeamMemberTaskIds(userId!, organizationId);
+        allowedRiskIdsList = await getTeamMemberRiskIds(userId!, organizationId);
+        allowedIssueIdsList = await getTeamMemberIssueIds(userId!, organizationId);
+      }
 
       const projectIds = orgProjects.map(p => p.id);
 
@@ -56,11 +74,21 @@ export function registerDashboardRoutes(app: Express) {
       if (projectIds.length > 0) {
         const today = new Date().toISOString().split('T')[0];
 
+        const taskWhereConditions = [
+          inArray(tasks.projectId, projectIds),
+          sql`${tasks.deletedAt} IS NULL`,
+        ];
+        if (allowedTaskIdsList !== null && allowedTaskIdsList.length > 0) {
+          taskWhereConditions.push(inArray(tasks.id, allowedTaskIdsList));
+        } else if (allowedTaskIdsList !== null) {
+          taskWhereConditions.push(sql`false`);
+        }
+
         const taskCountRows = await db.select({
           status: tasks.status,
           cnt: sql<number>`count(*)::int`,
         }).from(tasks).where(
-          and(inArray(tasks.projectId, projectIds), sql`${tasks.deletedAt} IS NULL`)
+          and(...taskWhereConditions)
         ).groupBy(tasks.status);
 
         for (const row of taskCountRows) {
@@ -70,31 +98,56 @@ export function registerDashboardRoutes(app: Express) {
           else if (row.status === 'Not Started') taskStats.notStarted += row.cnt;
         }
 
+        const overdueConditions = [
+          inArray(tasks.projectId, projectIds),
+          sql`${tasks.deletedAt} IS NULL`,
+          sql`${tasks.status} != 'Completed'`,
+          sql`${tasks.endDate} IS NOT NULL`,
+          sql`${tasks.endDate}::date < ${today}::date`,
+        ];
+        if (allowedTaskIdsList !== null && allowedTaskIdsList.length > 0) {
+          overdueConditions.push(inArray(tasks.id, allowedTaskIdsList));
+        } else if (allowedTaskIdsList !== null) {
+          overdueConditions.push(sql`false`);
+        }
+
         const [overdueRow] = await db.select({
           cnt: sql<number>`count(*)::int`,
         }).from(tasks).where(
-          and(
-            inArray(tasks.projectId, projectIds),
-            sql`${tasks.deletedAt} IS NULL`,
-            sql`${tasks.status} != 'Completed'`,
-            sql`${tasks.endDate} IS NOT NULL`,
-            sql`${tasks.endDate}::date < ${today}::date`
-          )
+          and(...overdueConditions)
         );
         taskStats.overdue = overdueRow?.cnt || 0;
+
+        const assigneeConditions = [
+          inArray(tasks.projectId, projectIds),
+          sql`${tasks.deletedAt} IS NULL`,
+          sql`${tasks.assignee} IS NOT NULL`,
+          sql`${tasks.assignee} != ''`,
+        ];
+        if (allowedTaskIdsList !== null && allowedTaskIdsList.length > 0) {
+          assigneeConditions.push(inArray(tasks.id, allowedTaskIdsList));
+        } else if (allowedTaskIdsList !== null) {
+          assigneeConditions.push(sql`false`);
+        }
 
         tasksByAssignee = await db.select({
           assignee: tasks.assignee,
           status: tasks.status,
           count: sql<number>`count(*)::int`,
         }).from(tasks).where(
-          and(
-            inArray(tasks.projectId, projectIds),
-            sql`${tasks.deletedAt} IS NULL`,
-            sql`${tasks.assignee} IS NOT NULL`,
-            sql`${tasks.assignee} != ''`
-          )
+          and(...assigneeConditions)
         ).groupBy(tasks.assignee, tasks.status);
+
+        const riskWhereConditions = [
+          inArray(issues.projectId, projectIds),
+          eq(issues.itemType, 'risk'),
+          sql`${issues.deletedAt} IS NULL`,
+        ];
+        if (allowedRiskIdsList !== null && allowedRiskIdsList.length > 0) {
+          riskWhereConditions.push(inArray(issues.id, allowedRiskIdsList));
+        } else if (allowedRiskIdsList !== null) {
+          riskWhereConditions.push(sql`false`);
+        }
 
         const riskRows = await db.select({
           status: issues.status,
@@ -102,11 +155,7 @@ export function registerDashboardRoutes(app: Express) {
           impact: issues.impact,
           cnt: sql<number>`count(*)::int`,
         }).from(issues).where(
-          and(
-            inArray(issues.projectId, projectIds),
-            eq(issues.itemType, 'risk'),
-            sql`${issues.deletedAt} IS NULL`
-          )
+          and(...riskWhereConditions)
         ).groupBy(issues.status, issues.priority, issues.impact);
 
         for (const row of riskRows) {
@@ -122,23 +171,26 @@ export function registerDashboardRoutes(app: Express) {
           priority: issues.priority,
           count: sql<number>`count(*)::int`,
         }).from(issues).where(
-          and(
-            inArray(issues.projectId, projectIds),
-            eq(issues.itemType, 'risk'),
-            sql`${issues.deletedAt} IS NULL`
-          )
+          and(...riskWhereConditions)
         ).groupBy(issues.priority);
+
+        const issueWhereConditions = [
+          inArray(issues.projectId, projectIds),
+          eq(issues.itemType, 'issue'),
+          sql`${issues.deletedAt} IS NULL`,
+        ];
+        if (allowedIssueIdsList !== null && allowedIssueIdsList.length > 0) {
+          issueWhereConditions.push(inArray(issues.id, allowedIssueIdsList));
+        } else if (allowedIssueIdsList !== null) {
+          issueWhereConditions.push(sql`false`);
+        }
 
         const issueRows = await db.select({
           status: issues.status,
           priority: issues.priority,
           cnt: sql<number>`count(*)::int`,
         }).from(issues).where(
-          and(
-            inArray(issues.projectId, projectIds),
-            eq(issues.itemType, 'issue'),
-            sql`${issues.deletedAt} IS NULL`
-          )
+          and(...issueWhereConditions)
         ).groupBy(issues.status, issues.priority);
 
         for (const row of issueRows) {
@@ -153,11 +205,7 @@ export function registerDashboardRoutes(app: Express) {
           priority: issues.priority,
           count: sql<number>`count(*)::int`,
         }).from(issues).where(
-          and(
-            inArray(issues.projectId, projectIds),
-            eq(issues.itemType, 'issue'),
-            sql`${issues.deletedAt} IS NULL`
-          )
+          and(...issueWhereConditions)
         ).groupBy(issues.priority);
       }
 
@@ -213,7 +261,23 @@ export function registerDashboardRoutes(app: Express) {
         return res.status(403).json({ message: "Access denied" });
       }
       const orgProjects = await storage.getProjects(organizationId);
-      const projectIds = orgProjects.map(p => p.id);
+      let projectIds = orgProjects.map(p => p.id);
+
+      if (userId && await isTeamMemberInOrg(userId, organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, organizationId));
+        projectIds = projectIds.filter(id => allowedProjectIds.has(id));
+        if (projectIds.length === 0) return res.json([]);
+        const allowedRiskIds = new Set(await getTeamMemberRiskIds(userId, organizationId));
+        const allRisks = await db.select().from(issues).where(
+          and(
+            inArray(issues.projectId, projectIds),
+            eq(issues.itemType, 'risk'),
+            sql`${issues.deletedAt} IS NULL`
+          )
+        );
+        return res.json(allRisks.filter(r => allowedRiskIds.has(r.id)));
+      }
+
       if (projectIds.length === 0) return res.json([]);
       const allRisks = await db.select().from(issues).where(
         and(
@@ -247,7 +311,13 @@ export function registerDashboardRoutes(app: Express) {
       if (!await userHasOrgAccess(userId, organizationId)) {
         return res.status(403).json({ message: "Access denied" });
       }
-      const allAssignments = await storage.getAllTaskResourceAssignments(organizationId);
+      let allAssignments = await storage.getAllTaskResourceAssignments(organizationId);
+
+      if (userId && await isTeamMemberInOrg(userId, organizationId)) {
+        const allowedTaskIds = new Set(await getTeamMemberTaskIds(userId, organizationId));
+        allAssignments = allAssignments.filter(a => allowedTaskIds.has(a.taskId));
+      }
+
       res.json(allAssignments);
     } catch (err) {
       console.error("Error fetching resource assignments:", err);
@@ -1049,15 +1119,47 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         { label: "Month 4+", daysAgo: 9999 },
       ];
 
-      const orgProjectIds = await db.select({ id: projects.id })
+      let orgProjectIds = await db.select({ id: projects.id })
         .from(projects)
         .where(and(eq(projects.organizationId, organizationId), sql`${projects.deletedAt} IS NULL`));
+      
+      const isTeamMember = await isTeamMemberInOrg(userId, organizationId);
+      if (isTeamMember) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, organizationId));
+        orgProjectIds = orgProjectIds.filter(p => allowedProjectIds.has(p.id));
+      }
+      
       const projectIds = orgProjectIds.map(p => p.id);
+
+      let allowedTaskIdSet: Set<number> | null = null;
+      let allowedIssueIdSet: Set<number> | null = null;
+      if (isTeamMember) {
+        const [taskIds, issueIds] = await Promise.all([
+          getTeamMemberTaskIds(userId, organizationId),
+          getTeamMemberIssueIds(userId, organizationId),
+        ]);
+        allowedTaskIdSet = new Set(taskIds);
+        allowedIssueIdSet = new Set(issueIds);
+      }
 
       const orgMemberIds = await db.select({ userId: organizationMembers.userId })
         .from(organizationMembers)
         .where(eq(organizationMembers.organizationId, organizationId));
       const memberUserIds = orgMemberIds.map(m => m.userId);
+
+      const taskConditions = [inArray(tasks.projectId, projectIds), sql`${tasks.deletedAt} IS NULL`];
+      if (allowedTaskIdSet && allowedTaskIdSet.size > 0) {
+        taskConditions.push(inArray(tasks.id, Array.from(allowedTaskIdSet)));
+      } else if (allowedTaskIdSet) {
+        taskConditions.push(sql`1=0`);
+      }
+
+      const issueConditions = [inArray(issues.projectId, projectIds), eq(issues.itemType, 'issue'), sql`${issues.deletedAt} IS NULL`];
+      if (allowedIssueIdSet && allowedIssueIdSet.size > 0) {
+        issueConditions.push(inArray(issues.id, Array.from(allowedIssueIdSet)));
+      } else if (allowedIssueIdSet) {
+        issueConditions.push(sql`1=0`);
+      }
 
       const [
         tasksCreatedRaw,
@@ -1074,64 +1176,72 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         projectIds.length > 0
           ? db.select({
               createdAt: tasks.createdAt,
-            }).from(tasks).where(and(inArray(tasks.projectId, projectIds), sql`${tasks.deletedAt} IS NULL`))
+            }).from(tasks).where(and(...taskConditions))
           : Promise.resolve([]),
 
         projectIds.length > 0
           ? db.select({
               createdAt: tasks.updatedAt,
             }).from(tasks).where(and(
-              inArray(tasks.projectId, projectIds),
-              sql`${tasks.deletedAt} IS NULL`,
+              ...taskConditions,
               eq(tasks.status, 'Completed')
             ))
           : Promise.resolve([]),
 
-        db.select({
-          createdAt: projects.createdAt,
-        }).from(projects).where(and(eq(projects.organizationId, organizationId), sql`${projects.deletedAt} IS NULL`)),
+        projectIds.length > 0
+          ? db.select({
+              createdAt: projects.createdAt,
+            }).from(projects).where(and(inArray(projects.id, projectIds), sql`${projects.deletedAt} IS NULL`))
+          : Promise.resolve([]),
 
         projectIds.length > 0
           ? db.select({
               createdAt: issues.createdAt,
-            }).from(issues).where(and(
-              inArray(issues.projectId, projectIds),
-              eq(issues.itemType, 'issue'),
-              sql`${issues.deletedAt} IS NULL`
-            ))
+            }).from(issues).where(and(...issueConditions))
           : Promise.resolve([]),
 
         projectIds.length > 0
           ? db.select({
               resolvedDate: issues.actualResolutionDate,
             }).from(issues).where(and(
-              inArray(issues.projectId, projectIds),
-              eq(issues.itemType, 'issue'),
-              sql`${issues.deletedAt} IS NULL`,
+              ...issueConditions,
               sql`${issues.actualResolutionDate} IS NOT NULL`
             ))
           : Promise.resolve([]),
 
-        db.select({
-          hours: timesheetEntries.hours,
-          entryDate: timesheetEntries.entryDate,
-        }).from(timesheetEntries).where(eq(timesheetEntries.organizationId, organizationId)),
-
-        db.select({
-          createdAt: featureUsageLogs.createdAt,
-          count: featureUsageLogs.usageCount,
-        }).from(featureUsageLogs).where(eq(featureUsageLogs.organizationId, organizationId)),
-
         projectIds.length > 0
           ? db.select({
-              changedBy: taskChangeLogs.changedBy,
-              changedAt: taskChangeLogs.changedAt,
-            }).from(taskChangeLogs)
-              .innerJoin(tasks, eq(taskChangeLogs.taskId, tasks.id))
-              .where(and(
-                sql`${taskChangeLogs.changedBy} IS NOT NULL`,
-                inArray(tasks.projectId, projectIds)
-              ))
+              hours: timesheetEntries.hours,
+              entryDate: timesheetEntries.entryDate,
+            }).from(timesheetEntries).where(
+              isTeamMember
+                ? and(eq(timesheetEntries.organizationId, organizationId), inArray(timesheetEntries.projectId, projectIds), eq(timesheetEntries.userId, userId))
+                : and(eq(timesheetEntries.organizationId, organizationId), inArray(timesheetEntries.projectId, projectIds))
+            )
+          : Promise.resolve([]),
+
+        !isTeamMember
+          ? db.select({
+              createdAt: featureUsageLogs.createdAt,
+              count: featureUsageLogs.usageCount,
+            }).from(featureUsageLogs).where(eq(featureUsageLogs.organizationId, organizationId))
+          : Promise.resolve([]),
+
+        projectIds.length > 0
+          ? (() => {
+              const changeConditions = [sql`${taskChangeLogs.changedBy} IS NOT NULL`, inArray(tasks.projectId, projectIds)];
+              if (allowedTaskIdSet && allowedTaskIdSet.size > 0) {
+                changeConditions.push(inArray(tasks.id, Array.from(allowedTaskIdSet)));
+              } else if (allowedTaskIdSet) {
+                changeConditions.push(sql`1=0`);
+              }
+              return db.select({
+                changedBy: taskChangeLogs.changedBy,
+                changedAt: taskChangeLogs.changedAt,
+              }).from(taskChangeLogs)
+                .innerJoin(tasks, eq(taskChangeLogs.taskId, tasks.id))
+                .where(and(...changeConditions));
+            })()
           : Promise.resolve([]),
 
         projectIds.length > 0
@@ -1141,11 +1251,19 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
           : Promise.resolve([]),
 
         projectIds.length > 0
-          ? db.select({
-              changedAt: taskChangeLogs.changedAt,
-            }).from(taskChangeLogs)
-              .innerJoin(tasks, eq(taskChangeLogs.taskId, tasks.id))
-              .where(inArray(tasks.projectId, projectIds))
+          ? (() => {
+              const taskChangeConditions = [inArray(tasks.projectId, projectIds)];
+              if (allowedTaskIdSet && allowedTaskIdSet.size > 0) {
+                taskChangeConditions.push(inArray(tasks.id, Array.from(allowedTaskIdSet)));
+              } else if (allowedTaskIdSet) {
+                taskChangeConditions.push(sql`1=0`);
+              }
+              return db.select({
+                changedAt: taskChangeLogs.changedAt,
+              }).from(taskChangeLogs)
+                .innerJoin(tasks, eq(taskChangeLogs.taskId, tasks.id))
+                .where(and(...taskChangeConditions));
+            })()
           : Promise.resolve([]),
       ]);
 
@@ -1220,7 +1338,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         issuesResolved: issuesResolvedRaw.length,
         hoursLogged: Math.round(hoursLoggedRaw.reduce((s, h) => s + Number(h.hours || 0), 0) * 10) / 10,
         featureUsage: featureUsageRaw.reduce((s, f) => s + (f.count || 1), 0),
-        totalMembers: memberUserIds.length,
+        totalMembers: isTeamMember ? 0 : memberUserIds.length,
         totalActivities: (projectChangesRaw as any[]).length + (taskChangesRaw as any[]).length,
       };
 

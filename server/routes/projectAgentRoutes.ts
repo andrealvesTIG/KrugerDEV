@@ -10,6 +10,7 @@ import {
   calculateNextWeeklyRun,
 } from "../services/projectAgentService";
 import { apiRoute, pathId, ref, arrOf, r200, r201, body, authRes, fullRes, inputRes } from "../route-registry";
+import { isTeamMemberInOrg, getTeamMemberProjectIds, userHasOrgAccess } from "./helpers";
 
 function getUserIdFromRequest(req: Request): string | null {
   const user = req.user as any;
@@ -27,6 +28,20 @@ export function registerProjectAgentRoutes(app: Express) {
     if (!userId) return res.status(401).json({ message: "Authentication required" });
 
     const projectId = Number(req.params.projectId);
+
+    const [project] = await db.select({ id: projects.id, organizationId: projects.organizationId })
+      .from(projects).where(eq(projects.id, projectId));
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (project.organizationId && !await userHasOrgAccess(userId, project.organizationId)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    if (project.organizationId && await isTeamMemberInOrg(userId, project.organizationId)) {
+      const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, project.organizationId));
+      if (!allowedProjectIds.has(projectId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+    }
+
     const [agent] = await db.select().from(projectAgents).where(eq(projectAgents.projectId, projectId));
     res.json(agent || null);
   });
@@ -41,6 +56,20 @@ export function registerProjectAgentRoutes(app: Express) {
     if (!userId) return res.status(401).json({ message: "Authentication required" });
 
     const projectId = Number(req.params.projectId);
+
+    const [project] = await db.select({ id: projects.id, organizationId: projects.organizationId })
+      .from(projects).where(eq(projects.id, projectId));
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (project.organizationId && !await userHasOrgAccess(userId, project.organizationId)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    if (project.organizationId && await isTeamMemberInOrg(userId, project.organizationId)) {
+      const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, project.organizationId));
+      if (!allowedProjectIds.has(projectId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+    }
+
     const stakeholders = await getProjectStakeholders(projectId);
     res.json(stakeholders);
   });
@@ -75,6 +104,12 @@ export function registerProjectAgentRoutes(app: Express) {
     const [project] = await db.select({ id: projects.id, organizationId: projects.organizationId })
       .from(projects).where(eq(projects.id, projectId));
     if (!project) return res.status(404).json({ message: "Project not found" });
+    if (project.organizationId && !await userHasOrgAccess(userId, project.organizationId)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    if (project.organizationId && await isTeamMemberInOrg(userId, project.organizationId)) {
+      return res.status(403).json({ message: "Team members cannot modify agent configurations" });
+    }
 
     const {
       enabled, agendaEnabled, agendaDay, agendaTime,
@@ -152,6 +187,20 @@ export function registerProjectAgentRoutes(app: Express) {
     if (!userId) return res.status(401).json({ message: "Authentication required" });
 
     const projectId = Number(req.params.projectId);
+
+    const [project] = await db.select({ id: projects.id, organizationId: projects.organizationId })
+      .from(projects).where(eq(projects.id, projectId));
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (project.organizationId && !await userHasOrgAccess(userId, project.organizationId)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    if (project.organizationId && await isTeamMemberInOrg(userId, project.organizationId)) {
+      const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, project.organizationId));
+      if (!allowedProjectIds.has(projectId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+    }
+
     const [agent] = await db.select({ id: projectAgents.id })
       .from(projectAgents).where(eq(projectAgents.projectId, projectId));
 
@@ -176,6 +225,16 @@ export function registerProjectAgentRoutes(app: Express) {
 
     const projectId = Number(req.params.projectId);
     const action = req.params.action;
+
+    const [projectForTrigger] = await db.select({ id: projects.id, organizationId: projects.organizationId })
+      .from(projects).where(eq(projects.id, projectId));
+    if (!projectForTrigger) return res.status(404).json({ message: "Project not found" });
+    if (projectForTrigger.organizationId && !await userHasOrgAccess(userId, projectForTrigger.organizationId)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    if (projectForTrigger.organizationId && await isTeamMemberInOrg(userId, projectForTrigger.organizationId)) {
+      return res.status(403).json({ message: "Team members cannot trigger agent actions" });
+    }
 
     const [agent] = await db.select().from(projectAgents)
       .where(eq(projectAgents.projectId, projectId));

@@ -16,8 +16,16 @@ import {
   parseMppFile,
   parseXmlMspdi,
   parseCsv,
+  isTeamMemberInOrg,
+  getTeamMemberProjectIds,
 } from "./helpers";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
+
+async function teamMemberCanAccessProject(userId: string, projectId: number, organizationId: number): Promise<boolean> {
+  if (!await isTeamMemberInOrg(userId, organizationId)) return true;
+  const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, organizationId));
+  return allowedProjectIds.has(projectId);
+}
 
 export function registerProjectFeatureRoutes(app: Express) {
   // =========== CHANGE REQUESTS ===========
@@ -36,6 +44,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await userHasOrgAccess(userId, project.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
       const changeRequests = await storage.getChangeRequests(projectId);
       res.json(changeRequests);
@@ -61,6 +72,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await userHasOrgAccess(userId, project.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
       
       // Require email verification before creating
@@ -121,6 +135,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (crProject && !await userHasOrgAccess(userId, crProject.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
+      if (crProject && !await teamMemberCanAccessProject(userId, existingCR.projectId, crProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       const updates = { ...req.body };
       
       // Track who reviewed/approved if status is changing to those states
@@ -157,6 +174,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (crProject && !await userHasOrgAccess(userId, crProject.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
+      if (crProject && !await teamMemberCanAccessProject(userId, existingCR.projectId, crProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       await storage.deleteChangeRequest(id);
       res.json({ success: true });
     } catch (err) {
@@ -183,6 +203,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (!await userHasOrgAccess(userId, project.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       const documents = await storage.getProjectDocuments(projectId);
       res.json(documents);
     } catch (err) {
@@ -207,6 +230,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await userHasOrgAccess(userId, project.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
       
       // Require email verification before creating
@@ -268,6 +294,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (docProject && !await userHasOrgAccess(userId, docProject.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
+      if (docProject && !await teamMemberCanAccessProject(userId, existingDoc.projectId, docProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       const { name, description, fileUrl, fileType, fileSize, category, version, status, tags } = req.body;
       const safeUpdate: Record<string, any> = {};
       if (name !== undefined) safeUpdate.name = name;
@@ -304,6 +333,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (docProject && !await userHasOrgAccess(userId, docProject.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
+      if (docProject && !await teamMemberCanAccessProject(userId, existingDoc.projectId, docProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       await storage.deleteProjectDocument(id);
       res.json({ success: true });
     } catch (err) {
@@ -336,6 +368,9 @@ export function registerProjectFeatureRoutes(app: Express) {
         const accessibleOrgIds = await getUserOrgIds(userId);
         if (!accessibleOrgIds.includes(project.organizationId)) {
           return res.status(404).json({ message: "Project not found" });
+        }
+        if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+          return res.status(403).json({ message: 'Access denied' });
         }
       }
       
@@ -375,6 +410,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(project.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
+      }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
       
       // Validate content
@@ -487,6 +525,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (!accessibleOrgIds.includes(project.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
       }
+      if (!await teamMemberCanAccessProject(userId, comment.projectId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
       
       await storage.deleteProjectComment(id);
       res.json({ success: true });
@@ -519,6 +560,9 @@ export function registerProjectFeatureRoutes(app: Express) {
         const accessibleOrgIds = await getUserOrgIds(userId);
         if (!accessibleOrgIds.includes(project.organizationId)) {
           return res.status(404).json({ message: "Project not found" });
+        }
+        if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+          return res.status(403).json({ message: 'Access denied' });
         }
       }
       
@@ -554,6 +598,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(project.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
+      }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
       
       const content = req.body.content?.trim();
@@ -608,6 +655,9 @@ export function registerProjectFeatureRoutes(app: Express) {
         const accessibleOrgIds = await getUserOrgIds(userId);
         if (!accessibleOrgIds.includes(project.organizationId)) {
           return res.status(404).json({ message: "Project not found" });
+        }
+        if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+          return res.status(403).json({ message: 'Access denied' });
         }
       }
       
@@ -669,6 +719,9 @@ export function registerProjectFeatureRoutes(app: Express) {
         if (!accessibleOrgIds.includes(project.organizationId)) {
           return res.status(404).json({ message: "Project not found" });
         }
+        if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
       }
       
       const invoices = await storage.getProjectInvoices(projectId);
@@ -703,6 +756,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(project.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
+      }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
       
       const user = await storage.getUser(userId);
@@ -766,6 +822,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (!accessibleOrgIds.includes(project.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
       }
+      if (!await teamMemberCanAccessProject(userId, invoice.projectId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
       
       const { invoiceNumber, description, amount, currency, status, invoiceDate, dueDate, paidDate, notes, lineItems } = req.body;
       const safeUpdate: Record<string, any> = {};
@@ -816,6 +875,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (!accessibleOrgIds.includes(project.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
       }
+      if (!await teamMemberCanAccessProject(userId, invoice.projectId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
       
       await storage.deleteProjectInvoice(invoiceId);
       res.status(204).send();
@@ -852,6 +914,9 @@ export function registerProjectFeatureRoutes(app: Express) {
         const accessibleOrgIds = await getUserOrgIds(userId);
         if (!accessibleOrgIds.includes(project.organizationId)) {
           return res.status(404).json({ message: "Invoice not found" });
+        }
+        if (!await teamMemberCanAccessProject(userId, invoice.projectId, project.organizationId)) {
+          return res.status(403).json({ message: "Access denied" });
         }
       }
       
@@ -891,6 +956,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      if (!await teamMemberCanAccessProject(userId, invoice.projectId, project.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -1394,6 +1462,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       const fiscalYear = req.query.fiscalYear ? Number(req.query.fiscalYear) : undefined;
       const project = await storage.getProject(projectId);
       if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       const items = await storage.getCostItems(projectId, fiscalYear);
       res.json(items);
     } catch (err) {
@@ -1412,6 +1483,15 @@ export function registerProjectFeatureRoutes(app: Express) {
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const item = await storage.getCostItem(Number(req.params.id));
     if (!item) return res.status(404).json({ message: "Cost item not found" });
+    const costProject = await storage.getProject(item.projectId);
+    if (costProject) {
+      if (!await userHasOrgAccess(userId, costProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      if (!await teamMemberCanAccessProject(userId, item.projectId, costProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+    }
     res.json(item);
   });
 
@@ -1428,6 +1508,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       const projectId = Number(req.params.projectId);
       const project = await storage.getProject(projectId);
       if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       
       const { name, parentId, wbs, comments, category, fiscalYear, aopTotal, fcstTotal, actTotal,
         fcstM1, fcstM2, fcstM3, fcstM4, fcstM5, fcstM6, fcstM7, fcstM8, fcstM9, fcstM10, fcstM11, fcstM12,
@@ -1474,6 +1557,15 @@ export function registerProjectFeatureRoutes(app: Express) {
       const id = Number(req.params.id);
       const existing = await storage.getCostItem(id);
       if (!existing) return res.status(404).json({ message: "Cost item not found" });
+      const costProject = await storage.getProject(existing.projectId);
+      if (costProject) {
+        if (!await userHasOrgAccess(userId, costProject.organizationId)) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+        if (!await teamMemberCanAccessProject(userId, existing.projectId, costProject.organizationId)) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+      }
       
       const { name, description, category, estimatedCost, actualCost, status, startDate, endDate, notes } = req.body;
       const safeUpdate: Record<string, any> = {};
@@ -1506,6 +1598,15 @@ export function registerProjectFeatureRoutes(app: Express) {
     const id = Number(req.params.id);
     const existing = await storage.getCostItem(id);
     if (!existing) return res.status(404).json({ message: "Cost item not found" });
+    const costProject = await storage.getProject(existing.projectId);
+    if (costProject) {
+      if (!await userHasOrgAccess(userId, costProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      if (!await teamMemberCanAccessProject(userId, existing.projectId, costProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+    }
     await storage.deleteCostItem(id);
     res.status(204).send();
   });
@@ -2006,6 +2107,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       const project = await storage.getProject(Number(projectId));
       if (!project) return res.status(404).json({ message: 'Project not found' });
       if (!await userHasOrgAccess(userId, project.organizationId)) return res.status(403).json({ message: 'Access denied' });
+      if (!await teamMemberCanAccessProject(userId, Number(projectId), project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
 
       const projectTasks = await storage.getTasks(Number(projectId));
       const projectMilestones = await storage.getMilestones(Number(projectId));
