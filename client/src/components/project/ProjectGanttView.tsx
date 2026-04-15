@@ -159,6 +159,7 @@ interface InlineEditCellProps {
   onEditingChange?: (editing: boolean) => void;
   creatableSelect?: boolean;
   onAddOption?: (newOption: string) => void;
+  onDisabledClick?: () => void;
 }
 
 const InlineEditCell = memo(function InlineEditCell({ 
@@ -176,7 +177,8 @@ const InlineEditCell = memo(function InlineEditCell({
   initialCharacter,
   onEditingChange,
   creatableSelect = false,
-  onAddOption
+  onAddOption,
+  onDisabledClick
 }: InlineEditCellProps) {
   const [internalEditing, setInternalEditing] = useState(false);
   const isEditing = externalEditing !== undefined ? externalEditing : internalEditing;
@@ -227,7 +229,7 @@ const InlineEditCell = memo(function InlineEditCell({
   }, [externalEditing]);
 
   const startEditInternal = (initChar?: string): boolean => {
-    if (disabled) return false;
+    if (disabled) { onDisabledClick?.(); return false; }
     if (editType === 'boolean') {
       const newVal = !value;
       onSave(newVal);
@@ -247,7 +249,7 @@ const InlineEditCell = memo(function InlineEditCell({
   };
 
   const handleStartEdit = () => {
-    if (disabled) return;
+    if (disabled) { onDisabledClick?.(); return; }
     const didStart = startEditInternal();
     if (didStart) setIsEditing(true);
   };
@@ -867,6 +869,7 @@ const TaskNameCell = memo(function TaskNameCell({
   onToggleSchedulingMode,
   onCreateTaskAt,
   onDeleteTask,
+  onReadOnlyEdit,
 }: {
   task: Task;
   colWidth: number;
@@ -887,6 +890,7 @@ const TaskNameCell = memo(function TaskNameCell({
   onToggleSchedulingMode?: (task: Task) => void;
   onCreateTaskAt?: (task: Task, position: 'above' | 'below') => void;
   onDeleteTask?: (task: Task) => void;
+  onReadOnlyEdit?: () => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(task.name);
@@ -901,7 +905,7 @@ const TaskNameCell = memo(function TaskNameCell({
   }, [isEditing]);
 
   const handleStartInlineEdit = () => {
-    if (isReadOnly) return;
+    if (isReadOnly) { onReadOnlyEdit?.(); return; }
     setEditValue(task.name);
     setIsEditing(true);
   };
@@ -1017,7 +1021,7 @@ const TaskNameCell = memo(function TaskNameCell({
             <Pencil className="h-3.5 w-3.5 mr-2" />
             Edit
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStartInlineEdit(); }} disabled={isReadOnly} data-testid={`task-rename-${task.id}`}>
+          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStartInlineEdit(); }} data-testid={`task-rename-${task.id}`}>
             <Type className="h-3.5 w-3.5 mr-2" />
             Edit Task Name
           </DropdownMenuItem>
@@ -1181,6 +1185,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   onCustomFieldChange,
   customFieldDefsMap,
   onAddCustomFieldOption,
+  onReadOnlyEdit,
 }: { 
   task: Task;
   rowIndex: number;
@@ -1238,6 +1243,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   onCustomFieldChange?: (taskId: number, fieldDefId: number, value: string | null) => void;
   customFieldDefsMap?: Map<number, { fieldType: string; options?: string[] | null }>;
   onAddCustomFieldOption?: (fieldDefId: number, newOption: string) => void;
+  onReadOnlyEdit?: () => void;
 }) {
   const [isEditingResources, setIsEditingResources] = useState(false);
   const { data: fetchedAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(isEditingResources ? task.id : null);
@@ -1271,8 +1277,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   const inviteAssignedRef = useRef(false);
   
   const handleInlineUpdate = (field: string, value: string | number | boolean | null, oldValue?: unknown) => {
-    // Prevent updates for read-only projects (Planner and MS Project imports)
-    if (isReadOnly) return;
+    if (isReadOnly) { onReadOnlyEdit?.(); return; }
     
     // Build update object with auto-calculated related fields
     const updates: Record<string, string | number | boolean | null> = {
@@ -1570,6 +1575,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                 onToggleSchedulingMode={onToggleSchedulingMode}
                 onCreateTaskAt={onCreateTaskAt}
                 onDeleteTask={onDeleteTask}
+                onReadOnlyEdit={isReadOnly ? onReadOnlyEdit : undefined}
               />
             </div>
           );
@@ -1735,6 +1741,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
           onEditingChange: (editing: boolean) => {
             if (!editing && onEditingChange) onEditingChange(false);
           },
+          onDisabledClick: isReadOnly ? onReadOnlyEdit : undefined,
         };
 
         const renderEditableCell = () => {
@@ -2467,6 +2474,17 @@ function ProjectGanttView({
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const { data: allResources } = useResources(organizationId);
   const { toast } = useToast();
+  const readOnlyToastRef = useRef(0);
+  const handleReadOnlyEdit = useCallback(() => {
+    const now = Date.now();
+    if (now - readOnlyToastRef.current < 3000) return;
+    readOnlyToastRef.current = now;
+    toast({
+      title: "Project is locked",
+      description: "This project is On Hold or Closed. Tasks cannot be edited until the project status is changed.",
+      variant: "destructive",
+    });
+  }, [toast]);
   const { data: schedulingDefaults } = useQuery<SchedulingDefaults>({
     queryKey: ['/api/organizations', organizationId, 'scheduling-defaults'],
     enabled: !!organizationId,
@@ -3429,7 +3447,7 @@ function ProjectGanttView({
   const handleGridPaste = useCallback(async (e: ClipboardEvent) => {
     const target = e.target as HTMLElement;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
-    if (isReadOnly) return;
+    if (isReadOnly) { handleReadOnlyEdit(); return; }
 
     // Scope paste to the Gantt metadata pane: check active element is inside it or body is focused
     const pane = leftPaneRef.current;
@@ -6484,6 +6502,7 @@ function ProjectGanttView({
                             onCustomFieldChange={handleCustomFieldChange}
                             customFieldDefsMap={customFieldDefsMap}
                             onAddCustomFieldOption={handleAddCustomFieldOption}
+                            onReadOnlyEdit={handleReadOnlyEdit}
                           />
                         </div>
                       );
@@ -6544,6 +6563,7 @@ function ProjectGanttView({
                               onCustomFieldChange={handleCustomFieldChange}
                               customFieldDefsMap={customFieldDefsMap}
                               onAddCustomFieldOption={handleAddCustomFieldOption}
+                              onReadOnlyEdit={handleReadOnlyEdit}
                             />
                           )}
                         </SortableTaskRow>
