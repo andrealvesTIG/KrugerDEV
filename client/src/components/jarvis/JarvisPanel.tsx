@@ -399,9 +399,22 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
       }
       stopListening();
       stopSpeaking();
+      window.speechSynthesis.cancel();
       setInterimText("");
     }
   }, [open, autoListen, startListening, stopListening, stopSpeaking, onAutoListenConsumed]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        stopListening();
+        stopSpeaking();
+        window.speechSynthesis.cancel();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [stopListening, stopSpeaking]);
 
   useEffect(() => {
     if (scrollRef.current) {
