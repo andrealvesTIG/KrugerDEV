@@ -48,3 +48,9 @@ id = "yyLw7wDAn1WlrVJoaNDcn"
 uri = "file://.local/qa-audit-report.md"
 type = "text"
 title = "QA Audit Report — FridayReport.AI"
+
+[[outputs]]
+id = "jeVuNb0AjGmejMPVC2ls3"
+uri = "file://.local/data_quality_report.md"
+type = "text"
+title = "Data Quality & Mismatch Analysis Report"
