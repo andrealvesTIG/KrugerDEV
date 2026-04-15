@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect, Fragment } from "react";
 import { useProjects, useCreateProject, useUpdateProject } from "@/hooks/use-projects";
 import { useExternalProjects } from "@/hooks/use-external-shares";
 import { usePortfolios } from "@/hooks/use-portfolios";
@@ -242,9 +242,9 @@ function saveListSort(sort: ListSortState | null) {
   try { localStorage.setItem(LIST_SORT_STORAGE_KEY, JSON.stringify(sort)); } catch {}
 }
 
-type ListGroupByOption = "none" | "portfolio" | "status" | "priority" | "health" | "projectType" | "methodology" | `cf_${number}`;
+type GroupByOption = "none" | "portfolio" | "status" | "priority" | "health" | "projectType" | "methodology" | `cf_${number}`;
 
-const LIST_GROUP_BY_STANDARD: { value: ListGroupByOption; label: string }[] = [
+const GROUP_BY_STANDARD: { value: GroupByOption; label: string }[] = [
   { value: "none", label: "None" },
   { value: "portfolio", label: "Portfolio" },
   { value: "status", label: "Status" },
@@ -271,8 +271,8 @@ interface ProjectsListViewProps {
   onPageSizeChange?: (size: number) => void;
   selectedPageSize?: number;
   isLoading?: boolean;
-  groupBy: ListGroupByOption;
-  onGroupByChange: (value: ListGroupByOption) => void;
+  groupBy: GroupByOption;
+  onGroupByChange: (value: GroupByOption) => void;
   customFieldDefs?: CustomFieldDefinition[];
   customFieldValues?: ProjectCustomFieldValue[];
   filterView?: ProjectFilterView;
@@ -406,10 +406,10 @@ function ProjectsListView({
   }, [customFieldValues]);
 
   const groupByOptions = useMemo(() => {
-    const options = [...LIST_GROUP_BY_STANDARD];
+    const options = [...GROUP_BY_STANDARD];
     (customFieldDefs || []).forEach(def => {
       if (def.entityType === "project" && def.isActive) {
-        options.push({ value: `cf_${def.id}` as ListGroupByOption, label: def.name });
+        options.push({ value: `cf_${def.id}` as GroupByOption, label: def.name });
       }
     });
     return options;
@@ -751,7 +751,7 @@ function ProjectsListView({
           <div className="flex items-center gap-2">
             <Layers className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-xs font-medium text-muted-foreground">Group by:</span>
-            <Select value={groupBy} onValueChange={(v) => onGroupByChange(v as ListGroupByOption)}>
+            <Select value={groupBy} onValueChange={(v) => onGroupByChange(v as GroupByOption)}>
               <SelectTrigger className="h-7 w-auto min-w-[120px] text-xs border-border/60 bg-background shadow-none gap-1">
                 <SelectValue>{currentGroupLabel}</SelectValue>
               </SelectTrigger>
@@ -970,7 +970,7 @@ export default function Projects() {
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [filterView, setFilterView] = useState<ProjectFilterView>("active");
   const [sortBy, setSortBy] = useState<"createdAt" | "startDate" | "updatedAt">("updatedAt");
-  const [listGroupBy, setListGroupBy] = useState<ListGroupByOption>("portfolio");
+  const [listGroupBy, setListGroupBy] = useState<GroupByOption>("portfolio");
   const { data: projects, isLoading } = useProjects(currentOrganization?.id, selectedPortfolio !== "all" ? parseInt(selectedPortfolio) : undefined);
   const { data: externalProjects } = useExternalProjects();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
@@ -1996,11 +1996,6 @@ function saveColumns(columns: string[]) {
   localStorage.setItem(GRID_COLUMN_STORAGE_KEY, JSON.stringify(columns));
 }
 
-interface Portfolio {
-  id: number;
-  name: string;
-}
-
 interface ResizableSortableColumnHeaderProps {
   column: GridColumn;
   children: React.ReactNode;
@@ -2169,6 +2164,24 @@ function ProjectsGridView({
   const [editValue, setEditValue] = useState<string>("");
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [internalFullscreen, setInternalFullscreen] = useState(false);
+  const [gridGroupBy, setGridGroupBy] = useState<GroupByOption>(() => {
+    try {
+      const stored = localStorage.getItem("projects-grid-group-by");
+      if (stored) return stored as GroupByOption;
+    } catch {}
+    return "none";
+  });
+  const [gridCollapsedGroups, setGridCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  const handleGridGroupByChange = useCallback((value: GroupByOption) => {
+    setGridGroupBy(value);
+    setGridCollapsedGroups({});
+    try { localStorage.setItem("projects-grid-group-by", value); } catch {}
+  }, []);
+
+  const toggleGridGroup = useCallback((groupKey: string) => {
+    setGridCollapsedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
+  }, []);
 
   const [gridPageSize, setGridPageSize] = useState<number>(() => {
     const saved = localStorage.getItem("projects-grid-page-size");
@@ -2344,6 +2357,115 @@ function ProjectsGridView({
     const start = (gridCurrentPage - 1) * gridPageSize;
     return sortedProjects.slice(start, start + gridPageSize);
   }, [sortedProjects, gridCurrentPage, gridPageSize]);
+
+  const gridGroupByOptions = useMemo(() => {
+    const options = [...GROUP_BY_STANDARD];
+    projectCustomFields.forEach(def => {
+      options.push({ value: `cf_${def.id}` as GroupByOption, label: def.name });
+    });
+    return options;
+  }, [projectCustomFields]);
+
+  useEffect(() => {
+    if (gridGroupBy !== "none" && !gridGroupByOptions.some(o => o.value === gridGroupBy)) {
+      handleGridGroupByChange("none");
+    }
+  }, [gridGroupBy, gridGroupByOptions, handleGridGroupByChange]);
+
+  const gridGroupedProjects = useMemo(() => {
+    if (gridGroupBy === "none") {
+      return [{ key: "__all__", label: "", projects: displayedProjects, meta: null as any }];
+    }
+
+    const portfolioMap = new Map<number, Portfolio>();
+    portfolios.forEach(p => portfolioMap.set(p.id, p));
+
+    const getGroupKeyAndLabel = (project: Project): { key: string; label: string; sortOrder: number } => {
+      switch (gridGroupBy) {
+        case "portfolio": {
+          const pid = project.portfolioId ?? null;
+          const resolvedPid = pid !== null && portfolioMap.has(pid) ? pid : null;
+          if (resolvedPid === null) return { key: "unassigned", label: "Unassigned", sortOrder: 999 };
+          const p = portfolioMap.get(resolvedPid)!;
+          return { key: `portfolio-${resolvedPid}`, label: p.name, sortOrder: 0 };
+        }
+        case "status": {
+          const s = project.status || "Unknown";
+          const idx = PROJECT_STATUS_LIST.indexOf(s);
+          return { key: `status-${s}`, label: s, sortOrder: idx >= 0 ? idx : 999 };
+        }
+        case "priority": {
+          const p = project.priority || "Medium";
+          const order: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+          return { key: `priority-${p}`, label: p, sortOrder: order[p] ?? 4 };
+        }
+        case "health": {
+          const h = project.health || "Green";
+          const order: Record<string, number> = { Red: 0, Yellow: 1, Green: 2 };
+          const labels: Record<string, string> = { Green: "On Track", Yellow: "At Risk", Red: "Off Track" };
+          return { key: `health-${h}`, label: labels[h] || h, sortOrder: order[h] ?? 3 };
+        }
+        case "projectType": {
+          const t = project.projectType || "";
+          if (!t) return { key: "type-unset", label: "No Type", sortOrder: 999 };
+          return { key: `type-${t}`, label: t, sortOrder: 0 };
+        }
+        case "methodology": {
+          const m = project.methodology || "";
+          if (!m) return { key: "method-unset", label: "No Methodology", sortOrder: 999 };
+          return { key: `method-${m}`, label: m, sortOrder: 0 };
+        }
+        default: {
+          if (gridGroupBy.startsWith("cf_")) {
+            const defId = parseInt(gridGroupBy.slice(3));
+            const cfVal = cfValuesMap.get(`${project.id}_${defId}`);
+            const raw = cfVal?.value || "";
+            if (!raw) return { key: `cf-${defId}-unset`, label: "Not Set", sortOrder: 999 };
+            const cfDef = projectCustomFields.find(d => d.id === defId);
+            let displayLabel = raw;
+            if (cfDef?.fieldType === "checkbox") {
+              displayLabel = raw === "true" ? "Yes" : "No";
+            } else if (cfDef?.fieldType === "multiselect") {
+              try { displayLabel = JSON.parse(raw).join(", "); } catch { /* use raw */ }
+            }
+            return { key: `cf-${defId}-${raw}`, label: displayLabel, sortOrder: 0 };
+          }
+          return { key: "__all__", label: "", sortOrder: 0 };
+        }
+      }
+    };
+
+    const groupMap = new Map<string, { label: string; projects: Project[]; sortOrder: number; portfolio: Portfolio | null }>();
+    displayedProjects.forEach(project => {
+      const { key, label, sortOrder } = getGroupKeyAndLabel(project);
+      if (!groupMap.has(key)) {
+        const portfolio = gridGroupBy === "portfolio" && project.portfolioId ? portfolioMap.get(project.portfolioId) || null : null;
+        groupMap.set(key, { label, projects: [], sortOrder, portfolio });
+      }
+      groupMap.get(key)!.projects.push(project);
+    });
+
+    return Array.from(groupMap.entries())
+      .sort(([, a], [, b]) => {
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+        return a.label.localeCompare(b.label);
+      })
+      .map(([key, val]) => ({ key, label: val.label, projects: val.projects, meta: val.portfolio }));
+  }, [displayedProjects, portfolios, gridGroupBy, cfValuesMap, projectCustomFields]);
+
+  const gridAllGroupsCollapsed = gridGroupedProjects.length > 0 && gridGroupedProjects.every(g => gridCollapsedGroups[g.key] === true);
+
+  const gridCollapseAll = useCallback(() => {
+    const collapsed: Record<string, boolean> = {};
+    gridGroupedProjects.forEach(g => { collapsed[g.key] = true; });
+    setGridCollapsedGroups(collapsed);
+  }, [gridGroupedProjects]);
+
+  const gridExpandAll = useCallback(() => {
+    setGridCollapsedGroups({});
+  }, []);
+
+  const gridCurrentGroupLabel = gridGroupByOptions.find(o => o.value === gridGroupBy)?.label || "None";
 
   const handleApplyView = (view: { visibleColumns: string[]; columnOrder: string[] }) => {
     setVisibleColumns(view.visibleColumns);
@@ -2900,6 +3022,42 @@ function ProjectsGridView({
               filterView={filterView}
               onFilterViewChange={onFilterViewChange}
             />
+            <div className="flex items-center gap-2">
+              <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-medium text-muted-foreground">Group by:</span>
+              <Select value={gridGroupBy} onValueChange={(v) => handleGridGroupByChange(v as GroupByOption)}>
+                <SelectTrigger className="h-7 w-auto min-w-[120px] text-xs border-border/60 bg-background shadow-none gap-1">
+                  <SelectValue>{gridCurrentGroupLabel}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {gridGroupByOptions.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {gridGroupBy !== "none" && gridGroupedProjects.length > 1 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[11px] px-2 text-muted-foreground hover:text-foreground"
+                onClick={gridAllGroupsCollapsed ? gridExpandAll : gridCollapseAll}
+              >
+                {gridAllGroupsCollapsed ? (
+                  <>
+                    <ChevronsUpDown className="h-3 w-3 mr-1" />
+                    Expand All
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-3 w-3 mr-1" />
+                    Collapse All
+                  </>
+                )}
+              </Button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {selectedProjects.size > 0 && (
@@ -2989,18 +3147,56 @@ function ProjectsGridView({
       {/* Toolbar - Only show in non-fullscreen mode */}
       {!isFullscreen && (
         <div className="flex justify-between gap-2">
-          <ViewsDropdown
-            mode="grid"
-            organizationId={organizationId}
-            allColumns={allGridColumns}
-            visibleColumns={visibleColumns}
-            columnOrder={columnOrder}
-            onApplyView={handleApplyView}
-            defaultColumns={defaultColumns}
-            defaultColumnOrder={defaultColumnOrder}
-            filterView={filterView}
-            onFilterViewChange={onFilterViewChange}
-          />
+          <div className="flex items-center gap-4">
+            <ViewsDropdown
+              mode="grid"
+              organizationId={organizationId}
+              allColumns={allGridColumns}
+              visibleColumns={visibleColumns}
+              columnOrder={columnOrder}
+              onApplyView={handleApplyView}
+              defaultColumns={defaultColumns}
+              defaultColumnOrder={defaultColumnOrder}
+              filterView={filterView}
+              onFilterViewChange={onFilterViewChange}
+            />
+            <div className="flex items-center gap-2">
+              <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-medium text-muted-foreground">Group by:</span>
+              <Select value={gridGroupBy} onValueChange={(v) => handleGridGroupByChange(v as GroupByOption)}>
+                <SelectTrigger className="h-7 w-auto min-w-[120px] text-xs border-border/60 bg-background shadow-none gap-1">
+                  <SelectValue>{gridCurrentGroupLabel}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {gridGroupByOptions.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {gridGroupBy !== "none" && gridGroupedProjects.length > 1 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[11px] px-2 text-muted-foreground hover:text-foreground"
+                onClick={gridAllGroupsCollapsed ? gridExpandAll : gridCollapseAll}
+              >
+                {gridAllGroupsCollapsed ? (
+                  <>
+                    <ChevronsUpDown className="h-3 w-3 mr-1" />
+                    Expand All
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-3 w-3 mr-1" />
+                    Collapse All
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
           <div className="flex gap-2">
             <Popover>
               <PopoverTrigger asChild>
@@ -3080,66 +3276,125 @@ function ProjectsGridView({
                   </TableCell>
                 </TableRow>
               ) : (
-                displayedProjects.map(project => (
-                  <TableRow 
-                    key={project.id} 
-                    data-testid={`grid-row-${project.id}`}
-                    className={cn(selectedProjects.has(project.id) && "bg-muted/50")}
-                  >
-                    <TableCell>
-                      <Checkbox 
-                        checked={selectedProjects.has(project.id)}
-                        onCheckedChange={() => toggleSelectProject(project.id)}
-                        data-testid={`checkbox-project-${project.id}`}
-                      />
-                    </TableCell>
-                    {orderedVisibleColumns.map(column => {
-                      const width = getColumnWidth(column.id, defaultWidths[column.id as keyof typeof defaultWidths] || 150);
-                      return (
-                        <TableCell 
-                          key={column.id}
-                          className="overflow-hidden"
-                          style={{ 
-                            width: `${width}px`, 
-                            minWidth: `${width}px`, 
-                            maxWidth: `${width}px` 
-                          }}
+                gridGroupedProjects.map((group) => {
+                  const isGroupCollapsed = gridCollapsedGroups[group.key] === true;
+                  const showGroupHeader = gridGroupBy !== "none";
+                  const portfolio = gridGroupBy === "portfolio" ? group.meta as Portfolio | null : null;
+                  const portfolioHealth = portfolio ? (HEALTH_CONFIG[portfolio.healthScore || 'Green'] || HEALTH_CONFIG.Green) : null;
+                  const statusColor = gridGroupBy === "status" ? (STATUS_COLORS[group.label] || "") : "";
+                  const priorityColor = gridGroupBy === "priority" ? (PRIORITY_COLORS[group.label] || "") : "";
+                  const healthConfig = gridGroupBy === "health" ? (Object.values(HEALTH_CONFIG).find(h => h.label === group.label) || null) : null;
+
+                  return (
+                    <Fragment key={group.key}>
+                      {showGroupHeader && (
+                        <TableRow className="bg-gradient-to-r from-muted/60 to-muted/30 hover:from-muted/80 hover:to-muted/50 cursor-pointer border-b-2 border-border/60" onClick={() => toggleGridGroup(group.key)}>
+                          <TableCell colSpan={orderedVisibleColumns.length + 2} className="py-2.5 px-4">
+                            <div className="flex items-center gap-3">
+                              <ChevronRight className={cn("h-4 w-4 text-muted-foreground shrink-0 transition-transform duration-200", isGroupCollapsed ? "" : "rotate-90")} />
+                              {gridGroupBy === "portfolio" && (
+                                <FolderOpen className="h-4 w-4 text-primary/70 shrink-0" />
+                              )}
+                              {gridGroupBy === "status" && statusColor && (
+                                <div className={cn("w-3 h-3 rounded-sm shrink-0", statusColor.split(" ")[0])} />
+                              )}
+                              {gridGroupBy === "health" && healthConfig && (
+                                <div className={cn("w-3 h-3 rounded-full shrink-0", healthConfig.dot)} />
+                              )}
+                              {gridGroupBy === "priority" && priorityColor && (
+                                <div className={cn("w-3 h-3 rounded-sm shrink-0", priorityColor.split(" ")[0])} />
+                              )}
+                              <span className="text-sm font-bold text-foreground truncate tracking-tight">
+                                {group.label}
+                              </span>
+                              <Badge variant="secondary" className="text-[10px] px-2 py-0.5 shrink-0 font-semibold rounded-full bg-primary/10 text-primary border-0">
+                                {group.projects.length}
+                              </Badge>
+                              {portfolio && portfolioHealth && (
+                                <>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <div className={cn("w-2 h-2 rounded-full", portfolioHealth.dot)} />
+                                    <span className="text-[11px] text-muted-foreground">{portfolioHealth.label}</span>
+                                  </div>
+                                  {portfolio.status && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
+                                      {portfolio.status}
+                                    </Badge>
+                                  )}
+                                  {portfolio.budgetAllocated && Number(portfolio.budgetAllocated) > 0 && (
+                                    <span className="text-[11px] text-muted-foreground shrink-0">
+                                      Budget: ${Number(portfolio.budgetAllocated).toLocaleString()}
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {!isGroupCollapsed && group.projects.map(project => (
+                        <TableRow 
+                          key={project.id} 
+                          data-testid={`grid-row-${project.id}`}
+                          className={cn(selectedProjects.has(project.id) && "bg-muted/50")}
                         >
-                          {renderCellContent(project, column.id)}
-                        </TableCell>
-                      );
-                    })}
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="icon" variant="ghost" data-testid={`grid-menu-${project.id}`}>
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link href={`/projects/${project.id}`}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              View Details
-                            </Link>
-                          </DropdownMenuItem>
-                          {isAdmin && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                onClick={() => onDeleteProject(project.id)} 
-                                className="text-red-600 focus:text-red-600"
+                          <TableCell>
+                            <Checkbox 
+                              checked={selectedProjects.has(project.id)}
+                              onCheckedChange={() => toggleSelectProject(project.id)}
+                              data-testid={`checkbox-project-${project.id}`}
+                            />
+                          </TableCell>
+                          {orderedVisibleColumns.map(column => {
+                            const width = getColumnWidth(column.id, defaultWidths[column.id as keyof typeof defaultWidths] || 150);
+                            return (
+                              <TableCell 
+                                key={column.id}
+                                className="overflow-hidden"
+                                style={{ 
+                                  width: `${width}px`, 
+                                  minWidth: `${width}px`, 
+                                  maxWidth: `${width}px` 
+                                }}
                               >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
+                                {renderCellContent(project, column.id)}
+                              </TableCell>
+                            );
+                          })}
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button size="icon" variant="ghost" data-testid={`grid-menu-${project.id}`}>
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/projects/${project.id}`}>
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    View Details
+                                  </Link>
+                                </DropdownMenuItem>
+                                {isAdmin && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem 
+                                      onClick={() => onDeleteProject(project.id)} 
+                                      className="text-red-600 focus:text-red-600"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </Fragment>
+                  );
+                })
               )}
             </TableBody>
           </Table>
