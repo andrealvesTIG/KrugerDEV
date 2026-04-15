@@ -1100,7 +1100,7 @@ export default function Projects() {
       { header: "Start Date", key: "startDate", width: 15 },
       { header: "End Date", key: "endDate", width: 15 },
       { header: "Budget", key: "budget", width: 15 },
-      { header: "Completion %", key: "completion", width: 12 }
+      { header: "Progress %", key: "completion", width: 12 }
     ];
 
     const cfColumns = exportProjectCustomFields.map(cf => ({
@@ -1955,7 +1955,7 @@ const ALL_GRID_COLUMNS: GridColumn[] = [
   { id: "forecastCost", label: "Forecast Cost", defaultVisible: false },
   { id: "costVariance", label: "Cost Variance", defaultVisible: false },
   { id: "scheduleVariance", label: "Schedule Variance", defaultVisible: false },
-  { id: "completion", label: "Completion %", defaultVisible: true },
+  { id: "completion", label: "Progress %", defaultVisible: true },
   { id: "projectType", label: "Project Type", defaultVisible: false },
   { id: "methodology", label: "Methodology", defaultVisible: false },
   { id: "department", label: "Department", defaultVisible: false },

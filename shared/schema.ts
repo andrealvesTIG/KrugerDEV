@@ -2183,7 +2183,7 @@ export const PROJECT_FIELD_DEFINITIONS = [
   { key: 'budget', label: 'Budget', type: 'currency' },
   { key: 'actualCost', label: 'Actual Cost', type: 'currency' },
   { key: 'forecastCost', label: 'Forecast Cost', type: 'currency' },
-  { key: 'completionPercentage', label: 'Completion %', type: 'percentage' },
+  { key: 'completionPercentage', label: 'Progress %', type: 'percentage' },
   { key: 'scheduleVariance', label: 'Schedule Variance', type: 'number' },
   { key: 'costVariance', label: 'Cost Variance', type: 'number' },
   { key: 'scope', label: 'Scope', type: 'textarea' },

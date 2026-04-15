@@ -521,18 +521,14 @@ export default function ProjectDetails() {
   // Use financial budget total if available, otherwise use project budget
   const displayBudget = financialBudgetTotal > 0 ? financialBudgetTotal : Number(project?.budget || 0);
 
-  // Calculate progress based on task averages (or fall back to manual completionPercentage)
+  // Calculate progress based on task averages (always from tasks, never manual)
   const calculatedProgress = useMemo(() => {
-    if (!projectTasks || projectTasks.length === 0) {
-      return project?.completionPercentage || 0;
-    }
+    if (!projectTasks || projectTasks.length === 0) return 0;
     const leafTasks = projectTasks.filter(t => !t.isSummary && !t.isMilestone);
-    if (leafTasks.length === 0) {
-      return project?.completionPercentage || 0;
-    }
+    if (leafTasks.length === 0) return 0;
     const totalProgress = leafTasks.reduce((sum, t) => sum + (t.progress || 0), 0);
     return Math.round(totalProgress / leafTasks.length);
-  }, [projectTasks, project?.completionPercentage]);
+  }, [projectTasks]);
 
   const autoSwitchedForProjectRef = useRef<number | null>(null);
   const lastProjectIdRef = useRef<number | null>(null);
@@ -3026,7 +3022,7 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
       department: 'Department', category: 'Category', startDate: 'Start Date', endDate: 'End Date',
       baselineStartDate: 'Baseline Start', baselineEndDate: 'Baseline End', actualStartDate: 'Actual Start',
       actualEndDate: 'Actual End', budget: 'Budget', actualCost: 'Actual Cost', forecastCost: 'Forecast Cost',
-      completionPercentage: 'Completion %', scheduleVariance: 'Schedule Variance', costVariance: 'Cost Variance',
+      completionPercentage: 'Progress %', scheduleVariance: 'Schedule Variance', costVariance: 'Cost Variance',
       scope: 'Scope', objectives: 'Objectives', successCriteria: 'Success Criteria', constraints: 'Constraints',
       assumptions: 'Assumptions', dependencies: 'Dependencies', businessValue: 'Business Value',
       riskLevel: 'Risk Level', notes: 'Notes', billableStatus: 'Billable Status', source: 'Source',
@@ -3051,9 +3047,12 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
   };
 
   const renderFieldInput = (field: CustomTabField) => {
+    if (field.fieldKey === 'completionPercentage') {
+      return <span className="text-sm font-medium py-1">{project.completionPercentage ?? 0}% <span className="text-xs text-muted-foreground">(calculated from tasks)</span></span>;
+    }
     const isDateField = field.fieldKey.endsWith('Date');
     const isCurrencyField = ['budget', 'actualCost', 'forecastCost'].includes(field.fieldKey);
-    const isNumberField = ['completionPercentage', 'scheduleVariance', 'costVariance'].includes(field.fieldKey) || isCurrencyField;
+    const isNumberField = ['scheduleVariance', 'costVariance'].includes(field.fieldKey) || isCurrencyField;
     const isTextArea = ['description', 'scope', 'objectives', 'successCriteria', 'constraints', 'assumptions', 'dependencies', 'notes', 'healthReason'].includes(field.fieldKey);
     const isSelect = ['status', 'priority', 'health', 'riskLevel', 'billableStatus'].includes(field.fieldKey);
 
@@ -3814,38 +3813,40 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
     return summaryRiskAssessment;
   }, [summaryRiskAssessment]);
   
-  // Calculate completion percentage from tasks (leaf tasks only - those without children)
-  const { calculatedCompletion, leafTaskCount } = useMemo(() => {
-    if (!tasks || tasks.length === 0) return { calculatedCompletion: 0, leafTaskCount: 0 };
-    
-    // Find parent task IDs to identify leaf tasks
+  // Calculate progress from tasks (leaf tasks only - those without children)
+  const { sidebarProgress, leafTaskCount } = useMemo(() => {
+    if (!tasks || tasks.length === 0) return { sidebarProgress: 0, leafTaskCount: 0 };
     const parentIds = new Set(tasks.filter(t => t.parentId).map(t => t.parentId));
     const leafTasks = tasks.filter(t => !parentIds.has(t.id));
-    
-    if (leafTasks.length === 0) return { calculatedCompletion: 0, leafTaskCount: 0 };
-    
+    if (leafTasks.length === 0) return { sidebarProgress: 0, leafTaskCount: 0 };
     const totalProgress = leafTasks.reduce((sum, task) => {
       const progress = task.progress ?? 0;
-      return sum + Math.max(0, Math.min(100, progress)); // Clamp between 0-100
+      return sum + Math.max(0, Math.min(100, progress));
     }, 0);
     return { 
-      calculatedCompletion: Math.round(totalProgress / leafTasks.length),
+      sidebarProgress: Math.round(totalProgress / leafTasks.length),
       leafTaskCount: leafTasks.length 
     };
   }, [tasks]);
   
-  // User has overridden if they've explicitly set the override flag
-  const storedValue = project.completionPercentage;
-  const isOverridden = project.completionOverridden === true;
-  
-  // Display value: use stored value only if override flag is set, otherwise show calculated
-  const displayCompletion = isOverridden ? (storedValue ?? 0) : calculatedCompletion;
-  
+  // Auto-sync calculated progress to completionPercentage in DB
+  const prevSyncedProgress = useRef<number | null>(null);
+  useEffect(() => {
+    if (prevSyncedProgress.current !== sidebarProgress && sidebarProgress !== (project.completionPercentage ?? 0)) {
+      onUpdate({ 
+        id: project.id, 
+        completionPercentage: sidebarProgress,
+        completionOverridden: false
+      }, {
+        onSuccess: () => { prevSyncedProgress.current = sidebarProgress; },
+      });
+    }
+  }, [sidebarProgress, project.id, project.completionPercentage, onUpdate]);
+
   const [editValues, setEditValues] = useState({
     name: project.name || "",
     description: project.description || "",
     budget: project.budget || "0",
-    completionPercentage: displayCompletion,
   });
   
   useEffect(() => {
@@ -3886,9 +3887,8 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
       name: project.name || "",
       description: project.description || "",
       budget: project.budget || "0",
-      completionPercentage: displayCompletion,
     });
-  }, [project, displayCompletion]);
+  }, [project]);
 
   const autoSave = (field: string, value: any) => {
     onUpdate({ 
@@ -3905,46 +3905,10 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
     });
   };
 
-  // Reset completion to calculated value from tasks
-  const resetToCalculated = () => {
-    setEditValues(prev => ({ ...prev, completionPercentage: calculatedCompletion }));
-    // Save with override flag set to false
-    onUpdate({ 
-      id: project.id, 
-      completionPercentage: calculatedCompletion,
-      completionOverridden: false
-    }, {
-      onSuccess: () => {
-        toast({ title: "Reset to calculated value" });
-        queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] });
-      },
-      onError: () => {
-        toast({ title: "Error", description: "Failed to reset completion", variant: "destructive" });
-      }
-    });
-  };
-
   const handleFieldBlur = (field: string) => {
     const value = editValues[field as keyof typeof editValues];
     if (value !== project[field as keyof typeof project]) {
-      // For completion percentage, also set the override flag
-      if (field === 'completionPercentage') {
-        onUpdate({ 
-          id: project.id, 
-          completionPercentage: Number(value),
-          completionOverridden: true
-        }, {
-          onSuccess: () => {
-            toast({ title: "Saved" });
-            queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] });
-          },
-          onError: () => {
-            toast({ title: "Error", description: "Failed to save changes", variant: "destructive" });
-          }
-        });
-      } else {
-        autoSave(field, value);
-      }
+      autoSave(field, value);
     }
     setEditingField(null);
   };
@@ -4185,39 +4149,19 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
             </div>
             <div>
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                Completion
-                {leafTaskCount > 0 && !isOverridden && (
+                Progress
+                {leafTaskCount > 0 && (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="text-[9px] text-muted-foreground/70 cursor-help ml-1">(from tasks)</span>
+                      <span className="text-[9px] text-muted-foreground/70 cursor-help ml-1">(from {leafTaskCount} task{leafTaskCount !== 1 ? 's' : ''})</span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Calculated from {leafTaskCount} task(s)</p>
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-                {isOverridden && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button 
-                        onClick={resetToCalculated}
-                        className="text-[9px] text-primary hover:underline cursor-pointer ml-1"
-                        data-testid="button-reset-completion"
-                      >
-                        (reset to {calculatedCompletion}%)
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Click to reset to calculated value from tasks</p>
+                      <p>Calculated from {leafTaskCount} task{leafTaskCount !== 1 ? 's' : ''}</p>
                     </TooltipContent>
                   </Tooltip>
                 )}
               </Label>
-              {editingField === 'completionPercentage' ? (
-                <Input type="number" min="0" max="100" value={editValues.completionPercentage} onChange={(e) => setEditValues(prev => ({ ...prev, completionPercentage: Number(e.target.value) }))} onBlur={() => handleFieldBlur('completionPercentage')} onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('completionPercentage')} autoFocus className="h-8 text-sm" data-testid="input-project-completion" />
-              ) : (
-                <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-2 py-1.5 -mx-1 transition-colors h-8 flex items-center" onClick={() => setEditingField('completionPercentage')} data-testid="text-project-completion">{displayCompletion}%</p>
-              )}
+              <p className="text-sm font-medium rounded px-2 py-1.5 -mx-1 h-8 flex items-center" data-testid="text-project-progress">{sidebarProgress}%</p>
             </div>
             <div>
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Start</Label>
