@@ -481,8 +481,8 @@ export function generateOpenApiSchemas(): Record<string, any> {
 
     DependencyType: {
       type: 'string',
-      enum: ['FinishToStart', 'StartToStart', 'FinishToFinish', 'StartToFinish'],
-      description: 'Task dependency relationship type. API responses use PascalCase values: FinishToStart, StartToStart, FinishToFinish, StartToFinish. For input, the API also accepts alternate formats such as "finish-to-start", "finish_to_start", "FS", "fs", "Finish To Start", etc.',
+      enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'],
+      description: 'Task dependency relationship type. Kebab-case values as stored and returned by the API. For input, alternate formats are also accepted: "FinishToStart", "finish_to_start", "FS", "fs", etc.',
     },
 
     TaskDependency: drizzleTableToOpenApiSchema(taskDependencies, {
@@ -498,7 +498,7 @@ export function generateOpenApiSchemas(): Record<string, any> {
 
     TaskDependencyCreateRequest: {
       type: 'object',
-      description: 'Input schema for creating a task dependency. The dependencyType field defaults to finish-to-start if omitted or null. Also accepts alternate formats: "FinishToStart", "finish_to_start", "FS", etc.',
+      description: 'Input schema for creating a task dependency. The dependencyType field defaults to "finish-to-start" if omitted or null. Alternate input formats are also accepted: "FinishToStart", "finish_to_start", "FS", etc.',
       properties: {
         dependsOnTaskId: { type: 'integer', description: 'The ID of the predecessor task that must complete first' },
         dependencyType: ref('DependencyType'),
@@ -509,7 +509,7 @@ export function generateOpenApiSchemas(): Record<string, any> {
 
     TaskDependencyUpdateRequest: {
       type: 'object',
-      description: 'Input schema for updating a task dependency. Both fields are optional; only provided fields are changed. Also accepts alternate dependency type formats: "FinishToStart", "finish_to_start", "FS", etc.',
+      description: 'Input schema for updating a task dependency. Both fields are optional; only provided fields are changed. Alternate dependency type formats are also accepted: "FinishToStart", "finish_to_start", "FS", etc.',
       properties: {
         dependencyType: ref('DependencyType'),
         lagDays: { type: 'integer', nullable: true, description: 'Lag (positive) or lead (negative) time in working days.' },
