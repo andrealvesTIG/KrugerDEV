@@ -521,17 +521,18 @@ export function BillingContent() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full max-w-2xl grid-cols-3">
+        <TabsList className="flex w-full max-w-2xl flex-wrap h-auto gap-1 justify-start">
           <TabsTrigger value="billing" data-testid="tab-billing">
-            <CreditCard className="h-4 w-4 mr-2" />
+            <CreditCard className="h-4 w-4 mr-1 sm:mr-2" />
             Billing
           </TabsTrigger>
           <TabsTrigger value="ledger" data-testid="tab-ledger">
-            <FileText className="h-4 w-4 mr-2" />
-            Credit Ledger
+            <FileText className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="sm:hidden">Credits</span>
+            <span className="hidden sm:inline">Credit Ledger</span>
           </TabsTrigger>
           <TabsTrigger value="history" data-testid="tab-history">
-            <History className="h-4 w-4 mr-2" />
+            <History className="h-4 w-4 mr-1 sm:mr-2" />
             History
           </TabsTrigger>
         </TabsList>
@@ -1092,25 +1093,25 @@ export function BillingContent() {
                   <p className="text-xs mt-1">Credit transactions will appear here as you use the platform</p>
                 </div>
               ) : (
-                <div className="space-y-1">
-                  <div className="grid grid-cols-5 gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border-b">
-                    <div>Date & Time</div>
-                    <div>User</div>
-                    <div>Resource Type</div>
-                    <div>Resource ID</div>
+                <div className="space-y-1 overflow-x-auto">
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border-b min-w-0">
+                    <div>Date</div>
+                    <div className="hidden sm:block">User</div>
+                    <div>Type</div>
+                    <div className="hidden sm:block">Resource ID</div>
                     <div className="text-right">Credits</div>
                   </div>
                   <div className="max-h-96 overflow-y-auto">
                     {creditLedger.entries.map((entry) => (
                       <div 
                         key={entry.id} 
-                        className="grid grid-cols-5 gap-2 px-3 py-2 text-sm border-b last:border-0 hover:bg-muted/50"
+                        className="grid grid-cols-3 sm:grid-cols-5 gap-2 px-3 py-2 text-sm border-b last:border-0 hover:bg-muted/50"
                         data-testid={`ledger-entry-${entry.id}`}
                       >
-                        <div className="text-muted-foreground">
+                        <div className="text-muted-foreground text-xs sm:text-sm">
                           {format(new Date(entry.occurredAt), "MMM d, yyyy h:mm a")}
                         </div>
-                        <div className="truncate" title={entry.userEmail || undefined}>
+                        <div className="truncate hidden sm:block" title={entry.userEmail || undefined}>
                           {entry.userName}
                         </div>
                         <div>
@@ -1118,7 +1119,7 @@ export function BillingContent() {
                             {entry.resourceType.replace(/_/g, ' ')}
                           </Badge>
                         </div>
-                        <div className="text-muted-foreground font-mono text-xs">
+                        <div className="text-muted-foreground font-mono text-xs hidden sm:block">
                           #{entry.resourceId}
                         </div>
                         <div className="text-right font-medium text-destructive">

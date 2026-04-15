@@ -759,11 +759,14 @@ export default function Tasks() {
                 </div>
 
                 <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
-                  <TabsList className="grid w-full grid-cols-4">
+                  <TabsList className="flex w-full flex-wrap h-auto gap-1 justify-start">
                     <TabsTrigger value="details" className="text-xs">Details</TabsTrigger>
                     <TabsTrigger value="schedule" className="text-xs">Schedule</TabsTrigger>
                     <TabsTrigger value="resources" className="text-xs">Resources</TabsTrigger>
-                    <TabsTrigger value="dependencies" className="text-xs" disabled={!editingTask}>Dependencies</TabsTrigger>
+                    <TabsTrigger value="dependencies" className="text-xs" disabled={!editingTask}>
+                      <span className="sm:hidden">Deps</span>
+                      <span className="hidden sm:inline">Dependencies</span>
+                    </TabsTrigger>
                   </TabsList>
 
                   <div className="flex-1 overflow-y-auto py-4 min-h-[280px]">
