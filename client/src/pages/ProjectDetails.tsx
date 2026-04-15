@@ -3829,19 +3829,6 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
     };
   }, [tasks]);
   
-  // Auto-sync calculated progress to completionPercentage in DB
-  const prevSyncedProgress = useRef<number | null>(null);
-  useEffect(() => {
-    if (prevSyncedProgress.current !== sidebarProgress && sidebarProgress !== (project.completionPercentage ?? 0)) {
-      onUpdate({ 
-        id: project.id, 
-        completionPercentage: sidebarProgress,
-        completionOverridden: false
-      }, {
-        onSuccess: () => { prevSyncedProgress.current = sidebarProgress; },
-      });
-    }
-  }, [sidebarProgress, project.id, project.completionPercentage, onUpdate]);
 
   const [editValues, setEditValues] = useState({
     name: project.name || "",

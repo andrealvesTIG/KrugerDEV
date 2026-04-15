@@ -399,7 +399,7 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
 
         <Card data-testid="card-metric-completion">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Avg Completion</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Avg Progress</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
@@ -3140,7 +3140,7 @@ function DashboardTab({ portfolioId, metrics, onNavigate }: {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Avg Completion</p>
+                <p className="text-sm text-muted-foreground">Avg Progress</p>
                 <p className="text-3xl font-bold text-blue-600">{metrics.avgCompletion}%</p>
               </div>
               <TrendingUp className="h-8 w-8 text-blue-500/50" />
