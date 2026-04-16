@@ -887,92 +887,153 @@ export function FinancialTableRow({
   getVariance: (budget: number, actual: number) => { variance: number; percent: number };
 }) {
   const variance = getVariance(Number(item.budgetAmount), Number(item.actualAmount));
+  const [expanded, setExpanded] = useState(false);
   
   return (
-    <tr className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-financial-${item.id}`}>
-      <td className="px-3 py-2 min-w-0 max-w-[200px] overflow-hidden">
-        <div className="text-sm font-medium truncate" title={item.lineItem}>{item.lineItem}</div>
-        {item.description && <div className="text-xs text-muted-foreground truncate" title={item.description}>{item.description}</div>}
-        <div className="sm:hidden text-[10px] text-muted-foreground mt-0.5">{item.fiscalYear} &middot; {item.fiscalPeriod}</div>
-      </td>
-      <td className="px-2 py-2 text-center text-xs tabular-nums hidden sm:table-cell">{item.fiscalYear}</td>
-      <td className="px-2 py-2 text-center text-xs hidden sm:table-cell">{item.fiscalPeriod}</td>
-      <td className="px-3 py-2 text-right">
-        {isEditing ? (
-          <Input
-            type="number"
-            value={editValues.budgetAmount || ""}
-            onChange={(e) => setEditValues({ ...editValues, budgetAmount: e.target.value })}
-            className="w-24 h-7 text-xs text-right"
-            data-testid="input-edit-budget"
-          />
-        ) : (
-          <span className="text-xs tabular-nums">{formatCurrency(Number(item.budgetAmount))}</span>
-        )}
-      </td>
-      <td className="px-3 py-2 text-right hidden md:table-cell">
-        {isEditing ? (
-          <Input
-            type="number"
-            value={editValues.plannedAmount || ""}
-            onChange={(e) => setEditValues({ ...editValues, plannedAmount: e.target.value })}
-            className="w-24 h-7 text-xs text-right"
-            data-testid="input-edit-planned"
-          />
-        ) : (
-          <span className="text-xs tabular-nums">{formatCurrency(Number(item.plannedAmount))}</span>
-        )}
-      </td>
-      <td className="px-3 py-2 text-right hidden md:table-cell">
-        {isEditing ? (
-          <Input
-            type="number"
-            value={editValues.actualAmount || ""}
-            onChange={(e) => setEditValues({ ...editValues, actualAmount: e.target.value })}
-            className="w-24 h-7 text-xs text-right"
-            data-testid="input-edit-actual"
-          />
-        ) : (
-          <span className="text-xs tabular-nums">{formatCurrency(Number(item.actualAmount))}</span>
-        )}
-      </td>
-      <td className={cn(
-        "px-3 py-2 text-right text-xs tabular-nums hidden lg:table-cell",
-        variance.variance >= 0 ? "text-slate-700 dark:text-slate-300" : "text-red-600 dark:text-red-400"
-      )}>
-        {formatCurrency(variance.variance)}
-        <span className="text-[10px] ml-0.5 text-muted-foreground">({variance.percent.toFixed(0)}%)</span>
-      </td>
-      <td className="px-1 sm:px-2 py-2">
-        <div className="flex justify-end gap-0.5">
+    <>
+      <tr className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-financial-${item.id}`}>
+        <td className="px-3 py-2 min-w-0 max-w-[200px] overflow-hidden">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className="lg:hidden shrink-0 p-0.5 -ml-1 rounded hover:bg-muted/50"
+              onClick={() => setExpanded(!expanded)}
+              aria-label={expanded ? "Collapse details" : "Expand details"}
+            >
+              {expanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+            </button>
+            <div className="min-w-0">
+              <div className="text-sm font-medium truncate" title={item.lineItem}>{item.lineItem}</div>
+              {item.description && <div className="text-xs text-muted-foreground truncate" title={item.description}>{item.description}</div>}
+              <div className="sm:hidden text-[10px] text-muted-foreground mt-0.5">{item.fiscalYear} &middot; {item.fiscalPeriod}</div>
+            </div>
+          </div>
+        </td>
+        <td className="px-2 py-2 text-center text-xs tabular-nums hidden sm:table-cell">{item.fiscalYear}</td>
+        <td className="px-2 py-2 text-center text-xs hidden sm:table-cell">{item.fiscalPeriod}</td>
+        <td className="px-3 py-2 text-right">
           {isEditing ? (
-            <>
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => saveEdit(item.id)} data-testid="button-save-edit">
-                <Check className="h-3 w-3 text-green-600" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={cancelEdit} data-testid="button-cancel-edit">
-                <X className="h-3 w-3 text-slate-400" />
-              </Button>
-            </>
+            <Input
+              type="number"
+              value={editValues.budgetAmount || ""}
+              onChange={(e) => setEditValues({ ...editValues, budgetAmount: e.target.value })}
+              className="w-24 h-7 text-xs text-right"
+              data-testid="input-edit-budget"
+            />
           ) : (
-            <>
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => startEdit(item)} data-testid={`button-edit-financial-${item.id}`}>
-                <Pencil className="h-3 w-3 text-slate-400" />
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => deleteFinancial.mutate(item.id)}
-                data-testid={`button-delete-financial-${item.id}`}
-              >
-                <Trash2 className="h-3 w-3 text-slate-400" />
-              </Button>
-            </>
+            <span className="text-xs tabular-nums">{formatCurrency(Number(item.budgetAmount))}</span>
           )}
-        </div>
-      </td>
-    </tr>
+        </td>
+        <td className="px-3 py-2 text-right hidden md:table-cell">
+          {isEditing ? (
+            <Input
+              type="number"
+              value={editValues.plannedAmount || ""}
+              onChange={(e) => setEditValues({ ...editValues, plannedAmount: e.target.value })}
+              className="w-24 h-7 text-xs text-right"
+              data-testid="input-edit-planned"
+            />
+          ) : (
+            <span className="text-xs tabular-nums">{formatCurrency(Number(item.plannedAmount))}</span>
+          )}
+        </td>
+        <td className="px-3 py-2 text-right hidden md:table-cell">
+          {isEditing ? (
+            <Input
+              type="number"
+              value={editValues.actualAmount || ""}
+              onChange={(e) => setEditValues({ ...editValues, actualAmount: e.target.value })}
+              className="w-24 h-7 text-xs text-right"
+              data-testid="input-edit-actual"
+            />
+          ) : (
+            <span className="text-xs tabular-nums">{formatCurrency(Number(item.actualAmount))}</span>
+          )}
+        </td>
+        <td className={cn(
+          "px-3 py-2 text-right text-xs tabular-nums hidden lg:table-cell",
+          variance.variance >= 0 ? "text-slate-700 dark:text-slate-300" : "text-red-600 dark:text-red-400"
+        )}>
+          {formatCurrency(variance.variance)}
+          <span className="text-[10px] ml-0.5 text-muted-foreground">({variance.percent.toFixed(0)}%)</span>
+        </td>
+        <td className="px-1 sm:px-2 py-2">
+          <div className="flex justify-end gap-0.5">
+            {isEditing ? (
+              <>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => saveEdit(item.id)} data-testid="button-save-edit">
+                  <Check className="h-3 w-3 text-green-600" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={cancelEdit} data-testid="button-cancel-edit">
+                  <X className="h-3 w-3 text-slate-400" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => startEdit(item)} data-testid={`button-edit-financial-${item.id}`}>
+                  <Pencil className="h-3 w-3 text-slate-400" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => deleteFinancial.mutate(item.id)}
+                  data-testid={`button-delete-financial-${item.id}`}
+                >
+                  <Trash2 className="h-3 w-3 text-slate-400" />
+                </Button>
+              </>
+            )}
+          </div>
+        </td>
+      </tr>
+      {expanded && (
+        <tr className="lg:hidden border-b bg-muted/20">
+          <td colSpan={8} className="px-3 py-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 text-xs">
+              <div className="md:hidden">
+                <span className="text-muted-foreground block mb-0.5">Planned</span>
+                {isEditing ? (
+                  <Input
+                    type="number"
+                    value={editValues.plannedAmount || ""}
+                    onChange={(e) => setEditValues({ ...editValues, plannedAmount: e.target.value })}
+                    className="h-8 text-base md:text-sm text-right w-full"
+                    data-testid="input-edit-planned-mobile"
+                  />
+                ) : (
+                  <span className="tabular-nums font-medium">{formatCurrency(Number(item.plannedAmount))}</span>
+                )}
+              </div>
+              <div className="md:hidden">
+                <span className="text-muted-foreground block mb-0.5">Actual</span>
+                {isEditing ? (
+                  <Input
+                    type="number"
+                    value={editValues.actualAmount || ""}
+                    onChange={(e) => setEditValues({ ...editValues, actualAmount: e.target.value })}
+                    className="h-8 text-base md:text-sm text-right w-full"
+                    data-testid="input-edit-actual-mobile"
+                  />
+                ) : (
+                  <span className="tabular-nums font-medium">{formatCurrency(Number(item.actualAmount))}</span>
+                )}
+              </div>
+              <div>
+                <span className="text-muted-foreground block mb-0.5">Variance</span>
+                <span className={cn(
+                  "tabular-nums font-medium",
+                  variance.variance >= 0 ? "text-slate-700 dark:text-slate-300" : "text-red-600 dark:text-red-400"
+                )}>
+                  {formatCurrency(variance.variance)}
+                  <span className="text-[10px] ml-0.5 text-muted-foreground">({variance.percent.toFixed(0)}%)</span>
+                </span>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
