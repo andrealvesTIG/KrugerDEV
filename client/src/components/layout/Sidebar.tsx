@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate, Newspaper, BarChart3 } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate, Newspaper, BarChart3, Check, Search, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
@@ -10,6 +10,7 @@ import { useOrganization } from "@/hooks/use-organization";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { WaffleMenu } from "@/components/WaffleMenu";
 import type { SidebarStructure, SidebarGroup, SidebarItem } from "@shared/schema";
 
@@ -294,6 +295,59 @@ const userMenuItems = [
   { name: "Super Admin", href: "/super-admin", icon: Crown, superAdminOnly: true },
 ];
 
+function MobileOrgSwitcher({ organizations, currentOrganization, onSelect }: {
+  organizations: any[];
+  currentOrganization: any;
+  onSelect: (org: any) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="md:hidden px-4 pb-2">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="w-full flex items-center justify-between gap-2 bg-slate-800 border border-slate-700 text-white hover:bg-slate-700 h-10 px-3 rounded-md text-sm transition-colors"
+            data-testid="mobile-org-switcher"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <Building2 className="h-4 w-4 flex-shrink-0 text-slate-400" />
+              <span className="truncate">{currentOrganization?.name || "Select organization"}</span>
+            </div>
+            <ChevronsUpDown className="h-4 w-4 flex-shrink-0 text-slate-400" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 z-[60]" align="start">
+          <Command>
+            <CommandInput placeholder="Search organizations..." className="text-base md:text-sm" />
+            <CommandList className="max-h-[240px]">
+              <CommandEmpty>No organization found.</CommandEmpty>
+              <CommandGroup>
+                {organizations.map(org => (
+                  <CommandItem
+                    key={org.id}
+                    value={org.name}
+                    onSelect={() => {
+                      onSelect(org);
+                      setOpen(false);
+                    }}
+                    data-testid={`mobile-org-item-${org.id}`}
+                    className="cursor-pointer"
+                  >
+                    <Check className={cn("h-4 w-4 mr-2 flex-shrink-0", currentOrganization?.id === org.id ? "opacity-100" : "opacity-0")} />
+                    <span className="truncate">{org.name}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 export function Sidebar() {
   const [location, setLocation] = useLocation();
   const { logout, user } = useAuth();
@@ -444,32 +498,14 @@ export function Sidebar() {
       </div>
       {/* Mobile Organization Switcher */}
       {organizations.length > 1 && (
-        <div className="md:hidden px-4 pb-2">
-          <Select
-            value={currentOrganization?.id?.toString() || ""}
-            onValueChange={(value) => {
-              const org = organizations.find(o => o.id.toString() === value);
-              if (org) {
-                setCurrentOrganization(org);
-                setIsMobileOpen(false);
-              }
-            }}
-          >
-            <SelectTrigger className="w-full bg-slate-800 border-slate-700 text-white hover:bg-slate-700 h-9 text-sm" data-testid="mobile-org-switcher">
-              <div className="flex items-center gap-2 min-w-0">
-                <Building2 className="h-4 w-4 flex-shrink-0 text-slate-400" />
-                <SelectValue placeholder="Select organization" />
-              </div>
-            </SelectTrigger>
-            <SelectContent className="z-[60] max-h-[240px] overflow-y-auto">
-              {organizations.map(org => (
-                <SelectItem key={org.id} value={org.id.toString()} data-testid={`mobile-org-item-${org.id}`}>
-                  {org.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <MobileOrgSwitcher
+          organizations={organizations}
+          currentOrganization={currentOrganization}
+          onSelect={(org) => {
+            setCurrentOrganization(org);
+            setIsMobileOpen(false);
+          }}
+        />
       )}
       {organizations.length === 1 && (
         <div className="md:hidden px-4 pb-2">
