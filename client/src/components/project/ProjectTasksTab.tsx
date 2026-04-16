@@ -16,7 +16,7 @@ import { useForm, Controller } from "react-hook-form";
 import { useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { cn, normalizeSearch } from "@/lib/utils";
-import { insertTaskSchema } from "@shared/schema";
+import { insertTaskSchema, TASK_STATUSES, TASK_STATUS, DEFAULT_TASK_STATUS } from "@shared/schema";
 import type { Task, TaskResourceAssignment, Resource } from "@shared/schema";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { TaskDependenciesSection, type TaskDependenciesSectionHandle, type PendingDepChange } from "@/components/TaskDependenciesSection";
@@ -457,7 +457,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       endDate: calculateEndDateFromWorkingDays(format(new Date(), 'yyyy-MM-dd'), 1),
       durationDays: 1,
       progress: 0,
-      status: "Not Started",
+      status: DEFAULT_TASK_STATUS,
       assignee: "",
       baselineStartDate: null as string | null,
       baselineEndDate: null as string | null,
@@ -555,7 +555,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       endDate: task.endDate || calculateEndDateFromWorkingDays(format(new Date(), 'yyyy-MM-dd'), 1),
       durationDays: taskDuration,
       progress: task.progress || 0,
-      status: task.status || "Not Started",
+      status: task.status || DEFAULT_TASK_STATUS,
       assignee: task.assignee || "",
       baselineStartDate: task.baselineStartDate || null,
       baselineEndDate: task.baselineEndDate || null,
@@ -596,7 +596,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       endDate: calculateEndDateFromWorkingDays(todayStr, 1),
       durationDays: 1,
       progress: 0,
-      status: "Not Started",
+      status: DEFAULT_TASK_STATUS,
       assignee: "",
       baselineStartDate: null,
       baselineEndDate: null,
@@ -615,7 +615,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       endDate: isOngoingTask ? null : data.endDate,
       durationDays: isOngoingTask ? null : (durationDays ?? 1),
       progress: data.progress || 0,
-      status: data.status || "Not Started",
+      status: data.status || DEFAULT_TASK_STATUS,
       assignee: data.assignee || null,
       isMilestone: isOngoingTask ? false : isMilestone,
       baselineStartDate: data.baselineStartDate || null,
@@ -1117,19 +1117,19 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                           <Select onValueChange={(val) => {
                             const prevStatus = field.value;
                             field.onChange(val);
-                            if (val === "Not Started") {
+                            if (val === TASK_STATUS.NOT_STARTED) {
                               form.setValue("progress", 0);
-                            } else if (val === "Completed") {
+                            } else if (val === TASK_STATUS.COMPLETED) {
                               form.setValue("progress", 100);
-                            } else if (val === "In Progress" && prevStatus === "Completed") {
+                            } else if (val === TASK_STATUS.IN_PROGRESS && prevStatus === TASK_STATUS.COMPLETED) {
                               form.setValue("progress", 50);
                             }
-                          }} value={field.value || "Not Started"}>
+                          }} value={field.value || DEFAULT_TASK_STATUS}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="Not Started">Not Started</SelectItem>
-                              <SelectItem value="In Progress">In Progress</SelectItem>
-                              <SelectItem value="Completed">Completed</SelectItem>
+                              {TASK_STATUSES.map((status) => (
+                                <SelectItem key={status} value={status}>{status}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         )} />
@@ -1148,12 +1148,12 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                                 field.onChange(newProgress);
                                 const currentStatus = form.getValues("status");
                                 if (newProgress === 100) {
-                                  form.setValue("status", "Completed");
+                                  form.setValue("status", TASK_STATUS.COMPLETED);
                                 } else if (newProgress === 0) {
-                                  form.setValue("status", "Not Started");
+                                  form.setValue("status", TASK_STATUS.NOT_STARTED);
                                 } else {
-                                  if (currentStatus === "Completed" || currentStatus === "Not Started") {
-                                    form.setValue("status", "In Progress");
+                                  if (currentStatus === TASK_STATUS.COMPLETED || currentStatus === TASK_STATUS.NOT_STARTED) {
+                                    form.setValue("status", TASK_STATUS.IN_PROGRESS);
                                   }
                                 }
                               }}
@@ -1602,7 +1602,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               startDate: todayStr,
               endDate: calculateEndDateFromWorkingDays(todayStr, 1),
               durationDays: 1,
-              status: "Not Started",
+              status: DEFAULT_TASK_STATUS,
               progress: 0,
             });
           }}
@@ -1629,7 +1629,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               startDate: todayStr,
               endDate: calculateEndDateFromWorkingDays(todayStr, 1),
               durationDays: 1,
-              status: "Not Started",
+              status: DEFAULT_TASK_STATUS,
               progress: 0,
             });
           }}
@@ -1654,11 +1654,11 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             if (task) {
               // Auto-update progress based on status
               let progressUpdate: number | undefined;
-              if (newStatus === "Not Started") {
+              if (newStatus === TASK_STATUS.NOT_STARTED) {
                 progressUpdate = 0;
-              } else if (newStatus === "In Progress") {
+              } else if (newStatus === TASK_STATUS.IN_PROGRESS) {
                 progressUpdate = 50;
-              } else if (newStatus === "Completed") {
+              } else if (newStatus === TASK_STATUS.COMPLETED) {
                 progressUpdate = 100;
               }
               

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TASK_PRIORITIES, DEFAULT_TASK_STATUS, DEFAULT_TASK_PRIORITY } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -32,13 +33,13 @@ export function FirstProjectWizard() {
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
   const [wizardTasks, setWizardTasks] = useState<WizardTask[]>([
-    { title: "", priority: "medium", startDate: "", endDate: "" },
+    { title: "", priority: DEFAULT_TASK_PRIORITY, startDate: "", endDate: "" },
   ]);
   const [isCreating, setIsCreating] = useState(false);
   const [created, setCreated] = useState(false);
 
   const handleAddTask = () => {
-    setWizardTasks(prev => [...prev, { title: "", priority: "medium", startDate: "", endDate: "" }]);
+    setWizardTasks(prev => [...prev, { title: "", priority: DEFAULT_TASK_PRIORITY, startDate: "", endDate: "" }]);
   };
 
   const handleRemoveTask = (index: number) => {
@@ -71,7 +72,7 @@ export function FirstProjectWizard() {
           priority: task.priority,
           startDate: task.startDate || null,
           endDate: task.endDate || null,
-          status: "not_started",
+          status: DEFAULT_TASK_STATUS,
         });
         trackChecklistEvent("add_task");
       }
@@ -153,10 +154,9 @@ export function FirstProjectWizard() {
                     <Select value={task.priority} onValueChange={v => handleUpdateTask(i, "priority", v)}>
                       <SelectTrigger className="h-8 text-xs w-28"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="low">Low</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="critical">Critical</SelectItem>
+                        {TASK_PRIORITIES.map((priority) => (
+                          <SelectItem key={priority} value={priority}>{priority}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <Input type="date" className="h-8 text-xs" value={task.startDate} onChange={e => handleUpdateTask(i, "startDate", e.target.value)} />

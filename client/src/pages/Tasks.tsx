@@ -42,7 +42,7 @@ import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, parseD
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { insertTaskSchema, type Task } from "@shared/schema";
+import { insertTaskSchema, type Task, TASK_STATUSES, TASK_STATUS, DEFAULT_TASK_STATUS } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
@@ -51,9 +51,9 @@ import { CreateTaskDialog } from "@/components/CreateTaskDialog";
 const ProjectGanttView = lazy(() => import("@/components/project/ProjectGanttView"));
 
 const statusColors = {
-  "Not Started": "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-  "In Progress": "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-  "Completed": "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  [TASK_STATUS.NOT_STARTED]: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  [TASK_STATUS.IN_PROGRESS]: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  [TASK_STATUS.COMPLETED]: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
 };
 
 type GroupBy = "project" | "portfolio" | "resource";
@@ -293,7 +293,7 @@ export default function Tasks() {
       endDate: calculateEndDateFromWorkingDays(format(new Date(), 'yyyy-MM-dd'), 1),
       durationDays: 1,
       progress: 0,
-      status: "Not Started",
+      status: DEFAULT_TASK_STATUS,
       assignee: "",
       baselineStartDate: null as string | null,
       baselineEndDate: null as string | null,
@@ -342,7 +342,7 @@ export default function Tasks() {
       endDate: task.endDate,
       durationDays: taskDuration,
       progress: task.progress || 0,
-      status: task.status || "Not Started",
+      status: task.status || DEFAULT_TASK_STATUS,
       assignee: task.assignee || "",
       baselineStartDate: task.baselineStartDate || null,
       baselineEndDate: task.baselineEndDate || null,
@@ -366,7 +366,7 @@ export default function Tasks() {
       endDate: calculateEndDateFromWorkingDays(todayStr, 1),
       durationDays: 1,
       progress: 0,
-      status: "Not Started",
+      status: DEFAULT_TASK_STATUS,
       assignee: "",
       baselineStartDate: null,
       baselineEndDate: null,
@@ -427,7 +427,7 @@ export default function Tasks() {
       endDate: data.endDate,
       durationDays: durationDays ?? 1,
       progress: data.progress || 0,
-      status: data.status || "Not Started",
+      status: data.status || DEFAULT_TASK_STATUS,
       assignee: data.assignee || null,
       baselineStartDate: data.baselineStartDate || null,
       baselineEndDate: data.baselineEndDate || null,
@@ -775,19 +775,19 @@ export default function Tasks() {
                             <Select onValueChange={(val) => {
                               const prevStatus = field.value;
                               field.onChange(val);
-                              if (val === "Not Started") {
+                              if (val === TASK_STATUS.NOT_STARTED) {
                                 form.setValue("progress", 0);
-                              } else if (val === "Completed") {
+                              } else if (val === TASK_STATUS.COMPLETED) {
                                 form.setValue("progress", 100);
-                              } else if (val === "In Progress" && prevStatus === "Completed") {
+                              } else if (val === TASK_STATUS.IN_PROGRESS && prevStatus === TASK_STATUS.COMPLETED) {
                                 form.setValue("progress", 50);
                               }
-                            }} value={field.value || "Not Started"}>
+                            }} value={field.value || DEFAULT_TASK_STATUS}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="Not Started">Not Started</SelectItem>
-                                <SelectItem value="In Progress">In Progress</SelectItem>
-                                <SelectItem value="Completed">Completed</SelectItem>
+                                {TASK_STATUSES.map((status) => (
+                                  <SelectItem key={status} value={status}>{status}</SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           )} />
@@ -806,12 +806,12 @@ export default function Tasks() {
                                   field.onChange(newProgress);
                                   const currentStatus = form.getValues("status");
                                   if (newProgress === 100) {
-                                    form.setValue("status", "Completed");
+                                    form.setValue("status", TASK_STATUS.COMPLETED);
                                   } else if (newProgress === 0) {
-                                    form.setValue("status", "Not Started");
+                                    form.setValue("status", TASK_STATUS.NOT_STARTED);
                                   } else {
-                                    if (currentStatus === "Completed" || currentStatus === "Not Started") {
-                                      form.setValue("status", "In Progress");
+                                    if (currentStatus === TASK_STATUS.COMPLETED || currentStatus === TASK_STATUS.NOT_STARTED) {
+                                      form.setValue("status", TASK_STATUS.IN_PROGRESS);
                                     }
                                   }
                                 }}
@@ -1390,7 +1390,7 @@ function GroupGanttContent({ group, organizationId, onTaskClick, projects }: { g
             startDate: todayStr,
             endDate: calculateEndDateFromWorkingDays(todayStr, 1),
             durationDays: 1,
-            status: "Not Started",
+            status: DEFAULT_TASK_STATUS,
             progress: 0,
           });
         }}
@@ -1443,9 +1443,9 @@ function KanbanView({
 }) {
   const { data: orgTaskAssignments } = useOrgFullTaskAssignments(organizationId);
   const columns = [
-    { id: "Not Started", label: "Not Started", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
-    { id: "In Progress", label: "In Progress", color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" },
-    { id: "Completed", label: "Completed", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200" },
+    { id: TASK_STATUS.NOT_STARTED, label: TASK_STATUS.NOT_STARTED, color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
+    { id: TASK_STATUS.IN_PROGRESS, label: TASK_STATUS.IN_PROGRESS, color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" },
+    { id: TASK_STATUS.COMPLETED, label: TASK_STATUS.COMPLETED, color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200" },
   ];
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -1494,7 +1494,7 @@ function KanbanView({
           <KanbanColumn
             key={column.id}
             column={column}
-            tasks={tasks.filter(t => (t.status || "Not Started") === column.id)}
+            tasks={tasks.filter(t => (t.status || DEFAULT_TASK_STATUS) === column.id)}
             getProjectName={getProjectName}
             onTaskClick={onTaskClick}
             onDeleteTask={onDeleteTask}
