@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Check, History, Milestone as MilestoneIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Plus, Check, History, Milestone as MilestoneIcon, ChevronLeft, ChevronRight, Columns3 } from "lucide-react";
 import { DndContext, DragEndEvent, DragOverEvent, DragOverlay, DragStartEvent, closestCorners, pointerWithin, rectIntersection, useSensor, useSensors, PointerSensor, TouchSensor, useDroppable, type CollisionDetection } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -434,6 +434,44 @@ function ProjectKanbanView({
     setActiveOverColumn(null);
   };
 
+  const handleKeyboardMove = useCallback((taskId: number, direction: 'left' | 'right') => {
+    if (!canDrag) return;
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const currentGroupVal = getGroupValue(task);
+    const currentIdx = columns.findIndex(c => c.id === currentGroupVal);
+    if (currentIdx === -1) return;
+    const newIdx = direction === 'left' ? currentIdx - 1 : currentIdx + 1;
+    if (newIdx < 0 || newIdx >= columns.length) return;
+    const targetColumnId = columns[newIdx].id;
+    if (groupBy === 'status') {
+      onStatusChange(taskId, targetColumnId);
+    } else if (groupBy === 'assignee' && onResourceAssign) {
+      const currentAssignedIds = taskAssignmentsMap.get(taskId) || [];
+      if (targetColumnId === "Unassigned") {
+        onResourceAssign(taskId, []);
+      } else {
+        const targetResourceId = Number(targetColumnId);
+        const otherAssignments = currentAssignedIds.filter(id => id !== (currentAssignedIds[0] || -1));
+        onResourceAssign(taskId, [targetResourceId, ...otherAssignments]);
+      }
+    } else if (groupBy.startsWith('cf_')) {
+      const cfId = Number(groupBy.slice(3));
+      const cfDef = taskCustomFields.find(d => d.id === cfId);
+      if (cfDef) {
+        let newValue: string | null;
+        if (targetColumnId === 'No Value') {
+          newValue = null;
+        } else if (cfDef.fieldType === 'checkbox') {
+          newValue = targetColumnId === 'Yes' ? 'true' : 'false';
+        } else {
+          newValue = targetColumnId;
+        }
+        updateTaskCfValue.mutate({ taskId, fieldDefinitionId: cfId, value: newValue });
+      }
+    }
+  }, [canDrag, tasks, getGroupValue, columns, groupBy, onStatusChange, onResourceAssign, taskAssignmentsMap, taskCustomFields, updateTaskCfValue]);
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -543,6 +581,20 @@ function ProjectKanbanView({
               {isReadOnly ? 'Project is read-only' : 'Drag and drop is available when grouping by Status, Assignee, or Custom Fields'}
             </div>
           )}
+          {canDrag && !isReadOnly && (
+            <div className="text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded mb-3 inline-block hidden md:inline-block">
+              Tip: Focus a card and press Ctrl+Arrow to move between columns
+            </div>
+          )}
+          {filteredTasks.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Columns3 className="h-12 w-12 text-muted-foreground/40 mb-3" />
+              <p className="text-sm font-medium text-muted-foreground">No tasks to display</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">
+                {filterResourceId !== null ? "Try clearing the resource filter." : showSummary ? "This project has no tasks yet." : "Try enabling summary tasks or clearing filters."}
+              </p>
+            </div>
+          )}
           <DndContext 
             sensors={sensors} 
             collisionDetection={kanbanCollisionDetection}
@@ -603,6 +655,7 @@ function ProjectKanbanView({
                   isDragEnabled={canDrag}
                   taskAssignmentsMap={taskAssignmentsMap}
                   isReadOnly={isReadOnly}
+                  onKeyboardMove={handleKeyboardMove}
                 />);
               })}
             </div>
@@ -635,6 +688,7 @@ function ProjectKanbanColumn({
   isDragEnabled,
   taskAssignmentsMap,
   isReadOnly,
+  onKeyboardMove,
 }: { 
   column: { id: string; label: string; color: string }; 
   tasks: Task[]; 
@@ -646,6 +700,7 @@ function ProjectKanbanColumn({
   isDragEnabled?: boolean;
   taskAssignmentsMap?: Map<number, number[]>;
   isReadOnly?: boolean;
+  onKeyboardMove?: (taskId: number, direction: 'left' | 'right') => void;
 }) {
   const { setNodeRef } = useDroppable({
     id: column.id,
@@ -664,8 +719,9 @@ function ProjectKanbanColumn({
         isActiveOver && "bg-primary/10 ring-2 ring-primary ring-dashed"
       )}
     >
-      <div className={cn("rounded-lg p-3 font-semibold", column.color)}>
-        {column.label} ({tasks.length})
+      <div className={cn("rounded-lg p-3 font-semibold flex items-center justify-between", column.color)}>
+        <span>{column.label}</span>
+        <Badge variant="secondary" className="text-xs font-medium ml-2">{tasks.length}</Badge>
       </div>
       <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
         <div className="space-y-3">
@@ -681,6 +737,7 @@ function ProjectKanbanColumn({
               isDragEnabled={isDragEnabled}
               assignedResourceIds={taskAssignmentsMap?.get(task.id) || []}
               isReadOnly={isReadOnly}
+              onKeyboardMove={onKeyboardMove}
             />
           ))}
           {tasks.length === 0 && isDragEnabled && (
@@ -709,6 +766,7 @@ function ProjectDraggableTaskCard({
   isDragEnabled,
   assignedResourceIds,
   isReadOnly,
+  onKeyboardMove,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
@@ -719,6 +777,7 @@ function ProjectDraggableTaskCard({
   isDragEnabled?: boolean;
   assignedResourceIds: number[];
   isReadOnly?: boolean;
+  onKeyboardMove?: (taskId: number, direction: 'left' | 'right') => void;
 }) {
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const {
@@ -770,6 +829,18 @@ function ProjectDraggableTaskCard({
     setIsAssignOpen(false);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (onKeyboardMove && (e.ctrlKey || e.metaKey)) {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        onKeyboardMove(task.id, 'left');
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        onKeyboardMove(task.id, 'right');
+      }
+    }
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -779,6 +850,8 @@ function ProjectDraggableTaskCard({
         isDragEnabled ? "cursor-grab active:cursor-grabbing" : "cursor-default",
         isDragging && "opacity-50"
       )}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
     >
       <Card 
         className={cn(

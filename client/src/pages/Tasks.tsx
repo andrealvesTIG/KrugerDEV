@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, lazy, Suspense } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { Link } from "wouter";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png"; 
@@ -1445,6 +1445,8 @@ function KanbanView({
   organizationId?: number | null;
 }) {
   const { data: orgTaskAssignments } = useOrgFullTaskAssignments(organizationId);
+  const { data: orgResources } = useResources(organizationId);
+  const [filterResourceId, setFilterResourceId] = useState<number | null>(null);
   const columns = [
     { id: TASK_STATUS.NOT_STARTED, label: TASK_STATUS.NOT_STARTED, color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
     { id: TASK_STATUS.IN_PROGRESS, label: TASK_STATUS.IN_PROGRESS, color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" },
@@ -1471,9 +1473,17 @@ function KanbanView({
     return projects.find(p => p.id === projectId)?.name || "Unknown";
   };
 
+  const filteredTasks = useMemo(() => {
+    if (filterResourceId === null) return tasks;
+    return tasks.filter(t => {
+      const assignments = orgTaskAssignments?.filter(a => a.taskId === t.id);
+      return assignments && assignments.some(a => a.resourceId === filterResourceId);
+    });
+  }, [tasks, filterResourceId, orgTaskAssignments]);
+
   const handleDragStart = (event: DragStartEvent) => {
     const taskId = Number(event.active.id);
-    const task = tasks.find(t => t.id === taskId);
+    const task = filteredTasks.find(t => t.id === taskId);
     if (task) setActiveTask(task);
   };
 
@@ -1484,51 +1494,97 @@ function KanbanView({
     
     const taskId = Number(active.id);
     const newStatus = String(over.id);
-    const task = tasks.find(t => t.id === taskId);
+    const task = filteredTasks.find(t => t.id === taskId);
     
     if (task && task.status !== newStatus && columns.some(c => c.id === newStatus)) {
       onStatusChange(taskId, newStatus);
     }
   };
 
+  const handleKeyboardMove = useCallback((taskId: number, direction: 'left' | 'right') => {
+    const task = filteredTasks.find(t => t.id === taskId);
+    if (!task) return;
+    const currentStatus = task.status || "Not Started";
+    const currentIdx = columns.findIndex(c => c.id === currentStatus);
+    if (currentIdx === -1) return;
+    const newIdx = direction === 'left' ? currentIdx - 1 : currentIdx + 1;
+    if (newIdx < 0 || newIdx >= columns.length) return;
+    onStatusChange(taskId, columns[newIdx].id);
+  }, [filteredTasks, columns, onStatusChange]);
+
   return (
-    <DndContext 
-      sensors={sensors} 
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {columns.map(column => (
-          <KanbanColumn
-            key={column.id}
-            column={column}
-            tasks={tasks.filter(t => (t.status || DEFAULT_TASK_STATUS) === column.id)}
-            getProjectName={getProjectName}
-            onTaskClick={onTaskClick}
-            onDeleteTask={onDeleteTask}
-            orgTaskAssignments={orgTaskAssignments}
-          />
-        ))}
-      </div>
-      <DragOverlay>
-        {activeTask && (
-          <div className="opacity-80">
-            <Card className="shadow-lg border-primary">
-              <CardContent className="p-4">
-                <div className="font-medium text-sm">{activeTask.name}</div>
-                <Link 
-                  href={`/projects/${activeTask.projectId}`}
-                  className="text-xs text-muted-foreground mt-1 hover:text-primary hover:underline block"
-                >
-                  {getProjectName(activeTask.projectId)}
-                </Link>
-              </CardContent>
-            </Card>
+    <div className="space-y-3">
+      {orgResources && orgResources.length > 0 && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Resource:</span>
+          <Select 
+            value={filterResourceId?.toString() || "all"} 
+            onValueChange={(v) => setFilterResourceId(v === "all" ? null : Number(v))}
+          >
+            <SelectTrigger className="h-8 w-full sm:w-[180px] text-xs">
+              <SelectValue placeholder="All Resources" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Resources</SelectItem>
+              {[...orgResources].sort((a, b) => a.displayName.localeCompare(b.displayName)).map(r => (
+                <SelectItem key={r.id} value={r.id.toString()}>{r.displayName}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className="text-xs text-muted-foreground ml-auto">
+            {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+      )}
+      {filteredTasks.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Columns3 className="h-12 w-12 text-muted-foreground/40 mb-3" />
+          <p className="text-sm font-medium text-muted-foreground">No tasks to display</p>
+          <p className="text-xs text-muted-foreground/70 mt-1">
+            {filterResourceId !== null ? "Try clearing the resource filter or add tasks to this group." : "Tasks will appear here once they are created."}
+          </p>
+        </div>
+      ) : (
+        <DndContext 
+          sensors={sensors} 
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {columns.map(column => (
+              <KanbanColumn
+                key={column.id}
+                column={column}
+                tasks={filteredTasks.filter(t => (t.status || DEFAULT_TASK_STATUS) === column.id)}
+                getProjectName={getProjectName}
+                onTaskClick={onTaskClick}
+                onDeleteTask={onDeleteTask}
+                orgTaskAssignments={orgTaskAssignments}
+                onKeyboardMove={handleKeyboardMove}
+              />
+            ))}
           </div>
-        )}
-      </DragOverlay>
-    </DndContext>
+          <DragOverlay>
+            {activeTask && (
+              <div className="opacity-80">
+                <Card className="shadow-lg border-primary">
+                  <CardContent className="p-4">
+                    <div className="font-medium text-sm">{activeTask.name}</div>
+                    <Link 
+                      href={`/projects/${activeTask.projectId}`}
+                      className="text-xs text-muted-foreground mt-1 hover:text-primary hover:underline block"
+                    >
+                      {getProjectName(activeTask.projectId)}
+                    </Link>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </DragOverlay>
+        </DndContext>
+      )}
+    </div>
   );
 }
 
@@ -1539,6 +1595,7 @@ function KanbanColumn({
   onTaskClick,
   onDeleteTask,
   orgTaskAssignments,
+  onKeyboardMove,
 }: { 
   column: { id: string; label: string; color: string }; 
   tasks: Task[]; 
@@ -1546,6 +1603,7 @@ function KanbanColumn({
   onTaskClick: (task: Task) => void;
   onDeleteTask: (task: Task) => void;
   orgTaskAssignments?: (TaskResourceAssignment & { resource: Resource })[];
+  onKeyboardMove?: (taskId: number, direction: 'left' | 'right') => void;
 }) {
   const { setNodeRef, isOver } = useSortable({
     id: column.id,
@@ -1559,8 +1617,9 @@ function KanbanColumn({
         isOver && "bg-primary/5 ring-2 ring-primary ring-dashed"
       )}
     >
-      <div className={cn("rounded-lg p-3 font-semibold", column.color)}>
-        {column.label} ({tasks.length})
+      <div className={cn("rounded-lg p-3 font-semibold flex items-center justify-between", column.color)}>
+        <span>{column.label}</span>
+        <Badge variant="secondary" className="text-xs font-medium ml-2">{tasks.length}</Badge>
       </div>
       <div className="space-y-3">
         {tasks.map(task => (
@@ -1571,6 +1630,7 @@ function KanbanColumn({
             onTaskClick={onTaskClick}
             onDeleteTask={onDeleteTask}
             preloadedAssignments={orgTaskAssignments?.filter(a => a.taskId === task.id)}
+            onKeyboardMove={onKeyboardMove}
           />
         ))}
         {tasks.length === 0 && (
@@ -1589,12 +1649,14 @@ function DraggableTaskCard({
   onTaskClick,
   onDeleteTask,
   preloadedAssignments,
+  onKeyboardMove,
 }: { 
   task: Task; 
   getProjectName: (id: number) => string;
   onTaskClick: (task: Task) => void;
   onDeleteTask: (task: Task) => void;
   preloadedAssignments?: (TaskResourceAssignment & { resource: Resource })[];
+  onKeyboardMove?: (taskId: number, direction: 'left' | 'right') => void;
 }) {
   const taskAssignments = preloadedAssignments;
   const {
@@ -1613,6 +1675,18 @@ function DraggableTaskCard({
     transition,
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (onKeyboardMove && (e.ctrlKey || e.metaKey)) {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        onKeyboardMove(task.id, 'left');
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        onKeyboardMove(task.id, 'right');
+      }
+    }
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -1620,6 +1694,8 @@ function DraggableTaskCard({
       {...attributes}
       {...listeners}
       className={cn(isDragging && "opacity-50")}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
     >
       <Card 
         className={cn(

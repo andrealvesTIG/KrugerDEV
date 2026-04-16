@@ -3856,8 +3856,9 @@ function ProjectKanbanColumn({
         isDraggable && isOver && "bg-primary/5 ring-2 ring-primary ring-dashed"
       )}
     >
-      <div className={cn("rounded-lg p-3 font-semibold text-center", column.color)}>
-        {column.label} ({projects.length})
+      <div className={cn("rounded-lg p-3 font-semibold text-center flex items-center justify-center gap-2", column.color)}>
+        <span>{column.label}</span>
+        <Badge variant="secondary" className="text-xs font-medium">{projects.length}</Badge>
       </div>
       <div className="space-y-3">
         {projects.map(project => (
