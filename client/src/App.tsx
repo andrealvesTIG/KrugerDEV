@@ -78,6 +78,7 @@ const Templates = lazy(() => import("@/pages/Templates"));
 const InvestorRoom = lazy(() => import("@/pages/InvestorRoom"));
 const Blog = lazy(() => import("@/pages/Blog"));
 const BlogPost = lazy(() => import("@/pages/BlogPost"));
+const PowerBIAgent = lazy(() => import("@/pages/PowerBIAgent"));
 
 function PageLoader() {
   return (
@@ -228,6 +229,7 @@ function Router() {
           <GuardedRoute path="/training/schedule-management" component={TrainingModule} moduleKey="training" />
           <GuardedRoute path="/training/:moduleId" component={TrainingModule} moduleKey="training" />
           <GuardedRoute path="/training" component={Training} moduleKey="training" />
+          <GuardedRoute path="/powerbi-agent" component={PowerBIAgent} moduleKey="powerbi-agent" />
           <Route path="/scheduled-reports" component={ReportSubscriptions} />
           <Route path="/risk-assessment/share/:token" component={SharedRiskAssessment} />
           <Route path="/project-risk-assessment/share/:token" component={SharedProjectRiskAssessment} />

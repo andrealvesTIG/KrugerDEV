@@ -1355,6 +1355,38 @@ export const intakeWorkflowSteps = pgTable("intake_workflow_steps", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Power BI Intake Requests - Captured via AI chat agent
+export const powerbiIntakeRequests = pgTable("powerbi_intake_requests", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  requestNumber: text("request_number"),
+  submittedBy: varchar("submitted_by").references(() => users.id),
+  status: text("status").default("new"),
+  reportType: text("report_type"),
+  reportName: text("report_name"),
+  description: text("description"),
+  numberOfPages: integer("number_of_pages"),
+  numberOfDrillDownPages: integer("number_of_drill_down_pages"),
+  numberOfDataSources: integer("number_of_data_sources"),
+  dataSources: text("data_sources"),
+  integrations: text("integrations"),
+  calculationComplexity: text("calculation_complexity"),
+  refreshFrequency: text("refresh_frequency"),
+  filtersAndSlicers: text("filters_and_slicers"),
+  visualRequirements: text("visual_requirements"),
+  securityRequirements: text("security_requirements"),
+  targetDeliveryDate: text("target_delivery_date"),
+  additionalNotes: text("additional_notes"),
+  conversationLog: text("conversation_log"),
+  estimatedEffortHours: integer("estimated_effort_hours"),
+  effortBreakdown: jsonb("effort_breakdown"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("powerbi_intake_org_id_idx").on(table.organizationId),
+  uniqueIndex("powerbi_intake_request_number_idx").on(table.requestNumber),
+]);
+
 // MPP Imports - Store imported Microsoft Project data
 export const mppImports = pgTable("mpp_imports", {
   id: serial("id").primaryKey(),

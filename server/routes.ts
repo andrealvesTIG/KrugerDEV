@@ -33,6 +33,7 @@ import { registerProjectAgentRoutes } from "./routes/projectAgentRoutes";
 import { registerJarvisRoutes } from "./routes/jarvisRoutes";
 import { registerInvestorRoutes } from "./routes/investorRoutes";
 import { registerBlogRoutes } from "./routes/blogRoutes";
+import { registerPowerBIAgentRoutes } from "./routes/powerbiAgentRoutes";
 import { seedDatabase } from "./routes/helpers";
 
 export async function registerRoutes(
@@ -108,6 +109,7 @@ export async function registerRoutes(
   registerJarvisRoutes(app);
   registerInvestorRoutes(app);
   registerBlogRoutes(app);
+  registerPowerBIAgentRoutes(app);
 
   seedTrainingDataIfEmpty().catch(err => {
     console.error('[training] Failed to seed training data:', err.message);
