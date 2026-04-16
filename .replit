@@ -52,6 +52,8 @@ expertMode = true
 [userenv.shared]
 RESEND_FROM_EMAIL = "FridayReport.AI <info@fridayreport.ai>"
 INVESTOR_ACCESS_PASSWORD = "FridayReport2026!"
+AZURE_OPENAI_ENDPOINT = "https://agentic-pmo.cognitiveservices.azure.com"
+AZURE_OPENAI_DEPLOYMENT = "gpt-4.1"
 
 [userenv.production]
 APP_URL = "https://fridayreport.ai"
