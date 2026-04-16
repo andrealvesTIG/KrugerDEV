@@ -4066,35 +4066,27 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
             </div>
             <div>
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Health Status</Label>
-              <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted/30 p-1" data-testid="toggle-project-health">
-                {PROJECT_HEALTH_VALUES.map(value => ({
-                  value,
-                  label: value,
-                  ...HEALTH_TOGGLE_STYLES[value],
-                })).map((option) => {
-                  const isSelected = project.health === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => handleHealthChange(option.value)}
-                      className={cn(
-                        "flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all",
-                        isSelected
-                          ? `${option.bgLight} ${option.text} ring-2 ${option.ring} shadow-sm`
-                          : "text-muted-foreground hover:bg-muted/80"
-                      )}
-                      data-testid={`health-option-${option.value.toLowerCase()}`}
-                    >
-                      <span className={cn(
-                        "w-2.5 h-2.5 rounded-full transition-all shrink-0",
-                        isSelected ? `${option.bg} shadow-sm` : "bg-muted-foreground/30"
-                      )} />
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
+              <Select
+                value={project.health || "Green"}
+                onValueChange={(v) => handleHealthChange(v)}
+              >
+                <SelectTrigger className="h-8 text-sm" data-testid="select-project-health">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROJECT_HEALTH_VALUES.map((value) => {
+                    const styles = HEALTH_TOGGLE_STYLES[value];
+                    return (
+                      <SelectItem key={value} value={value} data-testid={`health-option-${value.toLowerCase()}`}>
+                        <span className="flex items-center gap-2">
+                          <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", styles?.bg || "bg-slate-400")} />
+                          {value}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
               <button
                 type="button"
                 onClick={handleAddStatusNote}
