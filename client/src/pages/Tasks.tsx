@@ -1323,39 +1323,6 @@ function GroupedTasksView({
                       View Project
                     </Badge>
                   </Link>
-                  {group.source && (
-                    <Badge 
-                      variant="outline" 
-                      className={cn(
-                        "text-xs gap-1",
-                        group.source === "planner" && "border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-300",
-                        group.source === "planner_premium" && "border-purple-300 text-purple-700 dark:border-purple-700 dark:text-purple-300",
-                        group.source === "imported" && "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300"
-                      )}
-                    >
-                      {group.source === "planner" && (
-                        <>
-                          <img src={plannerLogoPath} alt="Planner" className="h-3 w-3" />
-                          <Cloud className="h-2.5 w-2.5 text-indigo-500" />
-                          Planner
-                        </>
-                      )}
-                      {group.source === "planner_premium" && (
-                        <>
-                          <img src={plannerLogoPath} alt="Planner Premium" className="h-3 w-3" />
-                          <Crown className="h-2.5 w-2.5 text-purple-500" />
-                          Premium
-                        </>
-                      )}
-                      {group.source === "imported" && (
-                        <>
-                          <img src={msprojectLogoPath} alt="MS Project" className="h-3 w-3" />
-                          <FileSpreadsheet className="h-2.5 w-2.5 text-emerald-500" />
-                          MS Project
-                        </>
-                      )}
-                    </Badge>
-                  )}
                 </div>
               )}
             </div>
