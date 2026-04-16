@@ -1541,12 +1541,12 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
   return (
     <div className="space-y-2">
       {/* Timescale controls */}
-      <div className="flex items-center justify-between gap-4 pb-2 border-b">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Scale:</span>
+      <div className="flex flex-wrap items-center gap-3 pb-2 border-b">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs sm:text-sm text-muted-foreground">Scale:</span>
             <Select value={timeScale} onValueChange={(v) => { setTimeScale(v as TimeScale); setPeriodCount(DEFAULT_PERIODS[v as TimeScale]); }}>
-              <SelectTrigger className="w-[100px] h-8" data-testid="select-timescale">
+              <SelectTrigger className="w-[90px] sm:w-[100px] h-8" data-testid="select-timescale">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1558,10 +1558,10 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Show:</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs sm:text-sm text-muted-foreground">Show:</span>
             <Select value={displayUnit} onValueChange={(v) => setDisplayUnit(v as DisplayUnit)}>
-              <SelectTrigger className="w-[120px] h-8" data-testid="select-display-unit">
+              <SelectTrigger className="w-[100px] sm:w-[120px] h-8" data-testid="select-display-unit">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1572,7 +1572,7 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
             </Select>
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 ml-auto">
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleZoomOut} title="Zoom out" data-testid="button-zoom-out">
             <ZoomOut className="h-4 w-4" />
           </Button>
@@ -1581,12 +1581,12 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
           </Button>
           <Button variant="outline" size="sm" className="h-8" onClick={handleAutofit} title="Autofit to data range" data-testid="button-autofit">
             <Maximize2 className="h-4 w-4 mr-1" />
-            Autofit
+            <span className="hidden sm:inline">Autofit</span>
           </Button>
           {todayIndex >= 0 && (
             <Button variant="outline" size="sm" className="h-8" onClick={scrollToToday} title="Scroll to today" data-testid="button-scroll-today">
               <CircleDot className="h-4 w-4 mr-1" />
-              Today
+              <span className="hidden sm:inline">Today</span>
             </Button>
           )}
         </div>
@@ -1597,10 +1597,10 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
         className="overflow-auto border rounded-md"
         style={{ maxHeight: "560px" }}
       >
-        <div style={{ minWidth: `${256 + periods.length * (timeScale === "day" ? 50 : 65)}px` }}>
+        <div style={{ minWidth: `${176 + periods.length * (timeScale === "day" ? 50 : 65)}px` }}>
           {/* Header row with period labels */}
           <div className="flex border-b sticky top-0 bg-background" style={{ zIndex: 20 }}>
-            <div className="w-64 flex-shrink-0 p-2 font-medium text-sm border-r bg-background sticky left-0" style={{ zIndex: 30 }}>
+            <div className="w-44 sm:w-64 flex-shrink-0 p-2 font-medium text-sm border-r bg-background sticky left-0" style={{ zIndex: 30 }}>
               {groupBy === "resource" ? "Resource" : 
                groupBy === "project" ? "Project" :
                groupBy === "portfolio" ? "Portfolio" :
@@ -1632,7 +1632,7 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
                   onClick={() => toggleGroup(group.key)}
                   data-testid={`heatmap-group-${group.key}`}
                 >
-                  <div className="w-64 flex-shrink-0 p-2 border-r sticky left-0" style={{ zIndex: 10, backgroundColor: 'hsl(var(--muted))' }}>
+                  <div className="w-44 sm:w-64 flex-shrink-0 p-2 border-r sticky left-0" style={{ zIndex: 10, backgroundColor: 'hsl(var(--muted))' }}>
                     <div className="flex items-center gap-2">
                       {isExpanded ? (
                         <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -1685,7 +1685,7 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
                       className="flex border-b bg-background hover:bg-muted/10 transition-colors"
                       data-testid={`heatmap-assignment-${assignment.assignmentId}`}
                     >
-                      <div className="w-64 flex-shrink-0 p-2 border-r pl-10 bg-background sticky left-0" style={{ zIndex: 10 }}>
+                      <div className="w-44 sm:w-64 flex-shrink-0 p-2 border-r pl-6 sm:pl-10 bg-background sticky left-0" style={{ zIndex: 10 }}>
                         <div className="flex items-center gap-2">
                           <ListTodo className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                           <div className="min-w-0 flex-1">

@@ -3626,7 +3626,7 @@ function ProjectTeamTab({
     <div className="space-y-6">
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-primary" />
               <div>
@@ -3638,9 +3638,9 @@ function ProjectTeamTab({
             </div>
             {!readOnly && (
               <Dialog open={addMemberOpen} onOpenChange={(open) => { setAddMemberOpen(open); if (!open) setSearchValue(""); }}>
-                <Button size="sm" className="gap-2" onClick={() => setAddMemberOpen(true)}>
+                <Button size="sm" className="gap-2 w-full sm:w-auto" onClick={() => setAddMemberOpen(true)}>
                   <UserPlus className="h-4 w-4" />
-                  Add Team Member
+                  <span className="sm:inline">Add Team Member</span>
                 </Button>
                 <DialogContent className="sm:max-w-[500px]">
                   <DialogHeader>
@@ -3710,12 +3710,12 @@ function ProjectTeamTab({
             </div>
           ) : (
             <div className="space-y-2">
-              <div className="flex items-center justify-between gap-4 pb-2 border-b">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Scale:</span>
+              <div className="flex flex-wrap items-center gap-3 pb-2 border-b">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs sm:text-sm text-muted-foreground">Scale:</span>
                     <Select value={teamTimeScale} onValueChange={(v) => { setTeamTimeScale(v as TeamTimeScale); setTeamPeriodCount(DEFAULT_TEAM_PERIODS[v as TeamTimeScale]); }}>
-                      <SelectTrigger className="w-[100px] h-8"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="w-[90px] sm:w-[100px] h-8"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="day">Days</SelectItem>
                         <SelectItem value="week">Weeks</SelectItem>
@@ -3725,10 +3725,10 @@ function ProjectTeamTab({
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Show:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs sm:text-sm text-muted-foreground">Show:</span>
                     <Select value={teamDisplayUnit} onValueChange={(v) => setTeamDisplayUnit(v as TeamDisplayUnit)}>
-                      <SelectTrigger className="w-[120px] h-8"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="w-[100px] sm:w-[120px] h-8"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="hours">Hours</SelectItem>
                         <SelectItem value="percent">% Utilization</SelectItem>
@@ -3737,7 +3737,7 @@ function ProjectTeamTab({
                     </Select>
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 ml-auto">
                   <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleTeamZoomOut} title="Zoom out">
                     <ZoomOut className="h-4 w-4" />
                   </Button>
@@ -3746,15 +3746,15 @@ function ProjectTeamTab({
                   </Button>
                   <Button variant="outline" size="sm" className="h-8" onClick={handleTeamAutofit} title="Autofit to data range">
                     <Maximize2 className="h-4 w-4 mr-1" />
-                    Autofit
+                    <span className="hidden sm:inline">Autofit</span>
                   </Button>
                 </div>
               </div>
 
               <div className="overflow-x-auto">
-                <div className="min-w-[900px]">
+                <div className="min-w-[600px]">
                   <div className="flex border-b sticky top-0 bg-background z-10">
-                    <div className="w-64 flex-shrink-0 p-2 font-medium text-sm border-r">
+                    <div className="w-44 sm:w-64 flex-shrink-0 p-2 font-medium text-sm border-r sticky left-0 z-20 bg-background">
                       Resource / Task
                     </div>
                     <div className="flex-1 flex">
@@ -3775,7 +3775,7 @@ function ProjectTeamTab({
                             className="flex border-b bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
                             onClick={() => toggleMemberExpanded(member.resource.id)}
                           >
-                            <div className="w-64 flex-shrink-0 p-2 border-r">
+                            <div className="w-44 sm:w-64 flex-shrink-0 p-2 border-r sticky left-0 z-10 bg-muted/30">
                               <div className="flex items-center gap-2">
                                 {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
                                 <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-semibold flex-shrink-0">
@@ -3833,7 +3833,7 @@ function ProjectTeamTab({
 
                           {isExpanded && member.taskDetails.map((td) => (
                             <div key={td.task.id} className="flex border-b bg-background hover:bg-muted/10 transition-colors">
-                              <div className="w-64 flex-shrink-0 p-2 border-r pl-10">
+                              <div className="w-44 sm:w-64 flex-shrink-0 p-2 border-r pl-6 sm:pl-10 sticky left-0 z-10 bg-background">
                                 <div className="flex items-center gap-2">
                                   <ListTodo className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                                   <div className="min-w-0 flex-1">
