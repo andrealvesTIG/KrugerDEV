@@ -1313,15 +1313,9 @@ function GroupedTasksView({
                   <Link
                     href={`/projects/${group.projectId}`}
                     onClick={(e) => e.stopPropagation()}
-                    className="w-fit"
+                    className="text-[11px] text-muted-foreground hover:text-primary hover:underline w-fit"
                   >
-                    <Badge 
-                      variant="outline" 
-                      className="text-xs gap-1 cursor-pointer hover:bg-muted transition-colors"
-                    >
-                      <FolderKanban className="h-2.5 w-2.5" />
-                      View Project
-                    </Badge>
+                    View project
                   </Link>
                 </div>
               )}
