@@ -4105,7 +4105,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
       <CardContent>
         <div className="space-y-3">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3">
-            <div className="col-span-2 overflow-hidden">
+            <div className="col-span-2 min-w-0 overflow-hidden">
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Project Name</Label>
               {editingField === 'name' ? (
                 <Input
@@ -4114,7 +4114,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
                   onBlur={() => handleFieldBlur('name')}
                   onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('name')}
                   autoFocus
-                  className="h-8 text-sm font-semibold"
+                  className="h-8 text-sm font-semibold w-full"
                   data-testid="input-project-name"
                 />
               ) : (
