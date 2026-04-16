@@ -32,7 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCorners, useDroppable, useDraggable, closestCenter } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, TouchSensor, useSensor, useSensors, closestCorners, useDroppable, useDraggable, closestCenter } from "@dnd-kit/core";
 import { useSortable, SortableContext, horizontalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/hooks/use-auth";
@@ -3307,7 +3307,7 @@ function ProjectsGridView({
           <Table>
             <TableHeader className={cn(isFullscreen && "sticky top-0 z-20 bg-card shadow-sm")}>
               <TableRow className={cn(isFullscreen && "bg-card")}>
-                <TableHead className={cn("w-10", isFullscreen && "bg-card")}>
+                <TableHead className={cn("w-10 sticky left-0 z-10 bg-card", isFullscreen && "bg-card")}>
                   <Checkbox 
                     checked={projects.length > 0 && selectedProjects.size === projects.length}
                     onCheckedChange={toggleSelectAll}
@@ -3583,6 +3583,12 @@ function ProjectsKanbanView({
       activationConstraint: {
         distance: 8,
       },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5,
+      },
     })
   );
 
@@ -3800,7 +3806,7 @@ function ProjectsKanbanView({
         onDragEnd={handleDragEnd}
       >
         <div className={cn(
-          "grid grid-cols-1 gap-4",
+          "flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 md:grid md:overflow-x-visible md:snap-none md:pb-0",
           columns.length <= 3 ? "md:grid-cols-3" : columns.length <= 5 ? "md:grid-cols-5" : columns.length <= 7 ? "md:grid-cols-4 lg:grid-cols-7" : "md:grid-cols-4"
         )}>
           {columns.map(col => (
@@ -3846,7 +3852,7 @@ function ProjectKanbanColumn({
     <div 
       ref={setNodeRef}
       className={cn(
-        "space-y-3 min-h-[300px] rounded-lg transition-colors p-2",
+        "space-y-3 min-h-[300px] rounded-lg transition-colors p-2 min-w-[280px] snap-center flex-shrink-0 md:min-w-0 md:flex-shrink",
         isDraggable && isOver && "bg-primary/5 ring-2 ring-primary ring-dashed"
       )}
     >

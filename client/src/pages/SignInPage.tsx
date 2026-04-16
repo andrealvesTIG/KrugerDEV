@@ -388,7 +388,7 @@ export default function SignInPage() {
                 </Button>
                 <button
                   onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                  className="text-slate-200 hover:text-white p-1"
+                  className="sm:hidden text-slate-200 hover:text-white p-1"
                   aria-label="Toggle menu"
                 >
                   {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -397,7 +397,7 @@ export default function SignInPage() {
             </div>
           </div>
           {mobileMenuOpen && (
-            <div className="absolute left-0 right-0 top-full z-50 border-t border-slate-700 bg-slate-900 shadow-2xl shadow-black/60">
+            <div className="sm:hidden absolute left-0 right-0 top-full z-50 border-t border-slate-700 bg-slate-900 shadow-2xl shadow-black/60">
               <div className="max-w-7xl mx-auto max-h-[70vh] overflow-y-auto">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                   <div className="p-5 sm:border-r sm:border-slate-700/50">
