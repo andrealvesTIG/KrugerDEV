@@ -581,7 +581,7 @@ export default function Tasks() {
         );
       })()}
 
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-display font-bold text-foreground">Tasks</h1>
           <Button
@@ -598,7 +598,7 @@ export default function Tasks() {
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
           </Button>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -612,13 +612,13 @@ export default function Tasks() {
           </div>
           <Tabs value={view} onValueChange={(v) => setView(v as "gantt" | "kanban")}>
             <TabsList className="h-9">
-              <TabsTrigger value="gantt" className="gap-1.5 px-2.5">
+              <TabsTrigger value="gantt" className="gap-1.5 px-2.5" data-testid="tab-gantt">
                 <GanttChart className="h-4 w-4" />
-                <span className="hidden sm:inline">Gantt</span>
+                Gantt
               </TabsTrigger>
-              <TabsTrigger value="kanban" className="gap-1.5 px-2.5">
+              <TabsTrigger value="kanban" className="gap-1.5 px-2.5" data-testid="tab-kanban">
                 <Columns3 className="h-4 w-4" />
-                <span className="hidden sm:inline">Kanban</span>
+                Kanban
               </TabsTrigger>
             </TabsList>
           </Tabs>
