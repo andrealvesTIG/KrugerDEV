@@ -3,6 +3,16 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations, sql } from "drizzle-orm";
 
+export const PROJECT_STATUSES = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"] as const;
+export const PROJECT_HEALTH_VALUES = ["Green", "Yellow", "Red"] as const;
+export const PROJECT_PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
+export const BILLABLE_STATUSES = ["N/A", "On Track", "Waiting for Approval", "Verbal Approval", "Email Approval", "SOW Signed", "PO Received", "Partially Invoiced", "At Risk", "Ready for Invoice", "Critical", "Invoiced"] as const;
+
+export const projectStatusEnum = z.enum(PROJECT_STATUSES);
+export const projectHealthEnum = z.enum(PROJECT_HEALTH_VALUES);
+export const projectPriorityEnum = z.enum(PROJECT_PRIORITIES);
+export const billableStatusEnum = z.enum(BILLABLE_STATUSES);
+
 const numeric = customType<{ data: number; driverData: string }>({
   dataType() { return 'numeric'; },
   fromDriver(value: string): number { return (value == null) ? 0 : Number(value); },
@@ -1657,7 +1667,12 @@ export const insertExternalShareSchema = createInsertSchema(externalShares).omit
 export const insertPortfolioSchema = createInsertSchema(portfolios).omit({ id: true, createdAt: true }).extend({
   name: z.string().min(1, "Portfolio name is required"),
 });
-export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true, updatedAt: true, updatedBy: true, createdBy: true });
+export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true, updatedAt: true, updatedBy: true, createdBy: true }).extend({
+  status: projectStatusEnum.default("Initiation"),
+  health: projectHealthEnum.default("Green"),
+  priority: projectPriorityEnum.default("Medium"),
+  billableStatus: billableStatusEnum.default("N/A").optional(),
+});
 // Risk schema is now an alias for Issue schema with itemType="risk"
 // Extend to handle date strings for escalatedAt field
 const baseRiskSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });

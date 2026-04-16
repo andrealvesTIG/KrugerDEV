@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { 
   insertPortfolioSchema, 
-  insertProjectSchema, 
+  insertProjectSchema,
+  projectHealthEnum,
   insertRiskSchema, 
   insertMilestoneSchema,
   insertIssueSchema,
@@ -135,7 +136,7 @@ export const api = {
       path: '/api/projects/:id',
       input: insertProjectSchema.partial().extend({
         completionPercentage: z.number().int().optional(),
-        health: z.string().optional(),
+        health: projectHealthEnum.optional(),
         startDate: z.union([z.string(), z.date(), z.null()]).optional(),
         endDate: z.union([z.string(), z.date(), z.null()]).optional(),
         baselineStartDate: z.union([z.string(), z.date(), z.null()]).optional(),
