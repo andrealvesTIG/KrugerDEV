@@ -17,6 +17,7 @@ import { useBillableStatusComments, useCreateBillableStatusComment } from "@/hoo
 import { useHealthStatusHistory } from "@/hooks/use-health-status-history";
 import { useCustomFieldDefinitions, useProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useCustomProjectTabs, useFullCustomTab } from "@/hooks/use-custom-tabs";
+import { PROJECT_STATUSES, PROJECT_HEALTH_VALUES, PROJECT_PRIORITIES, BILLABLE_STATUSES } from "@shared/schema";
 import type { CustomFieldDefinition, CustomTabField } from "@shared/schema";
 import { useProjectFinancials } from "@/hooks/use-project-financials";
 import { useResources, useProjectTaskAssignments } from "@/hooks/use-resources";
@@ -59,6 +60,27 @@ import { AICreateButton } from "@/components/layout/AICreateButton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { useLocation } from "wouter";
+
+const HEALTH_TOGGLE_STYLES: Record<string, { bg: string; bgLight: string; text: string; ring: string }> = {
+  "Green": { bg: 'bg-emerald-500', bgLight: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', ring: 'ring-emerald-500/30' },
+  "Yellow": { bg: 'bg-amber-500', bgLight: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', ring: 'ring-amber-500/30' },
+  "Red": { bg: 'bg-rose-500', bgLight: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300', ring: 'ring-rose-500/30' },
+};
+
+const BILLABLE_STATUS_DOT_COLORS: Record<string, string> = {
+  "N/A": "bg-slate-400",
+  "On Track": "bg-emerald-500",
+  "Waiting for Approval": "bg-amber-500",
+  "Verbal Approval": "bg-amber-500",
+  "Email Approval": "bg-emerald-500",
+  "SOW Signed": "bg-emerald-500",
+  "PO Received": "bg-emerald-500",
+  "Partially Invoiced": "bg-amber-500",
+  "At Risk": "bg-amber-500",
+  "Ready for Invoice": "bg-emerald-500",
+  "Critical": "bg-rose-500",
+  "Invoiced": "bg-blue-500",
+};
 
 const DEFAULT_PROJECT_STAGES = [
   { value: "Initiation", label: "Initiation", description: "Project kickoff", isTerminal: false },
@@ -3086,11 +3108,11 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
     }
     if (isSelect) {
       const options: Record<string, string[]> = {
-        status: ['Initiation', 'Planning', 'Execution', 'Monitoring', 'Closing', 'Billing', 'On Hold', 'Cancelled'],
-        priority: ['Low', 'Medium', 'High', 'Critical'],
-        health: ['Green', 'Yellow', 'Red'],
+        status: [...PROJECT_STATUSES, 'Billing', 'On Hold', 'Cancelled'],
+        priority: [...PROJECT_PRIORITIES],
+        health: [...PROJECT_HEALTH_VALUES],
         riskLevel: ['Low', 'Medium', 'High'],
-        billableStatus: ['Billable', 'Non-Billable', 'N/A'],
+        billableStatus: [...BILLABLE_STATUSES],
       };
       return (
         <Select value={editValue} onValueChange={setEditValue}>
@@ -4045,11 +4067,11 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
             <div>
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Health Status</Label>
               <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted/30 p-1" data-testid="toggle-project-health">
-                {[
-                  { value: 'Green', label: 'Green', bg: 'bg-emerald-500', bgLight: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', ring: 'ring-emerald-500/30' },
-                  { value: 'Yellow', label: 'Yellow', bg: 'bg-amber-500', bgLight: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', ring: 'ring-amber-500/30' },
-                  { value: 'Red', label: 'Red', bg: 'bg-rose-500', bgLight: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300', ring: 'ring-rose-500/30' },
-                ].map((option) => {
+                {PROJECT_HEALTH_VALUES.map(value => ({
+                  value,
+                  label: value,
+                  ...HEALTH_TOGGLE_STYLES[value],
+                })).map((option) => {
                   const isSelected = project.health === option.value;
                   return (
                     <button
@@ -4093,18 +4115,14 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="N/A"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-slate-400" />N/A</span></SelectItem>
-                  <SelectItem value="On Track"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />On Track</span></SelectItem>
-                  <SelectItem value="Waiting for Approval"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500" />Waiting for Approval</span></SelectItem>
-                  <SelectItem value="Verbal Approval"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500" />Verbal Approval</span></SelectItem>
-                  <SelectItem value="Email Approval"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />Email Approval</span></SelectItem>
-                  <SelectItem value="SOW Signed"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />SOW Signed</span></SelectItem>
-                  <SelectItem value="PO Received"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />PO Received</span></SelectItem>
-                  <SelectItem value="Partially Invoiced"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500" />Partially Invoiced</span></SelectItem>
-                  <SelectItem value="At Risk"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500" />At Risk</span></SelectItem>
-                  <SelectItem value="Ready for Invoice"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />Ready for Invoice</span></SelectItem>
-                  <SelectItem value="Critical"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-rose-500" />Critical</span></SelectItem>
-                  <SelectItem value="Invoiced"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500" />Invoiced</span></SelectItem>
+                  {BILLABLE_STATUSES.map(status => (
+                    <SelectItem key={status} value={status}>
+                      <span className="flex items-center gap-2">
+                        <span className={cn("w-2 h-2 rounded-full", BILLABLE_STATUS_DOT_COLORS[status] || "bg-slate-400")} />
+                        {status}
+                      </span>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -4138,10 +4156,9 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
               <Select value={project.priority || "Medium"} onValueChange={(v) => handleSelectChange('priority', v)}>
                 <SelectTrigger className="h-8 text-sm" data-testid="select-project-priority"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Low">Low</SelectItem>
-                  <SelectItem value="Medium">Medium</SelectItem>
-                  <SelectItem value="High">High</SelectItem>
-                  <SelectItem value="Critical">Critical</SelectItem>
+                  {PROJECT_PRIORITIES.map(p => (
+                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

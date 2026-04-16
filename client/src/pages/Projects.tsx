@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { z } from "zod";
+import { PROJECT_STATUSES, PROJECT_HEALTH_VALUES, PROJECT_PRIORITIES } from "@shared/schema";
 import type { Project, Resource, Portfolio } from "@shared/schema";
 import { Link, useLocation } from "wouter";
 import { Plus, Search, Calendar, AlertCircle, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, ChevronLeft, ChevronRight, Download, Loader2, ExternalLink, Table2, Settings2, Check, Crown, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown, FileSpreadsheet, Cloud, Rocket, Lock as LockIcon, Shield, Layers, FolderOpen } from "lucide-react";
@@ -44,7 +45,7 @@ import { PageTransition, FadeIn } from "@/components/ui/page-transition";
 import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues, useBulkUpdateProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
 import type { CustomFieldDefinition, ProjectCustomFieldValue } from "@shared/schema";
 
-const DEFAULT_PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing", "Closed"];
+const DEFAULT_PROJECT_STATUS_LIST = [...PROJECT_STATUSES, "Billing", "Closed"];
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
@@ -2810,7 +2811,7 @@ function ProjectsGridView({
               </Badge>
             </SelectTrigger>
             <SelectContent>
-              {["Critical", "High", "Medium", "Low"].map(priority => (
+              {[...PROJECT_PRIORITIES].reverse().map(priority => (
                 <SelectItem key={priority} value={priority}>{priority}</SelectItem>
               ))}
             </SelectContent>
@@ -2834,7 +2835,7 @@ function ProjectsGridView({
               </div>
             </SelectTrigger>
             <SelectContent>
-              {["Green", "Yellow", "Red"].map(health => (
+              {PROJECT_HEALTH_VALUES.map(health => (
                 <SelectItem key={health} value={health}>{health}</SelectItem>
               ))}
             </SelectContent>
@@ -3501,28 +3502,46 @@ function ProjectsGridView({
 }
 
 // Kanban View Components
-const PROJECT_STATUSES = [
-  { id: "Initiation", label: "Initiation", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
-  { id: "Planning", label: "Planning", color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" },
-  { id: "Execution", label: "Execution", color: "bg-amber-100 text-amber-700 dark:bg-amber-800 dark:text-amber-200" },
-  { id: "Monitoring", label: "Monitoring", color: "bg-purple-100 text-purple-700 dark:bg-purple-800 dark:text-purple-200" },
-  { id: "Closing", label: "Closing", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200" },
-  { id: "Billing", label: "Billing", color: "bg-cyan-100 text-cyan-700 dark:bg-cyan-800 dark:text-cyan-200" },
-  { id: "Closed", label: "Closed", color: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200", isLocked: true },
+const KANBAN_STATUS_COLUMN_COLORS: Record<string, string> = {
+  "Initiation": "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200",
+  "Planning": "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200",
+  "Execution": "bg-amber-100 text-amber-700 dark:bg-amber-800 dark:text-amber-200",
+  "Monitoring": "bg-purple-100 text-purple-700 dark:bg-purple-800 dark:text-purple-200",
+  "Closing": "bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200",
+  "Billing": "bg-cyan-100 text-cyan-700 dark:bg-cyan-800 dark:text-cyan-200",
+  "Closed": "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+};
+
+const KANBAN_STATUS_COLUMNS = [
+  ...PROJECT_STATUSES.map(s => ({ id: s, label: s, color: KANBAN_STATUS_COLUMN_COLORS[s] || "" })),
+  { id: "Billing", label: "Billing", color: KANBAN_STATUS_COLUMN_COLORS["Billing"] },
+  { id: "Closed", label: "Closed", color: KANBAN_STATUS_COLUMN_COLORS["Closed"], isLocked: true },
 ];
 
-const KANBAN_PRIORITY_COLUMNS = [
-  { id: "Critical", label: "Critical", color: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400" },
-  { id: "High", label: "High", color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
-  { id: "Medium", label: "Medium", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
-  { id: "Low", label: "Low", color: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
-];
+const KANBAN_PRIORITY_COLUMN_COLORS: Record<string, string> = {
+  "Critical": "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
+  "High": "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  "Medium": "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+  "Low": "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+};
 
-const KANBAN_HEALTH_COLUMNS = [
-  { id: "Green", label: "On Track", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
-  { id: "Yellow", label: "At Risk", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
-  { id: "Red", label: "Off Track", color: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400" },
-];
+const KANBAN_PRIORITY_COLUMNS = [...PROJECT_PRIORITIES].reverse().map(p => ({
+  id: p,
+  label: p,
+  color: KANBAN_PRIORITY_COLUMN_COLORS[p] || "",
+}));
+
+const KANBAN_HEALTH_COLUMN_META: Record<string, { label: string; color: string }> = {
+  "Green": { label: "On Track", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
+  "Yellow": { label: "At Risk", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+  "Red": { label: "Off Track", color: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400" },
+};
+
+const KANBAN_HEALTH_COLUMNS = PROJECT_HEALTH_VALUES.map(h => ({
+  id: h,
+  label: KANBAN_HEALTH_COLUMN_META[h]?.label || h,
+  color: KANBAN_HEALTH_COLUMN_META[h]?.color || "",
+}));
 
 type KanbanGroupBy = "status" | "portfolio" | "priority" | "health" | "projectType" | "methodology" | `cf_${number}`;
 
@@ -3616,7 +3635,7 @@ function ProjectsKanbanView({
     if (!project) return;
     
     if (groupBy === "status") {
-      if (project.status !== targetId && PROJECT_STATUSES.some(s => s.id === targetId)) {
+      if (project.status !== targetId && KANBAN_STATUS_COLUMNS.some(s => s.id === targetId)) {
         onStatusChange(projectId, targetId);
       }
     } else if (groupBy === "portfolio") {
@@ -3651,7 +3670,7 @@ function ProjectsKanbanView({
 
     switch (groupBy) {
       case "status":
-        return PROJECT_STATUSES;
+        return KANBAN_STATUS_COLUMNS;
       case "portfolio": {
         const cols = portfolios.map(p => ({
           id: String(p.id),
@@ -3714,7 +3733,7 @@ function ProjectsKanbanView({
             return cols;
           }
         }
-        return PROJECT_STATUSES;
+        return KANBAN_STATUS_COLUMNS;
       }
     }
   }, [groupBy, portfolios, projects, projectCustomFields, cfValuesMap]);
