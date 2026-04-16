@@ -169,9 +169,10 @@ interface TaskRowProps {
   timesheetLocked?: boolean;
   onViewAudit?: (entryId: number) => void;
   overtimeThreshold?: number;
+  isDayView?: boolean;
 }
 
-function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, clearRow, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName, taskColumnWidth = 360, timesheetLocked = false, onViewAudit, overtimeThreshold = 40 }: TaskRowProps) {
+function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, clearRow, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName, taskColumnWidth = 360, timesheetLocked = false, onViewAudit, overtimeThreshold = 40, isDayView = false }: TaskRowProps) {
   const rowTotal = getRowTotal(task.id);
   const isRowOvertime = rowTotal > overtimeThreshold;
   
@@ -238,7 +239,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
                 }}
                 placeholder="0"
                 disabled={!isEditable}
-                className={`w-16 text-center h-9 rounded-lg border-2 ${
+                className={`${isDayView ? 'w-full max-w-[120px]' : 'w-16'} text-center text-base md:text-sm h-10 md:h-9 rounded-lg border-2 ${
                   isPeriodClosed
                     ? "border-destructive/30 bg-destructive/5"
                     : isCellOvertime
@@ -304,36 +305,38 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
           </td>
         );
       })}
-      <td className="px-2 py-1 bg-emerald-500/5 text-center align-middle">
-        <div className="relative flex items-center justify-center">
-          <span className={`font-medium tabular-nums ${isRowOvertime ? "text-amber-600" : "text-foreground"}`}>{rowTotal}h</span>
-          {isRowOvertime && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="absolute -right-4">
-                  <AlertTriangle className="h-3 w-3 text-amber-500" />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top">Over {overtimeThreshold} hours this week</TooltipContent>
-            </Tooltip>
-          )}
-          {rowTotal > 0 && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={() => clearRow(task.id)}
-                  className="absolute -right-4 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
-                  data-testid={`button-clear-row-${task.id}`}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top">Clear row</TooltipContent>
-            </Tooltip>
-          )}
-        </div>
-      </td>
+      {!isDayView && (
+        <td className="px-2 py-1 bg-emerald-500/5 text-center align-middle">
+          <div className="relative flex items-center justify-center">
+            <span className={`font-medium tabular-nums ${isRowOvertime ? "text-amber-600" : "text-foreground"}`}>{rowTotal}h</span>
+            {isRowOvertime && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="absolute -right-4">
+                    <AlertTriangle className="h-3 w-3 text-amber-500" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">Over {overtimeThreshold} hours this week</TooltipContent>
+              </Tooltip>
+            )}
+            {rowTotal > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => clearRow(task.id)}
+                    className="absolute -right-4 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                    data-testid={`button-clear-row-${task.id}`}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Clear row</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        </td>
+      )}
     </motion.tr>
   );
 }
@@ -876,39 +879,41 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                   </th>
                 );
               })}
-              <th className="px-2 py-2 text-center min-w-[80px] bg-emerald-500/5">
-                <div className="text-xs font-medium text-emerald-600 flex items-center justify-center gap-1">
-                  Total
-                  {getGrandTotal() > 0 && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={clearAllRows}
-                          className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                          data-testid="button-clear-all"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">Clear all hours</TooltipContent>
-                    </Tooltip>
-                  )}
-                </div>
-                <div className={`text-lg font-bold flex items-center justify-center gap-1 ${
-                  getGrandTotal() > overtimeThreshold ? "text-amber-600" : "text-emerald-600"
-                }`}>
-                  {getGrandTotal()}h
-                  {getGrandTotal() > overtimeThreshold && (
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <AlertTriangle className="h-4 w-4" />
-                      </TooltipTrigger>
-                      <TooltipContent>Over {overtimeThreshold} hours this week</TooltipContent>
-                    </Tooltip>
-                  )}
-                </div>
-              </th>
+              {viewMode !== "day" && (
+                <th className="px-2 py-2 text-center min-w-[80px] bg-emerald-500/5">
+                  <div className="text-xs font-medium text-emerald-600 flex items-center justify-center gap-1">
+                    Total
+                    {getGrandTotal() > 0 && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={clearAllRows}
+                            className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                            data-testid="button-clear-all"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">Clear all hours</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                  <div className={`text-lg font-bold flex items-center justify-center gap-1 ${
+                    getGrandTotal() > overtimeThreshold ? "text-amber-600" : "text-emerald-600"
+                  }`}>
+                    {getGrandTotal()}h
+                    {getGrandTotal() > overtimeThreshold && (
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <AlertTriangle className="h-4 w-4" />
+                        </TooltipTrigger>
+                        <TooltipContent>Over {overtimeThreshold} hours this week</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -950,9 +955,11 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                           -
                         </td>
                       ))}
-                      <td className="px-2 py-1 text-center font-medium text-emerald-600 bg-emerald-500/5 align-middle">
-                        {projectTotal}h
-                      </td>
+                      {viewMode !== "day" && (
+                        <td className="px-2 py-1 text-center font-medium text-emerald-600 bg-emerald-500/5 align-middle">
+                          {projectTotal}h
+                        </td>
+                      )}
                     </motion.tr>
                     
                     <AnimatePresence>
@@ -982,6 +989,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                             timesheetLocked={timesheetLocked}
                             onViewAudit={onViewAudit}
                             overtimeThreshold={overtimeThreshold}
+                            isDayView={viewMode === "day"}
                           />
                         );
                       })}
@@ -1013,6 +1021,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                   timesheetLocked={timesheetLocked}
                   onViewAudit={onViewAudit}
                   overtimeThreshold={overtimeThreshold}
+                  isDayView={viewMode === "day"}
                 />
               ))
             )}
@@ -2852,7 +2861,9 @@ function TimesheetHistoryTab({ userId, organizationId }: { userId: string | unde
 export default function Timesheets() {
   const { user } = useAuth();
   const { currentOrganization, memberships } = useOrganization();
-  const [viewMode, setViewMode] = useState<ViewMode>("workweek");
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    typeof window !== 'undefined' && window.innerWidth < 640 ? "day" : "workweek"
+  );
   const [currentDate, setCurrentDate] = useState(new Date());
   const [activeTab, setActiveTab] = useState("entry");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
