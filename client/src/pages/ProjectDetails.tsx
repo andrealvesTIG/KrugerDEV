@@ -1179,8 +1179,8 @@ export default function ProjectDetails() {
         </div>
       </div>
 
-      <div ref={mainContentRef} className="flex-1 min-w-0 overflow-y-auto">
-        <div className="px-4 py-4 md:px-8 md:py-8 space-y-8">
+      <div ref={mainContentRef} className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto">
+        <div className="px-4 py-4 md:px-8 md:py-8 space-y-8 min-w-0 max-w-full">
       {/* Header */}
       <div>
         {sortedProjects.length > 1 && (
@@ -1559,7 +1559,7 @@ export default function ProjectDetails() {
         }}
       />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full min-w-0">
         <TabsList className="bg-muted/80 border border-border p-1.5 rounded-xl gap-1 h-auto flex-wrap">
           {/* Render main tabs in user-defined order with drag-drop support */}
           {orderedMainTabs.map(tab => (
@@ -1720,7 +1720,7 @@ export default function ProjectDetails() {
             </DropdownMenuContent>
           </DropdownMenu>
         </TabsList>
-        <div className="mt-6">
+        <div className="mt-6 min-w-0">
           <TabsContent value="summary">
             <ProjectSummaryTab project={project} onUpdate={updateProject} tasks={projectTasks || []} readOnly={isProjectLocked} />
           </TabsContent>
@@ -4097,7 +4097,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
 
   return (
     <>
-    <Card>
+    <Card className="overflow-hidden">
       <CardHeader className="pb-3">
         <CardTitle className="text-lg">Project Summary</CardTitle>
         <CardDescription className="text-xs">Click any field to edit</CardDescription>
@@ -4105,7 +4105,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
       <CardContent>
         <div className="space-y-3">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3">
-            <div className="col-span-2 min-w-0 overflow-hidden">
+            <div className="col-span-2 min-w-0">
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Project Name</Label>
               {editingField === 'name' ? (
                 <Input
@@ -4114,7 +4114,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
                   onBlur={() => handleFieldBlur('name')}
                   onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('name')}
                   autoFocus
-                  className="h-8 text-sm font-semibold w-full"
+                  className="h-8 text-sm font-semibold"
                   data-testid="input-project-name"
                 />
               ) : (
