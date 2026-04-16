@@ -289,7 +289,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
                     type="button"
                     onClick={() => openNoteEditor(task.id, dateKey)}
                     className={`absolute -right-5 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted transition-opacity ${
-                      hasNote ? 'opacity-100 text-primary' : 'opacity-0 group-hover/cell:opacity-60 text-muted-foreground'
+                      hasNote ? 'opacity-100 text-primary' : 'opacity-60 md:opacity-0 md:group-hover/cell:opacity-60 text-muted-foreground'
                     }`}
                     data-testid={`button-note-${task.id}-${dateKey}`}
                   >
@@ -323,7 +323,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
                 <button
                   type="button"
                   onClick={() => clearRow(task.id)}
-                  className="absolute -right-4 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
+                  className="absolute -right-4 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
                   data-testid={`button-clear-row-${task.id}`}
                 >
                   <Trash2 className="h-3 w-3" />
@@ -546,11 +546,12 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   };
 
   const TASK_COL_WIDTH_KEY = "timesheet_task_column_width";
-  const DEFAULT_TASK_COL_WIDTH = 360;
+  const DEFAULT_TASK_COL_WIDTH = typeof window !== 'undefined' && window.innerWidth < 640 ? 180 : 360;
   const [taskColumnWidth, setTaskColumnWidth] = useState(() => {
     try {
       const saved = typeof window !== 'undefined' ? localStorage.getItem(TASK_COL_WIDTH_KEY) : null;
-      return saved ? Math.max(150, Math.min(800, Number(saved))) : DEFAULT_TASK_COL_WIDTH;
+      const minWidth = typeof window !== 'undefined' && window.innerWidth < 640 ? 150 : 180;
+      return saved ? Math.max(minWidth, Math.min(800, Number(saved))) : DEFAULT_TASK_COL_WIDTH;
     } catch {
       return DEFAULT_TASK_COL_WIDTH;
     }
@@ -569,7 +570,8 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   const handleMouseMove = (e: MouseEvent) => {
     if (!isResizing.current) return;
     setTaskColumnWidth(prev => {
-      const newWidth = Math.max(150, Math.min(800, prev + e.movementX));
+      const minW = typeof window !== 'undefined' && window.innerWidth < 640 ? 150 : 180;
+      const newWidth = Math.max(minW, Math.min(800, prev + e.movementX));
       return newWidth;
     });
   };
@@ -1018,9 +1020,9 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
         </table>
       </div>
 
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-muted-foreground">Quick entry:</span>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground hidden sm:inline">Quick entry:</span>
           {QUICK_TIME_PRESETS.map(preset => (
             <Button
               key={preset.value}
@@ -1033,8 +1035,8 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
               {preset.label}
             </Button>
           ))}
-          {!selectedCell && <span className="text-xs text-muted-foreground">(select a cell first)</span>}
-          <div className="h-4 w-px bg-border mx-1" />
+          {!selectedCell && <span className="text-xs text-muted-foreground hidden sm:inline">(select a cell first)</span>}
+          <div className="h-4 w-px bg-border mx-0.5 sm:mx-1" />
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -1044,8 +1046,8 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                 disabled={undoHistory.length === 0}
                 data-testid="button-undo"
               >
-                <Undo2 className="h-4 w-4 mr-1" />
-                Undo
+                <Undo2 className="h-4 w-4 sm:mr-1" />
+                <span className="hidden sm:inline">Undo</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
@@ -1062,7 +1064,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
           <Button 
             onClick={handleSave} 
             disabled={!hasChanges || isSaving}
-            className="bg-primary"
+            className="bg-primary w-full sm:w-auto"
             data-testid="button-save-timesheet"
           >
             {isSaving ? (
@@ -1382,7 +1384,7 @@ function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void 
                   data-testid="button-bulk-approve"
                 >
                   {isProcessing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Check className="mr-1 h-4 w-4" />}
-                  Approve Selected ({selectedIds.size})
+                  Approve ({selectedIds.size})
                 </Button>
                 <Button 
                   size="sm" 
@@ -1392,7 +1394,7 @@ function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void 
                   data-testid="button-bulk-reject"
                 >
                   <X className="mr-1 h-4 w-4" />
-                  Reject Selected
+                  Reject
                 </Button>
               </>
             )}
@@ -3514,26 +3516,26 @@ export default function Timesheets() {
   if (isFullscreen) {
     return (
       <div className="fixed inset-0 z-50 bg-background flex flex-col">
-        <div className="flex items-center justify-between gap-4 px-4 py-2 border-b bg-background shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
+        <div className="flex items-center justify-between gap-2 sm:gap-4 px-3 sm:px-4 py-2 border-b bg-background shrink-0">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 shrink-0">
               <Clock className="h-4 w-4 text-blue-600" />
             </div>
-            <div>
-              <h2 className="text-lg font-semibold">Timesheet - {viewMode === "day" ? "Day" : viewMode === "workweek" ? "Work Week" : "Full Week"}</h2>
-              <p className="text-xs text-muted-foreground">
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-lg font-semibold truncate">Timesheet - {viewMode === "day" ? "Day" : viewMode === "workweek" ? "Work Week" : "Full Week"}</h2>
+              <p className="text-xs text-muted-foreground truncate">
                 {format(dates[0], "EEE, MMM d")} - {format(dates[dates.length - 1], "EEE, MMM d, yyyy")}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-end">
             {uniqueProjects.length > 1 && (
               <Select 
                 value={filterProjectId?.toString() || "all"} 
                 onValueChange={(v) => setFilterProjectId(v === "all" ? null : Number(v))}
               >
-                <SelectTrigger className="w-[180px]" data-testid="select-filter-project-fullscreen">
-                  <FolderOpen className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectTrigger className="w-[130px] sm:w-[180px]" data-testid="select-filter-project-fullscreen">
+                  <FolderOpen className="h-4 w-4 mr-1 sm:mr-2 text-muted-foreground" />
                   <SelectValue placeholder="All Projects" />
                 </SelectTrigger>
                 <SelectContent>
@@ -3554,11 +3556,11 @@ export default function Timesheets() {
                     data-testid="button-toggle-closed-projects-fullscreen"
                   >
                     {hideClosedProjects ? (
-                      <EyeOff className="h-4 w-4 mr-2" />
+                      <EyeOff className="h-4 w-4 sm:mr-2" />
                     ) : (
-                      <Eye className="h-4 w-4 mr-2" />
+                      <Eye className="h-4 w-4 sm:mr-2" />
                     )}
-                    {hideClosedProjects ? `${closedProjectCount} Hidden` : "Hide Closed"}
+                    <span className="hidden sm:inline">{hideClosedProjects ? `${closedProjectCount} Hidden` : "Hide Closed"}</span>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -3601,8 +3603,8 @@ export default function Timesheets() {
                   disabled={viewMode === "day"}
                   data-testid="button-copy-previous-week-fullscreen"
                 >
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copy Last Week
+                  <Copy className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Copy Last Week</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Copy hours from previous week (only empty cells)</TooltipContent>
@@ -3614,8 +3616,8 @@ export default function Timesheets() {
                   size="sm"
                   data-testid="button-add-time-off-fullscreen"
                 >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Time Off
+                  <Plus className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Time Off</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-80" align="end">
@@ -3759,8 +3761,8 @@ export default function Timesheets() {
                   onClick={() => setClearWeekDialogOpen(true)}
                   data-testid="button-clear-week"
                 >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Clear Week
+                  <Trash2 className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Clear Week</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Clear all time entries for this week</TooltipContent>
@@ -3804,8 +3806,8 @@ export default function Timesheets() {
               }}
               data-testid="button-exit-fullscreen"
             >
-              <Minimize2 className="h-4 w-4 mr-2" />
-              Exit Fullscreen
+              <Minimize2 className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Exit Fullscreen</span>
             </Button>
           </div>
         </div>
@@ -3872,8 +3874,8 @@ export default function Timesheets() {
           </div>
         </div>
 
-        <div className="border-b border-border">
-          <nav className="flex gap-6">
+        <div className="border-b border-border overflow-x-auto -mx-4 px-4">
+          <nav className="flex gap-4 sm:gap-6 min-w-max">
             <button
               onClick={() => setActiveTab("entry")}
               className={`pb-3 text-sm font-medium transition-colors relative ${
@@ -4062,9 +4064,9 @@ export default function Timesheets() {
             className="space-y-6"
           >
             <Card className="border-0 shadow-sm bg-card">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <div className="flex items-center gap-2">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-1 sm:gap-2">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -4112,11 +4114,11 @@ export default function Timesheets() {
                       <ChevronRight className="h-5 w-5" />
                     </Button>
 
-                    <div className="ml-2">
-                      <div className="text-lg font-semibold text-foreground">
+                    <div className="ml-1 sm:ml-2">
+                      <div className="text-base sm:text-lg font-semibold text-foreground">
                         {format(currentDate, "MMMM yyyy")}
                       </div>
-                      <div className="text-sm text-muted-foreground">
+                      <div className="text-xs sm:text-sm text-muted-foreground">
                         {format(dates[0], "EEE, MMM d")} - {format(dates[dates.length - 1], "EEE, MMM d")}
                       </div>
                     </div>
@@ -4128,8 +4130,8 @@ export default function Timesheets() {
                         value={filterProjectId?.toString() || "all"} 
                         onValueChange={(v) => setFilterProjectId(v === "all" ? null : Number(v))}
                       >
-                        <SelectTrigger className="w-[180px]" data-testid="select-filter-project">
-                          <FolderOpen className="h-4 w-4 mr-2 text-muted-foreground" />
+                        <SelectTrigger className="w-[140px] sm:w-[180px]" data-testid="select-filter-project">
+                          <FolderOpen className="h-4 w-4 mr-1 sm:mr-2 text-muted-foreground" />
                           <SelectValue placeholder="All Projects" />
                         </SelectTrigger>
                         <SelectContent>
@@ -4151,11 +4153,11 @@ export default function Timesheets() {
                             data-testid="button-toggle-closed-projects"
                           >
                             {hideClosedProjects ? (
-                              <EyeOff className="h-4 w-4 mr-2" />
+                              <EyeOff className="h-4 w-4 sm:mr-2" />
                             ) : (
-                              <Eye className="h-4 w-4 mr-2" />
+                              <Eye className="h-4 w-4 sm:mr-2" />
                             )}
-                            {hideClosedProjects ? `${closedProjectCount} Hidden` : "Hide Closed"}
+                            <span className="hidden sm:inline">{hideClosedProjects ? `${closedProjectCount} Hidden` : "Hide Closed"}</span>
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>
@@ -4167,7 +4169,7 @@ export default function Timesheets() {
                     )}
 
                     <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
-                      <SelectTrigger className="w-[130px]" data-testid="select-view-mode">
+                      <SelectTrigger className="w-[110px] sm:w-[130px]" data-testid="select-view-mode">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -4489,7 +4491,7 @@ export default function Timesheets() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="h-5 w-5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                             onClick={() => handleDeleteTimeOff(entry.id)}
                             data-testid={`delete-time-off-${entry.id}`}
                           >
