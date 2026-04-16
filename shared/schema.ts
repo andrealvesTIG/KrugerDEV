@@ -1380,6 +1380,7 @@ export const powerbiIntakeRequests = pgTable("powerbi_intake_requests", {
   conversationLog: text("conversation_log"),
   estimatedEffortHours: integer("estimated_effort_hours"),
   effortBreakdown: jsonb("effort_breakdown"),
+  projectIntakeId: integer("project_intake_id").references(() => projectIntakes.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [

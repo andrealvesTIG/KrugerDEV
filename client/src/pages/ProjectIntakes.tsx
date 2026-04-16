@@ -318,6 +318,7 @@ interface PowerBIIntakeRequest {
   additionalNotes: string | null;
   estimatedEffortHours: number | null;
   effortBreakdown: Record<string, number> | null;
+  projectIntakeId: number | null;
   createdAt: string | null;
   updatedAt: string | null;
 }
@@ -579,6 +580,18 @@ function PowerBIRequestsSection({ organizationId }: { organizationId: number | u
                         </div>
                       )}
                     </div>
+
+                    {req.projectIntakeId && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Linked Project Intake</p>
+                        <Link href={`/intakes/${req.projectIntakeId}`}>
+                          <Button variant="outline" size="sm" className="gap-1.5">
+                            <Eye className="h-3.5 w-3.5" />
+                            View Intake #{req.projectIntakeId}
+                          </Button>
+                        </Link>
+                      </div>
+                    )}
 
                     {req.effortBreakdown && typeof req.effortBreakdown === "object" && (
                       <div>

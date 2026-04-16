@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { powerbiIntakeRequests } from "@shared/schema";
+import { powerbiIntakeRequests, projectIntakes } from "@shared/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import OpenAI from "openai";
 
@@ -148,36 +148,80 @@ async function handlePowerBIToolCall(
   const requestNumber = await generateRequestNumber(orgId);
   const effort = calculateEffortEstimate(args);
 
-  const [created] = await db.insert(powerbiIntakeRequests).values({
-    organizationId: orgId,
-    requestNumber,
-    submittedBy: userId,
-    status: "new",
-    reportType: args.reportType?.slice(0, 200) || null,
-    reportName: args.reportName?.slice(0, 500) || "Untitled Report",
-    description: args.description?.slice(0, 5000) || null,
-    numberOfPages: args.numberOfPages || null,
-    numberOfDrillDownPages: args.numberOfDrillDownPages || null,
-    numberOfDataSources: args.numberOfDataSources || null,
-    dataSources: args.dataSources?.slice(0, 2000) || null,
-    integrations: args.integrations?.slice(0, 2000) || null,
-    calculationComplexity: args.calculationComplexity || null,
-    refreshFrequency: args.refreshFrequency?.slice(0, 500) || null,
-    filtersAndSlicers: args.filtersAndSlicers?.slice(0, 2000) || null,
-    visualRequirements: args.visualRequirements?.slice(0, 2000) || null,
-    securityRequirements: args.securityRequirements?.slice(0, 2000) || null,
-    targetDeliveryDate: args.targetDeliveryDate?.slice(0, 200) || null,
-    additionalNotes: args.additionalNotes?.slice(0, 5000) || null,
-    conversationLog: conversationLog.slice(0, 50000),
-    estimatedEffortHours: effort.totalHours,
-    effortBreakdown: effort.breakdown,
-  }).returning();
+  const descriptionParts: string[] = [];
+  if (args.description) descriptionParts.push(args.description);
+  descriptionParts.push(`\n--- Power BI Scoping Details ---`);
+  descriptionParts.push(`Report Type: ${args.reportType || "N/A"}`);
+  if (args.numberOfPages) descriptionParts.push(`Pages: ${args.numberOfPages} main${args.numberOfDrillDownPages ? ` + ${args.numberOfDrillDownPages} drill-down` : ""}`);
+  if (args.numberOfDataSources) descriptionParts.push(`Data Sources (${args.numberOfDataSources}): ${args.dataSources || "N/A"}`);
+  if (args.integrations) descriptionParts.push(`Integrations: ${args.integrations}`);
+  if (args.calculationComplexity) descriptionParts.push(`Calculation Complexity: ${args.calculationComplexity}`);
+  if (args.refreshFrequency) descriptionParts.push(`Refresh Frequency: ${args.refreshFrequency}`);
+  if (args.filtersAndSlicers) descriptionParts.push(`Filters & Slicers: ${args.filtersAndSlicers}`);
+  if (args.visualRequirements) descriptionParts.push(`Visual/UX Requirements: ${args.visualRequirements}`);
+  if (args.securityRequirements) descriptionParts.push(`Security / RLS: ${args.securityRequirements}`);
+  if (args.targetDeliveryDate) descriptionParts.push(`Target Delivery: ${args.targetDeliveryDate}`);
+  if (args.additionalNotes) descriptionParts.push(`Additional Notes: ${args.additionalNotes}`);
+  descriptionParts.push(`\nPower BI Request Ref: ${requestNumber}`);
+
+  const result = await db.transaction(async (tx) => {
+    const year = new Date().getFullYear();
+    const existingCount = await tx.select({ count: sql<number>`count(*)` })
+      .from(projectIntakes)
+      .where(sql`EXTRACT(YEAR FROM ${projectIntakes.createdAt}) = ${year}`);
+    const intakeSeq = Number(existingCount[0]?.count || 0) + 1;
+    const intakeNumber = `INT-${year}-${String(intakeSeq).padStart(3, '0')}`;
+
+    const [projectIntake] = await tx.insert(projectIntakes).values({
+      organizationId: orgId,
+      intakeNumber,
+      projectName: args.reportName || "Untitled Power BI Report",
+      submitterId: userId,
+      description: descriptionParts.join("\n"),
+      status: "draft",
+      currentStep: "intake_capture",
+      resourceRequirements: `Estimated effort: ${effort.totalHours} hours\n${Object.entries(effort.breakdown).map(([k, v]) => `${k}: ${v}h`).join("\n")}`,
+      implementationTimeline: args.targetDeliveryDate || null,
+    }).returning();
+
+    const [pbiRecord] = await tx.insert(powerbiIntakeRequests).values({
+      organizationId: orgId,
+      requestNumber,
+      submittedBy: userId,
+      status: "new",
+      reportType: args.reportType?.slice(0, 200) || null,
+      reportName: args.reportName?.slice(0, 500) || "Untitled Report",
+      description: args.description?.slice(0, 5000) || null,
+      numberOfPages: args.numberOfPages || null,
+      numberOfDrillDownPages: args.numberOfDrillDownPages || null,
+      numberOfDataSources: args.numberOfDataSources || null,
+      dataSources: args.dataSources?.slice(0, 2000) || null,
+      integrations: args.integrations?.slice(0, 2000) || null,
+      calculationComplexity: args.calculationComplexity || null,
+      refreshFrequency: args.refreshFrequency?.slice(0, 500) || null,
+      filtersAndSlicers: args.filtersAndSlicers?.slice(0, 2000) || null,
+      visualRequirements: args.visualRequirements?.slice(0, 2000) || null,
+      securityRequirements: args.securityRequirements?.slice(0, 2000) || null,
+      targetDeliveryDate: args.targetDeliveryDate?.slice(0, 200) || null,
+      additionalNotes: args.additionalNotes?.slice(0, 5000) || null,
+      conversationLog: conversationLog.slice(0, 50000),
+      estimatedEffortHours: effort.totalHours,
+      effortBreakdown: effort.breakdown,
+      projectIntakeId: projectIntake.id,
+    }).returning();
+
+    console.log(`[PowerBI Agent] Created project intake ${projectIntake.intakeNumber} + Power BI request ${requestNumber}`);
+
+    return { pbiRecord, projectIntake };
+  });
 
   return JSON.stringify({
     success: true,
-    message: `Power BI report request "${created.reportName}" submitted successfully with reference number ${requestNumber}. The project team will review the requirements and follow up with a quote and timeline.`,
+    message: `Power BI report request "${result.pbiRecord.reportName}" submitted successfully with reference number ${requestNumber}. A project intake (${result.projectIntake.intakeNumber}) has also been created and will go through the governance approval workflow. The project team will review the requirements and follow up with a quote and timeline.`,
     requestNumber,
-    requestId: created.id,
+    requestId: result.pbiRecord.id,
+    intakeNumber: result.projectIntake.intakeNumber,
+    intakeId: result.projectIntake.id,
   });
 }
 
