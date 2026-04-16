@@ -741,6 +741,7 @@ export const timesheetEntries = pgTable("timesheet_entries", {
   index("te_organization_id_idx").on(table.organizationId),
   index("te_user_org_date_idx").on(table.userId, table.organizationId, table.entryDate),
   index("te_resource_task_date_idx").on(table.resourceId, table.taskId, table.entryDate),
+  uniqueIndex("te_resource_task_date_unique_idx").on(table.resourceId, table.taskId, table.entryDate),
 ]);
 
 // Time Categories (for non-project time like vacation, PTO, etc.)
@@ -1673,6 +1674,7 @@ export const insertIssueSchema = baseIssueSchema.extend({
   escalatedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),
 });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true }).extend({
+  name: z.string().min(1, "Task name is required"),
   durationDays: z.number().min(0).max(36500).nullable().optional(),
   startDate: z.string().nullable().optional(),
   endDate: z.string().nullable().optional(),
@@ -1692,7 +1694,9 @@ export const insertTaskResourceAssignmentSchema = createInsertSchema(taskResourc
 export const insertIssueResourceAssignmentSchema = createInsertSchema(issueResourceAssignments).omit({ id: true, createdAt: true });
 // Risk resource assignments are now handled through issue resource assignments
 export const insertRiskResourceAssignmentSchema = insertIssueResourceAssignmentSchema;
-export const insertTimesheetEntrySchema = createInsertSchema(timesheetEntries).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTimesheetEntrySchema = createInsertSchema(timesheetEntries).omit({ id: true, createdAt: true, updatedAt: true }).extend({
+  hours: z.union([z.string(), z.number()]).transform(v => String(v)).refine(v => { const n = Number(v); return !isNaN(n) && n >= 0 && n <= 24; }, { message: "Hours must be between 0 and 24" }),
+});
 export const insertCostItemSchema = createInsertSchema(costItems).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProjectIntakeSchema = createInsertSchema(projectIntakes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMppImportSchema = createInsertSchema(mppImports).omit({ id: true, createdAt: true, lastSyncedAt: true });

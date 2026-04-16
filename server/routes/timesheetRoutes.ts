@@ -1136,7 +1136,7 @@ export function registerTimesheetRoutes(app: Express) {
         return res.status(403).json({ message: 'Cannot reject entries in a closed period' });
       }
 
-      const updated = await storage.rejectTimesheetEntry(id, rejectionReason || '');
+      const updated = await storage.rejectTimesheetEntry(id, rejectionReason || '', userId);
 
       await logTimesheetAudit({
         organizationId: entry.organizationId,

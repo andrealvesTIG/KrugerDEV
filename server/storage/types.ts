@@ -319,7 +319,7 @@ export interface ITimesheetStorage {
   submitTimesheetWeek(userId: string, organizationId: number, startDate: string, endDate: string): Promise<void>;
   approveTimesheetEntry(id: number, approvedBy: string): Promise<TimesheetEntry>;
   bulkApproveTimesheetEntries(ids: number[], approvedBy: string, organizationId: number): Promise<TimesheetEntry[]>;
-  rejectTimesheetEntry(id: number, rejectionReason: string): Promise<TimesheetEntry>;
+  rejectTimesheetEntry(id: number, rejectionReason: string, rejectedBy?: string): Promise<TimesheetEntry>;
   getTimesheetSettings(organizationId: number): Promise<TimesheetSettings | undefined>;
   upsertTimesheetSettings(settings: InsertTimesheetSettings): Promise<TimesheetSettings>;
   createTimesheetAuditLog(log: InsertTimesheetAuditLog): Promise<TimesheetAuditLog>;

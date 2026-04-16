@@ -1368,6 +1368,23 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         }
       }
       
+      if (input.status === "Not Started") {
+        input.progress = 0;
+      } else if (input.status === "Completed") {
+        input.progress = 100;
+      } else if (input.status === "In Progress" && (input.progress === undefined || input.progress === null)) {
+        input.progress = input.progress ?? 50;
+      }
+      if (input.progress !== undefined && input.progress !== null) {
+        if (input.progress === 100 && (!input.status || input.status === "Not Started")) {
+          input.status = "Completed";
+        } else if (input.progress > 0 && (!input.status || input.status === "Not Started")) {
+          input.status = "In Progress";
+        } else if (input.progress === 0 && input.status === "In Progress") {
+          input.status = "Not Started";
+        }
+      }
+
       const task = await storage.createTask(input);
       
       // Recalculate WBS for all tasks in the project
