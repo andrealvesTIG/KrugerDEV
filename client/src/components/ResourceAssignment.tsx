@@ -61,7 +61,7 @@ function AllocationInput({ value, onChange, resourceId }: { value: number; onCha
         if (e.key === 'Enter') { handleBlur(); (e.target as HTMLInputElement).blur(); }
         e.stopPropagation();
       }}
-      className="h-6 w-14 text-xs text-center px-1 rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring cursor-text"
+      className="h-8 w-16 text-base md:text-xs text-center px-1 rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring cursor-text"
       data-testid={`input-allocation-${resourceId}`}
     />
   );
@@ -291,10 +291,10 @@ export function ResourceAssignment({
         {selectedResources.map(resource => (
           <div 
             key={resource.id} 
-            className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors group"
+            className="flex flex-wrap items-center gap-2 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors group"
             data-testid={`badge-resource-${resource.id}`}
           >
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-primary-foreground text-sm font-semibold shrink-0">
                 {resource.displayName.charAt(0).toUpperCase()}
               </div>
@@ -303,7 +303,7 @@ export function ResourceAssignment({
                 <div className="text-xs text-muted-foreground truncate">{resource.email || 'No email'}</div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 ml-auto">
               {showAllocations && onAllocationsChange && (
                 <div className="flex items-center gap-1 bg-muted/50 rounded-md px-2 py-1">
                   <AllocationInput
@@ -317,7 +317,7 @@ export function ResourceAssignment({
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); removeResource(resource.id); }}
-                className="opacity-0 group-hover:opacity-100 rounded-full p-1.5 hover:bg-destructive/10 hover:text-destructive transition-all"
+                className="opacity-100 md:opacity-0 md:group-hover:opacity-100 rounded-full p-2 hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-all"
                 data-testid={`button-remove-resource-${resource.id}`}
               >
                 <X className="h-4 w-4" />
@@ -348,7 +348,7 @@ export function ResourceAssignment({
             Add Team Member
           </Button>
         </PopoverTrigger>
-          <PopoverContent className="w-72 p-0" align="start">
+          <PopoverContent className="w-[calc(100vw-2rem)] sm:w-72 p-0" align="start">
             {showInviteForm ? (
               <div className="p-3 space-y-3">
                 <div className="flex items-center gap-2">
@@ -509,7 +509,7 @@ export function ResourceAssignment({
                   <button
                     type="button"
                     onClick={() => setShowInviteForm(true)}
-                    className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-primary rounded-sm hover:bg-accent transition-colors"
+                    className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-primary rounded-sm hover:bg-accent transition-colors"
                     data-testid="button-invite-new-resource"
                   >
                     <UserPlus className="h-4 w-4" />
