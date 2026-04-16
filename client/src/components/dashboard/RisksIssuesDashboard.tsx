@@ -76,7 +76,7 @@ export function RisksIssuesDashboard() {
     return allRisksData.filter(r => {
       if (filters.projectId && r.projectId !== filters.projectId) return false;
       if (filters.portfolioId !== null && !filteredProjectIds.has(r.projectId)) return false;
-      if (filters.priority && r.impact !== filters.priority) return false;
+      if (filters.priority && r.priority !== filters.priority) return false;
       return true;
     });
   }, [allRisksData, filters, filteredProjectIds]);
