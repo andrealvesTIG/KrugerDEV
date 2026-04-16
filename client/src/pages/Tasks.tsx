@@ -34,7 +34,7 @@ import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, 
 import { PageTransition, FadeIn } from "@/components/ui/page-transition";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { format, addDays, differenceInDays, startOfMonth, endOfMonth, eachDayOfInterval, isWithinInterval, parseISO } from "date-fns";
@@ -1458,6 +1458,12 @@ function KanbanView({
       activationConstraint: {
         distance: 8,
       },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5,
+      },
     })
   );
 
@@ -1616,11 +1622,17 @@ function DraggableTaskCard({
       className={cn(isDragging && "opacity-50")}
     >
       <Card 
-        className="cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing group relative"
+        className={cn(
+          "cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing group relative border-l-[3px]",
+          task.priority === 'Critical' ? "border-l-rose-500" :
+          task.priority === 'High' ? "border-l-amber-500" :
+          task.priority === 'Medium' ? "border-l-blue-400" :
+          "border-l-slate-300 dark:border-l-slate-600"
+        )}
         onClick={() => onTaskClick(task)}
         data-testid={`kanban-task-${task.id}`}
       >
-        <div className="absolute top-2 right-2 invisible group-hover:visible z-10">
+        <div className="absolute top-2 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:pointer-events-none md:group-hover:pointer-events-auto transition-opacity z-10">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -1651,15 +1663,26 @@ function DraggableTaskCard({
             {task.timesheetBlocked && <LockIcon className="h-3 w-3 text-amber-500 flex-shrink-0" />}
             <span className="truncate">{task.name}</span>
           </div>
-          <Link 
-            href={`/projects/${task.projectId}`}
-            onClick={(e) => e.stopPropagation()}
-            className="text-xs text-muted-foreground mt-1 hover:text-primary hover:underline block break-words"
-            title={getProjectName(task.projectId)}
-            data-testid={`kanban-link-project-${task.projectId}`}
-          >
-            {getProjectName(task.projectId)}
-          </Link>
+          <div className="flex items-center gap-1 mt-1 flex-wrap">
+            <Link 
+              href={`/projects/${task.projectId}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-xs text-muted-foreground hover:text-primary hover:underline break-words"
+              title={getProjectName(task.projectId)}
+              data-testid={`kanban-link-project-${task.projectId}`}
+            >
+              {getProjectName(task.projectId)}
+            </Link>
+            {task.priority && (task.priority === 'Critical' || task.priority === 'High') && (
+              <Badge variant="secondary" className={cn(
+                "text-[10px] py-0 ml-auto",
+                task.priority === 'Critical' ? "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300" :
+                "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300"
+              )}>
+                {task.priority}
+              </Badge>
+            )}
+          </div>
           {taskAssignments && taskAssignments.length > 0 && (
             <div className="flex items-center gap-1 mt-2">
               <span className="text-xs text-muted-foreground">Assigned:</span>
@@ -1699,7 +1722,10 @@ function DraggableTaskCard({
               {task.progress || 0}%
             </Badge>
             {task.endDate && (
-              <span className="text-xs text-muted-foreground">
+              <span className={cn(
+                "text-xs",
+                task.status !== 'Completed' && parseISO(task.endDate) < new Date(new Date().toDateString()) ? "text-destructive font-medium" : "text-muted-foreground"
+              )}>
                 Due: {format(parseISO(task.endDate), 'MMM d')}
               </span>
             )}

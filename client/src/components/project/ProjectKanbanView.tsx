@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Plus, Check, History, Milestone as MilestoneIcon, ChevronLeft, ChevronRight } from "lucide-react";
-import { DndContext, DragEndEvent, DragOverEvent, DragOverlay, DragStartEvent, closestCorners, pointerWithin, rectIntersection, useSensor, useSensors, PointerSensor, useDroppable, type CollisionDetection } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, DragOverEvent, DragOverlay, DragStartEvent, closestCorners, pointerWithin, rectIntersection, useSensor, useSensors, PointerSensor, TouchSensor, useDroppable, type CollisionDetection } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
@@ -313,6 +313,12 @@ function ProjectKanbanView({
       activationConstraint: {
         distance: canDrag ? 8 : 999999,
       },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5,
+      },
     })
   );
 
@@ -468,11 +474,11 @@ function ProjectKanbanView({
         "p-0 flex flex-col",
         isFullscreen && "h-full flex-1 min-h-0"
       )}>
-        <div className="flex items-center gap-3 p-3 border-b bg-muted/30 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Group by:</span>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 border-b bg-muted/30">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xs text-muted-foreground flex-shrink-0">Group by:</span>
             <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupByField)}>
-              <SelectTrigger className="h-8 w-[160px] text-xs" data-testid="kanban-group-by">
+              <SelectTrigger className="h-8 w-full sm:w-[160px] text-xs" data-testid="kanban-group-by">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -484,13 +490,13 @@ function ProjectKanbanView({
           </div>
           
           {resources && resources.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Resource:</span>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-xs text-muted-foreground flex-shrink-0">Resource:</span>
               <Select 
                 value={filterResourceId?.toString() || "all"} 
                 onValueChange={(v) => setFilterResourceId(v === "all" ? null : Number(v))}
               >
-                <SelectTrigger className="h-8 w-[150px] text-xs" data-testid="kanban-filter-resource">
+                <SelectTrigger className="h-8 w-full sm:w-[150px] text-xs" data-testid="kanban-filter-resource">
                   <SelectValue placeholder="All Resources" />
                 </SelectTrigger>
                 <SelectContent>
@@ -503,9 +509,9 @@ function ProjectKanbanView({
             </div>
           )}
           
-          <div className="flex items-center gap-1 ml-auto">
+          <div className="flex items-center gap-1 sm:ml-auto">
             {(canScrollLeft || canScrollRight) && (
-              <div className="flex items-center gap-1 mr-2">
+              <div className="hidden sm:flex items-center gap-1 mr-2">
                 <Button
                   variant="outline"
                   size="icon"
@@ -547,9 +553,12 @@ function ProjectKanbanView({
           >
             <div 
               ref={scrollContainerRef}
-              className={cn("grid gap-6 overflow-x-auto pb-2", isFullscreen && "h-full")}
+              className={cn(
+                "flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 md:grid md:gap-6 md:overflow-x-auto md:snap-none md:pb-2",
+                isFullscreen && "h-full"
+              )}
               style={{ 
-                gridTemplateColumns: `repeat(${columns.length}, minmax(280px, 1fr))` 
+                gridTemplateColumns: columns.length > 0 ? `repeat(${columns.length}, minmax(280px, 1fr))` : undefined
               }}
             >
               {columns.map(column => {
@@ -651,7 +660,7 @@ function ProjectKanbanColumn({
     <div 
       ref={setNodeRef}
       className={cn(
-        "space-y-4 min-h-[200px] rounded-lg transition-colors p-2",
+        "space-y-4 min-h-[200px] rounded-lg transition-colors p-2 min-w-[280px] snap-center flex-shrink-0 md:min-w-0 md:flex-shrink",
         isActiveOver && "bg-primary/10 ring-2 ring-primary ring-dashed"
       )}
     >
@@ -732,7 +741,7 @@ function ProjectDraggableTaskCard({
   const style: React.CSSProperties = isDragEnabled ? {
     transform: CSS.Transform.toString(transform),
     transition,
-    touchAction: 'none',
+    touchAction: 'manipulation',
   } : {};
 
   const assignedResources = useMemo(() => {
@@ -772,7 +781,13 @@ function ProjectDraggableTaskCard({
       )}
     >
       <Card 
-        className="hover:shadow-md transition-shadow"
+        className={cn(
+          "hover:shadow-md transition-shadow border-l-[3px]",
+          task.priority === 'Critical' ? "border-l-rose-500" :
+          task.priority === 'High' ? "border-l-amber-500" :
+          task.priority === 'Medium' ? "border-l-blue-400" :
+          "border-l-slate-300 dark:border-l-slate-600"
+        )}
         onClick={handleClick}
         data-testid={`kanban-task-${task.id}`}
       >
@@ -782,6 +797,15 @@ function ProjectDraggableTaskCard({
             <span className="truncate" title={task.name}>{task.name}</span>
           </div>
           <div className="flex items-center gap-1 mt-2 flex-wrap">
+            {task.priority && (task.priority === 'Critical' || task.priority === 'High') && (
+              <Badge variant="secondary" className={cn(
+                "text-[10px] py-0",
+                task.priority === 'Critical' ? "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300" :
+                "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300"
+              )}>
+                {task.priority}
+              </Badge>
+            )}
             {assignedResources.length > 0 ? (
               assignedResources.map(r => (
                 <Badge key={r.id} variant="secondary" className="text-[10px] py-0 max-w-[100px] truncate" title={r.displayName}>
@@ -823,7 +847,10 @@ function ProjectDraggableTaskCard({
               {task.progress || 0}%
             </Badge>
             {task.endDate && (
-              <span className="text-xs text-muted-foreground">
+              <span className={cn(
+                "text-xs",
+                task.status !== 'Completed' && parseISO(task.endDate) < new Date(new Date().toDateString()) ? "text-destructive font-medium" : "text-muted-foreground"
+              )}>
                 Due: {format(parseISO(task.endDate), 'MMM d')}
               </span>
             )}
