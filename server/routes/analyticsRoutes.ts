@@ -7,6 +7,12 @@ import {
   classifyError,
   getUserIdFromRequest,
   getUserOrgIds,
+  isTeamMemberInOrg,
+  getTeamMemberProjectIds,
+  getTeamMemberPortfolioIds,
+  getTeamMemberRiskIds,
+  getTeamMemberIssueIds,
+  getTeamMemberTaskIds,
 } from "./helpers";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, qInt, authRes, stdRes, fullRes, createRes, e401 } from "../route-registry";
 
@@ -329,18 +335,36 @@ export function registerAnalyticsRoutes(app: Express) {
       if (!scope) return;
       const { targetOrgIds } = scope;
       
+      const { userId } = scope;
       const allProjects: any[] = [];
       for (const orgId of targetOrgIds) {
-        const projects = await storage.getProjects(orgId);
+        let orgProjects = await storage.getProjects(orgId);
         const portfolios = await storage.getPortfolios(orgId);
         const org = await storage.getOrganization(orgId);
+
+        const isTeamMember = await isTeamMemberInOrg(userId, orgId);
+        let allowedTaskIdsForProj: Set<number> | null = null;
+        let allowedRiskIdsForProj: Set<number> | null = null;
+        let allowedIssueIdsForProj: Set<number> | null = null;
+
+        if (isTeamMember) {
+          const allowedIds = new Set(await getTeamMemberProjectIds(userId, orgId));
+          orgProjects = orgProjects.filter(p => allowedIds.has(p.id));
+          allowedTaskIdsForProj = new Set(await getTeamMemberTaskIds(userId, orgId));
+          allowedRiskIdsForProj = new Set(await getTeamMemberRiskIds(userId, orgId));
+          allowedIssueIdsForProj = new Set(await getTeamMemberIssueIds(userId, orgId));
+        }
         
-        for (const project of projects) {
+        for (const project of orgProjects) {
           const portfolio = portfolios.find(p => p.id === project.portfolioId);
-          const tasks = await storage.getTasks(project.id);
-          const risks = await storage.getRisks(project.id);
-          const issues = await storage.getIssues(project.id);
+          let tasks = await storage.getTasks(project.id);
+          let risks = await storage.getRisks(project.id);
+          let issues = await storage.getIssues(project.id);
           const milestones = await storage.getMilestones(project.id);
+
+          if (allowedTaskIdsForProj) tasks = tasks.filter(t => allowedTaskIdsForProj!.has(t.id));
+          if (allowedRiskIdsForProj) risks = risks.filter(r => allowedRiskIdsForProj!.has(r.id));
+          if (allowedIssueIdsForProj) issues = issues.filter(i => allowedIssueIdsForProj!.has(i.id));
           
           allProjects.push({
             projectId: project.id,
@@ -392,13 +416,21 @@ export function registerAnalyticsRoutes(app: Express) {
       if (!scope) return;
       const { targetOrgIds } = scope;
       
+      const { userId } = scope;
       const allPortfolios: any[] = [];
       for (const orgId of targetOrgIds) {
-        const portfolios = await storage.getPortfolios(orgId);
-        const projects = await storage.getProjects(orgId);
+        let orgPortfolios = await storage.getPortfolios(orgId);
+        let projects = await storage.getProjects(orgId);
         const org = await storage.getOrganization(orgId);
+
+        if (await isTeamMemberInOrg(userId, orgId)) {
+          const allowedPortIds = new Set(await getTeamMemberPortfolioIds(userId, orgId));
+          orgPortfolios = orgPortfolios.filter(p => allowedPortIds.has(p.id));
+          const allowedProjIds = new Set(await getTeamMemberProjectIds(userId, orgId));
+          projects = projects.filter(p => allowedProjIds.has(p.id));
+        }
         
-        for (const portfolio of portfolios) {
+        for (const portfolio of orgPortfolios) {
           const portfolioProjects = projects.filter(p => p.portfolioId === portfolio.id);
           const totalBudget = portfolioProjects.reduce((sum, p) => sum + (Number(p.budget) || 0), 0);
           const avgCompletion = portfolioProjects.length > 0 
@@ -443,15 +475,25 @@ export function registerAnalyticsRoutes(app: Express) {
       if (!scope) return;
       const { targetOrgIds } = scope;
       
+      const { userId } = scope;
       const allRisks: any[] = [];
       for (const orgId of targetOrgIds) {
-        const projects = await storage.getProjects(orgId);
+        let orgProjects = await storage.getProjects(orgId);
         const org = await storage.getOrganization(orgId);
+        const isTeamMember = await isTeamMemberInOrg(userId, orgId);
+        let allowedRiskIds: Set<number> | null = null;
+
+        if (isTeamMember) {
+          const allowedIds = new Set(await getTeamMemberProjectIds(userId, orgId));
+          orgProjects = orgProjects.filter(p => allowedIds.has(p.id));
+          allowedRiskIds = new Set(await getTeamMemberRiskIds(userId, orgId));
+        }
         
-        for (const project of projects) {
+        for (const project of orgProjects) {
           const risks = await storage.getRisks(project.id);
           
           for (const risk of risks) {
+            if (allowedRiskIds && !allowedRiskIds.has(risk.id)) continue;
             allRisks.push({
               riskId: risk.id,
               title: risk.title,
@@ -491,15 +533,25 @@ export function registerAnalyticsRoutes(app: Express) {
       if (!scope) return;
       const { targetOrgIds } = scope;
       
+      const { userId } = scope;
       const allIssues: any[] = [];
       for (const orgId of targetOrgIds) {
-        const projects = await storage.getProjects(orgId);
+        let orgProjects = await storage.getProjects(orgId);
         const org = await storage.getOrganization(orgId);
+        const isTeamMember = await isTeamMemberInOrg(userId, orgId);
+        let allowedIssueIds: Set<number> | null = null;
+
+        if (isTeamMember) {
+          const allowedIds = new Set(await getTeamMemberProjectIds(userId, orgId));
+          orgProjects = orgProjects.filter(p => allowedIds.has(p.id));
+          allowedIssueIds = new Set(await getTeamMemberIssueIds(userId, orgId));
+        }
         
-        for (const project of projects) {
+        for (const project of orgProjects) {
           const issues = await storage.getIssues(project.id);
           
           for (const issue of issues) {
+            if (allowedIssueIds && !allowedIssueIds.has(issue.id)) continue;
             allIssues.push({
               issueId: issue.id,
               title: issue.title,
@@ -540,12 +592,18 @@ export function registerAnalyticsRoutes(app: Express) {
       if (!scope) return;
       const { targetOrgIds } = scope;
       
+      const { userId } = scope;
       const allMilestones: any[] = [];
       for (const orgId of targetOrgIds) {
-        const projects = await storage.getProjects(orgId);
+        let orgProjects = await storage.getProjects(orgId);
         const org = await storage.getOrganization(orgId);
+
+        if (await isTeamMemberInOrg(userId, orgId)) {
+          const allowedIds = new Set(await getTeamMemberProjectIds(userId, orgId));
+          orgProjects = orgProjects.filter(p => allowedIds.has(p.id));
+        }
         
-        for (const project of projects) {
+        for (const project of orgProjects) {
           const milestones = await storage.getMilestones(project.id);
           
           for (const milestone of milestones) {
@@ -584,8 +642,14 @@ export function registerAnalyticsRoutes(app: Express) {
       if (!scope) return;
       const { targetOrgIds } = scope;
       
+      const { userId } = scope;
+
       const allIntakes: any[] = [];
       for (const orgId of targetOrgIds) {
+        if (userId && await isTeamMemberInOrg(userId, orgId)) {
+          continue;
+        }
+
         const intakes = await storage.getProjectIntakes(orgId);
         const org = await storage.getOrganization(orgId);
         
@@ -629,12 +693,30 @@ export function registerAnalyticsRoutes(app: Express) {
       if (!scope) return;
       const { targetOrgIds } = scope;
       
+      const { userId } = scope;
       const summaries: any[] = [];
       for (const orgId of targetOrgIds) {
         const org = await storage.getOrganization(orgId);
-        const projects = await storage.getProjects(orgId);
-        const portfolios = await storage.getPortfolios(orgId);
-        const intakes = await storage.getProjectIntakes(orgId);
+        let projects = await storage.getProjects(orgId);
+        let orgPortfolios = await storage.getPortfolios(orgId);
+
+        const isTeamMember = await isTeamMemberInOrg(userId, orgId);
+        let allowedRiskIds: Set<number> | null = null;
+        let allowedIssueIds: Set<number> | null = null;
+        let allowedTaskIds: Set<number> | null = null;
+
+        if (isTeamMember) {
+          const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, orgId));
+          projects = projects.filter(p => allowedProjectIds.has(p.id));
+          const allowedPortfolioIds = new Set(await getTeamMemberPortfolioIds(userId, orgId));
+          orgPortfolios = orgPortfolios.filter(p => allowedPortfolioIds.has(p.id));
+          allowedRiskIds = new Set(await getTeamMemberRiskIds(userId, orgId));
+          allowedIssueIds = new Set(await getTeamMemberIssueIds(userId, orgId));
+          allowedTaskIds = new Set(await getTeamMemberTaskIds(userId, orgId));
+        }
+
+        const portfolios = orgPortfolios;
+        const intakes = isTeamMember ? [] : await storage.getProjectIntakes(orgId);
         
         let totalRisks = 0, openRisks = 0, highRisks = 0;
         let totalIssues = 0, openIssues = 0;
@@ -642,10 +724,14 @@ export function registerAnalyticsRoutes(app: Express) {
         let totalTasks = 0, completedTasks = 0;
         
         for (const project of projects) {
-          const risks = await storage.getRisks(project.id);
-          const issues = await storage.getIssues(project.id);
+          let risks = await storage.getRisks(project.id);
+          let issues = await storage.getIssues(project.id);
           const milestones = await storage.getMilestones(project.id);
-          const tasks = await storage.getTasks(project.id);
+          let tasks = await storage.getTasks(project.id);
+
+          if (allowedRiskIds) risks = risks.filter(r => allowedRiskIds!.has(r.id));
+          if (allowedIssueIds) issues = issues.filter(i => allowedIssueIds!.has(i.id));
+          if (allowedTaskIds) tasks = tasks.filter(t => allowedTaskIds!.has(t.id));
           
           totalRisks += risks.length;
           openRisks += risks.filter(r => r.status === 'Open').length;

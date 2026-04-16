@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { formatCurrency } from "@/lib/format";
 import { useSearch } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -1096,7 +1097,7 @@ export default function Profile() {
                     </div>
                     <div>
                       <p className="text-2xl font-bold">
-                        ${((referralStats?.pendingEarningsCents || 0) / 100).toFixed(2)}
+                        {formatCurrency((referralStats?.pendingEarningsCents || 0) / 100, { showCents: true })}
                       </p>
                       <p className="text-xs text-muted-foreground">Pending Earnings</p>
                     </div>
@@ -1123,7 +1124,7 @@ export default function Profile() {
                           <div className="flex items-center gap-2 flex-shrink-0">
                             {ref.commissionAmountCents && (
                               <span className="text-xs text-muted-foreground">
-                                ${(ref.commissionAmountCents / 100).toFixed(2)}
+                                {formatCurrency(ref.commissionAmountCents / 100, { showCents: true })}
                               </span>
                             )}
                             {getStatusBadge(ref.status)}
@@ -1145,7 +1146,7 @@ export default function Profile() {
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base">Request Payout</CardTitle>
                   <CardDescription className="text-xs">
-                    Minimum payout: $10.00 | Total paid: ${((referralStats?.paidOutCents || 0) / 100).toFixed(2)}
+                    Minimum payout: $10.00 | Total paid: {formatCurrency((referralStats?.paidOutCents || 0) / 100, { showCents: true })}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-0">
@@ -1153,7 +1154,7 @@ export default function Profile() {
                     <div className="p-3 rounded-md bg-muted/30 text-center">
                       <p className="text-sm text-muted-foreground">Available for payout</p>
                       <p className="text-2xl font-bold text-primary">
-                        ${((referralStats?.pendingEarningsCents || 0) / 100).toFixed(2)}
+                        {formatCurrency((referralStats?.pendingEarningsCents || 0) / 100, { showCents: true })}
                       </p>
                     </div>
                     <Button 
@@ -1167,7 +1168,7 @@ export default function Profile() {
                     </Button>
                     {(referralStats?.pendingEarningsCents || 0) < 1000 && (
                       <p className="text-xs text-muted-foreground text-center">
-                        You need ${(10 - (referralStats?.pendingEarningsCents || 0) / 100).toFixed(2)} more to request a payout
+                        You need {formatCurrency(10 - (referralStats?.pendingEarningsCents || 0) / 100, { showCents: true })} more to request a payout
                       </p>
                     )}
                   </div>
@@ -1183,7 +1184,7 @@ export default function Profile() {
           <DialogHeader>
             <DialogTitle>Request Payout</DialogTitle>
             <DialogDescription>
-              Enter your PayPal email to receive your earnings of ${((referralStats?.pendingEarningsCents || 0) / 100).toFixed(2)}
+              Enter your PayPal email to receive your earnings of {formatCurrency((referralStats?.pendingEarningsCents || 0) / 100, { showCents: true })}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">

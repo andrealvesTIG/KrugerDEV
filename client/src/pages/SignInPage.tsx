@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { formatCurrency } from "@/lib/format";
 import { useLocation, Link, useSearch } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1324,7 +1325,7 @@ function getPlanFeatures(plan: PlanData, creditCosts: CreditCostData[]): string[
   }
 
   if (plan.extraSeatPriceCents) {
-    features.push(`$${plan.extraSeatPriceCents / 100}/extra seat`);
+    features.push(`${formatCurrency(plan.extraSeatPriceCents / 100, { showCents: true })}/extra seat`);
   }
 
   const projectsCap = getHardCap(rules, 'projects');
@@ -1445,7 +1446,7 @@ function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
               const priceDisplay = isCustom
                 ? 'Contact'
                 : plan.monthlyPriceCents != null
-                  ? `$${plan.monthlyPriceCents / 100}`
+                  ? formatCurrency(plan.monthlyPriceCents / 100, { showCents: true })
                   : '$0';
               const subtitle = isFree ? 'Forever free' : isCustom ? 'Custom pricing' : 'per month';
 

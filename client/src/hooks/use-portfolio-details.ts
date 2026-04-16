@@ -17,6 +17,7 @@ export interface PortfolioOverview {
     keyDateCount: number;
     upcomingKeyDates: number;
   };
+  financialBudgets?: Record<number, number>;
 }
 
 export interface PortfolioRisk extends Risk {

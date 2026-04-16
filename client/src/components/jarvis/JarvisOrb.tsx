@@ -15,7 +15,7 @@ export default function JarvisOrbFloating({ onClick, isActive }: JarvisOrbFloati
       whileTap={{ scale: 0.95 }}
       initial={{ scale: 0, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
-      title="Friday Agent"
+      title="Friday Report"
     >
       {isActive && (
         <motion.div

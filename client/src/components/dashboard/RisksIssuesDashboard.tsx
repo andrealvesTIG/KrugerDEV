@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import { useOrganization } from "@/hooks/use-organization";
 import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
@@ -75,7 +76,7 @@ export function RisksIssuesDashboard() {
     return allRisksData.filter(r => {
       if (filters.projectId && r.projectId !== filters.projectId) return false;
       if (filters.portfolioId !== null && !filteredProjectIds.has(r.projectId)) return false;
-      if (filters.priority && r.impact !== filters.priority) return false;
+      if (filters.priority && r.priority !== filters.priority) return false;
       return true;
     });
   }, [allRisksData, filters, filteredProjectIds]);
@@ -361,7 +362,7 @@ export function RisksIssuesDashboard() {
                         <div className="font-medium truncate">{item.title}</div>
                         <div className="text-muted-foreground truncate">
                           {getProjectName(item.projectId)}
-                          {item.costExposure && <span className="ml-2 text-destructive font-medium">${Number(item.costExposure).toLocaleString()}</span>}
+                          {item.costExposure && <CompactCurrency value={item.costExposure} className="ml-2 text-destructive font-medium" />}
                         </div>
                       </div>
                       <Badge variant="secondary" className="text-[10px] h-5 flex-shrink-0" style={{ backgroundColor: `${PRIORITY_COLORS[item.severity] || COLORS.Yellow}20`, color: PRIORITY_COLORS[item.severity] || COLORS.Yellow }}>

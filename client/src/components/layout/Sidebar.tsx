@@ -292,7 +292,7 @@ const userMenuItems = [
 export function Sidebar() {
   const [location, setLocation] = useLocation();
   const { logout, user } = useAuth();
-  const { currentOrganization, setCurrentOrganization, organizations } = useOrganization();
+  const { currentOrganization, setCurrentOrganization, organizations, memberships } = useOrganization();
   const { isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen } = useSidebarState();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [logoLoadFailed, setLogoLoadFailed] = useState(false);
@@ -307,6 +307,22 @@ export function Sidebar() {
   useEffect(() => {
     setAvatarLoadFailed(false);
   }, [user?.avatarUrl, user?.profileImageUrl]);
+
+  const currentOrgRole = useMemo(() => {
+    if (!currentOrganization || !memberships.length) return null;
+    const membership = memberships.find(m => m.organizationId === currentOrganization.id);
+    return membership?.role || null;
+  }, [currentOrganization, memberships]);
+
+  const isTeamMember = currentOrgRole === 'team_member';
+
+  const teamMemberHiddenModules = new Set([
+    'resources', 'simulation', 'pmo-radar', 'invoices', 'intakes', 'templates'
+  ]);
+
+  const teamMemberHiddenGroups = new Set([
+    'resource-management', 'finance'
+  ]);
 
   const getEffectiveSidebarStructure = (): SidebarStructure => {
     if (currentOrganization?.sidebarStructure 
@@ -465,8 +481,13 @@ export function Sidebar() {
           
           return sidebarStructure.map((group, groupIndex) => {
             if (group.hidden) return null;
+            if (isTeamMember && teamMemberHiddenGroups.has(group.id)) return null;
             
-            const visibleItems = group.items.filter(item => !item.hidden);
+            const visibleItems = group.items.filter(item => {
+              if (item.hidden) return false;
+              if (isTeamMember && item.type === 'module' && teamMemberHiddenModules.has(item.key)) return false;
+              return true;
+            });
             if (visibleItems.length === 0 && group.id !== "help") return null;
             
             const isGroupCollapsed = collapsedGroups[group.id] ?? !!group.collapsedByDefault;
@@ -732,6 +753,9 @@ export function Sidebar() {
                   return null;
                 }
                 if (item.href === '/billing' && currentOrganization?.billingHidden && user?.role !== 'super_admin' && user?.role !== 'marketing') {
+                  return null;
+                }
+                if (isTeamMember && (item.href === '/org-settings' || item.href === '/billing' || item.href === '/scheduled-reports')) {
                   return null;
                 }
                 const isActive = location === item.href;

@@ -1,10 +1,12 @@
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { DndContext, DragEndEvent, closestCorners, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { format, addDays, differenceInDays, parseISO, eachDayOfInterval, startOfMonth, endOfMonth } from "date-fns";
+import { formatCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, calculateStartDateFromEndAndDuration, parseDurationInput, formatDuration } from "@/lib/workingDays";
 import { calculateCPM, type CPMResult } from "@/lib/cpm";
 import { useUpdateTask, useCreateTask, useDeleteTask, useAddTaskDependency, useRemoveTaskDependency, useReorderTask, useProjectDependencies, useBulkUpdateTasks, useBulkDeleteTasks, useTaskNotesHistory } from "@/hooks/use-tasks";
@@ -37,7 +39,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
-import { Loader2, Plus, Trash2, Pencil, Check, X, GripVertical, Flag, Columns3, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, Search, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown, Undo2, Redo2, FolderKanban, RefreshCw, Focus, Link2, Link as LinkIcon, IndentIncrease, IndentDecrease, Type, Lock as LockIcon, Calendar as CalendarIcon, ClipboardPaste, History, RotateCcw, Filter, Users } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, Check, X, GripVertical, Flag, Columns3, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, Search, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown, Undo2, Redo2, FolderKanban, RefreshCw, Focus, Link2, Link as LinkIcon, IndentIncrease, IndentDecrease, Type, Lock as LockIcon, Calendar as CalendarIcon, ClipboardPaste, History, RotateCcw, Filter, Users, Bell } from "lucide-react";
 
 export { type ZoomLevel, type GanttColumn, type GanttColumnConfig, GANTT_COLUMNS, COLUMN_CATEGORIES, DEFAULT_GANTT_COLUMNS };
 
@@ -159,6 +161,7 @@ interface InlineEditCellProps {
   onEditingChange?: (editing: boolean) => void;
   creatableSelect?: boolean;
   onAddOption?: (newOption: string) => void;
+  onDisabledClick?: () => void;
 }
 
 const InlineEditCell = memo(function InlineEditCell({ 
@@ -176,7 +179,8 @@ const InlineEditCell = memo(function InlineEditCell({
   initialCharacter,
   onEditingChange,
   creatableSelect = false,
-  onAddOption
+  onAddOption,
+  onDisabledClick
 }: InlineEditCellProps) {
   const [internalEditing, setInternalEditing] = useState(false);
   const isEditing = externalEditing !== undefined ? externalEditing : internalEditing;
@@ -227,7 +231,7 @@ const InlineEditCell = memo(function InlineEditCell({
   }, [externalEditing]);
 
   const startEditInternal = (initChar?: string): boolean => {
-    if (disabled) return false;
+    if (disabled) { onDisabledClick?.(); return false; }
     if (editType === 'boolean') {
       const newVal = !value;
       onSave(newVal);
@@ -247,7 +251,7 @@ const InlineEditCell = memo(function InlineEditCell({
   };
 
   const handleStartEdit = () => {
-    if (disabled) return;
+    if (disabled) { onDisabledClick?.(); return; }
     const didStart = startEditInternal();
     if (didStart) setIsEditing(true);
   };
@@ -867,6 +871,7 @@ const TaskNameCell = memo(function TaskNameCell({
   onToggleSchedulingMode,
   onCreateTaskAt,
   onDeleteTask,
+  onReadOnlyEdit,
 }: {
   task: Task;
   colWidth: number;
@@ -887,6 +892,7 @@ const TaskNameCell = memo(function TaskNameCell({
   onToggleSchedulingMode?: (task: Task) => void;
   onCreateTaskAt?: (task: Task, position: 'above' | 'below') => void;
   onDeleteTask?: (task: Task) => void;
+  onReadOnlyEdit?: () => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(task.name);
@@ -901,7 +907,7 @@ const TaskNameCell = memo(function TaskNameCell({
   }, [isEditing]);
 
   const handleStartInlineEdit = () => {
-    if (isReadOnly) return;
+    if (isReadOnly) { onReadOnlyEdit?.(); return; }
     setEditValue(task.name);
     setIsEditing(true);
   };
@@ -1017,7 +1023,7 @@ const TaskNameCell = memo(function TaskNameCell({
             <Pencil className="h-3.5 w-3.5 mr-2" />
             Edit
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStartInlineEdit(); }} disabled={isReadOnly} data-testid={`task-rename-${task.id}`}>
+          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStartInlineEdit(); }} data-testid={`task-rename-${task.id}`}>
             <Type className="h-3.5 w-3.5 mr-2" />
             Edit Task Name
           </DropdownMenuItem>
@@ -1181,6 +1187,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   onCustomFieldChange,
   customFieldDefsMap,
   onAddCustomFieldOption,
+  onReadOnlyEdit,
 }: { 
   task: Task;
   rowIndex: number;
@@ -1238,6 +1245,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   onCustomFieldChange?: (taskId: number, fieldDefId: number, value: string | null) => void;
   customFieldDefsMap?: Map<number, { fieldType: string; options?: string[] | null }>;
   onAddCustomFieldOption?: (fieldDefId: number, newOption: string) => void;
+  onReadOnlyEdit?: () => void;
 }) {
   const [isEditingResources, setIsEditingResources] = useState(false);
   const { data: fetchedAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(isEditingResources ? task.id : null);
@@ -1245,14 +1253,33 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const updateTask = useUpdateTask();
   const { toast } = useToast();
+
+  const notifyAssigneesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/tasks/${task.id}/notify-assignees`);
+      return response.json();
+    },
+    onSuccess: (data: { sent: number; skipped: number }) => {
+      toast({
+        title: "Notifications sent",
+        description: `Assignment notifications sent to ${data.sent} team member${data.sent !== 1 ? 's' : ''}${data.skipped > 0 ? ` (${data.skipped} skipped - no email)` : ''}.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to send notifications",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    }
+  });
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [allocations, setAllocations] = useState<ResourceAllocation[]>([]);
   const [hasInitialized, setHasInitialized] = useState(false);
   const inviteAssignedRef = useRef(false);
   
   const handleInlineUpdate = (field: string, value: string | number | boolean | null, oldValue?: unknown) => {
-    // Prevent updates for read-only projects (Planner and MS Project imports)
-    if (isReadOnly) return;
+    if (isReadOnly) { onReadOnlyEdit?.(); return; }
     
     // Build update object with auto-calculated related fields
     const updates: Record<string, string | number | boolean | null> = {
@@ -1550,6 +1577,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                 onToggleSchedulingMode={onToggleSchedulingMode}
                 onCreateTaskAt={onCreateTaskAt}
                 onDeleteTask={onDeleteTask}
+                onReadOnlyEdit={isReadOnly ? onReadOnlyEdit : undefined}
               />
             </div>
           );
@@ -1579,34 +1607,60 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
                 {hasChildren ? (
                   <span className="text-muted-foreground/70 italic truncate w-full">Summary</span>
                 ) : taskAssignments && taskAssignments.length > 0 ? (
-                  <div className="flex items-center gap-1 truncate w-full">
-                    {taskAssignments.slice(0, 3).map((assignment, idx) => (
-                      <MicrosoftContactCard
-                        key={assignment.resourceId}
-                        displayName={assignment.resource.displayName}
-                        email={assignment.resource.email}
-                        title={assignment.resource.title}
-                        department={assignment.resource.department}
-                        phone={assignment.resource.phone}
-                        photoUrl={assignment.resource.photoUrl}
-                        side="top"
-                      >
-                        <span className="text-xs hover:text-primary hover:underline cursor-pointer">
-                          {assignment.resource.displayName}{idx < Math.min(taskAssignments.length, 3) - 1 ? ',' : ''}
-                        </span>
-                      </MicrosoftContactCard>
-                    ))}
-                    {taskAssignments.length > 3 && (
+                  <div className="flex items-center gap-1 truncate w-full group/res">
+                    <div className="flex items-center gap-1 truncate min-w-0">
+                      {taskAssignments.slice(0, 3).map((assignment, idx) => (
+                        <MicrosoftContactCard
+                          key={assignment.resourceId}
+                          displayName={assignment.resource.displayName}
+                          email={assignment.resource.email}
+                          title={assignment.resource.title}
+                          department={assignment.resource.department}
+                          phone={assignment.resource.phone}
+                          photoUrl={assignment.resource.photoUrl}
+                          side="top"
+                        >
+                          <span className="text-xs hover:text-primary hover:underline cursor-pointer">
+                            {assignment.resource.displayName}{idx < Math.min(taskAssignments.length, 3) - 1 ? ',' : ''}
+                          </span>
+                        </MicrosoftContactCard>
+                      ))}
+                      {taskAssignments.length > 3 && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-xs text-muted-foreground">+{taskAssignments.length - 3} more</span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <div className="space-y-1">
+                              {taskAssignments.slice(3).map(a => (
+                                <p key={a.resourceId} className="text-xs">{a.resource.displayName}</p>
+                              ))}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
+                    {!isReadOnly && (
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <span className="text-xs text-muted-foreground">+{taskAssignments.length - 3} more</span>
+                          <button
+                            type="button"
+                            className="opacity-0 group-hover/res:opacity-100 shrink-0 p-0.5 rounded hover:bg-primary/10 hover:text-primary transition-all ml-auto"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              notifyAssigneesMutation.mutate();
+                            }}
+                            disabled={notifyAssigneesMutation.isPending}
+                          >
+                            {notifyAssigneesMutation.isPending ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Bell className="h-3 w-3" />
+                            )}
+                          </button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <div className="space-y-1">
-                            {taskAssignments.slice(3).map(a => (
-                              <p key={a.resourceId} className="text-xs">{a.resource.displayName}</p>
-                            ))}
-                          </div>
+                          <p>Send assignment notification email</p>
                         </TooltipContent>
                       </Tooltip>
                     )}
@@ -1689,6 +1743,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
           onEditingChange: (editing: boolean) => {
             if (!editing && onEditingChange) onEditingChange(false);
           },
+          onDisabledClick: isReadOnly ? onReadOnlyEdit : undefined,
         };
 
         const renderEditableCell = () => {
@@ -1906,7 +1961,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell {...cellEditProps}
                   value={task.cost != null ? Number(task.cost) : null}
-                  displayValue={task.cost != null ? `$${Number(task.cost).toLocaleString()}` : '—'}
+                  displayValue={task.cost != null ? <CompactCurrency value={task.cost} /> : '—'}
                   editType="number"
                   min={0}
                   onSave={(val) => handleInlineUpdate('cost', val != null ? String(val) : null, task.cost)}
@@ -1917,7 +1972,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell {...cellEditProps}
                   value={task.actualCost != null ? Number(task.actualCost) : null}
-                  displayValue={task.actualCost != null ? `$${Number(task.actualCost).toLocaleString()}` : '—'}
+                  displayValue={task.actualCost != null ? <CompactCurrency value={task.actualCost} /> : '—'}
                   editType="number"
                   min={0}
                   onSave={(val) => handleInlineUpdate('actualCost', val != null ? String(val) : null, task.actualCost)}
@@ -2421,6 +2476,17 @@ function ProjectGanttView({
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const { data: allResources } = useResources(organizationId);
   const { toast } = useToast();
+  const readOnlyToastRef = useRef(0);
+  const handleReadOnlyEdit = useCallback(() => {
+    const now = Date.now();
+    if (now - readOnlyToastRef.current < 3000) return;
+    readOnlyToastRef.current = now;
+    toast({
+      title: "Project is locked",
+      description: "This project is On Hold or Closed. Tasks cannot be edited until the project status is changed.",
+      variant: "destructive",
+    });
+  }, [toast]);
   const { data: schedulingDefaults } = useQuery<SchedulingDefaults>({
     queryKey: ['/api/organizations', organizationId, 'scheduling-defaults'],
     enabled: !!organizationId,
@@ -3383,7 +3449,7 @@ function ProjectGanttView({
   const handleGridPaste = useCallback(async (e: ClipboardEvent) => {
     const target = e.target as HTMLElement;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
-    if (isReadOnly) return;
+    if (isReadOnly) { handleReadOnlyEdit(); return; }
 
     // Scope paste to the Gantt metadata pane: check active element is inside it or body is focused
     const pane = leftPaneRef.current;
@@ -6438,6 +6504,7 @@ function ProjectGanttView({
                             onCustomFieldChange={handleCustomFieldChange}
                             customFieldDefsMap={customFieldDefsMap}
                             onAddCustomFieldOption={handleAddCustomFieldOption}
+                            onReadOnlyEdit={handleReadOnlyEdit}
                           />
                         </div>
                       );
@@ -6498,6 +6565,7 @@ function ProjectGanttView({
                               onCustomFieldChange={handleCustomFieldChange}
                               customFieldDefsMap={customFieldDefsMap}
                               onAddCustomFieldOption={handleAddCustomFieldOption}
+                              onReadOnlyEdit={handleReadOnlyEdit}
                             />
                           )}
                         </SortableTaskRow>

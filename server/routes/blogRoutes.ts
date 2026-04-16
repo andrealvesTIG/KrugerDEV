@@ -15,7 +15,11 @@ async function requireAdmin(req: any, res: any): Promise<boolean> {
 }
 
 function coerceDates(data: any) {
-  if (data.publishedAt) data.publishedAt = new Date(data.publishedAt);
+  if (data.publishedAt && data.publishedAt !== "") {
+    data.publishedAt = new Date(data.publishedAt);
+  } else if (data.publishedAt === "") {
+    data.publishedAt = null;
+  }
   return data;
 }
 
@@ -53,12 +57,13 @@ export function registerBlogRoutes(app: Express) {
 
   app.post("/api/admin/media", async (req: any, res) => {
     if (!(await requireAdmin(req, res))) return;
-    const parsed = insertBlogPostSchema.safeParse(req.body);
+    const coerced = coerceDates({ ...req.body });
+    const parsed = insertBlogPostSchema.safeParse(coerced);
     if (!parsed.success) {
       return res.status(400).json({ message: "Invalid blog post data", errors: parsed.error.flatten().fieldErrors });
     }
     try {
-      const post = await createBlogPost(coerceDates(parsed.data));
+      const post = await createBlogPost(parsed.data);
       res.status(201).json(post);
     } catch (err: any) {
       if (err.message?.includes("unique") || err.code === "23505") {
@@ -74,7 +79,13 @@ export function registerBlogRoutes(app: Express) {
       const id = parseInt(req.params.id);
       const existing = await getBlogPostById(id);
       if (!existing) return res.status(404).json({ message: "Blog post not found" });
-      const post = await updateBlogPost(id, coerceDates(req.body));
+      const coerced = coerceDates({ ...req.body });
+      const updateSchema = insertBlogPostSchema.partial();
+      const parsed = updateSchema.safeParse(coerced);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid blog post data", errors: parsed.error.flatten().fieldErrors });
+      }
+      const post = await updateBlogPost(id, parsed.data);
       res.json(post);
     } catch (err: any) {
       if (err.message?.includes("unique") || err.code === "23505") {

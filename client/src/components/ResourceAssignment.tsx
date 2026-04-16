@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Check, Users, X, Plus, Mail, Loader2, UserPlus } from "lucide-react";
+import { Check, Users, X, Plus, Mail, Loader2, UserPlus, Bell } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -136,6 +137,27 @@ export function ResourceAssignment({
     onError: (error: any) => {
       toast({
         title: "Failed to send invitation",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const notifyMutation = useMutation({
+    mutationFn: async () => {
+      if (!taskId) throw new Error("No task selected");
+      const response = await apiRequest("POST", `/api/tasks/${taskId}/notify-assignees`);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Notifications sent",
+        description: `Assignment notifications sent to ${data.sent} team member${data.sent !== 1 ? 's' : ''}${data.skipped > 0 ? ` (${data.skipped} skipped - no email)` : ''}.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to send notifications",
         description: error.message || "Please try again",
         variant: "destructive",
       });
@@ -453,6 +475,36 @@ export function ResourceAssignment({
             )}
           </PopoverContent>
         </Popover>
+
+        {taskId && selectedResources.length > 0 && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full gap-2 hover:border-primary hover:bg-primary/5 transition-colors"
+                onClick={() => notifyMutation.mutate()}
+                disabled={notifyMutation.isPending}
+              >
+                {notifyMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Bell className="h-4 w-4" />
+                    Send Assignment Notification
+                  </>
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Send an email notification to all assigned team members</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
     </div>
   );
 }

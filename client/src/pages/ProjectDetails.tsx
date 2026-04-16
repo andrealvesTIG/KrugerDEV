@@ -1,5 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { formatDuration } from "@/lib/workingDays";
+import { formatCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import { useRoute, Link } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory, useProjects, useDeleteProject } from "@/hooks/use-projects";
@@ -15,6 +17,7 @@ import { useBillableStatusComments, useCreateBillableStatusComment } from "@/hoo
 import { useHealthStatusHistory } from "@/hooks/use-health-status-history";
 import { useCustomFieldDefinitions, useProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useCustomProjectTabs, useFullCustomTab } from "@/hooks/use-custom-tabs";
+import { PROJECT_STATUSES, PROJECT_HEALTH_VALUES, PROJECT_PRIORITIES, BILLABLE_STATUSES } from "@shared/schema";
 import type { CustomFieldDefinition, CustomTabField } from "@shared/schema";
 import { useProjectFinancials } from "@/hooks/use-project-financials";
 import { useResources, useProjectTaskAssignments } from "@/hooks/use-resources";
@@ -58,29 +61,52 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { useLocation } from "wouter";
 
-const PROJECT_STAGES = [
-  { value: "Initiation", label: "Initiation", description: "Project kickoff" },
-  { value: "Planning", label: "Planning", description: "Define scope & schedule" },
-  { value: "Execution", label: "Execution", description: "Active development" },
-  { value: "Monitoring", label: "Monitoring", description: "Track & control" },
-  { value: "Closing", label: "Closing", description: "Project completion" },
-  { value: "Billing", label: "Billing", description: "Pending invoices & accounting" },
+const HEALTH_TOGGLE_STYLES: Record<string, { bg: string; bgLight: string; text: string; ring: string }> = {
+  "Green": { bg: 'bg-emerald-500', bgLight: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', ring: 'ring-emerald-500/30' },
+  "Yellow": { bg: 'bg-amber-500', bgLight: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', ring: 'ring-amber-500/30' },
+  "Red": { bg: 'bg-rose-500', bgLight: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300', ring: 'ring-rose-500/30' },
+};
+
+const BILLABLE_STATUS_DOT_COLORS: Record<string, string> = {
+  "N/A": "bg-slate-400",
+  "On Track": "bg-emerald-500",
+  "Waiting for Approval": "bg-amber-500",
+  "Verbal Approval": "bg-amber-500",
+  "Email Approval": "bg-emerald-500",
+  "SOW Signed": "bg-emerald-500",
+  "PO Received": "bg-emerald-500",
+  "Partially Invoiced": "bg-amber-500",
+  "At Risk": "bg-amber-500",
+  "Ready for Invoice": "bg-emerald-500",
+  "Critical": "bg-rose-500",
+  "Invoiced": "bg-blue-500",
+};
+
+const DEFAULT_PROJECT_STAGES = [
+  { value: "Initiation", label: "Initiation", description: "Project kickoff", isTerminal: false },
+  { value: "Planning", label: "Planning", description: "Define scope & schedule", isTerminal: false },
+  { value: "Execution", label: "Execution", description: "Active development", isTerminal: false },
+  { value: "Monitoring", label: "Monitoring", description: "Track & control", isTerminal: false },
+  { value: "Closing", label: "Closing", description: "Project completion", isTerminal: false },
+  { value: "Billing", label: "Billing", description: "Pending invoices & accounting", isTerminal: false },
   { value: "On Hold", label: "On Hold", description: "Project temporarily paused", isTerminal: true },
   { value: "Closed", label: "Closed", description: "Project archived & locked", isTerminal: true },
 ];
 
-// Helper to check if a project status is the terminal locked state
-const isProjectStatusLocked = (status: string) => status === "Closed" || status === "On Hold";
+type ProjectStage = { value: string; label: string; description: string; isTerminal: boolean };
 
 function BusinessProcessFlow({ 
   currentStatus, 
-  onStatusChange 
+  onStatusChange,
+  stages,
 }: { 
   currentStatus: string; 
   onStatusChange: (status: string) => void;
+  stages?: ProjectStage[];
 }) {
+  const PROJECT_STAGES = stages && stages.length > 0 ? stages : DEFAULT_PROJECT_STAGES;
   const currentIndex = PROJECT_STAGES.findIndex(s => s.value === currentStatus);
-  const isCurrentlyLocked = isProjectStatusLocked(currentStatus);
+  const isCurrentlyLocked = PROJECT_STAGES.some(s => s.value === currentStatus && s.isTerminal);
   
   return (
     <>
@@ -89,7 +115,7 @@ function BusinessProcessFlow({
             const isCompleted = index < currentIndex;
             const isCurrent = index === currentIndex;
             const isUpcoming = index > currentIndex;
-            const isTerminalStage = (stage as any).isTerminal;
+            const isTerminalStage = stage.isTerminal;
             const isClickDisabled = isCurrent;
             
             return (
@@ -169,7 +195,7 @@ function BusinessProcessFlow({
             const isCompleted = index < currentIndex;
             const isCurrent = index === currentIndex;
             const isUpcoming = index > currentIndex;
-            const isTerminalStage = (stage as any).isTerminal;
+            const isTerminalStage = stage.isTerminal;
             const isClickDisabled = isCurrent;
             
             return (
@@ -288,6 +314,28 @@ export default function ProjectDetails() {
   const { user } = useAuth();
   const { data: customTabs = [] } = useCustomProjectTabs(currentOrganization?.id);
   const [, setLocation] = useLocation();
+
+  const { data: orgWorkflowSteps } = useQuery<Array<{ id: number; stepKey: string; position: number; label: string; description: string | null; isTerminal: boolean | null; isActive: boolean | null }>>({
+    queryKey: ['/api/organizations', currentOrganization?.id, 'project-workflow'],
+    queryFn: async () => {
+      const res = await fetch(`/api/organizations/${currentOrganization!.id}/project-workflow`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  const projectStages = useMemo<ProjectStage[]>(() => {
+    if (!orgWorkflowSteps || orgWorkflowSteps.length === 0) return DEFAULT_PROJECT_STAGES;
+    return orgWorkflowSteps
+      .filter(s => s.isActive !== false)
+      .map(s => ({
+        value: s.stepKey,
+        label: s.label,
+        description: s.description || "",
+        isTerminal: s.isTerminal ?? false,
+      }));
+  }, [orgWorkflowSteps]);
 
   const [projectListOpen, setProjectListOpen] = useState(false);
   const { data: allOrgProjects } = useProjects(currentOrganization?.id);
@@ -521,18 +569,14 @@ export default function ProjectDetails() {
   // Use financial budget total if available, otherwise use project budget
   const displayBudget = financialBudgetTotal > 0 ? financialBudgetTotal : Number(project?.budget || 0);
 
-  // Calculate progress based on task averages (or fall back to manual completionPercentage)
+  // Calculate progress based on task averages (always from tasks, never manual)
   const calculatedProgress = useMemo(() => {
-    if (!projectTasks || projectTasks.length === 0) {
-      return project?.completionPercentage || 0;
-    }
+    if (!projectTasks || projectTasks.length === 0) return 0;
     const leafTasks = projectTasks.filter(t => !t.isSummary && !t.isMilestone);
-    if (leafTasks.length === 0) {
-      return project?.completionPercentage || 0;
-    }
+    if (leafTasks.length === 0) return 0;
     const totalProgress = leafTasks.reduce((sum, t) => sum + (t.progress || 0), 0);
     return Math.round(totalProgress / leafTasks.length);
-  }, [projectTasks, project?.completionPercentage]);
+  }, [projectTasks]);
 
   const autoSwitchedForProjectRef = useRef<number | null>(null);
   const lastProjectIdRef = useRef<number | null>(null);
@@ -565,8 +609,7 @@ export default function ProjectDetails() {
     return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
-  // Check if project is in locked (terminal) state
-  const isProjectLocked = isProjectStatusLocked(project.status);
+  const isProjectLocked = projectStages.some(s => s.value === project.status && s.isTerminal);
 
   const handleCsvImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1037,12 +1080,10 @@ export default function ProjectDetails() {
   };
 
   const handleStatusChange = (status: string) => {
-    const isTargetTerminal = status === "Closed" || status === "On Hold";
+    const isTargetTerminal = projectStages.some(s => s.value === status && s.isTerminal);
 
     if (isTargetTerminal && !isProjectLocked) {
-      const message = status === "Closed"
-        ? "Are you sure you want to close this project?\n\nThis will:\n• Lock the project from all edits\n• Remove it from Active Projects listings\n• Archive it for historical reference\n\nYou can reopen the project later if needed."
-        : "Are you sure you want to put this project on hold?\n\nThis will:\n• Lock the project from all edits\n• Pause active work\n\nYou can resume the project later if needed.";
+      const message = `Are you sure you want to set this project to "${status}"?\n\nThis will:\n• Lock the project from all edits\n• Pause active work\n\nYou can change the status later if needed.`;
       if (!window.confirm(message)) return;
     }
     
@@ -1060,15 +1101,10 @@ export default function ProjectDetails() {
     
     updateProject({ id: project.id, status }, {
       onSuccess: () => {
-        if (status === "Closed") {
+        if (isTargetTerminal) {
           toast({ 
-            title: "Project Closed & Locked", 
-            description: "This project is now archived and protected from changes."
-          });
-        } else if (status === "On Hold") {
-          toast({ 
-            title: "Project On Hold", 
-            description: "This project is now paused and locked from changes."
+            title: `Project: ${status}`, 
+            description: "This project is now locked from changes."
           });
         } else if (isProjectLocked) {
           toast({ 
@@ -1416,7 +1452,8 @@ export default function ProjectDetails() {
             <div className="px-4 pb-4">
               <BusinessProcessFlow 
                 currentStatus={project.status} 
-                onStatusChange={handleStatusChange} 
+                onStatusChange={handleStatusChange}
+                stages={projectStages}
               />
             </div>
           </CollapsibleContent>
@@ -1434,7 +1471,7 @@ export default function ProjectDetails() {
             </CardTitle>
           </CardHeader>
           <CardContent className="py-1 px-4">
-            <div className="text-base font-semibold flex items-center"><DollarSign className="h-4 w-4 mr-1 text-muted-foreground" />{displayBudget.toLocaleString()}</div>
+            <div className="text-base font-semibold flex items-center"><CompactCurrency value={displayBudget} /></div>
           </CardContent>
         </Card>
         <Card className="py-2">
@@ -3026,7 +3063,7 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
       department: 'Department', category: 'Category', startDate: 'Start Date', endDate: 'End Date',
       baselineStartDate: 'Baseline Start', baselineEndDate: 'Baseline End', actualStartDate: 'Actual Start',
       actualEndDate: 'Actual End', budget: 'Budget', actualCost: 'Actual Cost', forecastCost: 'Forecast Cost',
-      completionPercentage: 'Completion %', scheduleVariance: 'Schedule Variance', costVariance: 'Cost Variance',
+      completionPercentage: 'Progress %', scheduleVariance: 'Schedule Variance', costVariance: 'Cost Variance',
       scope: 'Scope', objectives: 'Objectives', successCriteria: 'Success Criteria', constraints: 'Constraints',
       assumptions: 'Assumptions', dependencies: 'Dependencies', businessValue: 'Business Value',
       riskLevel: 'Risk Level', notes: 'Notes', billableStatus: 'Billable Status', source: 'Source',
@@ -3034,7 +3071,7 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
     return projectFieldLabels[field.fieldKey] || field.fieldKey;
   };
 
-  const formatDisplayValue = (value: any, fieldKey: string): string => {
+  const formatDisplayValue = (value: any, fieldKey: string): React.ReactNode => {
     if (value === null || value === undefined || value === '') return 'Not set';
     if (fieldKey.endsWith('Date') && value) {
       try {
@@ -3042,7 +3079,7 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
       } catch { return String(value); }
     }
     if (fieldKey === 'budget' || fieldKey === 'actualCost' || fieldKey === 'forecastCost') {
-      return `$${Number(value).toLocaleString()}`;
+      return <CompactCurrency value={value} />;
     }
     if (fieldKey === 'completionPercentage') {
       return `${value}%`;
@@ -3051,9 +3088,12 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
   };
 
   const renderFieldInput = (field: CustomTabField) => {
+    if (field.fieldKey === 'completionPercentage') {
+      return <span className="text-sm font-medium py-1">{project.completionPercentage ?? 0}% <span className="text-xs text-muted-foreground">(calculated from tasks)</span></span>;
+    }
     const isDateField = field.fieldKey.endsWith('Date');
     const isCurrencyField = ['budget', 'actualCost', 'forecastCost'].includes(field.fieldKey);
-    const isNumberField = ['completionPercentage', 'scheduleVariance', 'costVariance'].includes(field.fieldKey) || isCurrencyField;
+    const isNumberField = ['scheduleVariance', 'costVariance'].includes(field.fieldKey) || isCurrencyField;
     const isTextArea = ['description', 'scope', 'objectives', 'successCriteria', 'constraints', 'assumptions', 'dependencies', 'notes', 'healthReason'].includes(field.fieldKey);
     const isSelect = ['status', 'priority', 'health', 'riskLevel', 'billableStatus'].includes(field.fieldKey);
 
@@ -3068,11 +3108,11 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
     }
     if (isSelect) {
       const options: Record<string, string[]> = {
-        status: ['Initiation', 'Planning', 'Execution', 'Monitoring', 'Closing', 'Billing', 'On Hold', 'Cancelled'],
-        priority: ['Low', 'Medium', 'High', 'Critical'],
-        health: ['Green', 'Yellow', 'Red'],
+        status: [...PROJECT_STATUSES, 'Billing', 'On Hold', 'Cancelled'],
+        priority: [...PROJECT_PRIORITIES],
+        health: [...PROJECT_HEALTH_VALUES],
         riskLevel: ['Low', 'Medium', 'High'],
-        billableStatus: ['Billable', 'Non-Billable', 'N/A'],
+        billableStatus: [...BILLABLE_STATUSES],
       };
       return (
         <Select value={editValue} onValueChange={setEditValue}>
@@ -3814,38 +3854,27 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
     return summaryRiskAssessment;
   }, [summaryRiskAssessment]);
   
-  // Calculate completion percentage from tasks (leaf tasks only - those without children)
-  const { calculatedCompletion, leafTaskCount } = useMemo(() => {
-    if (!tasks || tasks.length === 0) return { calculatedCompletion: 0, leafTaskCount: 0 };
-    
-    // Find parent task IDs to identify leaf tasks
+  // Calculate progress from tasks (leaf tasks only - those without children)
+  const { sidebarProgress, leafTaskCount } = useMemo(() => {
+    if (!tasks || tasks.length === 0) return { sidebarProgress: 0, leafTaskCount: 0 };
     const parentIds = new Set(tasks.filter(t => t.parentId).map(t => t.parentId));
     const leafTasks = tasks.filter(t => !parentIds.has(t.id));
-    
-    if (leafTasks.length === 0) return { calculatedCompletion: 0, leafTaskCount: 0 };
-    
+    if (leafTasks.length === 0) return { sidebarProgress: 0, leafTaskCount: 0 };
     const totalProgress = leafTasks.reduce((sum, task) => {
       const progress = task.progress ?? 0;
-      return sum + Math.max(0, Math.min(100, progress)); // Clamp between 0-100
+      return sum + Math.max(0, Math.min(100, progress));
     }, 0);
     return { 
-      calculatedCompletion: Math.round(totalProgress / leafTasks.length),
+      sidebarProgress: Math.round(totalProgress / leafTasks.length),
       leafTaskCount: leafTasks.length 
     };
   }, [tasks]);
   
-  // User has overridden if they've explicitly set the override flag
-  const storedValue = project.completionPercentage;
-  const isOverridden = project.completionOverridden === true;
-  
-  // Display value: use stored value only if override flag is set, otherwise show calculated
-  const displayCompletion = isOverridden ? (storedValue ?? 0) : calculatedCompletion;
-  
+
   const [editValues, setEditValues] = useState({
     name: project.name || "",
     description: project.description || "",
     budget: project.budget || "0",
-    completionPercentage: displayCompletion,
   });
   
   useEffect(() => {
@@ -3886,9 +3915,8 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
       name: project.name || "",
       description: project.description || "",
       budget: project.budget || "0",
-      completionPercentage: displayCompletion,
     });
-  }, [project, displayCompletion]);
+  }, [project]);
 
   const autoSave = (field: string, value: any) => {
     onUpdate({ 
@@ -3905,46 +3933,10 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
     });
   };
 
-  // Reset completion to calculated value from tasks
-  const resetToCalculated = () => {
-    setEditValues(prev => ({ ...prev, completionPercentage: calculatedCompletion }));
-    // Save with override flag set to false
-    onUpdate({ 
-      id: project.id, 
-      completionPercentage: calculatedCompletion,
-      completionOverridden: false
-    }, {
-      onSuccess: () => {
-        toast({ title: "Reset to calculated value" });
-        queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] });
-      },
-      onError: () => {
-        toast({ title: "Error", description: "Failed to reset completion", variant: "destructive" });
-      }
-    });
-  };
-
   const handleFieldBlur = (field: string) => {
     const value = editValues[field as keyof typeof editValues];
     if (value !== project[field as keyof typeof project]) {
-      // For completion percentage, also set the override flag
-      if (field === 'completionPercentage') {
-        onUpdate({ 
-          id: project.id, 
-          completionPercentage: Number(value),
-          completionOverridden: true
-        }, {
-          onSuccess: () => {
-            toast({ title: "Saved" });
-            queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] });
-          },
-          onError: () => {
-            toast({ title: "Error", description: "Failed to save changes", variant: "destructive" });
-          }
-        });
-      } else {
-        autoSave(field, value);
-      }
+      autoSave(field, value);
     }
     setEditingField(null);
   };
@@ -4074,35 +4066,27 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
             </div>
             <div>
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Health Status</Label>
-              <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted/30 p-1" data-testid="toggle-project-health">
-                {[
-                  { value: 'Green', label: 'Green', bg: 'bg-emerald-500', bgLight: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', ring: 'ring-emerald-500/30' },
-                  { value: 'Yellow', label: 'Yellow', bg: 'bg-amber-500', bgLight: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', ring: 'ring-amber-500/30' },
-                  { value: 'Red', label: 'Red', bg: 'bg-rose-500', bgLight: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300', ring: 'ring-rose-500/30' },
-                ].map((option) => {
-                  const isSelected = project.health === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => handleHealthChange(option.value)}
-                      className={cn(
-                        "flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all",
-                        isSelected
-                          ? `${option.bgLight} ${option.text} ring-2 ${option.ring} shadow-sm`
-                          : "text-muted-foreground hover:bg-muted/80"
-                      )}
-                      data-testid={`health-option-${option.value.toLowerCase()}`}
-                    >
-                      <span className={cn(
-                        "w-2.5 h-2.5 rounded-full transition-all shrink-0",
-                        isSelected ? `${option.bg} shadow-sm` : "bg-muted-foreground/30"
-                      )} />
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
+              <Select
+                value={project.health || "Green"}
+                onValueChange={(v) => handleHealthChange(v)}
+              >
+                <SelectTrigger className="h-8 text-sm" data-testid="select-project-health">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROJECT_HEALTH_VALUES.map((value) => {
+                    const styles = HEALTH_TOGGLE_STYLES[value];
+                    return (
+                      <SelectItem key={value} value={value} data-testid={`health-option-${value.toLowerCase()}`}>
+                        <span className="flex items-center gap-2">
+                          <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", styles?.bg || "bg-slate-400")} />
+                          {value}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
               <button
                 type="button"
                 onClick={handleAddStatusNote}
@@ -4123,18 +4107,14 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="N/A"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-slate-400" />N/A</span></SelectItem>
-                  <SelectItem value="On Track"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />On Track</span></SelectItem>
-                  <SelectItem value="Waiting for Approval"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500" />Waiting for Approval</span></SelectItem>
-                  <SelectItem value="Verbal Approval"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500" />Verbal Approval</span></SelectItem>
-                  <SelectItem value="Email Approval"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />Email Approval</span></SelectItem>
-                  <SelectItem value="SOW Signed"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />SOW Signed</span></SelectItem>
-                  <SelectItem value="PO Received"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />PO Received</span></SelectItem>
-                  <SelectItem value="Partially Invoiced"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500" />Partially Invoiced</span></SelectItem>
-                  <SelectItem value="At Risk"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500" />At Risk</span></SelectItem>
-                  <SelectItem value="Ready for Invoice"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />Ready for Invoice</span></SelectItem>
-                  <SelectItem value="Critical"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-rose-500" />Critical</span></SelectItem>
-                  <SelectItem value="Invoiced"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500" />Invoiced</span></SelectItem>
+                  {BILLABLE_STATUSES.map(status => (
+                    <SelectItem key={status} value={status}>
+                      <span className="flex items-center gap-2">
+                        <span className={cn("w-2 h-2 rounded-full", BILLABLE_STATUS_DOT_COLORS[status] || "bg-slate-400")} />
+                        {status}
+                      </span>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -4168,10 +4148,9 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
               <Select value={project.priority || "Medium"} onValueChange={(v) => handleSelectChange('priority', v)}>
                 <SelectTrigger className="h-8 text-sm" data-testid="select-project-priority"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Low">Low</SelectItem>
-                  <SelectItem value="Medium">Medium</SelectItem>
-                  <SelectItem value="High">High</SelectItem>
-                  <SelectItem value="Critical">Critical</SelectItem>
+                  {PROJECT_PRIORITIES.map(p => (
+                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -4180,44 +4159,24 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
               {editingField === 'budget' ? (
                 <Input type="number" value={editValues.budget} onChange={(e) => setEditValues(prev => ({ ...prev, budget: e.target.value }))} onBlur={() => handleFieldBlur('budget')} onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('budget')} autoFocus className="h-8 text-sm" data-testid="input-project-budget" />
               ) : (
-                <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-2 py-1.5 -mx-1 transition-colors h-8 flex items-center" onClick={() => setEditingField('budget')} data-testid="text-project-budget">${Number(project.budget).toLocaleString()}</p>
+                <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-2 py-1.5 -mx-1 transition-colors h-8 flex items-center" onClick={() => setEditingField('budget')} data-testid="text-project-budget"><CompactCurrency value={project.budget} /></p>
               )}
             </div>
             <div>
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                Completion
-                {leafTaskCount > 0 && !isOverridden && (
+                Progress
+                {leafTaskCount > 0 && (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="text-[9px] text-muted-foreground/70 cursor-help ml-1">(from tasks)</span>
+                      <span className="text-[9px] text-muted-foreground/70 cursor-help ml-1">(from {leafTaskCount} task{leafTaskCount !== 1 ? 's' : ''})</span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Calculated from {leafTaskCount} task(s)</p>
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-                {isOverridden && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button 
-                        onClick={resetToCalculated}
-                        className="text-[9px] text-primary hover:underline cursor-pointer ml-1"
-                        data-testid="button-reset-completion"
-                      >
-                        (reset to {calculatedCompletion}%)
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Click to reset to calculated value from tasks</p>
+                      <p>Calculated from {leafTaskCount} task{leafTaskCount !== 1 ? 's' : ''}</p>
                     </TooltipContent>
                   </Tooltip>
                 )}
               </Label>
-              {editingField === 'completionPercentage' ? (
-                <Input type="number" min="0" max="100" value={editValues.completionPercentage} onChange={(e) => setEditValues(prev => ({ ...prev, completionPercentage: Number(e.target.value) }))} onBlur={() => handleFieldBlur('completionPercentage')} onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('completionPercentage')} autoFocus className="h-8 text-sm" data-testid="input-project-completion" />
-              ) : (
-                <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-2 py-1.5 -mx-1 transition-colors h-8 flex items-center" onClick={() => setEditingField('completionPercentage')} data-testid="text-project-completion">{displayCompletion}%</p>
-              )}
+              <p className="text-sm font-medium rounded px-2 py-1.5 -mx-1 h-8 flex items-center" data-testid="text-project-progress">{sidebarProgress}%</p>
             </div>
             <div>
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Start</Label>

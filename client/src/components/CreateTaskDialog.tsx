@@ -13,6 +13,7 @@ import { DurationInput } from "@/components/ui/duration-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TASK_STATUSES, TASK_STATUS, DEFAULT_TASK_STATUS } from "@shared/schema";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -63,7 +64,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
       endDate: calculateEndDateFromWorkingDays(todayStr, 1),
       durationDays: 1,
       progress: 0,
-      status: "Not Started",
+      status: DEFAULT_TASK_STATUS,
       assignee: "",
       baselineStartDate: null as string | null,
       baselineEndDate: null as string | null,
@@ -137,7 +138,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
         endDate: calculateEndDateFromWorkingDays(todayStr, 1),
         durationDays: 1,
         progress: 0,
-        status: "Not Started",
+        status: DEFAULT_TASK_STATUS,
         assignee: "",
         baselineStartDate: null,
         baselineEndDate: null,
@@ -168,7 +169,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
       endDate: taskIsOngoing ? null : data.endDate,
       durationDays: taskIsOngoing ? null : (durationDays ?? 1),
       progress: data.progress || 0,
-      status: data.status || "Not Started",
+      status: data.status || DEFAULT_TASK_STATUS,
       assignee: data.assignee || null,
       baselineStartDate: data.baselineStartDate || null,
       baselineEndDate: data.baselineEndDate || null,
@@ -293,23 +294,23 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
                             onValueChange={(val) => {
                               const prevStatus = field.value;
                               field.onChange(val);
-                              if (val === "Not Started") {
+                              if (val === TASK_STATUS.NOT_STARTED) {
                                 form.setValue("progress", 0);
-                              } else if (val === "Completed") {
+                              } else if (val === TASK_STATUS.COMPLETED) {
                                 form.setValue("progress", 100);
-                              } else if (val === "In Progress" && prevStatus === "Completed") {
+                              } else if (val === TASK_STATUS.IN_PROGRESS && prevStatus === TASK_STATUS.COMPLETED) {
                                 form.setValue("progress", 50);
                               }
                             }}
-                            value={field.value || "Not Started"}
+                            value={field.value || DEFAULT_TASK_STATUS}
                           >
                             <SelectTrigger className="h-8 text-sm">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="Not Started">Not Started</SelectItem>
-                              <SelectItem value="In Progress">In Progress</SelectItem>
-                              <SelectItem value="Completed">Completed</SelectItem>
+                              {TASK_STATUSES.map((status) => (
+                                <SelectItem key={status} value={status}>{status}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         )}
@@ -332,12 +333,12 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
                                 field.onChange(newProgress);
                                 const currentStatus = form.getValues("status");
                                 if (newProgress === 100) {
-                                  form.setValue("status", "Completed");
+                                  form.setValue("status", TASK_STATUS.COMPLETED);
                                 } else if (newProgress === 0) {
-                                  form.setValue("status", "Not Started");
+                                  form.setValue("status", TASK_STATUS.NOT_STARTED);
                                 } else {
-                                  if (currentStatus === "Completed" || currentStatus === "Not Started") {
-                                    form.setValue("status", "In Progress");
+                                  if (currentStatus === TASK_STATUS.COMPLETED || currentStatus === TASK_STATUS.NOT_STARTED) {
+                                    form.setValue("status", TASK_STATUS.IN_PROGRESS);
                                   }
                                 }
                               }}

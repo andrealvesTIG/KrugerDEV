@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import { useAllIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory, useEscalateIssue } from "@/hooks/use-issues";
 import { useConvertRiskToIssue, useAiMitigationSuggestion } from "@/hooks/use-risks";
 import { CreateRiskDialog } from "@/components/CreateRiskDialog";
@@ -165,7 +166,7 @@ function InlineEditCell({ issue, field, value, onSave, type = "text", placeholde
         onClick={() => setEditing(true)}
         title={value || placeholder || "Click to edit"}
       >
-        {type === "number" && value && field !== "riskScore" ? `$${Number(value).toLocaleString()}` :
+        {type === "number" && value && field !== "riskScore" ? <CompactCurrency value={value} /> :
          type === "number" && value && field === "riskScore" ? (
            <Badge variant="outline" className={cn("text-xs", getRiskScoreColor(Number(value)))}>
              {value}

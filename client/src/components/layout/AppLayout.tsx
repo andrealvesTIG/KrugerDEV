@@ -75,7 +75,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
 
   useWakeWord(() => {
     if (!jarvisOpen) setJarvisOpen(true);
-  }, jarvisOpen);
+  }, false);
 
   useEffect(() => {
     if (jarvisOpen) {
@@ -307,7 +307,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
               size="icon"
               onClick={toggleJarvis}
               className="hidden sm:inline-flex text-muted-foreground hover:text-foreground"
-              aria-label="Friday Agent"
+              aria-label="Friday Report"
               data-testid="button-friday-agent"
             >
               <Bot className="h-4 w-4" />

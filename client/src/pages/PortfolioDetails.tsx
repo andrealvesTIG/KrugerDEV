@@ -41,6 +41,8 @@ import {
   Shield, Share2, Download, FileText, Sparkles, RefreshCw, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown
 } from "lucide-react";
 import { format, addDays, differenceInDays, parseISO, startOfMonth, eachDayOfInterval } from "date-fns";
+import { formatCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import { cn, normalizeSearch } from "@/lib/utils";
 import type { Project, Task } from "@shared/schema";
 import ProjectGanttView from "@/components/project/ProjectGanttView";
@@ -143,7 +145,7 @@ export default function PortfolioDetails() {
     return <div className="p-8 text-center text-muted-foreground">Portfolio not found</div>;
   }
 
-  const { portfolio, metrics } = overview;
+  const { portfolio, metrics, financialBudgets } = overview;
 
   const handleRiskAssessmentClick = async () => {
     try {
@@ -266,7 +268,7 @@ export default function PortfolioDetails() {
             <PortfolioTasksTab portfolioId={id} organizationId={currentOrganization?.id || 0} />
           </TabsContent>
           <TabsContent value="projects">
-            <ProjectsTab portfolioId={id} organizationId={currentOrganization?.id || 0} isCustom={!!portfolio.isCustom} />
+            <ProjectsTab portfolioId={id} organizationId={currentOrganization?.id || 0} isCustom={!!portfolio.isCustom} financialBudgets={financialBudgets} />
           </TabsContent>
           <TabsContent value="risks">
             <RisksTab
@@ -296,7 +298,7 @@ export default function PortfolioDetails() {
             <KeyDatesTab portfolioId={id} />
           </TabsContent>
           <TabsContent value="dashboard">
-            <DashboardTab portfolioId={id} metrics={metrics} onNavigate={setActiveTab} />
+            <DashboardTab portfolioId={id} metrics={metrics} onNavigate={setActiveTab} financialBudgets={financialBudgets} />
           </TabsContent>
           <TabsContent value="scoring">
             <PortfolioScoringTab portfolioId={id} />
@@ -391,15 +393,14 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-emerald-600" />
-              <span className="text-2xl font-bold">${metrics.totalBudget.toLocaleString()}</span>
+              <CompactCurrency value={metrics.totalBudget} className="text-2xl font-bold" />
             </div>
           </CardContent>
         </Card>
 
         <Card data-testid="card-metric-completion">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Avg Completion</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Avg Progress</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
@@ -630,7 +631,7 @@ const portfolioZoomLabels: Record<PortfolioZoomLevel, string> = {
   1825: '5 Years'
 };
 
-function ProjectsTab({ portfolioId, organizationId, isCustom }: { portfolioId: number; organizationId: number; isCustom?: boolean }) {
+function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }: { portfolioId: number; organizationId: number; isCustom?: boolean; financialBudgets?: Record<number, number> }) {
   const { data: projects, isLoading } = usePortfolioProjects(portfolioId);
   const { data: allProjects } = useProjects(organizationId);
   const [view, setView] = useState<"list" | "gantt">("list");
@@ -839,7 +840,7 @@ function ProjectsTab({ portfolioId, organizationId, isCustom }: { portfolioId: n
                         <span className="text-sm">{project.completionPercentage || 0}%</span>
                       </div>
                     </td>
-                    <td className="p-3 text-sm">${Number(project.budget).toLocaleString()}</td>
+                    <td className="p-3 text-sm"><CompactCurrency value={financialBudgets && project.id in financialBudgets ? financialBudgets[project.id] : project.budget} /></td>
                     <td className="p-3">
                       <div className="flex items-center gap-1">
                         <DropdownMenu>
@@ -1481,7 +1482,7 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
                       {risk.dueDate ? new Date(risk.dueDate).toLocaleDateString() : "—"}
                     </td>
                     <td className="p-3 text-sm text-right tabular-nums">
-                      {risk.costExposure ? `$${Number(risk.costExposure).toLocaleString()}` : "—"}
+                      {risk.costExposure ? <CompactCurrency value={risk.costExposure} /> : "—"}
                     </td>
                     <td className="p-3" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
@@ -3038,10 +3039,11 @@ function KeyDatesTab({ portfolioId }: { portfolioId: number }) {
   );
 }
 
-function DashboardTab({ portfolioId, metrics, onNavigate }: { 
+function DashboardTab({ portfolioId, metrics, onNavigate, financialBudgets }: { 
   portfolioId: number; 
   metrics: any;
   onNavigate: (tab: string) => void;
+  financialBudgets?: Record<number, number>;
 }) {
   const { data: projects } = usePortfolioProjects(portfolioId);
   const { data: risks } = usePortfolioRisks(portfolioId);
@@ -3083,7 +3085,7 @@ function DashboardTab({ portfolioId, metrics, onNavigate }: {
 
   const projectBudgetData = projects?.slice(0, 5).map(p => ({
     name: p.name.length > 15 ? p.name.substring(0, 15) + "..." : p.name,
-    budget: Number(p.budget),
+    budget: financialBudgets && p.id in financialBudgets ? financialBudgets[p.id] : Number(p.budget),
     completion: p.completionPercentage || 0,
   })) || [];
 
@@ -3140,7 +3142,7 @@ function DashboardTab({ portfolioId, metrics, onNavigate }: {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Avg Completion</p>
+                <p className="text-sm text-muted-foreground">Avg Progress</p>
                 <p className="text-3xl font-bold text-blue-600">{metrics.avgCompletion}%</p>
               </div>
               <TrendingUp className="h-8 w-8 text-blue-500/50" />
@@ -3199,9 +3201,9 @@ function DashboardTab({ portfolioId, metrics, onNavigate }: {
               <div className="h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={projectBudgetData} layout="vertical">
-                    <XAxis type="number" tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
+                    <XAxis type="number" tickFormatter={(v) => formatCurrency(v, { autoCompact: true })} />
                     <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(value: number) => `$${value.toLocaleString()}`} />
+                    <Tooltip formatter={(value: number) => formatCurrency(value, { autoCompact: true })} />
                     <Bar dataKey="budget" fill="#3b82f6" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>

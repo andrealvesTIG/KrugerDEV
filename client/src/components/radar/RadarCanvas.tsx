@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import { ZoomIn, ZoomOut, Maximize2, Minimize2 } from "lucide-react";
+import { formatCurrency as sharedFormatCurrency, formatCurrencyFull } from "@/lib/format";
 
 export type HorizontalMetric = "riskScore" | "impactScore" | "probability" | "costExposureNorm";
 
@@ -61,9 +62,7 @@ function clamp(val: number, min: number, max: number) {
 }
 
 function formatCompactCurrency(val: number): string {
-  if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
-  if (val >= 1_000) return `$${Math.round(val / 1_000)}K`;
-  return `$${val}`;
+  return sharedFormatCurrency(val, { autoCompact: true });
 }
 
 type Star = { x: number; y: number; size: number; brightness: number; twinkleSpeed: number; twinkleOffset: number };
@@ -1024,7 +1023,7 @@ export default function RadarCanvas({
             <div className={tooltipText}>
               Cost Exposure:{" "}
               <span className="font-medium" style={{ color: tooltip.signal.timeOffsetDays < 0 ? "#ef4444" : undefined }}>
-                ${tooltip.signal.costExposure.toLocaleString()}
+                {formatCurrencyFull(tooltip.signal.costExposure)}
               </span>
             </div>
           )}

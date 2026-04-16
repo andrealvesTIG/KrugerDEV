@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatCurrency } from "@/lib/format";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -624,14 +625,14 @@ export default function IntakeDetails() {
                       <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20">
                         <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
                         <p className="text-sm text-destructive">
-                          CapEx + OpEx exceeds the Estimated Total Budget by {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Math.abs(remaining))}. Please adjust the values before saving.
+                          CapEx + OpEx exceeds the Estimated Total Budget by {formatCurrency(Math.abs(remaining))}. Please adjust the values before saving.
                         </p>
                       </div>
                     );
                   }
                   return (
                     <p className="text-xs text-muted-foreground">
-                      Remaining budget: {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(remaining)}
+                      Remaining budget: {formatCurrency(remaining)}
                     </p>
                   );
                 }

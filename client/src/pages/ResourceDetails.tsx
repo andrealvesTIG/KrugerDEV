@@ -1,4 +1,5 @@
 import { useParams, Link, useLocation } from "wouter";
+import { formatCurrency } from "@/lib/format";
 import { useResource, useUpdateResource, useResourceSkills, useAddResourceSkill, useRemoveResourceSkill } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { useCustomFieldDefinitions, useResourceCustomFieldValues, useUpdateResourceCustomFieldValue } from "@/hooks/use-custom-fields";
@@ -293,6 +294,18 @@ export default function ResourceDetails() {
             </div>
             
             <div className="flex gap-2">
+              {resource.userId && (
+                <a
+                  href={`/badges/${resource.userId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button variant="outline" size="sm" className="gap-1.5">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Public Profile
+                  </Button>
+                </a>
+              )}
               {isEditing ? (
                 <>
                   <Button variant="outline" onClick={() => setIsEditing(false)} data-testid="button-cancel-edit">
@@ -460,7 +473,7 @@ export default function ResourceDetails() {
                           data-testid="input-hourly-rate"
                         />
                       ) : (
-                        <p className="text-sm mt-1">{resource.hourlyRate ? `$${resource.hourlyRate}/hr` : "—"}</p>
+                        <p className="text-sm mt-1">{resource.hourlyRate ? `${formatCurrency(resource.hourlyRate, { showCents: true })}/hr` : "—"}</p>
                       )}
                     </div>
                     

@@ -247,6 +247,119 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
+  apiRoute(app, 'get', '/api/organizations/:id/friday-agent-config', {
+    tag: 'Organizations',
+    summary: 'Get Friday Agent configuration',
+    parameters: [pathId()],
+    responses: { ...r200('Friday Agent config', { type: 'object' }), ...idRes },
+  }, async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const memberships = await storage.getUserOrganizations(userId!);
+      const membership = memberships.find(m => m.organizationId === orgId);
+      if (!membership || !['owner', 'org_admin'].includes(membership.role)) {
+        const [user] = await db.select().from(users).where(eq(users.id, userId!));
+        if (!hasAdminAccess(user)) {
+          return res.status(403).json({ message: 'Only admins can view Friday Agent config' });
+        }
+      }
+      const org = await storage.getOrganization(orgId);
+      if (!org) return res.status(404).json({ message: 'Organization not found' });
+      const { DEFAULT_FRIDAY_AGENT_CONFIG } = await import('@shared/schema');
+      const rawConfig = { ...DEFAULT_FRIDAY_AGENT_CONFIG, ...((org as any).fridayAgentConfig || {}) };
+      const maskedConfig = { ...rawConfig };
+      if (maskedConfig.azureApiKey) {
+        const crypto = await import('crypto');
+        try {
+          const decrypted = decryptApiKey(maskedConfig.azureApiKey, crypto);
+          maskedConfig.azureApiKey = decrypted.length > 8
+            ? decrypted.slice(0, 4) + '••••••••' + decrypted.slice(-4)
+            : '••••••••';
+        } catch {
+          maskedConfig.azureApiKey = maskedConfig.azureApiKey.length > 8
+            ? maskedConfig.azureApiKey.slice(0, 4) + '••••••••' + maskedConfig.azureApiKey.slice(-4)
+            : '••••••••';
+        }
+      }
+      res.json(maskedConfig);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get Friday Agent config' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'put', '/api/organizations/:id/friday-agent-config', {
+    tag: 'Organizations',
+    summary: 'Update Friday Agent configuration',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Config updated', { type: 'object' }), ...updateRes },
+  }, async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const memberships = await storage.getUserOrganizations(userId!);
+      const membership = memberships.find(m => m.organizationId === orgId);
+      if (!membership || !['owner', 'org_admin'].includes(membership.role)) {
+        const [user] = await db.select().from(users).where(eq(users.id, userId!));
+        if (!hasAdminAccess(user)) {
+          return res.status(403).json({ message: 'Only admins can update Friday Agent config' });
+        }
+      }
+      const { fridayAgentConfigSchema } = await import('@shared/schema');
+      const parsed = fridayAgentConfigSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Invalid config', errors: parsed.error.flatten() });
+      }
+      if (parsed.data.azureEndpoint) {
+        parsed.data.azureEndpoint = parsed.data.azureEndpoint.trim()
+          .replace(/\/openai\/v1\/?$/i, '')
+          .replace(/\/openai\/?$/i, '')
+          .replace(/\/+$/, '');
+      }
+      if (parsed.data.useOrgAzure) {
+        const endpointVal = parsed.data.azureEndpoint;
+        if (!endpointVal) {
+          return res.status(400).json({ message: 'Azure endpoint is required when using org-specific model.' });
+        }
+        try {
+          const url = new URL(endpointVal);
+          if (!['http:', 'https:'].includes(url.protocol)) {
+            return res.status(400).json({ message: 'Azure endpoint must use http or https protocol.' });
+          }
+        } catch {
+          return res.status(400).json({ message: 'Azure endpoint must be a valid URL.' });
+        }
+        const keyVal = parsed.data.azureApiKey?.trim();
+        if (!keyVal || keyVal.includes('••••')) {
+          const org = await storage.getOrganization(orgId);
+          const existingKey = ((org as any)?.fridayAgentConfig as any)?.azureApiKey || '';
+          if (!existingKey) {
+            return res.status(400).json({ message: 'Azure API key is required when using org-specific model.' });
+          }
+        }
+      }
+      const org = await storage.getOrganization(orgId);
+      if (parsed.data.azureApiKey && parsed.data.azureApiKey.includes('••••')) {
+        parsed.data.azureApiKey = ((org as any)?.fridayAgentConfig as any)?.azureApiKey || '';
+      } else if (parsed.data.azureApiKey && parsed.data.azureApiKey.length > 0) {
+        parsed.data.azureApiKey = encryptApiKey(parsed.data.azureApiKey);
+      }
+      const updated = await storage.updateOrganization(orgId, { fridayAgentConfig: parsed.data } as any);
+      res.json((updated as any)?.fridayAgentConfig || parsed.data);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update Friday Agent config' : classified.message });
+    }
+  });
+
   apiRoute(app, 'get', '/api/organizations/:id/scheduling-defaults', {
     tag: 'Organizations',
     summary: 'Get organization scheduling defaults',

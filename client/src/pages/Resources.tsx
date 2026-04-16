@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
+import { formatCurrency } from "@/lib/format";
 import { normalizeSearch } from "@/lib/utils";
 import { useResources, useCreateResource, useUpdateResource, useDeleteResource } from "@/hooks/use-resources";
 import { ResourceDialog } from "@/components/ResourceDialog";
@@ -555,7 +556,7 @@ export default function Resources() {
                       {resource.department || "-"}
                     </TableCell>
                     <TableCell className="text-muted-foreground tabular-nums">
-                      {resource.hourlyRate ? `$${resource.hourlyRate}/hr` : "-"}
+                      {resource.hourlyRate ? `${formatCurrency(resource.hourlyRate, { showCents: true })}/hr` : "-"}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2 flex-wrap">

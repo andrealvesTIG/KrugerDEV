@@ -9,8 +9,12 @@ import {
   userHasOrgAccess,
   getUserOrgRole,
   requireEmailVerified,
+  isTeamMemberInOrg,
+  getTeamMemberProjectIds,
+  getUserResourceIds,
 } from "./helpers";
 import { createTaskAssignmentNotification, createTaskUnassignmentNotification, createRiskAssignmentNotification } from "../services/notificationEngine";
+import { sendTaskAssignmentNotificationEmail } from "../services/email";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
 
 export function registerResourceRoutes(app: Express) {
@@ -33,7 +37,24 @@ export function registerResourceRoutes(app: Express) {
       if (!await userHasOrgAccess(userId, organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
-      const resourceList = await storage.getResources(organizationId);
+      let resourceList = await storage.getResources(organizationId);
+
+      if (await isTeamMemberInOrg(userId, organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, organizationId));
+        const allAssignments = await storage.getTaskResourceAssignmentsByOrgId(organizationId);
+        const orgTasks = await storage.getTasksByOrganization(organizationId);
+        const allowedTaskIds = new Set(orgTasks.filter(t => allowedProjectIds.has(t.projectId)).map(t => t.id));
+        const allowedResourceIds = new Set<number>();
+        for (const a of allAssignments) {
+          if (allowedTaskIds.has(a.taskId)) {
+            allowedResourceIds.add(a.resourceId);
+          }
+        }
+        const userResIds = await getUserResourceIds(userId, organizationId);
+        for (const id of userResIds) allowedResourceIds.add(id);
+        resourceList = resourceList.filter(r => allowedResourceIds.has(r.id));
+      }
+
       res.json(resourceList);
     } catch (err) {
       console.error("Error fetching resources:", err);
@@ -60,7 +81,23 @@ export function registerResourceRoutes(app: Express) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
       
-      const allResources = await storage.getResources(organizationId);
+      let allResources = await storage.getResources(organizationId);
+
+      if (await isTeamMemberInOrg(userId, organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, organizationId));
+        const allAssignments = await storage.getTaskResourceAssignmentsByOrgId(organizationId);
+        const orgTasks = await storage.getTasksByOrganization(organizationId);
+        const allowedTaskIds = new Set(orgTasks.filter(t => allowedProjectIds.has(t.projectId)).map(t => t.id));
+        const allowedResourceIds = new Set<number>();
+        for (const a of allAssignments) {
+          if (allowedTaskIds.has(a.taskId)) {
+            allowedResourceIds.add(a.resourceId);
+          }
+        }
+        const userResIds = await getUserResourceIds(userId, organizationId);
+        for (const id of userResIds) allowedResourceIds.add(id);
+        allResources = allResources.filter(r => allowedResourceIds.has(r.id));
+      }
       
       // Normalize string for comparison (remove accents, lowercase)
       const normalize = (str: string): string => {
@@ -257,7 +294,7 @@ export function registerResourceRoutes(app: Express) {
       }
 
       // Get all task resource assignments with related data
-      const assignments = await db.select({
+      let assignments = await db.select({
         assignmentId: taskResourceAssignments.id,
         taskId: taskResourceAssignments.taskId,
         resourceId: taskResourceAssignments.resourceId,
@@ -288,6 +325,11 @@ export function registerResourceRoutes(app: Express) {
         .where(eq(resources.organizationId, organizationId))
         .orderBy(resources.displayName, projects.name, tasks.name);
 
+      if (await isTeamMemberInOrg(userId, organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, organizationId));
+        assignments = assignments.filter(a => allowedProjectIds.has(a.projectId));
+      }
+
       res.json(assignments);
     } catch (err) {
       console.error("Error fetching resource assignments:", err);
@@ -310,6 +352,21 @@ export function registerResourceRoutes(app: Express) {
       if (!resource) return res.status(404).json({ message: "Resource not found" });
       if (!await userHasOrgAccess(userId, resource.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (await isTeamMemberInOrg(userId, resource.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, resource.organizationId));
+        const allAssignments = await storage.getTaskResourceAssignmentsByOrgId(resource.organizationId);
+        const orgTasks = await storage.getTasksByOrganization(resource.organizationId);
+        const allowedTaskIds = new Set(orgTasks.filter(t => allowedProjectIds.has(t.projectId)).map(t => t.id));
+        const allowedResIds = new Set<number>();
+        for (const a of allAssignments) {
+          if (allowedTaskIds.has(a.taskId)) allowedResIds.add(a.resourceId);
+        }
+        const userResIds = await getUserResourceIds(userId, resource.organizationId);
+        for (const id of userResIds) allowedResIds.add(id);
+        if (!allowedResIds.has(resource.id)) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
       }
       res.json(resource);
     } catch (err) {
@@ -334,7 +391,22 @@ export function registerResourceRoutes(app: Express) {
       if (!await userHasOrgAccess(userId, resource.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
-      const assignments = await db.select({
+      if (await isTeamMemberInOrg(userId, resource.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, resource.organizationId));
+        const orgAssignments = await storage.getTaskResourceAssignmentsByOrgId(resource.organizationId);
+        const orgTasks = await storage.getTasksByOrganization(resource.organizationId);
+        const allowedTaskIds = new Set(orgTasks.filter(t => allowedProjectIds.has(t.projectId)).map(t => t.id));
+        const allowedResIds = new Set<number>();
+        for (const a of orgAssignments) {
+          if (allowedTaskIds.has(a.taskId)) allowedResIds.add(a.resourceId);
+        }
+        const userResIds = await getUserResourceIds(userId, resource.organizationId);
+        for (const id of userResIds) allowedResIds.add(id);
+        if (!allowedResIds.has(resourceId)) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+      }
+      let assignments = await db.select({
         taskId: taskResourceAssignments.taskId,
         taskName: tasks.name,
         projectId: tasks.projectId,
@@ -349,6 +421,10 @@ export function registerResourceRoutes(app: Express) {
         .innerJoin(tasks, eq(taskResourceAssignments.taskId, tasks.id))
         .innerJoin(projects, eq(tasks.projectId, projects.id))
         .where(eq(taskResourceAssignments.resourceId, resourceId));
+      if (await isTeamMemberInOrg(userId, resource.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, resource.organizationId));
+        assignments = assignments.filter(a => allowedProjectIds.has(a.projectId));
+      }
       res.json(assignments);
     } catch (err) {
       console.error("Error fetching task assignments:", err);
@@ -373,7 +449,22 @@ export function registerResourceRoutes(app: Express) {
       if (!await userHasOrgAccess(userId, resource.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
-      const assignments = await db.select({
+      if (await isTeamMemberInOrg(userId, resource.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, resource.organizationId));
+        const orgAssignments = await storage.getTaskResourceAssignmentsByOrgId(resource.organizationId);
+        const orgTasks = await storage.getTasksByOrganization(resource.organizationId);
+        const allowedTaskIds = new Set(orgTasks.filter(t => allowedProjectIds.has(t.projectId)).map(t => t.id));
+        const allowedResIds = new Set<number>();
+        for (const a of orgAssignments) {
+          if (allowedTaskIds.has(a.taskId)) allowedResIds.add(a.resourceId);
+        }
+        const userResIds = await getUserResourceIds(userId, resource.organizationId);
+        for (const id of userResIds) allowedResIds.add(id);
+        if (!allowedResIds.has(resourceId)) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+      }
+      let assignments = await db.select({
         issueId: issueResourceAssignments.issueId,
         issueTitle: issues.title,
         projectId: issues.projectId,
@@ -386,6 +477,10 @@ export function registerResourceRoutes(app: Express) {
         .innerJoin(issues, eq(issueResourceAssignments.issueId, issues.id))
         .innerJoin(projects, eq(issues.projectId, projects.id))
         .where(eq(issueResourceAssignments.resourceId, resourceId));
+      if (await isTeamMemberInOrg(userId, resource.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, resource.organizationId));
+        assignments = assignments.filter(a => allowedProjectIds.has(a.projectId));
+      }
       res.json(assignments);
     } catch (err) {
       console.error("Error fetching issue assignments:", err);
@@ -965,6 +1060,91 @@ export function registerResourceRoutes(app: Express) {
     } catch (err) {
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? "Error updating task assignments" : classified.message });
+    }
+  });
+
+  // Send assignment notification emails to all resources assigned to a task
+  apiRoute(app, 'post', '/api/tasks/:taskId/notify-assignees', {
+    tag: 'Resources',
+    summary: 'Send assignment notification emails to all resources assigned to a task',
+    parameters: [pathId('taskId')],
+    responses: { ...r200('Notification result', { type: 'object' }), ...idRes, ...e400, ...e404 },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+      const taskId = Number(req.params.taskId);
+      if (!Number.isInteger(taskId) || taskId <= 0) {
+        return res.status(400).json({ message: 'Invalid task ID' });
+      }
+
+      const task = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+      if (!task[0]) return res.status(404).json({ message: 'Task not found' });
+
+      const project = await db.select().from(projects).where(eq(projects.id, task[0].projectId)).limit(1);
+      if (!project[0]) return res.status(404).json({ message: 'Project not found' });
+
+      if (!await userHasOrgAccess(userId, project[0].organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const userRole = await getUserOrgRole(userId, project[0].organizationId);
+      if (userRole === 'viewer') {
+        return res.status(403).json({ message: 'Viewers cannot send notifications' });
+      }
+
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error });
+      }
+
+      const assignments = await storage.getTaskResourceAssignments(taskId);
+      if (assignments.length === 0) {
+        return res.status(400).json({ message: 'No resources assigned to this task' });
+      }
+
+      const appUrl = process.env.REPLIT_DEV_DOMAIN
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : process.env.APP_URL || 'https://fridayreport.ai';
+      const projectUrl = `${appUrl}/projects/${project[0].id}`;
+
+      const formatDate = (d: Date | string | null) => {
+        if (!d) return null;
+        const date = typeof d === 'string' ? new Date(d) : d;
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      };
+
+      let sent = 0;
+      let skipped = 0;
+      for (const assignment of assignments) {
+        const resource = await db.select().from(resources).where(eq(resources.id, assignment.resourceId)).limit(1);
+        if (!resource[0] || !resource[0].email) {
+          skipped++;
+          continue;
+        }
+        try {
+          const success = await sendTaskAssignmentNotificationEmail(
+            resource[0].email,
+            resource[0].displayName,
+            task[0].name,
+            project[0].name,
+            formatDate(task[0].startDate),
+            formatDate(task[0].endDate),
+            projectUrl
+          );
+          if (success) sent++;
+          else skipped++;
+        } catch (emailErr) {
+          console.error('Error sending assignment notification email:', emailErr);
+          skipped++;
+        }
+      }
+
+      res.json({ sent, skipped, total: assignments.length });
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error sending assignment notifications" : classified.message });
     }
   });
 

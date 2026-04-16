@@ -15,6 +15,7 @@ import {
 } from "recharts";
 
 import { formatCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
 
@@ -185,7 +186,7 @@ export function PortfolioAllocationDashboard() {
             </div>
             <span className="text-xs text-muted-foreground">Total Budget</span>
           </div>
-          <div className="text-2xl font-bold">{formatCompact(allocationMetrics.totalBudget)}</div>
+          <div className="text-2xl font-bold"><CompactCurrency value={allocationMetrics.totalBudget} /></div>
           <p className="text-[10px] text-muted-foreground mt-1">Across all projects</p>
         </Card>
 

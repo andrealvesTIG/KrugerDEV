@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, parseISO } from "date-fns";
+import { formatCurrency as sharedFormatCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -618,14 +620,7 @@ export function FinancialsTab({ projectId, readOnly = false }: { projectId: numb
     actual: capexTotals.actual + opexTotals.actual,
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
+  const formatCurrency = (value: number): React.ReactNode => <CompactCurrency value={value} />;
 
   const getVariance = (budget: number, actual: number) => {
     const variance = budget - actual;
@@ -882,7 +877,7 @@ export function FinancialTableRow({
   saveEdit: (id: number) => void;
   cancelEdit: () => void;
   deleteFinancial: any;
-  formatCurrency: (value: number) => string;
+  formatCurrency: (value: number) => React.ReactNode;
   getVariance: (budget: number, actual: number) => { variance: number; percent: number };
 }) {
   const variance = getVariance(Number(item.budgetAmount), Number(item.actualAmount));
@@ -3433,11 +3428,7 @@ export function InvoicesTab({ projectId, organizationId, contractTotal }: { proj
 
   const formatCurrency = (amount: string | null, currency: string | null) => {
     if (!amount) return '-';
-    const num = parseFloat(amount);
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency || 'USD',
-    }).format(num);
+    return sharedFormatCurrency(amount, { showCents: true, currency: currency || 'USD' });
   };
 
   const invoiceFinancials = useMemo(() => {
@@ -3963,7 +3954,7 @@ export function InvoicesTab({ projectId, organizationId, contractTotal }: { proj
                           <td className="py-2 px-3">{inv.name}</td>
                           <td className="py-2 px-3">{inv.customerName || '-'}</td>
                           <td className="py-2 px-3 text-right">
-                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(inv.amount || 0)}
+                            {sharedFormatCurrency(inv.amount || 0, { showCents: true })}
                           </td>
                           <td className="py-2 px-3">
                             <Badge variant="outline" className="text-xs">{inv.status}</Badge>
@@ -3980,7 +3971,7 @@ export function InvoicesTab({ projectId, organizationId, contractTotal }: { proj
                   <h4 className="font-medium mb-2">Selected Invoice</h4>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div><span className="text-muted-foreground">Number:</span> {selectedDynamicsInvoice.invoiceNumber}</div>
-                    <div><span className="text-muted-foreground">Amount:</span> {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(selectedDynamicsInvoice.amount || 0)}</div>
+                    <div><span className="text-muted-foreground">Amount:</span> {sharedFormatCurrency(selectedDynamicsInvoice.amount || 0, { showCents: true })}</div>
                     <div className="col-span-2"><span className="text-muted-foreground">Name:</span> {selectedDynamicsInvoice.name}</div>
                     {selectedDynamicsInvoice.description && (
                       <div className="col-span-2"><span className="text-muted-foreground">Description:</span> {selectedDynamicsInvoice.description}</div>

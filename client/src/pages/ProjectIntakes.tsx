@@ -15,6 +15,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1053,7 +1054,7 @@ export default function ProjectIntakes() {
                           <DollarSign className="h-3.5 w-3.5" />
                           <span className="text-xs font-medium uppercase tracking-wide">Est. Budget</span>
                         </div>
-                        <p className="text-lg font-bold text-foreground">${Number(intake.estimatedBudget).toLocaleString()}</p>
+                        <p className="text-lg font-bold text-foreground"><CompactCurrency value={intake.estimatedBudget} /></p>
                       </div>
                     )}
                     

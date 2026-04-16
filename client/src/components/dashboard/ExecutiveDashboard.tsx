@@ -17,6 +17,7 @@ import {
   FolderKanban, ArrowRight, Activity, Target, BarChart3
 } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { isWithinInterval, parseISO } from "date-fns";
 import type { ProjectIntake, Risk, Issue } from "@shared/schema";
@@ -252,7 +253,7 @@ export function ExecutiveDashboard() {
             </div>
             <span className="text-xs text-muted-foreground">Budget</span>
           </div>
-          <div className="text-2xl font-bold">{formatBudget(totalBudget)}</div>
+          <div className="text-2xl font-bold"><CompactCurrency value={totalBudget} /></div>
           <div className="text-xs text-muted-foreground">total allocated</div>
         </Card>
 

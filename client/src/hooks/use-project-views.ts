@@ -2,7 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { ProjectView } from "@shared/schema";
 
-export function useProjectViews(organizationId: number | null, mode: 'grid' | 'gantt') {
+export function useProjectViews(organizationId: number | null, mode: 'grid' | 'gantt' | 'list') {
   return useQuery<ProjectView[]>({
     queryKey: ['/api/organizations', organizationId, 'project-views', mode],
     queryFn: async () => {
@@ -20,7 +20,7 @@ export function useProjectViews(organizationId: number | null, mode: 'grid' | 'g
 export function useCreateProjectView(organizationId: number | null) {
   return useMutation({
     mutationFn: async (data: {
-      mode: 'grid' | 'gantt';
+      mode: 'grid' | 'gantt' | 'list';
       name: string;
       visibleColumns: string[];
       columnOrder?: string[];
@@ -50,7 +50,7 @@ export function useUpdateProjectView() {
     }: {
       viewId: number;
       organizationId: number;
-      mode: 'grid' | 'gantt';
+      mode: 'grid' | 'gantt' | 'list';
       name?: string;
       visibleColumns?: string[];
       columnOrder?: string[];
@@ -78,7 +78,7 @@ export function useDeleteProjectView() {
     }: {
       viewId: number;
       organizationId: number;
-      mode: 'grid' | 'gantt';
+      mode: 'grid' | 'gantt' | 'list';
     }) => {
       const res = await apiRequest('DELETE', `/api/project-views/${viewId}`);
       if (!res.ok) throw new Error('Failed to delete view');
@@ -101,7 +101,7 @@ export function useSetDefaultView() {
     }: {
       viewId: number;
       organizationId: number;
-      mode: 'grid' | 'gantt';
+      mode: 'grid' | 'gantt' | 'list';
     }) => {
       const res = await apiRequest('POST', `/api/project-views/${viewId}/set-default`);
       return res.json();

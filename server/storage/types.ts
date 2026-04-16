@@ -36,7 +36,7 @@ import type {
   InvoiceNote, InsertInvoiceNote,
   Notification, InsertNotification,
   StatusReportHistory, InsertStatusReportHistory,
-  IntakeWorkflowStep, InsertIntakeWorkflowStep,
+  IntakeWorkflowStep, InsertIntakeWorkflowStep, ProjectWorkflowStep,
   TimesheetEntry, InsertTimesheetEntry, UpdateTimesheetEntryRequest,
   TimeCategory, InsertTimeCategory,
   NonProjectTimeEntry, InsertNonProjectTimeEntry,
@@ -289,6 +289,7 @@ export interface IResourceStorage {
 
 export interface IFinancialStorage {
   getProjectFinancials(projectId: number): Promise<ProjectFinancial[]>;
+  getFinancialBudgetTotals(projectIds: number[]): Promise<Record<number, number>>;
   getProjectFinancial(id: number): Promise<ProjectFinancial | undefined>;
   createProjectFinancial(financial: InsertProjectFinancial): Promise<ProjectFinancial>;
   updateProjectFinancial(id: number, updates: UpdateProjectFinancialRequest): Promise<ProjectFinancial>;
@@ -318,7 +319,7 @@ export interface ITimesheetStorage {
   submitTimesheetWeek(userId: string, organizationId: number, startDate: string, endDate: string): Promise<void>;
   approveTimesheetEntry(id: number, approvedBy: string): Promise<TimesheetEntry>;
   bulkApproveTimesheetEntries(ids: number[], approvedBy: string, organizationId: number): Promise<TimesheetEntry[]>;
-  rejectTimesheetEntry(id: number, rejectionReason: string): Promise<TimesheetEntry>;
+  rejectTimesheetEntry(id: number, rejectionReason: string, rejectedBy?: string): Promise<TimesheetEntry>;
   getTimesheetSettings(organizationId: number): Promise<TimesheetSettings | undefined>;
   upsertTimesheetSettings(settings: InsertTimesheetSettings): Promise<TimesheetSettings>;
   createTimesheetAuditLog(log: InsertTimesheetAuditLog): Promise<TimesheetAuditLog>;
@@ -376,6 +377,9 @@ export interface IIntakeStorage {
   getIntakeWorkflowSteps(organizationId: number): Promise<IntakeWorkflowStep[]>;
   upsertIntakeWorkflowSteps(organizationId: number, steps: InsertIntakeWorkflowStep[]): Promise<IntakeWorkflowStep[]>;
   resetIntakeWorkflowToDefaults(organizationId: number): Promise<IntakeWorkflowStep[]>;
+  getProjectWorkflowSteps(organizationId: number): Promise<ProjectWorkflowStep[]>;
+  upsertProjectWorkflowSteps(organizationId: number, steps: Array<{ stepKey: string; position: number; label: string; description?: string; isTerminal?: boolean; isActive?: boolean }>): Promise<ProjectWorkflowStep[]>;
+  resetProjectWorkflowToDefaults(organizationId: number): Promise<ProjectWorkflowStep[]>;
 }
 
 export interface IMiscStorage {

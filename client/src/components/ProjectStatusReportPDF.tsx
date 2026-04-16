@@ -1,5 +1,6 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { format, differenceInDays } from "date-fns";
+import { formatCurrency } from "@/lib/format";
 import type { Project, Risk, Issue, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
 
 const styles = StyleSheet.create({
@@ -447,14 +448,6 @@ interface ProjectStatusReportPDFProps {
   executiveSummary?: string;
 }
 
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-};
 
 const safePercent = (value: number, total: number) => {
   if (total <= 0 || isNaN(value) || isNaN(total)) return 0;

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, lazy, Suspense } from "react";
 import { Link } from "wouter";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png"; 
@@ -42,16 +42,18 @@ import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, parseD
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { insertTaskSchema, type Task } from "@shared/schema";
+import { insertTaskSchema, type Task, TASK_STATUSES, TASK_STATUS, DEFAULT_TASK_STATUS } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import { CreateTaskDialog } from "@/components/CreateTaskDialog";
 
+const ProjectGanttView = lazy(() => import("@/components/project/ProjectGanttView"));
+
 const statusColors = {
-  "Not Started": "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-  "In Progress": "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-  "Completed": "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  [TASK_STATUS.NOT_STARTED]: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  [TASK_STATUS.IN_PROGRESS]: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  [TASK_STATUS.COMPLETED]: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
 };
 
 type GroupBy = "project" | "portfolio" | "resource";
@@ -291,7 +293,7 @@ export default function Tasks() {
       endDate: calculateEndDateFromWorkingDays(format(new Date(), 'yyyy-MM-dd'), 1),
       durationDays: 1,
       progress: 0,
-      status: "Not Started",
+      status: DEFAULT_TASK_STATUS,
       assignee: "",
       baselineStartDate: null as string | null,
       baselineEndDate: null as string | null,
@@ -340,7 +342,7 @@ export default function Tasks() {
       endDate: task.endDate,
       durationDays: taskDuration,
       progress: task.progress || 0,
-      status: task.status || "Not Started",
+      status: task.status || DEFAULT_TASK_STATUS,
       assignee: task.assignee || "",
       baselineStartDate: task.baselineStartDate || null,
       baselineEndDate: task.baselineEndDate || null,
@@ -364,7 +366,7 @@ export default function Tasks() {
       endDate: calculateEndDateFromWorkingDays(todayStr, 1),
       durationDays: 1,
       progress: 0,
-      status: "Not Started",
+      status: DEFAULT_TASK_STATUS,
       assignee: "",
       baselineStartDate: null,
       baselineEndDate: null,
@@ -425,7 +427,7 @@ export default function Tasks() {
       endDate: data.endDate,
       durationDays: durationDays ?? 1,
       progress: data.progress || 0,
-      status: data.status || "Not Started",
+      status: data.status || DEFAULT_TASK_STATUS,
       assignee: data.assignee || null,
       baselineStartDate: data.baselineStartDate || null,
       baselineEndDate: data.baselineEndDate || null,
@@ -773,19 +775,19 @@ export default function Tasks() {
                             <Select onValueChange={(val) => {
                               const prevStatus = field.value;
                               field.onChange(val);
-                              if (val === "Not Started") {
+                              if (val === TASK_STATUS.NOT_STARTED) {
                                 form.setValue("progress", 0);
-                              } else if (val === "Completed") {
+                              } else if (val === TASK_STATUS.COMPLETED) {
                                 form.setValue("progress", 100);
-                              } else if (val === "In Progress" && prevStatus === "Completed") {
+                              } else if (val === TASK_STATUS.IN_PROGRESS && prevStatus === TASK_STATUS.COMPLETED) {
                                 form.setValue("progress", 50);
                               }
-                            }} value={field.value || "Not Started"}>
+                            }} value={field.value || DEFAULT_TASK_STATUS}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="Not Started">Not Started</SelectItem>
-                                <SelectItem value="In Progress">In Progress</SelectItem>
-                                <SelectItem value="Completed">Completed</SelectItem>
+                                {TASK_STATUSES.map((status) => (
+                                  <SelectItem key={status} value={status}>{status}</SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           )} />
@@ -804,12 +806,12 @@ export default function Tasks() {
                                   field.onChange(newProgress);
                                   const currentStatus = form.getValues("status");
                                   if (newProgress === 100) {
-                                    form.setValue("status", "Completed");
+                                    form.setValue("status", TASK_STATUS.COMPLETED);
                                   } else if (newProgress === 0) {
-                                    form.setValue("status", "Not Started");
+                                    form.setValue("status", TASK_STATUS.NOT_STARTED);
                                   } else {
-                                    if (currentStatus === "Completed" || currentStatus === "Not Started") {
-                                      form.setValue("status", "In Progress");
+                                    if (currentStatus === TASK_STATUS.COMPLETED || currentStatus === TASK_STATUS.NOT_STARTED) {
+                                      form.setValue("status", TASK_STATUS.IN_PROGRESS);
                                     }
                                   }
                                 }}
@@ -1347,7 +1349,7 @@ function GroupedTasksView({
           {expandedGroups.has(group.id) && (
             <CardContent className="pt-0">
               {view === "gantt" ? (
-                <GanttView tasks={group.tasks} projects={projects} onTaskClick={onTaskClick} embedded organizationId={organizationId} />
+                <GroupGanttContent group={group} organizationId={organizationId} onTaskClick={onTaskClick} projects={projects} />
               ) : (
                 <KanbanView 
                   tasks={group.tasks} 
@@ -1366,938 +1368,61 @@ function GroupedTasksView({
   );
 }
 
-type TaskZoomLevel = 'day' | 'week' | 'month' | 'quarter' | 'year' | '5year';
-const taskZoomLevels: TaskZoomLevel[] = ['day', 'week', 'month', 'quarter', 'year', '5year'];
-const taskZoomLabels: Record<TaskZoomLevel, string> = {
-  'day': 'Day',
-  'week': 'Week',
-  'month': 'Month',
-  'quarter': 'Quarter',
-  'year': 'Year',
-  '5year': '5 Years'
-};
+function GroupGanttContent({ group, organizationId, onTaskClick, projects }: { group: TaskGroup; organizationId: number | null; onTaskClick: (task: Task) => void; projects: any[] }) {
+  const createTask = useCreateTask();
 
-type TaskGanttColumn = 'actions' | 'outlineLevel' | 'task' | 'startDate' | 'endDate' | 'duration' | 'progress' | 'status' | 'priority' | 'assignee' | 'resources' | 'wbs' | 'phase' | 'category' | 'estimatedHours' | 'actualHours' | 'remainingHours' | 'timesheetBlocked';
+  const sortByTaskIndex = (taskList: Task[]) =>
+    [...taskList].sort((a, b) => (a.taskIndex ?? 999999) - (b.taskIndex ?? 999999));
 
-const TASK_GANTT_COLUMNS: { id: TaskGanttColumn; label: string; width: string }[] = [
-  { id: 'actions', label: '', width: 'w-10' },
-  { id: 'outlineLevel', label: 'Level', width: 'w-14' },
-  { id: 'task', label: 'Task', width: 'w-64' },
-  { id: 'wbs', label: 'WBS', width: 'w-20' },
-  { id: 'startDate', label: 'Start', width: 'w-24' },
-  { id: 'endDate', label: 'End', width: 'w-24' },
-  { id: 'duration', label: 'Duration', width: 'w-20' },
-  { id: 'progress', label: '%', width: 'w-14' },
-  { id: 'status', label: 'Status', width: 'w-28' },
-  { id: 'priority', label: 'Priority', width: 'w-24' },
-  { id: 'assignee', label: 'Assignee', width: 'w-32' },
-  { id: 'resources', label: 'Resources', width: 'w-32' },
-  { id: 'phase', label: 'Phase', width: 'w-24' },
-  { id: 'category', label: 'Category', width: 'w-24' },
-  { id: 'estimatedHours', label: 'Est. Hours', width: 'w-24' },
-  { id: 'actualHours', label: 'Actual Hours', width: 'w-24' },
-  { id: 'remainingHours', label: 'Rem. Hours', width: 'w-24' },
-  { id: 'timesheetBlocked', label: 'TS Blocked', width: 'w-20' },
-];
-
-function GanttTaskRow({ 
-  task, 
-  projects, 
-  onTaskClick, 
-  minDate, 
-  maxDate,
-  visibleColumns,
-  organizationId,
-  onIndent,
-  onOutdent,
-  hasChildren,
-  isCollapsed,
-  onToggleCollapse,
-  allowIndentation = true,
-  preloadedAssignments,
-  precomputedDates,
-}: { 
-  task: Task; 
-  projects: any[]; 
-  onTaskClick: (task: Task) => void;
-  minDate: Date;
-  maxDate: Date;
-  visibleColumns: TaskGanttColumn[];
-  organizationId: number | null;
-  onIndent: (task: Task) => void;
-  onOutdent: (task: Task) => void;
-  hasChildren: boolean;
-  isCollapsed: boolean;
-  onToggleCollapse: (taskId: number) => void;
-  allowIndentation?: boolean;
-  preloadedAssignments?: (TaskResourceAssignment & { resource: Resource })[];
-  precomputedDates?: { start: Date | null; end: Date | null; baselineStart: Date | null; baselineEnd: Date | null; startFormatted: string; endFormatted: string };
-}) {
-  const [isEditingResources, setIsEditingResources] = useState(false);
-  const { data: fetchedAssignments } = useTaskResourceAssignments(isEditingResources ? task.id : null);
-  const taskAssignments = fetchedAssignments ?? preloadedAssignments;
-  const updateTaskResources = useUpdateTaskResourceAssignments();
-  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
-  const [resourceAllocations, setResourceAllocations] = useState<ResourceAllocation[]>([]);
-  const inviteAssignedRef = useRef(false);
-
-  useEffect(() => {
-    if (taskAssignments) {
-      setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
-      setResourceAllocations(taskAssignments.map(a => ({
-        resourceId: a.resourceId,
-        allocationPercentage: a.allocationPercentage ?? 100
-      })));
-    }
-  }, [taskAssignments]);
-  
-  const getProjectName = (projectId: number) => {
-    return projects.find(p => p.id === projectId)?.name || "Unknown";
-  };
-
-  const hasValidDates = task.startDate && task.endDate;
-  const start = precomputedDates?.start ?? (hasValidDates ? parseISO(task.startDate) : null);
-  const end = precomputedDates?.end ?? (hasValidDates ? parseISO(task.endDate) : null);
-  
-  let leftPercent = 0;
-  let widthPercent = 0;
-  
-  if (start && end) {
-    const totalDays = differenceInDays(maxDate, minDate) || 1;
-    const startOffset = differenceInDays(start, minDate);
-    const duration = differenceInDays(end, start) + 1;
-    leftPercent = (startOffset / totalDays) * 100;
-    widthPercent = (duration / totalDays) * 100;
-  }
-
-  const hasBaseline = task.baselineStartDate && task.baselineEndDate;
-  const baselineStart = precomputedDates?.baselineStart ?? (hasBaseline ? parseISO(task.baselineStartDate!) : null);
-  const baselineEnd = precomputedDates?.baselineEnd ?? (hasBaseline ? parseISO(task.baselineEndDate!) : null);
-  
-  let baselineLeftPercent = 0;
-  let baselineWidthPercent = 0;
-  
-  if (baselineStart && baselineEnd) {
-    const totalDays = differenceInDays(maxDate, minDate) || 1;
-    const baselineStartOffset = differenceInDays(baselineStart, minDate);
-    const baselineDuration = differenceInDays(baselineEnd, baselineStart) + 1;
-    baselineLeftPercent = (baselineStartOffset / totalDays) * 100;
-    baselineWidthPercent = (baselineDuration / totalDays) * 100;
-  }
-  
-  // Calculate schedule variance
-  const scheduleVariance = (end && baselineEnd) 
-    ? differenceInDays(end, baselineEnd) 
-    : null;
-
-  const assignedNames = taskAssignments && taskAssignments.length > 0
-    ? taskAssignments.map(a => a.resource.displayName).join(", ")
-    : "—";
-
-  const handleSaveResources = () => {
-    if (!inviteAssignedRef.current) {
-      updateTaskResources.mutate({ 
-        taskId: task.id, 
-        resourceIds: selectedResourceIds,
-        allocations: resourceAllocations,
-        expectedUpdatedAt: task.updatedAt ? new Date(task.updatedAt).toISOString() : undefined,
-      });
-    }
-    inviteAssignedRef.current = false;
-    setIsEditingResources(false);
-  };
-
-  const progressPercent = task.progress || 0;
-  const outlineLevel = task.outlineLevel || 1;
-  const canIndent = outlineLevel < 6;
-  const canOutdent = outlineLevel > 1;
-
-  return (
-    <div 
-      className="flex border-b hover:bg-muted/30 transition-colors group"
-      data-testid={`gantt-task-${task.id}`}
-    >
-      {visibleColumns.includes('actions') && allowIndentation && (
-        <div className="w-10 flex-shrink-0 border-r p-1 flex items-center justify-center">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                data-testid={`button-task-actions-${task.id}`}
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem 
-                onClick={(e) => { e.stopPropagation(); onIndent(task); }}
-                disabled={!canIndent}
-                data-testid={`button-indent-task-${task.id}`}
-              >
-                <Indent className="h-4 w-4 mr-2" />
-                {canIndent ? `Indent (Level ${outlineLevel} → ${outlineLevel + 1})` : 'Indent (Max level reached)'}
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={(e) => { e.stopPropagation(); onOutdent(task); }}
-                disabled={!canOutdent}
-                data-testid={`button-outdent-task-${task.id}`}
-              >
-                <Outdent className="h-4 w-4 mr-2" />
-                {canOutdent ? `Outdent (Level ${outlineLevel} → ${outlineLevel - 1})` : 'Outdent (Top level reached)'}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
-      {visibleColumns.includes('outlineLevel') && (
-        <div className="w-14 flex-shrink-0 border-r px-1 py-0.5 flex items-center justify-center">
-          <Badge variant="outline" className="text-xs font-mono">
-            {outlineLevel}
-          </Badge>
-        </div>
-      )}
-      {visibleColumns.includes('task') && (
-        <div 
-          className={cn(
-            "w-64 flex-shrink-0 border-r py-1 cursor-pointer",
-            hasChildren && "font-semibold bg-muted/30"
-          )}
-          onClick={() => onTaskClick(task)}
-          style={{ paddingLeft: `${4 + (outlineLevel - 1) * 16}px`, paddingRight: '4px' }}
-        >
-          <div className="font-medium text-xs truncate flex items-center gap-1">
-            {hasChildren ? (
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-4 w-4 p-0 flex-shrink-0"
-                onClick={(e) => { e.stopPropagation(); onToggleCollapse(task.id); }}
-                data-testid={`task-toggle-${task.id}`}
-              >
-                {isCollapsed ? (
-                  <ChevronRight className="h-3 w-3" />
-                ) : (
-                  <ChevronDown className="h-3 w-3" />
-                )}
-              </Button>
-            ) : (
-              <span className="w-4 flex-shrink-0" />
-            )}
-            <span className="truncate">{task.name}</span>
-          </div>
-          <Link 
-            href={`/projects/${task.projectId}`}
-            onClick={(e) => e.stopPropagation()}
-            className="text-[10px] text-muted-foreground break-words hover:text-primary hover:underline block ml-5"
-            data-testid={`link-project-${task.projectId}`}
-          >
-            {getProjectName(task.projectId)}
-          </Link>
-        </div>
-      )}
-      {visibleColumns.includes('wbs') && (
-        <div className="w-20 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
-          {task.wbs || '—'}
-        </div>
-      )}
-      {visibleColumns.includes('startDate') && (
-        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
-          {precomputedDates?.startFormatted ?? (task.startDate ? format(parseISO(task.startDate), 'MM/dd/yy') : '—')}
-        </div>
-      )}
-      {visibleColumns.includes('endDate') && (
-        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
-          {precomputedDates?.endFormatted ?? (task.endDate ? format(parseISO(task.endDate), 'MM/dd/yy') : '—')}
-        </div>
-      )}
-      {visibleColumns.includes('duration') && (
-        <div className="w-20 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
-          {task.durationDays != null ? formatDuration(task.durationDays) : '—'}
-        </div>
-      )}
-      {visibleColumns.includes('progress') && (
-        <div className="w-14 flex-shrink-0 border-r px-1 py-0.5 text-xs text-center font-medium flex items-center justify-center">
-          {progressPercent}%
-        </div>
-      )}
-      {visibleColumns.includes('status') && (
-        <div className="w-28 flex-shrink-0 border-r px-1 py-0.5 text-xs flex items-center">
-          <Badge 
-            variant="outline" 
-            className={cn(
-              "text-[10px] py-0",
-              task.status === "Completed" && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-              task.status === "In Progress" && "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-              task.status === "Not Started" && "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
-            )}
-          >
-            {task.status || 'Not Started'}
-          </Badge>
-        </div>
-      )}
-      {visibleColumns.includes('priority') && (
-        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs flex items-center">
-          <Badge 
-            variant="outline" 
-            className={cn(
-              "text-[10px] py-0",
-              task.priority === "Critical" && "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
-              task.priority === "High" && "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-              task.priority === "Medium" && "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-              task.priority === "Low" && "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
-            )}
-          >
-            {task.priority || 'Medium'}
-          </Badge>
-        </div>
-      )}
-      {visibleColumns.includes('assignee') && (
-        <div className="w-32 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
-          {taskAssignments && taskAssignments.length > 0 ? (
-            <div className="flex -space-x-1.5">
-              {taskAssignments.slice(0, 3).map((a) => (
-                <MicrosoftContactCard
-                  key={a.id}
-                  displayName={a.resource.displayName}
-                  email={a.resource.email}
-                  title={a.resource.title}
-                  department={a.resource.department}
-                  phone={a.resource.phone}
-                  photoUrl={a.resource.photoUrl}
-                  side="top"
-                >
-                  <div 
-                    className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-[10px] font-semibold border border-background cursor-pointer hover:bg-primary/20 transition-colors hover:z-10"
-                    title={a.resource.displayName}
-                  >
-                    {a.resource.displayName.charAt(0).toUpperCase()}
-                  </div>
-                </MicrosoftContactCard>
-              ))}
-              {taskAssignments.length > 3 && (
-                <div 
-                  className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-muted-foreground text-[10px] font-medium border border-background"
-                  title={taskAssignments.slice(3).map(a => a.resource.displayName).join(", ")}
-                >
-                  +{taskAssignments.length - 3}
-                </div>
-              )}
-            </div>
-          ) : (
-            <span>—</span>
-          )}
-        </div>
-      )}
-      {visibleColumns.includes('resources') && (
-        <Dialog open={isEditingResources} onOpenChange={setIsEditingResources}>
-          <DialogTrigger asChild>
-            <div 
-              className="w-32 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground cursor-pointer hover:bg-muted/50 flex items-center"
-              onClick={(e) => { e.stopPropagation(); }}
-              data-testid={`resources-cell-${task.id}`}
-            >
-              {taskAssignments && taskAssignments.length > 0 ? (
-                <div className="flex -space-x-1.5">
-                  {taskAssignments.slice(0, 3).map((a) => (
-                    <MicrosoftContactCard
-                      key={a.id}
-                      displayName={a.resource.displayName}
-                      email={a.resource.email}
-                      title={a.resource.title}
-                      department={a.resource.department}
-                      phone={a.resource.phone}
-                      side="top"
-                      align="center"
-                    >
-                      <div 
-                        className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-[10px] font-semibold border border-background"
-                        data-testid={`resource-avatar-${a.id}`}
-                      >
-                        {a.resource.displayName.charAt(0).toUpperCase()}
-                      </div>
-                    </MicrosoftContactCard>
-                  ))}
-                  {taskAssignments.length > 3 && (
-                    <div 
-                      className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-muted-foreground text-[10px] font-medium border border-background"
-                      title={taskAssignments.slice(3).map(a => a.resource.displayName).join(", ")}
-                    >
-                      +{taskAssignments.length - 3}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <span>—</span>
-              )}
-            </div>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]" onClick={(e) => e.stopPropagation()}>
-            <DialogHeader>
-              <DialogTitle>Assign Resources</DialogTitle>
-              <DialogDescription>
-                Assign team members to "{task.name}"
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <ResourceAssignment
-                organizationId={organizationId}
-                selectedResourceIds={selectedResourceIds}
-                onSelectionChange={setSelectedResourceIds}
-                allocations={resourceAllocations}
-                onAllocationsChange={setResourceAllocations}
-                showAllocations={true}
-                label="Resources"
-                projectId={task.projectId}
-                projectName={getProjectName(task.projectId)}
-                taskId={task.id}
-                taskName={task.name}
-                onInviteAssigned={() => { inviteAssignedRef.current = true; }}
-              />
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEditingResources(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSaveResources}>
-                Save Changes
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-      {visibleColumns.includes('phase') && (
-        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center truncate">
-          {task.phase || '—'}
-        </div>
-      )}
-      {visibleColumns.includes('category') && (
-        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center truncate">
-          {task.category || '—'}
-        </div>
-      )}
-      {visibleColumns.includes('estimatedHours') && (
-        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center truncate" data-testid={`task-estimated-hours-${task.id}`}>
-          {task.estimatedHours ? `${task.estimatedHours}h` : '—'}
-        </div>
-      )}
-      {visibleColumns.includes('actualHours') && (
-        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center gap-1 truncate" data-testid={`task-actual-hours-${task.id}`}>
-          <span>{task.actualHours ? `${task.actualHours}h` : '—'}</span>
-          {task.estimatedHours && task.actualHours && (() => {
-            const variance = Number(task.actualHours) - Number(task.estimatedHours);
-            return variance > 0 ? (
-              <span className="text-[10px] font-medium text-rose-600 dark:text-rose-400">+{variance}h</span>
-            ) : (
-              <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">{variance}h</span>
-            );
-          })()}
-        </div>
-      )}
-      {visibleColumns.includes('remainingHours') && (
-        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center truncate" data-testid={`task-remaining-hours-${task.id}`}>
-          {task.remainingHours ? `${task.remainingHours}h` : '—'}
-        </div>
-      )}
-      {visibleColumns.includes('timesheetBlocked') && (
-        <div className="w-20 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center justify-center" data-testid={`task-timesheet-blocked-${task.id}`}>
-          {task.timesheetBlocked ? <LockIcon className="h-3 w-3 text-amber-500" /> : <span className="text-muted-foreground/50">—</span>}
-        </div>
-      )}
-      <div className="flex-1 relative px-1 py-0.5 min-h-[28px]">
-        {/* Baseline bar (rendered first, below actual bar) */}
-        {hasBaseline && baselineStart && baselineEnd && (
-          <div
-            className="absolute rounded-sm cursor-pointer border border-dashed border-orange-400 dark:border-orange-500 bg-orange-100/50 dark:bg-orange-900/30"
-            style={{
-              left: `${Math.max(0, baselineLeftPercent)}%`,
-              width: `${Math.min(100 - baselineLeftPercent, baselineWidthPercent)}%`,
-              minWidth: '20px',
-              top: '18px',
-              height: '8px'
-            }}
-            onClick={() => onTaskClick(task)}
-            title={`Baseline: ${format(baselineStart, 'MMM d')} - ${format(baselineEnd, 'MMM d')}`}
-          />
-        )}
-        
-        {/* Actual task bar */}
-        {hasValidDates ? (
-          <div
-            className={cn(
-              "absolute rounded overflow-hidden cursor-pointer",
-              task.status === "Completed" ? "bg-emerald-200 dark:bg-emerald-900" :
-              task.status === "In Progress" ? "bg-blue-200 dark:bg-blue-900" : "bg-slate-200 dark:bg-slate-700"
-            )}
-            style={{
-              left: `${Math.max(0, leftPercent)}%`,
-              width: `${Math.min(100 - leftPercent, widthPercent)}%`,
-              minWidth: '30px',
-              top: '4px',
-              height: '14px'
-            }}
-            onClick={() => onTaskClick(task)}
-          >
-            <div 
-              className={cn(
-                "h-full transition-all",
-                task.status === "Completed" ? "bg-emerald-500" :
-                task.status === "In Progress" ? "bg-blue-500" : "bg-slate-400"
-              )}
-              style={{ width: `${progressPercent}%` }}
-            />
-            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-foreground">
-              {progressPercent}%
-            </span>
-          </div>
-        ) : (
-          <div className="h-full flex items-center" onClick={() => onTaskClick(task)}>
-            <Badge variant="outline" className="text-[10px] py-0 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
-              <CalendarIcon className="h-2.5 w-2.5 mr-0.5" />
-              No dates
-            </Badge>
-          </div>
-        )}
-        
-        {/* Schedule variance indicator */}
-        {scheduleVariance !== null && scheduleVariance !== 0 && (
-          <div 
-            className={cn(
-              "absolute right-0.5 top-0.5 text-[9px] px-0.5 rounded",
-              scheduleVariance > 0 
-                ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400" 
-                : "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400"
-            )}
-            title={scheduleVariance > 0 ? `${scheduleVariance} days late` : `${Math.abs(scheduleVariance)} days early`}
-          >
-            {scheduleVariance > 0 ? `+${scheduleVariance}d` : `${scheduleVariance}d`}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function GanttView({ tasks, projects, onTaskClick, embedded = false, organizationId = null }: { tasks: Task[]; projects: any[]; onTaskClick: (task: Task) => void; embedded?: boolean; organizationId?: number | null }) {
-  const today = new Date();
-  const [zoomLevel, setZoomLevel] = useState<TaskZoomLevel>('month');
-  const [visibleColumns, setVisibleColumns] = useState<TaskGanttColumn[]>(['actions', 'outlineLevel', 'task', 'startDate', 'endDate', 'progress', 'resources', 'estimatedHours', 'actualHours']);
-  const updateTask = useUpdateTask();
-  const { toast } = useToast();
-  const { data: orgTaskAssignments } = useOrgFullTaskAssignments(organizationId);
-  
-  const toggleColumn = (col: TaskGanttColumn) => {
-    if (col === 'task' || col === 'actions') return;
-    setVisibleColumns(prev => 
-      prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
-    );
-  };
-
-  const handleIndent = (task: Task) => {
-    const currentLevel = Math.max(1, Math.min(6, task.outlineLevel || 1));
-    const newLevel = Math.min(6, currentLevel + 1);
-    if (currentLevel >= 6 || newLevel > 6) {
-      toast({ title: "Cannot indent", description: "Maximum outline level (6) reached", variant: "destructive" });
-      return;
-    }
-    updateTask.mutate({ 
-      id: task.id, 
-      projectId: task.projectId, 
-      outlineLevel: newLevel 
-    }, {
-      onSuccess: () => {
-        toast({ title: "Updated", description: `Task indented to level ${newLevel}` });
-      }
-    });
-  };
-
-  const handleOutdent = (task: Task) => {
-    const currentLevel = Math.max(1, Math.min(6, task.outlineLevel || 1));
-    const newLevel = Math.max(1, currentLevel - 1);
-    if (currentLevel <= 1 || newLevel < 1) {
-      toast({ title: "Cannot outdent", description: "Minimum outline level (1) reached", variant: "destructive" });
-      return;
-    }
-    updateTask.mutate({ 
-      id: task.id, 
-      projectId: task.projectId, 
-      outlineLevel: newLevel 
-    }, {
-      onSuccess: () => {
-        toast({ title: "Updated", description: `Task outdented to level ${newLevel}` });
-      }
-    });
-  };
-
-  // Collapse/expand state management
-  const [collapsedTasks, setCollapsedTasks] = useState<Set<number>>(new Set());
-
-  const toggleCollapse = (taskId: number) => {
-    setCollapsedTasks(prev => {
-      const next = new Set(prev);
-      if (next.has(taskId)) {
-        next.delete(taskId);
-      } else {
-        next.add(taskId);
-      }
-      return next;
-    });
-  };
-
-  // Determine which tasks have children and filter visible tasks
-  // Uses tasks in their original order to preserve hierarchy
-  const { visibleTasks, taskHasChildren } = useMemo(() => {
-    const taskHasChildren: Record<number, boolean> = {};
-
-    // First pass: determine which tasks have children based on outline levels
-    for (let i = 0; i < tasks.length; i++) {
-      const currentTask = tasks[i];
-      const currentLevel = currentTask.outlineLevel || 1;
-      
-      if (i + 1 < tasks.length) {
-        const nextTask = tasks[i + 1];
-        const nextLevel = nextTask.outlineLevel || 1;
-        if (nextLevel > currentLevel) {
-          taskHasChildren[currentTask.id] = true;
-        }
-      }
-    }
-
-    // Second pass: filter out collapsed children
-    const visibleTasks: Task[] = [];
-    let skipUntilLevel = -1;
-
-    for (const task of tasks) {
-      const taskLevel = task.outlineLevel || 1;
-
-      if (skipUntilLevel > 0 && taskLevel > skipUntilLevel) {
-        continue;
-      } else {
-        skipUntilLevel = -1;
-      }
-
-      visibleTasks.push(task);
-
-      if (collapsedTasks.has(task.id) && taskHasChildren[task.id]) {
-        skipUntilLevel = taskLevel;
-      }
-    }
-
-    return { visibleTasks, taskHasChildren };
-  }, [tasks, collapsedTasks]);
-
-  const taskParsedDatesMap = useMemo(() => {
-    const map = new Map<number, { start: Date | null; end: Date | null; baselineStart: Date | null; baselineEnd: Date | null; startFormatted: string; endFormatted: string }>();
-    for (const t of tasks) {
-      const start = t.startDate ? parseISO(t.startDate) : null;
-      const end = t.endDate ? parseISO(t.endDate) : null;
-      const baselineStart = t.baselineStartDate ? parseISO(t.baselineStartDate) : null;
-      const baselineEnd = t.baselineEndDate ? parseISO(t.baselineEndDate) : null;
-      map.set(t.id, {
-        start,
-        end,
-        baselineStart,
-        baselineEnd,
-        startFormatted: start ? format(start, 'MM/dd/yy') : '—',
-        endFormatted: end ? format(end, 'MM/dd/yy') : '—',
-      });
-    }
-    return map;
-  }, [tasks]);
-
-  const { minDate, maxDate, dateRange, autoZoomLevel } = useMemo(() => {
-    const tasksWithDates = tasks.filter(t => {
-      const parsed = taskParsedDatesMap.get(t.id);
-      return parsed?.start && parsed?.end;
-    });
-    
-    let minDate: Date;
-    let maxDate: Date;
-    
-    if (tasksWithDates.length > 0) {
-      const dates = tasksWithDates.flatMap(t => {
-        const parsed = taskParsedDatesMap.get(t.id)!;
-        return [parsed.start!, parsed.end!];
-      });
-      const earliestDate = new Date(Math.min(...dates.map(d => d.getTime())));
-      const latestDate = new Date(Math.max(...dates.map(d => d.getTime())));
-      
-      const totalDays = differenceInDays(latestDate, earliestDate);
-      let autoZoom: TaskZoomLevel = 'month';
-      if (totalDays <= 14) autoZoom = 'day';
-      else if (totalDays <= 60) autoZoom = 'week';
-      else if (totalDays <= 180) autoZoom = 'month';
-      else if (totalDays <= 365) autoZoom = 'quarter';
-      else if (totalDays <= 730) autoZoom = 'year';
-      else autoZoom = '5year';
-      
-      minDate = startOfMonth(earliestDate);
-      maxDate = endOfMonth(latestDate);
-      
-      return { minDate, maxDate, dateRange: eachDayOfInterval({ start: minDate, end: maxDate }), autoZoomLevel: autoZoom };
-    } else {
-      minDate = startOfMonth(today);
-      maxDate = endOfMonth(addDays(today, 60));
-      return { minDate, maxDate, dateRange: eachDayOfInterval({ start: minDate, end: maxDate }), autoZoomLevel: 'month' as TaskZoomLevel };
-    }
-  }, [tasks, taskParsedDatesMap, today]);
-
-  useEffect(() => {
-    setZoomLevel(autoZoomLevel);
-  }, [autoZoomLevel]);
-
-  const { adjustedMinDate, adjustedMaxDate, adjustedDateRange } = useMemo(() => {
-    let adjMinDate = minDate;
-    let adjMaxDate = maxDate;
-    
-    if (zoomLevel === 'quarter') {
-      adjMinDate = new Date(minDate.getFullYear(), Math.floor(minDate.getMonth() / 3) * 3, 1);
-      adjMaxDate = new Date(maxDate.getFullYear(), Math.ceil((maxDate.getMonth() + 1) / 3) * 3, 0);
-    } else if (zoomLevel === 'year') {
-      adjMinDate = new Date(minDate.getFullYear(), 0, 1);
-      adjMaxDate = new Date(maxDate.getFullYear(), 11, 31);
-    } else if (zoomLevel === '5year') {
-      const startYear = minDate.getFullYear();
-      adjMinDate = new Date(startYear, 0, 1);
-      adjMaxDate = new Date(startYear + 4, 11, 31);
-    }
-    
-    const adjustedDateRange = eachDayOfInterval({ start: adjMinDate, end: adjMaxDate });
-    return { adjustedMinDate: adjMinDate, adjustedMaxDate: adjMaxDate, adjustedDateRange };
-  }, [minDate, maxDate, zoomLevel]);
-
-  const { filteredDates, dateFormat, columnWidth } = useMemo(() => {
-    switch (zoomLevel) {
-      case 'day':
-        return { filteredDates: adjustedDateRange, dateFormat: 'd', columnWidth: 'min-w-[40px]' };
-      case 'week':
-        return { filteredDates: adjustedDateRange.filter((_, i) => i % 7 === 0), dateFormat: 'MMM d', columnWidth: 'min-w-[100px]' };
-      case 'month':
-        return { filteredDates: adjustedDateRange.filter((date) => date.getDate() === 1), dateFormat: 'MMM yyyy', columnWidth: 'min-w-[100px]' };
-      case 'quarter':
-        return { filteredDates: adjustedDateRange.filter((date) => date.getDate() === 1 && date.getMonth() % 3 === 0), dateFormat: 'QQQ yyyy', columnWidth: 'min-w-[80px]' };
-      case 'year':
-        return { filteredDates: adjustedDateRange.filter((date) => date.getDate() === 1 && date.getMonth() === 0), dateFormat: 'yyyy', columnWidth: 'min-w-[80px]' };
-      case '5year':
-        return { filteredDates: adjustedDateRange.filter((date) => date.getDate() === 1 && date.getMonth() === 0), dateFormat: 'yyyy', columnWidth: 'min-w-[60px]' };
-      default:
-        return { filteredDates: adjustedDateRange.filter((_, i) => i % 7 === 0), dateFormat: 'MMM d', columnWidth: 'min-w-[100px]' };
-    }
-  }, [adjustedDateRange, zoomLevel]);
-
-  const columnsTotalWidth = useMemo(() => {
-    let w = 0;
-    if (visibleColumns.includes('actions')) w += 40;
-    if (visibleColumns.includes('outlineLevel')) w += 56;
-    if (visibleColumns.includes('task')) w += 256;
-    if (visibleColumns.includes('startDate')) w += 96;
-    if (visibleColumns.includes('endDate')) w += 96;
-    if (visibleColumns.includes('progress')) w += 56;
-    if (visibleColumns.includes('resources')) w += 128;
-    if (visibleColumns.includes('estimatedHours')) w += 96;
-    if (visibleColumns.includes('actualHours')) w += 96;
-    if (visibleColumns.includes('remainingHours')) w += 96;
-    if (visibleColumns.includes('timesheetBlocked')) w += 80;
-    return w;
-  }, [visibleColumns]);
-
-  const handleZoomIn = () => {
-    const idx = taskZoomLevels.indexOf(zoomLevel);
-    if (idx > 0) setZoomLevel(taskZoomLevels[idx - 1]);
-  };
-
-  const handleZoomOut = () => {
-    const idx = taskZoomLevels.indexOf(zoomLevel);
-    if (idx < taskZoomLevels.length - 1) setZoomLevel(taskZoomLevels[idx + 1]);
-  };
-
-  if (tasks.length === 0) {
-    if (embedded) {
-      return (
-        <div className="py-8 text-center text-muted-foreground">
-          No tasks in this group.
-        </div>
-      );
-    }
-    return (
-      <Card>
-        <CardContent className="py-12 text-center text-muted-foreground">
-          No tasks yet. Add your first task to see the Gantt chart.
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const zoomControls = (
-    <div className="flex items-center justify-between gap-4 p-3 border-b bg-muted/30 flex-wrap">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-muted-foreground">
-          View: {taskZoomLabels[zoomLevel]}
-        </span>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1">
-              <Columns3 className="h-3.5 w-3.5" />
-              Columns
-              <ChevronDown className="h-3 w-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {TASK_GANTT_COLUMNS.map(col => (
-              <DropdownMenuItem 
-                key={col.id}
-                onClick={() => toggleColumn(col.id)}
-                className="gap-2"
-              >
-                <Checkbox 
-                  checked={visibleColumns.includes(col.id)} 
-                  disabled={col.id === 'task' || col.id === 'actions'}
-                />
-                {col.label || col.id}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <div className="flex items-center gap-1">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={handleZoomIn}
-          disabled={taskZoomLevels.indexOf(zoomLevel) === 0}
-          data-testid="button-task-gantt-zoom-in"
-        >
-          <ZoomIn className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={handleZoomOut}
-          disabled={taskZoomLevels.indexOf(zoomLevel) === taskZoomLevels.length - 1}
-          data-testid="button-task-gantt-zoom-out"
-        >
-          <ZoomOut className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
+  const renderGantt = (projectId: number, tasks: Task[]) => (
+    <Suspense fallback={<div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+      <ProjectGanttView
+        tasks={sortByTaskIndex(tasks)}
+        projectId={projectId}
+        organizationId={organizationId}
+        onTaskClick={onTaskClick}
+        onDependencyLineClick={onTaskClick}
+        onCreateTask={(name) => {
+          const todayStr = format(new Date(), 'yyyy-MM-dd');
+          createTask.mutate({
+            projectId,
+            name,
+            startDate: todayStr,
+            endDate: calculateEndDateFromWorkingDays(todayStr, 1),
+            durationDays: 1,
+            status: DEFAULT_TASK_STATUS,
+            progress: 0,
+          });
+        }}
+      />
+    </Suspense>
   );
 
-  const ganttContent = (
-    <div className="overflow-x-auto">
-      <div style={{ minWidth: `${columnsTotalWidth + 400}px` }}>
-        {!embedded && zoomControls}
-        <div className="flex border-b bg-muted/50 sticky top-0 z-10">
-          {visibleColumns.includes('actions') && !embedded && (
-            <div className="w-10 flex-shrink-0 border-r px-1 py-1"></div>
-          )}
-          {visibleColumns.includes('outlineLevel') && (
-            <div className="w-14 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground text-center">Level</div>
-          )}
-          {visibleColumns.includes('task') && (
-            <div className="w-64 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Task</div>
-          )}
-          {visibleColumns.includes('wbs') && (
-            <div className="w-20 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">WBS</div>
-          )}
-          {visibleColumns.includes('startDate') && (
-            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Start</div>
-          )}
-          {visibleColumns.includes('endDate') && (
-            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">End</div>
-          )}
-          {visibleColumns.includes('duration') && (
-            <div className="w-20 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Duration</div>
-          )}
-          {visibleColumns.includes('progress') && (
-            <div className="w-14 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground text-center">%</div>
-          )}
-          {visibleColumns.includes('status') && (
-            <div className="w-28 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Status</div>
-          )}
-          {visibleColumns.includes('priority') && (
-            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Priority</div>
-          )}
-          {visibleColumns.includes('assignee') && (
-            <div className="w-32 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Assignee</div>
-          )}
-          {visibleColumns.includes('resources') && (
-            <div className="w-32 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Resources</div>
-          )}
-          {visibleColumns.includes('phase') && (
-            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Phase</div>
-          )}
-          {visibleColumns.includes('category') && (
-            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Category</div>
-          )}
-          {visibleColumns.includes('estimatedHours') && (
-            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Est. Hours</div>
-          )}
-          {visibleColumns.includes('actualHours') && (
-            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Actual Hours</div>
-          )}
-          {visibleColumns.includes('remainingHours') && (
-            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Rem. Hours</div>
-          )}
-          {visibleColumns.includes('timesheetBlocked') && (
-            <div className="w-20 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground text-center">TS Blocked</div>
-          )}
-          <div className="flex-1 flex">
-            {filteredDates.map((date, i) => (
-              <div key={i} className={cn("flex-1 px-1 py-1 text-center text-xs font-medium text-muted-foreground border-l", columnWidth)}>
-                {format(date, dateFormat)}
-              </div>
-            ))}
-          </div>
-        </div>
-        {visibleTasks.map(task => (
-          <GanttTaskRow
-            key={task.id}
-            task={task}
-            projects={projects}
-            onTaskClick={onTaskClick}
-            minDate={adjustedMinDate}
-            maxDate={adjustedMaxDate}
-            visibleColumns={visibleColumns}
-            organizationId={organizationId}
-            onIndent={handleIndent}
-            onOutdent={handleOutdent}
-            hasChildren={!!taskHasChildren[task.id]}
-            isCollapsed={collapsedTasks.has(task.id)}
-            onToggleCollapse={toggleCollapse}
-            allowIndentation={!embedded}
-            preloadedAssignments={orgTaskAssignments?.filter(a => a.taskId === task.id)}
-            precomputedDates={taskParsedDatesMap.get(task.id)}
-          />
-        ))}
-      </div>
-    </div>
-  );
+  if (group.projectId != null) {
+    return renderGantt(group.projectId, group.tasks);
+  }
 
-  const taskGanttRenderCountRef = useRef(0);
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      taskGanttRenderCountRef.current += 1;
-      if (taskGanttRenderCountRef.current % 20 === 1) {
-        performance.mark('task-gantt-render-start');
-        requestAnimationFrame(() => {
-          performance.mark('task-gantt-render-end');
-          performance.measure('task-gantt-render', 'task-gantt-render-start', 'task-gantt-render-end');
-        });
-      }
-    }
+  const subGroups = new Map<number, Task[]>();
+  group.tasks.forEach(task => {
+    if (!subGroups.has(task.projectId)) subGroups.set(task.projectId, []);
+    subGroups.get(task.projectId)!.push(task);
   });
 
-  if (embedded) {
-    return <div className="border rounded-md">{ganttContent}</div>;
-  }
-
   return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-0">
-        {ganttContent}
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      {Array.from(subGroups.entries()).map(([projectId, tasks]) => {
+        const project = projects.find(p => p.id === projectId);
+        return (
+          <div key={projectId}>
+            <div className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+              <FolderKanban className="h-3.5 w-3.5" />
+              {project?.name || "Unknown Project"}
+            </div>
+            {renderGantt(projectId, tasks)}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -2318,9 +1443,9 @@ function KanbanView({
 }) {
   const { data: orgTaskAssignments } = useOrgFullTaskAssignments(organizationId);
   const columns = [
-    { id: "Not Started", label: "Not Started", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
-    { id: "In Progress", label: "In Progress", color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" },
-    { id: "Completed", label: "Completed", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200" },
+    { id: TASK_STATUS.NOT_STARTED, label: TASK_STATUS.NOT_STARTED, color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
+    { id: TASK_STATUS.IN_PROGRESS, label: TASK_STATUS.IN_PROGRESS, color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" },
+    { id: TASK_STATUS.COMPLETED, label: TASK_STATUS.COMPLETED, color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200" },
   ];
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -2369,7 +1494,7 @@ function KanbanView({
           <KanbanColumn
             key={column.id}
             column={column}
-            tasks={tasks.filter(t => (t.status || "Not Started") === column.id)}
+            tasks={tasks.filter(t => (t.status || DEFAULT_TASK_STATUS) === column.id)}
             getProjectName={getProjectName}
             onTaskClick={onTaskClick}
             onDeleteTask={onDeleteTask}

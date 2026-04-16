@@ -111,7 +111,7 @@ export async function convertRiskToIssue(id: number): Promise<Issue | undefined>
   const [converted] = await db.update(issues)
     .set({
       itemType: 'issue',
-      type: 'Task',
+      type: 'Bug',
       probability: null,
       impact: null,
       riskScore: null,
@@ -232,6 +232,12 @@ export async function updateMilestone(id: number, updates: UpdateMilestoneReques
     taskUpdates.progress = updates.completed ? 100 : 0;
     if (updates.status === undefined) {
       taskUpdates.status = updates.completed ? 'Done' : 'Not Started';
+    }
+    if (updates.completed && updates.actualCompletionDate === undefined) {
+      taskUpdates.actualEndDate = new Date();
+    }
+    if (!updates.completed) {
+      taskUpdates.actualEndDate = null;
     }
   }
   taskUpdates.updatedAt = new Date();

@@ -1049,6 +1049,22 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       await storage.batchUpdateTaskFields(durationFixes);
     }
   }
+
+  async function recalculateProjectProgress(projectId: number) {
+    const allTasks = await storage.getTasks(projectId);
+    let avg = 0;
+    if (allTasks.length > 0) {
+      const childIds = new Set(allTasks.filter(t => t.parentId).map(t => t.parentId!));
+      const leafTasks = allTasks.filter(t => !childIds.has(t.id));
+      if (leafTasks.length > 0) {
+        avg = Math.round(leafTasks.reduce((sum, t) => sum + (t.progress || 0), 0) / leafTasks.length);
+      }
+    }
+    const project = await storage.getProject(projectId);
+    if (project && project.completionPercentage !== avg) {
+      await storage.updateProject(projectId, { completionPercentage: avg });
+    }
+  }
   
   async function enrichTasksWithTimesheetHours(taskList: Task[]): Promise<Task[]> {
     if (taskList.length === 0) return taskList;
@@ -1352,6 +1368,23 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         }
       }
       
+      if (input.status === "Not Started") {
+        input.progress = 0;
+      } else if (input.status === "Completed") {
+        input.progress = 100;
+      } else if (input.status === "In Progress" && (input.progress === undefined || input.progress === null)) {
+        input.progress = input.progress ?? 50;
+      }
+      if (input.progress !== undefined && input.progress !== null) {
+        if (input.progress === 100 && (!input.status || input.status === "Not Started")) {
+          input.status = "Completed";
+        } else if (input.progress > 0 && (!input.status || input.status === "Not Started")) {
+          input.status = "In Progress";
+        } else if (input.progress === 0 && input.status === "In Progress") {
+          input.status = "Not Started";
+        }
+      }
+
       const task = await storage.createTask(input);
       
       // Recalculate WBS for all tasks in the project
@@ -1380,6 +1413,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       // Roll up values from children to parent tasks
       if (task.projectId) {
         await rollUpParentTasks(task.projectId);
+        await recalculateProjectProgress(task.projectId);
       }
       
       // Re-fetch the task to return the fully updated version (with WBS, outlineLevel, etc.)
@@ -1511,6 +1545,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
         for (const pid of projectIds) {
           await rollUpParentTasks(pid);
+          await recalculateProjectProgress(pid);
         }
       }
 
@@ -1578,6 +1613,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
         for (const pid of projectIds) {
           await rollUpParentTasks(pid);
+          await recalculateProjectProgress(pid);
         }
       }
 
@@ -1619,6 +1655,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       for (const pid of projectIds) {
         await rollUpParentTasks(pid);
         await recalculateProjectWBS(pid);
+        await recalculateProjectProgress(pid);
       }
 
       return res.json({ deletedCount });
@@ -1836,6 +1873,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       // Roll up values from children to parent tasks
       if (updated.projectId) {
         await rollUpParentTasks(updated.projectId);
+        await recalculateProjectProgress(updated.projectId);
       }
       
       // Recalculate WBS if outline level or taskIndex changed
@@ -1945,6 +1983,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       
       if (task.projectId) {
         await recalculateProjectWBS(task.projectId);
+        await recalculateProjectProgress(task.projectId);
       }
       
       res.status(204).send();

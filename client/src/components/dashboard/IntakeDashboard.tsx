@@ -15,6 +15,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, CartesianGri
 import { format, isWithinInterval, differenceInDays } from "date-fns";
 import type { ProjectIntake } from "@shared/schema";
 import { formatCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 
 const COLORS = {
   Green: "#10b981",
@@ -256,7 +257,7 @@ export function IntakeDashboard() {
             </div>
             <span className="text-xs text-muted-foreground">Est. Budget</span>
           </div>
-          <div className="text-2xl font-bold">{formatBudget(totalBudget)}</div>
+          <div className="text-2xl font-bold"><CompactCurrency value={totalBudget} /></div>
           <div className="text-xs text-muted-foreground">~{avgProcessingTime}d avg age</div>
         </Card>
       </div>
@@ -360,7 +361,7 @@ export function IntakeDashboard() {
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="text-right text-xs">
-                          <div className="font-medium">{formatBudget(Number(intake.estimatedBudget || 0))}</div>
+                          <div className="font-medium"><CompactCurrency value={intake.estimatedBudget || 0} /></div>
                         </div>
                         <Badge 
                           variant="outline" 
@@ -408,7 +409,7 @@ export function IntakeDashboard() {
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="text-right text-xs">
-                          <div className="font-medium">{formatBudget(Number(intake.estimatedBudget || 0))}</div>
+                          <div className="font-medium"><CompactCurrency value={intake.estimatedBudget || 0} /></div>
                         </div>
                         <Badge 
                           variant="secondary" 
