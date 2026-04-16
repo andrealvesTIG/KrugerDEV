@@ -820,9 +820,148 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
     );
   }
 
+  const renderMobileCards = () => (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between px-1">
+        <span className="text-sm font-medium text-muted-foreground">
+          Total: <span className={`font-bold ${getGrandTotal() > overtimeThreshold ? "text-amber-600" : "text-emerald-600"}`}>{getGrandTotal()}h</span>
+        </span>
+        {getGrandTotal() > 0 && (
+          <Button variant="ghost" size="sm" onClick={clearAllRows} aria-label="Clear all hours" className="text-muted-foreground h-7 text-xs">
+            <Trash2 className="h-3 w-3 mr-1" /> Clear All
+          </Button>
+        )}
+      </div>
+
+      {groupByProject && groupedTasks.map((group) => {
+        const isCollapsed = collapsedProjects?.has(group.project.id) ?? true;
+        return (
+          <div key={`mobile-group-${group.project.id}`}>
+            <button
+              type="button"
+              className="flex items-center gap-2 w-full px-2 py-2 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
+              onClick={() => toggleProjectCollapse(group.project.id)}
+            >
+              <motion.div animate={{ rotate: isCollapsed ? -90 : 0 }} transition={{ duration: 0.2 }}>
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </motion.div>
+              <FolderOpen className="h-4 w-4 text-primary shrink-0" />
+              <span className="font-medium text-sm text-foreground truncate flex-1 text-left">{group.project.name}</span>
+              <Badge variant="secondary" className="text-xs shrink-0">{group.tasks.length}</Badge>
+              <span className="text-xs font-medium text-emerald-600">{getProjectTotal(group.project.id)}h</span>
+            </button>
+            <AnimatePresence>
+              {!isCollapsed && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="space-y-2 mt-2">
+                  {group.tasks.map(({ task, project, timesheetLocked }) => renderMobileTaskCard(task, project, timesheetLocked))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        );
+      })}
+
+      {!groupByProject && assignedTasks.map(({ task, project, timesheetLocked }) => renderMobileTaskCard(task, project, timesheetLocked))}
+    </div>
+  );
+
+  const renderMobileTaskCard = (task: Task, project: Project, timesheetLocked?: boolean) => {
+    const rowTotal = getRowTotal(task.id);
+    return (
+      <div key={`mobile-${task.id}`} className={`rounded-xl border border-border bg-card p-3 space-y-2 ${timesheetLocked ? "opacity-75" : ""}`}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              {timesheetLocked ? <Lock className="h-3.5 w-3.5 text-amber-500 shrink-0" /> : <ListTodo className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+              <span className="text-sm font-medium text-foreground truncate">{task.name}</span>
+            </div>
+            <span className="text-xs text-muted-foreground truncate block pl-5">{project.name}</span>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <span className={`text-sm font-semibold tabular-nums ${rowTotal > overtimeThreshold ? "text-amber-600" : "text-foreground"}`}>{rowTotal}h</span>
+            {rowTotal > 0 && (
+              <button type="button" onClick={() => clearRow(task.id)} aria-label={`Clear hours for ${task.name}`} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+                <Trash2 className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        </div>
+        <div className={`grid gap-1.5 ${dates.length <= 1 ? 'grid-cols-1' : dates.length <= 5 ? `grid-cols-${dates.length}` : 'grid-cols-7'}`} style={{ gridTemplateColumns: `repeat(${dates.length}, minmax(0, 1fr))` }}>
+          {dates.map((date) => {
+            const dateKey = formatDateKey(date);
+            const entry = entries.find(e => e.taskId === task.id && e.entryDate === dateKey);
+            const status = entry?.status;
+            const isPeriodClosed = isDateInClosedPeriod(date);
+            const isEditable = (!status || status === "Draft" || status === "Rejected") && !isPeriodClosed && !timesheetLocked;
+            const isTodayDate = isToday(date);
+            const isWeekendDay = isWeekend(date);
+            const hasNote = !!(gridData[task.id]?.[dateKey]?.notes);
+
+            return (
+              <div key={dateKey} className="flex flex-col items-center gap-0.5">
+                <span className={`text-[10px] font-medium leading-none ${
+                  isTodayDate ? "text-blue-600 dark:text-blue-400" : isWeekendDay ? "text-muted-foreground/60" : "text-muted-foreground"
+                }`}>
+                  {format(date, "EEE")}
+                </span>
+                <span className={`text-xs font-semibold leading-none ${
+                  isTodayDate ? "text-blue-600 dark:text-blue-400" : "text-foreground"
+                }`}>
+                  {format(date, "d")}
+                </span>
+                <div className="relative w-full">
+                  <Input
+                    ref={(el) => { inputRefs.current[`${task.id}-${dateKey}`] = el; }}
+                    type="text"
+                    inputMode="decimal"
+                    aria-label={`Hours for ${task.name} on ${format(date, "EEEE, MMM d")}`}
+                    value={gridData[task.id]?.[dateKey]?.hours || ""}
+                    onChange={(e) => handleHoursChange(task.id, dateKey, e.target.value)}
+                    onFocus={(e) => { e.target.select(); handleCellFocus(task.id, dateKey); }}
+                    placeholder="0"
+                    disabled={!isEditable}
+                    className={`w-full text-center text-base h-11 rounded-lg border-2 px-1 ${
+                      isPeriodClosed ? "border-destructive/30 bg-destructive/5" :
+                      isTodayDate ? "border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-900/20" :
+                      isWeekendDay ? "border-muted bg-muted/30" :
+                      "border-border bg-background"
+                    } ${!isEditable ? "opacity-60 cursor-not-allowed" : ""} 
+                    ${status === "Approved" ? "border-green-300 dark:border-green-700" : ""} 
+                    ${status === "Rejected" ? "border-destructive/30" : ""}
+                    focus:ring-2 focus:ring-primary/20`}
+                    data-testid={`input-hours-${task.id}-${dateKey}`}
+                  />
+                  {status && status !== "Draft" && (
+                    <div className="absolute -top-1 -right-1">
+                      {status === "Approved" && <Check className="h-3 w-3 text-green-500" />}
+                      {status === "Submitted" && <Clock className="h-3 w-3 text-amber-500" />}
+                      {status === "Rejected" && <X className="h-3 w-3 text-destructive" />}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => openNoteEditor(task.id, dateKey)}
+                    aria-label={hasNote ? "Edit note" : "Add note"}
+                    className={`absolute -bottom-1 left-1/2 -translate-x-1/2 p-0.5 rounded ${hasNote ? 'text-primary' : 'text-muted-foreground/40'}`}
+                  >
+                    <StickyNote className="h-2.5 w-2.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className={isFullscreen ? "flex flex-col h-full" : "space-y-4"}>
-      <div ref={tableContainerRef} className={`bg-card ${isFullscreen ? 'flex-1 min-h-0 overflow-auto' : 'rounded-xl border border-border overflow-x-auto'}`}>
+      <div className="md:hidden">
+        {renderMobileCards()}
+      </div>
+
+      <div ref={tableContainerRef} className={`bg-card hidden md:block ${isFullscreen ? 'flex-1 min-h-0 overflow-auto' : 'rounded-xl border border-border overflow-x-auto'}`}>
         <table className="w-full border-collapse">
           <thead className="sticky top-0 z-20 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.1)]" style={{ backgroundColor: 'hsl(var(--card))' }}>
             <tr style={{ backgroundColor: 'hsl(var(--muted) / 0.3)' }}>
@@ -2861,9 +3000,7 @@ function TimesheetHistoryTab({ userId, organizationId }: { userId: string | unde
 export default function Timesheets() {
   const { user } = useAuth();
   const { currentOrganization, memberships } = useOrganization();
-  const [viewMode, setViewMode] = useState<ViewMode>(
-    typeof window !== 'undefined' && window.innerWidth < 640 ? "day" : "workweek"
-  );
+  const [viewMode, setViewMode] = useState<ViewMode>("workweek");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [activeTab, setActiveTab] = useState("entry");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
