@@ -3,14 +3,12 @@ import { usePowerBIAgent, type PowerBIAgentMessage } from "@/hooks/use-powerbi-a
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
-  Send, Square, Trash2, BarChart3, Bot, User, Sparkles,
+  Send, Square, Trash2, BarChart3, User, Sparkles,
   FileBarChart, Database, Shield, Clock, Filter, Palette, CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
-import ReactMarkdown from "react-markdown";
 
 const SUGGESTED_PROMPTS = [
   "I need a new Power BI report",
@@ -29,6 +27,70 @@ const FEATURE_CARDS = [
   { icon: Shield, title: "Security (RLS)", desc: "Row-level access controls" },
   { icon: CalendarDays, title: "Timeline", desc: "Target delivery planning" },
 ];
+
+function renderInlineMarkdown(text: string): (string | JSX.Element)[] {
+  const parts: (string | JSX.Element)[] = [];
+  const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`(.+?)`)/g;
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    if (match[1]) {
+      parts.push(<strong key={key++}>{match[2]}</strong>);
+    } else if (match[3]) {
+      parts.push(<em key={key++}>{match[4]}</em>);
+    } else if (match[5]) {
+      parts.push(<code key={key++} className="bg-muted px-1 py-0.5 rounded text-xs">{match[6]}</code>);
+    }
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+  return parts.length > 0 ? parts : [text];
+}
+
+function SimpleMarkdown({ content }: { content: string }) {
+  const lines = content.split("\n");
+  const elements: JSX.Element[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith("### ")) {
+      elements.push(<h3 key={i} className="font-semibold text-sm mt-3 mb-1">{renderInlineMarkdown(line.slice(4))}</h3>);
+    } else if (line.startsWith("## ")) {
+      elements.push(<h2 key={i} className="font-semibold text-base mt-3 mb-1">{renderInlineMarkdown(line.slice(3))}</h2>);
+    } else if (line.startsWith("# ")) {
+      elements.push(<h1 key={i} className="font-bold text-lg mt-3 mb-1">{renderInlineMarkdown(line.slice(2))}</h1>);
+    } else if (line.startsWith("- ") || line.startsWith("* ")) {
+      elements.push(
+        <div key={i} className="flex gap-1.5 ml-2 mb-0.5">
+          <span className="text-orange-500 mt-0.5 flex-shrink-0">•</span>
+          <span>{renderInlineMarkdown(line.slice(2))}</span>
+        </div>
+      );
+    } else if (/^\d+\.\s/.test(line)) {
+      const match = line.match(/^(\d+)\.\s(.*)$/);
+      if (match) {
+        elements.push(
+          <div key={i} className="flex gap-1.5 ml-2 mb-0.5">
+            <span className="text-orange-500 font-medium flex-shrink-0">{match[1]}.</span>
+            <span>{renderInlineMarkdown(match[2])}</span>
+          </div>
+        );
+      }
+    } else if (line.trim() === "") {
+      elements.push(<div key={i} className="h-2" />);
+    } else {
+      elements.push(<p key={i} className="mb-1">{renderInlineMarkdown(line)}</p>);
+    }
+  }
+
+  return <>{elements}</>;
+}
 
 function MessageBubble({ message }: { message: PowerBIAgentMessage }) {
   const isUser = message.role === "user";
@@ -56,9 +118,9 @@ function MessageBubble({ message }: { message: PowerBIAgentMessage }) {
         {isUser ? (
           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
         ) : (
-          <div className="text-sm prose prose-sm dark:prose-invert max-w-none [&>p]:mb-2 [&>ul]:mb-2 [&>ol]:mb-2 [&_li]:mb-0.5">
+          <div className="text-sm max-w-none">
             {message.content ? (
-              <ReactMarkdown>{message.content}</ReactMarkdown>
+              <SimpleMarkdown content={message.content} />
             ) : (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <div className="flex gap-1">
