@@ -291,6 +291,7 @@ export default function AuthPage() {
                   <Input
                     id="firstName"
                     type="text"
+                    autoComplete="given-name"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
                     placeholder="John"
@@ -302,6 +303,7 @@ export default function AuthPage() {
                   <Input
                     id="lastName"
                     type="text"
+                    autoComplete="family-name"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
                     placeholder="Doe"
@@ -316,6 +318,7 @@ export default function AuthPage() {
                 <Input
                   id="magic-link-email"
                   type="email"
+                  autoComplete="email"
                   value={magicLinkEmail}
                   onChange={(e) => setMagicLinkEmail(e.target.value)}
                   placeholder="you@example.com"
@@ -329,6 +332,7 @@ export default function AuthPage() {
                 <Input
                   id="email"
                   type="email"
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
@@ -355,6 +359,7 @@ export default function AuthPage() {
                 <Input
                   id="password"
                   type="password"
+                  autoComplete={mode === "register" ? "new-password" : "current-password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"

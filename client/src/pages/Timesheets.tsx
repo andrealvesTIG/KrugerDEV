@@ -184,7 +184,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
       transition={{ duration: 0.2, delay: index * 0.02 }}
       className={`border-t border-border/50 hover:bg-muted/20 transition-colors group ${timesheetLocked ? "opacity-75" : ""}`}
     >
-      <td className={`px-3 py-1.5 ${indented ? 'pl-10' : ''} align-middle`} style={{ width: taskColumnWidth, minWidth: taskColumnWidth, maxWidth: taskColumnWidth }}>
+      <td className={`px-3 py-1.5 ${indented ? 'pl-10' : ''} align-middle sticky left-0 z-10 bg-card`} style={{ width: taskColumnWidth, minWidth: taskColumnWidth, maxWidth: taskColumnWidth }}>
         <div className="flex items-center gap-2 w-full overflow-hidden">
           {timesheetLocked ? (
             <Tooltip>
@@ -822,8 +822,8 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
           <thead className="sticky top-0 z-20 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.1)]" style={{ backgroundColor: 'hsl(var(--card))' }}>
             <tr style={{ backgroundColor: 'hsl(var(--muted) / 0.3)' }}>
               <th 
-                className="text-left px-3 py-2.5 font-medium text-muted-foreground relative group" 
-                style={{ width: taskColumnWidth, minWidth: taskColumnWidth }}
+                className="text-left px-3 py-2.5 font-medium text-muted-foreground relative group sticky left-0 z-30" 
+                style={{ width: taskColumnWidth, minWidth: taskColumnWidth, backgroundColor: 'hsl(var(--card))' }}
               >
                 <span>Tasks</span>
                 <div
@@ -925,7 +925,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                       onClick={() => toggleProjectCollapse(group.project.id)}
                       data-testid={`row-project-header-${group.project.id}`}
                     >
-                      <td className="px-3 py-1.5" style={{ width: taskColumnWidth, minWidth: taskColumnWidth, maxWidth: taskColumnWidth }}>
+                      <td className="px-3 py-1.5 sticky left-0 z-10 bg-card" style={{ width: taskColumnWidth, minWidth: taskColumnWidth, maxWidth: taskColumnWidth }}>
                         <div className="flex items-center gap-2 min-w-0">
                           <motion.div
                             animate={{ rotate: isCollapsed ? -90 : 0 }}
