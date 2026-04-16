@@ -66,3 +66,9 @@ id = "p3VWXfwHV-47oZj5WiO23"
 uri = "file://.local/timesheet_production_quality_report.md"
 type = "text"
 title = "PRODUCTION Timesheet Data Quality Report"
+
+[[outputs]]
+id = "mo7vIEU4q7l8_frOo0Yy7"
+uri = "file://.local/codebase_audit_report.md"
+type = "text"
+title = "Codebase Audit Report — Bugs, Schema Mismatches & Risks"
