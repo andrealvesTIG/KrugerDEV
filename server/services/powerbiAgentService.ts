@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { powerbiIntakeRequests, projectIntakes } from "@shared/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, count } from "drizzle-orm";
 import OpenAI from "openai";
 
 const openai = new OpenAI({
@@ -340,5 +340,86 @@ export async function getPowerBIIntakeRequests(orgId: number) {
 export async function getPowerBIIntakeRequest(id: number, orgId: number) {
   const [request] = await db.select().from(powerbiIntakeRequests)
     .where(and(eq(powerbiIntakeRequests.id, id), eq(powerbiIntakeRequests.organizationId, orgId)));
+  return request;
+}
+
+export async function convertPowerBIRequestToIntake(id: number, orgId: number, userId: string) {
+  const result = await db.transaction(async (tx) => {
+    const [request] = await tx.execute(
+      sql`SELECT * FROM ${powerbiIntakeRequests} WHERE ${powerbiIntakeRequests.id} = ${id} AND ${powerbiIntakeRequests.organizationId} = ${orgId} FOR UPDATE`
+    ) as any[];
+
+    if (!request) {
+      throw new Error("Power BI request not found");
+    }
+
+    if (request.project_intake_id) {
+      throw new Error("This request already has a linked project intake");
+    }
+
+    const descriptionParts: string[] = [];
+    if (request.description) descriptionParts.push(request.description);
+    descriptionParts.push(`\n--- Power BI Scoping Details ---`);
+    descriptionParts.push(`Report Type: ${request.report_type || "N/A"}`);
+    if (request.number_of_pages) descriptionParts.push(`Pages: ${request.number_of_pages} main${request.number_of_drill_down_pages ? ` + ${request.number_of_drill_down_pages} drill-down` : ""}`);
+    if (request.number_of_data_sources) descriptionParts.push(`Data Sources (${request.number_of_data_sources}): ${request.data_sources || "N/A"}`);
+    if (request.integrations) descriptionParts.push(`Integrations: ${request.integrations}`);
+    if (request.calculation_complexity) descriptionParts.push(`Calculation Complexity: ${request.calculation_complexity}`);
+    if (request.refresh_frequency) descriptionParts.push(`Refresh Frequency: ${request.refresh_frequency}`);
+    if (request.filters_and_slicers) descriptionParts.push(`Filters & Slicers: ${request.filters_and_slicers}`);
+    if (request.visual_requirements) descriptionParts.push(`Visual/UX Requirements: ${request.visual_requirements}`);
+    if (request.security_requirements) descriptionParts.push(`Security / RLS: ${request.security_requirements}`);
+    if (request.target_delivery_date) descriptionParts.push(`Target Delivery: ${request.target_delivery_date}`);
+    if (request.additional_notes) descriptionParts.push(`Additional Notes: ${request.additional_notes}`);
+    descriptionParts.push(`\nPower BI Request Ref: ${request.request_number}`);
+
+    const effortBreakdown = request.effort_breakdown as Record<string, number> | null;
+    const resourceReqs = request.estimated_effort_hours
+      ? `Estimated effort: ${request.estimated_effort_hours} hours${effortBreakdown ? "\n" + Object.entries(effortBreakdown).map(([k, v]) => `${k}: ${v}h`).join("\n") : ""}`
+      : null;
+
+    const year = new Date().getFullYear();
+    const existingCount = await tx.select({ count: sql<number>`count(*)` })
+      .from(projectIntakes)
+      .where(sql`EXTRACT(YEAR FROM ${projectIntakes.createdAt}) = ${year}`);
+    const intakeSeq = Number(existingCount[0]?.count || 0) + 1;
+    const intakeNumber = `INT-${year}-${String(intakeSeq).padStart(3, '0')}`;
+
+    const [projectIntake] = await tx.insert(projectIntakes).values({
+      organizationId: orgId,
+      intakeNumber,
+      projectName: request.report_name || "Untitled Power BI Report",
+      submitterId: userId,
+      description: descriptionParts.join("\n"),
+      status: "draft",
+      currentStep: "intake_capture",
+      resourceRequirements: resourceReqs,
+      implementationTimeline: request.target_delivery_date || null,
+    }).returning();
+
+    await tx.update(powerbiIntakeRequests)
+      .set({ projectIntakeId: projectIntake.id })
+      .where(eq(powerbiIntakeRequests.id, id));
+
+    console.log(`[PowerBI Agent] Converted PBI request ${request.request_number} -> intake ${projectIntake.intakeNumber}`);
+
+    return projectIntake;
+  });
+
+  return result;
+}
+
+export async function deletePowerBIIntakeRequest(id: number, orgId: number) {
+  const [request] = await db.select().from(powerbiIntakeRequests)
+    .where(and(eq(powerbiIntakeRequests.id, id), eq(powerbiIntakeRequests.organizationId, orgId)));
+
+  if (!request) {
+    throw new Error("Power BI request not found");
+  }
+
+  await db.delete(powerbiIntakeRequests)
+    .where(and(eq(powerbiIntakeRequests.id, id), eq(powerbiIntakeRequests.organizationId, orgId)));
+
+  console.log(`[PowerBI Agent] Deleted PBI request ${request.requestNumber} (id: ${id})`);
   return request;
 }

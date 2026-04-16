@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { z } from "zod";
-import { streamPowerBIAgentResponse, getPowerBIIntakeRequests, getPowerBIIntakeRequest } from "../services/powerbiAgentService";
+import { streamPowerBIAgentResponse, getPowerBIIntakeRequests, getPowerBIIntakeRequest, convertPowerBIRequestToIntake, deletePowerBIIntakeRequest } from "../services/powerbiAgentService";
 import {
   getUserIdFromRequest,
   getUserOrgIds,
@@ -147,6 +147,85 @@ export function registerPowerBIAgentRoutes(app: Express) {
       res.json(request);
     } catch (err: any) {
       console.error("[PowerBI Agent] Detail error:", err.message);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  apiRoute(app, 'post', '/api/powerbi-agent/requests/:id/convert', {
+    tag: 'Power BI',
+    summary: 'Convert a Power BI request into a regular project intake',
+    responses: { ...r200('Created project intake', { type: 'object' }), ...authRes, ...inputRes, ...stdRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const requestId = Number(req.params.id);
+      const orgId = Number(req.query.organizationId || req.body?.organizationId);
+      if (!orgId || isNaN(orgId)) {
+        return res.status(400).json({ message: "organizationId required" });
+      }
+
+      const userOrgIds = await getUserOrgIds(userId);
+      if (!userOrgIds.includes(orgId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const role = await getUserOrgRole(userId, orgId);
+      if (!role || role === 'team_member') {
+        return res.status(403).json({ message: "Only admins and owners can convert Power BI requests" });
+      }
+
+      const projectIntake = await convertPowerBIRequestToIntake(requestId, orgId, userId);
+      res.json({ success: true, projectIntake });
+    } catch (err: any) {
+      console.error("[PowerBI Agent] Convert error:", err.message);
+      if (err.message.includes("not found")) {
+        return res.status(404).json({ message: err.message });
+      }
+      if (err.message.includes("already has")) {
+        return res.status(409).json({ message: err.message });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  apiRoute(app, 'delete', '/api/powerbi-agent/requests/:id', {
+    tag: 'Power BI',
+    summary: 'Delete a Power BI intake request',
+    responses: { ...r200('Deleted', { type: 'object' }), ...authRes, ...stdRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const requestId = Number(req.params.id);
+      const orgId = Number(req.query.organizationId);
+      if (!orgId || isNaN(orgId)) {
+        return res.status(400).json({ message: "organizationId query param required" });
+      }
+
+      const userOrgIds = await getUserOrgIds(userId);
+      if (!userOrgIds.includes(orgId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const role = await getUserOrgRole(userId, orgId);
+      if (!role || role === 'team_member') {
+        return res.status(403).json({ message: "Only admins and owners can delete Power BI requests" });
+      }
+
+      await deletePowerBIIntakeRequest(requestId, orgId);
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("[PowerBI Agent] Delete error:", err.message);
+      if (err.message.includes("not found")) {
+        return res.status(404).json({ message: err.message });
+      }
       res.status(500).json({ message: "Internal server error" });
     }
   });

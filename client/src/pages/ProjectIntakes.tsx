@@ -340,6 +340,41 @@ function getPbiStatusBadge(status: string | null) {
 function PowerBIRequestsSection({ organizationId }: { organizationId: number | undefined }) {
   const [pbiSearch, setPbiSearch] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [deleteRequestId, setDeleteRequestId] = useState<number | null>(null);
+  const [convertingId, setConvertingId] = useState<number | null>(null);
+  const { toast } = useToast();
+
+  const deletePbiRequest = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest('DELETE', `/api/powerbi-agent/requests/${id}?organizationId=${organizationId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/powerbi-agent/requests'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/project-intakes'] });
+      toast({ title: "Deleted", description: "Power BI request has been removed." });
+      setDeleteRequestId(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
+
+  const convertPbiRequest = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest('POST', `/api/powerbi-agent/requests/${id}/convert?organizationId=${organizationId}`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/powerbi-agent/requests'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/project-intakes'] });
+      toast({ title: "Converted", description: `Project intake ${data.projectIntake?.intakeNumber || ''} has been created.` });
+      setConvertingId(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+      setConvertingId(null);
+    }
+  });
 
   const { data: pbiRequests, isLoading: pbiLoading, isError: pbiError, refetch: pbiRefetch } = useQuery<PowerBIIntakeRequest[]>({
     queryKey: ['/api/powerbi-agent/requests', organizationId],
@@ -521,6 +556,43 @@ function PowerBIRequestsSection({ organizationId }: { organizationId: number | u
                         <p className="text-lg font-bold text-foreground">{req.estimatedEffortHours}h</p>
                       </div>
                     )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                        {!req.projectIntakeId && (
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setConvertingId(req.id);
+                              convertPbiRequest.mutate(req.id);
+                            }}
+                            disabled={convertPbiRequest.isPending}
+                          >
+                            <FileInput className="h-4 w-4 mr-2" />
+                            Convert to Project Intake
+                          </DropdownMenuItem>
+                        )}
+                        {req.projectIntakeId && (
+                          <DropdownMenuItem asChild>
+                            <Link href={`/intakes/${req.projectIntakeId}`}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              View Linked Intake
+                            </Link>
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => setDeleteRequestId(req.id)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete Request
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <ChevronRight className={cn(
                       "h-5 w-5 text-muted-foreground transition-transform",
                       expandedId === req.id && "rotate-90"
@@ -613,6 +685,32 @@ function PowerBIRequestsSection({ organizationId }: { organizationId: number | u
           ))}
         </div>
       )}
+
+      <Dialog open={deleteRequestId !== null} onOpenChange={(open) => { if (!open) setDeleteRequestId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Power BI Request</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete this Power BI request? This action cannot be undone.
+            {pbiList.find(r => r.id === deleteRequestId)?.projectIntakeId && (
+              <span className="block mt-2 text-amber-600 dark:text-amber-400 font-medium">
+                Note: The linked project intake will not be deleted.
+              </span>
+            )}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteRequestId(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteRequestId && deletePbiRequest.mutate(deleteRequestId)}
+              disabled={deletePbiRequest.isPending}
+            >
+              {deletePbiRequest.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
