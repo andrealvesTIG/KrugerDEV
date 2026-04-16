@@ -1579,14 +1579,14 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleZoomIn} title="Zoom in" data-testid="button-zoom-in">
             <ZoomIn className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="sm" className="h-8" onClick={handleAutofit} title="Autofit to data range" data-testid="button-autofit">
-            <Maximize2 className="h-4 w-4 mr-1" />
-            <span className="hidden sm:inline">Autofit</span>
+          <Button variant="outline" size="icon" className="h-8 w-8 sm:w-auto sm:px-3" onClick={handleAutofit} title="Autofit to data range" data-testid="button-autofit">
+            <Maximize2 className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline text-xs">Autofit</span>
           </Button>
           {todayIndex >= 0 && (
-            <Button variant="outline" size="sm" className="h-8" onClick={scrollToToday} title="Scroll to today" data-testid="button-scroll-today">
-              <CircleDot className="h-4 w-4 mr-1" />
-              <span className="hidden sm:inline">Today</span>
+            <Button variant="outline" size="icon" className="h-8 w-8 sm:w-auto sm:px-3" onClick={scrollToToday} title="Scroll to today" data-testid="button-scroll-today">
+              <CircleDot className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline text-xs">Today</span>
             </Button>
           )}
         </div>

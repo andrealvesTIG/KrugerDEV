@@ -3744,9 +3744,9 @@ function ProjectTeamTab({
                   <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleTeamZoomIn} title="Zoom in">
                     <ZoomIn className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm" className="h-8" onClick={handleTeamAutofit} title="Autofit to data range">
-                    <Maximize2 className="h-4 w-4 mr-1" />
-                    <span className="hidden sm:inline">Autofit</span>
+                  <Button variant="outline" size="icon" className="h-8 w-8 sm:w-auto sm:px-3" onClick={handleTeamAutofit} title="Autofit to data range">
+                    <Maximize2 className="h-4 w-4 sm:mr-1" />
+                    <span className="hidden sm:inline text-xs">Autofit</span>
                   </Button>
                 </div>
               </div>
