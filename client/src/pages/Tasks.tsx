@@ -1303,22 +1303,22 @@ function GroupedTasksView({
                     <FolderKanban className="h-4 w-4 text-primary" />
                   )}
                 </div>
-                <CardTitle className="text-base leading-snug flex-1" title={group.name}>{group.name}</CardTitle>
+                <CardTitle className="text-base leading-snug flex-1 flex items-baseline gap-2 flex-wrap" title={group.name}>
+                  <span>{group.name}</span>
+                  {group.icon === "project" && group.projectId && (
+                    <Link
+                      href={`/projects/${group.projectId}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-[11px] font-normal text-muted-foreground hover:text-primary hover:underline"
+                    >
+                      View project
+                    </Link>
+                  )}
+                </CardTitle>
                 <Badge variant="secondary" className="flex-shrink-0 mt-0.5">
                   {group.tasks.length} {group.tasks.length === 1 ? "task" : "tasks"}
                 </Badge>
               </div>
-              {group.icon === "project" && group.projectId && (
-                <div className="ml-[40px] flex items-center gap-2 flex-wrap">
-                  <Link
-                    href={`/projects/${group.projectId}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-[11px] text-muted-foreground hover:text-primary hover:underline w-fit"
-                  >
-                    View project
-                  </Link>
-                </div>
-              )}
             </div>
           </CardHeader>
           {expandedGroups.has(group.id) && (
