@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, Search, Users, Pencil, Trash2, DollarSign, MoreVertical, Download, Upload, GitMerge, ArrowRight, Check, ExternalLink, ClipboardList, ChevronDown, ChevronRight, FolderKanban, Building2, Layers, Wrench, Calendar, Clock, Percent, FileText, Target, ListTodo, User, Grid3X3, LayoutList, ZoomIn, ZoomOut, Maximize2, BarChart3, TrendingUp, CalendarDays, Sparkles, AlertTriangle, Lightbulb, ArrowUpDown, Loader2, RefreshCw, CircleDot } from "lucide-react";
 import CapacityPlanningView from "@/components/resources/CapacityPlanningView";
 import WorkloadDashboard from "@/components/resources/WorkloadDashboard";
@@ -1579,10 +1580,19 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleZoomIn} title="Zoom in" data-testid="button-zoom-in">
             <ZoomIn className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" className="h-8 w-8 sm:w-auto sm:px-3" onClick={handleAutofit} title="Autofit to data range" data-testid="button-autofit">
-            <Maximize2 className="h-4 w-4 sm:mr-1" />
-            <span className="hidden sm:inline text-xs">Autofit</span>
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" className="h-8 w-8 sm:w-auto sm:px-3" onClick={handleAutofit} data-testid="button-autofit">
+                  <Maximize2 className="h-4 w-4 sm:mr-1" />
+                  <span className="hidden sm:inline text-xs">Autofit</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Automatically adjust the date range to fit all assignments</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {todayIndex >= 0 && (
             <Button variant="outline" size="icon" className="h-8 w-8 sm:w-auto sm:px-3" onClick={scrollToToday} title="Scroll to today" data-testid="button-scroll-today">
               <CircleDot className="h-4 w-4 sm:mr-1" />
