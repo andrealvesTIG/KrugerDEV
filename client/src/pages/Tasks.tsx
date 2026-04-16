@@ -1308,44 +1308,55 @@ function GroupedTasksView({
                   {group.tasks.length} {group.tasks.length === 1 ? "task" : "tasks"}
                 </Badge>
               </div>
-              {group.source && group.icon === "project" && group.projectId && (
-                <Link
-                  href={`/projects/${group.projectId}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="ml-[40px] w-fit"
-                >
-                  <Badge 
-                    variant="outline" 
-                    className={cn(
-                      "text-xs gap-1 cursor-pointer hover:opacity-80 transition-opacity",
-                      group.source === "planner" && "border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-300",
-                      group.source === "planner_premium" && "border-purple-300 text-purple-700 dark:border-purple-700 dark:text-purple-300",
-                      group.source === "imported" && "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300"
-                    )}
+              {group.icon === "project" && group.projectId && (
+                <div className="ml-[40px] flex items-center gap-2 flex-wrap">
+                  <Link
+                    href={`/projects/${group.projectId}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-fit"
                   >
-                    {group.source === "planner" && (
-                      <>
-                        <img src={plannerLogoPath} alt="Planner" className="h-3 w-3" />
-                        <Cloud className="h-2.5 w-2.5 text-indigo-500" />
-                        Planner
-                      </>
-                    )}
-                    {group.source === "planner_premium" && (
-                      <>
-                        <img src={plannerLogoPath} alt="Planner Premium" className="h-3 w-3" />
-                        <Crown className="h-2.5 w-2.5 text-purple-500" />
-                        Premium
-                      </>
-                    )}
-                    {group.source === "imported" && (
-                      <>
-                        <img src={msprojectLogoPath} alt="MS Project" className="h-3 w-3" />
-                        <FileSpreadsheet className="h-2.5 w-2.5 text-emerald-500" />
-                        MS Project
-                      </>
-                    )}
-                  </Badge>
-                </Link>
+                    <Badge 
+                      variant="outline" 
+                      className="text-xs gap-1 cursor-pointer hover:bg-muted transition-colors"
+                    >
+                      <FolderKanban className="h-2.5 w-2.5" />
+                      View Project
+                    </Badge>
+                  </Link>
+                  {group.source && (
+                    <Badge 
+                      variant="outline" 
+                      className={cn(
+                        "text-xs gap-1",
+                        group.source === "planner" && "border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-300",
+                        group.source === "planner_premium" && "border-purple-300 text-purple-700 dark:border-purple-700 dark:text-purple-300",
+                        group.source === "imported" && "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300"
+                      )}
+                    >
+                      {group.source === "planner" && (
+                        <>
+                          <img src={plannerLogoPath} alt="Planner" className="h-3 w-3" />
+                          <Cloud className="h-2.5 w-2.5 text-indigo-500" />
+                          Planner
+                        </>
+                      )}
+                      {group.source === "planner_premium" && (
+                        <>
+                          <img src={plannerLogoPath} alt="Planner Premium" className="h-3 w-3" />
+                          <Crown className="h-2.5 w-2.5 text-purple-500" />
+                          Premium
+                        </>
+                      )}
+                      {group.source === "imported" && (
+                        <>
+                          <img src={msprojectLogoPath} alt="MS Project" className="h-3 w-3" />
+                          <FileSpreadsheet className="h-2.5 w-2.5 text-emerald-500" />
+                          MS Project
+                        </>
+                      )}
+                    </Badge>
+                  )}
+                </div>
               )}
             </div>
           </CardHeader>
