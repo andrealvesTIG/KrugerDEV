@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "wouter";
-import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen, ChevronsUpDown } from "lucide-react";
+import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen, ChevronsUpDown, BarChart3, Timer } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -295,6 +295,315 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
   );
 }
 
+interface PowerBIIntakeRequest {
+  id: number;
+  organizationId: number;
+  requestNumber: string | null;
+  submittedBy: string | null;
+  status: string | null;
+  reportType: string | null;
+  reportName: string | null;
+  description: string | null;
+  numberOfPages: number | null;
+  numberOfDrillDownPages: number | null;
+  numberOfDataSources: number | null;
+  dataSources: string | null;
+  integrations: string | null;
+  calculationComplexity: string | null;
+  refreshFrequency: string | null;
+  filtersAndSlicers: string | null;
+  visualRequirements: string | null;
+  securityRequirements: string | null;
+  targetDeliveryDate: string | null;
+  additionalNotes: string | null;
+  estimatedEffortHours: number | null;
+  effortBreakdown: Record<string, number> | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+function getPbiStatusBadge(status: string | null) {
+  switch (status) {
+    case "in_progress":
+      return <Badge variant="default" className="bg-blue-500/20 text-blue-700 dark:text-blue-300">In Progress</Badge>;
+    case "completed":
+      return <Badge variant="default" className="bg-green-500/20 text-green-700 dark:text-green-300">Completed</Badge>;
+    case "cancelled":
+      return <Badge variant="default" className="bg-destructive/20 text-destructive">Cancelled</Badge>;
+    case "new":
+    default:
+      return <Badge variant="default" className="bg-orange-500/20 text-orange-700 dark:text-orange-300">New</Badge>;
+  }
+}
+
+function PowerBIRequestsSection({ organizationId }: { organizationId: number | undefined }) {
+  const [pbiSearch, setPbiSearch] = useState("");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const { data: pbiRequests, isLoading: pbiLoading, isError: pbiError, refetch: pbiRefetch } = useQuery<PowerBIIntakeRequest[]>({
+    queryKey: ['/api/powerbi-agent/requests', organizationId],
+    queryFn: async () => {
+      const res = await fetch(`/api/powerbi-agent/requests?organizationId=${organizationId}`);
+      if (!res.ok) throw new Error('Failed to fetch Power BI requests');
+      return res.json();
+    },
+    enabled: !!organizationId,
+  });
+
+  const pbiList = Array.isArray(pbiRequests) ? pbiRequests : [];
+  const filteredPbi = pbiList.filter(r =>
+    normalizeSearch(r.reportName || "").includes(normalizeSearch(pbiSearch)) ||
+    normalizeSearch(r.requestNumber || "").includes(normalizeSearch(pbiSearch))
+  );
+
+  if (pbiLoading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if (pbiError) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <AlertCircle className="h-12 w-12 text-destructive/50 mb-4" />
+          <h3 className="text-lg font-medium mb-1">Failed to load Power BI requests</h3>
+          <p className="text-sm text-muted-foreground mb-4">There was a problem fetching the data. Please try again.</p>
+          <Button variant="outline" onClick={() => pbiRefetch()}>Retry</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-orange-500/10">
+                <BarChart3 className="h-5 w-5 text-orange-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{pbiList.length}</p>
+                <p className="text-xs text-muted-foreground">Total Requests</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/10">
+                <Clock className="h-5 w-5 text-blue-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{pbiList.filter(r => r.status === "new").length}</p>
+                <p className="text-xs text-muted-foreground">Pending Review</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-muted">
+                <Timer className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">
+                  {pbiList.reduce((sum, r) => sum + (r.estimatedEffortHours || 0), 0)}h
+                </p>
+                <p className="text-xs text-muted-foreground">Total Est. Effort</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex flex-col gap-4 sm:flex-row bg-card p-4 rounded-xl border border-border shadow-sm">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-10 border-border"
+            placeholder="Search Power BI requests..."
+            value={pbiSearch}
+            onChange={(e) => setPbiSearch(e.target.value)}
+          />
+        </div>
+        <Link href="/powerbi-agent">
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            New Power BI Request
+          </Button>
+        </Link>
+      </div>
+
+      {filteredPbi.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <BarChart3 className="h-12 w-12 text-muted-foreground/50 mb-4" />
+            <h3 className="text-lg font-medium mb-1">No Power BI requests found</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {pbiSearch ? "Try adjusting your search" : "Use the Power BI Agent to submit a new request"}
+            </p>
+            {!pbiSearch && (
+              <Link href="/powerbi-agent">
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Request
+                </Button>
+              </Link>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {filteredPbi.map((req, index) => (
+            <motion.div
+              key={req.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.05 }}
+            >
+              <div
+                className="group relative flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-sm hover:shadow-xl hover:border-orange-500/30 transition-all duration-300 cursor-pointer"
+                onClick={() => setExpandedId(expandedId === req.id ? null : req.id)}
+              >
+                <div className={cn(
+                  "absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl transition-all duration-300 group-hover:w-2",
+                  "bg-gradient-to-b from-orange-400 to-amber-600",
+                )} />
+
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 pl-5">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h3 className="text-xl font-bold text-foreground group-hover:text-orange-600 transition-colors truncate">
+                        {req.reportName || "Untitled Report"}
+                      </h3>
+                      {getPbiStatusBadge(req.status)}
+                      {req.requestNumber && (
+                        <span className="text-xs text-muted-foreground font-mono">{req.requestNumber}</span>
+                      )}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                      {req.reportType && (
+                        <div className="flex items-center gap-1.5">
+                          <BarChart3 className="h-3.5 w-3.5" />
+                          <span>{req.reportType}</span>
+                        </div>
+                      )}
+                      {req.createdAt && !isNaN(new Date(req.createdAt).getTime()) && (
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5" />
+                          <span>Submitted {format(new Date(req.createdAt), "MMM d, yyyy")}</span>
+                        </div>
+                      )}
+                      {req.numberOfPages && (
+                        <span>{req.numberOfPages} page{req.numberOfPages !== 1 ? "s" : ""}</span>
+                      )}
+                      {req.numberOfDataSources && (
+                        <span>{req.numberOfDataSources} data source{req.numberOfDataSources !== 1 ? "s" : ""}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4 sm:flex-shrink-0">
+                    {req.estimatedEffortHours && (
+                      <div className="text-right">
+                        <div className="flex items-center gap-1.5 justify-end text-muted-foreground mb-0.5">
+                          <Timer className="h-3.5 w-3.5" />
+                          <span className="text-xs font-medium uppercase tracking-wide">Est. Effort</span>
+                        </div>
+                        <p className="text-lg font-bold text-foreground">{req.estimatedEffortHours}h</p>
+                      </div>
+                    )}
+                    <ChevronRight className={cn(
+                      "h-5 w-5 text-muted-foreground transition-transform",
+                      expandedId === req.id && "rotate-90"
+                    )} />
+                  </div>
+                </div>
+
+                {expandedId === req.id && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    transition={{ duration: 0.2 }}
+                    className="pl-5 border-t pt-4 mt-2 space-y-4"
+                  >
+                    {req.description && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Description</p>
+                        <p className="text-sm">{req.description}</p>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {req.dataSources && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Data Sources</p>
+                          <p className="text-sm">{req.dataSources}</p>
+                        </div>
+                      )}
+                      {req.refreshFrequency && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Refresh Frequency</p>
+                          <p className="text-sm">{req.refreshFrequency}</p>
+                        </div>
+                      )}
+                      {req.calculationComplexity && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Complexity</p>
+                          <p className="text-sm">{req.calculationComplexity}</p>
+                        </div>
+                      )}
+                      {req.filtersAndSlicers && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Filters & Slicers</p>
+                          <p className="text-sm">{req.filtersAndSlicers}</p>
+                        </div>
+                      )}
+                      {req.securityRequirements && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Security / RLS</p>
+                          <p className="text-sm">{req.securityRequirements}</p>
+                        </div>
+                      )}
+                      {req.targetDeliveryDate && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Target Delivery</p>
+                          <p className="text-sm">{req.targetDeliveryDate}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {req.effortBreakdown && typeof req.effortBreakdown === "object" && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Effort Breakdown</p>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {Object.entries(req.effortBreakdown).map(([task, hours]) => (
+                            <div key={task} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2">
+                              <span className="text-xs text-muted-foreground">{task}</span>
+                              <span className="text-xs font-semibold ml-2">{hours}h</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ProjectIntakes() {
   const { currentOrganization } = useOrganization();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -303,6 +612,7 @@ export default function ProjectIntakes() {
   const { toast } = useToast();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const [deleteIntakeId, setDeleteIntakeId] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<"project" | "powerbi">("project");
 
   const { data: intakes, isLoading } = useQuery<ProjectIntake[]>({
     queryKey: ['/api/project-intakes', currentOrganization?.id],
@@ -351,6 +661,17 @@ export default function ProjectIntakes() {
     return step?.label || "Unknown";
   };
 
+  const { data: pbiCount } = useQuery<PowerBIIntakeRequest[]>({
+    queryKey: ['/api/powerbi-agent/requests', currentOrganization?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/powerbi-agent/requests?organizationId=${currentOrganization?.id}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!currentOrganization?.id,
+  });
+  const pbiTotal = Array.isArray(pbiCount) ? pbiCount.length : 0;
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -358,11 +679,57 @@ export default function ProjectIntakes() {
           <h1 className="text-3xl font-display font-bold text-foreground">Intake Requests</h1>
           <p className="mt-1 text-muted-foreground">Submit and track new requests through the approval workflow.</p>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)} data-testid="button-new-intake">
-          <Plus className="h-4 w-4 mr-2" />
-          New Intake
-        </Button>
+        {activeTab === "project" ? (
+          <Button onClick={() => setIsDialogOpen(true)} data-testid="button-new-intake">
+            <Plus className="h-4 w-4 mr-2" />
+            New Intake
+          </Button>
+        ) : (
+          <Link href="/powerbi-agent">
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              New Power BI Request
+            </Button>
+          </Link>
+        )}
       </div>
+
+      <div className="flex gap-1 bg-muted/50 p-1 rounded-xl w-fit">
+        <button
+          className={cn(
+            "px-4 py-2 rounded-lg text-sm font-medium transition-all",
+            activeTab === "project"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+          onClick={() => setActiveTab("project")}
+        >
+          <div className="flex items-center gap-2">
+            <FileInput className="h-4 w-4" />
+            Project Intakes
+            <Badge variant="secondary" className="text-xs">{intakesList.length}</Badge>
+          </div>
+        </button>
+        <button
+          className={cn(
+            "px-4 py-2 rounded-lg text-sm font-medium transition-all",
+            activeTab === "powerbi"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+          onClick={() => setActiveTab("powerbi")}
+        >
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Power BI Requests
+            {pbiTotal > 0 && <Badge variant="secondary" className="text-xs">{pbiTotal}</Badge>}
+          </div>
+        </button>
+      </div>
+
+      {activeTab === "powerbi" ? (
+        <PowerBIRequestsSection organizationId={currentOrganization?.id} />
+      ) : (<>
 
       {(!portfolios || portfolios.length === 0) && (
         <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-900/20">
@@ -658,6 +1025,7 @@ export default function ProjectIntakes() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </>)}
     </div>
   );
 }
