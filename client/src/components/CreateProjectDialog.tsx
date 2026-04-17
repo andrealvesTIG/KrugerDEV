@@ -64,9 +64,10 @@ interface CreateProjectDialogProps {
   organizationId?: number;
   portfolios?: any[];
   onProjectCreated?: (projectId: number) => void;
+  initialWorkflowId?: number | null;
 }
 
-export function CreateProjectDialog({ open, onOpenChange, organizationId, portfolios: portfoliosProp, onProjectCreated }: CreateProjectDialogProps) {
+export function CreateProjectDialog({ open, onOpenChange, organizationId, portfolios: portfoliosProp, onProjectCreated, initialWorkflowId }: CreateProjectDialogProps) {
   const { toast } = useToast();
   const createMutation = useCreateProject();
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
@@ -263,12 +264,21 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
     }
   }, [organizationId, form]);
 
+  const workflowInitializedRef = useRef(false);
   useEffect(() => {
-    if (!form.getValues("workflowId") && projectWorkflows.length > 0) {
+    if (!open) {
+      workflowInitializedRef.current = false;
+      return;
+    }
+    if (workflowInitializedRef.current || projectWorkflows.length === 0) return;
+    if (initialWorkflowId != null && projectWorkflows.some(w => w.id === initialWorkflowId)) {
+      form.setValue("workflowId", initialWorkflowId);
+    } else {
       const def = projectWorkflows.find(w => w.isDefault) || projectWorkflows[0];
       form.setValue("workflowId", def.id);
     }
-  }, [projectWorkflows, form]);
+    workflowInitializedRef.current = true;
+  }, [open, initialWorkflowId, projectWorkflows, form]);
 
   const onSubmit = (data: InsertProject) => {
     const cleanedData = {

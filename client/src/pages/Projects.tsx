@@ -1065,6 +1065,11 @@ export default function Projects() {
   };
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [pendingWorkflowId, setPendingWorkflowId] = useState<number | null>(null);
+  const openCreateProject = (workflowId: number | null) => {
+    setPendingWorkflowId(workflowId);
+    setIsDialogOpen(true);
+  };
   const [search, setSearch] = useState("");
   
   // Check if user is admin for current organization
@@ -1636,19 +1641,57 @@ export default function Projects() {
             <Download className="mr-2 h-4 w-4" />
             Export
           </Button>
-          <Button
-            className="shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all"
-            onClick={() => setIsDialogOpen(true)}
-            data-testid="button-new-project"
-          >
-            <Plus className="mr-2 h-4 w-4" /> New Project
-          </Button>
+          {outerProjectWorkflows.length > 1 ? (
+            <div className="flex">
+              <Button
+                className="shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all rounded-r-none"
+                onClick={() => openCreateProject(null)}
+                data-testid="button-new-project"
+              >
+                <Plus className="mr-2 h-4 w-4" /> New Project
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    className="shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all rounded-l-none border-l border-primary-foreground/20 px-2"
+                    data-testid="button-new-project-workflow-menu"
+                    aria-label="Choose workflow"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {outerProjectWorkflows.filter(w => w.isActive !== false).map(w => (
+                    <DropdownMenuItem
+                      key={w.id}
+                      onSelect={() => openCreateProject(w.id)}
+                      data-testid={`menu-new-project-workflow-${w.id}`}
+                    >
+                      {w.name}{w.isDefault ? " (Default)" : ""}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ) : (
+            <Button
+              className="shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all"
+              onClick={() => openCreateProject(null)}
+              data-testid="button-new-project"
+            >
+              <Plus className="mr-2 h-4 w-4" /> New Project
+            </Button>
+          )}
           <CreateProjectDialog
             open={isDialogOpen}
-            onOpenChange={setIsDialogOpen}
+            onOpenChange={(o) => {
+              setIsDialogOpen(o);
+              if (!o) setPendingWorkflowId(null);
+            }}
             portfolios={portfolios || []}
             organizationId={currentOrganization?.id}
             onProjectCreated={(projectId) => navigate(`/projects/${projectId}`)}
+            initialWorkflowId={pendingWorkflowId}
           />
         </div>
       </FadeIn>
