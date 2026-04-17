@@ -1264,17 +1264,6 @@ export default function ProjectDetails() {
             )}>
               {project.health} Health
             </Badge>
-            {projectWorkflowName && (
-              <Badge
-                variant="outline"
-                className="text-sm px-3 py-1 gap-1.5"
-                data-testid="badge-project-workflow"
-                title={`Workflow: ${projectWorkflowName}`}
-              >
-                <GitBranch className="h-3 w-3" />
-                {projectWorkflowName}
-              </Badge>
-            )}
             {headerProjectRiskBadge && (
               <Badge
                 variant="secondary"
@@ -1467,6 +1456,16 @@ export default function ProjectDetails() {
                 {sectionsCollapsed.workflow ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 <GitBranch className="h-4 w-4" />
                 Project Workflow
+                {projectWorkflowName && (
+                  <Badge
+                    variant="outline"
+                    className="text-xs ml-1 font-normal"
+                    data-testid="badge-project-workflow"
+                    title={`Workflow: ${projectWorkflowName}`}
+                  >
+                    {projectWorkflowName}
+                  </Badge>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <DropdownMenu>
