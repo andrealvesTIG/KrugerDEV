@@ -1472,15 +1472,28 @@ export default function ProjectDetails() {
                 <Badge variant="outline" className="text-xs">
                   {project.status}
                 </Badge>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7"
-                  onClick={(e) => { e.stopPropagation(); setIsChangeWorkflowOpen(true); }}
-                  data-testid="button-change-workflow"
-                >
-                  Change workflow…
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={(e) => e.stopPropagation()}
+                      data-testid="button-workflow-menu"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenuItem
+                      onSelect={() => setIsChangeWorkflowOpen(true)}
+                      data-testid="menu-change-workflow"
+                    >
+                      <GitBranch className="h-4 w-4 mr-2" />
+                      Change workflow…
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           </CollapsibleTrigger>
