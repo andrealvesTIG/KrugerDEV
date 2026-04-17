@@ -8,6 +8,8 @@ import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskNotesHistory } from "@/hooks/use-tasks";
 import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
+import { useCustomFieldDefinitions, useTaskCustomFieldValues, useUpdateTaskCustomFieldValue } from "@/hooks/use-custom-fields";
+import type { CustomFieldDefinition } from "@shared/schema";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { useSidebarState } from "@/components/layout/Sidebar";
@@ -149,6 +151,166 @@ function NotesHistorySection({ taskId, onRestore, readOnly }: { taskId: number; 
   );
 }
 
+function TaskCustomFieldsSection({
+  taskId,
+  defs,
+  readOnly,
+}: {
+  taskId: number;
+  defs: CustomFieldDefinition[];
+  readOnly: boolean;
+}) {
+  const { data: values = [] } = useTaskCustomFieldValues(taskId);
+  const updateValue = useUpdateTaskCustomFieldValue();
+  const [localValues, setLocalValues] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    const map: Record<number, string> = {};
+    for (const v of values) {
+      map[v.fieldDefinitionId] = (v.value as string) ?? "";
+    }
+    setLocalValues(map);
+  }, [values]);
+
+  const setVal = (fieldId: number, val: string) => {
+    setLocalValues(prev => ({ ...prev, [fieldId]: val }));
+  };
+
+  const persist = (fieldId: number, val: string) => {
+    updateValue.mutate({ taskId, fieldDefinitionId: fieldId, value: val === "" ? null : val });
+  };
+
+  if (defs.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No task custom fields have been configured. Add them in Organization Settings &rarr; Custom Fields.
+      </p>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {defs.map(field => {
+        const value = localValues[field.id] ?? "";
+        const fieldId = `cf-task-${field.id}`;
+        const opts = (field.options as string[] | null | undefined) ?? [];
+        return (
+          <div key={field.id} className="space-y-2">
+            <Label htmlFor={fieldId}>
+              {field.name}
+              {field.isRequired && <span className="text-red-500 ml-1">*</span>}
+            </Label>
+            {field.fieldType === "checkbox" ? (
+              <div className="flex items-center h-10">
+                <Checkbox
+                  id={fieldId}
+                  checked={value === "true"}
+                  disabled={readOnly}
+                  onCheckedChange={(checked) => {
+                    const next = checked ? "true" : "false";
+                    setVal(field.id, next);
+                    persist(field.id, next);
+                  }}
+                  data-testid={`input-cf-${field.id}`}
+                />
+              </div>
+            ) : field.fieldType === "select" ? (
+              <Select
+                value={value}
+                disabled={readOnly}
+                onValueChange={(v) => { setVal(field.id, v); persist(field.id, v); }}
+              >
+                <SelectTrigger id={fieldId} data-testid={`input-cf-${field.id}`}>
+                  <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {opts.map(opt => (
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : field.fieldType === "multiselect" ? (
+              <div className="flex flex-wrap gap-1.5" data-testid={`input-cf-${field.id}`}>
+                {opts.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No options configured.</p>
+                ) : opts.map(opt => {
+                  const selected = value ? value.split(',').map(s => s.trim()).includes(opt) : false;
+                  return (
+                    <Badge
+                      key={opt}
+                      variant={selected ? "default" : "outline"}
+                      className={cn("cursor-pointer", readOnly && "pointer-events-none opacity-60")}
+                      onClick={() => {
+                        if (readOnly) return;
+                        const current = value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
+                        const next = current.includes(opt)
+                          ? current.filter(o => o !== opt)
+                          : [...current, opt];
+                        const joined = next.join(',');
+                        setVal(field.id, joined);
+                        persist(field.id, joined);
+                      }}
+                    >
+                      {opt}
+                    </Badge>
+                  );
+                })}
+              </div>
+            ) : field.fieldType === "date" ? (
+              <Input
+                id={fieldId}
+                type="date"
+                value={value}
+                disabled={readOnly}
+                onChange={(e) => setVal(field.id, e.target.value)}
+                onBlur={(e) => persist(field.id, e.target.value)}
+                data-testid={`input-cf-${field.id}`}
+              />
+            ) : field.fieldType === "number" ? (
+              <Input
+                id={fieldId}
+                type="number"
+                value={value}
+                disabled={readOnly}
+                onChange={(e) => setVal(field.id, e.target.value)}
+                onBlur={(e) => persist(field.id, e.target.value)}
+                data-testid={`input-cf-${field.id}`}
+              />
+            ) : field.fieldType === "url" ? (
+              <Input
+                id={fieldId}
+                type="url"
+                placeholder="https://..."
+                value={value}
+                disabled={readOnly}
+                onChange={(e) => setVal(field.id, e.target.value)}
+                onBlur={(e) => persist(field.id, e.target.value)}
+                data-testid={`input-cf-${field.id}`}
+              />
+            ) : (
+              <Input
+                id={fieldId}
+                type="text"
+                value={value}
+                disabled={readOnly}
+                onChange={(e) => setVal(field.id, e.target.value)}
+                onBlur={(e) => persist(field.id, e.target.value)}
+                data-testid={`input-cf-${field.id}`}
+              />
+            )}
+            {field.description && (
+              <p className="text-xs text-muted-foreground">{field.description}</p>
+            )}
+          </div>
+        );
+      })}
+      <p className="col-span-full text-xs text-muted-foreground">
+        Changes save automatically when you tab out or pick a value.
+      </p>
+    </div>
+  );
+}
+
 function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId, sourceFileName, sourceFileUrl, dataverseOrgId, dataverseTenantId, urlTaskId, readOnly = false, projectUpdatedAt }: { 
   projectId: number; 
   projectName?: string; 
@@ -168,6 +330,12 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const { data: tasks, isLoading, refetch: refetchTasks } = useTasks(projectId);
   const { data: resources } = useResources(currentOrganization?.id ?? null);
   const { data: allTaskAssignments } = useAllTaskResourceAssignments(currentOrganization?.id ?? null);
+  const { data: allCustomFieldDefs = [] } = useCustomFieldDefinitions(currentOrganization?.id ?? null);
+  const taskCustomFieldDefs = useMemo(
+    () => allCustomFieldDefs.filter((d: CustomFieldDefinition) => d.entityType === 'task'),
+    [allCustomFieldDefs]
+  );
+  const updateTaskCustomFieldValue = useUpdateTaskCustomFieldValue();
 
   const teamResources = useMemo(() => {
     if (!resources) return [];
@@ -1099,12 +1267,15 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               
               {/* Tabbed content */}
               <Tabs value={activeDialogTab} onValueChange={setActiveDialogTab} className="flex-1 flex flex-col min-h-0">
-                <TabsList className="grid w-full grid-cols-5">
+                <TabsList className={cn("grid w-full", taskCustomFieldDefs.length > 0 ? "grid-cols-6" : "grid-cols-5")}>
                   <TabsTrigger value="details" className="text-xs">Details</TabsTrigger>
                   <TabsTrigger value="schedule" className="text-xs">Schedule</TabsTrigger>
                   <TabsTrigger value="resources" className="text-xs">Resources</TabsTrigger>
                   <TabsTrigger value="dependencies" className="text-xs" disabled={!editingTask || isOngoingTask}>Dependencies</TabsTrigger>
                   <TabsTrigger value="notes" className="text-xs">Notes</TabsTrigger>
+                  {taskCustomFieldDefs.length > 0 && (
+                    <TabsTrigger value="custom-fields" className="text-xs">Custom Fields</TabsTrigger>
+                  )}
                 </TabsList>
                 
                 <div className="flex-1 overflow-y-auto py-4 min-h-[280px]">
@@ -1469,6 +1640,23 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                       />
                     )}
                   </TabsContent>
+
+                  {/* Custom Fields Tab */}
+                  {taskCustomFieldDefs.length > 0 && (
+                    <TabsContent value="custom-fields" className="mt-0 space-y-4">
+                      {editingTask ? (
+                        <TaskCustomFieldsSection
+                          taskId={editingTask.id}
+                          defs={taskCustomFieldDefs}
+                          readOnly={readOnly}
+                        />
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          Save the task first to set values for custom fields.
+                        </p>
+                      )}
+                    </TabsContent>
+                  )}
                 </div>
               </Tabs>
               
