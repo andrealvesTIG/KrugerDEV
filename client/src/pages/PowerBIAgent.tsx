@@ -6,8 +6,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Send, Square, Trash2, BarChart3, User, Sparkles,
   FileBarChart, Database, Shield, Clock, Filter, Palette, CalendarDays,
-  HelpCircle,
+  HelpCircle, Mic, MicOff,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -162,9 +163,111 @@ function MessageBubble({ message }: { message: PowerBIAgentMessage }) {
 
 export default function PowerBIAgent() {
   const { messages, isLoading, sendMessage, clearMessages, stopGeneration } = usePowerBIAgent();
+  const { toast } = useToast();
   const [input, setInput] = useState("");
+  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const baseInputRef = useRef<string>("");
+
+  const SpeechRecognitionCtor =
+    typeof window !== "undefined"
+      ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+      : null;
+  const speechSupported = !!SpeechRecognitionCtor;
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch {}
+      }
+    };
+  }, []);
+
+  const toggleVoiceInput = useCallback(() => {
+    if (!speechSupported) {
+      toast({
+        title: "Voice input not supported",
+        description: "Your browser doesn't support speech recognition. Try Chrome, Edge, or Safari.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isListening) {
+      try { recognitionRef.current?.stop(); } catch {}
+      return;
+    }
+
+    const recognition = new SpeechRecognitionCtor();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = navigator.language || "en-US";
+
+    baseInputRef.current = input ? input.trimEnd() + (input.trimEnd() ? " " : "") : "";
+
+    recognition.onresult = (event: any) => {
+      let finalTranscript = "";
+      let interimTranscript = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript;
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+      if (finalTranscript) {
+        baseInputRef.current = (baseInputRef.current + finalTranscript).replace(/\s+/g, " ");
+        if (!baseInputRef.current.endsWith(" ")) baseInputRef.current += " ";
+      }
+      const next = (baseInputRef.current + interimTranscript).trimStart();
+      setInput(next);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+        textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + "px";
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      setIsListening(false);
+      recognitionRef.current = null;
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        toast({
+          title: "Microphone blocked",
+          description: "Allow microphone access in your browser to use voice input.",
+          variant: "destructive",
+        });
+      } else if (event.error !== "no-speech" && event.error !== "aborted") {
+        toast({
+          title: "Voice input error",
+          description: event.error || "Something went wrong with speech recognition.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+      textareaRef.current?.focus();
+    };
+
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+      setIsListening(true);
+    } catch (err: any) {
+      setIsListening(false);
+      recognitionRef.current = null;
+      toast({
+        title: "Could not start voice input",
+        description: err?.message || "Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [SpeechRecognitionCtor, speechSupported, isListening, input, toast]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -351,11 +454,31 @@ export default function PowerBIAgent() {
               e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Describe the Power BI report you need..."
+            placeholder={isListening ? "Listening… speak now" : "Describe the Power BI report you need..."}
             className="resize-none min-h-[44px] max-h-[120px] rounded-xl"
             rows={1}
             disabled={isLoading}
           />
+          <Button
+            onClick={toggleVoiceInput}
+            disabled={isLoading || !speechSupported}
+            size="icon"
+            variant={isListening ? "default" : "outline"}
+            className={cn(
+              "h-11 w-11 rounded-xl flex-shrink-0",
+              isListening && "bg-red-500 hover:bg-red-600 text-white border-red-500 animate-pulse",
+            )}
+            title={
+              !speechSupported
+                ? "Voice input not supported in this browser"
+                : isListening
+                ? "Stop voice input"
+                : "Start voice input"
+            }
+            data-testid="button-voice-input"
+          >
+            {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+          </Button>
           <Button
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
@@ -366,7 +489,9 @@ export default function PowerBIAgent() {
           </Button>
         </div>
         <p className="text-[10px] text-muted-foreground text-center mt-2">
-          This agent captures your requirements — the team will follow up with a quote and timeline.
+          {isListening
+            ? "Listening… click the mic again to stop."
+            : "This agent captures your requirements — the team will follow up with a quote and timeline."}
         </p>
       </div>
     </div>
