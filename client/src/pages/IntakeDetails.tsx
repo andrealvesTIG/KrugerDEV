@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useOrganization } from "@/hooks/use-organization";
 import { usePortfolios } from "@/hooks/use-portfolios";
-import { useIntakeWorkflow, AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
+import { useIntakeWorkflow, useIntakeWorkflows, AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -93,6 +93,15 @@ export default function IntakeDetails() {
   });
 
   const { steps: workflowSteps, isLoading: workflowLoading, getStepByKey, getStepIndex, isFieldRequired } = useIntakeWorkflow(intake?.workflowId ?? null);
+  const { workflows: allIntakeWorkflows } = useIntakeWorkflows();
+  const activeIntakeWorkflowName = (() => {
+    if (!allIntakeWorkflows || allIntakeWorkflows.length === 0) return null;
+    if (intake?.workflowId == null) {
+      const def = allIntakeWorkflows.find(w => w.isDefault);
+      return def?.name || "Default";
+    }
+    return allIntakeWorkflows.find(w => w.id === intake.workflowId)?.name || "Default";
+  })();
 
   const [formData, setFormData] = useState<Partial<ProjectIntake>>({});
 
@@ -280,6 +289,17 @@ export default function IntakeDetails() {
                 <div className="flex items-center gap-3 flex-wrap min-w-0">
                   <h1 className="text-2xl font-display font-bold text-foreground truncate" title={intake.projectName}>{intake.projectName}</h1>
                   {getStatusBadge(intake.status || "draft")}
+                  {activeIntakeWorkflowName && (
+                    <Badge
+                      variant="outline"
+                      className="text-sm px-3 py-1 gap-1.5"
+                      data-testid="badge-intake-workflow"
+                      title={`Workflow: ${activeIntakeWorkflowName}`}
+                    >
+                      <GitBranch className="h-3 w-3" />
+                      {activeIntakeWorkflowName}
+                    </Badge>
+                  )}
                   {intake.intakeNumber && (
                     <span className="text-sm text-muted-foreground font-mono shrink-0">{intake.intakeNumber}</span>
                   )}

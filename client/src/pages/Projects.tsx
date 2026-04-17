@@ -43,7 +43,8 @@ import { useColumnState, sortData, type SortDirection } from "@/hooks/use-column
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { PageTransition, FadeIn } from "@/components/ui/page-transition";
 import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues, useBulkUpdateProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
-import type { CustomFieldDefinition, ProjectCustomFieldValue } from "@shared/schema";
+import { useProjectWorkflows } from "@/hooks/use-project-workflows";
+import type { CustomFieldDefinition, ProjectCustomFieldValue, ProjectWorkflow } from "@shared/schema";
 
 export const DEFAULT_PROJECT_STATUS_LIST = [...PROJECT_STATUSES, "Billing", "Closed"];
 
@@ -194,6 +195,7 @@ const LIST_COLUMNS: ListColumn[] = [
   { id: "startDate", label: "Start Date", width: "100px", align: "right", defaultVisible: false },
   { id: "projectType", label: "Type", width: "100px", defaultVisible: false },
   { id: "methodology", label: "Methodology", width: "100px", defaultVisible: false },
+  { id: "workflow", label: "Workflow", width: "120px", defaultVisible: true },
   { id: "createdAt", label: "Created", width: "100px", align: "right", defaultVisible: false },
   { id: "updatedAt", label: "Updated", width: "100px", align: "right", defaultVisible: false },
   { id: "actions", label: "", width: "40px", alwaysVisible: true, defaultVisible: true },
@@ -244,7 +246,7 @@ function saveListSort(sort: ListSortState | null) {
   try { localStorage.setItem(LIST_SORT_STORAGE_KEY, JSON.stringify(sort)); } catch {}
 }
 
-export type GroupByOption = "none" | "portfolio" | "status" | "priority" | "health" | "projectType" | "methodology" | `cf_${number}`;
+export type GroupByOption = "none" | "portfolio" | "status" | "priority" | "health" | "projectType" | "methodology" | "workflow" | `cf_${number}`;
 
 const GROUP_BY_STANDARD: { value: GroupByOption; label: string }[] = [
   { value: "none", label: "None" },
@@ -254,6 +256,7 @@ const GROUP_BY_STANDARD: { value: GroupByOption; label: string }[] = [
   { value: "health", label: "Health" },
   { value: "projectType", label: "Project Type" },
   { value: "methodology", label: "Methodology" },
+  { value: "workflow", label: "Workflow" },
 ];
 
 interface ProjectsListViewProps {
@@ -310,6 +313,20 @@ export function ProjectsListView({
   statusList = DEFAULT_PROJECT_STATUS_LIST,
 }: ProjectsListViewProps) {
   const PROJECT_STATUS_LIST = statusList;
+  const { workflows: projectWorkflowsList } = useProjectWorkflows();
+  const workflowsById = useMemo(() => {
+    const map = new Map<number, ProjectWorkflow>();
+    (projectWorkflowsList || []).forEach(w => map.set(w.id, w));
+    return map;
+  }, [projectWorkflowsList]);
+  const defaultWorkflowName = useMemo(() => {
+    const def = (projectWorkflowsList || []).find(w => w.isDefault);
+    return def?.name || "Default";
+  }, [projectWorkflowsList]);
+  const getWorkflowName = useCallback((workflowId: number | null | undefined) => {
+    if (workflowId == null) return defaultWorkflowName;
+    return workflowsById.get(workflowId)?.name || defaultWorkflowName;
+  }, [workflowsById, defaultWorkflowName]);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(loadVisibleColumns);
   const [listColumnOrder, setListColumnOrder] = useState<string[]>(loadListColumnOrder);
@@ -391,11 +408,12 @@ export function ProjectsListView({
       case "startDate": return project.startDate ? new Date(project.startDate) : null;
       case "projectType": return (project as any).projectType || "";
       case "methodology": return (project as any).methodology || "";
+      case "workflow": return getWorkflowName(project.workflowId);
       case "createdAt": return project.createdAt ? new Date(project.createdAt) : null;
       case "updatedAt": return (project as any).updatedAt ? new Date((project as any).updatedAt) : null;
       default: return "";
     }
-  }, []);
+  }, [getWorkflowName]);
 
   const sortedProjects = useMemo(() => {
     if (!listSort) return projects;
@@ -469,6 +487,10 @@ export function ProjectsListView({
           if (!m) return { key: "method-unset", label: "No Methodology", sortOrder: 999 };
           return { key: `method-${m}`, label: m, sortOrder: 0 };
         }
+        case "workflow": {
+          const wfName = getWorkflowName(project.workflowId);
+          return { key: `workflow-${project.workflowId ?? "default"}`, label: wfName, sortOrder: 0 };
+        }
         default: {
           if (groupBy.startsWith("cf_")) {
             const defId = parseInt(groupBy.slice(3));
@@ -504,7 +526,7 @@ export function ProjectsListView({
         return a.label.localeCompare(b.label);
       })
       .map(([key, val]) => ({ key, label: val.label, projects: val.projects, meta: val.portfolio }));
-  }, [sortedProjects, portfolios, groupBy, cfValuesMap, customFieldDefs]);
+  }, [sortedProjects, portfolios, groupBy, cfValuesMap, customFieldDefs, getWorkflowName]);
 
   const allCollapsed = groupedProjects.length > 0 && groupedProjects.every(g => collapsedGroups[g.key] === true);
 
@@ -664,6 +686,12 @@ export function ProjectsListView({
           <span className="text-xs text-muted-foreground truncate">
             {(project as any).methodology || '\u2014'}
           </span>
+        );
+      case "workflow":
+        return (
+          <Badge variant="outline" className="text-[11px] font-medium px-2 py-0.5 rounded-md max-w-full" title={getWorkflowName(project.workflowId)}>
+            <span className="truncate">{getWorkflowName(project.workflowId)}</span>
+          </Badge>
         );
       case "createdAt":
         return (
@@ -973,6 +1001,8 @@ export default function Projects() {
   const { user } = useAuth();
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
+  const [workflowFilter, setWorkflowFilter] = useState<string>("all");
+  const { workflows: outerProjectWorkflows } = useProjectWorkflows();
   const [filterView, setFilterView] = useState<ProjectFilterView>("active");
   const [sortBy, setSortBy] = useState<"createdAt" | "startDate" | "updatedAt">("updatedAt");
   const [listGroupBy, setListGroupBy] = useState<GroupByOption>("portfolio");
@@ -1396,6 +1426,9 @@ export default function Projects() {
       // If portfolio is selected, only show org projects from that portfolio
       const matchesPortfolio = selectedPortfolio === "all" || 
         (!(p as any).isExternal && p.portfolioId === parseInt(selectedPortfolio));
+      const matchesWorkflow = workflowFilter === "all" ||
+        (workflowFilter === "default" && (p as any).workflowId == null) ||
+        ((p as any).workflowId != null && (p as any).workflowId === parseInt(workflowFilter));
       
       // Filter view logic - "Closed" is the terminal locked state (not "Closing" which is still active)
       const isClosed = p.status === "Closed";
@@ -1426,7 +1459,7 @@ export default function Projects() {
           break;
       }
       
-      return matchesSearch && matchesSource && matchesPortfolio && matchesFilterView;
+      return matchesSearch && matchesSource && matchesPortfolio && matchesWorkflow && matchesFilterView;
     });
     
     // Then sort (most recent first for all date-based sorts)
@@ -1447,7 +1480,7 @@ export default function Projects() {
       }
       return 0;
     });
-  }, [projects, externalProjects, search, sourceFilter, sortBy, selectedPortfolio, filterView, user?.id]);
+  }, [projects, externalProjects, search, sourceFilter, workflowFilter, sortBy, selectedPortfolio, filterView, user?.id]);
 
   useEffect(() => {
     setListCurrentPage(1);
@@ -1674,6 +1707,22 @@ export default function Projects() {
                       External
                     </span>
                   </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-full sm:w-[180px]">
+              <Select value={workflowFilter} onValueChange={setWorkflowFilter}>
+                <SelectTrigger data-testid="select-workflow-filter">
+                  <SelectValue placeholder="Filter by Workflow" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Workflows</SelectItem>
+                  <SelectItem value="default">Default Workflow</SelectItem>
+                  {(outerProjectWorkflows || []).map(w => (
+                    <SelectItem key={w.id} value={w.id.toString()}>
+                      <div className="truncate max-w-[200px]" title={w.name}>{w.name}</div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -2019,6 +2068,7 @@ const ALL_GRID_COLUMNS: GridColumn[] = [
   { id: "completion", label: "Progress %", defaultVisible: true },
   { id: "projectType", label: "Project Type", defaultVisible: false },
   { id: "methodology", label: "Methodology", defaultVisible: false },
+  { id: "workflow", label: "Workflow", defaultVisible: true },
   { id: "department", label: "Department", defaultVisible: false },
   { id: "category", label: "Category", defaultVisible: false },
   { id: "businessValue", label: "Business Value", defaultVisible: false },
@@ -2221,6 +2271,20 @@ export function ProjectsGridView({
 }) {
   const PROJECT_STATUS_LIST = statusList;
   const { toast } = useToast();
+  const { workflows: projectWorkflowsList } = useProjectWorkflows();
+  const workflowsById = useMemo(() => {
+    const map = new Map<number, ProjectWorkflow>();
+    (projectWorkflowsList || []).forEach(w => map.set(w.id, w));
+    return map;
+  }, [projectWorkflowsList]);
+  const defaultWorkflowName = useMemo(() => {
+    const def = (projectWorkflowsList || []).find(w => w.isDefault);
+    return def?.name || "Default";
+  }, [projectWorkflowsList]);
+  const getWorkflowName = useCallback((workflowId: number | null | undefined) => {
+    if (workflowId == null) return defaultWorkflowName;
+    return workflowsById.get(workflowId)?.name || defaultWorkflowName;
+  }, [workflowsById, defaultWorkflowName]);
   const [visibleColumns, setVisibleColumns] = useState<string[]>(getStoredColumns);
   const [columnOrder, setColumnOrder] = useState<string[]>(getStoredColumnOrder);
   const [selectedProjects, setSelectedProjects] = useState<Set<number>>(new Set());
@@ -2479,6 +2543,10 @@ export function ProjectsGridView({
           if (!m) return { key: "method-unset", label: "No Methodology", sortOrder: 999 };
           return { key: `method-${m}`, label: m, sortOrder: 0 };
         }
+        case "workflow": {
+          const wfName = getWorkflowName(project.workflowId);
+          return { key: `workflow-${project.workflowId ?? "default"}`, label: wfName, sortOrder: 0 };
+        }
         default: {
           if (gridGroupBy.startsWith("cf_")) {
             const defId = parseInt(gridGroupBy.slice(3));
@@ -2515,7 +2583,7 @@ export function ProjectsGridView({
         return a.label.localeCompare(b.label);
       })
       .map(([key, val]) => ({ key, label: val.label, projects: val.projects, meta: val.portfolio }));
-  }, [displayedProjects, portfolios, gridGroupBy, cfValuesMap, projectCustomFields]);
+  }, [displayedProjects, portfolios, gridGroupBy, cfValuesMap, projectCustomFields, getWorkflowName]);
 
   const gridAllGroupsCollapsed = gridGroupedProjects.length > 0 && gridGroupedProjects.every(g => gridCollapsedGroups[g.key] === true);
 
@@ -2992,6 +3060,12 @@ export function ProjectsGridView({
         return <span className="text-sm">{project.projectType || "-"}</span>;
       case "methodology":
         return <span className="text-sm">{project.methodology || "-"}</span>;
+      case "workflow":
+        return (
+          <Badge variant="outline" className="text-[11px] font-medium px-2 py-0.5 rounded-md max-w-full" title={getWorkflowName(project.workflowId)}>
+            <span className="truncate">{getWorkflowName(project.workflowId)}</span>
+          </Badge>
+        );
       case "department":
         return <span className="text-sm">{project.department || "-"}</span>;
       case "category":

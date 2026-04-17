@@ -5,6 +5,7 @@ import { CompactCurrency } from "@/components/CompactCurrency";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import { useRoute, Link } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory, useProjects, useDeleteProject } from "@/hooks/use-projects";
+import { useProjectWorkflows } from "@/hooks/use-project-workflows";
 import { usePortfolios, useCreatePortfolio } from "@/hooks/use-portfolios";
 import { useRisks } from "@/hooks/use-risks";
 import { useIssues } from "@/hooks/use-issues";
@@ -251,6 +252,15 @@ export default function ProjectDetails() {
   const [, params] = useRoute("/projects/:id");
   const id = parseInt(params?.id || "0");
   const { data: project, isLoading, refetch: refetchProject } = useProject(id);
+  const { workflows: detailProjectWorkflows } = useProjectWorkflows();
+  const projectWorkflowName = useMemo(() => {
+    if (!detailProjectWorkflows || detailProjectWorkflows.length === 0) return null;
+    if (project?.workflowId == null) {
+      const def = detailProjectWorkflows.find(w => w.isDefault);
+      return def?.name || "Default";
+    }
+    return detailProjectWorkflows.find(w => w.id === project.workflowId)?.name || "Default";
+  }, [detailProjectWorkflows, project?.workflowId]);
   const { data: financials } = useProjectFinancials(id);
   const { data: projectTasks } = useTasks(id);
   const { data: projectTaskAssignments } = useProjectTaskAssignments(id);
@@ -1254,6 +1264,17 @@ export default function ProjectDetails() {
             )}>
               {project.health} Health
             </Badge>
+            {projectWorkflowName && (
+              <Badge
+                variant="outline"
+                className="text-sm px-3 py-1 gap-1.5"
+                data-testid="badge-project-workflow"
+                title={`Workflow: ${projectWorkflowName}`}
+              >
+                <GitBranch className="h-3 w-3" />
+                {projectWorkflowName}
+              </Badge>
+            )}
             {headerProjectRiskBadge && (
               <Badge
                 variant="secondary"

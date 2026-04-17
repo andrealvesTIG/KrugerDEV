@@ -22,6 +22,7 @@ import { useAllTasks } from "@/hooks/use-tasks";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
 import { ProjectsListView, ProjectsGridView, ProjectsKanbanView, ProjectsGanttView, DEFAULT_PROJECT_STATUS_LIST, type GroupByOption } from "@/pages/Projects";
+import { useProjectWorkflows } from "@/hooks/use-project-workflows";
 import type { ProjectFilterView } from "@/components/ViewsDropdown";
 import { useAuth } from "@/hooks/use-auth";
 import { useUpdateRisk, useDeleteRisk, useAiMitigationSuggestion, useRiskHistory, useConvertRiskToIssue } from "@/hooks/use-risks";
@@ -679,6 +680,8 @@ function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }
 
   const [groupBy, setGroupBy] = useState<GroupByOption>("none");
   const [filterView, setFilterView] = useState<ProjectFilterView>("all");
+  const [workflowFilter, setWorkflowFilter] = useState<string>("all");
+  const { workflows: portfolioProjectWorkflows } = useProjectWorkflows();
   const [listCurrentPage, setListCurrentPage] = useState(1);
   const [listPageSize, setListPageSize] = useState<number>(10);
   const [deleteProjectId, setDeleteProjectId] = useState<number | null>(null);
@@ -740,6 +743,10 @@ function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }
         p.businessSponsorId === user?.id ||
         p.businessOwnerId === user?.id ||
         p.technicalLeadId === user?.id;
+      const matchesWorkflow = workflowFilter === "all" ||
+        (workflowFilter === "default" && p.workflowId == null) ||
+        (p.workflowId != null && p.workflowId === parseInt(workflowFilter));
+      if (!matchesWorkflow) return false;
       switch (filterView) {
         case "all": return true;
         case "active": return !isClosed;
@@ -750,7 +757,7 @@ function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }
         default: return true;
       }
     });
-  }, [projects, filterView, user?.id]);
+  }, [projects, filterView, workflowFilter, user?.id]);
 
   useEffect(() => {
     setListCurrentPage(1);
@@ -933,6 +940,22 @@ function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }
           </CardDescription>
         </div>
         <div className="flex items-center gap-3">
+          <div className="w-[180px]">
+            <Select value={workflowFilter} onValueChange={setWorkflowFilter}>
+              <SelectTrigger data-testid="select-portfolio-workflow-filter">
+                <SelectValue placeholder="Filter by Workflow" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Workflows</SelectItem>
+                <SelectItem value="default">Default Workflow</SelectItem>
+                {(portfolioProjectWorkflows || []).map(w => (
+                  <SelectItem key={w.id} value={w.id.toString()}>
+                    <div className="truncate max-w-[200px]" title={w.name}>{w.name}</div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <Button
             size="sm"
             onClick={() => setIsAddDialogOpen(true)}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useIntakeWorkflows } from "@/hooks/use-intake-workflow";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "wouter";
-import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen, ChevronsUpDown } from "lucide-react";
+import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen, ChevronsUpDown, GitBranch } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -334,6 +334,20 @@ export default function ProjectIntakes() {
   const { toast } = useToast();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const [deleteIntakeId, setDeleteIntakeId] = useState<number | null>(null);
+  const { workflows: listIntakeWorkflows } = useIntakeWorkflows();
+  const intakeWorkflowsById = useMemo(() => {
+    const map = new Map<number, typeof listIntakeWorkflows[number]>();
+    (listIntakeWorkflows || []).forEach(w => map.set(w.id, w));
+    return map;
+  }, [listIntakeWorkflows]);
+  const defaultIntakeWorkflowName = useMemo(() => {
+    const def = (listIntakeWorkflows || []).find(w => w.isDefault);
+    return def?.name || "Default";
+  }, [listIntakeWorkflows]);
+  const getIntakeWorkflowName = (workflowId: number | null | undefined) => {
+    if (workflowId == null) return defaultIntakeWorkflowName;
+    return intakeWorkflowsById.get(workflowId)?.name || defaultIntakeWorkflowName;
+  };
 
   const { data: intakes, isLoading } = useQuery<ProjectIntake[]>({
     queryKey: ['/api/project-intakes', currentOrganization?.id],
@@ -583,6 +597,10 @@ export default function ProjectIntakes() {
                       <div className="flex items-center gap-2">
                         <Gavel className="h-4 w-4 text-muted-foreground" />
                         <span>Gate: {getStepLabel(intake.currentStep || "intake_capture")}</span>
+                      </div>
+                      <div className="flex items-center gap-2" data-testid={`text-intake-workflow-${intake.id}`}>
+                        <GitBranch className="h-4 w-4 text-muted-foreground" />
+                        <span>Workflow: {getIntakeWorkflowName(intake.workflowId)}</span>
                       </div>
                       {intake.createdAt && (
                         <div className="flex items-center gap-2">
