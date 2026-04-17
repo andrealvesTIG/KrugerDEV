@@ -4033,7 +4033,9 @@ function DraggableProjectCard({ project, isDraggable = true }: { project: Projec
       e.stopPropagation();
       return;
     }
-    if ((e.target as HTMLElement).closest('button, a, [role="button"]')) return;
+    const target = e.target as HTMLElement;
+    const interactive = target.closest('button, a');
+    if (interactive && e.currentTarget.contains(interactive)) return;
     navigate(`/projects/${project.id}`);
   };
 
