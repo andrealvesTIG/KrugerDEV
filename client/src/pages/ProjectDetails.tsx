@@ -1469,9 +1469,6 @@ export default function ProjectDetails() {
                 Project Workflow
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-xs">
-                  {project.status}
-                </Badge>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
