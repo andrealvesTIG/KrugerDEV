@@ -26,6 +26,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { ResourceSelector } from "@/components/ResourceSelector";
 import { StatusReportDialog } from "@/components/StatusReportDialog";
 import { CrossProjectReferences } from "@/components/CrossProjectReferences";
+import { ChangeWorkflowDialog } from "@/components/ChangeWorkflowDialog";
 import TasksTab from "@/components/project/ProjectTasksTab";
 import RisksTab from "@/components/project/ProjectRisksTab";
 import { IssuesTab, FinancialsTab, ChangeRequestsTab, DocumentsTab, StatusReportTab, ScoringTab, BenefitsTab, DecisionsTab, LessonsLearnedTab, InvoicesTab } from "@/components/project/ProjectTabs";
@@ -282,6 +283,7 @@ export default function ProjectDetails() {
   };
   const [isProjectHistoryOpen, setIsProjectHistoryOpen] = useState(false);
   const [isStatusReportOpen, setIsStatusReportOpen] = useState(false);
+  const [isChangeWorkflowOpen, setIsChangeWorkflowOpen] = useState(false);
   const [isImportingCsv, setIsImportingCsv] = useState(false);
   const [isExportingPng, setIsExportingPng] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
@@ -1445,9 +1447,20 @@ export default function ProjectDetails() {
                 <GitBranch className="h-4 w-4" />
                 Project Workflow
               </div>
-              <Badge variant="outline" className="text-xs">
-                {project.status}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">
+                  {project.status}
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7"
+                  onClick={(e) => { e.stopPropagation(); setIsChangeWorkflowOpen(true); }}
+                  data-testid="button-change-workflow"
+                >
+                  Change workflow…
+                </Button>
+              </div>
             </div>
           </CollapsibleTrigger>
           <CollapsibleContent>
@@ -1798,6 +1811,20 @@ export default function ProjectDetails() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ChangeWorkflowDialog
+        open={isChangeWorkflowOpen}
+        onOpenChange={setIsChangeWorkflowOpen}
+        type="project"
+        organizationId={currentOrganization?.id}
+        recordId={project.id}
+        currentWorkflowId={project.workflowId}
+        currentStepKey={project.status}
+        onChanged={() => {
+          refetchProject();
+          queryClient.invalidateQueries({ queryKey: ['/api/organizations', currentOrganization?.id, 'project-workflow'] });
+        }}
+      />
 
         </div>
       </div>

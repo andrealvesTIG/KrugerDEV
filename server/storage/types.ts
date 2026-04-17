@@ -399,6 +399,20 @@ export interface IIntakeStorage {
   deleteProjectWorkflow(id: number): Promise<void>;
   ensureDefaultProjectWorkflow(organizationId: number): Promise<ProjectWorkflow>;
   getDefaultProjectWorkflow(organizationId: number): Promise<ProjectWorkflow>;
+  changeIntakeWorkflow(intakeId: number, targetWorkflowId: number, opts?: { resetToFirstStep?: boolean }): Promise<{
+    record: ProjectIntake;
+    previousWorkflowId: number | null;
+    previousStep: string | null;
+    newStep: string;
+    stepPreserved: boolean;
+  }>;
+  changeProjectWorkflow(projectId: number, targetWorkflowId: number, opts?: { resetToFirstStep?: boolean }): Promise<{
+    record: Project;
+    previousWorkflowId: number | null;
+    previousStep: string | null;
+    newStep: string;
+    stepPreserved: boolean;
+  }>;
 }
 
 export interface IMiscStorage {

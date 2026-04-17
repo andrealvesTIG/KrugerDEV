@@ -945,3 +945,128 @@ export async function resetProjectWorkflowToDefaults(organizationId: number, wor
   const steps = DEFAULT_PROJECT_WORKFLOW_STEPS.map(s => ({ ...s, organizationId }));
   return upsertProjectWorkflowSteps(organizationId, steps, wfId);
 }
+
+// ============== Workflow switching with step mapping ==============
+
+export type WorkflowSwitchResult<T> = {
+  record: T;
+  previousWorkflowId: number | null;
+  previousStep: string | null;
+  newStep: string;
+  stepPreserved: boolean;
+};
+
+/**
+ * Switch an intake to a different intake workflow within the same organization.
+ * If the intake's current step exists in the target workflow it is preserved;
+ * otherwise the intake is moved to the first step of the target workflow.
+ */
+export async function changeIntakeWorkflow(
+  intakeId: number,
+  targetWorkflowId: number,
+  opts?: { resetToFirstStep?: boolean },
+): Promise<WorkflowSwitchResult<ProjectIntake>> {
+  const intake = await getProjectIntake(intakeId);
+  if (!intake) throw new Error("Project intake not found");
+
+  const targetWf = await getIntakeWorkflow(targetWorkflowId);
+  if (!targetWf || targetWf.organizationId !== intake.organizationId) {
+    throw new Error("Target workflow not found in this organization");
+  }
+
+  const targetSteps = await getIntakeWorkflowStepsByWorkflowId(targetWorkflowId);
+  if (targetSteps.length === 0) {
+    throw new Error("Target workflow has no steps configured");
+  }
+
+  const previousStep = intake.currentStep ?? null;
+  const sourceSteps = intake.workflowId
+    ? await getIntakeWorkflowStepsByWorkflowId(intake.workflowId)
+    : [];
+  const sourceStep = previousStep ? sourceSteps.find(s => s.stepKey === previousStep) : undefined;
+  const matched = previousStep
+    ? findClosestStepMatch(previousStep, sourceStep?.label, targetSteps)
+    : null;
+  const newStep = (!opts?.resetToFirstStep && matched) ? matched.stepKey : targetSteps[0].stepKey;
+
+  const [updated] = await db.update(projectIntakes)
+    .set({ workflowId: targetWorkflowId, currentStep: newStep, updatedAt: new Date() })
+    .where(eq(projectIntakes.id, intakeId))
+    .returning();
+
+  return {
+    record: updated,
+    previousWorkflowId: intake.workflowId ?? null,
+    previousStep,
+    newStep,
+    stepPreserved: !!matched && !opts?.resetToFirstStep,
+  };
+}
+
+/**
+ * Find the closest step in `targetSteps` to a step identified by `stepKey`
+ * (and optionally a human label). Tries an exact stepKey match first, then a
+ * case-insensitive label match. Returns `null` if nothing reasonable matches.
+ */
+function findClosestStepMatch<T extends { stepKey: string; label: string }>(
+  stepKey: string,
+  label: string | undefined,
+  targetSteps: T[],
+): T | null {
+  const exact = targetSteps.find(s => s.stepKey === stepKey);
+  if (exact) return exact;
+  if (label) {
+    const norm = label.trim().toLowerCase();
+    const byLabel = targetSteps.find(s => s.label.trim().toLowerCase() === norm);
+    if (byLabel) return byLabel;
+  }
+  return null;
+}
+
+/**
+ * Switch a project to a different project workflow within the same organization.
+ * If the project's current status (stepKey) exists in the target workflow it is
+ * preserved; otherwise the project is moved to the first step of the workflow.
+ */
+export async function changeProjectWorkflow(
+  projectId: number,
+  targetWorkflowId: number,
+  opts?: { resetToFirstStep?: boolean },
+): Promise<WorkflowSwitchResult<Project>> {
+  const project = await getProject(projectId);
+  if (!project) throw new Error("Project not found");
+  if (!project.organizationId) throw new Error("Project has no organization");
+
+  const targetWf = await getProjectWorkflow(targetWorkflowId);
+  if (!targetWf || targetWf.organizationId !== project.organizationId) {
+    throw new Error("Target workflow not found in this organization");
+  }
+
+  const targetSteps = await getProjectWorkflowStepsByWorkflowId(targetWorkflowId);
+  if (targetSteps.length === 0) {
+    throw new Error("Target workflow has no steps configured");
+  }
+
+  const previousStep = project.status ?? null;
+  const sourceSteps = project.workflowId
+    ? await getProjectWorkflowStepsByWorkflowId(project.workflowId)
+    : [];
+  const sourceStep = previousStep ? sourceSteps.find(s => s.stepKey === previousStep) : undefined;
+  const matched = previousStep
+    ? findClosestStepMatch(previousStep, sourceStep?.label, targetSteps)
+    : null;
+  const newStep = (!opts?.resetToFirstStep && matched) ? matched.stepKey : targetSteps[0].stepKey;
+
+  const [updated] = await db.update(projects)
+    .set({ workflowId: targetWorkflowId, status: newStep, updatedAt: new Date() })
+    .where(eq(projects.id, projectId))
+    .returning();
+
+  return {
+    record: updated,
+    previousWorkflowId: project.workflowId ?? null,
+    previousStep,
+    newStep,
+    stepPreserved: !!matched && !opts?.resetToFirstStep,
+  };
+}

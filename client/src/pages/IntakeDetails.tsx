@@ -18,7 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, Shield, Calculator, Save, Lightbulb, Gavel, ChevronsUpDown } from "lucide-react";
+import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, Shield, Calculator, Save, Lightbulb, Gavel, ChevronsUpDown, GitBranch } from "lucide-react";
+import { ChangeWorkflowDialog } from "@/components/ChangeWorkflowDialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { ProjectIntake, Portfolio } from "@shared/schema";
@@ -62,6 +63,7 @@ export default function IntakeDetails() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [activeTab, setActiveTab] = useState("details");
   const [portfolioOpen, setPortfolioOpen] = useState(false);
+  const [isChangeWorkflowOpen, setIsChangeWorkflowOpen] = useState(false);
 
   // Check if user can approve intakes
   const { data: approvalPermission } = useQuery<{ canApprove: boolean }>({
@@ -287,6 +289,14 @@ export default function IntakeDetails() {
             
             {!isLocked && (
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsChangeWorkflowOpen(true)}
+                  data-testid="button-change-workflow"
+                >
+                  <GitBranch className="h-4 w-4 mr-2" />
+                  Change workflow…
+                </Button>
                 <Button variant="outline" onClick={handleSave} disabled={updateIntake.isPending}>
                   <Save className="h-4 w-4 mr-2" />
                   Save Progress
@@ -881,6 +891,19 @@ export default function IntakeDetails() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ChangeWorkflowDialog
+        open={isChangeWorkflowOpen}
+        onOpenChange={setIsChangeWorkflowOpen}
+        type="intake"
+        organizationId={currentOrganization?.id}
+        recordId={intake.id}
+        currentWorkflowId={intake.workflowId}
+        currentStepKey={intake.currentStep}
+        onChanged={() => {
+          queryClient.invalidateQueries({ queryKey: ['/api/project-intakes', id] });
+        }}
+      />
     </div>
   );
 }
