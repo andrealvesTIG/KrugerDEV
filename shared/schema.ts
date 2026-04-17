@@ -1401,6 +1401,8 @@ export const intakeWorkflows = pgTable("intake_workflows", {
   description: text("description"),
   isDefault: boolean("is_default").default(false),
   isActive: boolean("is_active").default(true),
+  creationMode: text("creation_mode").default("dialog").notNull(),
+  creationUrl: text("creation_url"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -1418,6 +1420,8 @@ export const projectWorkflows = pgTable("project_workflows", {
   description: text("description"),
   isDefault: boolean("is_default").default(false),
   isActive: boolean("is_active").default(true),
+  creationMode: text("creation_mode").default("dialog").notNull(),
+  creationUrl: text("creation_url"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [

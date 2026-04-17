@@ -341,7 +341,15 @@ export default function ProjectIntakes() {
   const { currentOrganization } = useOrganization();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [pendingWorkflowId, setPendingWorkflowId] = useState<number | null>(null);
+  const { workflows: listIntakeWorkflows } = useIntakeWorkflows();
   const openCreateIntake = (workflowId: number | null = null) => {
+    const wf = workflowId != null
+      ? listIntakeWorkflows.find(w => w.id === workflowId)
+      : (listIntakeWorkflows.find(w => w.isDefault) || listIntakeWorkflows[0]);
+    if (wf && wf.creationMode === 'url' && wf.creationUrl) {
+      window.open(wf.creationUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
     setPendingWorkflowId(workflowId);
     setIsDialogOpen(true);
   };
@@ -350,7 +358,6 @@ export default function ProjectIntakes() {
   const { toast } = useToast();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const [deleteIntakeId, setDeleteIntakeId] = useState<number | null>(null);
-  const { workflows: listIntakeWorkflows } = useIntakeWorkflows();
   const intakeWorkflowsById = useMemo(() => {
     const map = new Map<number, typeof listIntakeWorkflows[number]>();
     (listIntakeWorkflows || []).forEach(w => map.set(w.id, w));

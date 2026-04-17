@@ -26,6 +26,9 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
   const [wfName, setWfName] = useState("");
   const [wfDescription, setWfDescription] = useState("");
   const [wfIsDefault, setWfIsDefault] = useState(false);
+  const [wfCreationMode, setWfCreationMode] = useState<'dialog' | 'url'>('dialog');
+  const [wfCreationUrl, setWfCreationUrl] = useState("");
+  const [wfUrlError, setWfUrlError] = useState<string | null>(null);
   const [workflowToDelete, setWorkflowToDelete] = useState<IntakeWorkflow | null>(null);
 
   // Auto-select default workflow when list loads
@@ -100,17 +103,42 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     setWfName(wf?.name || "");
     setWfDescription(wf?.description || "");
     setWfIsDefault(wf?.isDefault || false);
+    setWfCreationMode((wf?.creationMode as 'dialog' | 'url') || 'dialog');
+    setWfCreationUrl(wf?.creationUrl || "");
+    setWfUrlError(null);
     setShowWorkflowDialog(true);
+  };
+
+  const validateUrl = (value: string): string | null => {
+    if (!value.trim()) return "URL is required";
+    try {
+      const u = new URL(value.trim());
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return "URL must use http or https";
+      return null;
+    } catch {
+      return "Enter a valid URL (e.g. https://forms.example.com/intake)";
+    }
   };
 
   const handleSaveWorkflow = async () => {
     if (!wfName.trim()) return;
+    if (wfCreationMode === 'url') {
+      const err = validateUrl(wfCreationUrl);
+      if (err) { setWfUrlError(err); return; }
+    }
     try {
+      const payload = {
+        name: wfName.trim(),
+        description: wfDescription,
+        isDefault: wfIsDefault,
+        creationMode: wfCreationMode,
+        creationUrl: wfCreationMode === 'url' ? wfCreationUrl.trim() : null,
+      };
       if (editingWorkflow) {
-        await updateWorkflowMeta.mutateAsync({ id: editingWorkflow.id, name: wfName.trim(), description: wfDescription, isDefault: wfIsDefault });
+        await updateWorkflowMeta.mutateAsync({ id: editingWorkflow.id, ...payload });
         toast({ title: "Updated", description: "Workflow updated" });
       } else {
-        const created = await createWorkflow.mutateAsync({ name: wfName.trim(), description: wfDescription, isDefault: wfIsDefault });
+        const created = await createWorkflow.mutateAsync(payload);
         setSelectedWorkflowId(created.id);
         toast({ title: "Created", description: "Workflow created with default steps" });
       }
@@ -340,7 +368,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
           {selectedWorkflow && (
             <>
               <Button variant="ghost" size="sm" onClick={() => openWorkflowDialog(selectedWorkflow)} data-testid="button-edit-intake-workflow">
-                <Pencil className="h-4 w-4 mr-1" /> Rename
+                <Pencil className="h-4 w-4 mr-1" /> Edit
               </Button>
               {!selectedWorkflow.isDefault && (
                 <Button variant="ghost" size="sm" onClick={() => handleSetDefault(selectedWorkflow)} data-testid="button-set-default-intake-workflow">
@@ -640,6 +668,35 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
             <div className="flex items-center gap-2">
               <Checkbox id="wf-default" checked={wfIsDefault} onCheckedChange={(v) => setWfIsDefault(!!v)} disabled={!!editingWorkflow?.isDefault} />
               <Label htmlFor="wf-default" className="cursor-pointer">Set as default workflow</Label>
+            </div>
+            <div className="space-y-2 pt-2 border-t">
+              <Label>New item form</Label>
+              <Select
+                value={wfCreationMode}
+                onValueChange={(v) => { setWfCreationMode(v as 'dialog' | 'url'); setWfUrlError(null); }}
+              >
+                <SelectTrigger data-testid="select-wf-creation-mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dialog">Built-in dialog</SelectItem>
+                  <SelectItem value="url">Custom URL</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Choose what happens when users create a new intake with this workflow.
+              </p>
+              {wfCreationMode === 'url' && (
+                <div className="space-y-1">
+                  <Input
+                    value={wfCreationUrl}
+                    onChange={(e) => { setWfCreationUrl(e.target.value); if (wfUrlError) setWfUrlError(null); }}
+                    placeholder="https://forms.example.com/intake"
+                    data-testid="input-wf-creation-url"
+                  />
+                  {wfUrlError && <p className="text-xs text-destructive">{wfUrlError}</p>}
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>

@@ -16,7 +16,7 @@ export function useProjectWorkflows() {
   });
 
   const createWorkflow = useMutation({
-    mutationFn: async (data: { name: string; description?: string; isDefault?: boolean }) => {
+    mutationFn: async (data: { name: string; description?: string; isDefault?: boolean; creationMode?: 'dialog' | 'url'; creationUrl?: string | null }) => {
       if (!orgId) throw new Error("No organization selected");
       const res = await apiRequest("POST", `/api/organizations/${orgId}/project-workflows`, data);
       return res.json() as Promise<ProjectWorkflow>;
@@ -27,7 +27,7 @@ export function useProjectWorkflows() {
   });
 
   const updateWorkflowMeta = useMutation({
-    mutationFn: async ({ id, ...data }: { id: number; name?: string; description?: string; isDefault?: boolean; isActive?: boolean }) => {
+    mutationFn: async ({ id, ...data }: { id: number; name?: string; description?: string; isDefault?: boolean; isActive?: boolean; creationMode?: 'dialog' | 'url'; creationUrl?: string | null }) => {
       if (!orgId) throw new Error("No organization selected");
       const res = await apiRequest("PATCH", `/api/organizations/${orgId}/project-workflows/${id}`, data);
       return res.json() as Promise<ProjectWorkflow>;

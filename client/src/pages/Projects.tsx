@@ -1067,6 +1067,13 @@ export default function Projects() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [pendingWorkflowId, setPendingWorkflowId] = useState<number | null>(null);
   const openCreateProject = (workflowId: number | null) => {
+    const wf = workflowId != null
+      ? (outerProjectWorkflows || []).find(w => w.id === workflowId)
+      : ((outerProjectWorkflows || []).find(w => w.isDefault) || (outerProjectWorkflows || [])[0]);
+    if (wf && wf.creationMode === 'url' && wf.creationUrl) {
+      window.open(wf.creationUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
     setPendingWorkflowId(workflowId);
     setIsDialogOpen(true);
   };

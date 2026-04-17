@@ -521,9 +521,15 @@ export function registerIntakeRoutes(app: Express) {
       const orgId = Number(req.params.orgId);
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
-      const { name, description, isDefault } = req.body || {};
+      const { name, description, isDefault, creationMode, creationUrl } = req.body || {};
       if (!name || typeof name !== 'string' || !name.trim()) return res.status(400).json({ message: "Name is required" });
-      const wf = await storage.createIntakeWorkflow({ organizationId: orgId, name: name.trim(), description: description || null, isDefault: !!isDefault, isActive: true });
+      const mode = creationMode === 'url' ? 'url' : 'dialog';
+      const url = mode === 'url' ? (typeof creationUrl === 'string' ? creationUrl.trim() : '') : null;
+      if (mode === 'url') {
+        if (!url) return res.status(400).json({ message: "Creation URL is required when creation mode is 'url'" });
+        try { new URL(url); } catch { return res.status(400).json({ message: "Creation URL must be a valid URL" }); }
+      }
+      const wf = await storage.createIntakeWorkflow({ organizationId: orgId, name: name.trim(), description: description || null, isDefault: !!isDefault, isActive: true, creationMode: mode, creationUrl: url });
       // Seed with default steps so the new workflow is immediately usable
       await storage.resetIntakeWorkflowToDefaults(orgId, wf.id);
       res.status(201).json(wf);
@@ -550,12 +556,24 @@ export function registerIntakeRoutes(app: Express) {
       if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
       const existing = await storage.getIntakeWorkflow(wfId);
       if (!existing || existing.organizationId !== orgId) return res.status(404).json({ message: "Workflow not found" });
-      const { name, description, isDefault, isActive } = req.body || {};
+      const { name, description, isDefault, isActive, creationMode, creationUrl } = req.body || {};
       const updates: any = {};
       if (name !== undefined) updates.name = String(name).trim();
       if (description !== undefined) updates.description = description;
       if (isDefault !== undefined) updates.isDefault = !!isDefault;
       if (isActive !== undefined) updates.isActive = !!isActive;
+      if (creationMode !== undefined || creationUrl !== undefined) {
+        const mode = creationMode === 'url' ? 'url' : (creationMode === 'dialog' ? 'dialog' : (existing.creationMode || 'dialog'));
+        updates.creationMode = mode;
+        if (mode === 'url') {
+          const url = typeof creationUrl === 'string' ? creationUrl.trim() : (existing.creationUrl || '');
+          if (!url) return res.status(400).json({ message: "Creation URL is required when creation mode is 'url'" });
+          try { new URL(url); } catch { return res.status(400).json({ message: "Creation URL must be a valid URL" }); }
+          updates.creationUrl = url;
+        } else {
+          updates.creationUrl = null;
+        }
+      }
       const updated = await storage.updateIntakeWorkflow(wfId, updates);
       res.json(updated);
     } catch (err) {
@@ -801,9 +819,15 @@ export function registerIntakeRoutes(app: Express) {
       const orgId = Number(req.params.orgId);
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
-      const { name, description, isDefault } = req.body || {};
+      const { name, description, isDefault, creationMode, creationUrl } = req.body || {};
       if (!name || typeof name !== 'string' || !name.trim()) return res.status(400).json({ message: "Name is required" });
-      const wf = await storage.createProjectWorkflow({ organizationId: orgId, name: name.trim(), description: description || null, isDefault: !!isDefault, isActive: true });
+      const mode = creationMode === 'url' ? 'url' : 'dialog';
+      const url = mode === 'url' ? (typeof creationUrl === 'string' ? creationUrl.trim() : '') : null;
+      if (mode === 'url') {
+        if (!url) return res.status(400).json({ message: "Creation URL is required when creation mode is 'url'" });
+        try { new URL(url); } catch { return res.status(400).json({ message: "Creation URL must be a valid URL" }); }
+      }
+      const wf = await storage.createProjectWorkflow({ organizationId: orgId, name: name.trim(), description: description || null, isDefault: !!isDefault, isActive: true, creationMode: mode, creationUrl: url });
       await storage.resetProjectWorkflowToDefaults(orgId, wf.id);
       res.status(201).json(wf);
     } catch (err) {
@@ -829,12 +853,24 @@ export function registerIntakeRoutes(app: Express) {
       if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
       const existing = await storage.getProjectWorkflow(wfId);
       if (!existing || existing.organizationId !== orgId) return res.status(404).json({ message: "Workflow not found" });
-      const { name, description, isDefault, isActive } = req.body || {};
+      const { name, description, isDefault, isActive, creationMode, creationUrl } = req.body || {};
       const updates: any = {};
       if (name !== undefined) updates.name = String(name).trim();
       if (description !== undefined) updates.description = description;
       if (isDefault !== undefined) updates.isDefault = !!isDefault;
       if (isActive !== undefined) updates.isActive = !!isActive;
+      if (creationMode !== undefined || creationUrl !== undefined) {
+        const mode = creationMode === 'url' ? 'url' : (creationMode === 'dialog' ? 'dialog' : (existing.creationMode || 'dialog'));
+        updates.creationMode = mode;
+        if (mode === 'url') {
+          const url = typeof creationUrl === 'string' ? creationUrl.trim() : (existing.creationUrl || '');
+          if (!url) return res.status(400).json({ message: "Creation URL is required when creation mode is 'url'" });
+          try { new URL(url); } catch { return res.status(400).json({ message: "Creation URL must be a valid URL" }); }
+          updates.creationUrl = url;
+        } else {
+          updates.creationUrl = null;
+        }
+      }
       const updated = await storage.updateProjectWorkflow(wfId, updates);
       res.json(updated);
     } catch (err) {
