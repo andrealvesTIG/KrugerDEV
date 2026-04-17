@@ -3473,10 +3473,10 @@ export function ProjectsGridView({
                   const priorityColor = gridGroupBy === "priority" ? (PRIORITY_COLORS[group.label] || "") : "";
                   const healthConfig = gridGroupBy === "health" ? (Object.values(HEALTH_CONFIG).find(h => h.label === group.label) || null) : null;
 
-                  return (
-                    <Fragment key={group.key}>
-                      {showGroupHeader && (
-                        <TableRow className="bg-gradient-to-r from-muted/60 to-muted/30 hover:from-muted/80 hover:to-muted/50 cursor-pointer border-b-2 border-border/60" onClick={() => toggleGridGroup(group.key)}>
+                  const rows: JSX.Element[] = [];
+                  if (showGroupHeader) {
+                    rows.push(
+                        <TableRow key={`${group.key}-header`} className="bg-gradient-to-r from-muted/60 to-muted/30 hover:from-muted/80 hover:to-muted/50 cursor-pointer border-b-2 border-border/60" onClick={() => toggleGridGroup(group.key)}>
                           <TableCell colSpan={orderedVisibleColumns.length + 2} className="py-2.5 px-4">
                             <div className="flex items-center gap-3">
                               <ChevronRight className={cn("h-4 w-4 text-muted-foreground shrink-0 transition-transform duration-200", isGroupCollapsed ? "" : "rotate-90")} />
@@ -3519,8 +3519,11 @@ export function ProjectsGridView({
                             </div>
                           </TableCell>
                         </TableRow>
-                      )}
-                      {!isGroupCollapsed && group.projects.map(project => (
+                    );
+                  }
+                  if (!isGroupCollapsed) {
+                    group.projects.forEach(project => {
+                      rows.push(
                         <TableRow 
                           key={project.id} 
                           data-testid={`grid-row-${project.id}`}
@@ -3579,9 +3582,10 @@ export function ProjectsGridView({
                             </DropdownMenu>
                           </TableCell>
                         </TableRow>
-                      ))}
-                    </Fragment>
-                  );
+                      );
+                    });
+                  }
+                  return rows;
                 })
               )}
             </TableBody>
