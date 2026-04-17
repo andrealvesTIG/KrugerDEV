@@ -41,6 +41,24 @@ export const billableStatusEnum = z.enum(BILLABLE_STATUSES);
 export const taskStatusEnum = z.enum(TASK_STATUSES);
 export const taskPriorityEnum = z.enum(TASK_PRIORITIES);
 
+export const fridayAgentConfigSchema = z.object({
+  useOrgAzure: z.boolean().default(false),
+  azureEndpoint: z.string().max(500).default(""),
+  azureApiKey: z.string().max(500).default(""),
+  azureDeployment: z.string().max(200).default(""),
+  azureApiVersion: z.string().max(50).default("2024-12-01-preview"),
+});
+
+export type FridayAgentConfig = z.infer<typeof fridayAgentConfigSchema>;
+
+export const DEFAULT_FRIDAY_AGENT_CONFIG: FridayAgentConfig = {
+  useOrgAzure: false,
+  azureEndpoint: "",
+  azureApiKey: "",
+  azureDeployment: "",
+  azureApiVersion: "2024-12-01-preview",
+};
+
 export * from "./models/auth";
 export * from "./models/chat";
 export * from "./models/billing";

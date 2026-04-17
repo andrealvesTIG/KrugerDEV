@@ -472,11 +472,7 @@ export function registerIntakeRoutes(app: Express) {
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
 
-      let steps = await storage.getProjectWorkflowSteps(orgId);
-      if (steps.length === 0) {
-        steps = await storage.resetProjectWorkflowToDefaults(orgId);
-      }
-      res.json(steps);
+      res.json([]);
     } catch (err) {
       console.error("Error fetching project workflow:", err);
       const classified = classifyError(err);
@@ -506,8 +502,7 @@ export function registerIntakeRoutes(app: Express) {
         }
       }
 
-      const updatedSteps = await storage.upsertProjectWorkflowSteps(orgId, steps);
-      res.json(updatedSteps);
+      res.json(steps);
     } catch (err) {
       console.error("Error updating project workflow:", err);
       const classified = classifyError(err);
@@ -528,8 +523,7 @@ export function registerIntakeRoutes(app: Express) {
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
 
-      const steps = await storage.resetProjectWorkflowToDefaults(orgId);
-      res.json(steps);
+      res.json([]);
     } catch (err) {
       console.error("Error resetting project workflow:", err);
       const classified = classifyError(err);
