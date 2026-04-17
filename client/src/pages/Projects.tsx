@@ -3996,6 +3996,7 @@ function ProjectKanbanColumn({
 }
 
 function DraggableProjectCard({ project, isDraggable = true }: { project: Project; isDraggable?: boolean }) {
+  const [, navigate] = useLocation();
   const {
     attributes,
     listeners,
@@ -4011,19 +4012,33 @@ function DraggableProjectCard({ project, isDraggable = true }: { project: Projec
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
   } : undefined;
 
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...(isDraggable ? { ...attributes, ...listeners } : {})}
-      className={cn(isDragging && "opacity-50")}
-    >
-      <Link href={`/projects/${project.id}`}>
-        <Card 
-          className="cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing"
-          data-testid={`kanban-project-${project.id}`}
-        >
-          <CardContent className="p-4">
+  const dragMovedRef = useRef(false);
+  useEffect(() => {
+    if (isDragging) {
+      dragMovedRef.current = true;
+    } else if (dragMovedRef.current) {
+      const t = setTimeout(() => { dragMovedRef.current = false; }, 250);
+      return () => clearTimeout(t);
+    }
+  }, [isDragging]);
+
+  const handlePointerDownReset = () => {
+    if (!isDragging) dragMovedRef.current = false;
+  };
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (dragMovedRef.current) {
+      dragMovedRef.current = false;
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if ((e.target as HTMLElement).closest('button, a, [role="button"]')) return;
+    navigate(`/projects/${project.id}`);
+  };
+
+  const cardBody = (
+        <CardContent className="p-4">
             <div className="flex items-center gap-2">
               <div className="font-medium text-sm line-clamp-2 flex-1">{project.name}</div>
               {(project as any).isInternal && (
@@ -4140,8 +4155,34 @@ function DraggableProjectCard({ project, isDraggable = true }: { project: Projec
               )}
             </div>
           </CardContent>
+  );
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...(isDraggable ? { ...attributes, ...listeners } : {})}
+      className={cn(isDragging && "opacity-50")}
+      onClick={isDraggable ? handleCardClick : undefined}
+      onPointerDownCapture={isDraggable ? handlePointerDownReset : undefined}
+    >
+      {isDraggable ? (
+        <Card
+          className="cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing select-none"
+          data-testid={`kanban-project-${project.id}`}
+        >
+          {cardBody}
         </Card>
-      </Link>
+      ) : (
+        <Link href={`/projects/${project.id}`}>
+          <Card
+            className="cursor-pointer hover:shadow-md transition-shadow"
+            data-testid={`kanban-project-${project.id}`}
+          >
+            {cardBody}
+          </Card>
+        </Link>
+      )}
     </div>
   );
 }
