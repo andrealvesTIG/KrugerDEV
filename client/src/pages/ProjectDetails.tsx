@@ -315,10 +315,12 @@ export default function ProjectDetails() {
   const { data: customTabs = [] } = useCustomProjectTabs(currentOrganization?.id);
   const [, setLocation] = useLocation();
 
+  const projectWorkflowId = project?.workflowId ?? null;
   const { data: orgWorkflowSteps } = useQuery<Array<{ id: number; stepKey: string; position: number; label: string; description: string | null; isTerminal: boolean | null; isActive: boolean | null }>>({
-    queryKey: ['/api/organizations', currentOrganization?.id, 'project-workflow'],
+    queryKey: ['/api/organizations', currentOrganization?.id, 'project-workflow', { workflowId: projectWorkflowId }],
     queryFn: async () => {
-      const res = await fetch(`/api/organizations/${currentOrganization!.id}/project-workflow`);
+      const qs = projectWorkflowId ? `?workflowId=${projectWorkflowId}` : '';
+      const res = await fetch(`/api/organizations/${currentOrganization!.id}/project-workflow${qs}`);
       if (!res.ok) return [];
       return res.json();
     },

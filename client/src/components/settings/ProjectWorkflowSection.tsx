@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -7,14 +7,44 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Trash2, Plus, Pencil, RotateCw, GripVertical, LockIcon } from "lucide-react";
-import type { ProjectWorkflowStep } from "@shared/schema";
+import { Loader2, Trash2, Plus, Pencil, RotateCw, GripVertical, LockIcon, Star, GitBranch } from "lucide-react";
+import { useProjectWorkflows } from "@/hooks/use-project-workflows";
+import type { ProjectWorkflowStep, ProjectWorkflow } from "@shared/schema";
 
 export function ProjectWorkflowSection({ organizationId }: { organizationId: number }) {
   const { toast } = useToast();
+  const { workflows, isLoading: workflowsLoading, createWorkflow, updateWorkflowMeta, deleteWorkflow } = useProjectWorkflows();
+
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<number | null>(null);
+  const [showWorkflowDialog, setShowWorkflowDialog] = useState(false);
+  const [editingWorkflow, setEditingWorkflow] = useState<ProjectWorkflow | null>(null);
+  const [wfName, setWfName] = useState("");
+  const [wfDescription, setWfDescription] = useState("");
+  const [wfIsDefault, setWfIsDefault] = useState(false);
+  const [workflowToDelete, setWorkflowToDelete] = useState<ProjectWorkflow | null>(null);
+
+  useEffect(() => {
+    if (!selectedWorkflowId && workflows.length > 0) {
+      const def = workflows.find(w => w.isDefault) || workflows[0];
+      setSelectedWorkflowId(def.id);
+    } else if (selectedWorkflowId && workflows.length > 0 && !workflows.find(w => w.id === selectedWorkflowId)) {
+      const def = workflows.find(w => w.isDefault) || workflows[0];
+      setSelectedWorkflowId(def.id);
+    }
+  }, [workflows, selectedWorkflowId]);
+
+  const selectedWorkflow = useMemo(() => workflows.find(w => w.id === selectedWorkflowId) || null, [workflows, selectedWorkflowId]);
+  const wfQuery = selectedWorkflowId ? `?workflowId=${selectedWorkflowId}` : '';
+  const wfQueryKey: readonly unknown[] = selectedWorkflowId
+    ? ['/api/organizations', organizationId, 'project-workflow', { workflowId: selectedWorkflowId }]
+    : ['/api/organizations', organizationId, 'project-workflow'];
+
   const [editingStep, setEditingStep] = useState<ProjectWorkflowStep | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [editDescription, setEditDescription] = useState("");
@@ -28,17 +58,18 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
   const [stepToDelete, setStepToDelete] = useState<ProjectWorkflowStep | null>(null);
 
   const { data: workflowSteps, isLoading } = useQuery<ProjectWorkflowStep[]>({
-    queryKey: ['/api/organizations', organizationId, 'project-workflow'],
+    queryKey: wfQueryKey,
     queryFn: async () => {
-      const res = await fetch(`/api/organizations/${organizationId}/project-workflow`);
+      const res = await fetch(`/api/organizations/${organizationId}/project-workflow${wfQuery}`);
       if (!res.ok) return [];
       return res.json();
-    }
+    },
+    enabled: !!selectedWorkflowId,
   });
 
   const updateWorkflowMutation = useMutation({
     mutationFn: async (steps: Partial<ProjectWorkflowStep>[]) => {
-      return apiRequest('PUT', `/api/organizations/${organizationId}/project-workflow`, { steps });
+      return apiRequest('PUT', `/api/organizations/${organizationId}/project-workflow${wfQuery}`, { steps });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'project-workflow'] });
@@ -52,7 +83,7 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
 
   const resetWorkflowMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('POST', `/api/organizations/${organizationId}/project-workflow/reset`);
+      return apiRequest('POST', `/api/organizations/${organizationId}/project-workflow/reset${wfQuery}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'project-workflow'] });
@@ -63,6 +94,52 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
       toast({ title: "Error", description: "Failed to reset project workflow", variant: "destructive" });
     }
   });
+
+  const openWorkflowDialog = (wf: ProjectWorkflow | null) => {
+    setEditingWorkflow(wf);
+    setWfName(wf?.name || "");
+    setWfDescription(wf?.description || "");
+    setWfIsDefault(wf?.isDefault || false);
+    setShowWorkflowDialog(true);
+  };
+
+  const handleSaveWorkflow = async () => {
+    if (!wfName.trim()) return;
+    try {
+      if (editingWorkflow) {
+        await updateWorkflowMeta.mutateAsync({ id: editingWorkflow.id, name: wfName.trim(), description: wfDescription, isDefault: wfIsDefault });
+        toast({ title: "Updated", description: "Workflow updated" });
+      } else {
+        const created = await createWorkflow.mutateAsync({ name: wfName.trim(), description: wfDescription, isDefault: wfIsDefault });
+        setSelectedWorkflowId(created.id);
+        toast({ title: "Created", description: "Workflow created with default steps" });
+      }
+      setShowWorkflowDialog(false);
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "Failed to save workflow", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteWorkflow = async () => {
+    if (!workflowToDelete) return;
+    try {
+      await deleteWorkflow.mutateAsync(workflowToDelete.id);
+      if (selectedWorkflowId === workflowToDelete.id) setSelectedWorkflowId(null);
+      toast({ title: "Deleted", description: "Workflow deleted" });
+      setWorkflowToDelete(null);
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "Failed to delete workflow", variant: "destructive" });
+    }
+  };
+
+  const handleSetDefault = async (wf: ProjectWorkflow) => {
+    try {
+      await updateWorkflowMeta.mutateAsync({ id: wf.id, isDefault: true });
+      toast({ title: "Default updated", description: `${wf.name} is now the default workflow` });
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "Failed to set default", variant: "destructive" });
+    }
+  };
 
   const handleEditSave = () => {
     if (!editingStep || !workflowSteps) return;
@@ -114,45 +191,83 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
     updateWorkflowMutation.mutate(reordered);
   };
 
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
-    );
-  }
-
   const steps = workflowSteps || [];
 
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
+        <CardHeader className="space-y-4">
+          <div className="flex items-start justify-between flex-wrap gap-4">
             <div>
-              <CardTitle>Project Workflow Steps</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <GitBranch className="h-5 w-5" />
+                Project Workflow Steps
+              </CardTitle>
               <CardDescription>
-                Define the lifecycle stages that projects move through. These steps appear in the project status bar.
+                Define one or more project lifecycle workflows. Choose the workflow when creating a project.
               </CardDescription>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setShowResetConfirm(true)}>
-                <RotateCw className="h-4 w-4 mr-1" />
-                Reset to Defaults
-              </Button>
-              <Button size="sm" onClick={() => setShowAddStep(true)}>
+              <Button size="sm" onClick={() => openWorkflowDialog(null)} data-testid="button-create-project-workflow">
                 <Plus className="h-4 w-4 mr-1" />
-                Add Step
+                New Workflow
               </Button>
             </div>
           </div>
+          <div className="flex flex-row items-center gap-2 flex-wrap pt-2 border-t">
+            <Label className="text-sm">Workflow:</Label>
+            <Select
+              value={selectedWorkflowId ? String(selectedWorkflowId) : ''}
+              onValueChange={(v) => setSelectedWorkflowId(Number(v))}
+              disabled={workflowsLoading}
+            >
+              <SelectTrigger className="w-64" data-testid="select-project-workflow">
+                <SelectValue placeholder="Select a workflow" />
+              </SelectTrigger>
+              <SelectContent>
+                {workflows.map(wf => (
+                  <SelectItem key={wf.id} value={String(wf.id)} data-testid={`option-project-workflow-${wf.id}`}>
+                    {wf.name}{wf.isDefault ? ' (Default)' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedWorkflow && (
+              <>
+                <Button variant="ghost" size="sm" onClick={() => openWorkflowDialog(selectedWorkflow)} data-testid="button-edit-project-workflow">
+                  <Pencil className="h-4 w-4 mr-1" /> Rename
+                </Button>
+                {!selectedWorkflow.isDefault && (
+                  <Button variant="ghost" size="sm" onClick={() => handleSetDefault(selectedWorkflow)} data-testid="button-set-default-project-workflow">
+                    <Star className="h-4 w-4 mr-1" /> Set Default
+                  </Button>
+                )}
+                {!selectedWorkflow.isDefault && (
+                  <Button variant="ghost" size="sm" onClick={() => setWorkflowToDelete(selectedWorkflow)} data-testid="button-delete-project-workflow">
+                    <Trash2 className="h-4 w-4 mr-1 text-destructive" /> Delete
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={() => setShowResetConfirm(true)}>
+                  <RotateCw className="h-4 w-4 mr-1" /> Reset Steps
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setShowAddStep(true)}>
+                  <Plus className="h-4 w-4 mr-1" /> Add Step
+                </Button>
+              </>
+            )}
+          </div>
+          {selectedWorkflow?.description && (
+            <p className="text-sm text-muted-foreground">{selectedWorkflow.description}</p>
+          )}
         </CardHeader>
         <CardContent>
-          {steps.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : steps.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
-              No workflow steps configured. Click "Reset to Defaults" to start with the standard workflow.
+              No workflow steps configured. Click "Reset Steps" to start with the standard workflow.
             </p>
           ) : (
             <div className="space-y-2">
@@ -232,6 +347,56 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={showWorkflowDialog} onOpenChange={setShowWorkflowDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingWorkflow ? 'Edit Workflow' : 'New Project Workflow'}</DialogTitle>
+            <DialogDescription>
+              {editingWorkflow ? 'Update workflow name and settings' : 'Create a new named project workflow with default steps'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Name *</Label>
+              <Input value={wfName} onChange={(e) => setWfName(e.target.value)} placeholder="e.g., Agile Delivery" data-testid="input-pw-name" />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea value={wfDescription} onChange={(e) => setWfDescription(e.target.value)} placeholder="What is this workflow for?" className="resize-none" data-testid="input-pw-description" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="pw-default" checked={wfIsDefault} onCheckedChange={(v) => setWfIsDefault(!!v)} disabled={!!editingWorkflow?.isDefault} />
+              <Label htmlFor="pw-default" className="cursor-pointer">Set as default workflow</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowWorkflowDialog(false)}>Cancel</Button>
+            <Button onClick={handleSaveWorkflow} disabled={!wfName.trim() || createWorkflow.isPending || updateWorkflowMeta.isPending} data-testid="button-save-pw">
+              {(createWorkflow.isPending || updateWorkflowMeta.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {editingWorkflow ? 'Save' : 'Create'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={workflowToDelete !== null} onOpenChange={() => setWorkflowToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Workflow?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Delete "{workflowToDelete?.name}"? Any projects using this workflow will be reassigned to the default workflow.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteWorkflow} disabled={deleteWorkflow.isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleteWorkflow.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Delete Workflow
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={!!editingStep} onOpenChange={(open) => !open && setEditingStep(null)}>
         <DialogContent>

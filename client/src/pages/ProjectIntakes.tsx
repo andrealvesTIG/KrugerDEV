@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useIntakeWorkflows } from "@/hooks/use-intake-workflow";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
 import { useAuth } from "@/hooks/use-auth";
@@ -105,7 +106,17 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
   const [portfolioOpen, setPortfolioOpen] = useState(false);
   const [fundingSource, setFundingSource] = useState("");
   const [businessUnit, setBu] = useState("");
+  const [workflowId, setWorkflowId] = useState<string>("");
   const [limitError, setLimitError] = useState<{ resourceType: string } | null>(null);
+
+  const { workflows: intakeWorkflows } = useIntakeWorkflows();
+
+  useEffect(() => {
+    if (!workflowId && intakeWorkflows.length > 0) {
+      const def = intakeWorkflows.find(w => w.isDefault) || intakeWorkflows[0];
+      setWorkflowId(String(def.id));
+    }
+  }, [intakeWorkflows, workflowId]);
 
   const createIntake = useMutation({
     mutationFn: async (data: any) => {
@@ -140,6 +151,7 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
     setPortfolioId("");
     setFundingSource("");
     setBu("");
+    setWorkflowId("");
   };
 
   const handleSubmit = () => {
@@ -157,6 +169,7 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
       businessUnit: businessUnit,
       submitterId: user?.id,
       currentStep: "intake_capture",
+      workflowId: workflowId ? parseInt(workflowId) : undefined,
     });
   };
 
@@ -279,6 +292,23 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
               </SelectContent>
             </Select>
           </div>
+          {intakeWorkflows.length > 1 && (
+            <div className="space-y-2">
+              <Label>Intake Workflow</Label>
+              <Select value={workflowId} onValueChange={setWorkflowId}>
+                <SelectTrigger data-testid="select-intake-workflow-create">
+                  <SelectValue placeholder="Select workflow" />
+                </SelectTrigger>
+                <SelectContent>
+                  {intakeWorkflows.map(wf => (
+                    <SelectItem key={wf.id} value={String(wf.id)}>
+                      {wf.name}{wf.isDefault ? ' (Default)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

@@ -360,8 +360,8 @@ export function registerIntakeRoutes(app: Express) {
 
   apiRoute(app, 'get', '/api/organizations/:orgId/intake-workflow', {
     tag: 'Intake Workflow',
-    summary: 'Get intake workflow configuration',
-    parameters: [pathId('orgId')],
+    summary: 'Get intake workflow configuration (default or by workflowId)',
+    parameters: [pathId('orgId'), qInt('workflowId', false, 'Workflow ID (defaults to org default)')],
     responses: { ...r200('Workflow config', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
@@ -371,16 +371,25 @@ export function registerIntakeRoutes(app: Express) {
       }
       
       const orgId = Number(req.params.orgId);
+      const workflowId = req.query.workflowId ? Number(req.query.workflowId) : undefined;
       
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(orgId)) {
         return res.status(403).json({ message: "You don't have access to this organization" });
       }
+
+      // Validate workflow ownership if explicit
+      if (workflowId) {
+        const wf = await storage.getIntakeWorkflow(workflowId);
+        if (!wf || wf.organizationId !== orgId) {
+          return res.status(404).json({ message: "Workflow not found in this organization" });
+        }
+      }
       
-      let steps = await storage.getIntakeWorkflowSteps(orgId);
+      let steps = await storage.getIntakeWorkflowSteps(orgId, workflowId);
       
       if (steps.length === 0) {
-        steps = await storage.resetIntakeWorkflowToDefaults(orgId);
+        steps = await storage.resetIntakeWorkflowToDefaults(orgId, workflowId);
       }
       
       res.json(steps);
@@ -391,10 +400,114 @@ export function registerIntakeRoutes(app: Express) {
     }
   });
 
+  // ========== Multi-workflow management: Intake ==========
+
+  apiRoute(app, 'get', '/api/organizations/:orgId/intake-workflows', {
+    tag: 'Intake Workflow',
+    summary: 'List all intake workflows for an organization',
+    parameters: [pathId('orgId')],
+    responses: { ...r200('Workflows', { type: 'array' }), ...idRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgId = Number(req.params.orgId);
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
+      const wfs = await storage.getIntakeWorkflows(orgId);
+      res.json(wfs);
+    } catch (err) {
+      console.error("Error listing intake workflows:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error listing intake workflows" : classified.message });
+    }
+  });
+
+  apiRoute(app, 'post', '/api/organizations/:orgId/intake-workflows', {
+    tag: 'Intake Workflow',
+    summary: 'Create a new intake workflow (with default steps)',
+    parameters: [pathId('orgId')],
+    requestBody: body({ type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' }, isDefault: { type: 'boolean' } }, required: ['name'] }),
+    responses: { ...r201('Workflow created', { type: 'object' }), ...inputRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgId = Number(req.params.orgId);
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
+      const { name, description, isDefault } = req.body || {};
+      if (!name || typeof name !== 'string' || !name.trim()) return res.status(400).json({ message: "Name is required" });
+      const wf = await storage.createIntakeWorkflow({ organizationId: orgId, name: name.trim(), description: description || null, isDefault: !!isDefault, isActive: true });
+      // Seed with default steps so the new workflow is immediately usable
+      await storage.resetIntakeWorkflowToDefaults(orgId, wf.id);
+      res.status(201).json(wf);
+    } catch (err) {
+      console.error("Error creating intake workflow:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error creating intake workflow" : (err instanceof Error ? err.message : classified.message) });
+    }
+  });
+
+  apiRoute(app, 'patch', '/api/organizations/:orgId/intake-workflows/:wfId', {
+    tag: 'Intake Workflow',
+    summary: 'Update an intake workflow (name, description, isDefault)',
+    parameters: [pathId('orgId'), pathId('wfId')],
+    requestBody: body({ type: 'object' }, false),
+    responses: { ...r200('Workflow updated', { type: 'object' }), ...updateRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgId = Number(req.params.orgId);
+      const wfId = Number(req.params.wfId);
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
+      const existing = await storage.getIntakeWorkflow(wfId);
+      if (!existing || existing.organizationId !== orgId) return res.status(404).json({ message: "Workflow not found" });
+      const { name, description, isDefault, isActive } = req.body || {};
+      const updates: any = {};
+      if (name !== undefined) updates.name = String(name).trim();
+      if (description !== undefined) updates.description = description;
+      if (isDefault !== undefined) updates.isDefault = !!isDefault;
+      if (isActive !== undefined) updates.isActive = !!isActive;
+      const updated = await storage.updateIntakeWorkflow(wfId, updates);
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating intake workflow:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: err instanceof Error ? err.message : classified.message });
+    }
+  });
+
+  apiRoute(app, 'delete', '/api/organizations/:orgId/intake-workflows/:wfId', {
+    tag: 'Intake Workflow',
+    summary: 'Delete an intake workflow',
+    parameters: [pathId('orgId'), pathId('wfId')],
+    responses: { ...r204('Workflow deleted'), ...fullRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgId = Number(req.params.orgId);
+      const wfId = Number(req.params.wfId);
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
+      const existing = await storage.getIntakeWorkflow(wfId);
+      if (!existing || existing.organizationId !== orgId) return res.status(404).json({ message: "Workflow not found" });
+      await storage.deleteIntakeWorkflow(wfId);
+      res.status(204).send();
+    } catch (err) {
+      console.error("Error deleting intake workflow:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: err instanceof Error ? err.message : classified.message });
+    }
+  });
+
   apiRoute(app, 'put', '/api/organizations/:orgId/intake-workflow', {
     tag: 'Intake Workflow',
-    summary: 'Update intake workflow configuration',
-    parameters: [pathId('orgId')],
+    summary: 'Update intake workflow configuration (default or by workflowId)',
+    parameters: [pathId('orgId'), qInt('workflowId', false, 'Workflow ID (defaults to org default)')],
     requestBody: body({ type: 'object' }),
     responses: { ...r200('Workflow updated', { type: 'object' }), ...updateRes },
   }, async (req, res) => {
@@ -405,10 +518,16 @@ export function registerIntakeRoutes(app: Express) {
       }
       
       const orgId = Number(req.params.orgId);
+      const workflowId = req.query.workflowId ? Number(req.query.workflowId) : undefined;
       
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(orgId)) {
         return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+
+      if (workflowId) {
+        const wf = await storage.getIntakeWorkflow(workflowId);
+        if (!wf || wf.organizationId !== orgId) return res.status(404).json({ message: "Workflow not found in this organization" });
       }
       
       const { steps } = req.body;
@@ -422,7 +541,7 @@ export function registerIntakeRoutes(app: Express) {
         }
       }
       
-      const updatedSteps = await storage.upsertIntakeWorkflowSteps(orgId, steps);
+      const updatedSteps = await storage.upsertIntakeWorkflowSteps(orgId, steps, workflowId);
       res.json(updatedSteps);
     } catch (err) {
       console.error("Error updating intake workflow:", err);
@@ -433,8 +552,8 @@ export function registerIntakeRoutes(app: Express) {
 
   apiRoute(app, 'post', '/api/organizations/:orgId/intake-workflow/reset', {
     tag: 'Intake Workflow',
-    summary: 'Reset intake workflow to defaults',
-    parameters: [pathId('orgId')],
+    summary: 'Reset intake workflow to defaults (default or by workflowId)',
+    parameters: [pathId('orgId'), qInt('workflowId', false, 'Workflow ID (defaults to org default)')],
     responses: { ...r200('Workflow reset', { type: 'object' }), ...fullRes },
   }, async (req, res) => {
     try {
@@ -444,13 +563,19 @@ export function registerIntakeRoutes(app: Express) {
       }
       
       const orgId = Number(req.params.orgId);
+      const workflowId = req.query.workflowId ? Number(req.query.workflowId) : undefined;
       
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(orgId)) {
         return res.status(403).json({ message: "You don't have access to this organization" });
       }
+
+      if (workflowId) {
+        const wf = await storage.getIntakeWorkflow(workflowId);
+        if (!wf || wf.organizationId !== orgId) return res.status(404).json({ message: "Workflow not found in this organization" });
+      }
       
-      const steps = await storage.resetIntakeWorkflowToDefaults(orgId);
+      const steps = await storage.resetIntakeWorkflowToDefaults(orgId, workflowId);
       res.json(steps);
     } catch (err) {
       console.error("Error resetting intake workflow:", err);
@@ -461,20 +586,26 @@ export function registerIntakeRoutes(app: Express) {
 
   apiRoute(app, 'get', '/api/organizations/:orgId/project-workflow', {
     tag: 'Project Workflow',
-    summary: 'Get project workflow configuration',
-    parameters: [pathId('orgId')],
+    summary: 'Get project workflow configuration (default or by workflowId)',
+    parameters: [pathId('orgId'), qInt('workflowId', false, 'Workflow ID (defaults to org default)')],
     responses: { ...r200('Workflow config', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
       const orgId = Number(req.params.orgId);
+      const workflowId = req.query.workflowId ? Number(req.query.workflowId) : undefined;
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
 
-      let steps = await storage.getProjectWorkflowSteps(orgId);
+      if (workflowId) {
+        const wf = await storage.getProjectWorkflow(workflowId);
+        if (!wf || wf.organizationId !== orgId) return res.status(404).json({ message: "Workflow not found in this organization" });
+      }
+
+      let steps = await storage.getProjectWorkflowSteps(orgId, workflowId);
       if (steps.length === 0) {
-        steps = await storage.resetProjectWorkflowToDefaults(orgId);
+        steps = await storage.resetProjectWorkflowToDefaults(orgId, workflowId);
       }
       res.json(steps);
     } catch (err) {
@@ -486,8 +617,8 @@ export function registerIntakeRoutes(app: Express) {
 
   apiRoute(app, 'put', '/api/organizations/:orgId/project-workflow', {
     tag: 'Project Workflow',
-    summary: 'Update project workflow configuration',
-    parameters: [pathId('orgId')],
+    summary: 'Update project workflow configuration (default or by workflowId)',
+    parameters: [pathId('orgId'), qInt('workflowId', false, 'Workflow ID (defaults to org default)')],
     requestBody: body({ type: 'object' }),
     responses: { ...r200('Workflow updated', { type: 'object' }), ...updateRes },
   }, async (req, res) => {
@@ -495,8 +626,14 @@ export function registerIntakeRoutes(app: Express) {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
       const orgId = Number(req.params.orgId);
+      const workflowId = req.query.workflowId ? Number(req.query.workflowId) : undefined;
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
+
+      if (workflowId) {
+        const wf = await storage.getProjectWorkflow(workflowId);
+        if (!wf || wf.organizationId !== orgId) return res.status(404).json({ message: "Workflow not found in this organization" });
+      }
 
       const { steps } = req.body;
       if (!Array.isArray(steps)) return res.status(400).json({ message: "Steps must be an array" });
@@ -506,7 +643,7 @@ export function registerIntakeRoutes(app: Express) {
         }
       }
 
-      const updatedSteps = await storage.upsertProjectWorkflowSteps(orgId, steps);
+      const updatedSteps = await storage.upsertProjectWorkflowSteps(orgId, steps, workflowId);
       res.json(updatedSteps);
     } catch (err) {
       console.error("Error updating project workflow:", err);
@@ -517,9 +654,39 @@ export function registerIntakeRoutes(app: Express) {
 
   apiRoute(app, 'post', '/api/organizations/:orgId/project-workflow/reset', {
     tag: 'Project Workflow',
-    summary: 'Reset project workflow to defaults',
-    parameters: [pathId('orgId')],
+    summary: 'Reset project workflow to defaults (default or by workflowId)',
+    parameters: [pathId('orgId'), qInt('workflowId', false, 'Workflow ID (defaults to org default)')],
     responses: { ...r200('Workflow reset', { type: 'object' }), ...fullRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgId = Number(req.params.orgId);
+      const workflowId = req.query.workflowId ? Number(req.query.workflowId) : undefined;
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
+
+      if (workflowId) {
+        const wf = await storage.getProjectWorkflow(workflowId);
+        if (!wf || wf.organizationId !== orgId) return res.status(404).json({ message: "Workflow not found in this organization" });
+      }
+
+      const steps = await storage.resetProjectWorkflowToDefaults(orgId, workflowId);
+      res.json(steps);
+    } catch (err) {
+      console.error("Error resetting project workflow:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error resetting project workflow configuration" : classified.message });
+    }
+  });
+
+  // ========== Multi-workflow management: Project ==========
+
+  apiRoute(app, 'get', '/api/organizations/:orgId/project-workflows', {
+    tag: 'Project Workflow',
+    summary: 'List all project workflows for an organization',
+    parameters: [pathId('orgId')],
+    responses: { ...r200('Workflows', { type: 'array' }), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -527,13 +694,92 @@ export function registerIntakeRoutes(app: Express) {
       const orgId = Number(req.params.orgId);
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
-
-      const steps = await storage.resetProjectWorkflowToDefaults(orgId);
-      res.json(steps);
+      const wfs = await storage.getProjectWorkflows(orgId);
+      res.json(wfs);
     } catch (err) {
-      console.error("Error resetting project workflow:", err);
+      console.error("Error listing project workflows:", err);
       const classified = classifyError(err);
-      res.status(classified.status).json({ message: classified.status === 500 ? "Error resetting project workflow configuration" : classified.message });
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error listing project workflows" : classified.message });
+    }
+  });
+
+  apiRoute(app, 'post', '/api/organizations/:orgId/project-workflows', {
+    tag: 'Project Workflow',
+    summary: 'Create a new project workflow (with default steps)',
+    parameters: [pathId('orgId')],
+    requestBody: body({ type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' }, isDefault: { type: 'boolean' } }, required: ['name'] }),
+    responses: { ...r201('Workflow created', { type: 'object' }), ...inputRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgId = Number(req.params.orgId);
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
+      const { name, description, isDefault } = req.body || {};
+      if (!name || typeof name !== 'string' || !name.trim()) return res.status(400).json({ message: "Name is required" });
+      const wf = await storage.createProjectWorkflow({ organizationId: orgId, name: name.trim(), description: description || null, isDefault: !!isDefault, isActive: true });
+      await storage.resetProjectWorkflowToDefaults(orgId, wf.id);
+      res.status(201).json(wf);
+    } catch (err) {
+      console.error("Error creating project workflow:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: err instanceof Error ? err.message : classified.message });
+    }
+  });
+
+  apiRoute(app, 'patch', '/api/organizations/:orgId/project-workflows/:wfId', {
+    tag: 'Project Workflow',
+    summary: 'Update a project workflow',
+    parameters: [pathId('orgId'), pathId('wfId')],
+    requestBody: body({ type: 'object' }, false),
+    responses: { ...r200('Workflow updated', { type: 'object' }), ...updateRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgId = Number(req.params.orgId);
+      const wfId = Number(req.params.wfId);
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
+      const existing = await storage.getProjectWorkflow(wfId);
+      if (!existing || existing.organizationId !== orgId) return res.status(404).json({ message: "Workflow not found" });
+      const { name, description, isDefault, isActive } = req.body || {};
+      const updates: any = {};
+      if (name !== undefined) updates.name = String(name).trim();
+      if (description !== undefined) updates.description = description;
+      if (isDefault !== undefined) updates.isDefault = !!isDefault;
+      if (isActive !== undefined) updates.isActive = !!isActive;
+      const updated = await storage.updateProjectWorkflow(wfId, updates);
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating project workflow:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: err instanceof Error ? err.message : classified.message });
+    }
+  });
+
+  apiRoute(app, 'delete', '/api/organizations/:orgId/project-workflows/:wfId', {
+    tag: 'Project Workflow',
+    summary: 'Delete a project workflow',
+    parameters: [pathId('orgId'), pathId('wfId')],
+    responses: { ...r204('Workflow deleted'), ...fullRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgId = Number(req.params.orgId);
+      const wfId = Number(req.params.wfId);
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
+      const existing = await storage.getProjectWorkflow(wfId);
+      if (!existing || existing.organizationId !== orgId) return res.status(404).json({ message: "Workflow not found" });
+      await storage.deleteProjectWorkflow(wfId);
+      res.status(204).send();
+    } catch (err) {
+      console.error("Error deleting project workflow:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: err instanceof Error ? err.message : classified.message });
     }
   });
 }

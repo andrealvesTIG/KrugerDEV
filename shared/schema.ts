@@ -362,6 +362,7 @@ export const projects = pgTable("projects", {
   isDemo: boolean("is_demo").default(false),
   isInternal: boolean("is_internal").default(false),
   timesheetBlocked: boolean("timesheet_blocked").default(false),
+  workflowId: integer("workflow_id"), // FK to project_workflows.id (nullable for legacy/backfill)
 }, (table) => [
   index("projects_org_id_idx").on(table.organizationId),
   index("projects_portfolio_id_idx").on(table.portfolioId),
@@ -1386,15 +1387,51 @@ export const projectIntakes = pgTable("project_intakes", {
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
   isDemo: boolean("is_demo").default(false),
+  workflowId: integer("workflow_id"), // FK to intake_workflows.id (nullable for legacy/backfill)
 }, (table) => [
   index("project_intakes_org_id_idx").on(table.organizationId),
   index("project_intakes_portfolio_id_idx").on(table.portfolioId),
 ]);
 
-// Intake Workflow Steps - Configurable workflow steps per organization
+// Named Intake Workflows - Each org can define multiple intake workflows
+export const intakeWorkflows = pgTable("intake_workflows", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  isDefault: boolean("is_default").default(false),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("intake_workflows_org_id_idx").on(table.organizationId),
+  uniqueIndex("intake_workflows_one_default_per_org")
+    .on(table.organizationId)
+    .where(sql`${table.isDefault} = true`),
+]);
+
+// Named Project Workflows - Each org can define multiple project workflows
+export const projectWorkflows = pgTable("project_workflows", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  isDefault: boolean("is_default").default(false),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("project_workflows_org_id_idx").on(table.organizationId),
+  uniqueIndex("project_workflows_one_default_per_org")
+    .on(table.organizationId)
+    .where(sql`${table.isDefault} = true`),
+]);
+
+// Intake Workflow Steps - Configurable workflow steps per workflow
 export const intakeWorkflowSteps = pgTable("intake_workflow_steps", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  workflowId: integer("workflow_id").references(() => intakeWorkflows.id, { onDelete: "cascade" }),
   stepKey: text("step_key").notNull(), // Canonical step identifier: intake_capture, triage, business_case, technical_evaluation, governance_review, decision
   position: integer("position").notNull(), // Order in workflow (0-5)
   label: text("label").notNull(), // Display name (can be customized per org)
@@ -1404,11 +1441,14 @@ export const intakeWorkflowSteps = pgTable("intake_workflow_steps", {
   isActive: boolean("is_active").default(true), // Whether step is active
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("intake_workflow_steps_workflow_id_idx").on(table.workflowId),
+]);
 
 export const projectWorkflowSteps = pgTable("project_workflow_steps", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  workflowId: integer("workflow_id").references(() => projectWorkflows.id, { onDelete: "cascade" }),
   stepKey: text("step_key").notNull(),
   position: integer("position").notNull(),
   label: text("label").notNull(),
@@ -1417,7 +1457,9 @@ export const projectWorkflowSteps = pgTable("project_workflow_steps", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("project_workflow_steps_workflow_id_idx").on(table.workflowId),
+]);
 
 // MPP Imports - Store imported Microsoft Project data
 export const mppImports = pgTable("mpp_imports", {
@@ -1748,6 +1790,8 @@ export const insertInvoiceNoteSchema = createInsertSchema(invoiceNotes).omit({ i
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
 export const insertStatusReportHistorySchema = createInsertSchema(statusReportHistory).omit({ id: true, createdAt: true });
 export const insertIntakeWorkflowStepSchema = createInsertSchema(intakeWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertIntakeWorkflowSchema = createInsertSchema(intakeWorkflows).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertProjectWorkflowSchema = createInsertSchema(projectWorkflows).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
 
@@ -1876,6 +1920,11 @@ export type IntakeWorkflowStep = typeof intakeWorkflowSteps.$inferSelect;
 export type InsertIntakeWorkflowStep = z.infer<typeof insertIntakeWorkflowStepSchema>;
 
 export type ProjectWorkflowStep = typeof projectWorkflowSteps.$inferSelect;
+
+export type IntakeWorkflow = typeof intakeWorkflows.$inferSelect;
+export type InsertIntakeWorkflow = z.infer<typeof insertIntakeWorkflowSchema>;
+export type ProjectWorkflow = typeof projectWorkflows.$inferSelect;
+export type InsertProjectWorkflow = z.infer<typeof insertProjectWorkflowSchema>;
 
 // API Request/Response Types
 export type CreatePortfolioRequest = InsertPortfolio;

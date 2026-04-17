@@ -1,10 +1,9 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useOrganization } from "@/hooks/use-organization";
-import type { IntakeWorkflowStep, InsertIntakeWorkflowStep } from "@shared/schema";
+import type { IntakeWorkflowStep, InsertIntakeWorkflowStep, IntakeWorkflow } from "@shared/schema";
 import { Lightbulb, Filter, FileText, Calculator, Shield, Gavel, LucideIcon } from "lucide-react";
 
-// Map step keys to icons
 const STEP_ICONS: Record<string, LucideIcon> = {
   intake_capture: Lightbulb,
   triage: Filter,
@@ -14,7 +13,6 @@ const STEP_ICONS: Record<string, LucideIcon> = {
   decision: Gavel,
 };
 
-// Available intake fields that can be set as required
 export const AVAILABLE_INTAKE_FIELDS = [
   { key: "projectName", label: "Intake Name", group: "Basic Info" },
   { key: "description", label: "Description", group: "Basic Info" },
@@ -40,16 +38,32 @@ export interface WorkflowStep extends IntakeWorkflowStep {
   icon: LucideIcon;
 }
 
-export function useIntakeWorkflow() {
+/**
+ * Hook for working with a specific intake workflow's steps.
+ * Pass an explicit workflowId to scope to a particular workflow; otherwise the
+ * organization's default workflow is used.
+ */
+export function useIntakeWorkflow(workflowId?: number | null) {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
 
+  const queryKey = workflowId
+    ? ['/api/organizations', orgId, 'intake-workflow', { workflowId }]
+    : ['/api/organizations', orgId, 'intake-workflow'];
+
+  const url = workflowId
+    ? `/api/organizations/${orgId}/intake-workflow?workflowId=${workflowId}`
+    : `/api/organizations/${orgId}/intake-workflow`;
+
   const query = useQuery<IntakeWorkflowStep[]>({
-    queryKey: ['/api/organizations', orgId, 'intake-workflow'],
+    queryKey,
+    queryFn: async () => {
+      const res = await apiRequest("GET", url);
+      return res.json();
+    },
     enabled: !!orgId,
   });
 
-  // Transform steps to include icons
   const steps: WorkflowStep[] = (query.data || []).map(step => ({
     ...step,
     icon: STEP_ICONS[step.stepKey] || Lightbulb,
@@ -58,7 +72,10 @@ export function useIntakeWorkflow() {
   const updateWorkflow = useMutation({
     mutationFn: async (newSteps: InsertIntakeWorkflowStep[]) => {
       if (!orgId) throw new Error("No organization selected");
-      const response = await apiRequest("PUT", `/api/organizations/${orgId}/intake-workflow`, { steps: newSteps });
+      const u = workflowId
+        ? `/api/organizations/${orgId}/intake-workflow?workflowId=${workflowId}`
+        : `/api/organizations/${orgId}/intake-workflow`;
+      const response = await apiRequest("PUT", u, { steps: newSteps });
       return response.json();
     },
     onSuccess: () => {
@@ -69,7 +86,10 @@ export function useIntakeWorkflow() {
   const resetToDefaults = useMutation({
     mutationFn: async () => {
       if (!orgId) throw new Error("No organization selected");
-      const response = await apiRequest("POST", `/api/organizations/${orgId}/intake-workflow/reset`);
+      const u = workflowId
+        ? `/api/organizations/${orgId}/intake-workflow/reset?workflowId=${workflowId}`
+        : `/api/organizations/${orgId}/intake-workflow/reset`;
+      const response = await apiRequest("POST", u);
       return response.json();
     },
     onSuccess: () => {
@@ -77,24 +97,20 @@ export function useIntakeWorkflow() {
     },
   });
 
-  // Helper to get step by key
   const getStepByKey = (stepKey: string): WorkflowStep | undefined => {
     return steps.find(s => s.stepKey === stepKey);
   };
 
-  // Helper to get step index by key
   const getStepIndex = (stepKey: string): number => {
     const index = steps.findIndex(s => s.stepKey === stepKey);
     return index >= 0 ? index : 0;
   };
 
-  // Helper to check if a field is required for a given step
   const isFieldRequired = (stepKey: string, fieldKey: string): boolean => {
     const step = getStepByKey(stepKey);
     return step?.requiredFields?.includes(fieldKey) || false;
   };
 
-  // Helper to get all required fields up to and including a given step
   const getRequiredFieldsForStep = (stepKey: string): string[] => {
     const stepIndex = getStepIndex(stepKey);
     const allRequired: string[] = [];
@@ -117,5 +133,59 @@ export function useIntakeWorkflow() {
     getStepIndex,
     isFieldRequired,
     getRequiredFieldsForStep,
+  };
+}
+
+/**
+ * Hook for listing/managing all intake workflows for the current organization.
+ */
+export function useIntakeWorkflows() {
+  const { currentOrganization } = useOrganization();
+  const orgId = currentOrganization?.id;
+
+  const query = useQuery<IntakeWorkflow[]>({
+    queryKey: ['/api/organizations', orgId, 'intake-workflows'],
+    enabled: !!orgId,
+  });
+
+  const createWorkflow = useMutation({
+    mutationFn: async (data: { name: string; description?: string; isDefault?: boolean }) => {
+      if (!orgId) throw new Error("No organization selected");
+      const res = await apiRequest("POST", `/api/organizations/${orgId}/intake-workflows`, data);
+      return res.json() as Promise<IntakeWorkflow>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', orgId, 'intake-workflows'] });
+    },
+  });
+
+  const updateWorkflowMeta = useMutation({
+    mutationFn: async ({ id, ...data }: { id: number; name?: string; description?: string; isDefault?: boolean; isActive?: boolean }) => {
+      if (!orgId) throw new Error("No organization selected");
+      const res = await apiRequest("PATCH", `/api/organizations/${orgId}/intake-workflows/${id}`, data);
+      return res.json() as Promise<IntakeWorkflow>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', orgId, 'intake-workflows'] });
+    },
+  });
+
+  const deleteWorkflow = useMutation({
+    mutationFn: async (id: number) => {
+      if (!orgId) throw new Error("No organization selected");
+      await apiRequest("DELETE", `/api/organizations/${orgId}/intake-workflows/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', orgId, 'intake-workflows'] });
+    },
+  });
+
+  return {
+    workflows: query.data || [],
+    isLoading: query.isLoading,
+    isError: query.isError,
+    createWorkflow,
+    updateWorkflowMeta,
+    deleteWorkflow,
   };
 }
