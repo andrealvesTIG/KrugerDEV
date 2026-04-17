@@ -72,3 +72,9 @@ id = "mo7vIEU4q7l8_frOo0Yy7"
 uri = "file://.local/codebase_audit_report.md"
 type = "text"
 title = "Codebase Audit Report — Bugs, Schema Mismatches & Risks"
+
+[[outputs]]
+id = "uAUbZbyRwaLCngDLUUgGY"
+uri = "file://schema_diff_report.json"
+type = "unspecified"
+title = "Schema Diff Report (DB ↔ Drizzle)"

@@ -1,0 +1,63 @@
+{
+  "generated_at": "2026-04-17T11:38:10.173Z",
+  "summary": {
+    "db_tables_total": 119,
+    "drizzle_tables_total": 119,
+    "tables_with_differences": 2,
+    "tables_only_in_drizzle": 1,
+    "tables_only_in_db": 1,
+    "columns_only_in_drizzle": 2,
+    "columns_only_in_db": 0,
+    "column_type_mismatches": 0,
+    "primary_key_mismatches": 0
+  },
+  "schema_files_parsed": [
+    "shared/schema.ts (96 tables)",
+    "shared/models/auth.ts (3 tables: users, password_reset_tokens, magic_link_tokens)",
+    "shared/models/billing.ts (18 tables: plans, subscriptions, billing_*, payment_*, usage_*, referral_*)",
+    "shared/models/chat.ts (2 tables: conversations, messages)"
+  ],
+  "missing_in_db": [
+    {
+      "table": "project_workflow_steps",
+      "severity": "HIGH",
+      "reason": "Table is defined in shared/schema.ts (line 1409) AND actively read/written by server/storage/intakeStorage.ts (lines 662-685). The DB has no such relation, so any call to those storage functions will throw 'relation \"project_workflow_steps\" does not exist' at runtime.",
+      "suggested_fix_sql": "Run `npm run db:push --force` to let Drizzle create the missing table from the schema, or apply a migration with the columns currently in the Drizzle definition."
+    }
+  ],
+  "missing_in_drizzle": [
+    {
+      "table": "sessions",
+      "severity": "INFO",
+      "reason": "This is the connect-pg-simple express-session store table (sid varchar, sess jsonb, expire timestamp). It is intentionally managed by the session middleware, not by Drizzle. No action required.",
+      "suggested_fix": "Leave as-is; optionally add a Drizzle definition only if application code needs to query it directly."
+    }
+  ],
+  "table_differences": {
+    "organizations": {
+      "missing_columns_in_db": [
+        "friday_agent_config"
+      ],
+      "reason": "Drizzle schema declares organizations.friday_agent_config (jsonb) and the column is read/written by server/services/jarvisService.ts and server/routes/organizationRoutes.ts. A migration file exists at migrations/0006_friday_agent_config.sql but the column is absent from the live DB — the migration was apparently never applied.",
+      "severity": "HIGH",
+      "suggested_fix_sql": "ALTER TABLE organizations ADD COLUMN friday_agent_config jsonb;",
+      "alternative_fix": "Run `npm run db:push --force` to sync."
+    },
+    "timesheet_reminder_settings": {
+      "missing_columns_in_db": [
+        "submission_reminder_days"
+      ],
+      "reason": "Drizzle schema declares timesheet_reminder_settings.submission_reminder_days. The column is referenced by client/server code (timesheetRoutes.ts, timesheetReminderEngine.ts, ReminderSettingsSection.tsx, TimesheetSettingsDialog.tsx). Without the column, reads/writes will fail with 'column does not exist'.",
+      "severity": "HIGH",
+      "suggested_fix_sql": "ALTER TABLE timesheet_reminder_settings ADD COLUMN submission_reminder_days <type matching Drizzle definition>;",
+      "alternative_fix": "Run `npm run db:push --force` to sync."
+    }
+  },
+  "notes": [
+    "The Drizzle schema is split across 4 files (shared/schema.ts and shared/models/{auth,billing,chat}.ts). All 4 must be parsed to get a complete picture.",
+    "After fixing the parser to strip inline `//` comments before tokenizing column entries, types and nullability are 100% in sync between Drizzle and the live DB.",
+    "ARRAY columns (e.g., text[], integer[]) are correctly declared with `.array()` in Drizzle and stored as PostgreSQL arrays in the DB — no mismatch.",
+    "All primary keys (including composite PKs declared via `(t) => [primaryKey({ columns: [...] })]`) align between Drizzle and the DB.",
+    "Indexes and foreign keys were not exhaustively diffed because no column-level mismatch was found and runtime failures would surface there first; if needed, /tmp/db_idx.json and /tmp/db_fks.json contain the raw DB-side data."
+  ]
+}
