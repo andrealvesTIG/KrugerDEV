@@ -257,9 +257,9 @@ export default function ProjectDetails() {
     if (!detailProjectWorkflows || detailProjectWorkflows.length === 0) return null;
     if (project?.workflowId == null) {
       const def = detailProjectWorkflows.find(w => w.isDefault);
-      return def?.name || "Default";
+      return def?.name || null;
     }
-    return detailProjectWorkflows.find(w => w.id === project.workflowId)?.name || "Default";
+    return detailProjectWorkflows.find(w => w.id === project.workflowId)?.name || null;
   }, [detailProjectWorkflows, project?.workflowId]);
   const { data: financials } = useProjectFinancials(id);
   const { data: projectTasks } = useTasks(id);
