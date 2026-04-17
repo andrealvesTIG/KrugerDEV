@@ -51,6 +51,9 @@ export function ChangeWorkflowDialog({
 }: ChangeWorkflowDialogProps) {
   const { toast } = useToast();
   const isIntake = type === "intake";
+  const workflowsKey = isIntake
+    ? ['/api/organizations', organizationId, 'intake-workflows']
+    : ['/api/organizations', organizationId, 'project-workflows'];
   const workflowsUrl = isIntake
     ? `/api/organizations/${organizationId}/intake-workflows`
     : `/api/organizations/${organizationId}/project-workflows`;
@@ -72,7 +75,11 @@ export function ChangeWorkflowDialog({
   }, [open]);
 
   const { data: workflows = [], isLoading: workflowsLoading } = useQuery<WorkflowSummary[]>({
-    queryKey: [workflowsUrl],
+    queryKey: workflowsKey,
+    queryFn: async () => {
+      const res = await apiRequest("GET", workflowsUrl);
+      return res.json();
+    },
     enabled: open && !!organizationId,
   });
 
