@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
@@ -18,6 +18,12 @@ import {
   type PortfolioIssue
 } from "@/hooks/use-portfolio-details";
 import { useProjects, useUpdateProject } from "@/hooks/use-projects";
+import { useAllTasks } from "@/hooks/use-tasks";
+import { usePortfolios } from "@/hooks/use-portfolios";
+import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
+import { ProjectsListView, ProjectsGridView, ProjectsKanbanView, ProjectsGanttView, DEFAULT_PROJECT_STATUS_LIST, type GroupByOption } from "@/pages/Projects";
+import type { ProjectFilterView } from "@/components/ViewsDropdown";
+import { useAuth } from "@/hooks/use-auth";
 import { useUpdateRisk, useDeleteRisk, useAiMitigationSuggestion, useRiskHistory, useConvertRiskToIssue } from "@/hooks/use-risks";
 import { EditRiskDialog, type RiskFormData } from "@/components/EditRiskDialog";
 import { useUpdateIssue, useDeleteIssue } from "@/hooks/use-issues";
@@ -36,7 +42,7 @@ import { Input } from "@/components/ui/input";
 import { 
   Loader2, DollarSign, Target, AlertTriangle, Bug, 
   CheckCircle2, FolderOpen, TrendingUp, BarChart3, ArrowRight,
-  Calendar, Users, Briefcase, AlertCircle, ChevronLeft, ChevronRight, List, GanttChart, Plus, Search, X,
+  Calendar, Users, Briefcase, AlertCircle, ChevronLeft, ChevronRight, List, GanttChart, LayoutGrid, Layers, Plus, Search, X,
   Star, Award, FileCheck, Pencil, Trash2, Check, MoreHorizontal, MoreVertical, ArrowUpToLine,
   Shield, Share2, Download, FileText, Sparkles, RefreshCw, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown
 } from "lucide-react";
@@ -634,14 +640,170 @@ const portfolioZoomLabels: Record<PortfolioZoomLevel, string> = {
 function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }: { portfolioId: number; organizationId: number; isCustom?: boolean; financialBudgets?: Record<number, number> }) {
   const { data: projects, isLoading } = usePortfolioProjects(portfolioId);
   const { data: allProjects } = useProjects(organizationId);
-  const [view, setView] = useState<"list" | "gantt">("list");
+  const { data: portfolios = [] } = usePortfolios(organizationId);
+  const { data: allTasks } = useAllTasks(organizationId);
+  const { data: customFieldDefs = [] } = useCustomFieldDefinitions(organizationId);
+  const { data: customFieldValues = [] } = useOrganizationProjectCustomFieldValues(organizationId);
+  const { user } = useAuth();
+  const updateProject = useUpdateProject();
+  const updateCfValue = useUpdateProjectCustomFieldValue();
+
+  const { data: projectRiskAssessments } = useQuery<{ projectId: number; riskScore: number; summary: string; generatedAt: string }[]>({
+    queryKey: ['/api/project-risk-assessments/org', organizationId],
+    enabled: !!organizationId,
+  });
+
+  const { data: orgWorkflowSteps } = useQuery<Array<{ id: number; stepKey: string; position: number; label: string; description: string | null; isTerminal: boolean | null; isActive: boolean | null }>>({
+    queryKey: ['/api/organizations', organizationId, 'project-workflow'],
+    queryFn: async () => {
+      const res = await fetch(`/api/organizations/${organizationId}/project-workflow`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!organizationId,
+  });
+
+  const VIEW_STORAGE_KEY = `portfolio-${portfolioId}-projects-view`;
+  const [view, setView] = useState<"list" | "grid" | "kanban" | "gantt">(() => {
+    try {
+      const saved = localStorage.getItem(VIEW_STORAGE_KEY);
+      if (saved && ["list", "grid", "kanban", "gantt"].includes(saved)) {
+        return saved as "list" | "grid" | "kanban" | "gantt";
+      }
+    } catch {}
+    return "list";
+  });
+  useEffect(() => {
+    try { localStorage.setItem(VIEW_STORAGE_KEY, view); } catch {}
+  }, [view, VIEW_STORAGE_KEY]);
+
+  const [groupBy, setGroupBy] = useState<GroupByOption>("none");
+  const [filterView, setFilterView] = useState<ProjectFilterView>("all");
+  const [listCurrentPage, setListCurrentPage] = useState(1);
+  const [listPageSize, setListPageSize] = useState<number>(10);
+  const [deleteProjectId, setDeleteProjectId] = useState<number | null>(null);
+  const [riskAssessProjectId, setRiskAssessProjectId] = useState<number | null>(null);
+  const [, navigateTo] = useLocation();
+  useEffect(() => {
+    if (riskAssessProjectId !== null) {
+      const id = riskAssessProjectId;
+      setRiskAssessProjectId(null);
+      navigateTo(`/projects/${id}?tab=risks`);
+    }
+  }, [riskAssessProjectId, navigateTo]);
+
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedProjectIds, setSelectedProjectIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isAdding, setIsAdding] = useState(false);
-  const updateProject = useUpdateProject();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const isOrgAdmin = user?.role === 'super_admin' || user?.role === 'org_admin';
+
+  const projectStatusList = useMemo(() => {
+    if (!orgWorkflowSteps || orgWorkflowSteps.length === 0) return DEFAULT_PROJECT_STATUS_LIST;
+    return orgWorkflowSteps.filter(s => s.isActive !== false).map(s => s.stepKey);
+  }, [orgWorkflowSteps]);
+
+  const projectProgress = useMemo(() => {
+    const map: Record<number, number> = {};
+    if (!projects) return map;
+    projects.forEach(project => {
+      const projectTasks = (allTasks || []).filter(t => t.projectId === project.id);
+      if (projectTasks.length === 0) {
+        map[project.id] = project.completionPercentage || 0;
+      } else {
+        const totalProgress = projectTasks.reduce((sum, t) => sum + (t.progress || 0), 0);
+        map[project.id] = Math.round(totalProgress / projectTasks.length);
+      }
+    });
+    return map;
+  }, [allTasks, projects]);
+
+  const getRiskScoreForProject = useCallback((projectId: number) => {
+    return projectRiskAssessments?.find(a => a.projectId === projectId);
+  }, [projectRiskAssessments]);
+
+  const getRiskScoreColor = useCallback((score: number) => {
+    if (score <= 25) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+    if (score <= 50) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+    if (score <= 75) return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400';
+    return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400';
+  }, []);
+
+  const filteredProjects = useMemo(() => {
+    if (!projects) return [];
+    return projects.filter(p => {
+      const isClosed = p.status === "Closed";
+      const isMyProject = p.managerId === user?.id ||
+        p.businessSponsorId === user?.id ||
+        p.businessOwnerId === user?.id ||
+        p.technicalLeadId === user?.id;
+      switch (filterView) {
+        case "all": return true;
+        case "active": return !isClosed;
+        case "my-active": return isMyProject && !isClosed;
+        case "closed": return isClosed;
+        case "my-closed": return isMyProject && isClosed;
+        case "internal": return (p as any).isInternal === true;
+        default: return true;
+      }
+    });
+  }, [projects, filterView, user?.id]);
+
+  useEffect(() => {
+    setListCurrentPage(1);
+  }, [filteredProjects.length, view]);
+
+  const effectiveListPageSize = listPageSize === Infinity ? Math.max(filteredProjects.length, 1) : listPageSize;
+  const totalListPages = Math.max(1, Math.ceil(filteredProjects.length / effectiveListPageSize));
+  const displayedListProjects = useMemo(() => {
+    if (listPageSize === Infinity) return filteredProjects;
+    const start = (listCurrentPage - 1) * listPageSize;
+    return filteredProjects.slice(start, start + listPageSize);
+  }, [filteredProjects, listCurrentPage, listPageSize]);
+
+  const handleStatusChange = useCallback((projectId: number, newStatus: string) => {
+    updateProject.mutate(
+      { id: projectId, status: newStatus },
+      {
+        onSuccess: () => toast({ title: "Project updated", description: `Status changed to ${newStatus}` }),
+        onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+      }
+    );
+  }, [updateProject, toast]);
+
+  const handlePortfolioChange = useCallback((projectId: number, newPortfolioId: number | null) => {
+    const portfolioName = newPortfolioId ? portfolios.find(p => p.id === newPortfolioId)?.name : "Unassigned";
+    updateProject.mutate(
+      { id: projectId, portfolioId: newPortfolioId },
+      {
+        onSuccess: () => toast({ title: "Project updated", description: `Moved to ${portfolioName}` }),
+        onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+      }
+    );
+  }, [updateProject, portfolios, toast]);
+
+  const handleKanbanProjectUpdate = useCallback((projectId: number, updates: Partial<Project>) => {
+    updateProject.mutate(
+      { id: projectId, ...updates },
+      {
+        onSuccess: () => toast({ title: "Project updated" }),
+        onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+      }
+    );
+  }, [updateProject, toast]);
+
+  const handleKanbanCfChange = useCallback((projectId: number, fieldDefinitionId: number, value: string | null) => {
+    updateCfValue.mutate(
+      { projectId, fieldDefinitionId, value },
+      {
+        onSuccess: () => toast({ title: "Project updated" }),
+        onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+      }
+    );
+  }, [updateCfValue, toast]);
 
   const availableProjects = useMemo(() => {
     if (!allProjects) return [];
@@ -791,6 +953,26 @@ function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }
               List
             </Button>
             <Button
+              variant={view === "grid" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setView("grid")}
+              className="rounded-none"
+              data-testid="button-portfolio-view-grid"
+            >
+              <LayoutGrid className="h-4 w-4 mr-2" />
+              Grid
+            </Button>
+            <Button
+              variant={view === "kanban" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setView("kanban")}
+              className="rounded-none"
+              data-testid="button-portfolio-view-kanban"
+            >
+              <Layers className="h-4 w-4 mr-2" />
+              Kanban
+            </Button>
+            <Button
               variant={view === "gantt" ? "default" : "ghost"}
               size="sm"
               onClick={() => setView("gantt")}
@@ -804,85 +986,95 @@ function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }
         </div>
       </CardHeader>
       <CardContent>
-        {view === "list" ? (
-          <div className="rounded-md border">
-            <table className="w-full">
-              <thead className="bg-muted/50">
-                <tr className="border-b">
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Project</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Status</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Health</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Progress</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Budget</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {projects?.map((project: Project) => (
-                  <tr key={project.id} className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-project-${project.id}`}>
-                    <td className="p-3 max-w-[200px]">
-                      <Link href={`/projects/${project.id}`}>
-                        <div className="hover:text-primary cursor-pointer min-w-0">
-                          <p className="font-medium truncate">{project.name}</p>
-                          <p className="text-sm text-muted-foreground truncate">{project.description}</p>
-                        </div>
-                      </Link>
-                    </td>
-                    <td className="p-3">
-                      <Badge className={cn("text-xs", statusColors[project.status] || "bg-muted")}>{project.status}</Badge>
-                    </td>
-                    <td className="p-3">
-                      <Badge className={cn("text-xs", healthColors[project.health || "Green"])}>{project.health}</Badge>
-                    </td>
-                    <td className="p-3">
-                      <div className="flex items-center gap-2">
-                        <Progress value={project.completionPercentage || 0} className="w-20 h-2" />
-                        <span className="text-sm">{project.completionPercentage || 0}%</span>
-                      </div>
-                    </td>
-                    <td className="p-3 text-sm"><CompactCurrency value={financialBudgets && project.id in financialBudgets ? financialBudgets[project.id] : project.budget} /></td>
-                    <td className="p-3">
-                      <div className="flex items-center gap-1">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" data-testid={`button-menu-project-${project.id}`}>
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link href={`/projects/${project.id}`} className="cursor-pointer">
-                                <ArrowRight className="h-4 w-4 mr-2" />
-                                View Project
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleRemoveProject(project.id)}
-                              className="text-destructive focus:text-destructive"
-                              data-testid={`menu-delete-project-${project.id}`}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Remove from Portfolio
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {projects?.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                No projects in this portfolio. Click "Add Project" to add existing projects.
-              </div>
-            )}
+        {view === "list" && (
+          <ProjectsListView
+            projects={displayedListProjects}
+            filteredProjects={filteredProjects}
+            portfolios={portfolios}
+            projectProgress={projectProgress}
+            getRiskScoreForProject={getRiskScoreForProject}
+            getRiskScoreColor={getRiskScoreColor}
+            handleStatusChange={handleStatusChange}
+            setDeleteProjectId={setDeleteProjectId}
+            setRiskAssessProjectId={setRiskAssessProjectId}
+            currentPage={listCurrentPage}
+            totalPages={totalListPages}
+            pageSize={effectiveListPageSize}
+            onPageChange={setListCurrentPage}
+            onPageSizeChange={(size) => { setListPageSize(size); setListCurrentPage(1); }}
+            selectedPageSize={listPageSize}
+            isLoading={isLoading}
+            groupBy={groupBy}
+            onGroupByChange={setGroupBy}
+            customFieldDefs={customFieldDefs}
+            customFieldValues={customFieldValues}
+            filterView={filterView}
+            onFilterViewChange={setFilterView}
+            organizationId={organizationId}
+            statusList={projectStatusList}
+          />
+        )}
+        {view === "grid" && (
+          <ProjectsGridView
+            projects={filteredProjects}
+            portfolios={portfolios}
+            onStatusChange={handleStatusChange}
+            onDeleteProject={(id) => { handleRemoveProject(id); }}
+            onUpdateProject={handleKanbanProjectUpdate}
+            isAdmin={isOrgAdmin}
+            organizationId={organizationId}
+            filterView={filterView}
+            onFilterViewChange={setFilterView}
+            statusList={projectStatusList}
+          />
+        )}
+        {view === "kanban" && (
+          <ProjectsKanbanView
+            projects={filteredProjects}
+            portfolios={portfolios}
+            onStatusChange={handleStatusChange}
+            onPortfolioChange={handlePortfolioChange}
+            onProjectUpdate={handleKanbanProjectUpdate}
+            customFieldDefs={customFieldDefs}
+            cfValues={customFieldValues}
+            onCustomFieldChange={handleKanbanCfChange}
+          />
+        )}
+        {view === "gantt" && (
+          <ProjectsGanttView projects={filteredProjects} organizationId={organizationId} />
+        )}
+        {!isLoading && filteredProjects.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground">
+            No projects in this portfolio. Click "Add Project" to add existing projects.
           </div>
-        ) : (
-          <PortfolioProjectsGanttView projects={projects || []} />
         )}
       </CardContent>
     </Card>
+
+    <Dialog open={deleteProjectId !== null} onOpenChange={(open) => { if (!open) setDeleteProjectId(null); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Remove project from portfolio?</DialogTitle>
+          <DialogDescription>
+            The project will no longer appear in this portfolio. {isCustom ? "It will remain in any other custom portfolios it belongs to." : "It will become unassigned."}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setDeleteProjectId(null)}>Cancel</Button>
+          <Button
+            variant="destructive"
+            onClick={async () => {
+              const id = deleteProjectId;
+              setDeleteProjectId(null);
+              if (id !== null) await handleRemoveProject(id);
+            }}
+            data-testid="button-confirm-remove-from-portfolio"
+          >
+            Remove
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
       <DialogContent className="sm:max-w-[600px] max-h-[85vh] flex flex-col overflow-hidden">
@@ -1008,263 +1200,6 @@ function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }
   );
 }
 
-function PortfolioProjectsGanttView({ projects }: { projects: Project[] }) {
-  const [zoomDays, setZoomDays] = useState<PortfolioZoomLevel>(90);
-  const [rangePreset, setRangePreset] = useState<PortfolioRangePreset>("custom");
-  const [timelineStart, setTimelineStart] = useState(() => {
-    const projectsWithDates = projects.filter(p => p.startDate);
-    if (projectsWithDates.length > 0) {
-      const earliestStart = projectsWithDates.reduce((earliest, p) => {
-        const start = parseISO(p.startDate!);
-        return start < earliest ? start : earliest;
-      }, parseISO(projectsWithDates[0].startDate!));
-      return startOfMonth(earliestStart);
-    }
-    return startOfMonth(new Date());
-  });
-
-  const timelineEnd = addDays(timelineStart, zoomDays - 1);
-  const days = eachDayOfInterval({ start: timelineStart, end: timelineEnd });
-  const totalDays = days.length;
-
-  const getBarPosition = (startDate: string | null, endDate: string | null) => {
-    if (!startDate || !endDate) return null;
-    
-    const start = parseISO(startDate);
-    const end = parseISO(endDate);
-    
-    const startOffset = Math.max(0, differenceInDays(start, timelineStart));
-    const duration = differenceInDays(end, start) + 1;
-    const endOffset = startOffset + duration;
-    
-    if (endOffset <= 0 || startOffset >= totalDays) return null;
-    
-    const clampedStart = Math.max(0, startOffset);
-    const clampedEnd = Math.min(totalDays, endOffset);
-    
-    return {
-      left: `${(clampedStart / totalDays) * 100}%`,
-      width: `${((clampedEnd - clampedStart) / totalDays) * 100}%`,
-    };
-  };
-
-  const getTimeMarkers = () => {
-    return days.reduce((acc, day, index) => {
-      if (zoomDays <= 60) {
-        if (day.getDate() === 1 || day.getDate() === 15 || index === 0) {
-          acc.push({ index, label: format(day, 'MMM d') });
-        }
-      } else if (zoomDays <= 180) {
-        if (day.getDate() === 1 || index === 0) {
-          acc.push({ index, label: format(day, 'MMM yyyy') });
-        }
-      } else if (zoomDays <= 365) {
-        if (day.getDate() === 1 && (day.getMonth() % 3 === 0 || index === 0)) {
-          acc.push({ index, label: format(day, 'MMM yyyy') });
-        }
-      } else if (zoomDays <= 1095) {
-        // 2-3 years: show every 6 months
-        if (day.getDate() === 1 && (day.getMonth() % 6 === 0 || index === 0)) {
-          acc.push({ index, label: format(day, 'MMM yyyy') });
-        }
-      } else {
-        // 5 years: show yearly
-        if (day.getDate() === 1 && day.getMonth() === 0) {
-          acc.push({ index, label: format(day, 'yyyy') });
-        }
-      }
-      return acc;
-    }, [] as { index: number; label: string }[]);
-  };
-
-  const handleZoomIn = () => {
-    setRangePreset("custom");
-    const idx = portfolioZoomDaysArray.indexOf(zoomDays);
-    if (idx > 0) setZoomDays(portfolioZoomDaysArray[idx - 1]);
-  };
-
-  const handleZoomOut = () => {
-    setRangePreset("custom");
-    const idx = portfolioZoomDaysArray.indexOf(zoomDays);
-    if (idx < portfolioZoomDaysArray.length - 1) setZoomDays(portfolioZoomDaysArray[idx + 1]);
-  };
-
-  const handleRangePreset = (preset: PortfolioRangePreset) => {
-    setRangePreset(preset);
-    const today = new Date();
-    if (preset === "month") {
-      setTimelineStart(startOfMonth(today));
-      setZoomDays(30);
-    } else if (preset === "quarter") {
-      const quarterStart = startOfMonth(new Date(today.getFullYear(), Math.floor(today.getMonth() / 3) * 3, 1));
-      setTimelineStart(quarterStart);
-      setZoomDays(90);
-    } else if (preset === "year") {
-      setTimelineStart(new Date(today.getFullYear(), 0, 1));
-      setZoomDays(365);
-    } else if (preset === "2year") {
-      setTimelineStart(new Date(today.getFullYear(), 0, 1));
-      setZoomDays(730);
-    } else if (preset === "3year") {
-      setTimelineStart(new Date(today.getFullYear(), 0, 1));
-      setZoomDays(1095);
-    } else if (preset === "5year") {
-      setTimelineStart(new Date(today.getFullYear(), 0, 1));
-      setZoomDays(1825);
-    }
-  };
-
-  const navigateTimeline = (direction: 'prev' | 'next') => {
-    setRangePreset("custom");
-    const step = zoomDays <= 60 ? 30 : zoomDays <= 180 ? 30 : 90;
-    setTimelineStart(prev => addDays(prev, direction === 'next' ? step : -step));
-  };
-
-  const goToToday = () => {
-    setRangePreset("custom");
-    setTimelineStart(startOfMonth(new Date()));
-  };
-
-  const timeMarkers = getTimeMarkers();
-
-  return (
-    <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigateTimeline('prev')} data-testid="button-portfolio-gantt-prev">
-            Previous
-          </Button>
-          <Button variant="outline" size="sm" onClick={goToToday} data-testid="button-portfolio-gantt-today">
-            Today
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => navigateTimeline('next')} data-testid="button-portfolio-gantt-next">
-            Next
-          </Button>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground mr-2">Range:</span>
-          <div className="flex rounded-lg border border-border overflow-hidden">
-            <Button
-              variant={rangePreset === "month" ? "secondary" : "ghost"}
-              size="sm"
-              className="rounded-none text-xs px-3"
-              onClick={() => handleRangePreset("month")}
-              data-testid="button-portfolio-range-month"
-            >
-              Month
-            </Button>
-            <Button
-              variant={rangePreset === "quarter" ? "secondary" : "ghost"}
-              size="sm"
-              className="rounded-none text-xs px-3"
-              onClick={() => handleRangePreset("quarter")}
-              data-testid="button-portfolio-range-quarter"
-            >
-              Quarter
-            </Button>
-            <Button
-              variant={rangePreset === "year" ? "secondary" : "ghost"}
-              size="sm"
-              className="rounded-none text-xs px-3"
-              onClick={() => handleRangePreset("year")}
-              data-testid="button-portfolio-range-year"
-            >
-              Year
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground mr-2">Zoom:</span>
-          <Button variant="outline" size="sm" onClick={handleZoomIn} disabled={portfolioZoomDaysArray.indexOf(zoomDays) === 0} data-testid="button-portfolio-zoom-in">
-            +
-          </Button>
-          <span className="text-xs text-muted-foreground min-w-[60px] text-center">{portfolioZoomLabels[zoomDays]}</span>
-          <Button variant="outline" size="sm" onClick={handleZoomOut} disabled={portfolioZoomDaysArray.indexOf(zoomDays) === portfolioZoomDaysArray.length - 1} data-testid="button-portfolio-zoom-out">
-            -
-          </Button>
-        </div>
-
-        <span className="text-sm text-muted-foreground">
-          {format(timelineStart, 'MMM d, yyyy')} - {format(timelineEnd, 'MMM d, yyyy')}
-        </span>
-      </div>
-
-      <div className="relative overflow-x-auto">
-        <div className="min-w-[800px]">
-          <div className="flex border-b border-border mb-2">
-            <div className="w-64 flex-shrink-0 p-2 font-semibold text-sm">Project</div>
-            <div className="flex-1 relative h-8">
-              {timeMarkers.map((marker, i) => (
-                <div 
-                  key={i}
-                  className="absolute text-xs text-muted-foreground"
-                  style={{ left: `${(marker.index / totalDays) * 100}%` }}
-                >
-                  {marker.label}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            {projects.map(project => {
-              const barPosition = getBarPosition(project.startDate, project.endDate);
-              
-              return (
-                <div key={project.id} className="flex items-center">
-                  <div className="w-64 flex-shrink-0 p-2">
-                    <Link href={`/projects/${project.id}`}>
-                      <div className="hover:text-primary cursor-pointer">
-                        <div className="font-medium text-sm truncate">{project.name}</div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge variant="outline" className="text-xs">{project.status}</Badge>
-                          <span className="text-xs text-muted-foreground">{project.completionPercentage}%</span>
-                        </div>
-                      </div>
-                    </Link>
-                  </div>
-                  <div className="flex-1 relative h-10 bg-muted/30 rounded">
-                    {barPosition ? (
-                      <div
-                        className={cn(
-                          "absolute top-1 bottom-1 rounded-md flex items-center justify-center text-xs font-medium text-white",
-                          project.health === 'Green' && "bg-emerald-500",
-                          project.health === 'Yellow' && "bg-amber-500",
-                          project.health === 'Red' && "bg-rose-500",
-                          !project.health && "bg-primary"
-                        )}
-                        style={barPosition}
-                        data-testid={`portfolio-gantt-bar-${project.id}`}
-                      >
-                        <div className="truncate px-2">
-                          {project.startDate && project.endDate && (
-                            <span>{differenceInDays(parseISO(project.endDate), parseISO(project.startDate)) + 1}d</span>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
-                        No dates set
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {projects.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              No projects to display
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalculateRisk, generateRiskAssessment, riskConfirmOpen, setRiskConfirmOpen, forceRecalculate, setForceRecalculate, riskDialogOpen, setRiskDialogOpen, riskReport, riskAssessmentId, riskShareToken, getRiskScoreColor, getRiskScoreBg, getRiskScoreLabel }: {
   portfolioId: number;

@@ -45,7 +45,7 @@ import { PageTransition, FadeIn } from "@/components/ui/page-transition";
 import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues, useBulkUpdateProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
 import type { CustomFieldDefinition, ProjectCustomFieldValue } from "@shared/schema";
 
-const DEFAULT_PROJECT_STATUS_LIST = [...PROJECT_STATUSES, "Billing", "Closed"];
+export const DEFAULT_PROJECT_STATUS_LIST = [...PROJECT_STATUSES, "Billing", "Closed"];
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
@@ -244,7 +244,7 @@ function saveListSort(sort: ListSortState | null) {
   try { localStorage.setItem(LIST_SORT_STORAGE_KEY, JSON.stringify(sort)); } catch {}
 }
 
-type GroupByOption = "none" | "portfolio" | "status" | "priority" | "health" | "projectType" | "methodology" | `cf_${number}`;
+export type GroupByOption = "none" | "portfolio" | "status" | "priority" | "health" | "projectType" | "methodology" | `cf_${number}`;
 
 const GROUP_BY_STANDARD: { value: GroupByOption; label: string }[] = [
   { value: "none", label: "None" },
@@ -283,7 +283,7 @@ interface ProjectsListViewProps {
   statusList?: string[];
 }
 
-function ProjectsListView({
+export function ProjectsListView({
   projects,
   filteredProjects,
   portfolios,
@@ -2192,7 +2192,7 @@ function SortableColumnHeader({ column, children, isFullscreen }: { column: Grid
   );
 }
 
-function ProjectsGridView({ 
+export function ProjectsGridView({ 
   projects, 
   portfolios,
   onStatusChange,
@@ -3556,7 +3556,7 @@ const KANBAN_GROUP_BY_OPTIONS: { value: KanbanGroupBy; label: string }[] = [
 
 const DRAGGABLE_GROUPS = new Set<string>(["status", "portfolio", "priority", "health"]);
 
-function ProjectsKanbanView({ 
+export function ProjectsKanbanView({ 
   projects, 
   portfolios,
   onStatusChange,
@@ -4040,7 +4040,7 @@ const GANTT_COLUMNS: GridColumn[] = [
   { id: "completion", label: "%", defaultVisible: false },
 ];
 
-function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; organizationId: number | null }) {
+export function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; organizationId: number | null }) {
   const [zoomDays, setZoomDays] = useState<ZoomLevel>(90);
   const [rangePreset, setRangePreset] = useState<RangePreset>("custom");
   const [isResizing, setIsResizing] = useState(false);
