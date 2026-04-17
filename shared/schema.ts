@@ -4,6 +4,7 @@ import { z } from "zod";
 import { relations, sql } from "drizzle-orm";
 
 export const PROJECT_STATUSES = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"] as const;
+export const PROJECT_STATUSES_EXTENDED = [...PROJECT_STATUSES, "Billing", "Closed"] as const;
 export const PROJECT_HEALTH_VALUES = ["Green", "Yellow", "Red"] as const;
 export const PROJECT_PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
 export const BILLABLE_STATUSES = ["N/A", "On Track", "Waiting for Approval", "Verbal Approval", "Email Approval", "SOW Signed", "PO Received", "Partially Invoiced", "At Risk", "Ready for Invoice", "Critical", "Invoiced"] as const;
@@ -27,7 +28,7 @@ export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 export const DEFAULT_TASK_STATUS: string = TASK_STATUS.NOT_STARTED;
 export const DEFAULT_TASK_PRIORITY: string = TASK_PRIORITY.MEDIUM;
 
-export const projectStatusEnum = z.enum(PROJECT_STATUSES);
+export const projectStatusEnum = z.enum(PROJECT_STATUSES_EXTENDED);
 export const projectHealthEnum = z.enum(PROJECT_HEALTH_VALUES);
 export const projectPriorityEnum = z.enum(PROJECT_PRIORITIES);
 export const billableStatusEnum = z.enum(BILLABLE_STATUSES);
