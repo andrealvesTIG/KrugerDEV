@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useIntakeWorkflows } from "@/hooks/use-intake-workflow";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "wouter";
-import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen, ChevronsUpDown, GitBranch } from "lucide-react";
+import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, ChevronDown, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen, ChevronsUpDown, GitBranch } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -95,9 +95,10 @@ interface CreateIntakeDialogProps {
   onOpenChange: (open: boolean) => void;
   portfolios: Portfolio[];
   organizationId?: number;
+  initialWorkflowId?: number | null;
 }
 
-function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: CreateIntakeDialogProps) {
+function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, initialWorkflowId }: CreateIntakeDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [intakeName, setIntakeName] = useState("");
@@ -111,12 +112,19 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
 
   const { workflows: intakeWorkflows } = useIntakeWorkflows();
 
+  const wasOpenRef = useRef(false);
   useEffect(() => {
-    if (!workflowId && intakeWorkflows.length > 0) {
-      const def = intakeWorkflows.find(w => w.isDefault) || intakeWorkflows[0];
-      setWorkflowId(String(def.id));
+    if (open && !wasOpenRef.current) {
+      // Dialog just opened — pick the starting workflow once.
+      if (initialWorkflowId != null && intakeWorkflows.some(w => w.id === initialWorkflowId)) {
+        setWorkflowId(String(initialWorkflowId));
+      } else if (intakeWorkflows.length > 0) {
+        const def = intakeWorkflows.find(w => w.isDefault) || intakeWorkflows[0];
+        setWorkflowId(String(def.id));
+      }
     }
-  }, [intakeWorkflows, workflowId]);
+    wasOpenRef.current = open;
+  }, [open, initialWorkflowId, intakeWorkflows]);
 
   const createIntake = useMutation({
     mutationFn: async (data: any) => {
@@ -329,6 +337,11 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
 export default function ProjectIntakes() {
   const { currentOrganization } = useOrganization();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [pendingWorkflowId, setPendingWorkflowId] = useState<number | null>(null);
+  const openCreateIntake = (workflowId: number | null = null) => {
+    setPendingWorkflowId(workflowId);
+    setIsDialogOpen(true);
+  };
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const { toast } = useToast();
@@ -403,10 +416,46 @@ export default function ProjectIntakes() {
           <h1 className="text-3xl font-display font-bold text-foreground">Intake Requests</h1>
           <p className="mt-1 text-muted-foreground">Submit and track new requests through the approval workflow.</p>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)} data-testid="button-new-intake">
-          <Plus className="h-4 w-4 mr-2" />
-          New Intake
-        </Button>
+        {listIntakeWorkflows.length > 1 ? (
+          <div className="flex items-stretch">
+            <Button
+              onClick={() => openCreateIntake(null)}
+              className="rounded-r-none"
+              data-testid="button-new-intake"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              New Intake
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  className="rounded-l-none border-l border-primary-foreground/20 px-2"
+                  data-testid="button-new-intake-workflow-menu"
+                  aria-label="Choose intake workflow"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[220px]">
+                {listIntakeWorkflows.map(wf => (
+                  <DropdownMenuItem
+                    key={wf.id}
+                    onSelect={() => openCreateIntake(wf.id)}
+                    data-testid={`menu-new-intake-workflow-${wf.id}`}
+                  >
+                    <GitBranch className="h-4 w-4 mr-2" />
+                    {wf.name}{wf.isDefault ? ' (Default)' : ''}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ) : (
+          <Button onClick={() => openCreateIntake(null)} data-testid="button-new-intake">
+            <Plus className="h-4 w-4 mr-2" />
+            New Intake
+          </Button>
+        )}
       </div>
 
       {(!portfolios || portfolios.length === 0) && (
@@ -555,7 +604,7 @@ export default function ProjectIntakes() {
                 : "Submit a new intake request to get started"}
             </p>
             {!search && statusFilter === "all" && (
-              <Button onClick={() => setIsDialogOpen(true)}>
+              <Button onClick={() => openCreateIntake(null)}>
                 <Plus className="h-4 w-4 mr-2" />
                 New Intake
               </Button>
@@ -682,9 +731,13 @@ export default function ProjectIntakes() {
 
       <CreateIntakeDialog 
         open={isDialogOpen} 
-        onOpenChange={setIsDialogOpen}
+        onOpenChange={(o) => {
+          setIsDialogOpen(o);
+          if (!o) setPendingWorkflowId(null);
+        }}
         portfolios={portfolios || []}
         organizationId={currentOrganization?.id}
+        initialWorkflowId={pendingWorkflowId}
       />
 
       <Dialog open={deleteIntakeId !== null} onOpenChange={() => setDeleteIntakeId(null)}>
