@@ -314,10 +314,10 @@ export const projects = pgTable("projects", {
   baselineEndDate: date("baseline_end_date"), // Original planned end
   actualStartDate: date("actual_start_date"), // When work actually started
   actualEndDate: date("actual_end_date"), // When work actually finished
-  budget: numeric("budget").notNull().default("0"),
-  actualCost: numeric("actual_cost").default("0"), // Actual spend to date
+  budget: numeric("budget").notNull().default(sql`0`),
+  actualCost: numeric("actual_cost").default(sql`0`), // Actual spend to date
   forecastCost: numeric("forecast_cost"), // Projected final cost
-  contractTotal: numeric("contract_total").default("0"), // Total contract value for invoicing
+  contractTotal: numeric("contract_total").default(sql`0`), // Total contract value for invoicing
   managerId: varchar("manager_id").references(() => users.id), // Project Manager (user ID)
   managerResourceId: integer("manager_resource_id").references(() => resources.id), // Project Manager (resource ID for display)
   businessSponsorId: varchar("business_sponsor_id").references(() => users.id), // Executive Sponsor
@@ -695,7 +695,7 @@ export const resources = pgTable("resources", {
   hourlyRate: numeric("hourly_rate"), // Standard hourly rate
   overtimeRate: numeric("overtime_rate"), // Overtime hourly rate
   costRate: numeric("cost_rate"), // Internal cost rate
-  weeklyCapacity: numeric("weekly_capacity").default("40"), // Hours per week available
+  weeklyCapacity: numeric("weekly_capacity").default(sql`40`), // Hours per week available
   availability: integer("availability").default(100), // Percentage availability (0-100)
   startDate: date("start_date"), // When resource started
   endDate: date("end_date"), // When resource contract ends (if applicable)
@@ -865,9 +865,9 @@ export type TimesheetPeriod = typeof timesheetPeriods.$inferSelect;
 export const timesheetSettings = pgTable("timesheet_settings", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
-  minWeeklyHours: numeric("min_weekly_hours").default("0"),
-  maxWeeklyHours: numeric("max_weekly_hours").default("50"),
-  overtimeThreshold: numeric("overtime_threshold").default("40"),
+  minWeeklyHours: numeric("min_weekly_hours").default(sql`0`),
+  maxWeeklyHours: numeric("max_weekly_hours").default(sql`50`),
+  overtimeThreshold: numeric("overtime_threshold").default(sql`40`),
   gracePeriodDays: integer("grace_period_days").default(0),
   mandatoryNotes: boolean("mandatory_notes").default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -1212,7 +1212,7 @@ export const projectInvoices = pgTable("project_invoices", {
   invoiceNumber: text("invoice_number"), // Invoice reference number
   title: text("title").notNull(), // Brief description
   description: text("description"), // Detailed description
-  amount: numeric("amount").default("0"), // Invoice amount
+  amount: numeric("amount").default(sql`0`), // Invoice amount
   currency: text("currency").default("USD"),
   status: text("status").default("Draft"), // Draft, Sent, Paid, Overdue, Cancelled
   invoiceDate: date("invoice_date"), // Date of invoice
@@ -1261,9 +1261,9 @@ export const projectFinancials = pgTable("project_financials", {
   description: text("description"),
   fiscalYear: integer("fiscal_year").notNull(), // e.g., 2025, 2026
   fiscalPeriod: text("fiscal_period"), // e.g., "Q1", "Q2", "Jan", "Full Year"
-  budgetAmount: numeric("budget_amount").default("0"), // Original budget/plan
-  plannedAmount: numeric("planned_amount").default("0"), // Current planned amount (may differ from original budget)
-  actualAmount: numeric("actual_amount").default("0"), // Actual spent
+  budgetAmount: numeric("budget_amount").default(sql`0`), // Original budget/plan
+  plannedAmount: numeric("planned_amount").default(sql`0`), // Current planned amount (may differ from original budget)
+  actualAmount: numeric("actual_amount").default(sql`0`), // Actual spent
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1283,35 +1283,35 @@ export const costItems = pgTable("cost_items", {
   category: text("category"), // "Direct Expense", "Licenses", "Outside Services", "Travel/Meals", "Project Material", etc.
   fiscalYear: integer("fiscal_year").notNull(), // e.g., 2026
   // Annual totals
-  aopTotal: numeric("aop_total").default("0"), // Annual Operating Plan (original budget)
-  fcstTotal: numeric("fcst_total").default("0"), // Forecast total
-  actTotal: numeric("act_total").default("0"), // Actual total
+  aopTotal: numeric("aop_total").default(sql`0`), // Annual Operating Plan (original budget)
+  fcstTotal: numeric("fcst_total").default(sql`0`), // Forecast total
+  actTotal: numeric("act_total").default(sql`0`), // Actual total
   // Monthly forecasts (fiscal year Oct-Sep: M1=Oct, M2=Nov, ..., M12=Sep)
-  fcstM1: numeric("fcst_m1").default("0"), // October
-  fcstM2: numeric("fcst_m2").default("0"), // November
-  fcstM3: numeric("fcst_m3").default("0"), // December
-  fcstM4: numeric("fcst_m4").default("0"), // January
-  fcstM5: numeric("fcst_m5").default("0"), // February
-  fcstM6: numeric("fcst_m6").default("0"), // March
-  fcstM7: numeric("fcst_m7").default("0"), // April
-  fcstM8: numeric("fcst_m8").default("0"), // May
-  fcstM9: numeric("fcst_m9").default("0"), // June
-  fcstM10: numeric("fcst_m10").default("0"), // July
-  fcstM11: numeric("fcst_m11").default("0"), // August
-  fcstM12: numeric("fcst_m12").default("0"), // September
+  fcstM1: numeric("fcst_m1").default(sql`0`), // October
+  fcstM2: numeric("fcst_m2").default(sql`0`), // November
+  fcstM3: numeric("fcst_m3").default(sql`0`), // December
+  fcstM4: numeric("fcst_m4").default(sql`0`), // January
+  fcstM5: numeric("fcst_m5").default(sql`0`), // February
+  fcstM6: numeric("fcst_m6").default(sql`0`), // March
+  fcstM7: numeric("fcst_m7").default(sql`0`), // April
+  fcstM8: numeric("fcst_m8").default(sql`0`), // May
+  fcstM9: numeric("fcst_m9").default(sql`0`), // June
+  fcstM10: numeric("fcst_m10").default(sql`0`), // July
+  fcstM11: numeric("fcst_m11").default(sql`0`), // August
+  fcstM12: numeric("fcst_m12").default(sql`0`), // September
   // Monthly actuals
-  actM1: numeric("act_m1").default("0"),
-  actM2: numeric("act_m2").default("0"),
-  actM3: numeric("act_m3").default("0"),
-  actM4: numeric("act_m4").default("0"),
-  actM5: numeric("act_m5").default("0"),
-  actM6: numeric("act_m6").default("0"),
-  actM7: numeric("act_m7").default("0"),
-  actM8: numeric("act_m8").default("0"),
-  actM9: numeric("act_m9").default("0"),
-  actM10: numeric("act_m10").default("0"),
-  actM11: numeric("act_m11").default("0"),
-  actM12: numeric("act_m12").default("0"),
+  actM1: numeric("act_m1").default(sql`0`),
+  actM2: numeric("act_m2").default(sql`0`),
+  actM3: numeric("act_m3").default(sql`0`),
+  actM4: numeric("act_m4").default(sql`0`),
+  actM5: numeric("act_m5").default(sql`0`),
+  actM6: numeric("act_m6").default(sql`0`),
+  actM7: numeric("act_m7").default(sql`0`),
+  actM8: numeric("act_m8").default(sql`0`),
+  actM9: numeric("act_m9").default(sql`0`),
+  actM10: numeric("act_m10").default(sql`0`),
+  actM11: numeric("act_m11").default(sql`0`),
+  actM12: numeric("act_m12").default(sql`0`),
   sortOrder: integer("sort_order").default(0), // For manual ordering within parent
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1352,9 +1352,9 @@ export const projectIntakes = pgTable("project_intakes", {
   pmoApprovedBy: varchar("pmo_approved_by").references(() => users.id),
   
   // Financials tab data
-  estimatedBudget: numeric("estimated_budget").default("0"),
-  capitalExpense: numeric("capital_expense").default("0"),
-  operatingExpense: numeric("operating_expense").default("0"),
+  estimatedBudget: numeric("estimated_budget").default(sql`0`),
+  capitalExpense: numeric("capital_expense").default(sql`0`),
+  operatingExpense: numeric("operating_expense").default(sql`0`),
   financialJustification: text("financial_justification"),
   
   // Cyber and Architectural Evaluation tab
@@ -1366,7 +1366,7 @@ export const projectIntakes = pgTable("project_intakes", {
   securityApproverId: varchar("security_approver_id").references(() => users.id),
   
   // Project Cost Evaluation (IT) tab
-  itCostEstimate: numeric("it_cost_estimate").default("0"),
+  itCostEstimate: numeric("it_cost_estimate").default(sql`0`),
   resourceRequirements: text("resource_requirements"),
   implementationTimeline: text("implementation_timeline"),
   costBenefitAnalysis: text("cost_benefit_analysis"),
@@ -2338,7 +2338,7 @@ export const projectScoringCriteria = pgTable("project_scoring_criteria", {
   name: text("name").notNull(),
   description: text("description"),
   category: text("category"), // Strategic, Financial, Risk, Resource, etc.
-  weight: numeric("weight").default("1"), // Weight for weighted scoring
+  weight: numeric("weight").default(sql`1`), // Weight for weighted scoring
   minScore: integer("min_score").default(0),
   maxScore: integer("max_score").default(10),
   scoringGuidelines: text("scoring_guidelines"), // Instructions for scoring
@@ -2624,9 +2624,9 @@ export const simulationRuns = pgTable("simulation_runs", {
   status: text("status").default("pending"), // "pending", "running", "completed", "cancelled"
   currentStep: integer("current_step").default(0),
   totalSteps: integer("total_steps").default(0),
-  riskTriggerProbabilityMultiplier: numeric("risk_trigger_probability_multiplier").default("1.0"),
-  budgetVarianceRange: numeric("budget_variance_range").default("0.1"),
-  scheduleVarianceRange: numeric("schedule_variance_range").default("0.1"),
+  riskTriggerProbabilityMultiplier: numeric("risk_trigger_probability_multiplier").default(sql`1.0`),
+  budgetVarianceRange: numeric("budget_variance_range").default(sql`0.1`),
+  scheduleVarianceRange: numeric("schedule_variance_range").default(sql`0.1`),
   snapshotData: jsonb("snapshot_data").$type<SimulationSnapshot>(),
   finalResults: jsonb("final_results").$type<SimulationResults>(),
   createdBy: varchar("created_by").references(() => users.id),
