@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Send, Square, Trash2, BarChart3, User, Sparkles,
   FileBarChart, Database, Shield, Clock, Filter, Palette, CalendarDays,
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -92,8 +93,24 @@ function SimpleMarkdown({ content }: { content: string }) {
   return <>{elements}</>;
 }
 
+const OPTIONS_REGEX = /\[OPTIONS\]([\s\S]*?)\[\/OPTIONS\]/i;
+
+function extractOptions(content: string): { cleanContent: string; options: string[] } {
+  const match = content.match(OPTIONS_REGEX);
+  if (!match) return { cleanContent: content, options: [] };
+  const options = match[1]
+    .split("|")
+    .map(o => o.trim())
+    .filter(o => o.length > 0 && o.toLowerCase() !== "i don't know" && o.toLowerCase() !== "i dont know");
+  const cleanContent = content.replace(OPTIONS_REGEX, "").trimEnd();
+  return { cleanContent, options };
+}
+
 function MessageBubble({ message }: { message: PowerBIAgentMessage }) {
   const isUser = message.role === "user";
+  const { cleanContent } = isUser
+    ? { cleanContent: message.content }
+    : extractOptions(message.content);
 
   return (
     <motion.div
@@ -119,8 +136,8 @@ function MessageBubble({ message }: { message: PowerBIAgentMessage }) {
           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
         ) : (
           <div className="text-sm max-w-none">
-            {message.content ? (
-              <SimpleMarkdown content={message.content} />
+            {cleanContent ? (
+              <SimpleMarkdown content={cleanContent} />
             ) : (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <div className="flex gap-1">
@@ -279,6 +296,45 @@ export default function PowerBIAgent() {
                 <MessageBubble key={msg.id} message={msg} />
               ))}
             </AnimatePresence>
+            {(() => {
+              const last = messages[messages.length - 1];
+              if (!last || last.role !== "assistant" || isLoading) return null;
+              const { options } = extractOptions(last.content);
+              if (options.length === 0) return null;
+              return (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="ml-11 mb-4 flex flex-wrap gap-2"
+                  data-testid="answer-options"
+                >
+                  {options.map((opt) => (
+                    <Card
+                      key={opt}
+                      className="cursor-pointer border-border/60 hover:border-orange-500/50 hover:bg-orange-500/5 transition-colors"
+                      onClick={() => handlePromptClick(opt)}
+                      data-testid={`option-${opt.replace(/\s+/g, "-").toLowerCase()}`}
+                    >
+                      <CardContent className="px-3 py-2 flex items-center gap-1.5">
+                        <Sparkles className="w-3 h-3 text-orange-500 flex-shrink-0" />
+                        <span className="text-xs font-medium">{opt}</span>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  <Card
+                    className="cursor-pointer border-dashed border-border/60 hover:border-muted-foreground/50 hover:bg-muted/40 transition-colors"
+                    onClick={() => handlePromptClick("I don't know")}
+                    data-testid="option-i-dont-know"
+                  >
+                    <CardContent className="px-3 py-2 flex items-center gap-1.5">
+                      <HelpCircle className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                      <span className="text-xs font-medium text-muted-foreground">I don't know</span>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })()}
             <div ref={messagesEndRef} />
           </div>
         )}

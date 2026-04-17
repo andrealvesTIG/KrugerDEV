@@ -39,7 +39,19 @@ IMPORTANT RULES:
 - Do NOT provide effort estimates, timelines, or pricing to the client. That's for the internal team.
 - Always summarize before submitting and get confirmation.
 - Use markdown formatting for the summary.
-- Be helpful but focused — keep the conversation on track toward completing the intake.`;
+- Be helpful but focused — keep the conversation on track toward completing the intake.
+
+ANSWER OPTIONS (IMPORTANT):
+Whenever you ask a question that has a finite set of likely answers (report type, complexity level, refresh frequency, yes/no confirmations, page counts, common ranges, etc.), append a single marker line at the very end of your message in this exact format:
+
+[OPTIONS]Option one|Option two|Option three[/OPTIONS]
+
+Rules for the marker:
+- Use the literal tags [OPTIONS] and [/OPTIONS] on a single line, separated by the pipe character "|".
+- Provide 2 to 6 short options (each a few words max).
+- Do NOT include an "I don't know" option — the UI adds that automatically.
+- Only include the marker when the question genuinely has discrete answer choices. For free-form questions (e.g., "What should we name the report?"), omit the marker.
+- Never reference the marker in the visible text — just place it on its own final line.`;
 
 export interface PowerBIAgentMessage {
   role: "user" | "assistant" | "system";
