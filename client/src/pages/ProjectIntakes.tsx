@@ -112,18 +112,21 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, in
 
   const { workflows: intakeWorkflows } = useIntakeWorkflows();
 
-  const wasOpenRef = useRef(false);
+  const initializedRef = useRef(false);
   useEffect(() => {
-    if (open && !wasOpenRef.current) {
-      // Dialog just opened — pick the starting workflow once.
-      if (initialWorkflowId != null && intakeWorkflows.some(w => w.id === initialWorkflowId)) {
-        setWorkflowId(String(initialWorkflowId));
-      } else if (intakeWorkflows.length > 0) {
-        const def = intakeWorkflows.find(w => w.isDefault) || intakeWorkflows[0];
-        setWorkflowId(String(def.id));
-      }
+    if (!open) {
+      initializedRef.current = false;
+      return;
     }
-    wasOpenRef.current = open;
+    if (initializedRef.current || intakeWorkflows.length === 0) return;
+    // Initialize once per open, after workflows have loaded.
+    if (initialWorkflowId != null && intakeWorkflows.some(w => w.id === initialWorkflowId)) {
+      setWorkflowId(String(initialWorkflowId));
+    } else {
+      const def = intakeWorkflows.find(w => w.isDefault) || intakeWorkflows[0];
+      setWorkflowId(String(def.id));
+    }
+    initializedRef.current = true;
   }, [open, initialWorkflowId, intakeWorkflows]);
 
   const createIntake = useMutation({
