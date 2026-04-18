@@ -14,6 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { z } from "zod";
 import { PROJECT_STATUSES, PROJECT_HEALTH_VALUES, PROJECT_PRIORITIES } from "@shared/schema";
 import type { Project, Resource, Portfolio } from "@shared/schema";
+import { DEFAULT_PROJECT_STATUS_LIST } from "@/lib/project-statuses";
 import { Link, useLocation } from "wouter";
 import { Plus, Search, Calendar, AlertCircle, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, ChevronLeft, ChevronRight, Download, Loader2, ExternalLink, Table2, Settings2, Check, Crown, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown, FileSpreadsheet, Cloud, Rocket, Lock as LockIcon, Shield, Layers, FolderOpen } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -44,8 +45,6 @@ import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { PageTransition, FadeIn } from "@/components/ui/page-transition";
 import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues, useBulkUpdateProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
 import type { CustomFieldDefinition, ProjectCustomFieldValue } from "@shared/schema";
-
-const DEFAULT_PROJECT_STATUS_LIST = [...PROJECT_STATUSES, "Billing", "Closed"];
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
@@ -1089,6 +1088,8 @@ export default function Projects() {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "risk-assessment", "latest"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "risk-assessment", "history"] });
       queryClient.invalidateQueries({ queryKey: ['/api/project-risk-assessments/org', currentOrganization?.id] });
+      // Project list shows the riskScore column; refresh it so the new score appears immediately.
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
       toast({ title: "Success", description: "Risk assessment generated successfully." });
       setRiskAssessProjectId(null);
       navigate(`/projects/${projectId}`);

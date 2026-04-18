@@ -100,6 +100,16 @@ export function useUpdateProject() {
       queryClient.invalidateQueries({ queryKey: [api.projects.list.path] });
       queryClient.invalidateQueries({ queryKey: [api.projects.get.path, data.id] });
       queryClient.invalidateQueries({ queryKey: ['/api/projects', data.id, 'health-status-history'] });
+      // Also invalidate any portfolio-scoped project lists so kanban/grid views in
+      // PortfolioDetails update without a hard refresh after a project edit.
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey;
+          return Array.isArray(key)
+            && key[0] === '/api/portfolios'
+            && key[2] === 'projects';
+        },
+      });
     },
   });
 }

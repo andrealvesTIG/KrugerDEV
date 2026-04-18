@@ -173,7 +173,9 @@ export function registerProjectRoutes(app: Express) {
       const project = await storage.createProject(sanitizedInput);
       
       if (userId) {
-        logUserActivity(userId, 'create_project', 'project', project.id, { name: project.name, organizationId: project.organizationId }, req);
+        await logUserActivity(userId, 'create_project', 'project', project.id, { name: project.name, organizationId: project.organizationId }, req).catch((e) => {
+          console.error('[activity] failed to log create_project:', e);
+        });
       }
       
       // Record usage after successful creation

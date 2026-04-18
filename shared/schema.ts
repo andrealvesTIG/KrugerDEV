@@ -11,9 +11,11 @@ const numeric = customType<{ data: number; driverData: string }>({
 import { users } from "./models/auth";
 
 export const PROJECT_STATUSES = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"] as const;
+export const PROJECT_STATUSES_EXTENDED = [...PROJECT_STATUSES, "Billing", "Closed"] as const;
 export const PROJECT_HEALTH_VALUES = ["Green", "Yellow", "Red"] as const;
 export const PROJECT_PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
 export const BILLABLE_STATUSES = ["N/A", "On Track", "Waiting for Approval", "Verbal Approval", "Email Approval", "SOW Signed", "PO Received", "Partially Invoiced", "At Risk", "Ready for Invoice", "Critical", "Invoiced"] as const;
+export const ISSUE_TYPES = ["Bug", "Enhancement", "Task", "Question", "Defect", "Support"] as const;
 export const TASK_STATUS = {
   NOT_STARTED: "Not Started",
   IN_PROGRESS: "In Progress",
@@ -34,7 +36,8 @@ export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 export const DEFAULT_TASK_STATUS: string = TASK_STATUS.NOT_STARTED;
 export const DEFAULT_TASK_PRIORITY: string = TASK_PRIORITY.MEDIUM;
 
-export const projectStatusEnum = z.enum(PROJECT_STATUSES);
+export const projectStatusEnum = z.enum(PROJECT_STATUSES_EXTENDED);
+export const issueTypeEnum = z.enum(ISSUE_TYPES);
 export const projectHealthEnum = z.enum(PROJECT_HEALTH_VALUES);
 export const projectPriorityEnum = z.enum(PROJECT_PRIORITIES);
 export const billableStatusEnum = z.enum(BILLABLE_STATUSES);
@@ -171,6 +174,7 @@ export const organizations = pgTable("organizations", {
   timezone: text("timezone").default("UTC"),
   deactivatedAt: timestamp("deactivated_at"), // Soft delete timestamp
   deactivatedBy: varchar("deactivated_by").references(() => users.id), // Who deactivated
+  fridayAgentConfig: jsonb("friday_agent_config"), // Friday AI agent configuration (per-org)
 });
 
 // Organization Members (Join table for users <-> organizations)
@@ -300,6 +304,7 @@ export const projects = pgTable("projects", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   portfolioId: integer("portfolio_id").references(() => portfolios.id),
+  workflowId: integer("workflow_id"), // FK to project_workflows.id (nullable; assigned when org has multiple workflows)
   name: text("name").notNull(),
   projectCode: text("project_code"), // Unique project identifier (e.g., "PRJ-2025-001")
   description: text("description"),
@@ -1342,6 +1347,7 @@ export const projectIntakes = pgTable("project_intakes", {
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   intakeNumber: text("intake_number"), // Auto-generated intake ID (e.g., "INT-2026-001")
   intakeTypeId: integer("intake_type_id").references(() => intakeTypes.id, { onDelete: "set null" }),
+  workflowId: integer("workflow_id"), // FK to intake_workflows.id (nullable; assigned when org has multiple intake workflows)
   
   // Basic Information (Intake Form tab)
   projectName: text("project_name").notNull(),
@@ -1409,10 +1415,30 @@ export const projectIntakes = pgTable("project_intakes", {
   index("project_intakes_portfolio_id_idx").on(table.portfolioId),
 ]);
 
+// Intake Workflows - Named intake workflow templates per organization
+export const intakeWorkflows = pgTable("intake_workflows", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  isDefault: boolean("is_default").default(false),
+  isActive: boolean("is_active").default(true),
+  creationMode: text("creation_mode").notNull().default("dialog"), // 'dialog' | 'url'
+  creationUrl: text("creation_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("intake_workflows_org_id_idx").on(table.organizationId),
+  uniqueIndex("intake_workflows_one_default_per_org")
+    .on(table.organizationId)
+    .where(sql`${table.isDefault} = true`),
+]);
+
 // Intake Workflow Steps - Configurable workflow steps per organization
 export const intakeWorkflowSteps = pgTable("intake_workflow_steps", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  workflowId: integer("workflow_id").references(() => intakeWorkflows.id, { onDelete: "cascade" }),
   stepKey: text("step_key").notNull(), // Canonical step identifier: intake_capture, triage, business_case, technical_evaluation, governance_review, decision
   position: integer("position").notNull(), // Order in workflow (0-5)
   label: text("label").notNull(), // Display name (can be customized per org)
@@ -1423,6 +1449,42 @@ export const intakeWorkflowSteps = pgTable("intake_workflow_steps", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// Project Workflows - Named project lifecycle workflow templates per organization
+export const projectWorkflows = pgTable("project_workflows", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  isDefault: boolean("is_default").default(false),
+  isActive: boolean("is_active").default(true),
+  creationMode: text("creation_mode").notNull().default("dialog"), // 'dialog' | 'url'
+  creationUrl: text("creation_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("project_workflows_org_id_idx").on(table.organizationId),
+  uniqueIndex("project_workflows_one_default_per_org")
+    .on(table.organizationId)
+    .where(sql`${table.isDefault} = true`),
+]);
+
+// Project Workflow Steps - Configurable project lifecycle steps per workflow
+export const projectWorkflowSteps = pgTable("project_workflow_steps", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  workflowId: integer("workflow_id").references(() => projectWorkflows.id, { onDelete: "cascade" }),
+  stepKey: text("step_key").notNull(),
+  position: integer("position").notNull(),
+  label: text("label").notNull(),
+  description: text("description"),
+  isTerminal: boolean("is_terminal").default(false),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("project_workflow_steps_workflow_id_idx").on(table.workflowId),
+]);
 
 // Power BI Intake Requests - Captured via AI chat agent
 export const powerbiIntakeRequests = pgTable("powerbi_intake_requests", {
@@ -1732,6 +1794,9 @@ export const insertProjectSchema = createInsertSchema(projects).omit({ id: true,
 const baseRiskSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
 export const insertRiskSchema = baseRiskSchema.extend({
   escalatedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),
+  // Force itemType to "risk" so the shared issues table cannot be used to insert
+  // non-risk rows through the risk endpoints.
+  itemType: z.literal("risk").default("risk"),
 });
 /** @deprecated Renamed to Portfolio Key Dates. Schema kept for backward compatibility. */
 export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true });
@@ -1741,6 +1806,7 @@ export const updatePortfolioKeyDateSchema = insertPortfolioKeyDateSchema.pick({ 
 const baseIssueSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
 export const insertIssueSchema = baseIssueSchema.extend({
   escalatedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),
+  type: issueTypeEnum.default("Bug").optional(),
 });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true }).extend({
   durationDays: z.number().min(0).max(36500).nullable().optional(),
