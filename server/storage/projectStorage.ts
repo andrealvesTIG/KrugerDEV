@@ -13,7 +13,6 @@ import {
   timesheetEntries, resourceSkills, resourceAvailability,
   portfolioRiskAssessments, portfolioKeyDates,
   legacyRisks, legacyRiskChangeLogs, legacyRiskResourceAssignments,
-  projectWorkflows,
   type Project, type InsertProject, type UpdateProjectRequest,
   type Risk, type InsertRisk, type UpdateRiskRequest,
   type Milestone, type InsertMilestone, type UpdateMilestoneRequest,
@@ -46,25 +45,9 @@ export async function getProject(id: number): Promise<Project | undefined> {
 }
 
 export async function createProject(project: InsertProject): Promise<Project> {
-  let workflowId: number | null = project.workflowId ?? null;
-  if (project.organizationId) {
-    if (workflowId != null) {
-      const [wf] = await db.select().from(projectWorkflows)
-        .where(and(eq(projectWorkflows.id, workflowId), eq(projectWorkflows.organizationId, project.organizationId)));
-      if (!wf) {
-        throw new Error("Invalid workflowId for this organization");
-      }
-    } else {
-      const { ensureDefaultProjectWorkflow } = await import("./intakeStorage");
-      const def = await ensureDefaultProjectWorkflow(project.organizationId);
-      workflowId = def.id;
-    }
-  }
-
   const [newProject] = await db.insert(projects).values({
     ...project,
     portfolioId: project.portfolioId || null,
-    workflowId,
   }).returning();
   return newProject;
 }

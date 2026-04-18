@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -10,44 +10,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Trash2, GitBranch, Plus, Pencil, RotateCw, Star, StarOff } from "lucide-react";
-import { AVAILABLE_INTAKE_FIELDS, useIntakeWorkflows } from "@/hooks/use-intake-workflow";
-import type { IntakeWorkflowStep, IntakeWorkflow } from "@shared/schema";
+import { Loader2, Trash2, GitBranch, Plus, Pencil, RotateCw } from "lucide-react";
+import { AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
+import type { IntakeWorkflowStep } from "@shared/schema";
 
 export function IntakeWorkflowSection({ organizationId }: { organizationId: number }) {
   const { toast } = useToast();
-  const { workflows, isLoading: workflowsLoading, createWorkflow, updateWorkflowMeta, deleteWorkflow } = useIntakeWorkflows();
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState<number | null>(null);
-  const [showWorkflowDialog, setShowWorkflowDialog] = useState(false);
-  const [editingWorkflow, setEditingWorkflow] = useState<IntakeWorkflow | null>(null);
-  const [wfName, setWfName] = useState("");
-  const [wfDescription, setWfDescription] = useState("");
-  const [wfIsDefault, setWfIsDefault] = useState(false);
-  const [wfCreationMode, setWfCreationMode] = useState<'dialog' | 'url'>('dialog');
-  const [wfCreationUrl, setWfCreationUrl] = useState("");
-  const [wfUrlError, setWfUrlError] = useState<string | null>(null);
-  const [workflowToDelete, setWorkflowToDelete] = useState<IntakeWorkflow | null>(null);
-
-  // Auto-select default workflow when list loads
-  useEffect(() => {
-    if (!selectedWorkflowId && workflows.length > 0) {
-      const defaultWf = workflows.find(w => w.isDefault) || workflows[0];
-      setSelectedWorkflowId(defaultWf.id);
-    } else if (selectedWorkflowId && workflows.length > 0 && !workflows.find(w => w.id === selectedWorkflowId)) {
-      const defaultWf = workflows.find(w => w.isDefault) || workflows[0];
-      setSelectedWorkflowId(defaultWf.id);
-    }
-  }, [workflows, selectedWorkflowId]);
-
-  const selectedWorkflow = useMemo(() => workflows.find(w => w.id === selectedWorkflowId) || null, [workflows, selectedWorkflowId]);
-  const wfQuery = selectedWorkflowId ? `?workflowId=${selectedWorkflowId}` : '';
-  const wfQueryKey: readonly unknown[] = selectedWorkflowId
-    ? ['/api/organizations', organizationId, 'intake-workflow', { workflowId: selectedWorkflowId }]
-    : ['/api/organizations', organizationId, 'intake-workflow'];
-
   const [editingStep, setEditingStep] = useState<IntakeWorkflowStep | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [editDescription, setEditDescription] = useState("");
@@ -61,18 +31,17 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
   const [stepToDelete, setStepToDelete] = useState<IntakeWorkflowStep | null>(null);
 
   const { data: workflowSteps, isLoading } = useQuery<IntakeWorkflowStep[]>({
-    queryKey: wfQueryKey,
+    queryKey: ['/api/organizations', organizationId, 'intake-workflow'],
     queryFn: async () => {
-      const res = await fetch(`/api/organizations/${organizationId}/intake-workflow${wfQuery}`);
+      const res = await fetch(`/api/organizations/${organizationId}/intake-workflow`);
       if (!res.ok) return [];
       return res.json();
-    },
-    enabled: !!selectedWorkflowId,
+    }
   });
 
   const updateWorkflowMutation = useMutation({
     mutationFn: async (steps: Partial<IntakeWorkflowStep>[]) => {
-      return apiRequest('PUT', `/api/organizations/${organizationId}/intake-workflow${wfQuery}`, { steps });
+      return apiRequest('PUT', `/api/organizations/${organizationId}/intake-workflow`, { steps });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'intake-workflow'] });
@@ -86,7 +55,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
 
   const resetWorkflowMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('POST', `/api/organizations/${organizationId}/intake-workflow/reset${wfQuery}`);
+      return apiRequest('POST', `/api/organizations/${organizationId}/intake-workflow/reset`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'intake-workflow'] });
@@ -97,77 +66,6 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
       toast({ title: "Error", description: "Failed to reset workflow", variant: "destructive" });
     }
   });
-
-  const openWorkflowDialog = (wf: IntakeWorkflow | null) => {
-    setEditingWorkflow(wf);
-    setWfName(wf?.name || "");
-    setWfDescription(wf?.description || "");
-    setWfIsDefault(wf?.isDefault || false);
-    setWfCreationMode((wf?.creationMode as 'dialog' | 'url') || 'dialog');
-    setWfCreationUrl(wf?.creationUrl || "");
-    setWfUrlError(null);
-    setShowWorkflowDialog(true);
-  };
-
-  const validateUrl = (value: string): string | null => {
-    if (!value.trim()) return "URL is required";
-    try {
-      const u = new URL(value.trim());
-      if (u.protocol !== 'http:' && u.protocol !== 'https:') return "URL must use http or https";
-      return null;
-    } catch {
-      return "Enter a valid URL (e.g. https://forms.example.com/intake)";
-    }
-  };
-
-  const handleSaveWorkflow = async () => {
-    if (!wfName.trim()) return;
-    if (wfCreationMode === 'url') {
-      const err = validateUrl(wfCreationUrl);
-      if (err) { setWfUrlError(err); return; }
-    }
-    try {
-      const payload = {
-        name: wfName.trim(),
-        description: wfDescription,
-        isDefault: wfIsDefault,
-        creationMode: wfCreationMode,
-        creationUrl: wfCreationMode === 'url' ? wfCreationUrl.trim() : null,
-      };
-      if (editingWorkflow) {
-        await updateWorkflowMeta.mutateAsync({ id: editingWorkflow.id, ...payload });
-        toast({ title: "Updated", description: "Workflow updated" });
-      } else {
-        const created = await createWorkflow.mutateAsync(payload);
-        setSelectedWorkflowId(created.id);
-        toast({ title: "Created", description: "Workflow created with default steps" });
-      }
-      setShowWorkflowDialog(false);
-    } catch (err: any) {
-      toast({ title: "Error", description: err?.message || "Failed to save workflow", variant: "destructive" });
-    }
-  };
-
-  const handleDeleteWorkflow = async () => {
-    if (!workflowToDelete) return;
-    try {
-      await deleteWorkflow.mutateAsync(workflowToDelete.id);
-      if (selectedWorkflowId === workflowToDelete.id) setSelectedWorkflowId(null);
-      toast({ title: "Deleted", description: "Workflow deleted" });
-      setWorkflowToDelete(null);
-    } catch (err: any) {
-      toast({ title: "Error", description: err?.message || "Failed to delete workflow", variant: "destructive" });
-    }
-  };
-
-  const handleSetDefault = async (wf: IntakeWorkflow) => {
-    try {
-      await updateWorkflowMeta.mutateAsync({ id: wf.id, isDefault: true });
-      toast({ title: "Default updated", description: `${wf.name} is now the default workflow` });
-    } catch (err: any) {
-      toast({ title: "Error", description: err?.message || "Failed to set default", variant: "destructive" });
-    }
-  };
 
   const openEditDialog = (step: IntakeWorkflowStep) => {
     setEditingStep(step);
@@ -324,74 +222,36 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
 
   return (
     <Card>
-      <CardHeader className="space-y-4">
-        <div className="flex flex-row items-start justify-between gap-4 flex-wrap">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <GitBranch className="h-5 w-5" />
-              Intake Workflow Configuration
-            </CardTitle>
-            <CardDescription>
-              Define one or more intake workflows. Choose the workflow when creating an intake.
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => openWorkflowDialog(null)}
-              data-testid="button-create-intake-workflow"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Workflow
-            </Button>
-          </div>
+      <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <GitBranch className="h-5 w-5" />
+            Intake Workflow Configuration
+          </CardTitle>
+          <CardDescription>
+            Customize the intake workflow steps and required fields for your organization
+          </CardDescription>
         </div>
-        <div className="flex flex-row items-center gap-2 flex-wrap pt-2 border-t">
-          <Label className="text-sm">Workflow:</Label>
-          <Select
-            value={selectedWorkflowId ? String(selectedWorkflowId) : ''}
-            onValueChange={(v) => setSelectedWorkflowId(Number(v))}
-            disabled={workflowsLoading}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => setShowAddStep(true)}
+            data-testid="button-add-step"
           >
-            <SelectTrigger className="w-64" data-testid="select-intake-workflow">
-              <SelectValue placeholder="Select a workflow" />
-            </SelectTrigger>
-            <SelectContent>
-              {workflows.map(wf => (
-                <SelectItem key={wf.id} value={String(wf.id)} data-testid={`option-intake-workflow-${wf.id}`}>
-                  {wf.name}{wf.isDefault ? ' (Default)' : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {selectedWorkflow && (
-            <>
-              <Button variant="ghost" size="sm" onClick={() => openWorkflowDialog(selectedWorkflow)} data-testid="button-edit-intake-workflow">
-                <Pencil className="h-4 w-4 mr-1" /> Edit
-              </Button>
-              {!selectedWorkflow.isDefault && (
-                <Button variant="ghost" size="sm" onClick={() => handleSetDefault(selectedWorkflow)} data-testid="button-set-default-intake-workflow">
-                  <Star className="h-4 w-4 mr-1" /> Set Default
-                </Button>
-              )}
-              {!selectedWorkflow.isDefault && (
-                <Button variant="ghost" size="sm" onClick={() => setWorkflowToDelete(selectedWorkflow)} data-testid="button-delete-intake-workflow">
-                  <Trash2 className="h-4 w-4 mr-1 text-destructive" /> Delete
-                </Button>
-              )}
-              <Button variant="outline" size="sm" onClick={() => setShowAddStep(true)} data-testid="button-add-step">
-                <Plus className="h-4 w-4 mr-2" /> Add Step
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setShowResetConfirm(true)} data-testid="button-reset-workflow">
-                <RotateCw className="h-4 w-4 mr-2" /> Reset Steps
-              </Button>
-            </>
-          )}
+            <Plus className="h-4 w-4 mr-2" />
+            Add Step
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowResetConfirm(true)}
+            data-testid="button-reset-workflow"
+          >
+            <RotateCw className="h-4 w-4 mr-2" />
+            Reset to Defaults
+          </Button>
         </div>
-        {selectedWorkflow?.description && (
-          <p className="text-sm text-muted-foreground">{selectedWorkflow.description}</p>
-        )}
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
@@ -647,85 +507,6 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <Dialog open={showWorkflowDialog} onOpenChange={setShowWorkflowDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingWorkflow ? 'Edit Workflow' : 'New Intake Workflow'}</DialogTitle>
-            <DialogDescription>
-              {editingWorkflow ? 'Update workflow name and settings' : 'Create a new named intake workflow with default steps'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Name *</Label>
-              <Input value={wfName} onChange={(e) => setWfName(e.target.value)} placeholder="e.g., Standard Intake" data-testid="input-workflow-name" />
-            </div>
-            <div className="space-y-2">
-              <Label>Description</Label>
-              <Textarea value={wfDescription} onChange={(e) => setWfDescription(e.target.value)} placeholder="What is this workflow for?" className="resize-none" data-testid="input-workflow-description" />
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox id="wf-default" checked={wfIsDefault} onCheckedChange={(v) => setWfIsDefault(!!v)} disabled={!!editingWorkflow?.isDefault} />
-              <Label htmlFor="wf-default" className="cursor-pointer">Set as default workflow</Label>
-            </div>
-            <div className="space-y-2 pt-2 border-t">
-              <Label>New item form</Label>
-              <Select
-                value={wfCreationMode}
-                onValueChange={(v) => { setWfCreationMode(v as 'dialog' | 'url'); setWfUrlError(null); }}
-              >
-                <SelectTrigger data-testid="select-wf-creation-mode">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="dialog">Built-in dialog</SelectItem>
-                  <SelectItem value="url">Custom URL</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Choose what happens when users create a new intake with this workflow.
-              </p>
-              {wfCreationMode === 'url' && (
-                <div className="space-y-1">
-                  <Input
-                    value={wfCreationUrl}
-                    onChange={(e) => { setWfCreationUrl(e.target.value); if (wfUrlError) setWfUrlError(null); }}
-                    placeholder="https://forms.example.com/intake"
-                    data-testid="input-wf-creation-url"
-                  />
-                  {wfUrlError && <p className="text-xs text-destructive">{wfUrlError}</p>}
-                </div>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowWorkflowDialog(false)}>Cancel</Button>
-            <Button onClick={handleSaveWorkflow} disabled={!wfName.trim() || createWorkflow.isPending || updateWorkflowMeta.isPending} data-testid="button-save-workflow">
-              {(createWorkflow.isPending || updateWorkflowMeta.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {editingWorkflow ? 'Save' : 'Create'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={workflowToDelete !== null} onOpenChange={() => setWorkflowToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Workflow?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Delete "{workflowToDelete?.name}"? Any intakes using this workflow will be reassigned to the default workflow.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteWorkflow} disabled={deleteWorkflow.isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {deleteWorkflow.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Delete Workflow
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <AlertDialog open={stepToDelete !== null} onOpenChange={() => setStepToDelete(null)}>
         <AlertDialogContent>

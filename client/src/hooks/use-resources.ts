@@ -172,16 +172,6 @@ export function useUpdateTaskResourceAssignments() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks", variables.taskId, "resources"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-      queryClient.invalidateQueries({
-        predicate: (query) => {
-          const key = query.queryKey;
-          return (
-            Array.isArray(key) &&
-            key[0] === "/api/organizations" &&
-            (key[2] === "task-assignments" || key[2] === "full-task-assignments")
-          );
-        },
-      });
     },
   });
 }
