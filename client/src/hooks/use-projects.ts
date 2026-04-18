@@ -100,6 +100,12 @@ export function useUpdateProject() {
       queryClient.invalidateQueries({ queryKey: [api.projects.list.path] });
       queryClient.invalidateQueries({ queryKey: [api.projects.get.path, data.id] });
       queryClient.invalidateQueries({ queryKey: ['/api/projects', data.id, 'health-status-history'] });
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const k = query.queryKey;
+          return Array.isArray(k) && k[0] === '/api/portfolios' && k[2] === 'projects';
+        },
+      });
     },
   });
 }

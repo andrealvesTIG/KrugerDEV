@@ -5,6 +5,7 @@ import { CompactCurrency } from "@/components/CompactCurrency";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import { useRoute, Link } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory, useProjects, useDeleteProject } from "@/hooks/use-projects";
+import { useProjectWorkflows } from "@/hooks/use-project-workflows";
 import { usePortfolios, useCreatePortfolio } from "@/hooks/use-portfolios";
 import { useRisks } from "@/hooks/use-risks";
 import { useIssues } from "@/hooks/use-issues";
@@ -26,6 +27,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { ResourceSelector } from "@/components/ResourceSelector";
 import { StatusReportDialog } from "@/components/StatusReportDialog";
 import { CrossProjectReferences } from "@/components/CrossProjectReferences";
+import { ChangeWorkflowDialog } from "@/components/ChangeWorkflowDialog";
 import TasksTab from "@/components/project/ProjectTasksTab";
 import RisksTab from "@/components/project/ProjectRisksTab";
 import { IssuesTab, FinancialsTab, ChangeRequestsTab, DocumentsTab, StatusReportTab, ScoringTab, BenefitsTab, DecisionsTab, LessonsLearnedTab, InvoicesTab } from "@/components/project/ProjectTabs";
@@ -250,6 +252,15 @@ export default function ProjectDetails() {
   const [, params] = useRoute("/projects/:id");
   const id = parseInt(params?.id || "0");
   const { data: project, isLoading, refetch: refetchProject } = useProject(id);
+  const { workflows: detailProjectWorkflows } = useProjectWorkflows();
+  const projectWorkflowName = useMemo(() => {
+    if (!detailProjectWorkflows || detailProjectWorkflows.length === 0) return null;
+    if (project?.workflowId == null) {
+      const def = detailProjectWorkflows.find(w => w.isDefault);
+      return def?.name || null;
+    }
+    return detailProjectWorkflows.find(w => w.id === project.workflowId)?.name || null;
+  }, [detailProjectWorkflows, project?.workflowId]);
   const { data: financials } = useProjectFinancials(id);
   const { data: projectTasks } = useTasks(id);
   const { data: projectTaskAssignments } = useProjectTaskAssignments(id);
@@ -282,6 +293,7 @@ export default function ProjectDetails() {
   };
   const [isProjectHistoryOpen, setIsProjectHistoryOpen] = useState(false);
   const [isStatusReportOpen, setIsStatusReportOpen] = useState(false);
+  const [isChangeWorkflowOpen, setIsChangeWorkflowOpen] = useState(false);
   const [isImportingCsv, setIsImportingCsv] = useState(false);
   const [isExportingPng, setIsExportingPng] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
@@ -315,10 +327,12 @@ export default function ProjectDetails() {
   const { data: customTabs = [] } = useCustomProjectTabs(currentOrganization?.id);
   const [, setLocation] = useLocation();
 
+  const projectWorkflowId = project?.workflowId ?? null;
   const { data: orgWorkflowSteps } = useQuery<Array<{ id: number; stepKey: string; position: number; label: string; description: string | null; isTerminal: boolean | null; isActive: boolean | null }>>({
-    queryKey: ['/api/organizations', currentOrganization?.id, 'project-workflow'],
+    queryKey: ['/api/organizations', currentOrganization?.id, 'project-workflow', { workflowId: projectWorkflowId }],
     queryFn: async () => {
-      const res = await fetch(`/api/organizations/${currentOrganization!.id}/project-workflow`);
+      const qs = projectWorkflowId ? `?workflowId=${projectWorkflowId}` : '';
+      const res = await fetch(`/api/organizations/${currentOrganization!.id}/project-workflow${qs}`);
       if (!res.ok) return [];
       return res.json();
     },
@@ -1442,10 +1456,41 @@ export default function ProjectDetails() {
                 {sectionsCollapsed.workflow ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 <GitBranch className="h-4 w-4" />
                 Project Workflow
+                {projectWorkflowName && (
+                  <Badge
+                    variant="outline"
+                    className="text-xs ml-1 font-normal"
+                    data-testid="badge-project-workflow"
+                    title={`Workflow: ${projectWorkflowName}`}
+                  >
+                    {projectWorkflowName}
+                  </Badge>
+                )}
               </div>
-              <Badge variant="outline" className="text-xs">
-                {project.status}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={(e) => e.stopPropagation()}
+                      data-testid="button-workflow-menu"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenuItem
+                      onSelect={() => setIsChangeWorkflowOpen(true)}
+                      data-testid="menu-change-workflow"
+                    >
+                      <GitBranch className="h-4 w-4 mr-2" />
+                      Change workflow…
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
           </CollapsibleTrigger>
           <CollapsibleContent>
@@ -1796,6 +1841,20 @@ export default function ProjectDetails() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ChangeWorkflowDialog
+        open={isChangeWorkflowOpen}
+        onOpenChange={setIsChangeWorkflowOpen}
+        type="project"
+        organizationId={currentOrganization?.id}
+        recordId={project.id}
+        currentWorkflowId={project.workflowId}
+        currentStepKey={project.status}
+        onChanged={() => {
+          refetchProject();
+          queryClient.invalidateQueries({ queryKey: ['/api/organizations', currentOrganization?.id, 'project-workflow'] });
+        }}
+      />
 
         </div>
       </div>
