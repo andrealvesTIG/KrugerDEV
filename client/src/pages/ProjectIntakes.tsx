@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
 import { useAuth } from "@/hooks/use-auth";
@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import { useIntakeTypes } from "@/hooks/use-intake-types";
 import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen, ChevronsUpDown, BarChart3, Timer } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -99,6 +100,9 @@ interface CreateIntakeDialogProps {
 function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: CreateIntakeDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const { data: intakeTypes = [] } = useIntakeTypes(organizationId);
+  const [intakeTypeId, setIntakeTypeId] = useState<string>("");
   const [intakeName, setIntakeName] = useState("");
   const [description, setDescription] = useState("");
   const [portfolioId, setPortfolioId] = useState<string>("");
@@ -106,6 +110,26 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
   const [fundingSource, setFundingSource] = useState("");
   const [businessUnit, setBu] = useState("");
   const [limitError, setLimitError] = useState<{ resourceType: string } | null>(null);
+
+  const activeTypes = intakeTypes.filter(t => t.isActive);
+  const selectedType = activeTypes.find(t => t.id.toString() === intakeTypeId);
+
+  // Default to a standard type whenever the dialog opens or the list changes.
+  useEffect(() => {
+    if (!open) return;
+    if (intakeTypeId && activeTypes.some(t => t.id.toString() === intakeTypeId)) return;
+    const standard = activeTypes.find(t => t.behavior === "standard") || activeTypes[0];
+    if (standard) setIntakeTypeId(standard.id.toString());
+  }, [open, activeTypes, intakeTypeId]);
+
+  const handleTypeChange = (value: string) => {
+    setIntakeTypeId(value);
+    const t = activeTypes.find(x => x.id.toString() === value);
+    if (t?.behavior === "powerbi_redirect") {
+      onOpenChange(false);
+      setLocation("/powerbi-agent");
+    }
+  };
 
   const createIntake = useMutation({
     mutationFn: async (data: any) => {
@@ -157,6 +181,7 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
       businessUnit: businessUnit,
       submitterId: user?.id,
       currentStep: "intake_capture",
+      intakeTypeId: intakeTypeId ? parseInt(intakeTypeId) : null,
     });
   };
 
@@ -168,6 +193,24 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
         </DialogHeader>
         <p className="text-xs text-muted-foreground mt-2"><span className="text-destructive">*</span> Required fields</p>
         <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="intakeType">Intake Type <span className="text-destructive">*</span></Label>
+            <Select value={intakeTypeId} onValueChange={handleTypeChange}>
+              <SelectTrigger id="intakeType" data-testid="select-intake-type">
+                <SelectValue placeholder="Select intake type" />
+              </SelectTrigger>
+              <SelectContent>
+                {activeTypes.map(t => (
+                  <SelectItem key={t.id} value={t.id.toString()}>
+                    {t.name}{t.behavior === "powerbi_redirect" ? " — opens Power BI agent" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedType?.description && (
+              <p className="text-xs text-muted-foreground">{selectedType.description}</p>
+            )}
+          </div>
           <div className="space-y-2">
             <Label htmlFor="intakeName">Intake Name <span className="text-destructive">*</span></Label>
             <Input
