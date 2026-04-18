@@ -118,7 +118,6 @@ const navigation = [
   { name: "Resources", href: "/resources", icon: Users, key: "resources" },
   { name: "Calendar", href: "/calendar", icon: Calendar, key: "calendar" },
   { name: "Media", href: "/media", icon: Newspaper, key: "media" },
-  { name: "Power BI Request", href: "/powerbi-agent", icon: BarChart3, key: "powerbi-agent" },
 ];
 
 const helpNavigation = [
@@ -139,7 +138,6 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
       { type: "module" as const, key: "issues", hidden: false },
       { type: "module" as const, key: "tasks", hidden: false },
       { type: "module" as const, key: "timesheets", hidden: false },
-      { type: "module" as const, key: "powerbi-agent", hidden: false },
     ]},
     { id: "resource-management", name: "Resource Management", hidden: false, collapsedByDefault: true, items: [
       { type: "module" as const, key: "resources", hidden: false },
@@ -261,7 +259,14 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   ensureModule("user-guide", "help");
   ensureModule("training", "help", "user-guide");
   ensureModule("media", "help", "training");
-  ensureModule("powerbi-agent", "portfolio", "timesheets");
+
+  // Remove the legacy Power BI Request sidebar entry: it now lives only inside the
+  // New Intake dialog as an intake type that redirects to /powerbi-agent.
+  updatedStructure = updatedStructure.map(g => ({
+    ...g,
+    items: g.items.filter(item => !(item.type === "module" && item.key === "powerbi-agent")),
+  }));
+
   
   const helpGroup = updatedStructure.find(g => g.id === "help");
   if (!helpGroup) {
