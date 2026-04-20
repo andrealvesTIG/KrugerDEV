@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2 } from "lucide-react";
+import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock } from "lucide-react";
 import type { FinancialEntry, FinancialScenariosConfig, FinancialScenario } from "@shared/schema";
 import { DEFAULT_FINANCIAL_SCENARIOS } from "@shared/schema";
 import { CompactCurrency } from "@/components/CompactCurrency";
@@ -301,6 +301,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   const [editingCell, setEditingCell] = useState<{ itemKey: string; month: number; scenarioKey: string } | null>(null);
   const [editValue, setEditValue] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<GridRow | null>(null);
@@ -378,10 +379,54 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     [enabledScenarios],
   );
 
+  // Search filter: any token match on item name / wbs / comments / category /
+  // financial view / cost category / cost specification keeps the entire item.
+  const filteredEntries = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return entries;
+    const matchingItemKeys = new Set<string>();
+    for (const e of entries) {
+      const hay = [
+        e.itemName, e.wbs, e.comments, e.category,
+        e.financialView, e.costCategory, e.costSpecification,
+      ].filter(Boolean).join(" ").toLowerCase();
+      if (hay.includes(q)) matchingItemKeys.add(e.itemKey);
+    }
+    return entries.filter(e => matchingItemKeys.has(e.itemKey));
+  }, [entries, searchQuery]);
+
   const { rows, grandTotalByScenario } = useMemo(
-    () => buildGridRows(entries, enabledScenarioKeys, expanded),
-    [entries, enabledScenarioKeys, expanded],
+    () => buildGridRows(filteredEntries, enabledScenarioKeys, expanded),
+    [filteredEntries, enabledScenarioKeys, expanded],
   );
+
+  // Map each fiscal-month index → calendar (year, month). FY starts in Oct,
+  // so idx 0..2 belong to fiscalYear-1 and idx 3..11 belong to fiscalYear.
+  const monthCalendar = useMemo(() => {
+    return MONTHS.map((_, i) => {
+      if (i < 3) return { year: fiscalYear - 1, month: 10 + i };
+      return { year: fiscalYear, month: i - 2 };
+    });
+  }, [fiscalYear]);
+
+  // Group consecutive months by calendar year for the year-row header.
+  const yearGroups = useMemo(() => {
+    const groups: { year: number; count: number }[] = [];
+    for (const m of monthCalendar) {
+      const last = groups[groups.length - 1];
+      if (last && last.year === m.year) last.count += 1;
+      else groups.push({ year: m.year, count: 1 });
+    }
+    return groups;
+  }, [monthCalendar]);
+
+  // Highlight today's column (only when today falls inside the displayed FY).
+  const currentMonthIdx = useMemo(() => {
+    const now = new Date();
+    const cy = now.getFullYear();
+    const cm = now.getMonth() + 1;
+    return monthCalendar.findIndex(mc => mc.year === cy && mc.month === cm);
+  }, [monthCalendar]);
 
   const editableRows = useMemo(() => rows.filter(r => r.type === "item"), [rows]);
 
@@ -539,29 +584,38 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
       }
       data-testid="financial-grid-container"
     >
+      {/* Title row: brand + Add Item */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <DollarSign className="h-5 w-5 text-muted-foreground" />
+          <DollarSign className="h-5 w-5 text-primary" />
           <h3 className="text-lg font-semibold">Financial Grid</h3>
         </div>
 
+        <Button onClick={openCreateDialog} data-testid="button-add-cost-item">
+          <Plus className="h-4 w-4 mr-1" />
+          Add Item
+        </Button>
+      </div>
+
+      {/* Toolbar row: search, scenario toggles, FY selector — fullscreen on right */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <Select value={String(fiscalYear)} onValueChange={(v) => setFiscalYear(Number(v))}>
-            <SelectTrigger className="w-32" data-testid="select-fiscal-year">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {[currentYear - 1, currentYear, currentYear + 1, currentYear + 2].map((y) => (
-                <SelectItem key={y} value={String(y)}>FY{y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search..."
+              className="pl-8 h-9 w-56"
+              data-testid="input-search-financial"
+            />
+          </div>
 
           <div className="flex rounded-md border overflow-hidden">
             {allScenarios.map((s, i) => (
               <Button
                 key={s.key}
-                variant={s.enabled ? "secondary" : "ghost"}
+                variant={s.enabled ? "default" : "ghost"}
                 size="sm"
                 onClick={() => toggleScenarioMutation.mutate(s.key)}
                 disabled={toggleScenarioMutation.isPending}
@@ -578,100 +632,149 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
             ))}
           </div>
 
-          <Button size="sm" onClick={openCreateDialog} data-testid="button-add-cost-item">
-            <Plus className="h-4 w-4 mr-1" />
-            Add Item
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsFullscreen(v => !v)}
-            title={isFullscreen ? "Exit full screen" : "Expand to full screen"}
-            data-testid="button-toggle-fullscreen"
-          >
-            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
+          <Select value={String(fiscalYear)} onValueChange={(v) => setFiscalYear(Number(v))}>
+            <SelectTrigger className="w-32 h-9" data-testid="select-fiscal-year">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[currentYear - 1, currentYear, currentYear + 1, currentYear + 2].map((y) => (
+                <SelectItem key={y} value={String(y)}>FY {y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsFullscreen(v => !v)}
+          title={isFullscreen ? "Exit full screen" : "Expand to full screen"}
+          data-testid="button-toggle-fullscreen"
+        >
+          {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </Button>
       </div>
 
       {(() => {
         const N = Math.max(enabledScenarios.length, 1);
-        const SUB_COL_PX = 60;
+        const COL_COST = 280;
+        const COL_COMMENTS = 160;
+        const COL_WBS = 80;
         const TOTAL_SUB_COL_PX = 90;
-        const gridTemplate = `280px 80px 100px repeat(${N * 12}, ${SUB_COL_PX}px) repeat(${N}, ${TOTAL_SUB_COL_PX}px) 40px`;
-        const minWidthPx = 280 + 80 + 100 + N * 12 * SUB_COL_PX + N * TOTAL_SUB_COL_PX + 40;
+        const SUB_COL_PX = 60;
+        const COL_ACTIONS = 40;
+        const gridTemplate = `${COL_COST}px ${COL_COMMENTS}px ${COL_WBS}px repeat(${N}, ${TOTAL_SUB_COL_PX}px) repeat(${N * 12}, ${SUB_COL_PX}px) ${COL_ACTIONS}px`;
+        const minWidthPx = COL_COST + COL_COMMENTS + COL_WBS + N * TOTAL_SUB_COL_PX + N * 12 * SUB_COL_PX + COL_ACTIONS;
+
+        const sortableHeader = (label: string) => (
+          <div className="flex items-center gap-1 text-[11px] uppercase tracking-wide font-medium text-muted-foreground">
+            <span>{label}</span>
+            <ArrowUpDown className="h-3 w-3 opacity-60" />
+          </div>
+        );
+
+        const isCurrentMonth = (idx: number) => idx === currentMonthIdx;
 
         return (
           <div className="border rounded-md">
             <ScrollArea className="w-full">
               <div style={{ minWidth: `${minWidthPx}px` }}>
-                {/* Top header: months span N sub-cols each, plus a Total spanning N */}
+                {/* Header row 1: column titles + year groupings */}
                 <div
-                  className="grid bg-muted/50 border-b text-sm font-medium"
+                  className="grid bg-card border-b text-sm"
                   style={{ gridTemplateColumns: gridTemplate }}
                 >
-                  <div className="p-2 pl-4">Cost Item</div>
-                  <div className="p-2 text-center">WBS</div>
-                  <div className="p-2 text-center">Category</div>
-                  {MONTHS.map((m) => (
+                  <div className="p-2 pl-4">{sortableHeader("Cost Item")}</div>
+                  <div className="p-2">{sortableHeader("Comments")}</div>
+                  <div className="p-2">{sortableHeader("WBS")}</div>
+                  {/* Empty above TOTAL */}
+                  <div className="p-2 border-l" style={{ gridColumn: `span ${N}` }}></div>
+                  {/* Year groupings, each spans (count * N) sub-cols */}
+                  {yearGroups.map((g, gi) => (
                     <div
-                      key={m.num}
-                      className="p-2 text-center border-l"
+                      key={`y-${g.year}-${gi}`}
+                      className="p-2 text-center text-sm font-medium text-muted-foreground border-l"
+                      style={{ gridColumn: `span ${g.count * N}` }}
+                    >
+                      {g.year}
+                    </div>
+                  ))}
+                  <div className="p-2"></div>
+                </div>
+
+                {/* Header row 2: TOTAL + month names */}
+                <div
+                  className="grid bg-muted/40 border-b text-sm font-medium"
+                  style={{ gridTemplateColumns: gridTemplate }}
+                >
+                  <div className="p-2 pl-4"></div>
+                  <div className="p-2"></div>
+                  <div className="p-2"></div>
+                  <div
+                    className="p-2 text-center font-semibold border-l"
+                    style={{ gridColumn: `span ${N}` }}
+                  >
+                    TOTAL
+                  </div>
+                  {MONTHS.map((m, idx) => (
+                    <div
+                      key={`mn-${m.num}`}
+                      className={`p-2 text-center border-l ${isCurrentMonth(idx) ? "bg-primary/10 text-primary font-semibold" : ""}`}
                       style={{ gridColumn: `span ${N}` }}
                     >
                       {m.label}
                     </div>
                   ))}
-                  <div
-                    className="p-2 text-center font-semibold border-l"
-                    style={{ gridColumn: `span ${N}` }}
-                  >
-                    Total
-                  </div>
                   <div className="p-2"></div>
                 </div>
 
-                {/* Sub-header: scenario labels per month and per total (only when N > 1) */}
-                {N > 1 && (
-                  <div
-                    className="grid bg-muted/30 border-b text-[10px] uppercase tracking-wide font-medium text-muted-foreground"
-                    style={{ gridTemplateColumns: gridTemplate }}
-                  >
-                    <div></div>
-                    <div></div>
-                    <div></div>
-                    {MONTHS.map((m) => (
-                      enabledScenarios.map((s, i) => (
-                        <div
-                          key={`${m.num}-${s.key}`}
-                          className={`p-1 text-center ${i === 0 ? "border-l" : ""}`}
-                          title={s.editable ? `${s.label} (editable)` : `${s.label} (read-only)`}
-                        >
-                          {s.label}
-                        </div>
-                      ))
-                    ))}
-                    {enabledScenarios.map((s, i) => (
+                {/* Header row 3: scenario sub-labels under TOTAL and each month */}
+                <div
+                  className="grid bg-muted/20 border-b text-[10px] uppercase tracking-wide font-medium text-muted-foreground"
+                  style={{ gridTemplateColumns: gridTemplate }}
+                >
+                  <div></div>
+                  <div></div>
+                  <div></div>
+                  {enabledScenarios.map((s, i) => (
+                    <div
+                      key={`tlab-${s.key}`}
+                      className={`p-1 flex items-center justify-center gap-1 ${i === 0 ? "border-l" : ""}`}
+                      title={s.editable ? `${s.label} (editable)` : `${s.label} (read-only)`}
+                    >
+                      {!s.editable && <Lock className="h-2.5 w-2.5 opacity-60" />}
+                      <span>{s.label}</span>
+                    </div>
+                  ))}
+                  {MONTHS.map((m, idx) => (
+                    enabledScenarios.map((s, i) => (
                       <div
-                        key={`total-${s.key}`}
-                        className={`p-1 text-center ${i === 0 ? "border-l" : ""}`}
+                        key={`mlab-${m.num}-${s.key}`}
+                        className={`p-1 flex items-center justify-center gap-1 ${i === 0 ? "border-l" : ""} ${isCurrentMonth(idx) ? "bg-primary/5" : ""}`}
+                        title={s.editable ? `${s.label} (editable)` : `${s.label} (read-only)`}
                       >
-                        {s.label}
+                        {!s.editable && <Lock className="h-2.5 w-2.5 opacity-60" />}
+                        <span>{s.label}</span>
                       </div>
-                    ))}
-                    <div></div>
-                  </div>
-                )}
+                    ))
+                  ))}
+                  <div></div>
+                </div>
 
                 {rows.length === 0 ? (
                   <div className="p-8 text-center text-muted-foreground">
                     <FileSpreadsheet className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>No financial entries for FY{fiscalYear}</p>
-                    <Button variant="outline" size="sm" className="mt-4" onClick={openCreateDialog}>
-                      <Plus className="h-4 w-4 mr-1" />
-                      Add First Item
-                    </Button>
+                    <p>
+                      {searchQuery
+                        ? `No items match "${searchQuery}"`
+                        : `No financial entries for FY${fiscalYear}`}
+                    </p>
+                    {!searchQuery && (
+                      <Button variant="outline" size="sm" className="mt-4" onClick={openCreateDialog}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add First Item
+                      </Button>
+                    )}
                   </div>
                 ) : (
                   rows.map((row) => {
@@ -706,30 +809,49 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                           ) : (
                             <span className="w-5" />
                           )}
-                          <span className="truncate">{row.label}</span>
+                          {row.type === "view" ? (
+                            <Badge variant="outline" className="text-xs whitespace-nowrap">
+                              {row.label}
+                            </Badge>
+                          ) : (
+                            <span className="truncate">{row.label}</span>
+                          )}
+                          {isItem && row.category && (
+                            <Badge variant="outline" className="text-[10px] ml-1 whitespace-nowrap">
+                              {row.category}
+                            </Badge>
+                          )}
+                        </div>
+
+                        <div className="p-2 text-xs text-muted-foreground truncate" title={row.comments || ""}>
+                          {isItem ? (row.comments || "-") : ""}
                         </div>
 
                         <div className="p-2 text-center text-xs text-muted-foreground">
                           {isItem ? (row.wbs || "-") : ""}
                         </div>
 
-                        <div className="p-2 text-center">
-                          {isItem && row.category && (
-                            <Badge variant="outline" className="text-xs truncate max-w-full">
-                              {row.category}
-                            </Badge>
-                          )}
-                        </div>
+                        {/* Per-scenario row totals */}
+                        {enabledScenarios.map((s, sIdx) => (
+                          <div
+                            key={`total-${s.key}`}
+                            className={`p-2 text-center text-sm font-medium ${sIdx === 0 ? "border-l" : ""}`}
+                          >
+                            <CompactCurrency value={row.totalByScenario[s.key] ?? 0} />
+                          </div>
+                        ))}
 
+                        {/* Per-month per-scenario cells */}
                         {MONTHS.map((m, idx) => (
                           enabledScenarios.map((s, sIdx) => {
                             const value = row.monthlyByScenario[s.key]?.[idx] ?? 0;
                             const borderClass = sIdx === 0 ? "border-l" : "";
+                            const monthHi = isCurrentMonth(idx) ? "bg-primary/5" : "";
                             if (!isItem) {
                               return (
                                 <div
                                   key={`${m.num}-${s.key}`}
-                                  className={`p-2 text-center text-xs ${borderClass}`}
+                                  className={`p-2 text-center text-xs ${borderClass} ${monthHi}`}
                                 >
                                   {value !== 0 ? formatCurrency(value) : ""}
                                 </div>
@@ -741,7 +863,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                               editingCell?.scenarioKey === s.key;
                             const editable = isItem && s.editable;
                             return (
-                              <div key={`${m.num}-${s.key}`} className={`p-1 ${borderClass}`}>
+                              <div key={`${m.num}-${s.key}`} className={`p-1 ${borderClass} ${monthHi}`}>
                                 {isEditing ? (
                                   <Input
                                     autoFocus
@@ -781,15 +903,6 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                           })
                         ))}
 
-                        {enabledScenarios.map((s, sIdx) => (
-                          <div
-                            key={`total-${s.key}`}
-                            className={`p-2 text-center text-sm ${sIdx === 0 ? "border-l" : ""}`}
-                          >
-                            <CompactCurrency value={row.totalByScenario[s.key] ?? 0} />
-                          </div>
-                        ))}
-
                         <div className="p-1 flex items-center gap-0.5">
                           {isItem && (
                             <>
@@ -827,14 +940,6 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                     <div className="p-2 pl-4">Grand Total</div>
                     <div className="p-2"></div>
                     <div className="p-2"></div>
-                    {MONTHS.map((m) => (
-                      enabledScenarios.map((s, sIdx) => (
-                        <div
-                          key={`gt-${m.num}-${s.key}`}
-                          className={`p-2 ${sIdx === 0 ? "border-l" : ""}`}
-                        ></div>
-                      ))
-                    ))}
                     {enabledScenarios.map((s, sIdx) => (
                       <div
                         key={`gt-total-${s.key}`}
@@ -842,6 +947,21 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                       >
                         <CompactCurrency value={grandTotalByScenario[s.key] ?? 0} />
                       </div>
+                    ))}
+                    {MONTHS.map((m, idx) => (
+                      enabledScenarios.map((s, sIdx) => (
+                        <div
+                          key={`gt-${m.num}-${s.key}`}
+                          className={`p-2 text-center text-xs ${sIdx === 0 ? "border-l" : ""} ${isCurrentMonth(idx) ? "bg-primary/5" : ""}`}
+                        >
+                          {(() => {
+                            const grandMonthForScenario = rows
+                              .filter(r => r.type === "view")
+                              .reduce((acc, r) => acc + (r.monthlyByScenario[s.key]?.[idx] ?? 0), 0);
+                            return grandMonthForScenario !== 0 ? formatCurrency(grandMonthForScenario) : "0";
+                          })()}
+                        </div>
+                      ))
                     ))}
                     <div className="p-2"></div>
                   </div>
