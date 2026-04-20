@@ -29,6 +29,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
   const [wfCreationMode, setWfCreationMode] = useState<'dialog' | 'url'>('dialog');
   const [wfCreationUrl, setWfCreationUrl] = useState("");
   const [wfUrlError, setWfUrlError] = useState<string | null>(null);
+  const [wfAgentTarget, setWfAgentTarget] = useState<'none' | 'powerbi'>('none');
   const [workflowToDelete, setWorkflowToDelete] = useState<IntakeWorkflow | null>(null);
 
   // Auto-select default workflow when list loads
@@ -106,6 +107,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     setWfCreationMode((wf?.creationMode as 'dialog' | 'url') || 'dialog');
     setWfCreationUrl(wf?.creationUrl || "");
     setWfUrlError(null);
+    setWfAgentTarget((wf?.agentTarget as 'powerbi' | null) === 'powerbi' ? 'powerbi' : 'none');
     setShowWorkflowDialog(true);
   };
 
@@ -133,6 +135,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
         isDefault: wfIsDefault,
         creationMode: wfCreationMode,
         creationUrl: wfCreationMode === 'url' ? wfCreationUrl.trim() : null,
+        agentTarget: wfAgentTarget === 'powerbi' ? 'powerbi' : null,
       };
       if (editingWorkflow) {
         await updateWorkflowMeta.mutateAsync({ id: editingWorkflow.id, ...payload });
@@ -697,6 +700,24 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
                   {wfUrlError && <p className="text-xs text-destructive">{wfUrlError}</p>}
                 </div>
               )}
+            </div>
+            <div className="space-y-2 pt-2 border-t">
+              <Label>Assigned agent</Label>
+              <Select
+                value={wfAgentTarget}
+                onValueChange={(v) => setWfAgentTarget(v as 'none' | 'powerbi')}
+              >
+                <SelectTrigger data-testid="select-wf-agent-target">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None (standard intake)</SelectItem>
+                  <SelectItem value="powerbi">Power BI agent</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Selecting Power BI agent sends users to the Power BI request flow instead of the standard intake form.
+              </p>
             </div>
           </div>
           <DialogFooter>

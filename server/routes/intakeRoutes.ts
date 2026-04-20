@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { and } from "drizzle-orm";
-import { resources, insertProjectIntakeSchema, insertIntakeTypeSchema, type InsertIntakeWorkflow, type InsertProjectWorkflow } from "@shared/schema";
+import { resources, insertProjectIntakeSchema, type InsertIntakeWorkflow, type InsertProjectWorkflow } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -915,101 +915,4 @@ export function registerIntakeRoutes(app: Express) {
     }
   });
 
-  // ----- Intake Types -----
-  apiRoute(app, 'get', '/api/intake-types', {
-    tag: 'Intake Types',
-    summary: 'List intake types for an organization',
-    parameters: [qInt('organizationId', true, 'Organization ID')],
-    responses: { ...r200('Intake types', { type: 'array' }), ...authRes },
-  }, async (req, res) => {
-    try {
-      const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ message: 'Authentication required' });
-      const organizationId = Number(req.query.organizationId);
-      if (!organizationId) return res.status(400).json({ message: "organizationId is required" });
-      if (!await userHasOrgAccess(userId, organizationId)) {
-        return res.status(403).json({ message: 'Access denied to this organization' });
-      }
-      const types = await storage.getIntakeTypes(organizationId);
-      res.json(types);
-    } catch (err) {
-      console.error("Error fetching intake types:", err);
-      const classified = classifyError(err);
-      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching intake types" : classified.message });
-    }
-  });
-
-  apiRoute(app, 'post', '/api/intake-types', {
-    tag: 'Intake Types',
-    summary: 'Create an intake type',
-    requestBody: body({ type: 'object' }),
-    responses: { ...r201('Intake type created', { type: 'object' }), ...inputRes },
-  }, async (req, res) => {
-    try {
-      const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ message: 'Authentication required' });
-      const input = insertIntakeTypeSchema.parse({ ...req.body, isSystem: false });
-      if (!await userHasOrgAccess(userId, input.organizationId)) {
-        return res.status(403).json({ message: 'Access denied to this organization' });
-      }
-      const created = await storage.createIntakeType(input);
-      res.status(201).json(created);
-    } catch (err) {
-      console.error("Error creating intake type:", err);
-      const classified = classifyError(err);
-      res.status(classified.status).json({ message: classified.status === 500 ? "Error creating intake type" : classified.message });
-    }
-  });
-
-  apiRoute(app, 'put', '/api/intake-types/:id', {
-    tag: 'Intake Types',
-    summary: 'Update an intake type',
-    parameters: [pathId()],
-    requestBody: body({ type: 'object' }, false),
-    responses: { ...r200('Intake type updated', { type: 'object' }), ...updateRes },
-  }, async (req, res) => {
-    try {
-      const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ message: 'Authentication required' });
-      const id = Number(req.params.id);
-      const existing = await storage.getIntakeType(id);
-      if (!existing) return res.status(404).json({ message: 'Intake type not found' });
-      if (!await userHasOrgAccess(userId, existing.organizationId)) {
-        return res.status(403).json({ message: 'Access denied to this organization' });
-      }
-      const updated = await storage.updateIntakeType(id, req.body);
-      res.json(updated);
-    } catch (err) {
-      console.error("Error updating intake type:", err);
-      const classified = classifyError(err);
-      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating intake type" : classified.message });
-    }
-  });
-
-  apiRoute(app, 'delete', '/api/intake-types/:id', {
-    tag: 'Intake Types',
-    summary: 'Delete an intake type',
-    parameters: [pathId()],
-    responses: { ...r204('Intake type deleted'), ...fullRes },
-  }, async (req, res) => {
-    try {
-      const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ message: 'Authentication required' });
-      const id = Number(req.params.id);
-      const existing = await storage.getIntakeType(id);
-      if (!existing) return res.status(404).json({ message: 'Intake type not found' });
-      if (!await userHasOrgAccess(userId, existing.organizationId)) {
-        return res.status(403).json({ message: 'Access denied to this organization' });
-      }
-      if (existing.isSystem) {
-        return res.status(400).json({ message: 'System intake types cannot be deleted' });
-      }
-      await storage.deleteIntakeType(id);
-      res.status(204).send();
-    } catch (err) {
-      console.error("Error deleting intake type:", err);
-      const classified = classifyError(err);
-      res.status(classified.status).json({ message: classified.status === 500 ? "Error deleting intake type" : classified.message });
-    }
-  });
 }

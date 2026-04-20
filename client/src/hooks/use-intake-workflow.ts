@@ -149,7 +149,7 @@ export function useIntakeWorkflows() {
   });
 
   const createWorkflow = useMutation({
-    mutationFn: async (data: { name: string; description?: string; isDefault?: boolean; creationMode?: 'dialog' | 'url'; creationUrl?: string | null }) => {
+    mutationFn: async (data: { name: string; description?: string; isDefault?: boolean; creationMode?: 'dialog' | 'url'; creationUrl?: string | null; agentTarget?: 'powerbi' | null }) => {
       if (!orgId) throw new Error("No organization selected");
       const res = await apiRequest("POST", `/api/organizations/${orgId}/intake-workflows`, data);
       return res.json() as Promise<IntakeWorkflow>;
@@ -160,7 +160,7 @@ export function useIntakeWorkflows() {
   });
 
   const updateWorkflowMeta = useMutation({
-    mutationFn: async ({ id, ...data }: { id: number; name?: string; description?: string; isDefault?: boolean; isActive?: boolean; creationMode?: 'dialog' | 'url'; creationUrl?: string | null }) => {
+    mutationFn: async ({ id, ...data }: { id: number; name?: string; description?: string; isDefault?: boolean; isActive?: boolean; creationMode?: 'dialog' | 'url'; creationUrl?: string | null; agentTarget?: 'powerbi' | null }) => {
       if (!orgId) throw new Error("No organization selected");
       const res = await apiRequest("PATCH", `/api/organizations/${orgId}/intake-workflows/${id}`, data);
       return res.json() as Promise<IntakeWorkflow>;
