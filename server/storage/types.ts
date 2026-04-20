@@ -24,6 +24,8 @@ import type {
   IssueResourceAssignment, InsertIssueResourceAssignment,
   RiskResourceAssignment, InsertRiskResourceAssignment,
   CostItem, InsertCostItem, UpdateCostItemRequest,
+  CostItemChangeLog, InsertCostItemChangeLog,
+  MultiYearWbs, InsertMultiYearWbs,
   ProjectIntake, InsertProjectIntake, UpdateProjectIntakeRequest,
   MppImport, InsertMppImport,
   MppImportTask, InsertMppImportTask,
@@ -299,6 +301,8 @@ export interface IFinancialStorage {
   createCostItem(costItem: InsertCostItem): Promise<CostItem>;
   updateCostItem(id: number, updates: UpdateCostItemRequest): Promise<CostItem>;
   deleteCostItem(id: number): Promise<void>;
+  getCostItemChangeLogs(projectId: number): Promise<CostItemChangeLog[]>;
+  createCostItemChangeLog(data: InsertCostItemChangeLog): Promise<void>;
   getBillingTransactions(userId?: string, orgId?: number, limit?: number, offset?: number): Promise<BillingTransaction[]>;
   getBillingTransaction(id: number): Promise<BillingTransaction | undefined>;
   createBillingTransaction(transaction: InsertBillingTransaction): Promise<BillingTransaction>;

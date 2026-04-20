@@ -1,8 +1,9 @@
 import { db } from "../db";
 import {
-  projectFinancials, costItems, projectInvoices, invoiceNotes,
+  projectFinancials, costItems, costItemChangeLogs, projectInvoices, invoiceNotes,
   type ProjectFinancial, type InsertProjectFinancial, type UpdateProjectFinancialRequest,
   type CostItem, type InsertCostItem, type UpdateCostItemRequest,
+  type CostItemChangeLog, type InsertCostItemChangeLog,
   type ProjectInvoice, type InsertProjectInvoice,
   type InvoiceNote, type InsertInvoiceNote,
 } from "@shared/schema";
@@ -89,6 +90,16 @@ export async function updateCostItem(id: number, updates: UpdateCostItemRequest)
 export async function deleteCostItem(id: number): Promise<void> {
   await db.delete(costItems).where(eq(costItems.parentId, id));
   await db.delete(costItems).where(eq(costItems.id, id));
+}
+
+export async function getCostItemChangeLogs(projectId: number): Promise<CostItemChangeLog[]> {
+  return await db.select().from(costItemChangeLogs)
+    .where(eq(costItemChangeLogs.projectId, projectId))
+    .orderBy(desc(costItemChangeLogs.changedAt));
+}
+
+export async function createCostItemChangeLog(data: InsertCostItemChangeLog): Promise<void> {
+  await db.insert(costItemChangeLogs).values(data);
 }
 
 export async function getProjectInvoices(projectId: number): Promise<ProjectInvoice[]> {

@@ -1282,13 +1282,31 @@ export const costItems = pgTable("cost_items", {
   name: text("name").notNull(), // Cost item name
   wbs: text("wbs"), // Work Breakdown Structure code
   comments: text("comments"),
-  category: text("category"), // "Direct Expense", "Licenses", "Outside Services", "Travel/Meals", "Project Material", etc.
+  // Hierarchical grouping fields used by the Financials grid:
+  // Financial View > Cost Category > Cost Specification > Cost Item
+  financialView: text("financial_view"), // "Capital" | "Direct Expense" | "Labor"
+  costCategory: text("cost_category"),
+  costSpecification: text("cost_specification"),
+  category: text("category"), // legacy: "Direct Expense", "Licenses", "Outside Services", "Travel/Meals", "Project Material", etc.
   fiscalYear: integer("fiscal_year").notNull(), // e.g., 2026
   // Annual totals
   aopTotal: numeric("aop_total").default("0"), // Annual Operating Plan (original budget)
   fcstTotal: numeric("fcst_total").default("0"), // Forecast total
   actTotal: numeric("act_total").default("0"), // Actual total
-  // Monthly forecasts (fiscal year Oct-Sep: M1=Oct, M2=Nov, ..., M12=Sep)
+  // Monthly AOP (fiscal year Oct-Sep: M1=Oct, M2=Nov, ..., M12=Sep)
+  aopM1: numeric("aop_m1").default("0"),
+  aopM2: numeric("aop_m2").default("0"),
+  aopM3: numeric("aop_m3").default("0"),
+  aopM4: numeric("aop_m4").default("0"),
+  aopM5: numeric("aop_m5").default("0"),
+  aopM6: numeric("aop_m6").default("0"),
+  aopM7: numeric("aop_m7").default("0"),
+  aopM8: numeric("aop_m8").default("0"),
+  aopM9: numeric("aop_m9").default("0"),
+  aopM10: numeric("aop_m10").default("0"),
+  aopM11: numeric("aop_m11").default("0"),
+  aopM12: numeric("aop_m12").default("0"),
+  // Monthly forecasts
   fcstM1: numeric("fcst_m1").default("0"), // October
   fcstM2: numeric("fcst_m2").default("0"), // November
   fcstM3: numeric("fcst_m3").default("0"), // December
@@ -1320,6 +1338,41 @@ export const costItems = pgTable("cost_items", {
   isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("cost_items_project_id_idx").on(table.projectId),
+]);
+
+// Cost Item Change Logs (audit trail / undo support for cost items)
+export const costItemChangeLogs = pgTable("cost_item_change_logs", {
+  id: serial("id").primaryKey(),
+  costItemId: integer("cost_item_id"),
+  projectId: integer("project_id").references(() => projects.id),
+  changedBy: varchar("changed_by").references(() => users.id),
+  changedByName: text("changed_by_name"),
+  changedAt: timestamp("changed_at").defaultNow(),
+  changeType: text("change_type").notNull(), // "created" | "updated" | "deleted"
+  changeSummary: text("change_summary"),
+  previousValues: text("previous_values"), // JSON string
+  newValues: text("new_values"), // JSON string
+}, (table) => [
+  index("cost_item_change_logs_project_id_idx").on(table.projectId),
+]);
+
+// Multi-Year WBS — fiscal year project rollup with SAP fields
+export const multiYearWbs = pgTable("multi_year_wbs", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  fiscalYear: text("fiscal_year").notNull(), // e.g. "FY24"
+  sapProjectNumber: text("sap_project_number"),
+  sapCapitalNumber: text("sap_capital_number"),
+  sapExpenseNumber: text("sap_expense_number"),
+  sapLaborNumber: text("sap_labor_number"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+  createdBy: varchar("created_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
+}, (table) => [
+  index("multi_year_wbs_project_id_idx").on(table.projectId),
 ]);
 
 // Intake Types - Categorize intakes (e.g. "Default", "Power BI Request").
@@ -1830,6 +1883,8 @@ export const insertIssueResourceAssignmentSchema = createInsertSchema(issueResou
 export const insertRiskResourceAssignmentSchema = insertIssueResourceAssignmentSchema;
 export const insertTimesheetEntrySchema = createInsertSchema(timesheetEntries).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCostItemSchema = createInsertSchema(costItems).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCostItemChangeLogSchema = createInsertSchema(costItemChangeLogs).omit({ id: true, changedAt: true });
+export const insertMultiYearWbsSchema = createInsertSchema(multiYearWbs).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProjectIntakeSchema = createInsertSchema(projectIntakes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertIntakeTypeSchema = createInsertSchema(intakeTypes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMppImportSchema = createInsertSchema(mppImports).omit({ id: true, createdAt: true, lastSyncedAt: true });
@@ -1932,6 +1987,12 @@ export type InsertTimesheetEntry = z.infer<typeof insertTimesheetEntrySchema>;
 
 export type CostItem = typeof costItems.$inferSelect;
 export type InsertCostItem = z.infer<typeof insertCostItemSchema>;
+
+export type CostItemChangeLog = typeof costItemChangeLogs.$inferSelect;
+export type InsertCostItemChangeLog = z.infer<typeof insertCostItemChangeLogSchema>;
+
+export type MultiYearWbs = typeof multiYearWbs.$inferSelect;
+export type InsertMultiYearWbs = z.infer<typeof insertMultiYearWbsSchema>;
 
 export type ProjectIntake = typeof projectIntakes.$inferSelect;
 export type InsertProjectIntake = z.infer<typeof insertProjectIntakeSchema>;

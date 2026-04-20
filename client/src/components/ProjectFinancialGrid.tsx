@@ -12,7 +12,6 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, TrendingUp, FileSpreadsheet } from "lucide-react";
 import type { CostItem } from "@shared/schema";
-import { formatCurrency } from "@/lib/format";
 import { CompactCurrency } from "@/components/CompactCurrency";
 
 interface ProjectFinancialGridProps {
@@ -88,14 +87,19 @@ function flattenTree(nodes: CostItemNode[], expanded: Set<number>): CostItemNode
   return result;
 }
 
+function formatCurrency(value: string | number | null | undefined): string {
+  const num = parseFloat(String(value || 0));
+  if (isNaN(num)) return "$0";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num);
+}
 
 function getMonthValue(item: CostItem, month: string, viewMode: ViewMode): number {
-  if (viewMode === "aop") {
-    // AOP doesn't have monthly breakdown - show distributed budget (total / 12) for reference
-    const total = parseFloat(String(item.aopTotal || 0)) || 0;
-    return total / 12;
-  }
-  const prefix = viewMode === "fcst" ? "fcst" : "act";
+  const prefix = viewMode === "fcst" ? "fcst" : viewMode === "act" ? "act" : "aop";
   const key = `${prefix}${month}` as keyof CostItem;
   return parseFloat(String(item[key] || 0)) || 0;
 }
@@ -270,7 +274,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     
     const numValue = parseFloat(editValue) || 0;
     const updates: Partial<CostItem> = {
-      [editingCell.field]: String(numValue),
+      [editingCell.field]: numValue,
     };
     
     // Recalculate total
