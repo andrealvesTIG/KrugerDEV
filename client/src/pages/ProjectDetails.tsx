@@ -3752,7 +3752,7 @@ function ProjectTeamTab({
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="overflow-auto max-h-[560px] border rounded-md">
                 <div className="min-w-max">
                   <div className="flex border-b sticky top-0 bg-background z-10">
                     <div className="w-44 sm:w-64 flex-shrink-0 p-2 font-medium text-sm border-r sticky left-0 z-20 bg-background">
@@ -3767,7 +3767,7 @@ function ProjectTeamTab({
                     </div>
                   </div>
 
-                  <ScrollArea className="h-[500px]">
+                  <div>
                     {teamHeatmapData.map((member) => {
                       const isExpanded = expandedMembers.has(member.resource.id);
                       return (
@@ -3865,17 +3865,17 @@ function ProjectTeamTab({
                         </div>
                       );
                     })}
-                  </ScrollArea>
+                  </div>
+                </div>
+              </div>
 
-                  <div className="flex items-center gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground flex-wrap">
+              <div className="flex items-center gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground flex-wrap">
                     <span className="font-medium">Utilization:</span>
                     <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-emerald-100 dark:bg-emerald-900/30" /><span>0-50%</span></div>
                     <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-emerald-300 dark:bg-emerald-700/50" /><span>50-90%</span></div>
                     <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-emerald-400 dark:bg-emerald-600/60" /><span>90-100%</span></div>
                     <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-yellow-300 dark:bg-yellow-700/50" /><span>100-110%</span></div>
                     <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-red-400 dark:bg-red-600/60" /><span>&gt;125%</span></div>
-                  </div>
-                </div>
               </div>
             </div>
           )}
