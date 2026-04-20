@@ -11,6 +11,17 @@ export interface ProjectImage {
   alt?: string;
 }
 
+export interface ProjectLocationPatch {
+  addressLine1?: string | null;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  postalCode?: string | null;
+  latitude?: string | null;
+  longitude?: string | null;
+  images?: ProjectImage[];
+}
+
 interface Props {
   addressLine1?: string | null;
   city?: string | null;
@@ -23,7 +34,7 @@ interface Props {
   projectId?: number | null;
   maxImages?: number;
   disabled?: boolean;
-  onChange: (patch: Record<string, any>) => void;
+  onChange: (patch: ProjectLocationPatch) => void;
 }
 
 export function ProjectLocationMediaSection({

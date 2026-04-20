@@ -556,18 +556,23 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
               </div>
 
               <ProjectLocationMediaSection
-                addressLine1={form.watch("addressLine1" as any) as any}
-                city={form.watch("city" as any) as any}
-                region={form.watch("region" as any) as any}
-                country={form.watch("country" as any) as any}
-                postalCode={form.watch("postalCode" as any) as any}
-                latitude={form.watch("latitude" as any) as any}
-                longitude={form.watch("longitude" as any) as any}
-                images={(form.watch("images" as any) as any) || []}
+                addressLine1={form.watch("addressLine1")}
+                city={form.watch("city")}
+                region={form.watch("region")}
+                country={form.watch("country")}
+                postalCode={form.watch("postalCode")}
+                latitude={form.watch("latitude")}
+                longitude={form.watch("longitude")}
+                images={form.watch("images") || []}
                 onChange={(patch) => {
-                  Object.entries(patch).forEach(([k, v]) => {
-                    form.setValue(k as any, v as any, { shouldDirty: true });
-                  });
+                  if (patch.addressLine1 !== undefined) form.setValue("addressLine1", patch.addressLine1, { shouldDirty: true });
+                  if (patch.city !== undefined) form.setValue("city", patch.city, { shouldDirty: true });
+                  if (patch.region !== undefined) form.setValue("region", patch.region, { shouldDirty: true });
+                  if (patch.country !== undefined) form.setValue("country", patch.country, { shouldDirty: true });
+                  if (patch.postalCode !== undefined) form.setValue("postalCode", patch.postalCode, { shouldDirty: true });
+                  if (patch.latitude !== undefined) form.setValue("latitude", patch.latitude, { shouldDirty: true });
+                  if (patch.longitude !== undefined) form.setValue("longitude", patch.longitude, { shouldDirty: true });
+                  if (patch.images !== undefined) form.setValue("images", patch.images, { shouldDirty: true });
                 }}
               />
 
