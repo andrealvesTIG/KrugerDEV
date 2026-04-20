@@ -2086,6 +2086,7 @@ export const projectViews = pgTable("project_views", {
   name: text("name").notNull(),
   isDefault: boolean("is_default").default(false), // User's default view for this mode
   isSystem: boolean("is_system").default(false), // System default view (cannot be deleted)
+  portfolioId: integer("portfolio_id").references(() => portfolios.id, { onDelete: 'cascade' }), // null = global; non-null = portfolio-scoped
   visibleColumns: text("visible_columns").array().notNull(),
   columnOrder: text("column_order").array(),
   columnWidths: jsonb("column_widths").$type<Record<string, number>>(),
@@ -2111,6 +2112,7 @@ export const systemProjectViews = pgTable("system_project_views", {
   mode: text("mode").notNull(), // 'grid' or 'gantt'
   name: text("name").notNull(),
   description: text("description"), // Description of what this view shows
+  portfolioId: integer("portfolio_id").references(() => portfolios.id, { onDelete: 'cascade' }), // null = global; non-null = portfolio-scoped
   visibleColumns: text("visible_columns").array().notNull(),
   columnOrder: text("column_order").array(),
   columnWidths: jsonb("column_widths").$type<Record<string, number>>(),

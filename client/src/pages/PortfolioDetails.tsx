@@ -58,6 +58,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ProjectsListView, type GroupByOption } from "@/pages/Projects";
+import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues } from "@/hooks/use-custom-fields";
 
 export default function PortfolioDetails() {
   const [, params] = useRoute("/portfolios/:id");
@@ -642,6 +644,22 @@ function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }
   const updateProject = useUpdateProject();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const groupByStorageKey = `portfolio-${portfolioId}-list-group-by`;
+  const [listGroupBy, setListGroupBy] = useState<GroupByOption>(() => {
+    try { return (localStorage.getItem(groupByStorageKey) as GroupByOption) || "none"; } catch { return "none"; }
+  });
+  useEffect(() => { try { localStorage.setItem(groupByStorageKey, listGroupBy); } catch {} }, [listGroupBy, groupByStorageKey]);
+  const [removeProjectId, setRemoveProjectId] = useState<number | null>(null);
+  const { data: customFieldDefs } = useCustomFieldDefinitions(organizationId);
+  const { data: cfValues } = useOrganizationProjectCustomFieldValues(organizationId);
+  const projectProgress = useMemo(() => {
+    const map: Record<number, number> = {};
+    (projects || []).forEach(p => { map[p.id] = p.completionPercentage || 0; });
+    return map;
+  }, [projects]);
+  const handleStatusChange = (projectId: number, newStatus: string) => {
+    updateProject.mutate({ id: projectId, status: newStatus });
+  };
 
   const availableProjects = useMemo(() => {
     if (!allProjects) return [];
@@ -808,85 +826,58 @@ function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }
       </CardHeader>
       <CardContent>
         {view === "list" ? (
-          <div className="rounded-md border overflow-x-auto">
-            <table className="w-full min-w-[500px]">
-              <thead className="bg-muted/50">
-                <tr className="border-b">
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Project</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Status</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Health</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground hidden md:table-cell">Progress</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground hidden sm:table-cell">Budget</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {projects?.map((project: Project) => (
-                  <tr key={project.id} className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-project-${project.id}`}>
-                    <td className="p-3 max-w-[200px]">
-                      <Link href={`/projects/${project.id}`}>
-                        <div className="hover:text-primary cursor-pointer min-w-0">
-                          <p className="font-medium truncate">{project.name}</p>
-                          <p className="text-sm text-muted-foreground truncate">{project.description}</p>
-                        </div>
-                      </Link>
-                    </td>
-                    <td className="p-3">
-                      <Badge className={cn("text-xs", statusColors[project.status] || "bg-muted")}>{project.status}</Badge>
-                    </td>
-                    <td className="p-3">
-                      <Badge className={cn("text-xs", healthColors[project.health || "Green"])}>{project.health}</Badge>
-                    </td>
-                    <td className="p-3 hidden md:table-cell">
-                      <div className="flex items-center gap-2">
-                        <Progress value={project.completionPercentage || 0} className="w-20 h-2" />
-                        <span className="text-sm">{project.completionPercentage || 0}%</span>
-                      </div>
-                    </td>
-                    <td className="p-3 text-sm hidden sm:table-cell"><CompactCurrency value={financialBudgets && project.id in financialBudgets ? financialBudgets[project.id] : project.budget} /></td>
-                    <td className="p-3">
-                      <div className="flex items-center gap-1">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" data-testid={`button-menu-project-${project.id}`}>
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link href={`/projects/${project.id}`} className="cursor-pointer">
-                                <ArrowRight className="h-4 w-4 mr-2" />
-                                View Project
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleRemoveProject(project.id)}
-                              className="text-destructive focus:text-destructive"
-                              data-testid={`menu-delete-project-${project.id}`}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Remove from Portfolio
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {projects?.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                No projects in this portfolio. Click "Add Project" to add existing projects.
-              </div>
-            )}
-          </div>
+          <ProjectsListView
+            projects={projects || []}
+            filteredProjects={projects || []}
+            portfolios={[]}
+            projectProgress={projectProgress}
+            getRiskScoreForProject={() => undefined}
+            getRiskScoreColor={() => ""}
+            handleStatusChange={handleStatusChange}
+            setDeleteProjectId={(id) => setRemoveProjectId(id)}
+            setRiskAssessProjectId={() => {}}
+            currentPage={1}
+            totalPages={1}
+            pageSize={projects?.length || 0}
+            onPageChange={() => {}}
+            isLoading={isLoading}
+            groupBy={listGroupBy}
+            onGroupByChange={setListGroupBy}
+            customFieldDefs={customFieldDefs}
+            customFieldValues={cfValues}
+            organizationId={organizationId || null}
+            portfolioId={portfolioId}
+          />
         ) : (
           <PortfolioProjectsGanttView projects={projects || []} />
         )}
       </CardContent>
     </Card>
-
+    <AlertDialog open={removeProjectId !== null} onOpenChange={(open) => !open && setRemoveProjectId(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Remove project from portfolio?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This removes the project from this portfolio. The project itself will not be deleted.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              if (removeProjectId !== null) {
+                handleRemoveProject(removeProjectId);
+                setRemoveProjectId(null);
+              }
+            }}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            data-testid="confirm-remove-project"
+          >
+            Remove
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
       <DialogContent className="sm:max-w-[600px] max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader>

@@ -113,12 +113,15 @@ export async function createHealthStatusHistory(entry: InsertHealthStatusHistory
   return created;
 }
 
-export async function getProjectViews(organizationId: number, userId: string, mode: string): Promise<ProjectView[]> {
+export async function getProjectViews(organizationId: number, userId: string, mode: string, portfolioId: number | null = null): Promise<ProjectView[]> {
   return await db.select().from(projectViews)
     .where(and(
       eq(projectViews.organizationId, organizationId),
       eq(projectViews.userId, userId),
-      eq(projectViews.mode, mode)
+      eq(projectViews.mode, mode),
+      portfolioId === null
+        ? sql`${projectViews.portfolioId} IS NULL`
+        : eq(projectViews.portfolioId, portfolioId)
     ))
     .orderBy(desc(projectViews.isSystem), asc(projectViews.name));
 }
@@ -145,25 +148,31 @@ export async function deleteProjectView(id: number): Promise<void> {
   await db.delete(projectViews).where(eq(projectViews.id, id));
 }
 
-export async function setDefaultProjectView(organizationId: number, userId: string, mode: string, viewId: number): Promise<void> {
+export async function setDefaultProjectView(organizationId: number, userId: string, mode: string, viewId: number, portfolioId: number | null = null): Promise<void> {
   await db.update(projectViews)
     .set({ isDefault: false })
     .where(and(
       eq(projectViews.organizationId, organizationId),
       eq(projectViews.userId, userId),
-      eq(projectViews.mode, mode)
+      eq(projectViews.mode, mode),
+      portfolioId === null
+        ? sql`${projectViews.portfolioId} IS NULL`
+        : eq(projectViews.portfolioId, portfolioId)
     ));
   await db.update(projectViews)
     .set({ isDefault: true, updatedAt: new Date() })
     .where(eq(projectViews.id, viewId));
 }
 
-export async function getSystemProjectViews(organizationId: number, mode: string): Promise<SystemProjectView[]> {
+export async function getSystemProjectViews(organizationId: number, mode: string, portfolioId: number | null = null): Promise<SystemProjectView[]> {
   return await db.select().from(systemProjectViews)
     .where(and(
       eq(systemProjectViews.organizationId, organizationId),
       eq(systemProjectViews.mode, mode),
-      eq(systemProjectViews.isActive, true)
+      eq(systemProjectViews.isActive, true),
+      portfolioId === null
+        ? sql`${systemProjectViews.portfolioId} IS NULL`
+        : eq(systemProjectViews.portfolioId, portfolioId)
     ))
     .orderBy(asc(systemProjectViews.displayOrder), asc(systemProjectViews.name));
 }

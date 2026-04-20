@@ -993,12 +993,14 @@ export function registerProjectFeatureRoutes(app: Express) {
   apiRoute(app, 'get', '/api/organizations/:orgId/project-views', {
     tag: 'Project Views',
     summary: 'List project views for organization',
-    parameters: [pathId('orgId'), qStr('mode', true, 'View mode (grid, gantt, or list)')],
+    parameters: [pathId('orgId'), qStr('mode', true, 'View mode (grid, gantt, or list)'), qInt('portfolioId', false, 'Optional portfolio scope')],
     responses: { ...r200('Project views', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
       const mode = req.query.mode as string;
+      const portfolioIdRaw = req.query.portfolioId;
+      const portfolioId = portfolioIdRaw !== undefined && portfolioIdRaw !== '' ? Number(portfolioIdRaw) : null;
       const userId = getUserIdFromRequest(req);
       
       if (!userId) {
@@ -1014,7 +1016,7 @@ export function registerProjectFeatureRoutes(app: Express) {
         return res.status(403).json({ message: "Access denied" });
       }
       
-      const views = await storage.getProjectViews(orgId, userId, mode);
+      const views = await storage.getProjectViews(orgId, userId, mode, portfolioId);
       res.json(views);
     } catch (err) {
       console.error("Error fetching project views:", err);
@@ -1043,7 +1045,8 @@ export function registerProjectFeatureRoutes(app: Express) {
         return res.status(403).json({ message: "Access denied" });
       }
       
-      const { mode, name, visibleColumns, columnOrder, columnWidths, frozenColumns, isDefault } = req.body;
+      const { mode, name, visibleColumns, columnOrder, columnWidths, frozenColumns, isDefault, portfolioId: portfolioIdRaw } = req.body;
+      const portfolioId: number | null = portfolioIdRaw !== undefined && portfolioIdRaw !== null ? Number(portfolioIdRaw) : null;
       
       if (!mode || !['grid', 'gantt', 'list'].includes(mode)) {
         return res.status(400).json({ message: "Mode must be 'grid', 'gantt', or 'list'" });
@@ -1057,8 +1060,8 @@ export function registerProjectFeatureRoutes(app: Express) {
         return res.status(400).json({ message: "Visible columns are required" });
       }
       
-      // Check for duplicate name
-      const existingViews = await storage.getProjectViews(orgId, userId, mode);
+      // Check for duplicate name within the same scope
+      const existingViews = await storage.getProjectViews(orgId, userId, mode, portfolioId);
       const duplicateName = existingViews.find(v => v.name.toLowerCase() === name.trim().toLowerCase());
       if (duplicateName) {
         return res.status(400).json({ message: "A view with this name already exists" });
@@ -1069,6 +1072,7 @@ export function registerProjectFeatureRoutes(app: Express) {
         userId,
         mode,
         name: name.trim(),
+        portfolioId,
         visibleColumns,
         columnOrder: columnOrder || null,
         columnWidths: columnWidths || null,
@@ -1079,7 +1083,7 @@ export function registerProjectFeatureRoutes(app: Express) {
       
       // If this is marked as default, update the default status
       if (isDefault) {
-        await storage.setDefaultProjectView(orgId, userId, mode, view.id);
+        await storage.setDefaultProjectView(orgId, userId, mode, view.id, portfolioId);
       }
       
       res.status(201).json(view);
@@ -1122,9 +1126,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       
       const { name, visibleColumns, columnOrder, columnWidths, frozenColumns, isDefault } = req.body;
       
-      // Check for duplicate name if renaming
+      // Check for duplicate name if renaming (within the same scope)
       if (name && name.trim().toLowerCase() !== existingView.name.toLowerCase()) {
-        const existingViews = await storage.getProjectViews(existingView.organizationId, userId, existingView.mode);
+        const existingViews = await storage.getProjectViews(existingView.organizationId, userId, existingView.mode, existingView.portfolioId ?? null);
         const duplicateName = existingViews.find(v => v.name.toLowerCase() === name.trim().toLowerCase() && v.id !== viewId);
         if (duplicateName) {
           return res.status(400).json({ message: "A view with this name already exists" });
@@ -1142,7 +1146,7 @@ export function registerProjectFeatureRoutes(app: Express) {
       
       // If this is marked as default, update the default status
       if (isDefault) {
-        await storage.setDefaultProjectView(existingView.organizationId, userId, existingView.mode, viewId);
+        await storage.setDefaultProjectView(existingView.organizationId, userId, existingView.mode, viewId, existingView.portfolioId ?? null);
       }
       
       res.json(updatedView);
@@ -1215,7 +1219,7 @@ export function registerProjectFeatureRoutes(app: Express) {
         return res.status(403).json({ message: "Access denied" });
       }
       
-      await storage.setDefaultProjectView(existingView.organizationId, userId, existingView.mode, viewId);
+      await storage.setDefaultProjectView(existingView.organizationId, userId, existingView.mode, viewId, existingView.portfolioId ?? null);
       res.json({ success: true });
     } catch (err) {
       console.error("Error setting default view:", err);
@@ -1229,12 +1233,14 @@ export function registerProjectFeatureRoutes(app: Express) {
   apiRoute(app, 'get', '/api/organizations/:orgId/system-project-views', {
     tag: 'System Project Views',
     summary: 'List system project views for organization',
-    parameters: [pathId('orgId'), qStr('mode', true, 'View mode (grid, gantt, or list)')],
+    parameters: [pathId('orgId'), qStr('mode', true, 'View mode (grid, gantt, or list)'), qInt('portfolioId', false, 'Optional portfolio scope')],
     responses: { ...r200('System project views', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
       const mode = req.query.mode as string;
+      const portfolioIdRaw = req.query.portfolioId;
+      const portfolioId = portfolioIdRaw !== undefined && portfolioIdRaw !== '' ? Number(portfolioIdRaw) : null;
       const userId = getUserIdFromRequest(req);
       
       if (!userId) {
@@ -1250,7 +1256,7 @@ export function registerProjectFeatureRoutes(app: Express) {
         return res.status(403).json({ message: "Access denied" });
       }
       
-      const views = await storage.getSystemProjectViews(orgId, mode);
+      const views = await storage.getSystemProjectViews(orgId, mode, portfolioId);
       res.json(views);
     } catch (err) {
       console.error("Error fetching system project views:", err);

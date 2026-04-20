@@ -113,6 +113,7 @@ interface GridColumn {
 interface ViewsDropdownProps {
   mode: 'grid' | 'gantt' | 'list';
   organizationId: number | null;
+  portfolioId?: number | null;
   allColumns: GridColumn[];
   visibleColumns: string[];
   columnOrder: string[];
@@ -126,6 +127,7 @@ interface ViewsDropdownProps {
 export function ViewsDropdown({
   mode,
   organizationId,
+  portfolioId = null,
   allColumns,
   visibleColumns,
   columnOrder,
@@ -136,16 +138,18 @@ export function ViewsDropdown({
   onFilterViewChange,
 }: ViewsDropdownProps) {
   const { toast } = useToast();
-  const { data: views = [], isLoading } = useProjectViews(organizationId, mode);
-  const createViewMutation = useCreateProjectView(organizationId);
+  const { data: views = [], isLoading } = useProjectViews(organizationId, mode, portfolioId);
+  const createViewMutation = useCreateProjectView(organizationId, portfolioId);
   const updateViewMutation = useUpdateProjectView();
   const deleteViewMutation = useDeleteProjectView();
   const setDefaultMutation = useSetDefaultView();
   
   const { data: systemViews = [] } = useQuery<SystemProjectView[]>({
-    queryKey: ['/api/organizations', organizationId, 'system-project-views', mode],
+    queryKey: ['/api/organizations', organizationId, 'system-project-views', mode, { portfolioId }],
     queryFn: async () => {
-      const res = await fetch(`/api/organizations/${organizationId}/system-project-views?mode=${mode}`, {
+      const params = new URLSearchParams({ mode });
+      if (portfolioId !== null) params.set('portfolioId', String(portfolioId));
+      const res = await fetch(`/api/organizations/${organizationId}/system-project-views?${params.toString()}`, {
         credentials: 'include',
       });
       if (!res.ok) return [];
@@ -261,6 +265,7 @@ export function ViewsDropdown({
         viewId: activeView.id,
         organizationId,
         mode,
+        portfolioId,
         visibleColumns,
         columnOrder,
       });
@@ -278,6 +283,7 @@ export function ViewsDropdown({
         viewId: viewToRename.id,
         organizationId,
         mode,
+        portfolioId,
         name: renameViewName.trim(),
       });
       setRenameDialogOpen(false);
@@ -297,6 +303,7 @@ export function ViewsDropdown({
         viewId: viewToDelete.id,
         organizationId,
         mode,
+        portfolioId,
       });
       if (activeViewId === viewToDelete.id) {
         setActiveViewId(null);
@@ -318,6 +325,7 @@ export function ViewsDropdown({
         viewId: view.id,
         organizationId,
         mode,
+        portfolioId,
       });
       toast({ title: "Default view set", description: `"${view.name}" is now your default view` });
     } catch (err: any) {

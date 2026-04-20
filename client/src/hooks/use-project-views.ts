@@ -2,12 +2,14 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { ProjectView } from "@shared/schema";
 
-export function useProjectViews(organizationId: number | null, mode: 'grid' | 'gantt' | 'list') {
+export function useProjectViews(organizationId: number | null, mode: 'grid' | 'gantt' | 'list', portfolioId: number | null = null) {
   return useQuery<ProjectView[]>({
-    queryKey: ['/api/organizations', organizationId, 'project-views', mode],
+    queryKey: ['/api/organizations', organizationId, 'project-views', mode, { portfolioId }],
     queryFn: async () => {
       if (!organizationId) return [];
-      const res = await fetch(`/api/organizations/${organizationId}/project-views?mode=${mode}`, {
+      const params = new URLSearchParams({ mode });
+      if (portfolioId !== null) params.set('portfolioId', String(portfolioId));
+      const res = await fetch(`/api/organizations/${organizationId}/project-views?${params.toString()}`, {
         credentials: 'include',
       });
       if (!res.ok) throw new Error('Failed to fetch views');
@@ -17,7 +19,7 @@ export function useProjectViews(organizationId: number | null, mode: 'grid' | 'g
   });
 }
 
-export function useCreateProjectView(organizationId: number | null) {
+export function useCreateProjectView(organizationId: number | null, portfolioId: number | null = null) {
   return useMutation({
     mutationFn: async (data: {
       mode: 'grid' | 'gantt' | 'list';
@@ -29,12 +31,12 @@ export function useCreateProjectView(organizationId: number | null) {
       isDefault?: boolean;
     }) => {
       if (!organizationId) throw new Error('Organization required');
-      const res = await apiRequest('POST', `/api/organizations/${organizationId}/project-views`, data);
+      const res = await apiRequest('POST', `/api/organizations/${organizationId}/project-views`, { ...data, portfolioId });
       return res.json();
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ 
-        queryKey: ['/api/organizations', organizationId, 'project-views', variables.mode] 
+        queryKey: ['/api/organizations', organizationId, 'project-views', variables.mode, { portfolioId }] 
       });
     },
   });
@@ -46,11 +48,13 @@ export function useUpdateProjectView() {
       viewId, 
       organizationId,
       mode,
+      portfolioId,
       ...data 
     }: {
       viewId: number;
       organizationId: number;
       mode: 'grid' | 'gantt' | 'list';
+      portfolioId?: number | null;
       name?: string;
       visibleColumns?: string[];
       columnOrder?: string[];
@@ -63,7 +67,7 @@ export function useUpdateProjectView() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ 
-        queryKey: ['/api/organizations', variables.organizationId, 'project-views', variables.mode] 
+        queryKey: ['/api/organizations', variables.organizationId, 'project-views', variables.mode, { portfolioId: variables.portfolioId ?? null }] 
       });
     },
   });
@@ -74,11 +78,13 @@ export function useDeleteProjectView() {
     mutationFn: async ({ 
       viewId, 
       organizationId,
-      mode 
+      mode,
+      portfolioId,
     }: {
       viewId: number;
       organizationId: number;
       mode: 'grid' | 'gantt' | 'list';
+      portfolioId?: number | null;
     }) => {
       const res = await apiRequest('DELETE', `/api/project-views/${viewId}`);
       if (!res.ok) throw new Error('Failed to delete view');
@@ -86,7 +92,7 @@ export function useDeleteProjectView() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ 
-        queryKey: ['/api/organizations', variables.organizationId, 'project-views', variables.mode] 
+        queryKey: ['/api/organizations', variables.organizationId, 'project-views', variables.mode, { portfolioId: variables.portfolioId ?? null }] 
       });
     },
   });
@@ -97,18 +103,20 @@ export function useSetDefaultView() {
     mutationFn: async ({ 
       viewId, 
       organizationId,
-      mode 
+      mode,
+      portfolioId,
     }: {
       viewId: number;
       organizationId: number;
       mode: 'grid' | 'gantt' | 'list';
+      portfolioId?: number | null;
     }) => {
       const res = await apiRequest('POST', `/api/project-views/${viewId}/set-default`);
       return res.json();
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ 
-        queryKey: ['/api/organizations', variables.organizationId, 'project-views', variables.mode] 
+        queryKey: ['/api/organizations', variables.organizationId, 'project-views', variables.mode, { portfolioId: variables.portfolioId ?? null }] 
       });
     },
   });

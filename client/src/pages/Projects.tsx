@@ -283,6 +283,7 @@ interface ProjectsListViewProps {
   onFilterViewChange?: (filterView: ProjectFilterView) => void;
   organizationId?: number | null;
   statusList?: string[];
+  portfolioId?: number | null;
 }
 
 export function ProjectsListView({
@@ -310,6 +311,7 @@ export function ProjectsListView({
   onFilterViewChange,
   organizationId,
   statusList = DEFAULT_PROJECT_STATUS_LIST,
+  portfolioId = null,
 }: ProjectsListViewProps) {
   const PROJECT_STATUS_LIST = statusList;
   const { workflows: projectWorkflowsList } = useProjectWorkflows();
@@ -720,14 +722,16 @@ export function ProjectsListView({
                     View Details
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={(e) => { e.preventDefault(); setRiskAssessProjectId(project.id); }}>
-                  <Shield className="h-4 w-4 mr-2" />
-                  AI Risk Assessment
-                </DropdownMenuItem>
+                {portfolioId === null && (
+                  <DropdownMenuItem onClick={(e) => { e.preventDefault(); setRiskAssessProjectId(project.id); }}>
+                    <Shield className="h-4 w-4 mr-2" />
+                    AI Risk Assessment
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={(e) => { e.preventDefault(); setDeleteProjectId(project.id); }} className="text-red-600 focus:text-red-600">
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
+                  {portfolioId !== null ? "Remove from Portfolio" : "Delete"}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -771,6 +775,7 @@ export function ProjectsListView({
           <ViewsDropdown
             mode="list"
             organizationId={organizationId ?? null}
+            portfolioId={portfolioId}
             allColumns={allListColumns}
             visibleColumns={visibleColumnIds}
             columnOrder={listColumnOrder}
