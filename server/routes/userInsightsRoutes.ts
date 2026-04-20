@@ -85,7 +85,7 @@ export function registerUserInsightsRoutes(app: Express) {
 
       const sanitized: InsertablePageEvent[] = events.slice(0, 50).map((e) => {
         const eventType = String(e.eventType || 'page_view');
-        if (!['page_view', 'click', 'custom'].includes(eventType)) return null;
+        if (!['page_view', 'click', 'custom', 'error'].includes(eventType)) return null;
 
         let occurredAt = new Date();
         if (e.occurredAt) {
