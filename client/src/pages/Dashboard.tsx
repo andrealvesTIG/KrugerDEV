@@ -23,7 +23,13 @@ import {
   ExecutiveDashboard, 
   StrategicKPIsDashboard,
   TrendAnalysisDashboard,
-  FinancialSummaryDashboard,
+  FinancialsOverviewDashboard,
+  SCurveDashboard,
+  EVAnalysisDashboard,
+  ForecastingDashboard,
+  CashFlowDashboard,
+  VarianceTrendsDashboard,
+  PortfolioRollupDashboard,
   PortfolioHealthDashboard,
   PortfolioAllocationDashboard,
   PortfolioTimelineDashboard,
@@ -126,7 +132,20 @@ const DASHBOARD_TABS: DashboardTab[] = [
       { id: "executive-overview", label: "Overview", icon: LayoutDashboard },
       { id: "executive-strategic", label: "Strategic KPIs", icon: Target },
       { id: "executive-trends", label: "Trend Analysis", icon: TrendingUp },
-      { id: "executive-financial", label: "Financial Summary", icon: DollarSign },
+    ]
+  },
+  {
+    id: "financials",
+    label: "Financials",
+    icon: DollarSign,
+    submenus: [
+      { id: "financials-overview", label: "Overview", icon: LayoutDashboard },
+      { id: "financials-scurves", label: "S-Curves", icon: TrendingUp },
+      { id: "financials-ev", label: "EV Analysis", icon: Activity },
+      { id: "financials-forecasting", label: "Forecasting", icon: Target },
+      { id: "financials-cashflow", label: "Cash Flow", icon: DollarSign },
+      { id: "financials-variance", label: "Variance Trends", icon: AlertTriangle },
+      { id: "financials-portfolio", label: "Portfolio Rollup", icon: PieChart },
     ]
   },
   { 
@@ -780,8 +799,19 @@ export default function Dashboard() {
         {activeSubmenu === 'executive-overview' && <ExecutiveDashboard />}
         {activeSubmenu === 'executive-strategic' && <StrategicKPIsDashboard />}
         {activeSubmenu === 'executive-trends' && <TrendAnalysisDashboard />}
-        {activeSubmenu === 'executive-financial' && <FinancialSummaryDashboard />}
-        
+        {/* Legacy redirect: the Executive → Financial Summary tab has been
+            absorbed into the dedicated Financials → Overview report. */}
+        {activeSubmenu === 'executive-financial' && <FinancialsOverviewDashboard />}
+
+        {/* Financials Dashboard submenus (Project Controls / EVM) */}
+        {activeSubmenu === 'financials-overview' && <FinancialsOverviewDashboard />}
+        {activeSubmenu === 'financials-scurves' && <SCurveDashboard />}
+        {activeSubmenu === 'financials-ev' && <EVAnalysisDashboard />}
+        {activeSubmenu === 'financials-forecasting' && <ForecastingDashboard />}
+        {activeSubmenu === 'financials-cashflow' && <CashFlowDashboard />}
+        {activeSubmenu === 'financials-variance' && <VarianceTrendsDashboard />}
+        {activeSubmenu === 'financials-portfolio' && <PortfolioRollupDashboard />}
+
         {/* Portfolios Dashboard submenus */}
         {activeSubmenu === 'portfolios-overview' && <PortfoliosDashboard />}
         {activeSubmenu === 'portfolios-health' && <PortfolioHealthDashboard />}

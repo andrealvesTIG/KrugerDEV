@@ -1,11 +1,12 @@
 import type { Express, Request } from "express";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "../db";
-import { financialEntries, costItemChangeLogs } from "@shared/schema";
+import { financialEntries, costItemChangeLogs, projects, portfolios } from "@shared/schema";
 import { storage } from "../storage";
 import { multiYearWbs } from "@shared/schema";
 import type { FinancialType } from "@shared/schema";
 import type { FinancialItemDimensions } from "../storage/financialStorage";
+import { buildFiscalMonths, currentFiscalYear, normalizeFiscalYearStartMonth } from "@shared/lib/fiscalCalendar";
 import {
   getUserIdFromRequest,
   userHasOrgAccess,
@@ -801,6 +802,285 @@ export function registerFinancialsRoutes(app: Express) {
     } catch (err) {
       console.error("Error updating WBS entry:", err);
       res.status(500).json({ message: "Error updating WBS entry" });
+    }
+  });
+
+  // ===================== FINANCIAL ANALYTICS (org-wide EVM rollup) =====================
+  // Aggregates AOP/FCST/ACT/EAC entries for every project the user can see in
+  // the org, joins with project schedule + completion data to compute PMI EVM
+  // metrics (PV, EV, AC, EAC, CPI, SPI) for the requested fiscal year. Used by
+  // the Financials Dashboard's seven sub-reports — they all hit this single
+  // endpoint and re-shape the payload client-side.
+  app.get("/api/organizations/:orgId/financial-analytics", async (req, res) => {
+    try {
+      const orgId = Number(req.params.orgId);
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      if (!(await userHasOrgAccess(userId, orgId))) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+
+      const org = await storage.getOrganization(orgId);
+      if (!org) return res.status(404).json({ message: "Organization not found" });
+      const fyStart = normalizeFiscalYearStartMonth(org.fiscalYearStartMonth as any);
+      const today = new Date();
+      const fiscalYear = req.query.fiscalYear ? Number(req.query.fiscalYear) : currentFiscalYear(today, fyStart);
+      const portfolioFilter = req.query.portfolioId ? Number(req.query.portfolioId) : undefined;
+
+      // Project list scoped to user's access. Team members only see assigned projects.
+      const allProjects = await db.select().from(projects).where(and(
+        eq(projects.organizationId, orgId),
+        isNull(projects.deletedAt),
+      ));
+      const isTeamOnly = await isTeamMemberInOrg(userId, orgId);
+      const allowedIds = isTeamOnly ? new Set(await getTeamMemberProjectIds(userId, orgId)) : null;
+      const visibleProjects = allProjects.filter(p =>
+        (!allowedIds || allowedIds.has(p.id))
+        && (portfolioFilter === undefined || p.portfolioId === portfolioFilter)
+      );
+      const projectIds = visibleProjects.map(p => p.id);
+
+      const portfolioRows = await db.select().from(portfolios).where(eq(portfolios.organizationId, orgId));
+
+      const months = buildFiscalMonths(fiscalYear, fyStart);
+
+      // Determine the "as-of" fiscal-month index (1..12). Months whose
+      // calendar end falls on/before today are considered actuals; future
+      // months become forecast projections.
+      const monthEnds = months.map(m => new Date(Date.UTC(m.year, m.month, 0)));
+      let asOfMonth = 0;
+      for (let i = 0; i < monthEnds.length; i++) {
+        if (today >= monthEnds[i]) asOfMonth = i + 1;
+        else break;
+      }
+      // If today is mid-month within the FY, also count the in-progress month.
+      const fyStartDate = new Date(Date.UTC(months[0].year, months[0].month - 1, 1));
+      const fyEndDate = monthEnds[11];
+      if (today >= fyStartDate && today < fyEndDate) {
+        const cur = today.getUTCMonth() + 1;
+        const curYear = today.getUTCFullYear();
+        const idx = months.findIndex(m => m.year === curYear && m.month === cur);
+        if (idx >= 0 && idx + 1 > asOfMonth) asOfMonth = idx + 1;
+      } else if (today >= fyEndDate) {
+        asOfMonth = 12;
+      }
+
+      // Single bulk read of all entries for the FY across the org's projects.
+      const allEntries = projectIds.length === 0 ? [] : await db
+        .select()
+        .from(financialEntries)
+        .where(and(
+          inArray(financialEntries.projectId, projectIds),
+          eq(financialEntries.fiscalYear, fiscalYear),
+        ));
+
+      // Build per-project monthly buckets keyed by type.
+      type Buckets = Record<string, number[]>; // type → [12 monthly values]
+      const perProject = new Map<number, Buckets>();
+      for (const pid of projectIds) {
+        perProject.set(pid, {});
+      }
+      for (const e of allEntries) {
+        const buckets = perProject.get(e.projectId);
+        if (!buckets) continue;
+        const arr = buckets[e.scenario] ?? (buckets[e.scenario] = Array(12).fill(0));
+        const m = e.month;
+        if (m >= 1 && m <= 12) arr[m - 1] += Number(e.amount) || 0;
+      }
+
+      const sumArr = (a: number[] | undefined) => (a ? a.reduce((s, v) => s + v, 0) : 0);
+      const cumArr = (a: number[] | undefined) => {
+        const out = Array(12).fill(0);
+        if (!a) return out;
+        let acc = 0;
+        for (let i = 0; i < 12; i++) { acc += a[i] || 0; out[i] = acc; }
+        return out;
+      };
+
+      // EVM per project for the FY.
+      type ProjectEvm = {
+        projectId: number;
+        name: string;
+        portfolioId: number | null;
+        status: string | null;
+        health: string | null;
+        completionPercentage: number;
+        startDate: string | null;
+        endDate: string | null;
+        actualStartDate: string | null;
+        actualEndDate: string | null;
+        bac: number;       // total AOP for FY
+        ac: number;        // sum ACT to as-of
+        pv: number;        // cumulative AOP through as-of
+        ev: number;        // earned value to date
+        eacEntered: number;// sum of EAC entries for FY
+        eacComputed: number;
+        vac: number;
+        etc: number;
+        cpi: number;
+        spi: number;
+        // monthly cumulative arrays (length 12)
+        pvCum: number[];
+        acCum: number[];
+        evCum: number[];
+        eacMonthly: number[]; // EAC values per month (not cumulative — useful for time-phased EAC)
+        eacCum: number[];
+        // monthly non-cumulative AC / AOP for cash-flow charts
+        acMonthly: number[];
+        pvMonthly: number[];
+      };
+
+      const projectEvm: ProjectEvm[] = visibleProjects.map(p => {
+        const b = perProject.get(p.id) ?? {};
+        const aopArr = b["aop"] ?? Array(12).fill(0);
+        const fcstArr = b["fcst"] ?? Array(12).fill(0);
+        const actArr = b["act"] ?? Array(12).fill(0);
+        const eacArr = b["eac"] ?? null;
+        const pvCum = cumArr(aopArr);
+        const acCum = cumArr(actArr);
+        const eacCum = eacArr ? cumArr(eacArr) : Array(12).fill(0);
+        const bac = sumArr(aopArr);
+        const acTotal = acCum[11];
+        const pcRaw = Number(p.completionPercentage ?? 0);
+        const pcFraction = Math.max(0, Math.min(1, pcRaw / 100));
+
+        // EV cumulative array — distribute EV_to_date across months in
+        // proportion to the planned (PV) curve. Future months stay flat at
+        // the as-of value.
+        const asOfIdx = Math.max(0, asOfMonth - 1);
+        const pvAtAsOf = asOfMonth > 0 ? pvCum[asOfIdx] : 0;
+        const evToDate = bac > 0 ? bac * pcFraction : 0;
+        const evCum = Array(12).fill(0);
+        for (let i = 0; i < 12; i++) {
+          if (asOfMonth === 0) { evCum[i] = 0; continue; }
+          if (i <= asOfIdx) {
+            evCum[i] = pvAtAsOf > 0
+              ? evToDate * (pvCum[i] / pvAtAsOf)
+              : evToDate * ((i + 1) / asOfMonth);
+          } else {
+            evCum[i] = evToDate;
+          }
+        }
+        const ev = asOfMonth > 0 ? evCum[asOfIdx] : 0;
+        const ac = asOfMonth > 0 ? acCum[asOfIdx] : 0;
+        const pv = pvAtAsOf;
+        const cpi = ac > 0 ? ev / ac : 1;
+        const spi = pv > 0 ? ev / pv : 1;
+        const eacEntered = eacArr ? sumArr(eacArr) : 0;
+        const eacComputed = eacEntered > 0
+          ? eacEntered
+          : (cpi > 0 ? bac / cpi : bac);
+        const vac = bac - eacComputed;
+        const etc = Math.max(0, eacComputed - ac);
+
+        return {
+          projectId: p.id,
+          name: p.name,
+          portfolioId: p.portfolioId,
+          status: p.status,
+          health: p.health,
+          completionPercentage: pcRaw,
+          startDate: p.startDate as any,
+          endDate: p.endDate as any,
+          actualStartDate: p.actualStartDate as any,
+          actualEndDate: p.actualEndDate as any,
+          bac, ac, pv, ev, eacEntered, eacComputed, vac, etc, cpi, spi,
+          pvCum, acCum, evCum,
+          eacMonthly: eacArr ?? Array(12).fill(0),
+          eacCum,
+          acMonthly: actArr,
+          pvMonthly: aopArr,
+        };
+      });
+
+      // Org-wide series: sum monthly arrays across all visible projects.
+      const series = months.map((m, i) => {
+        let pvCum = 0, acCum = 0, evCum = 0, eacCum = 0;
+        let pv = 0, ac = 0, ev = 0;
+        let pvMonthly = 0, acMonthly = 0, eacMonthly = 0, fcstMonthly = 0;
+        for (const e of projectEvm) {
+          pvCum += e.pvCum[i];
+          acCum += e.acCum[i];
+          evCum += e.evCum[i];
+          eacCum += e.eacCum[i];
+          pvMonthly += e.pvMonthly[i] || 0;
+          acMonthly += e.acMonthly[i] || 0;
+          eacMonthly += e.eacMonthly[i] || 0;
+          fcstMonthly += (perProject.get(e.projectId)?.["fcst"]?.[i] || 0);
+        }
+        // Past/current months: AC actuals are the spend curve. Future months:
+        // project remaining ETC across remaining months proportionally to AOP.
+        const isFuture = (i + 1) > asOfMonth;
+        return {
+          monthNum: m.monthNum,
+          label: m.label,
+          year: m.year,
+          month: m.month,
+          isFuture,
+          pv: pvMonthly,
+          ac: acMonthly,
+          fcst: fcstMonthly,
+          eac: eacMonthly,
+          pvCum, acCum, evCum, eacCum,
+        };
+      });
+
+      // Org totals (at as-of).
+      const totals = projectEvm.reduce((acc, p) => {
+        acc.bac += p.bac;
+        acc.ac += p.ac;
+        acc.pv += p.pv;
+        acc.ev += p.ev;
+        acc.eacEntered += p.eacEntered;
+        acc.eacComputed += p.eacComputed;
+        acc.vac += p.vac;
+        acc.etc += p.etc;
+        return acc;
+      }, { bac: 0, ac: 0, pv: 0, ev: 0, eacEntered: 0, eacComputed: 0, vac: 0, etc: 0 });
+      const totalCpi = totals.ac > 0 ? totals.ev / totals.ac : 1;
+      const totalSpi = totals.pv > 0 ? totals.ev / totals.pv : 1;
+
+      // Portfolio rollup.
+      const portfolioMap = new Map<number, { id: number; name: string }>();
+      for (const pf of portfolioRows) portfolioMap.set(pf.id, { id: pf.id, name: pf.name });
+      const portfolioGroups = new Map<number | null, ProjectEvm[]>();
+      for (const pe of projectEvm) {
+        const k = pe.portfolioId ?? null;
+        const list = portfolioGroups.get(k) ?? [];
+        list.push(pe);
+        portfolioGroups.set(k, list);
+      }
+      const portfoliosOut = Array.from(portfolioGroups.entries()).map(([pid, items]) => {
+        const meta = pid != null ? portfolioMap.get(pid) : undefined;
+        const sum = items.reduce((acc, p) => {
+          acc.bac += p.bac; acc.ac += p.ac; acc.pv += p.pv; acc.ev += p.ev;
+          acc.eacEntered += p.eacEntered; acc.eacComputed += p.eacComputed;
+          acc.vac += p.vac; acc.etc += p.etc;
+          return acc;
+        }, { bac: 0, ac: 0, pv: 0, ev: 0, eacEntered: 0, eacComputed: 0, vac: 0, etc: 0 });
+        return {
+          portfolioId: pid,
+          name: meta?.name ?? (pid == null ? "Unassigned" : `Portfolio ${pid}`),
+          projectCount: items.length,
+          ...sum,
+          cpi: sum.ac > 0 ? sum.ev / sum.ac : 1,
+          spi: sum.pv > 0 ? sum.ev / sum.pv : 1,
+        };
+      }).sort((a, b) => b.bac - a.bac);
+
+      res.json({
+        fiscalYear,
+        fiscalYearStartMonth: fyStart,
+        asOfMonth,
+        months: months.map(m => ({ monthNum: m.monthNum, label: m.label, year: m.year, month: m.month })),
+        totals: { ...totals, cpi: totalCpi, spi: totalSpi },
+        series,
+        portfolios: portfoliosOut,
+        projects: projectEvm,
+      });
+    } catch (err: any) {
+      console.error("Error computing financial analytics:", err);
+      res.status(500).json({ message: err?.message || "Error computing financial analytics" });
     }
   });
 

@@ -8,6 +8,15 @@ export { ExecutiveDashboard } from "./ExecutiveDashboard";
 export { StrategicKPIsDashboard } from "./StrategicKPIsDashboard";
 export { TrendAnalysisDashboard } from "./TrendAnalysisDashboard";
 export { FinancialSummaryDashboard } from "./FinancialSummaryDashboard";
+export {
+  FinancialsOverviewDashboard,
+  SCurveDashboard,
+  EVAnalysisDashboard,
+  ForecastingDashboard,
+  CashFlowDashboard,
+  VarianceTrendsDashboard,
+  PortfolioRollupDashboard,
+} from "./financials";
 export { PortfolioHealthDashboard } from "./PortfolioHealthDashboard";
 export { PortfolioAllocationDashboard } from "./PortfolioAllocationDashboard";
 export { PortfolioTimelineDashboard } from "./PortfolioTimelineDashboard";
