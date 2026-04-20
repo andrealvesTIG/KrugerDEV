@@ -38,19 +38,20 @@ const STATUS_COLORS: Record<string, string> = {
   Closed: "bg-slate-500",
 };
 
-function FitBounds({ markers }: { markers: Array<[number, number]> }) {
+function FitBounds({ signature, markers }: { signature: string; markers: Array<[number, number]> }) {
   const map = useMap();
-  const didFit = useRef(false);
+  const lastSig = useRef<string>("");
   useEffect(() => {
-    if (markers.length === 0 || didFit.current) return;
+    if (markers.length === 0) return;
+    if (lastSig.current === signature) return;
+    lastSig.current = signature;
     if (markers.length === 1) {
       map.setView(markers[0], 10);
     } else {
       const bounds = L.latLngBounds(markers.map(([lat, lng]) => L.latLng(lat, lng)));
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
     }
-    didFit.current = true;
-  }, [markers, map]);
+  }, [signature, markers, map]);
   return null;
 }
 
@@ -110,6 +111,7 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
   }, [withCoords, bounds]);
 
   const markers = withCoords.map(p => [p._lat, p._lng] as [number, number]);
+  const markersSignature = withCoords.map(p => `${p.id}:${p._lat.toFixed(4)},${p._lng.toFixed(4)}`).join("|");
   const center: [number, number] = markers[0] || [20, 0];
   const portfolioName = (id: number | null | undefined) =>
     portfolios?.find(pf => pf.id === id)?.name;
@@ -190,7 +192,7 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                <FitBounds markers={markers} />
+                <FitBounds signature={markersSignature} markers={markers} />
                 <ViewportTracker onChange={setBounds} />
                 <MapControllerBridge onReady={(c) => { controllerRef.current = c; }} />
                 {withCoords.map(p => {
