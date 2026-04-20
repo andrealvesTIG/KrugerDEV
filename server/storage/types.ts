@@ -310,13 +310,13 @@ export interface IFinancialStorage {
     fiscalYear: number;
     itemKey?: string;
     dimensions: import("./financialStorage").FinancialItemDimensions;
-    scenarios?: string[];
+    types?: string[];
   }): Promise<string>;
   upsertFinancialCell(args: {
     projectId: number;
     fiscalYear: number;
     itemKey: string;
-    scenario: import("./financialStorage").FinancialScenario;
+    type: import("./financialStorage").FinancialType;
     month: number;
     amount: number;
   }): Promise<{ previous: number; next: number; entry: FinancialEntry }>;

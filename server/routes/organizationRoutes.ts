@@ -416,11 +416,11 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  apiRoute(app, 'get', '/api/organizations/:id/financial-scenarios', {
+  apiRoute(app, 'get', '/api/organizations/:id/financial-types', {
     tag: 'Organizations',
-    summary: 'Get organization financial scenarios config',
+    summary: 'Get organization financial types config',
     parameters: [pathId()],
-    responses: { ...r200('Financial scenarios config', { type: 'object' }), ...idRes },
+    responses: { ...r200('Financial types config', { type: 'object' }), ...idRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -430,30 +430,30 @@ export function registerOrganizationRoutes(app: Express) {
       }
       const org = await storage.getOrganization(orgId);
       if (!org) return res.status(404).json({ message: 'Organization not found' });
-      const { DEFAULT_FINANCIAL_SCENARIOS, financialScenariosConfigSchema } = await import('@shared/schema');
-      const systemDefaults = DEFAULT_FINANCIAL_SCENARIOS.scenarios;
+      const { DEFAULT_FINANCIAL_TYPES, financialTypesConfigSchema } = await import('@shared/schema');
+      const systemDefaults = DEFAULT_FINANCIAL_TYPES.types;
       // Validate stored config defensively; if it's malformed/null, fall back to defaults.
-      const validated = financialScenariosConfigSchema.safeParse(org.financialScenariosConfig);
-      const storedList = validated.success ? validated.data.scenarios : [];
+      const validated = financialTypesConfigSchema.safeParse(org.financialTypesConfig);
+      const storedList = validated.success ? validated.data.types : [];
       const seenKeys = new Set(storedList.map(s => s.key));
       const merged = [...storedList];
       for (const sys of systemDefaults) {
         if (!seenKeys.has(sys.key)) merged.push(sys);
       }
       const finalList = merged.length > 0 ? merged : systemDefaults;
-      res.json({ scenarios: finalList });
+      res.json({ types: finalList });
     } catch (err) {
       const classified = classifyError(err);
-      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get financial scenarios' : classified.message });
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get financial types' : classified.message });
     }
   });
 
-  apiRoute(app, 'put', '/api/organizations/:id/financial-scenarios', {
+  apiRoute(app, 'put', '/api/organizations/:id/financial-types', {
     tag: 'Organizations',
-    summary: 'Update organization financial scenarios config',
+    summary: 'Update organization financial types config',
     parameters: [pathId()],
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('Financial scenarios config updated', { type: 'object' }), ...updateRes },
+    responses: { ...r200('Financial types config updated', { type: 'object' }), ...updateRes },
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
@@ -466,25 +466,25 @@ export function registerOrganizationRoutes(app: Express) {
       if (!membership || !['owner', 'org_admin'].includes(membership.role)) {
         const [user] = await db.select().from(users).where(eq(users.id, userId!));
         if (!hasAdminAccess(user)) {
-          return res.status(403).json({ message: 'Only admins can update financial scenarios' });
+          return res.status(403).json({ message: 'Only admins can update financial types' });
         }
       }
-      const { financialScenariosConfigSchema, SYSTEM_FINANCIAL_SCENARIO_KEYS, DEFAULT_FINANCIAL_SCENARIOS } = await import('@shared/schema');
-      const parsed = financialScenariosConfigSchema.safeParse(req.body);
+      const { financialTypesConfigSchema, SYSTEM_FINANCIAL_TYPE_KEYS, DEFAULT_FINANCIAL_TYPES } = await import('@shared/schema');
+      const parsed = financialTypesConfigSchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ message: 'Invalid scenarios config', errors: parsed.error.flatten() });
+        return res.status(400).json({ message: 'Invalid types config', errors: parsed.error.flatten() });
       }
-      const submittedKeys = new Set(parsed.data.scenarios.map(s => s.key));
-      // System scenarios must remain present (may be renamed/disabled, never deleted).
-      for (const sysKey of SYSTEM_FINANCIAL_SCENARIO_KEYS) {
+      const submittedKeys = new Set(parsed.data.types.map(s => s.key));
+      // System types must remain present (may be renamed/disabled, never deleted).
+      for (const sysKey of SYSTEM_FINANCIAL_TYPE_KEYS) {
         if (!submittedKeys.has(sysKey)) {
-          return res.status(400).json({ message: `System scenario "${sysKey}" cannot be removed; disable it instead.` });
+          return res.status(400).json({ message: `System type "${sysKey}" cannot be removed; disable it instead.` });
         }
       }
-      // Force isSystem flag on the system scenarios so the UI keeps treating them right.
-      const sysSet = new Set<string>(SYSTEM_FINANCIAL_SCENARIO_KEYS);
+      // Force isSystem flag on the system types so the UI keeps treating them right.
+      const sysSet = new Set<string>(SYSTEM_FINANCIAL_TYPE_KEYS);
       const normalized = {
-        scenarios: parsed.data.scenarios.map(s => ({
+        types: parsed.data.types.map(s => ({
           ...s,
           isSystem: sysSet.has(s.key) ? true : (s.isSystem ?? false),
         })),
@@ -493,27 +493,27 @@ export function registerOrganizationRoutes(app: Express) {
       // Compute newly-added (non-system) keys vs the previous config so we can
       // backfill cells for them.
       const org = await storage.getOrganization(orgId);
-      const previousList = org?.financialScenariosConfig?.scenarios ?? [];
+      const previousList = org?.financialTypesConfig?.types ?? [];
       const previousKeys = new Set<string>([
         ...previousList.map(s => s.key),
-        ...DEFAULT_FINANCIAL_SCENARIOS.scenarios.map(s => s.key),
+        ...DEFAULT_FINANCIAL_TYPES.types.map(s => s.key),
       ]);
-      const newKeys = normalized.scenarios.filter(s => !previousKeys.has(s.key)).map(s => s.key);
+      const newKeys = normalized.types.filter(s => !previousKeys.has(s.key)).map(s => s.key);
 
       // Backfill FIRST so we never persist a config whose cells we couldn't seed.
       // If any backfill fails the whole request fails and the config is unchanged.
       if (newKeys.length > 0) {
-        const { backfillScenarioCellsForOrg } = await import('../storage/financialStorage');
+        const { backfillTypeCellsForOrg } = await import('../storage/financialStorage');
         for (const key of newKeys) {
-          await backfillScenarioCellsForOrg({ organizationId: orgId, scenarioKey: key });
+          await backfillTypeCellsForOrg({ organizationId: orgId, typeKey: key });
         }
       }
 
-      const updated = await storage.updateOrganization(orgId, { financialScenariosConfig: normalized });
-      res.json(updated.financialScenariosConfig ?? normalized);
+      const updated = await storage.updateOrganization(orgId, { financialTypesConfig: normalized });
+      res.json(updated.financialTypesConfig ?? normalized);
     } catch (err) {
       const classified = classifyError(err);
-      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update financial scenarios' : classified.message });
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update financial types' : classified.message });
     }
   });
 

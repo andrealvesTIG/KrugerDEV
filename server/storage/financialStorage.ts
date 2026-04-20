@@ -15,11 +15,12 @@ import {
 } from "@shared/models/billing";
 import { eq, and, desc, isNull, inArray, sql } from "drizzle-orm";
 
-// Scenario keys are now org-configurable strings. The legacy three (aop/fcst/act)
-// are guaranteed to exist on every org so historical data and audit-log entries
-// stay valid even when the admin renames or disables them.
-export type FinancialScenario = string;
-const DEFAULT_FAN_OUT_SCENARIOS = ["aop", "fcst", "act"];
+// Financial type keys are now org-configurable strings. The legacy three
+// (aop/fcst/act) are guaranteed to exist on every org so historical data and
+// audit-log entries stay valid even when the admin renames or disables them.
+// (The DB column on `financial_entries` is still named `scenario` for back-compat.)
+export type FinancialType = string;
+const DEFAULT_FAN_OUT_TYPES = ["aop", "fcst", "act"];
 
 export async function getProjectFinancials(projectId: number): Promise<ProjectFinancial[]> {
   return await db.select().from(projectFinancials)
@@ -137,26 +138,26 @@ export interface FinancialItemDimensions {
 }
 
 /**
- * Insert all 36 zero-amount cells (3 scenarios × 12 months) for a brand-new logical
- * item. Returns the itemKey created. If `itemKey` is provided, uses that one; else
- * generates a fresh uuid-style key.
+ * Insert all 36 zero-amount cells (3 financial types × 12 months) for a brand-new
+ * logical item. Returns the itemKey created. If `itemKey` is provided, uses that
+ * one; else generates a fresh uuid-style key.
  */
 export async function createFinancialItem(args: {
   projectId: number;
   fiscalYear: number;
   itemKey?: string;
   dimensions: FinancialItemDimensions;
-  scenarios?: string[];
+  types?: string[];
 }): Promise<string> {
   const itemKey = args.itemKey ?? `item-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  const scenarios = args.scenarios && args.scenarios.length > 0 ? args.scenarios : DEFAULT_FAN_OUT_SCENARIOS;
+  const typeKeys = args.types && args.types.length > 0 ? args.types : DEFAULT_FAN_OUT_TYPES;
   const rows: InsertFinancialEntry[] = [];
-  for (const scenario of scenarios) {
+  for (const typeKey of typeKeys) {
     for (let month = 1; month <= 12; month++) {
       rows.push({
         projectId: args.projectId,
         fiscalYear: args.fiscalYear,
-        scenario,
+        scenario: typeKey,
         month,
         amount: 0,
         itemKey,
@@ -179,12 +180,13 @@ export async function createFinancialItem(args: {
 /**
  * For every existing (project, fiscal_year, item_key) in `financial_entries` that
  * belongs to the given organization, materialize 12 zero-amount cells for the
- * given scenario key. Used when an admin adds a brand-new scenario in Org Settings
- * so the grid has cells to edit immediately. Idempotent via the unique cell index.
+ * given financial type key. Used when an admin adds a brand-new type in Org
+ * Settings so the grid has cells to edit immediately. Idempotent via the unique
+ * cell index.
  */
-export async function backfillScenarioCellsForOrg(args: {
+export async function backfillTypeCellsForOrg(args: {
   organizationId: number;
-  scenarioKey: string;
+  typeKey: string;
 }): Promise<{ inserted: number }> {
   const result = await db.execute(sql`
     INSERT INTO financial_entries (
@@ -193,7 +195,7 @@ export async function backfillScenarioCellsForOrg(args: {
       category, wbs, comments, sort_order, is_demo, created_at, updated_at
     )
     SELECT
-      sub.project_id, sub.fiscal_year, ${args.scenarioKey}::text, m.month, 0,
+      sub.project_id, sub.fiscal_year, ${args.typeKey}::text, m.month, 0,
       sub.item_key, sub.item_name, sub.financial_view, sub.cost_category, sub.cost_specification,
       sub.category, sub.wbs, sub.comments, sub.sort_order, sub.is_demo, NOW(), NOW()
     FROM (
@@ -219,7 +221,7 @@ export async function upsertFinancialCell(args: {
   projectId: number;
   fiscalYear: number;
   itemKey: string;
-  scenario: FinancialScenario;
+  type: FinancialType;
   month: number;
   amount: number;
 }): Promise<{ previous: number; next: number; entry: FinancialEntry }> {
@@ -227,12 +229,12 @@ export async function upsertFinancialCell(args: {
     eq(financialEntries.projectId, args.projectId),
     eq(financialEntries.fiscalYear, args.fiscalYear),
     eq(financialEntries.itemKey, args.itemKey),
-    eq(financialEntries.scenario, args.scenario),
+    eq(financialEntries.scenario, args.type),
     eq(financialEntries.month, args.month),
   ));
   const previous = existing ? Number(existing.amount) : 0;
   if (!existing) {
-    throw new Error(`Cell not found for itemKey=${args.itemKey} scenario=${args.scenario} month=${args.month}`);
+    throw new Error(`Cell not found for itemKey=${args.itemKey} type=${args.type} month=${args.month}`);
   }
   const [entry] = await db.update(financialEntries)
     .set({ amount: sql`${args.amount}`, updatedAt: new Date() })

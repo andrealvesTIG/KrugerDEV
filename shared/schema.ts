@@ -135,11 +135,11 @@ export const DEFAULT_SCHEDULING_DEFAULTS: SchedulingDefaults = {
   enforceDefaults: false,
 };
 
-// Financial scenarios — org-configurable list of buckets shown in the Financials grid.
+// Financial types — org-configurable list of buckets shown in the Financials grid.
 // `key` is the stable identifier persisted in financial_entries.scenario; `label` is
-// purely cosmetic. System scenarios (aop/fcst/act) may be renamed/disabled but never
+// purely cosmetic. System types (aop/fcst/act) may be renamed/disabled but never
 // deleted, so historical data and audit-log entries always have something to point at.
-export const financialScenarioSchema = z.object({
+export const financialTypeSchema = z.object({
   key: z.string().min(1).max(40).regex(/^[a-z0-9_-]+$/, "Key must be lowercase letters, digits, '-' or '_'"),
   label: z.string().min(1).max(40),
   enabled: z.boolean(),
@@ -147,28 +147,39 @@ export const financialScenarioSchema = z.object({
   isSystem: z.boolean().optional(),
 });
 
-export const financialScenariosConfigSchema = z.object({
-  scenarios: z.array(financialScenarioSchema).min(1).max(20),
+// Backward-compat: existing rows store `{ scenarios: [...] }`; the new schema
+// uses `{ types: [...] }`. Preprocess transparently migrates the older shape on
+// read so we don't need a data migration.
+export const financialTypesConfigSchema = z.preprocess((val) => {
+  if (val && typeof val === "object" && val !== null && !Array.isArray(val)) {
+    const obj = val as Record<string, unknown>;
+    if (!("types" in obj) && Array.isArray((obj as any).scenarios)) {
+      return { ...obj, types: (obj as any).scenarios };
+    }
+  }
+  return val;
+}, z.object({
+  types: z.array(financialTypeSchema).min(1).max(20),
 }).superRefine((data, ctx) => {
   const keys = new Set<string>();
-  for (const s of data.scenarios) {
+  for (const s of data.types) {
     if (keys.has(s.key)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Duplicate scenario key: ${s.key}` });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Duplicate type key: ${s.key}` });
     }
     keys.add(s.key);
   }
-  if (!data.scenarios.some(s => s.enabled)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "At least one scenario must be enabled" });
+  if (!data.types.some(s => s.enabled)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "At least one type must be enabled" });
   }
-});
+}));
 
-export type FinancialScenario = z.infer<typeof financialScenarioSchema>;
-export type FinancialScenariosConfig = z.infer<typeof financialScenariosConfigSchema>;
+export type FinancialType = z.infer<typeof financialTypeSchema>;
+export type FinancialTypesConfig = z.infer<typeof financialTypesConfigSchema>;
 
-export const SYSTEM_FINANCIAL_SCENARIO_KEYS = ["aop", "fcst", "act"] as const;
+export const SYSTEM_FINANCIAL_TYPE_KEYS = ["aop", "fcst", "act"] as const;
 
-export const DEFAULT_FINANCIAL_SCENARIOS: FinancialScenariosConfig = {
-  scenarios: [
+export const DEFAULT_FINANCIAL_TYPES: FinancialTypesConfig = {
+  types: [
     { key: "aop", label: "AOP", enabled: true, editable: false, isSystem: true },
     { key: "fcst", label: "FCST", enabled: true, editable: true, isSystem: true },
     { key: "act", label: "ACT", enabled: true, editable: true, isSystem: true },
@@ -215,7 +226,7 @@ export const organizations = pgTable("organizations", {
   deactivatedAt: timestamp("deactivated_at"), // Soft delete timestamp
   deactivatedBy: varchar("deactivated_by").references(() => users.id), // Who deactivated
   fridayAgentConfig: jsonb("friday_agent_config"), // Friday AI agent configuration (per-org)
-  financialScenariosConfig: jsonb("financial_scenarios_config").$type<FinancialScenariosConfig>(), // AOP/FCST/ACT and custom scenarios
+  financialTypesConfig: jsonb("financial_scenarios_config").$type<FinancialTypesConfig>(), // AOP/FCST/ACT and custom financial types (column kept for back-compat)
 });
 
 // Organization Members (Join table for users <-> organizations)

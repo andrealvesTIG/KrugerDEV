@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { storage } from "../storage";
 import { multiYearWbs } from "@shared/schema";
-import type { FinancialScenario } from "@shared/schema";
+import type { FinancialType } from "@shared/schema";
 import type { FinancialItemDimensions } from "../storage/financialStorage";
 import {
   getUserIdFromRequest,
@@ -46,17 +46,17 @@ function pickDimensions(body: any): Partial<FinancialItemDimensions> {
   return out;
 }
 
-async function getOrgScenarioConfig(organizationId: number): Promise<FinancialScenario[]> {
-  const { DEFAULT_FINANCIAL_SCENARIOS, financialScenariosConfigSchema } = await import("@shared/schema");
+async function getOrgTypeConfig(organizationId: number): Promise<FinancialType[]> {
+  const { DEFAULT_FINANCIAL_TYPES, financialTypesConfigSchema } = await import("@shared/schema");
   const org = await storage.getOrganization(organizationId);
-  const validated = financialScenariosConfigSchema.safeParse(org?.financialScenariosConfig);
-  const list = validated.success ? validated.data.scenarios : [];
+  const validated = financialTypesConfigSchema.safeParse(org?.financialTypesConfig);
+  const list = validated.success ? validated.data.types : [];
   const seen = new Set(list.map(s => s.key));
   const merged = [...list];
-  for (const sys of DEFAULT_FINANCIAL_SCENARIOS.scenarios) {
+  for (const sys of DEFAULT_FINANCIAL_TYPES.types) {
     if (!seen.has(sys.key)) merged.push(sys);
   }
-  return merged.length > 0 ? merged : DEFAULT_FINANCIAL_SCENARIOS.scenarios;
+  return merged.length > 0 ? merged : DEFAULT_FINANCIAL_TYPES.types;
 }
 
 const WBS_FIELDS = [
@@ -113,14 +113,14 @@ export function registerFinancialsRoutes(app: Express) {
         return res.status(400).json({ message: "itemName is required" });
       }
 
-      const orgScenarios = await getOrgScenarioConfig(guard.project.organizationId);
-      const enabledKeys = orgScenarios.filter(s => s.enabled).map(s => s.key);
+      const orgTypes = await getOrgTypeConfig(guard.project.organizationId);
+      const enabledKeys = orgTypes.filter(s => s.enabled).map(s => s.key);
 
       const itemKey = await storage.createFinancialItem({
         projectId,
         fiscalYear: Number(fiscalYear),
         dimensions,
-        scenarios: enabledKeys,
+        types: enabledKeys,
       });
 
       try {
@@ -145,7 +145,7 @@ export function registerFinancialsRoutes(app: Express) {
     }
   });
 
-  // Update a single cell (one scenario × one month for one logical item).
+  // Update a single cell (one financial type × one month for one logical item).
   app.put("/api/projects/:projectId/financial-cells", async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
@@ -153,36 +153,39 @@ export function registerFinancialsRoutes(app: Express) {
       if (!guard.ok) return res.status(guard.status).json({ message: guard.message });
       const userId = guard.userId;
 
-      const { fiscalYear, itemKey, scenario, month, amount } = req.body || {};
-      if (!fiscalYear || !itemKey || !scenario || !month) {
-        return res.status(400).json({ message: "fiscalYear, itemKey, scenario, month are required" });
+      // Accept either `type` (new) or `scenario` (legacy) for backward compat.
+      const body = req.body || {};
+      const { fiscalYear, itemKey, month, amount } = body;
+      const typeKey: unknown = body.type ?? body.scenario;
+      if (!fiscalYear || !itemKey || !typeKey || !month) {
+        return res.status(400).json({ message: "fiscalYear, itemKey, type, month are required" });
       }
-      if (typeof scenario !== "string" || !/^[a-z0-9_-]+$/.test(scenario)) {
-        return res.status(400).json({ message: "scenario must be a valid scenario key" });
+      if (typeof typeKey !== "string" || !/^[a-z0-9_-]+$/.test(typeKey)) {
+        return res.status(400).json({ message: "type must be a valid financial type key" });
       }
       const monthNum = Number(month);
       if (monthNum < 1 || monthNum > 12) {
         return res.status(400).json({ message: "month must be 1..12" });
       }
 
-      // Validate the scenario exists, is enabled, and is editable for this org.
-      const orgScenarios = await getOrgScenarioConfig(guard.project.organizationId);
-      const scenarioConfig = orgScenarios.find(s => s.key === scenario);
-      if (!scenarioConfig) {
-        return res.status(400).json({ message: `Unknown scenario "${scenario}" for this organization` });
+      // Validate the type exists, is enabled, and is editable for this org.
+      const orgTypes = await getOrgTypeConfig(guard.project.organizationId);
+      const typeConfig = orgTypes.find(s => s.key === typeKey);
+      if (!typeConfig) {
+        return res.status(400).json({ message: `Unknown financial type "${typeKey}" for this organization` });
       }
-      if (!scenarioConfig.enabled) {
-        return res.status(400).json({ message: `Scenario "${scenarioConfig.label}" is disabled` });
+      if (!typeConfig.enabled) {
+        return res.status(400).json({ message: `Financial type "${typeConfig.label}" is disabled` });
       }
-      if (!scenarioConfig.editable) {
-        return res.status(403).json({ message: `Scenario "${scenarioConfig.label}" is read-only` });
+      if (!typeConfig.editable) {
+        return res.status(403).json({ message: `Financial type "${typeConfig.label}" is read-only` });
       }
 
       const result = await storage.upsertFinancialCell({
         projectId,
         fiscalYear: Number(fiscalYear),
         itemKey,
-        scenario,
+        type: typeKey,
         month: monthNum,
         amount: Number(amount) || 0,
       });
@@ -195,12 +198,12 @@ export function registerFinancialsRoutes(app: Express) {
             changedBy: userId,
             changedByName: await changedByName(userId),
             changeType: "cell",
-            changeSummary: `"${result.entry.itemName}" ${scenario.toUpperCase()} M${monthNum}: ${result.previous} → ${result.next}`,
+            changeSummary: `"${result.entry.itemName}" ${typeKey.toUpperCase()} M${monthNum}: ${result.previous} → ${result.next}`,
             previousValues: JSON.stringify({
-              itemKey, scenario, month: monthNum, fiscalYear: Number(fiscalYear), amount: result.previous,
+              itemKey, type: typeKey, month: monthNum, fiscalYear: Number(fiscalYear), amount: result.previous,
             }),
             newValues: JSON.stringify({
-              itemKey, scenario, month: monthNum, fiscalYear: Number(fiscalYear), amount: result.next,
+              itemKey, type: typeKey, month: monthNum, fiscalYear: Number(fiscalYear), amount: result.next,
             }),
           });
         } catch (logErr) {
@@ -328,11 +331,16 @@ export function registerFinancialsRoutes(app: Express) {
       if (last.changeType === "cell" && last.previousValues) {
         const prev = JSON.parse(last.previousValues);
         const newJson = last.newValues ? JSON.parse(last.newValues) : null;
+        // Accept both new (`type`) and legacy (`scenario`) keys in stored payloads.
+        const prevTypeKey: string | undefined = prev.type ?? prev.scenario;
+        if (!prevTypeKey) {
+          return res.status(500).json({ message: "Undo failed: change log missing financial type" });
+        }
         await storage.upsertFinancialCell({
           projectId,
           fiscalYear: prev.fiscalYear,
           itemKey: prev.itemKey,
-          scenario: prev.scenario,
+          type: prevTypeKey,
           month: prev.month,
           amount: Number(prev.amount) || 0,
         });
@@ -342,7 +350,7 @@ export function registerFinancialsRoutes(app: Express) {
           changedBy: userId,
           changedByName: await changedByName(userId),
           changeType: "cell",
-          changeSummary: `Undo: reverted ${prev.scenario?.toUpperCase()} M${prev.month}`,
+          changeSummary: `Undo: reverted ${prevTypeKey.toUpperCase()} M${prev.month}`,
           previousValues: JSON.stringify({ ...(newJson ?? prev), __undo: true }),
           newValues: JSON.stringify({ ...prev, __undo: true }),
         });

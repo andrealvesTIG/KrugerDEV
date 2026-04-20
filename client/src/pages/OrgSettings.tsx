@@ -23,7 +23,7 @@ import { DemoDataSection } from "@/components/settings/DemoDataSection";
 import { ReminderSettingsSection } from "@/components/settings/ReminderSettingsSection";
 import { RiskAssessmentConfigSection } from "@/components/settings/RiskAssessmentConfigSection";
 import { FridayAgentConfigSection } from "@/components/settings/FridayAgentConfigSection";
-import { FinancialScenariosSection } from "@/components/settings/FinancialScenariosSection";
+import { FinancialTypesSection } from "@/components/settings/FinancialTypesSection";
 import { DeveloperSection } from "@/components/settings/DeveloperSection";
 import { ActAsSection } from "@/components/settings/ActAsSection";
 import { ScoringCriteriaSection } from "@/components/settings/ScoringCriteriaSection";
@@ -91,7 +91,7 @@ const settingsTabs = [
   { value: "general", label: "General", icon: Building2 },
   { value: "billing", label: "Billing", icon: Zap },
   { value: "scheduling", label: "Scheduling", icon: Calendar },
-  { value: "financial-scenarios", label: "Financials", icon: DollarSign },
+  { value: "financial-types", label: "Financials", icon: DollarSign },
   { value: "modules", label: "Module Visibility", icon: Eye },
   { value: "system-views", label: "System Views", icon: Columns },
   { value: "custom-fields", label: "Custom Fields", icon: FileText },
@@ -214,8 +214,8 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         <TabsContent value="scheduling" className="mt-0">
           <SchedulingDefaultsSection organizationId={currentOrganization.id} />
         </TabsContent>
-        <TabsContent value="financial-scenarios" className="mt-0">
-          <FinancialScenariosSection organizationId={currentOrganization.id} />
+        <TabsContent value="financial-types" className="mt-0">
+          <FinancialTypesSection organizationId={currentOrganization.id} />
         </TabsContent>
         <TabsContent value="modules" className="mt-0">
           <ModuleVisibilitySection organization={currentOrganization} />

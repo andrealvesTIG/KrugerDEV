@@ -10,8 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock } from "lucide-react";
-import type { FinancialEntry, FinancialScenariosConfig, FinancialScenario } from "@shared/schema";
-import { DEFAULT_FINANCIAL_SCENARIOS } from "@shared/schema";
+import type { FinancialEntry, FinancialTypesConfig, FinancialType } from "@shared/schema";
+import { DEFAULT_FINANCIAL_TYPES } from "@shared/schema";
 import { CompactCurrency } from "@/components/CompactCurrency";
 import { useOrganization } from "@/hooks/use-organization";
 
@@ -19,7 +19,7 @@ interface ProjectFinancialGridProps {
   projectId: number;
 }
 
-type Scenario = string;
+type FinancialTypeKey = string;
 
 const MONTHS = [
   { num: 1, label: "Oct" },
@@ -63,10 +63,10 @@ interface GridRow {
   category?: string | null;
   wbs?: string | null;
   comments?: string | null;
-  // monthlyByScenario[scenarioKey] = number[12]
-  monthlyByScenario: Record<string, number[]>;
-  // totalByScenario[scenarioKey] = sum of 12 cells for this row in that scenario
-  totalByScenario: Record<string, number>;
+  // monthlyByType[typeKey] = number[12]
+  monthlyByType: Record<string, number[]>;
+  // totalByType[typeKey] = sum of 12 cells for this row in that scenario
+  totalByType: Record<string, number>;
   hasChildren: boolean;
 }
 
@@ -89,20 +89,20 @@ function formatCurrency(value: number): string {
  */
 function buildGridRows(
   entries: FinancialEntry[],
-  scenarioKeys: string[],
+  typeKeys: string[],
   expanded: Set<string>,
-): { rows: GridRow[]; grandTotalByScenario: Record<string, number> } {
+): { rows: GridRow[]; grandTotalByType: Record<string, number> } {
   const emptyMonthly = () => {
     const obj: Record<string, number[]> = {};
-    for (const k of scenarioKeys) obj[k] = new Array(12).fill(0);
+    for (const k of typeKeys) obj[k] = new Array(12).fill(0);
     return obj;
   };
   const emptyTotal = () => {
     const obj: Record<string, number> = {};
-    for (const k of scenarioKeys) obj[k] = 0;
+    for (const k of typeKeys) obj[k] = 0;
     return obj;
   };
-  const scenarioSet = new Set(scenarioKeys);
+  const typeSet = new Set(typeKeys);
 
   // Fold cells of the same item into one record with per-scenario monthly arrays.
   type ItemAgg = {
@@ -115,11 +115,11 @@ function buildGridRows(
     wbs: string | null;
     comments: string | null;
     sortOrder: number;
-    monthlyByScenario: Record<string, number[]>;
+    monthlyByType: Record<string, number[]>;
   };
   const items = new Map<string, ItemAgg>();
   for (const e of entries) {
-    if (!scenarioSet.has(e.scenario)) continue;
+    if (!typeSet.has(e.scenario)) continue;
     let agg = items.get(e.itemKey);
     if (!agg) {
       agg = {
@@ -132,11 +132,11 @@ function buildGridRows(
         wbs: e.wbs,
         comments: e.comments,
         sortOrder: e.sortOrder ?? 0,
-        monthlyByScenario: emptyMonthly(),
+        monthlyByType: emptyMonthly(),
       };
       items.set(e.itemKey, agg);
     }
-    agg.monthlyByScenario[e.scenario][e.month - 1] = Number(e.amount) || 0;
+    agg.monthlyByType[e.scenario][e.month - 1] = Number(e.amount) || 0;
   }
 
   // Group by view → category → specification → item
@@ -152,18 +152,18 @@ function buildGridRows(
   }
 
   const rows: GridRow[] = [];
-  const grandTotalByScenario = emptyTotal();
+  const grandTotalByType = emptyTotal();
   const addMonthly = (acc: Record<string, number[]>, add: Record<string, number[]>) => {
-    for (const k of scenarioKeys) {
+    for (const k of typeKeys) {
       for (let i = 0; i < 12; i++) acc[k][i] += add[k][i];
     }
   };
   const addTotals = (acc: Record<string, number>, add: Record<string, number>) => {
-    for (const k of scenarioKeys) acc[k] += add[k];
+    for (const k of typeKeys) acc[k] += add[k];
   };
   const sumRow = (m: Record<string, number[]>): Record<string, number> => {
     const out = emptyTotal();
-    for (const k of scenarioKeys) out[k] = m[k].reduce((a, b) => a + b, 0);
+    for (const k of typeKeys) out[k] = m[k].reduce((a, b) => a + b, 0);
     return out;
   };
 
@@ -192,7 +192,7 @@ function buildGridRows(
         );
         const itemRows: GridRow[] = [];
         for (const it of itemList) {
-          const itemTotals = sumRow(it.monthlyByScenario);
+          const itemTotals = sumRow(it.monthlyByType);
           itemRows.push({
             type: "item",
             level: 3,
@@ -203,11 +203,11 @@ function buildGridRows(
             category: it.category,
             wbs: it.wbs,
             comments: it.comments,
-            monthlyByScenario: it.monthlyByScenario,
-            totalByScenario: itemTotals,
+            monthlyByType: it.monthlyByType,
+            totalByType: itemTotals,
             hasChildren: false,
           });
-          addMonthly(specMonthly, it.monthlyByScenario);
+          addMonthly(specMonthly, it.monthlyByType);
           addTotals(specTotals, itemTotals);
         }
 
@@ -216,8 +216,8 @@ function buildGridRows(
           level: 2,
           key: specKey,
           label: s,
-          monthlyByScenario: specMonthly,
-          totalByScenario: specTotals,
+          monthlyByType: specMonthly,
+          totalByType: specTotals,
           hasChildren: itemRows.length > 0,
         });
         if (expanded.has(specKey)) specRows.push(...itemRows);
@@ -230,8 +230,8 @@ function buildGridRows(
         level: 1,
         key: catKey,
         label: c,
-        monthlyByScenario: catMonthly,
-        totalByScenario: catTotals,
+        monthlyByType: catMonthly,
+        totalByType: catTotals,
         hasChildren: specRows.length > 0,
       });
       if (expanded.has(catKey)) catRows.push(...specRows);
@@ -244,15 +244,15 @@ function buildGridRows(
       level: 0,
       key: viewKey,
       label: v,
-      monthlyByScenario: viewMonthly,
-      totalByScenario: viewTotals,
+      monthlyByType: viewMonthly,
+      totalByType: viewTotals,
       hasChildren: catRows.length > 0,
     });
     if (expanded.has(viewKey)) rows.push(...catRows);
-    addTotals(grandTotalByScenario, viewTotals);
+    addTotals(grandTotalByType, viewTotals);
   }
 
-  return { rows, grandTotalByScenario };
+  return { rows, grandTotalByType };
 }
 
 export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGridProps) {
@@ -262,15 +262,15 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   const [fiscalYear, setFiscalYear] = useState(currentYear);
 
   const orgId = currentOrganization?.id;
-  const { data: scenariosConfig } = useQuery<FinancialScenariosConfig>({
-    queryKey: ["/api/organizations", orgId, "financial-scenarios"],
+  const { data: typesConfig } = useQuery<FinancialTypesConfig>({
+    queryKey: ["/api/organizations", orgId, "financial-types"],
     enabled: !!orgId,
   });
 
   // Server-defined scenarios (which exist + editable flag are org-wide).
   // Visibility (enabled flag) is overridden per-browser via localStorage so each
   // user's column show/hide preference doesn't affect teammates.
-  const visibilityStorageKey = orgId ? `fr.financial-scenario-visibility.${orgId}` : null;
+  const visibilityStorageKey = orgId ? `fr.financial-type-visibility.${orgId}` : null;
   const [visibilityOverride, setVisibilityOverride] = useState<Record<string, boolean>>(() => {
     if (typeof window === "undefined" || !visibilityStorageKey) return {};
     try {
@@ -292,34 +292,34 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     }
   }, [visibilityStorageKey]);
 
-  const allScenarios: FinancialScenario[] = useMemo(() => {
-    const base = scenariosConfig?.scenarios ?? DEFAULT_FINANCIAL_SCENARIOS.scenarios;
+  const allTypes: FinancialType[] = useMemo(() => {
+    const base = typesConfig?.types ?? DEFAULT_FINANCIAL_TYPES.types;
     return base.map(s =>
       Object.prototype.hasOwnProperty.call(visibilityOverride, s.key)
         ? { ...s, enabled: !!visibilityOverride[s.key] }
         : s,
     );
-  }, [scenariosConfig, visibilityOverride]);
+  }, [typesConfig, visibilityOverride]);
 
-  const enabledScenarios: FinancialScenario[] = useMemo(
-    () => allScenarios.filter(s => s.enabled),
-    [allScenarios],
+  const enabledTypes: FinancialType[] = useMemo(
+    () => allTypes.filter(s => s.enabled),
+    [allTypes],
   );
 
-  const toggleScenarioVisibility = (scenarioKey: string) => {
-    const current = allScenarios.find(s => s.key === scenarioKey);
+  const toggleTypeVisibility = (typeKey: string) => {
+    const current = allTypes.find(s => s.key === typeKey);
     if (!current) return;
     const nextEnabled = !current.enabled;
     // Don't allow hiding the last visible scenario.
-    const remaining = allScenarios.filter(s =>
-      s.key === scenarioKey ? nextEnabled : s.enabled,
+    const remaining = allTypes.filter(s =>
+      s.key === typeKey ? nextEnabled : s.enabled,
     );
     if (remaining.length === 0) {
-      toast({ title: "At least one scenario must stay visible", variant: "destructive" });
+      toast({ title: "At least one financial type must stay visible", variant: "destructive" });
       return;
     }
     setVisibilityOverride(prev => {
-      const next = { ...prev, [scenarioKey]: nextEnabled };
+      const next = { ...prev, [typeKey]: nextEnabled };
       if (typeof window !== "undefined" && visibilityStorageKey) {
         try { window.localStorage.setItem(visibilityStorageKey, JSON.stringify(next)); } catch {}
       }
@@ -363,7 +363,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   }, [splitterStorageKey]);
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [editingCell, setEditingCell] = useState<{ itemKey: string; month: number; scenarioKey: string } | null>(null);
+  const [editingCell, setEditingCell] = useState<{ itemKey: string; month: number; typeKey: string } | null>(null);
   const [editValue, setEditValue] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -432,16 +432,16 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   });
 
   const updateCellMutation = useMutation({
-    mutationFn: async (data: { itemKey: string; scenario: Scenario; month: number; amount: number }) =>
+    mutationFn: async (data: { itemKey: string; type: FinancialTypeKey; month: number; amount: number }) =>
       apiRequest("PUT", `/api/projects/${projectId}/financial-cells`, { fiscalYear, ...data }),
     onSuccess: () => invalidate(),
     onError: () => toast({ title: "Failed to update cell", variant: "destructive" }),
   });
 
-  const enabledScenarioKeys = useMemo(() => enabledScenarios.map(s => s.key), [enabledScenarios]);
-  const editableScenarioKeys = useMemo(
-    () => enabledScenarios.filter(s => s.editable).map(s => s.key),
-    [enabledScenarios],
+  const enabledTypeKeys = useMemo(() => enabledTypes.map(s => s.key), [enabledTypes]);
+  const editableTypeKeys = useMemo(
+    () => enabledTypes.filter(s => s.editable).map(s => s.key),
+    [enabledTypes],
   );
 
   // Search filter: any token match on item name / wbs / comments / category /
@@ -460,9 +460,9 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     return entries.filter(e => matchingItemKeys.has(e.itemKey));
   }, [entries, searchQuery]);
 
-  const { rows, grandTotalByScenario } = useMemo(
-    () => buildGridRows(filteredEntries, enabledScenarioKeys, expanded),
-    [filteredEntries, enabledScenarioKeys, expanded],
+  const { rows, grandTotalByType } = useMemo(
+    () => buildGridRows(filteredEntries, enabledTypeKeys, expanded),
+    [filteredEntries, enabledTypeKeys, expanded],
   );
 
   // Map each fiscal-month index → calendar (year, month). FY starts in Oct,
@@ -558,26 +558,26 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     }
   };
 
-  const handleCellClick = (row: GridRow, monthIdx: number, scenarioKey: string) => {
+  const handleCellClick = (row: GridRow, monthIdx: number, typeKey: string) => {
     if (row.type !== "item" || !row.itemKey) return;
-    const value = row.monthlyByScenario[scenarioKey]?.[monthIdx] ?? 0;
+    const value = row.monthlyByType[typeKey]?.[monthIdx] ?? 0;
     setEditValue(String(value || 0));
-    setEditingCell({ itemKey: row.itemKey, month: monthIdx + 1, scenarioKey });
+    setEditingCell({ itemKey: row.itemKey, month: monthIdx + 1, typeKey });
   };
 
-  const saveCellEdit = (next?: { itemKey: string; month: number; scenarioKey: string } | null) => {
+  const saveCellEdit = (next?: { itemKey: string; month: number; typeKey: string } | null) => {
     if (!editingCell) return;
     const amount = parseFloat(editValue) || 0;
     updateCellMutation.mutate({
       itemKey: editingCell.itemKey,
-      scenario: editingCell.scenarioKey,
+      type: editingCell.typeKey,
       month: editingCell.month,
       amount,
     });
     if (next) {
       const nextRow = editableRows.find(r => r.itemKey === next.itemKey);
       if (nextRow) {
-        const v = nextRow.monthlyByScenario[next.scenarioKey]?.[next.month - 1] ?? 0;
+        const v = nextRow.monthlyByType[next.typeKey]?.[next.month - 1] ?? 0;
         setEditValue(String(v || 0));
         setEditingCell(next);
         return;
@@ -596,17 +596,17 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   // Sub-column index = monthIdx * editableScenarioCount + editableScenarioPositionForRow.
   const getNeighborCell = (
     direction: "up" | "down" | "left" | "right",
-  ): { itemKey: string; month: number; scenarioKey: string } | null => {
+  ): { itemKey: string; month: number; typeKey: string } | null => {
     if (!editingCell) return null;
-    if (editableScenarioKeys.length === 0) return null;
+    if (editableTypeKeys.length === 0) return null;
 
     const rowIdx = editableRows.findIndex(r => r.itemKey === editingCell.itemKey);
     if (rowIdx === -1) return null;
     const monthIdx = editingCell.month - 1;
-    const sceIdx = editableScenarioKeys.indexOf(editingCell.scenarioKey);
+    const sceIdx = editableTypeKeys.indexOf(editingCell.typeKey);
     if (sceIdx === -1) return null;
 
-    const sceCount = editableScenarioKeys.length;
+    const sceCount = editableTypeKeys.length;
     const totalSubCols = 12 * sceCount;
     const subColIdx = monthIdx * sceCount + sceIdx;
 
@@ -628,7 +628,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     return {
       itemKey: editableRows[nextRow].itemKey!,
       month: Math.floor(nextSubCol / sceCount) + 1,
-      scenarioKey: editableScenarioKeys[nextSubCol % sceCount],
+      typeKey: editableTypeKeys[nextSubCol % sceCount],
     };
   };
 
@@ -678,11 +678,11 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
           {/* Segmented scenario toggle */}
           <div className="inline-flex h-9 items-center rounded-md border bg-muted/40 p-0.5 gap-0.5">
-            {allScenarios.map((s) => (
+            {allTypes.map((s) => (
               <button
                 key={s.key}
                 type="button"
-                onClick={() => toggleScenarioVisibility(s.key)}
+                onClick={() => toggleTypeVisibility(s.key)}
                 className={`inline-flex items-center gap-1 px-3 h-8 text-xs font-medium rounded-sm transition-all ${
                   s.enabled
                     ? "bg-background text-foreground shadow-sm"
@@ -726,7 +726,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
       </div>
 
       {(() => {
-        const N = Math.max(enabledScenarios.length, 1);
+        const N = Math.max(enabledTypes.length, 1);
         // Cost Item column accepts a user-driven offset from the splitter drag.
         const COL_COST_BASE = 300;
         const COL_COST_MIN = 160;
@@ -747,11 +747,11 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
         // so they don't change when groups are expanded/collapsed.
         let commMaxChars = "Comments".length + 2;  // header + sort icon
         let wbsMaxChars  = "WBS".length + 2;
-        // monthMax[mi][scenarioKey] = max |amount| char-length seen at that cell
+        // monthMax[mi][typeKey] = max |amount| char-length seen at that cell
         const monthMaxChars: Record<string, number>[] = Array.from({ length: 12 }, () => ({}));
-        // itemTotalSum[itemKey][scenarioKey] = sum across 12 months
+        // itemTotalSum[itemKey][typeKey] = sum across 12 months
         const itemTotalSum = new Map<string, Record<string, number>>();
-        // monthGrandSum[mi][scenarioKey] = grand total per month/scenario
+        // monthGrandSum[mi][typeKey] = grand total per month/scenario
         const monthGrandSum: Record<string, number>[] = Array.from({ length: 12 }, () => ({}));
         // Per-item longest comments/wbs across all entries for that item
         // (data may be inconsistent across rows for the same itemKey)
@@ -759,7 +759,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
         const itemWbsMax = new Map<string, number>();
 
         for (const e of filteredEntries) {
-          if (!enabledScenarioKeys.includes(e.scenario)) continue;
+          if (!enabledTypeKeys.includes(e.scenario)) continue;
           if (e.comments) {
             const cap = Math.min(e.comments.length, 32);
             const prev = itemCommentMax.get(e.itemKey) ?? 0;
@@ -790,22 +790,22 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
         const COL_WBS      = Math.round(Math.min(MAX_WBS,  Math.max(MIN_WBS,  wbsMaxChars  * CHAR_PX + PAD_X)));
 
         // Per-scenario TOTAL sub-cols (CompactCurrency: e.g. "$1.2M" ≈ digits+3)
-        const totalSubPx: number[] = enabledScenarios.map((s) => {
+        const totalSubPx: number[] = enabledTypes.map((s) => {
           let chars = (s.label.length + (!s.editable ? 1 : 0)) + 1;
-          let scenarioGrand = 0;
+          let typeGrand = 0;
           for (const perItem of itemTotalSum.values()) {
             const v = perItem[s.key] ?? 0;
             if (v !== 0) chars = Math.max(chars, String(Math.round(v)).length + 2);
-            scenarioGrand += v;
+            typeGrand += v;
           }
-          if (scenarioGrand !== 0) chars = Math.max(chars, String(Math.round(scenarioGrand)).length + 2);
+          if (typeGrand !== 0) chars = Math.max(chars, String(Math.round(typeGrand)).length + 2);
           return Math.round(Math.min(MAX_TOTAL_SUB, Math.max(MIN_TOTAL_SUB, chars * CHAR_PX + PAD_X)));
         });
 
         // Per-month per-scenario sub-cols
         const monthSubPx: number[] = [];
         for (let mi = 0; mi < 12; mi++) {
-          for (const s of enabledScenarios) {
+          for (const s of enabledTypes) {
             let chars = (s.label.length + (!s.editable ? 1 : 0)) + 1;
             const cellMax = monthMaxChars[mi][s.key] ?? 0;
             if (cellMax > chars) chars = cellMax;
@@ -846,7 +846,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
         // Border classes: strong divider between months, faint between scenarios
         const monthBorder = "border-l border-border";
-        const scenarioBorder = "border-l border-border/40";
+        const typeBorder = "border-l border-border/40";
 
         const sortableHeader = (label: string) => (
           <div className="flex items-center gap-1 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">
@@ -1012,10 +1012,10 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                   <div className="bg-card sticky z-10" style={{ left: `${stickyL1}px` }}></div>
                   <div className="bg-card sticky z-10" style={{ left: `${stickyL2}px` }}></div>
                   <div className={`bg-card sticky z-10 ${stickyEdgeShadow}`} style={{ left: `${stickyL3}px` }}></div>
-                  {enabledScenarios.map((s, i) => (
+                  {enabledTypes.map((s, i) => (
                     <div
                       key={`tlab-${s.key}`}
-                      className={`flex items-center justify-center gap-1 ${i === 0 ? monthBorder : scenarioBorder}`}
+                      className={`flex items-center justify-center gap-1 ${i === 0 ? monthBorder : typeBorder}`}
                       title={s.editable ? `${s.label} (editable)` : `${s.label} (read-only)`}
                     >
                       {!s.editable && <Lock className="h-2.5 w-2.5 opacity-60" />}
@@ -1023,10 +1023,10 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                     </div>
                   ))}
                   {MONTHS.map((m, idx) => (
-                    enabledScenarios.map((s, i) => (
+                    enabledTypes.map((s, i) => (
                       <div
                         key={`mlab-${m.num}-${s.key}`}
-                        className={`flex items-center justify-center gap-1 ${i === 0 ? monthBorder : scenarioBorder} ${monthHi(idx)}`}
+                        className={`flex items-center justify-center gap-1 ${i === 0 ? monthBorder : typeBorder} ${monthHi(idx)}`}
                         title={s.editable ? `${s.label} (editable)` : `${s.label} (read-only)`}
                       >
                         {!s.editable && <Lock className="h-2.5 w-2.5 opacity-60" />}
@@ -1147,12 +1147,12 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                         </div>
 
                         {/* Per-scenario row totals */}
-                        {enabledScenarios.map((s, sIdx) => {
-                          const v = row.totalByScenario[s.key] ?? 0;
+                        {enabledTypes.map((s, sIdx) => {
+                          const v = row.totalByType[s.key] ?? 0;
                           return (
                             <div
                               key={`total-${s.key}`}
-                              className={`px-2 py-1.5 text-right text-xs font-semibold tabular-nums flex items-center justify-end ${sIdx === 0 ? monthBorder : scenarioBorder}`}
+                              className={`px-2 py-1.5 text-right text-xs font-semibold tabular-nums flex items-center justify-end ${sIdx === 0 ? monthBorder : typeBorder}`}
                             >
                               {v !== 0 ? <CompactCurrency value={v} /> : <span className="text-muted-foreground/40">—</span>}
                             </div>
@@ -1161,9 +1161,9 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
                         {/* Per-month per-scenario cells */}
                         {MONTHS.map((m, idx) => (
-                          enabledScenarios.map((s, sIdx) => {
-                            const value = row.monthlyByScenario[s.key]?.[idx] ?? 0;
-                            const borderCls = sIdx === 0 ? monthBorder : scenarioBorder;
+                          enabledTypes.map((s, sIdx) => {
+                            const value = row.monthlyByType[s.key]?.[idx] ?? 0;
+                            const borderCls = sIdx === 0 ? monthBorder : typeBorder;
                             const hi = monthHi(idx);
                             if (!isItem) {
                               return (
@@ -1178,7 +1178,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                             const isEditing =
                               editingCell?.itemKey === row.itemKey &&
                               editingCell?.month === m.num &&
-                              editingCell?.scenarioKey === s.key;
+                              editingCell?.typeKey === s.key;
                             const editable = s.editable;
                             return (
                               <div key={`${m.num}-${s.key}`} className={`p-0.5 ${borderCls} ${hi}`}>
@@ -1249,28 +1249,28 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                       className={`sticky z-[1] bg-muted ${stickyEdgeShadow}`}
                       style={{ left: `${stickyL3}px` }}
                     ></div>
-                    {enabledScenarios.map((s, sIdx) => {
-                      const v = grandTotalByScenario[s.key] ?? 0;
+                    {enabledTypes.map((s, sIdx) => {
+                      const v = grandTotalByType[s.key] ?? 0;
                       return (
                         <div
                           key={`gt-total-${s.key}`}
-                          className={`px-2 py-2 text-right text-sm font-bold tabular-nums flex items-center justify-end ${sIdx === 0 ? monthBorder : scenarioBorder}`}
+                          className={`px-2 py-2 text-right text-sm font-bold tabular-nums flex items-center justify-end ${sIdx === 0 ? monthBorder : typeBorder}`}
                         >
                           {v !== 0 ? <CompactCurrency value={v} /> : <span className="text-muted-foreground/40">—</span>}
                         </div>
                       );
                     })}
                     {MONTHS.map((m, idx) => (
-                      enabledScenarios.map((s, sIdx) => {
-                        const grandMonthForScenario = rows
+                      enabledTypes.map((s, sIdx) => {
+                        const grandMonthForType = rows
                           .filter(r => r.type === "view")
-                          .reduce((acc, r) => acc + (r.monthlyByScenario[s.key]?.[idx] ?? 0), 0);
+                          .reduce((acc, r) => acc + (r.monthlyByType[s.key]?.[idx] ?? 0), 0);
                         return (
                           <div
                             key={`gt-${m.num}-${s.key}`}
-                            className={`px-1.5 py-2 text-right text-xs tabular-nums flex items-center justify-end ${sIdx === 0 ? monthBorder : scenarioBorder} ${monthHi(idx)}`}
+                            className={`px-1.5 py-2 text-right text-xs tabular-nums flex items-center justify-end ${sIdx === 0 ? monthBorder : typeBorder} ${monthHi(idx)}`}
                           >
-                            {grandMonthForScenario !== 0 ? formatCurrency(grandMonthForScenario) : <span className="text-muted-foreground/40">—</span>}
+                            {grandMonthForType !== 0 ? formatCurrency(grandMonthForType) : <span className="text-muted-foreground/40">—</span>}
                           </div>
                         );
                       })
