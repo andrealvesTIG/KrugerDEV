@@ -2,6 +2,9 @@ import { useMemo, useEffect, useState, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import MarkerClusterGroup from "react-leaflet-cluster";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import type { Project } from "@shared/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -89,6 +92,7 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
   const [showMissingOnly, setShowMissingOnly] = useState(false);
   const controllerRef = useRef<MapController | null>(null);
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
+  const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
 
   const { withCoords, missing } = useMemo(() => {
     const withCoords: Array<ProjectWithLocation & { _lat: number; _lng: number }> = [];
@@ -118,8 +122,15 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
 
   const handleListItemClick = (p: ProjectWithLocation & { _lat: number; _lng: number }) => {
     setSelectedId(p.id);
-    controllerRef.current?.flyTo(p._lat, p._lng, p.id);
     const mk = markerRefs.current[p.id];
+    const cluster = clusterGroupRef.current;
+    if (cluster && mk) {
+      cluster.zoomToShowLayer(mk, () => {
+        mk.openPopup();
+      });
+      return;
+    }
+    controllerRef.current?.flyTo(p._lat, p._lng, p.id);
     if (mk) setTimeout(() => mk.openPopup(), 400);
   };
 
@@ -195,6 +206,14 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
                 <FitBounds signature={markersSignature} markers={markers} />
                 <ViewportTracker onChange={setBounds} />
                 <MapControllerBridge onReady={(c) => { controllerRef.current = c; }} />
+                <MarkerClusterGroup
+                  ref={(ref: L.MarkerClusterGroup | null) => { clusterGroupRef.current = ref; }}
+                  chunkedLoading
+                  showCoverageOnHover={false}
+                  spiderfyOnMaxZoom
+                  zoomToBoundsOnClick
+                  maxClusterRadius={50}
+                >
                 {withCoords.map(p => {
                   const cover = p.images?.[0]?.url;
                   return (
@@ -238,6 +257,7 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
                     </Marker>
                   );
                 })}
+                </MarkerClusterGroup>
               </MapContainer>
             )}
           </div>
