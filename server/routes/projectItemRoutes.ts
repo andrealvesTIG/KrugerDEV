@@ -2832,6 +2832,23 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         if (def) cfHeaderMap.set(h, { def, scope });
       }
       let customFieldValuesUpdated = 0;
+      const customFieldErrors: { row: number; field: string; scope: 'task' | 'project'; message: string }[] = [];
+      const formatCfError = (err: unknown): string => {
+        const raw = err instanceof Error
+          ? err.message
+          : typeof err === 'string'
+            ? err
+            : (() => { try { return JSON.stringify(err); } catch { return 'Unknown error'; } })();
+        // Sanitize: strip obvious internals (SQL statements, stack-like prefixes)
+        // and cap length so we never leak large DB payloads to the client.
+        let msg = raw.split('\n')[0].trim();
+        msg = msg.replace(/\s+at\s+.*$/i, '').trim();
+        if (/^(error:|pg|syntaxerror|queryfailederror)/i.test(msg) || /select\s|insert\s|update\s|from\s/i.test(msg)) {
+          msg = 'Invalid value for custom field';
+        }
+        if (msg.length > 200) msg = msg.slice(0, 197) + '...';
+        return msg || 'Failed to save value';
+      };
 
       const existingTasks = await storage.getTasksByProject(projectId);
       const existingByWbs = new Map<string, typeof existingTasks[0]>();
@@ -2876,7 +2893,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const hasOutlineLevelColumn = rows.length > 0 && 'Outline Level' in rows[0];
       const outlineLevelParentStack: { level: number; csvIndex: number }[] = [];
 
-      for (const row of rows) {
+      for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+        const row = rows[rowIdx];
+        const rowNumber = rowIdx + 2; // +1 for header, +1 for 1-based
         const name = (row['Name'] || '').trim();
         const type = (row['Type'] || '').trim();
         const csvIndex = parseInt((row['Index'] || '').trim(), 10);
@@ -2897,6 +2916,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
                 customFieldValuesUpdated++;
               } catch (cfErr) {
                 console.error('Error upserting project custom field value:', cfErr);
+                customFieldErrors.push({
+                  row: rowNumber,
+                  field: info.def.name,
+                  scope: 'project',
+                  message: formatCfError(cfErr),
+                });
               }
             }
           }
@@ -3022,6 +3047,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
                 customFieldValuesUpdated++;
               } catch (cfErr) {
                 console.error('Error upserting task custom field value:', cfErr);
+                customFieldErrors.push({
+                  row: rowNumber,
+                  field: info.def.name,
+                  scope: 'task',
+                  message: formatCfError(cfErr),
+                });
               }
             }
           }
@@ -3094,14 +3125,21 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         }
       }
 
+      const cfFailedCount = customFieldErrors.length;
+      const baseMsg = `Import complete: ${created} tasks created, ${updated} tasks updated, ${skipped} rows skipped, ${dependenciesCreated} dependencies created, ${parentLinksSet} parent links set, ${customFieldValuesUpdated} custom field values applied`;
+      const message = cfFailedCount > 0
+        ? `${baseMsg}, ${cfFailedCount} custom field value${cfFailedCount === 1 ? '' : 's'} failed`
+        : baseMsg;
       res.json({
-        message: `Import complete: ${created} tasks created, ${updated} tasks updated, ${skipped} rows skipped, ${dependenciesCreated} dependencies created, ${parentLinksSet} parent links set, ${customFieldValuesUpdated} custom field values applied`,
+        message,
         created,
         updated,
         skipped,
         dependenciesCreated,
         parentLinksSet,
         customFieldValuesUpdated,
+        customFieldValuesFailed: cfFailedCount,
+        customFieldErrors: customFieldErrors.slice(0, 50),
       });
     } catch (err) {
       console.error('CSV import error:', err);
