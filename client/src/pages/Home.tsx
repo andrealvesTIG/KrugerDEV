@@ -553,42 +553,71 @@ export default function Home() {
       )}
 
       {(overdueTasks.length > 0 || overdueIssues.length > 0) && (
-        <div className="flex flex-wrap gap-2">
-          {overdueTasks.length > 0 && (
-            <div className="flex flex-col gap-1 w-full">
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                <span className="font-medium" data-testid="text-overdue-tasks-alert">
-                  {overdueTasks.length} overdue task{overdueTasks.length > 1 ? "s" : ""}
-                </span>
+        <Card className="overflow-hidden border-red-200/60 dark:border-red-900/40 bg-gradient-to-br from-red-50/80 via-background to-orange-50/60 dark:from-red-950/20 dark:via-background dark:to-orange-950/10">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 ring-1 ring-red-500/20">
+                  <AlertTriangle className="h-4 w-4" />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-semibold">Needs your attention</CardTitle>
+                  <CardDescription className="text-xs">
+                    {overdueTasks.length + overdueIssues.length} overdue item{(overdueTasks.length + overdueIssues.length) > 1 ? "s" : ""}
+                  </CardDescription>
+                </div>
               </div>
+              <div className="flex items-center gap-2">
+                {overdueTasks.length > 0 && (
+                  <Badge
+                    variant="outline"
+                    className="gap-1.5 border-red-300/70 bg-red-500/10 text-red-700 dark:border-red-800/70 dark:bg-red-500/10 dark:text-red-300"
+                    data-testid="text-overdue-tasks-alert"
+                  >
+                    <AlertCircle className="h-3 w-3" />
+                    {overdueTasks.length} task{overdueTasks.length > 1 ? "s" : ""}
+                  </Badge>
+                )}
+                {overdueIssues.length > 0 && (
+                  <Badge
+                    variant="outline"
+                    className="gap-1.5 border-orange-300/70 bg-orange-500/10 text-orange-700 dark:border-orange-800/70 dark:bg-orange-500/10 dark:text-orange-300"
+                    data-testid="text-overdue-issues-alert"
+                  >
+                    <Bug className="h-3 w-3" />
+                    {overdueIssues.length} issue{overdueIssues.length > 1 ? "s" : ""}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid gap-2 sm:grid-cols-2">
               {overdueTasks.map((item) => {
                 const endDate = item.task.endDate ? (typeof item.task.endDate === "string" ? parseISO(item.task.endDate) : item.task.endDate) : null;
                 return (
                   <Link key={item.task.id} href={`/projects/${item.task.projectId}?tab=tasks&taskId=${item.task.id}`}>
                     <div
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 hover-elevate cursor-pointer text-sm"
+                      className="group relative flex items-center gap-3 overflow-hidden rounded-lg border border-border/60 bg-card/80 backdrop-blur-sm pl-3 pr-2.5 py-2.5 hover-elevate cursor-pointer transition-all"
                       data-testid={`link-overdue-task-${item.task.id}`}
                     >
-                      <span className="text-red-700 dark:text-red-400 font-medium truncate flex-1">{item.task.name}</span>
-                      {endDate && (
-                        <span className="text-red-600 dark:text-red-400 text-xs flex-shrink-0">Due {format(endDate, "MMM d")}</span>
-                      )}
-                      <ChevronRight className="h-3.5 w-3.5 text-red-400 flex-shrink-0" />
+                      <span aria-hidden className="absolute left-0 top-0 bottom-0 w-1 bg-red-500/80" />
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-red-500/10 text-red-600 dark:text-red-400 ring-1 ring-red-500/20">
+                        <AlertCircle className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-foreground">{item.task.name}</div>
+                        {endDate && (
+                          <div className="text-[11px] text-muted-foreground mt-0.5">
+                            Due {format(endDate, "MMM d")}
+                          </div>
+                        )}
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground/60 group-hover:text-foreground group-hover:translate-x-0.5 transition-all flex-shrink-0" />
                     </div>
                   </Link>
                 );
               })}
-            </div>
-          )}
-          {overdueIssues.length > 0 && (
-            <div className="flex flex-col gap-1 w-full">
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-400 text-sm">
-                <Bug className="h-4 w-4 flex-shrink-0" />
-                <span className="font-medium" data-testid="text-overdue-issues-alert">
-                  {overdueIssues.length} overdue issue{overdueIssues.length > 1 ? "s" : ""}
-                </span>
-              </div>
               {overdueIssues.map((issue: Issue) => {
                 const resDate = issue.targetResolutionDate
                   ? (typeof issue.targetResolutionDate === "string" ? parseISO(issue.targetResolutionDate) : issue.targetResolutionDate)
@@ -596,21 +625,29 @@ export default function Home() {
                 return (
                   <Link key={issue.id} href={`/projects/${issue.projectId}?tab=issues&issueId=${issue.id}`}>
                     <div
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 hover-elevate cursor-pointer text-sm"
+                      className="group relative flex items-center gap-3 overflow-hidden rounded-lg border border-border/60 bg-card/80 backdrop-blur-sm pl-3 pr-2.5 py-2.5 hover-elevate cursor-pointer transition-all"
                       data-testid={`link-overdue-issue-${issue.id}`}
                     >
-                      <span className="text-orange-700 dark:text-orange-400 font-medium truncate flex-1">{issue.title}</span>
-                      {resDate && (
-                        <span className="text-orange-600 dark:text-orange-400 text-xs flex-shrink-0">Due {format(resDate, "MMM d")}</span>
-                      )}
-                      <ChevronRight className="h-3.5 w-3.5 text-orange-400 flex-shrink-0" />
+                      <span aria-hidden className="absolute left-0 top-0 bottom-0 w-1 bg-orange-500/80" />
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-orange-500/10 text-orange-600 dark:text-orange-400 ring-1 ring-orange-500/20">
+                        <Bug className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-foreground">{issue.title}</div>
+                        {resDate && (
+                          <div className="text-[11px] text-muted-foreground mt-0.5">
+                            Due {format(resDate, "MMM d")}
+                          </div>
+                        )}
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground/60 group-hover:text-foreground group-hover:translate-x-0.5 transition-all flex-shrink-0" />
                     </div>
                   </Link>
                 );
               })}
             </div>
-          )}
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       <StaggerContainer className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
