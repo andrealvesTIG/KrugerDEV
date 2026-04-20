@@ -525,6 +525,12 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   } | null>(null);
   const [placeholderName, setPlaceholderName] = useState("");
 
+  // Permanent "blank" new-item row at the bottom of the grid: type a name +
+  // Enter creates an item with no grouping (defaults to first enabled view)
+  // without opening the dialog. Stays focused-ready after each save so users
+  // can rapid-fire add items.
+  const [newItemName, setNewItemName] = useState("");
+
   const [formData, setFormData] = useState({
     itemName: "",
     financialView: "Capital",
@@ -1637,6 +1643,72 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                     return [rowEl, placeholderEl];
                   })
                 )}
+
+                {/* Always-visible "blank" row to add a new cost item without
+                   opening the dialog. Type a name + Enter to create. */}
+                <div
+                  className="grid border-b border-border/60 bg-muted/[0.02]"
+                  style={{ gridTemplateColumns: gridTemplate }}
+                  data-testid="row-new-item"
+                >
+                  <div
+                    className="flex flex-nowrap items-center gap-1.5 py-1.5 pr-2 overflow-hidden sticky z-[1] bg-card"
+                    style={{ left: `${stickyL1}px`, paddingLeft: `16px` }}
+                  >
+                    <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <Input
+                      value={newItemName}
+                      onChange={(e) => setNewItemName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const name = newItemName.trim();
+                          if (!name) return;
+                          createItemMutation.mutate({
+                            fiscalYear,
+                            itemName: name,
+                            financialView: enabledViews[0]?.label ?? null,
+                            costCategory: null,
+                            costSpecification: null,
+                            category: null,
+                            wbs: null,
+                            comments: null,
+                          });
+                          setNewItemName("");
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          setNewItemName("");
+                          (e.target as HTMLInputElement).blur();
+                        }
+                      }}
+                      placeholder="+ Add new cost item — type name and press Enter"
+                      className="h-6 text-xs px-1 py-0 min-w-0 flex-1 border-dashed focus:border-solid focus:ring-2 focus:ring-primary/40"
+                      data-testid="input-new-item-name"
+                    />
+                  </div>
+                  <div
+                    className="px-3 py-1.5 sticky z-[1] bg-card"
+                    style={{ left: `${stickyL2}px` }}
+                  />
+                  <div
+                    className={`px-3 py-1.5 sticky z-[1] bg-card ${stickyEdgeShadow}`}
+                    style={{ left: `${stickyL3}px` }}
+                  />
+                  {enabledTypes.map((s, sIdx) => (
+                    <div
+                      key={`new-total-${s.key}`}
+                      className={`px-1 py-1 ${sIdx === 0 ? monthBorder : typeBorder}`}
+                    />
+                  ))}
+                  {MONTHS.map((m, idx) => (
+                    enabledTypes.map((s, sIdx) => (
+                      <div
+                        key={`new-${m.num}-${s.key}`}
+                        className={`px-1 py-1 ${sIdx === 0 ? monthBorder : typeBorder} ${monthHi(idx)}`}
+                      />
+                    ))
+                  ))}
+                </div>
 
                 {/* Grand total row (sticky bottom) */}
                 {rows.length > 0 && (
