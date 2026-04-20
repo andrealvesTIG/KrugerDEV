@@ -695,6 +695,9 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   const dragRef = useRef<{ active: boolean; anchor: CellRef | null }>({ active: false, anchor: null });
   // Wrapper that owns keyboard focus for the selection layer.
   const gridFocusRef = useRef<HTMLDivElement | null>(null);
+  const gridScrollRef = useRef<HTMLDivElement | null>(null);
+  const topScrollRef = useRef<HTMLDivElement | null>(null);
+  const syncingScrollRef = useRef<"top" | "main" | null>(null);
   // Inline text-field editing for Cost Item / Comments / WBS columns.
   const [editingText, setEditingText] = useState<{ itemKey: string; field: "itemName" | "comments" | "wbs" } | null>(null);
   const [editTextValue, setEditTextValue] = useState("");
@@ -2532,7 +2535,37 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
             >
               <div className="h-full w-full bg-transparent group-hover/splitter:bg-primary/40 group-active/splitter:bg-primary/60 transition-colors" />
             </div>
-            <div className={`relative overflow-auto ${tableMaxH}`}>
+            {/* Top horizontal scrollbar — synced with the main grid scroller
+                so users can pan horizontally without scrolling the page down
+                to reach the native scrollbar at the bottom. */}
+            <div
+              ref={topScrollRef}
+              className="overflow-x-auto overflow-y-hidden border-b bg-muted/30"
+              style={{ height: 14 }}
+              onScroll={() => {
+                if (syncingScrollRef.current === "main") return;
+                syncingScrollRef.current = "top";
+                if (gridScrollRef.current && topScrollRef.current) {
+                  gridScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+                }
+                requestAnimationFrame(() => { syncingScrollRef.current = null; });
+              }}
+              data-testid="financial-grid-top-scroll"
+            >
+              <div style={{ width: `${minWidthPx}px`, height: 1 }} />
+            </div>
+            <div
+              ref={gridScrollRef}
+              className={`relative overflow-auto ${tableMaxH}`}
+              onScroll={() => {
+                if (syncingScrollRef.current === "top") return;
+                syncingScrollRef.current = "main";
+                if (gridScrollRef.current && topScrollRef.current) {
+                  topScrollRef.current.scrollLeft = gridScrollRef.current.scrollLeft;
+                }
+                requestAnimationFrame(() => { syncingScrollRef.current = null; });
+              }}
+            >
               <div className="text-sm" style={{ minWidth: `${minWidthPx}px` }}>
                 {/* Header row 1: column titles + year groupings (sticky top) */}
                 <div
