@@ -1141,35 +1141,42 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                   ))}
                 </div>
 
-                {/* Header row 3: scenario sub-labels (sticky top) */}
+                {/* Header row 3: scenario sub-labels (sticky top) — tinted per type */}
                 <div
-                  className="grid bg-card border-b sticky z-30 h-7 text-[10px] uppercase tracking-wide font-medium text-muted-foreground"
+                  className="grid bg-card border-b sticky z-30 h-7 text-[10px] uppercase tracking-wide font-semibold"
                   style={{ gridTemplateColumns: gridTemplate, top: "76px" }}
                 >
                   <div className="bg-card sticky z-10" style={{ left: `${stickyL1}px` }}></div>
                   <div className="bg-card sticky z-10" style={{ left: `${stickyL2}px` }}></div>
                   <div className={`bg-card sticky z-10 ${stickyEdgeShadow}`} style={{ left: `${stickyL3}px` }}></div>
-                  {enabledTypes.map((s, i) => (
-                    <div
-                      key={`tlab-${s.key}`}
-                      className={`flex items-center justify-center gap-1 ${i === 0 ? monthBorder : typeBorder}`}
-                      title={s.editable ? `${s.label} (editable)` : `${s.label} (read-only)`}
-                    >
-                      {!s.editable && <Lock className="h-2.5 w-2.5 opacity-60" />}
-                      <span>{s.label}</span>
-                    </div>
-                  ))}
-                  {MONTHS.map((m, idx) => (
-                    enabledTypes.map((s, i) => (
+                  {enabledTypes.map((s, i) => {
+                    const palette = getTypePalette(s.key);
+                    return (
                       <div
-                        key={`mlab-${m.num}-${s.key}`}
-                        className={`flex items-center justify-center gap-1 ${i === 0 ? monthBorder : typeBorder} ${monthHi(idx)}`}
+                        key={`tlab-${s.key}`}
+                        className={`flex items-center justify-center gap-1 ${i === 0 ? monthBorder : typeBorder} ${palette.activeBg} ${palette.activeText}`}
                         title={s.editable ? `${s.label} (editable)` : `${s.label} (read-only)`}
                       >
                         {!s.editable && <Lock className="h-2.5 w-2.5 opacity-60" />}
                         <span>{s.label}</span>
                       </div>
-                    ))
+                    );
+                  })}
+                  {MONTHS.map((m, idx) => (
+                    enabledTypes.map((s, i) => {
+                      const palette = getTypePalette(s.key);
+                      const current = isCurrentMonth(idx);
+                      return (
+                        <div
+                          key={`mlab-${m.num}-${s.key}`}
+                          className={`flex items-center justify-center gap-1 ${i === 0 ? monthBorder : typeBorder} ${palette.activeBg} ${palette.activeText} ${current ? "ring-1 ring-inset ring-amber-500/40" : ""}`}
+                          title={s.editable ? `${s.label} (editable)` : `${s.label} (read-only)`}
+                        >
+                          {!s.editable && <Lock className="h-2.5 w-2.5 opacity-60" />}
+                          <span>{s.label}</span>
+                        </div>
+                      );
+                    })
                   ))}
                 </div>
 
