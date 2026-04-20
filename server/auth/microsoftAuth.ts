@@ -9,6 +9,7 @@ import { sendWelcomeEmail } from "../services/email";
 import crypto from "crypto";
 import { objectStorageClient } from "../replit_integrations/object_storage/objectStorage";
 import { storage } from "../storage";
+import { logUserActivity } from "../routes/helpers";
 
 async function fetchAndUploadMicrosoftPhoto(accessToken: string, userId: string): Promise<string | null> {
   try {
@@ -393,7 +394,15 @@ export async function setupMicrosoftAuth(app: Express) {
       }
 
       req.session.userId = existingUser.id;
-      
+      void logUserActivity(
+        existingUser.id,
+        existingUser.microsoftId ? 'auth.login' : 'auth.signup',
+        'user',
+        undefined,
+        { method: 'microsoft' },
+        req,
+      );
+
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
           if (err) {

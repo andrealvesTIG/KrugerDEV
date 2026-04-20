@@ -141,7 +141,7 @@ export default function UserInsights() {
   const userId = params.userId;
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [filter, setFilter] = useState<'all' | 'page' | 'action'>('all');
+  const [filter, setFilter] = useState<'all' | 'page' | 'action' | 'error'>('all');
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [extraItems, setExtraItems] = useState<TimelineItem[]>([]);
@@ -456,6 +456,7 @@ export default function UserInsights() {
                 <TabsTrigger value="all" data-testid="tab-filter-all">All</TabsTrigger>
                 <TabsTrigger value="page" data-testid="tab-filter-page">Page views</TabsTrigger>
                 <TabsTrigger value="action" data-testid="tab-filter-action">Actions</TabsTrigger>
+                <TabsTrigger value="error" data-testid="tab-filter-error">Errors</TabsTrigger>
               </TabsList>
             </Tabs>
             <div className="relative flex-1 min-w-[200px]">

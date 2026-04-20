@@ -534,7 +534,7 @@ export function registerUserInsightsRoutes(app: Express) {
 
       const targetId = String(req.params.userId);
       const limit = Math.max(10, Math.min(500, Number(req.query.limit) || 200));
-      const filterType = String(req.query.type || 'all'); // all | page | action
+      const filterType = String(req.query.type || 'all'); // all | page | action | error
 
       // Cursor format: "<isoTs>|<source>|<id>" for deterministic keyset pagination
       let cursorTs: Date | null = null;
@@ -561,6 +561,14 @@ export function registerUserInsightsRoutes(app: Express) {
       let typeClause = sql``;
       if (filterType === 'page') typeClause = sql`AND source = 'page'`;
       else if (filterType === 'action') typeClause = sql`AND source = 'action'`;
+      else if (filterType === 'error') {
+        // Errors come from either side: page events with eventType 'error' or
+        // activity logs whose action begins with 'error.'
+        typeClause = sql`AND (
+          (source = 'page' AND kind = 'error')
+          OR (source = 'action' AND kind LIKE 'error.%')
+        )`;
+      }
 
       const result = await db.execute(sql`
         SELECT * FROM (

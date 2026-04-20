@@ -7,6 +7,7 @@ import { ensureUserOrganization } from "../services/onboarding";
 import { sendWelcomeEmail } from "../services/email";
 import crypto from "crypto";
 import { objectStorageClient } from "../replit_integrations/object_storage/objectStorage";
+import { logUserActivity } from "../routes/helpers";
 
 declare module "express-session" {
   interface SessionData {
@@ -291,6 +292,7 @@ export function setupGoogleAuth(app: Express) {
         }
 
         req.session.userId = existingUser.id;
+        void logUserActivity(existingUser.id, 'auth.login', 'user', undefined, { method: 'google' }, req);
         await new Promise<void>((resolve, reject) => {
           req.session.save((err) => {
             if (err) reject(err);
@@ -358,6 +360,7 @@ export function setupGoogleAuth(app: Express) {
       });
 
       req.session.userId = newUser.id;
+      void logUserActivity(newUser.id, 'auth.signup', 'user', undefined, { method: 'google' }, req);
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
           if (err) reject(err);

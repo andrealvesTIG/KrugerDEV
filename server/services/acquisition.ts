@@ -13,25 +13,26 @@ export interface FirstTouch {
   firstSeenAt?: string | null;
 }
 
-export function parseFirstTouch(input: any): FirstTouch {
+export function parseFirstTouch(input: unknown): FirstTouch {
   if (!input || typeof input !== 'object') return {};
-  const s = (v: any): string | null => {
+  const obj = input as Record<string, unknown>;
+  const s = (v: unknown): string | null => {
     if (v == null) return null;
     const str = String(v).trim();
     if (!str) return null;
     return str.slice(0, 500);
   };
   return {
-    referrer: s(input.referrer),
-    landingPath: s(input.landingPath),
-    utmSource: s(input.utmSource),
-    utmMedium: s(input.utmMedium),
-    utmCampaign: s(input.utmCampaign),
-    utmTerm: s(input.utmTerm),
-    utmContent: s(input.utmContent),
-    gclid: s(input.gclid),
-    anonymousId: s(input.anonymousId),
-    firstSeenAt: s(input.firstSeenAt),
+    referrer: s(obj.referrer),
+    landingPath: s(obj.landingPath),
+    utmSource: s(obj.utmSource),
+    utmMedium: s(obj.utmMedium),
+    utmCampaign: s(obj.utmCampaign),
+    utmTerm: s(obj.utmTerm),
+    utmContent: s(obj.utmContent),
+    gclid: s(obj.gclid),
+    anonymousId: s(obj.anonymousId),
+    firstSeenAt: s(obj.firstSeenAt),
   };
 }
 

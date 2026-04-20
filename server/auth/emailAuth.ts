@@ -10,6 +10,7 @@ import { sendPasswordResetEmail, sendMagicLinkEmail, sendPasswordlessSignInEmail
 import { ensureUserOrganization } from "../services/onboarding";
 import { storage } from "../storage";
 import { lookupCompanyByEmail } from "../services/companyLookup";
+import { logUserActivity } from "../routes/helpers";
 
 const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -248,7 +249,8 @@ export async function setupAuth(app: Express) {
       }
 
       req.session.userId = newUser.id;
-      
+      void logUserActivity(newUser.id, 'auth.signup', 'user', undefined, { method: 'email_password' }, req);
+
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
           if (err) {
@@ -316,7 +318,8 @@ export async function setupAuth(app: Express) {
       }
 
       req.session.userId = user.id;
-      
+      void logUserActivity(user.id, 'auth.login', 'user', undefined, { method: 'email_password' }, req);
+
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
           if (err) {
@@ -551,6 +554,7 @@ export async function setupAuth(app: Express) {
       // Hash new password and update user
       const passwordHash = await hashPassword(password);
       await db.update(users).set({ passwordHash }).where(eq(users.id, resetToken.userId));
+      void logUserActivity(resetToken.userId, 'auth.password_reset', 'user', undefined, undefined, req);
 
       // Mark token as used
       await db.update(passwordResetTokens).set({ usedAt: new Date() }).where(eq(passwordResetTokens.id, resetToken.id));
@@ -788,6 +792,7 @@ export async function setupAuth(app: Express) {
 
       // Create session
       req.session.userId = newUser.id;
+      void logUserActivity(newUser.id, 'auth.signup', 'user', undefined, { method: 'magic_link' }, req);
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
           if (err) reject(err);
@@ -953,6 +958,7 @@ export async function setupAuth(app: Express) {
 
       // Create session
       req.session.userId = existingUser.id;
+      void logUserActivity(existingUser.id, 'auth.login', 'user', undefined, { method: 'magic_link' }, req);
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
           if (err) reject(err);

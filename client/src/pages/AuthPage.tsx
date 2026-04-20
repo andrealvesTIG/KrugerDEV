@@ -86,7 +86,7 @@ export default function AuthPage() {
   });
 
   const registerMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string; referralCode?: string; signupSource?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number; firstTouch?: any }) => {
+    mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string; referralCode?: string; signupSource?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number; firstTouch?: import('@shared/types/acquisition').FirstTouchData }) => {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -140,7 +140,7 @@ export default function AuthPage() {
   });
 
   const magicLinkMutation = useMutation({
-    mutationFn: async (data: { email: string; signupSource?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number; firstTouch?: any }) => {
+    mutationFn: async (data: { email: string; signupSource?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number; firstTouch?: import('@shared/types/acquisition').FirstTouchData }) => {
       const res = await fetch("/api/auth/magic-link/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
