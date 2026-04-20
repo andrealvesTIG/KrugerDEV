@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
+import { useOrganization } from "@/hooks/use-organization";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +62,7 @@ function isPublicEmailDomain(domain: string): boolean {
 export function MembersSection({ organizationId, orgName }: { organizationId: number; orgName: string }) {
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
+  const { memberships: myMemberships } = useOrganization();
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isDirectorySearchOpen, setIsDirectorySearchOpen] = useState(false);
@@ -325,10 +327,13 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
 
   const existingMemberIds = members.map(m => m.userId);
 
-  const currentMembership = members.find(m => m.userId === currentUser?.id);
+  // Use the auth-context memberships (canonical source) — the local `members`
+  // list may not include the current user when they're a super-admin viewing
+  // an org they don't belong to.
+  const myRoleInThisOrg = myMemberships?.find(m => m.organizationId === organizationId)?.role;
   const isCurrentUserOrgAdmin =
-    currentMembership?.role === 'owner' ||
-    currentMembership?.role === 'org_admin' ||
+    myRoleInThisOrg === 'owner' ||
+    myRoleInThisOrg === 'org_admin' ||
     currentUser?.role === 'super_admin' ||
     currentUser?.role === 'marketing';
   
