@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserPlus, Trash2, Users, ShieldAlert, X, Check, Building2, Mail, Clock, RefreshCw, ArrowUpCircle, KeyRound } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Users, ShieldAlert, X, Check, Building2, Mail, Clock, RefreshCw, ArrowUpCircle, KeyRound, Copy, Eye, EyeOff } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -76,6 +76,8 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
   const [inviteResult, setInviteResult] = useState<{ success: string[]; skipped: string[]; errors: string[] } | null>(null);
   const [removeMemberId, setRemoveMemberId] = useState<string | null>(null);
   const [resetPasswordMember, setResetPasswordMember] = useState<EnrichedMember | null>(null);
+  const [tempPasswordResult, setTempPasswordResult] = useState<string | null>(null);
+  const [showTempPassword, setShowTempPassword] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [upgradeMessage, setUpgradeMessage] = useState<string>("");
 
@@ -282,6 +284,19 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message || "Failed to send reset link", variant: "destructive" });
+    },
+  });
+
+  const setTemporaryPassword = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await apiRequest('POST', `/api/organizations/${organizationId}/members/${userId}/set-temporary-password`);
+      return res.json() as Promise<{ temporaryPassword: string; email: string | null }>;
+    },
+    onSuccess: (result) => {
+      setTempPasswordResult(result.temporaryPassword);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to generate temporary password", variant: "destructive" });
     },
   });
 
@@ -753,51 +768,156 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={resetPasswordMember !== null} onOpenChange={(open) => !open && setResetPasswordMember(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
+      <Dialog
+        open={resetPasswordMember !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setResetPasswordMember(null);
+            setTempPasswordResult(null);
+            setShowTempPassword(false);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
               <KeyRound className="h-5 w-5 text-blue-500" />
-              Send password reset
-            </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <span className="block">
-                We'll email a one-time reset link to{" "}
-                <span className="font-medium text-foreground">
-                  {resetPasswordMember?.user?.email || 'this member'}
-                </span>
-                . The link expires in 1 hour and any previous reset links for this account will be invalidated.
-              </span>
-              <span className="block text-xs text-muted-foreground">
-                Use this if the member is locked out, forgot their password, or needs to set one for the first time.
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={sendPasswordReset.isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                if (resetPasswordMember) sendPasswordReset.mutate(resetPasswordMember.userId);
-              }}
-              disabled={sendPasswordReset.isPending}
-              data-testid="button-confirm-send-reset"
-            >
-              {sendPasswordReset.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                <>
-                  <Mail className="h-4 w-4 mr-2" />
-                  Send reset link
-                </>
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              Reset password for{" "}
+              {resetPasswordMember?.user?.firstName || resetPasswordMember?.user?.email || 'this member'}
+            </DialogTitle>
+            <DialogDescription>
+              Choose how to reset this member's password. Either option will invalidate any previously-issued reset links.
+            </DialogDescription>
+          </DialogHeader>
+
+          {tempPasswordResult ? (
+            <div className="space-y-4">
+              <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3 text-sm">
+                <p className="font-medium text-amber-900 dark:text-amber-200">
+                  Temporary password generated
+                </p>
+                <p className="mt-1 text-amber-800 dark:text-amber-300">
+                  Copy it now — it won't be shown again. Share it with the member through a secure channel and ask them to change it after signing in.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Temporary password
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    readOnly
+                    value={tempPasswordResult}
+                    type={showTempPassword ? "text" : "password"}
+                    className="font-mono"
+                    data-testid="input-temp-password"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setShowTempPassword((v) => !v)}
+                    title={showTempPassword ? "Hide" : "Show"}
+                  >
+                    {showTempPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(tempPasswordResult);
+                        toast({ title: "Copied", description: "Temporary password copied to clipboard." });
+                      } catch {
+                        toast({ title: "Copy failed", description: "Please select and copy manually.", variant: "destructive" });
+                      }
+                    }}
+                    title="Copy"
+                    data-testid="button-copy-temp-password"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+                {resetPasswordMember?.user?.email && (
+                  <p className="text-xs text-muted-foreground">
+                    Sign-in email: <span className="font-medium text-foreground">{resetPasswordMember.user.email}</span>
+                  </p>
+                )}
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="default"
+                  onClick={() => {
+                    setResetPasswordMember(null);
+                    setTempPasswordResult(null);
+                    setShowTempPassword(false);
+                  }}
+                  data-testid="button-close-temp-password"
+                >
+                  Done
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <button
+                type="button"
+                disabled={!resetPasswordMember?.user?.email || sendPasswordReset.isPending || setTemporaryPassword.isPending}
+                onClick={() => {
+                  if (resetPasswordMember) sendPasswordReset.mutate(resetPasswordMember.userId);
+                }}
+                className="w-full text-left rounded-md border p-3 hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                data-testid="button-option-email-reset"
+              >
+                <div className="flex items-start gap-3">
+                  <Mail className="h-5 w-5 mt-0.5 text-blue-500 shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-medium flex items-center gap-2">
+                      Email a reset link
+                      {sendPasswordReset.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      {resetPasswordMember?.user?.email
+                        ? <>Sends a one-time link to <span className="font-medium text-foreground">{resetPasswordMember.user.email}</span> that expires in 1 hour.</>
+                        : "Unavailable — this member has no email on file."}
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                disabled={sendPasswordReset.isPending || setTemporaryPassword.isPending}
+                onClick={() => {
+                  if (resetPasswordMember) setTemporaryPassword.mutate(resetPasswordMember.userId);
+                }}
+                className="w-full text-left rounded-md border p-3 hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                data-testid="button-option-temp-password"
+              >
+                <div className="flex items-start gap-3">
+                  <KeyRound className="h-5 w-5 mt-0.5 text-amber-500 shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-medium flex items-center gap-2">
+                      Generate a temporary password
+                      {setTemporaryPassword.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Replaces the member's password immediately and shows it once so you can hand it over directly.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setResetPasswordMember(null)}>Cancel</Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={removeMemberId !== null} onOpenChange={() => setRemoveMemberId(null)}>
         <DialogContent>

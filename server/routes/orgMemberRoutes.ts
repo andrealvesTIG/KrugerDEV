@@ -1230,6 +1230,98 @@ export function registerOrgMemberRoutes(app: Express) {
     }
   });
 
+  // --- Admin: Set a temporary password for a member ---
+  apiRoute(app, 'post', '/api/organizations/:id/members/:userId/set-temporary-password', {
+    tag: 'Organization Members',
+    summary: 'Generate and set a temporary password for a member (admin action)',
+    parameters: [pathId(), pathStr('userId')],
+    responses: { ...r200('Temporary password generated', { type: 'object', properties: { temporaryPassword: { type: 'string' }, email: { type: 'string' } } }), ...idRes },
+  }, async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const targetUserId = req.params.userId;
+      const currentUserId = getUserIdFromRequest(req);
+
+      if (!currentUserId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      if (!await userHasOrgAccess(currentUserId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      const members = await storage.getOrganizationMembers(orgId);
+      const requesterMembership = members.find(m => m.userId === currentUserId);
+      const isOrgAdmin = requesterMembership && (requesterMembership.role === 'owner' || requesterMembership.role === 'org_admin');
+
+      if (!isOrgAdmin) {
+        const [currentUser] = await db.select().from(users).where(eq(users.id, currentUserId));
+        if (!hasAdminAccess(currentUser)) {
+          return res.status(403).json({ message: 'Only organization owners and admins can set temporary passwords' });
+        }
+      }
+
+      if (currentUserId === targetUserId) {
+        return res.status(400).json({ message: 'You cannot set a temporary password for your own account. Use the profile page to change your password.' });
+      }
+
+      const targetMembership = members.find(m => m.userId === targetUserId);
+      if (!targetMembership) {
+        return res.status(404).json({ message: 'Member not found in this organization' });
+      }
+
+      const [targetUser] = await db.select().from(users).where(eq(users.id, targetUserId)).limit(1);
+      if (!targetUser) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      const { passwordResetTokens } = await import('@shared/schema');
+      const crypto = await import('crypto');
+      const { hashPassword } = await import('../auth/emailAuth');
+
+      // Generate a memorable-but-strong temporary password meeting complexity:
+      // upper, lower, digit. 14 chars from a URL-safe alphabet (no ambiguous 0/O/1/l/I).
+      const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+      const lower = 'abcdefghijkmnpqrstuvwxyz';
+      const digit = '23456789';
+      const all = upper + lower + digit;
+      const pick = (set: string) => set[crypto.randomInt(0, set.length)];
+      const required = [pick(upper), pick(lower), pick(digit), pick(digit)];
+      const rest = Array.from({ length: 10 }, () => pick(all));
+      const chars = [...required, ...rest];
+      // Fisher–Yates shuffle with crypto randomness
+      for (let i = chars.length - 1; i > 0; i--) {
+        const j = crypto.randomInt(0, i + 1);
+        [chars[i], chars[j]] = [chars[j], chars[i]];
+      }
+      const temporaryPassword = chars.join('');
+
+      const newHash = await hashPassword(temporaryPassword);
+
+      // Atomically set the new password and invalidate any outstanding reset
+      // tokens so a previously-issued link can't be used to override the temp
+      // password without the admin's knowledge.
+      await db.transaction(async (tx) => {
+        await tx.update(users).set({ passwordHash: newHash }).where(eq(users.id, targetUser.id));
+        await tx.update(passwordResetTokens)
+          .set({ usedAt: new Date() })
+          .where(eq(passwordResetTokens.userId, targetUser.id));
+      });
+
+      // Audit trail: log the action without the password value.
+      console.log(`[admin-temp-password] User ${currentUserId} set a temporary password for user ${targetUser.id} in org ${orgId}.`);
+
+      res.json({
+        temporaryPassword,
+        email: targetUser.email || null,
+      });
+    } catch (err) {
+      console.error('Admin set-temporary-password error:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to set temporary password' : classified.message });
+    }
+  });
+
   // --- Organization Seat Info ---
   apiRoute(app, 'get', '/api/organizations/:id/seats', {
     tag: 'Organization Members',
