@@ -41,6 +41,112 @@ const STATUS_COLORS: Record<string, string> = {
   Closed: "bg-slate-500",
 };
 
+const STATUS_HEX: Record<string, string> = {
+  Initiation: "#3b82f6",
+  Planning: "#6366f1",
+  Execution: "#10b981",
+  Monitoring: "#f59e0b",
+  Closing: "#a855f7",
+  Billing: "#ec4899",
+  "On Hold": "#d97706",
+  Closed: "#64748b",
+};
+
+const STATUS_FALLBACK_HEX = "#94a3b8";
+
+// Tie-breaker order: when multiple statuses tie for "dominant", the one with
+// higher severity wins so users see the worst-case health at a glance.
+const STATUS_SEVERITY: Record<string, number> = {
+  "On Hold": 100,
+  Monitoring: 80,
+  Initiation: 60,
+  Planning: 50,
+  Execution: 40,
+  Billing: 30,
+  Closing: 20,
+  Closed: 10,
+};
+
+function statusHex(status: string | null | undefined): string {
+  return (status && STATUS_HEX[status]) || STATUS_FALLBACK_HEX;
+}
+
+function dominantStatus(statuses: Array<string | null | undefined>): string {
+  const counts = new Map<string, number>();
+  for (const s of statuses) {
+    const key = s || "";
+    if (!key) continue;
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  let best = "";
+  let bestCount = -1;
+  let bestSeverity = -1;
+  for (const [status, count] of counts) {
+    const severity = STATUS_SEVERITY[status] ?? 0;
+    if (
+      count > bestCount ||
+      (count === bestCount && severity > bestSeverity)
+    ) {
+      best = status;
+      bestCount = count;
+      bestSeverity = severity;
+    }
+  }
+  return best;
+}
+
+function makeMarkerIcon(status: string | null | undefined): L.DivIcon {
+  const color = statusHex(status);
+  const html = `
+    <div style="position:relative;width:24px;height:32px;">
+      <div style="
+        position:absolute;left:50%;top:0;transform:translateX(-50%);
+        width:22px;height:22px;border-radius:50%;
+        background:${color};
+        border:2px solid #ffffff;
+        box-shadow:0 1px 3px rgba(0,0,0,0.4);
+      "></div>
+      <div style="
+        position:absolute;left:50%;top:18px;transform:translateX(-50%);
+        width:0;height:0;
+        border-left:6px solid transparent;
+        border-right:6px solid transparent;
+        border-top:12px solid ${color};
+        filter:drop-shadow(0 1px 1px rgba(0,0,0,0.3));
+      "></div>
+    </div>`;
+  return L.divIcon({
+    html,
+    className: "project-status-marker",
+    iconSize: [24, 32],
+    iconAnchor: [12, 30],
+    popupAnchor: [0, -28],
+  });
+}
+
+function makeClusterIcon(cluster: L.MarkerCluster): L.DivIcon {
+  const children = cluster.getAllChildMarkers();
+  const statuses = children.map((m) => (m.options as L.MarkerOptions & { projectStatus?: string }).projectStatus);
+  const dominant = dominantStatus(statuses);
+  const color = statusHex(dominant);
+  const count = cluster.getChildCount();
+  const size = count < 10 ? 36 : count < 100 ? 42 : 50;
+  const html = `
+    <div style="
+      width:${size}px;height:${size}px;border-radius:50%;
+      background:${color};color:#ffffff;
+      display:flex;align-items:center;justify-content:center;
+      font-weight:600;font-size:${count < 100 ? 13 : 12}px;
+      border:3px solid rgba(255,255,255,0.9);
+      box-shadow:0 2px 6px rgba(0,0,0,0.35);
+    ">${count}</div>`;
+  return L.divIcon({
+    html,
+    className: "project-status-cluster",
+    iconSize: [size, size],
+  });
+}
+
 function FitBounds({ signature, markers }: { signature: string; markers: Array<[number, number]> }) {
   const map = useMap();
   const lastSig = useRef<string>("");
@@ -213,6 +319,7 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
                   spiderfyOnMaxZoom
                   zoomToBoundsOnClick
                   maxClusterRadius={50}
+                  iconCreateFunction={makeClusterIcon}
                 >
                 {withCoords.map(p => {
                   const cover = p.images?.[0]?.url;
@@ -220,7 +327,13 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
                     <Marker
                       key={p.id}
                       position={[p._lat, p._lng]}
-                      ref={(ref) => { markerRefs.current[p.id] = ref; }}
+                      icon={makeMarkerIcon(p.status)}
+                      ref={(ref) => {
+                        markerRefs.current[p.id] = ref;
+                        if (ref) {
+                          (ref.options as L.MarkerOptions & { projectStatus?: string }).projectStatus = p.status || "";
+                        }
+                      }}
                       eventHandlers={{ click: () => setSelectedId(p.id) }}
                     >
                       <Popup minWidth={220} maxWidth={280}>
@@ -272,6 +385,29 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
                   of {withCoords.length}
                 </span>
               )}
+            </div>
+            <div className="mb-3 pb-3 border-b" data-testid="map-status-legend">
+              <div className="text-[11px] font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide">
+                Status colors
+              </div>
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                {Object.keys(STATUS_HEX).map((status) => (
+                  <div
+                    key={status}
+                    className="flex items-center gap-1.5 text-[11px]"
+                    data-testid={`legend-${status.toLowerCase().replace(/\s+/g, "-")}`}
+                  >
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full border border-white shadow-sm flex-shrink-0"
+                      style={{ background: STATUS_HEX[status] }}
+                    />
+                    <span className="truncate">{status}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-1.5 leading-snug">
+                Cluster bubbles show the dominant project status (worst-case wins on ties).
+              </div>
             </div>
             <div className="space-y-2 max-h-[calc(100vh-360px)] overflow-y-auto pr-1">
               {visibleProjects.map(p => {
