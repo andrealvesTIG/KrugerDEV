@@ -2072,7 +2072,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     summary: 'Add task dependency',
     parameters: [pathId()],
     requestBody: body(ref('TaskDependencyCreateRequest')),
-    responses: { ...r201('Dependency created', ref('TaskDependencyCreateResponse')), ...createRes },
+    responses: { ...r201('Dependency created', ref('TaskDependencyMutationResponse')), ...createRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -2221,7 +2221,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     summary: 'Update task dependency',
     parameters: [pathId(), pathId('dependsOnTaskId')],
     requestBody: body(ref('TaskDependencyUpdateRequest')),
-    responses: { ...r200('Dependency updated', ref('TaskDependencyUpdateResponse')), ...updateRes },
+    responses: { ...r200('Dependency updated', ref('TaskDependencyMutationResponse')), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);

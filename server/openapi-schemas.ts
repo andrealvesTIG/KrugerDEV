@@ -512,48 +512,21 @@ export function generateOpenApiSchemas(): Record<string, any> {
       },
     },
 
-    TaskDependencyCreateResponse: {
+    TaskDependencyMutationResponse: {
       type: 'object',
+      description: 'Returned by create and update dependency endpoints. Contains the resulting dependency row plus a human-readable summary and any downstream tasks whose dates shifted as a result.',
       properties: {
-        id: { type: 'integer', description: 'ID of the created dependency' },
+        id: { type: 'integer', description: 'ID of the dependency' },
         taskId: { type: 'integer' },
         dependsOnTaskId: { type: 'integer' },
         dependencyType: ref('DependencyType'),
         lagDays: { type: 'integer' },
-        createdAt: { type: 'string', format: 'date-time' },
+        createdAt: { type: 'string', format: 'date-time', description: 'Present on create responses' },
         message: { type: 'string', description: 'Human-readable summary (e.g. "Dependency created successfully. Adjusted dates for 3 tasks.")' },
-        adjustedCount: { type: 'integer', description: 'Number of downstream tasks whose dates were adjusted' },
+        adjustedCount: { type: 'integer', description: 'Number of downstream tasks whose dates were adjusted (create responses only)' },
         propagatedTasks: {
           type: 'array',
           description: 'Tasks whose dates changed due to dependency propagation',
-          items: {
-            type: 'object',
-            properties: {
-              taskId: { type: 'integer' },
-              name: { type: 'string' },
-              oldStartDate: { type: 'string', format: 'date', nullable: true },
-              newStartDate: { type: 'string', format: 'date', nullable: true },
-              oldEndDate: { type: 'string', format: 'date', nullable: true },
-              newEndDate: { type: 'string', format: 'date', nullable: true },
-            },
-          },
-        },
-      },
-      required: ['id', 'taskId', 'dependsOnTaskId'],
-    },
-
-    TaskDependencyUpdateResponse: {
-      type: 'object',
-      properties: {
-        id: { type: 'integer' },
-        taskId: { type: 'integer' },
-        dependsOnTaskId: { type: 'integer' },
-        dependencyType: ref('DependencyType'),
-        lagDays: { type: 'integer' },
-        message: { type: 'string', description: 'Human-readable summary' },
-        propagatedTasks: {
-          type: 'array',
-          description: 'Tasks whose dates changed due to updated dependency',
           items: {
             type: 'object',
             properties: {
