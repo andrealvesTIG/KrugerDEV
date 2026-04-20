@@ -126,12 +126,12 @@ export function FinancialScenariosSection({ organizationId }: { organizationId: 
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <DollarSign className="h-5 w-5 text-primary" />
-          Financial Scenarios
+          Financial Type
         </CardTitle>
         <CardDescription>
-          Configure the scenario buckets shown in the project Financials grid (e.g. AOP, FCST, ACT).
-          Rename labels, change order, enable/disable scenarios, or add custom ones. The three
-          system scenarios can be renamed and disabled but never deleted, so historical entries
+          Configure the financial types shown in the project Financials grid (e.g. AOP, FCST, ACT).
+          Rename labels, change order, enable/disable types, or add custom ones. The three
+          system types can be renamed and disabled but never deleted, so historical entries
           stay valid.
         </CardDescription>
       </CardHeader>
