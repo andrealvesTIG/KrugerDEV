@@ -75,45 +75,57 @@ export function ProjectLocationMediaSection({
     let placeListener: google.maps.MapsEventListener | null = null;
 
     const MIN_CHARS = 3;
-    const updateDropdownVisibility = () => {
+    let googleNs: typeof google | null = null;
+
+    const bindAutocomplete = () => {
+      if (autocompleteRef.current || !googleNs || !addressInputRef.current) return;
+      const ac = new googleNs.maps.places.Autocomplete(addressInputRef.current, {
+        fields: ["address_components", "geometry", "formatted_address", "name"],
+        types: ["address"],
+      });
+      autocompleteRef.current = ac;
+      placeListener = ac.addListener("place_changed", () => {
+        const place = ac.getPlace();
+        if (!place || !place.address_components) {
+          toastRef.current({ title: "Select a suggestion", description: "Pick an address from the dropdown.", variant: "destructive" });
+          return;
+        }
+        const parsed = parsePlace(place);
+        const patch: ProjectLocationPatch = {};
+        patch.addressLine1 = parsed.displayName || parsed.addressLine1 || addressInputRef.current?.value || "";
+        if (parsed.city) patch.city = parsed.city;
+        if (parsed.region) patch.region = parsed.region;
+        if (parsed.country) patch.country = parsed.country;
+        if (parsed.postalCode) patch.postalCode = parsed.postalCode;
+        if (parsed.latitude) patch.latitude = parsed.latitude;
+        if (parsed.longitude) patch.longitude = parsed.longitude;
+        onChangeRef.current(patch);
+      });
+      // Google fetches suggestions on each keystroke from this point on;
+      // fire one now so the user sees results for the 3rd char they just typed.
+      googleNs.maps.event.trigger(addressInputRef.current, "input");
+    };
+
+    const onInput = () => {
       const len = (addressInputRef.current?.value || "").trim().length;
+      if (len >= MIN_CHARS) bindAutocomplete();
+      // Extra safety: if somehow the dropdown appears early, hide it until 3.
       document.querySelectorAll<HTMLElement>(".pac-container").forEach((el) => {
         el.style.display = len < MIN_CHARS ? "none" : "";
       });
     };
-    input.addEventListener("input", updateDropdownVisibility);
-    input.addEventListener("focus", updateDropdownVisibility);
+    input.addEventListener("input", onInput);
+    input.addEventListener("focus", onInput);
 
     loadGoogleMaps()
       .then((google) => {
-        if (cancelled || !addressInputRef.current) return;
-        const ac = new google.maps.places.Autocomplete(addressInputRef.current, {
-          fields: ["address_components", "geometry", "formatted_address", "name"],
-          types: ["address"],
-        });
-        autocompleteRef.current = ac;
-        updateDropdownVisibility();
-        placeListener = ac.addListener("place_changed", () => {
-          const place = ac.getPlace();
-          if (!place || !place.address_components) {
-            toastRef.current({ title: "Select a suggestion", description: "Pick an address from the dropdown.", variant: "destructive" });
-            return;
-          }
-          const parsed = parsePlace(place);
-          // Store the full formatted address in addressLine1 so the single
-          // input shows the complete location. Also populate city/region/etc
-          // behind the scenes for map filters and downstream features.
-          const patch: ProjectLocationPatch = {};
-          patch.addressLine1 = parsed.displayName || parsed.addressLine1 || addressInputRef.current?.value || "";
-          if (parsed.city) patch.city = parsed.city;
-          if (parsed.region) patch.region = parsed.region;
-          if (parsed.country) patch.country = parsed.country;
-          if (parsed.postalCode) patch.postalCode = parsed.postalCode;
-          if (parsed.latitude) patch.latitude = parsed.latitude;
-          if (parsed.longitude) patch.longitude = parsed.longitude;
-          onChangeRef.current(patch);
-        });
+        if (cancelled) return;
+        googleNs = google;
         setAutocompleteReady(true);
+        // If the field already has 3+ chars (e.g. editing an existing project),
+        // bind immediately so they get suggestions without waiting for a keypress.
+        const existingLen = (addressInputRef.current?.value || "").trim().length;
+        if (existingLen >= MIN_CHARS) bindAutocomplete();
       })
       .catch((err) => {
         if (!cancelled) {
@@ -124,8 +136,8 @@ export function ProjectLocationMediaSection({
 
     return () => {
       cancelled = true;
-      input.removeEventListener("input", updateDropdownVisibility);
-      input.removeEventListener("focus", updateDropdownVisibility);
+      input.removeEventListener("input", onInput);
+      input.removeEventListener("focus", onInput);
       if (placeListener) placeListener.remove();
       const g = (window as any).google;
       if (autocompleteRef.current && g?.maps?.event) {
