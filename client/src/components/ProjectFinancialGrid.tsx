@@ -663,12 +663,107 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
       {(() => {
         const N = Math.max(enabledScenarios.length, 1);
         const COL_COST = 300;
-        const COL_COMMENTS = 200;
-        const COL_WBS = 96;
-        const TOTAL_SUB_COL_PX = 96;
-        const SUB_COL_PX = 64;
-        const gridTemplate = `${COL_COST}px ${COL_COMMENTS}px ${COL_WBS}px repeat(${N}, ${TOTAL_SUB_COL_PX}px) repeat(${N * 12}, ${SUB_COL_PX}px)`;
-        const minWidthPx = COL_COST + COL_COMMENTS + COL_WBS + N * TOTAL_SUB_COL_PX + N * 12 * SUB_COL_PX;
+
+        // Content-aware widths: compute column widths from actual data so
+        // empty cells don't reserve as much space as long ones.
+        const CHAR_PX = 6.8;        // approx px per char at text-xs tabular-nums
+        const HDR_CHAR_PX = 7.2;    // header text is slightly wider (uppercase tracking)
+        const PAD_X = 16;
+        const MIN_COMM = 120, MAX_COMM = 240;
+        const MIN_WBS = 64,  MAX_WBS = 140;
+        const MIN_MONTH_SUB = 44, MAX_MONTH_SUB = 110;
+        const MIN_TOTAL_SUB = 72, MAX_TOTAL_SUB = 140;
+
+        // Compute widths from the underlying item-level data (filteredEntries)
+        // so they don't change when groups are expanded/collapsed.
+        let commMaxChars = "Comments".length + 2;  // header + sort icon
+        let wbsMaxChars  = "WBS".length + 2;
+        // monthMax[mi][scenarioKey] = max |amount| char-length seen at that cell
+        const monthMaxChars: Record<string, number>[] = Array.from({ length: 12 }, () => ({}));
+        // itemTotalSum[itemKey][scenarioKey] = sum across 12 months
+        const itemTotalSum = new Map<string, Record<string, number>>();
+        // monthGrandSum[mi][scenarioKey] = grand total per month/scenario
+        const monthGrandSum: Record<string, number>[] = Array.from({ length: 12 }, () => ({}));
+        // Per-item longest comments/wbs across all entries for that item
+        // (data may be inconsistent across rows for the same itemKey)
+        const itemCommentMax = new Map<string, number>();
+        const itemWbsMax = new Map<string, number>();
+
+        for (const e of filteredEntries) {
+          if (!enabledScenarioKeys.includes(e.scenario)) continue;
+          if (e.comments) {
+            const cap = Math.min(e.comments.length, 32);
+            const prev = itemCommentMax.get(e.itemKey) ?? 0;
+            if (cap > prev) itemCommentMax.set(e.itemKey, cap);
+          }
+          if (e.wbs) {
+            const prev = itemWbsMax.get(e.itemKey) ?? 0;
+            if (e.wbs.length > prev) itemWbsMax.set(e.itemKey, e.wbs.length);
+          }
+          const amt = Number(e.amount) || 0;
+          const mi = (e.month ?? 1) - 1;
+          if (mi >= 0 && mi < 12 && amt !== 0) {
+            const len = formatCurrency(amt).length;
+            const cur = monthMaxChars[mi][e.scenario] ?? 0;
+            if (len > cur) monthMaxChars[mi][e.scenario] = len;
+            monthGrandSum[mi][e.scenario] = (monthGrandSum[mi][e.scenario] ?? 0) + amt;
+          }
+          let perItem = itemTotalSum.get(e.itemKey);
+          if (!perItem) { perItem = {}; itemTotalSum.set(e.itemKey, perItem); }
+          perItem[e.scenario] = (perItem[e.scenario] ?? 0) + amt;
+        }
+
+        // Fold per-item longest values into global maxes
+        for (const v of itemCommentMax.values()) if (v > commMaxChars) commMaxChars = v;
+        for (const v of itemWbsMax.values()) if (v > wbsMaxChars) wbsMaxChars = v;
+
+        const COL_COMMENTS = Math.round(Math.min(MAX_COMM, Math.max(MIN_COMM, commMaxChars * CHAR_PX + PAD_X)));
+        const COL_WBS      = Math.round(Math.min(MAX_WBS,  Math.max(MIN_WBS,  wbsMaxChars  * CHAR_PX + PAD_X)));
+
+        // Per-scenario TOTAL sub-cols (CompactCurrency: e.g. "$1.2M" ≈ digits+3)
+        const totalSubPx: number[] = enabledScenarios.map((s) => {
+          let chars = (s.label.length + (!s.editable ? 1 : 0)) + 1;
+          let scenarioGrand = 0;
+          for (const perItem of itemTotalSum.values()) {
+            const v = perItem[s.key] ?? 0;
+            if (v !== 0) chars = Math.max(chars, String(Math.round(v)).length + 2);
+            scenarioGrand += v;
+          }
+          if (scenarioGrand !== 0) chars = Math.max(chars, String(Math.round(scenarioGrand)).length + 2);
+          return Math.round(Math.min(MAX_TOTAL_SUB, Math.max(MIN_TOTAL_SUB, chars * CHAR_PX + PAD_X)));
+        });
+
+        // Per-month per-scenario sub-cols
+        const monthSubPx: number[] = [];
+        for (let mi = 0; mi < 12; mi++) {
+          for (const s of enabledScenarios) {
+            let chars = (s.label.length + (!s.editable ? 1 : 0)) + 1;
+            const cellMax = monthMaxChars[mi][s.key] ?? 0;
+            if (cellMax > chars) chars = cellMax;
+            const gtm = monthGrandSum[mi][s.key] ?? 0;
+            if (gtm !== 0) chars = Math.max(chars, formatCurrency(gtm).length);
+            monthSubPx.push(Math.round(Math.min(MAX_MONTH_SUB, Math.max(MIN_MONTH_SUB, chars * CHAR_PX + PAD_X))));
+          }
+        }
+
+        // Ensure the sub-cols for each month are wide enough for the month header label (e.g. "OCT")
+        for (let mi = 0; mi < 12; mi++) {
+          const start = mi * N;
+          const sum = monthSubPx.slice(start, start + N).reduce((a, b) => a + b, 0);
+          const needed = Math.ceil("SEP".length * HDR_CHAR_PX + PAD_X);
+          if (sum < needed) {
+            const extra = Math.ceil((needed - sum) / N);
+            for (let k = 0; k < N; k++) monthSubPx[start + k] += extra;
+          }
+        }
+
+        const totalColsTpl = totalSubPx.map(p => `${p}px`).join(" ");
+        const monthColsTpl = monthSubPx.map(p => `${p}px`).join(" ");
+        const gridTemplate = `${COL_COST}px ${COL_COMMENTS}px ${COL_WBS}px ${totalColsTpl} ${monthColsTpl}`;
+        const minWidthPx =
+          COL_COST + COL_COMMENTS + COL_WBS +
+          totalSubPx.reduce((a, b) => a + b, 0) +
+          monthSubPx.reduce((a, b) => a + b, 0);
 
         // Sticky-left offsets for the first three "frozen" columns
         const stickyL1 = 0;
