@@ -551,7 +551,13 @@ export function registerOrganizationRoutes(app: Express) {
       // Re-stamp isSystem on system entries.
       const finalViews = mergedViews.map(v => ({ ...v, isSystem: sysViewKeys.has(v.key) ? true : (v.isSystem ?? false) }));
       const finalCats = mergedCats.map(c => ({ ...c, isSystem: sysCatKeys.has(c.key) ? true : (c.isSystem ?? false) }));
-      res.json({ views: finalViews, categories: finalCats, specifications: stored.specifications });
+      // If the org has no specifications yet, surface the best-practice
+      // defaults so first-time admins see a usable starter taxonomy.
+      // Existing custom specs are left alone.
+      const finalSpecs = stored.specifications.length > 0
+        ? stored.specifications
+        : DEFAULT_COST_ITEM_CATEGORIES.specifications;
+      res.json({ views: finalViews, categories: finalCats, specifications: finalSpecs });
     } catch (err) {
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get cost item categories' : classified.message });

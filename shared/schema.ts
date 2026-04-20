@@ -308,7 +308,70 @@ export const DEFAULT_COST_ITEM_CATEGORIES: CostItemCategoriesConfig = {
     { key: "cat-equipment", label: "Equipment", viewKey: "capital", enabled: true, order: 1, isSystem: true },
     { key: "cat-labor", label: "Labor", viewKey: "labor", enabled: true, order: 0, isSystem: true },
   ],
-  specifications: [],
+  // Best-practice starter specifications for IT / SaaS project finance.
+  // Marked isSystem:false so admins can rename, disable or delete any
+  // they don't need without restriction.
+  specifications: [
+    // Capital → Project Material
+    { key: "spec-pm-servers-storage", label: "Servers & Storage", categoryKey: "cat-project-material", enabled: true, order: 0, isSystem: false },
+    { key: "spec-pm-network-equipment", label: "Network Equipment", categoryKey: "cat-project-material", enabled: true, order: 1, isSystem: false },
+    { key: "spec-pm-cabling-infrastructure", label: "Cabling & Infrastructure", categoryKey: "cat-project-material", enabled: true, order: 2, isSystem: false },
+    { key: "spec-pm-data-center", label: "Data Center Build-out", categoryKey: "cat-project-material", enabled: true, order: 3, isSystem: false },
+    { key: "spec-pm-software-capitalized", label: "Capitalized Software", categoryKey: "cat-project-material", enabled: true, order: 4, isSystem: false },
+
+    // Capital → Equipment
+    { key: "spec-eq-workstations-laptops", label: "Workstations & Laptops", categoryKey: "cat-equipment", enabled: true, order: 0, isSystem: false },
+    { key: "spec-eq-mobile-devices", label: "Mobile Devices", categoryKey: "cat-equipment", enabled: true, order: 1, isSystem: false },
+    { key: "spec-eq-peripherals", label: "Peripherals & Accessories", categoryKey: "cat-equipment", enabled: true, order: 2, isSystem: false },
+    { key: "spec-eq-furniture-fixtures", label: "Furniture & Fixtures", categoryKey: "cat-equipment", enabled: true, order: 3, isSystem: false },
+    { key: "spec-eq-tools-instruments", label: "Tools & Instruments", categoryKey: "cat-equipment", enabled: true, order: 4, isSystem: false },
+
+    // Direct Expense → Direct Expense
+    { key: "spec-de-cloud-services", label: "Cloud Services (IaaS/PaaS)", categoryKey: "cat-direct-expense", enabled: true, order: 0, isSystem: false },
+    { key: "spec-de-hosting", label: "Hosting & CDN", categoryKey: "cat-direct-expense", enabled: true, order: 1, isSystem: false },
+    { key: "spec-de-telecom", label: "Telecom & Connectivity", categoryKey: "cat-direct-expense", enabled: true, order: 2, isSystem: false },
+    { key: "spec-de-office-supplies", label: "Office Supplies", categoryKey: "cat-direct-expense", enabled: true, order: 3, isSystem: false },
+    { key: "spec-de-shipping", label: "Shipping & Freight", categoryKey: "cat-direct-expense", enabled: true, order: 4, isSystem: false },
+
+    // Direct Expense → Licenses
+    { key: "spec-lic-software-perpetual", label: "Software Licenses (Perpetual)", categoryKey: "cat-licenses", enabled: true, order: 0, isSystem: false },
+    { key: "spec-lic-saas-subscriptions", label: "SaaS Subscriptions", categoryKey: "cat-licenses", enabled: true, order: 1, isSystem: false },
+    { key: "spec-lic-database", label: "Database Licenses", categoryKey: "cat-licenses", enabled: true, order: 2, isSystem: false },
+    { key: "spec-lic-dev-tools", label: "Developer Tools", categoryKey: "cat-licenses", enabled: true, order: 3, isSystem: false },
+    { key: "spec-lic-security", label: "Security & Compliance Tools", categoryKey: "cat-licenses", enabled: true, order: 4, isSystem: false },
+    { key: "spec-lic-maintenance-support", label: "Maintenance & Support", categoryKey: "cat-licenses", enabled: true, order: 5, isSystem: false },
+
+    // Direct Expense → Outside Services
+    { key: "spec-os-consulting", label: "Consulting", categoryKey: "cat-outside-services", enabled: true, order: 0, isSystem: false },
+    { key: "spec-os-contractors", label: "Contractors / Staff Aug", categoryKey: "cat-outside-services", enabled: true, order: 1, isSystem: false },
+    { key: "spec-os-managed-services", label: "Managed Services", categoryKey: "cat-outside-services", enabled: true, order: 2, isSystem: false },
+    { key: "spec-os-professional-services", label: "Vendor Professional Services", categoryKey: "cat-outside-services", enabled: true, order: 3, isSystem: false },
+    { key: "spec-os-training", label: "Training & Certification", categoryKey: "cat-outside-services", enabled: true, order: 4, isSystem: false },
+    { key: "spec-os-legal-audit", label: "Legal & Audit", categoryKey: "cat-outside-services", enabled: true, order: 5, isSystem: false },
+
+    // Direct Expense → Travel/Meals
+    { key: "spec-tm-airfare", label: "Airfare", categoryKey: "cat-travel-meals", enabled: true, order: 0, isSystem: false },
+    { key: "spec-tm-lodging", label: "Lodging", categoryKey: "cat-travel-meals", enabled: true, order: 1, isSystem: false },
+    { key: "spec-tm-ground-transport", label: "Ground Transportation", categoryKey: "cat-travel-meals", enabled: true, order: 2, isSystem: false },
+    { key: "spec-tm-meals", label: "Meals", categoryKey: "cat-travel-meals", enabled: true, order: 3, isSystem: false },
+    { key: "spec-tm-conferences-events", label: "Conferences & Events", categoryKey: "cat-travel-meals", enabled: true, order: 4, isSystem: false },
+    { key: "spec-tm-mileage", label: "Mileage & Per Diem", categoryKey: "cat-travel-meals", enabled: true, order: 5, isSystem: false },
+
+    // Direct Expense → Other
+    { key: "spec-ot-contingency", label: "Contingency Reserve", categoryKey: "cat-other", enabled: true, order: 0, isSystem: false },
+    { key: "spec-ot-management-reserve", label: "Management Reserve", categoryKey: "cat-other", enabled: true, order: 1, isSystem: false },
+    { key: "spec-ot-misc", label: "Miscellaneous", categoryKey: "cat-other", enabled: true, order: 2, isSystem: false },
+
+    // Labor → Labor
+    { key: "spec-lb-internal-engineering", label: "Internal — Engineering", categoryKey: "cat-labor", enabled: true, order: 0, isSystem: false },
+    { key: "spec-lb-internal-pm", label: "Internal — Project Management", categoryKey: "cat-labor", enabled: true, order: 1, isSystem: false },
+    { key: "spec-lb-internal-design", label: "Internal — Design / UX", categoryKey: "cat-labor", enabled: true, order: 2, isSystem: false },
+    { key: "spec-lb-internal-qa", label: "Internal — QA / Test", categoryKey: "cat-labor", enabled: true, order: 3, isSystem: false },
+    { key: "spec-lb-internal-ops", label: "Internal — Operations / DevOps", categoryKey: "cat-labor", enabled: true, order: 4, isSystem: false },
+    { key: "spec-lb-contract-onshore", label: "Contract Labor — Onshore", categoryKey: "cat-labor", enabled: true, order: 5, isSystem: false },
+    { key: "spec-lb-contract-offshore", label: "Contract Labor — Offshore", categoryKey: "cat-labor", enabled: true, order: 6, isSystem: false },
+    { key: "spec-lb-overtime", label: "Overtime / Premium Time", categoryKey: "cat-labor", enabled: true, order: 7, isSystem: false },
+  ],
 };
 
 export const DEFAULT_RISK_ASSESSMENT_CONFIG: RiskAssessmentConfig = {
