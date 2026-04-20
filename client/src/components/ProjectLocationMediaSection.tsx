@@ -5,6 +5,16 @@ import { Button } from "@/components/ui/button";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { Loader2, MapPin, Upload, X, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+
+function RecenterMap({ lat, lng }: { lat: number; lng: number }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView([lat, lng], Math.max(map.getZoom(), 15), { animate: true });
+  }, [lat, lng, map]);
+  return null;
+}
 
 interface AddressSuggestion {
   displayName: string;
@@ -293,6 +303,39 @@ export function ProjectLocationMediaSection({
           ) : null}
         </p>
       </div>
+
+      {(() => {
+        const lat = latitude != null && latitude !== "" ? Number(latitude) : NaN;
+        const lng = longitude != null && longitude !== "" ? Number(longitude) : NaN;
+        const hasPin = Number.isFinite(lat) && Number.isFinite(lng);
+        return (
+          <div className="rounded-md border overflow-hidden bg-muted/30" style={{ height: 220 }} data-testid="location-map-preview">
+            {hasPin ? (
+              <MapContainer
+                center={[lat, lng]}
+                zoom={15}
+                scrollWheelZoom={false}
+                style={{ height: "100%", width: "100%" }}
+                attributionControl={false}
+              >
+                <TileLayer
+                  url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                  subdomains={["a", "b", "c", "d"]}
+                  maxZoom={19}
+                />
+                <Marker position={[lat, lng]} />
+                <RecenterMap lat={lat} lng={lng} />
+              </MapContainer>
+            ) : (
+              <div className="h-full w-full flex flex-col items-center justify-center text-xs text-muted-foreground gap-1">
+                <MapPin className="h-5 w-5" />
+                <span>No location pinned yet</span>
+                <span className="text-[10px]">Pick an address suggestion to see it on the map.</span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
