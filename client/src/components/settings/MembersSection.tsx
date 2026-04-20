@@ -12,7 +12,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserPlus, Trash2, Users, ShieldAlert, X, Check, Building2, Mail, Clock, RefreshCw, ArrowUpCircle } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Users, ShieldAlert, X, Check, Building2, Mail, Clock, RefreshCw, ArrowUpCircle, KeyRound } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import type { OrganizationMember, User } from "@shared/schema";
@@ -63,6 +73,7 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
   const [inviteRole, setInviteRole] = useState<string>("member");
   const [inviteResult, setInviteResult] = useState<{ success: string[]; skipped: string[]; errors: string[] } | null>(null);
   const [removeMemberId, setRemoveMemberId] = useState<string | null>(null);
+  const [resetPasswordMember, setResetPasswordMember] = useState<EnrichedMember | null>(null);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [upgradeMessage, setUpgradeMessage] = useState<string>("");
 
@@ -255,6 +266,23 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
     }
   });
 
+  const sendPasswordReset = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await apiRequest('POST', `/api/organizations/${organizationId}/members/${userId}/send-password-reset`);
+      return res.json() as Promise<{ message: string; emailSent: boolean }>;
+    },
+    onSuccess: (result) => {
+      toast({
+        title: result.emailSent ? "Reset link sent" : "Reset link generated",
+        description: result.message,
+      });
+      setResetPasswordMember(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to send reset link", variant: "destructive" });
+    },
+  });
+
   const removeMember = useMutation({
     mutationFn: async (userId: string) => {
       return apiRequest('DELETE', `/api/organizations/${organizationId}/members/${userId}`);
@@ -296,6 +324,13 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
   });
 
   const existingMemberIds = members.map(m => m.userId);
+
+  const currentMembership = members.find(m => m.userId === currentUser?.id);
+  const isCurrentUserOrgAdmin =
+    currentMembership?.role === 'owner' ||
+    currentMembership?.role === 'org_admin' ||
+    currentUser?.role === 'super_admin' ||
+    currentUser?.role === 'marketing';
   
   const currentUserDomain = currentUser?.email ? getEmailDomain(currentUser.email) : null;
   const isCurrentUserCorporate = currentUserDomain && !isPublicEmailDomain(currentUserDomain);
@@ -415,14 +450,29 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
                   {member.createdAt ? format(new Date(member.createdAt), 'MMM d, yyyy') : 'N/A'}
                 </TableCell>
                 <TableCell>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={() => setRemoveMemberId(member.userId)}
-                    data-testid={`button-remove-member-${member.id}`}
-                  >
-                    <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" />
-                  </Button>
+                  <div className="flex gap-1">
+                    {isCurrentUserOrgAdmin && member.userId !== currentUser?.id && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setResetPasswordMember(member)}
+                        title={member.user?.email ? "Send password reset email" : "No email on file"}
+                        disabled={!member.user?.email}
+                        data-testid={`button-reset-password-${member.id}`}
+                      >
+                        <KeyRound className="h-4 w-4 text-slate-400 hover:text-blue-500" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setRemoveMemberId(member.userId)}
+                      title="Remove from organization"
+                      data-testid={`button-remove-member-${member.id}`}
+                    >
+                      <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -697,6 +747,52 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={resetPasswordMember !== null} onOpenChange={(open) => !open && setResetPasswordMember(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-blue-500" />
+              Send password reset
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span className="block">
+                We'll email a one-time reset link to{" "}
+                <span className="font-medium text-foreground">
+                  {resetPasswordMember?.user?.email || 'this member'}
+                </span>
+                . The link expires in 1 hour and any previous reset links for this account will be invalidated.
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                Use this if the member is locked out, forgot their password, or needs to set one for the first time.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={sendPasswordReset.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (resetPasswordMember) sendPasswordReset.mutate(resetPasswordMember.userId);
+              }}
+              disabled={sendPasswordReset.isPending}
+              data-testid="button-confirm-send-reset"
+            >
+              {sendPasswordReset.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Mail className="h-4 w-4 mr-2" />
+                  Send reset link
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={removeMemberId !== null} onOpenChange={() => setRemoveMemberId(null)}>
         <DialogContent>

@@ -1141,6 +1141,95 @@ export function registerOrgMemberRoutes(app: Express) {
     }
   });
 
+  // --- Admin: Send password reset to a member ---
+  apiRoute(app, 'post', '/api/organizations/:id/members/:userId/send-password-reset', {
+    tag: 'Organization Members',
+    summary: 'Send a password reset email to a member (admin action)',
+    parameters: [pathId(), pathStr('userId')],
+    responses: { ...r200('Password reset email queued', { type: 'object', properties: { message: { type: 'string' }, emailSent: { type: 'boolean' } } }), ...idRes },
+  }, async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const targetUserId = req.params.userId;
+      const currentUserId = getUserIdFromRequest(req);
+
+      if (!currentUserId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      if (!await userHasOrgAccess(currentUserId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      // Permission: org owner / org_admin / super-admin only
+      const members = await storage.getOrganizationMembers(orgId);
+      const requesterMembership = members.find(m => m.userId === currentUserId);
+      const isOrgAdmin = requesterMembership && (requesterMembership.role === 'owner' || requesterMembership.role === 'org_admin');
+
+      if (!isOrgAdmin) {
+        const [currentUser] = await db.select().from(users).where(eq(users.id, currentUserId));
+        if (!hasAdminAccess(currentUser)) {
+          return res.status(403).json({ message: 'Only organization owners and admins can send password resets' });
+        }
+      }
+
+      // Target must actually be a member of this org
+      const targetMembership = members.find(m => m.userId === targetUserId);
+      if (!targetMembership) {
+        return res.status(404).json({ message: 'Member not found in this organization' });
+      }
+
+      const [targetUser] = await db.select().from(users).where(eq(users.id, targetUserId)).limit(1);
+      if (!targetUser || !targetUser.email) {
+        return res.status(404).json({ message: 'User not found or has no email on file' });
+      }
+
+      // Block sending resets to SSO-only accounts that have no password and never will
+      // (still allow it — they can use the link to set an initial password)
+
+      const { passwordResetTokens } = await import('@shared/schema');
+      const crypto = await import('crypto');
+      const { sendPasswordResetEmail } = await import('../services/email');
+
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      // Atomically invalidate prior tokens and issue the new one so concurrent
+      // admin requests can't end up with multiple valid links.
+      await db.transaction(async (tx) => {
+        await tx.update(passwordResetTokens)
+          .set({ usedAt: new Date() })
+          .where(eq(passwordResetTokens.userId, targetUser.id));
+
+        await tx.insert(passwordResetTokens).values({
+          userId: targetUser.id,
+          token,
+          expiresAt,
+        });
+      });
+
+      const appUrl = process.env.APP_URL || 'https://fridayreport.ai';
+      const resetUrl = `${appUrl}/reset-password?token=${token}`;
+      const emailSent = await sendPasswordResetEmail(targetUser.email, resetUrl);
+
+      if (!emailSent) {
+        // Never log the reset URL/token — it is credential-equivalent.
+        console.log(`[admin-reset] Password reset email could not be sent for user ${targetUser.id} in org ${orgId} (email service unavailable).`);
+      }
+
+      res.json({
+        message: emailSent
+          ? `A password reset link has been emailed to ${targetUser.email}.`
+          : `Reset link generated, but email delivery is currently unavailable. Please configure the email service or share the link via a secure channel.`,
+        emailSent,
+      });
+    } catch (err) {
+      console.error('Admin send-password-reset error:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to send password reset' : classified.message });
+    }
+  });
+
   // --- Organization Seat Info ---
   apiRoute(app, 'get', '/api/organizations/:id/seats', {
     tag: 'Organization Members',
