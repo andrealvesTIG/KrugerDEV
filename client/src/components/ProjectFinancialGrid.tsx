@@ -1695,14 +1695,15 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                                       }
                                     }}
                                     // Overlay the input so it can grow LEFT past
-                                    // its narrow column as the user types more
-                                    // digits. Width tracks editValue.length with a
-                                    // comfortable minimum (readable when empty) and
-                                    // a max so it never dominates the viewport.
+                                    // its narrow column as the user types. Width
+                                    // tracks editValue.length exactly (plus a bit
+                                    // of padding) so we never cover more cells
+                                    // than needed. Clamped to a readable minimum
+                                    // and a sensible maximum.
                                     style={{
-                                      width: `max(100%, ${Math.min(40, Math.max(8, editValue.length + 3))}ch)`,
+                                      width: `${Math.min(40, Math.max(6, editValue.length + 2))}ch`,
                                     }}
-                                    className="absolute right-0.5 top-0.5 bottom-0.5 h-6 text-[11px] text-right p-0.5 tabular-nums ring-2 ring-primary/40 bg-background shadow-md z-20 transition-[width] duration-75"
+                                    className="!absolute right-0.5 top-0.5 bottom-0.5 h-6 text-[11px] text-right px-1 py-0 tabular-nums border border-primary ring-2 ring-primary/40 !bg-card shadow-lg z-30 transition-[width] duration-75"
                                     data-testid={`input-${s.key}-m${m.num}-${row.itemKey}`}
                                   />
                                 ) : (
