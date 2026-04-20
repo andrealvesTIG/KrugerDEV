@@ -1,14 +1,57 @@
 import { db } from "../db";
-import { projects, portfolios, issues, tasks, taskDependencies, resources, statusReportHistory, healthStatusHistory, organizationMembers, taskResourceAssignments } from "@shared/schema";
+import { projects, portfolios, issues, tasks, taskDependencies, resources, statusReportHistory, healthStatusHistory, organizationMembers, taskResourceAssignments, projectChangeLogs, users, organizations } from "@shared/schema";
+import type { FridayAgentConfig } from "@shared/schema";
 import { eq, and, sql, inArray, isNull, desc } from "drizzle-orm";
-import OpenAI from "openai";
+import OpenAI, { AzureOpenAI } from "openai";
+import { decryptApiKey } from "../routes/helpers";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+function createOpenAIClient(): OpenAI {
+  if (process.env.AZURE_OPENAI_API_KEY && process.env.AZURE_OPENAI_ENDPOINT) {
+    return new AzureOpenAI({
+      apiKey: process.env.AZURE_OPENAI_API_KEY,
+      endpoint: process.env.AZURE_OPENAI_ENDPOINT,
+      apiVersion: process.env.AZURE_OPENAI_API_VERSION || "2024-12-01-preview",
+    });
+  }
+  if (process.env.OPENAI_API_KEY) {
+    return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return new OpenAI({
+    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+  });
+}
 
-const SYSTEM_PROMPT = `You are Friday Agent, an AI portfolio and project management agent embedded in this application. Your name is "Friday Agent" or simply "Friday" — never refer to yourself as "JARVIS" or any other name. You help users understand project health, risks, issues, mitigations, tasks, dependencies, and priorities using real application data. You do not invent facts. You clearly separate observations, risks, and recommendations. You speak in natural, professional language. When suggesting updates or actions, you require confirmation before any write operation.
+const defaultOpenai = createOpenAIClient();
+const DEFAULT_AZURE_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4.1";
+const defaultIsAzure = !!(process.env.AZURE_OPENAI_API_KEY && process.env.AZURE_OPENAI_ENDPOINT);
+
+async function getOrgOpenAIClient(orgId: number): Promise<{ client: OpenAI; deployment: string; isAzure: boolean }> {
+  try {
+    const [org] = await db.select({ fridayAgentConfig: organizations.fridayAgentConfig })
+      .from(organizations).where(eq(organizations.id, orgId));
+    const config = org?.fridayAgentConfig as FridayAgentConfig | null;
+    if (config?.useOrgAzure && config.azureEndpoint && config.azureApiKey) {
+      const apiKey = decryptApiKey(config.azureApiKey);
+      return {
+        client: new AzureOpenAI({
+          apiKey,
+          endpoint: config.azureEndpoint,
+          apiVersion: config.azureApiVersion || "2024-12-01-preview",
+        }),
+        deployment: config.azureDeployment || DEFAULT_AZURE_DEPLOYMENT,
+        isAzure: true,
+      };
+    }
+  } catch (err) {
+    console.error(`[jarvis] Failed to load org ${orgId} Friday Agent config, using defaults:`, err);
+  }
+  return { client: defaultOpenai, deployment: DEFAULT_AZURE_DEPLOYMENT, isAzure: defaultIsAzure };
+}
+
+const SYSTEM_PROMPT = `You are Friday Report, a warm, professional AI assistant for portfolio and project management. Your name is "Friday Report" or simply "Friday." Always introduce yourself politely when starting a new conversation — for example: "Hello! I'm Friday Report, your project management assistant. How can I help you today?" Be courteous, helpful, and encouraging in every response. Use a conversational yet professional tone — as if speaking to a valued colleague. Say "please," "thank you," and "you're welcome" naturally. When delivering difficult news (red health, overdue tasks, risks), be empathetic and solution-oriented rather than blunt.
+
+You help users understand project health, risks, issues, mitigations, tasks, dependencies, and priorities using real application data. You do not invent facts. You clearly separate observations, risks, and recommendations. When suggesting updates or actions, you require confirmation before any write operation.
 
 Guidelines:
 - When referencing projects, use their names and codes.
@@ -982,6 +1025,72 @@ function buildAttachmentContext(attachments?: FileAttachment[]): string {
   return ctx;
 }
 
+interface JarvisEnrichedError extends Error {
+  originalError?: unknown;
+  logDetails?: string;
+}
+
+function isTransientOpenAIError(err: any): boolean {
+  const status = err?.status || err?.response?.status;
+  if (status === 429 || (status >= 500 && status < 600)) return true;
+  if (err?.code === "ETIMEDOUT" || err?.code === "ECONNRESET" || err?.code === "ECONNABORTED") return true;
+  if (err?.type === "connection_error" || err?.type === "timeout") return true;
+  return false;
+}
+
+function classifyOpenAIError(err: any): { userMessage: string; logDetails: string } {
+  const status = err?.status || err?.response?.status;
+  const message = err?.message || "Unknown error";
+  const type = err?.type || err?.constructor?.name || "UnknownError";
+  const code = err?.code || "none";
+  const logDetails = `type=${type} status=${status || "N/A"} code=${code} message=${message}`;
+
+  if (status === 429) {
+    return { userMessage: "AI service is busy, please try again in a moment.", logDetails };
+  }
+  if (status === 404) {
+    return { userMessage: "AI model deployment not found. Please check your Azure OpenAI endpoint URL (should be just https://your-resource.openai.azure.com without /openai/v1) and deployment name in Organization Settings → Friday Agent.", logDetails };
+  }
+  if (status === 401 || status === 403) {
+    return { userMessage: "AI service authentication failed. Please check your Azure OpenAI API key in Organization Settings → Friday Agent.", logDetails };
+  }
+  if (status >= 500 && status < 600) {
+    return { userMessage: "AI service is temporarily unavailable. Please try again shortly.", logDetails };
+  }
+  if (code === "ETIMEDOUT" || code === "ECONNABORTED" || err?.type === "timeout") {
+    return { userMessage: "Request timed out. Please try again.", logDetails };
+  }
+  if (code === "ECONNRESET" || code === "ECONNREFUSED" || err?.type === "connection_error") {
+    return { userMessage: "Could not connect to AI service. Please try again.", logDetails };
+  }
+  return { userMessage: "An unexpected error occurred. Please try again.", logDetails };
+}
+
+async function callOpenAIWithRetry(
+  createFn: () => Promise<any>,
+  label: string,
+): Promise<any> {
+  try {
+    return await createFn();
+  } catch (err: any) {
+    const { logDetails } = classifyOpenAIError(err);
+    if (isTransientOpenAIError(err)) {
+      let retryDelay = err?.status === 429 ? 2000 : 1000;
+      const retryAfter = err?.headers?.["retry-after"] || err?.response?.headers?.["retry-after"];
+      if (retryAfter) {
+        const parsed = Number(retryAfter);
+        if (!isNaN(parsed) && parsed > 0 && parsed <= 10) {
+          retryDelay = parsed * 1000;
+        }
+      }
+      console.warn(`[JARVIS] Transient error on ${label}, retrying in ${retryDelay}ms: ${logDetails}`);
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
+      return await createFn();
+    }
+    throw err;
+  }
+}
+
 export async function streamJarvisResponse(
   orgId: number,
   messages: JarvisMessage[],
@@ -1040,18 +1149,23 @@ CSV FILE IMPORT RULES:
       })),
     ];
 
+    const { client: orgOpenai, deployment: orgDeployment, isAzure: orgIsAzure } = await getOrgOpenAIClient(orgId);
+
     let fullResponse = "";
     const MAX_TOOL_ROUNDS = 5;
 
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-      const stream = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: apiMessages,
-        stream: true,
-        max_completion_tokens: concise ? 4096 : 8192,
-        temperature: 0.3,
-        tools: jarvisTools,
-      });
+      const stream = await callOpenAIWithRetry(
+        () => orgOpenai.chat.completions.create({
+          model: orgIsAzure ? orgDeployment : "gpt-4o",
+          messages: apiMessages,
+          stream: true,
+          max_completion_tokens: concise ? 4096 : 8192,
+          temperature: 0.3,
+          tools: jarvisTools,
+        }),
+        `stream round ${round}`,
+      );
 
       let currentToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
       let hasToolCalls = false;
@@ -1123,7 +1237,13 @@ CSV FILE IMPORT RULES:
 
     onDone(fullResponse);
   } catch (err: any) {
-    onError(err);
+    const { userMessage, logDetails } = classifyOpenAIError(err);
+    console.error(`[JARVIS] Stream error: ${logDetails}`, err?.stack || err);
+    const enrichedError: JarvisEnrichedError = Object.assign(new Error(userMessage), {
+      originalError: err,
+      logDetails,
+    });
+    onError(enrichedError);
   }
 }
 
@@ -1208,7 +1328,7 @@ export async function executeJarvisAction(
     case "flag_for_review": {
       await db.update(projects).set({
         health: "Red",
-        healthReason: (action.data.reason || "Flagged for review by Friday Agent").slice(0, 1000),
+        healthReason: (action.data.reason || "Flagged for review by Friday Report").slice(0, 1000),
         healthReasonUpdatedAt: new Date(),
         updatedAt: new Date(),
       }).where(and(eq(projects.id, action.projectId), eq(projects.organizationId, orgId)));

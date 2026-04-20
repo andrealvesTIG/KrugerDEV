@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -449,7 +450,7 @@ export default function FiltersPanel({ filters, onChange, projects, portfolios, 
               <div>Portfolio: {getPortfolioName()}</div>
               <div>Project: {getProjectName()}</div>
               <div>Projection: +{timeProjectionMonths % 1 === 0 ? timeProjectionMonths : timeProjectionMonths.toFixed(1)} months</div>
-              {reportStats && <div>Signals: {reportStats.total} | Cost: {new Intl.NumberFormat("en", { notation: "compact", style: "currency", currency: "USD" }).format(reportStats.costTotal)}</div>}
+              {reportStats && <div>Signals: {reportStats.total} | Cost: <CompactCurrency value={reportStats.costTotal} /></div>}
             </div>
             <div className="flex gap-1.5 justify-end">
               <Button
@@ -504,7 +505,7 @@ export default function FiltersPanel({ filters, onChange, projects, portfolios, 
                         <div className={`text-[9px] flex gap-x-2 ${subText}`}>
                           <span>{s.summary.totalSignals} signals</span>
                           <span className="text-red-400">{s.summary.highCount} high</span>
-                          {s.summary.costExposure > 0 && <span>{new Intl.NumberFormat("en", { notation: "compact", style: "currency", currency: "USD" }).format(s.summary.costExposure)}</span>}
+                          {s.summary.costExposure > 0 && <span><CompactCurrency value={s.summary.costExposure} /></span>}
                         </div>
                       </div>
                       <div className="shrink-0">

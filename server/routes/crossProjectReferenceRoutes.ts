@@ -14,7 +14,10 @@ import {
   userHasOrgAccess,
   classifyError,
   formatZodErrors,
+  isTeamMemberInOrg,
+  getTeamMemberProjectIds,
 } from "./helpers";
+import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, inputRes, authRes, fullRes, createRes } from "../route-registry";
 
 const createRefSchema = z.object({
   organizationId: z.number(),
@@ -50,7 +53,15 @@ const createRefSchema = z.object({
 }, { message: "Cross-project task references must link tasks from different projects" });
 
 export function registerCrossProjectReferenceRoutes(app: Express) {
-  app.get("/api/cross-project-references", async (req, res) => {
+  apiRoute(app, 'get', '/api/cross-project-references', {
+    tag: 'Projects',
+    summary: 'Get cross-project references for an entity',
+    parameters: [
+      { name: 'entityType', in: 'query', required: true, schema: { type: 'string', enum: ['task', 'project'] } },
+      { name: 'entityId', in: 'query', required: true, schema: { type: 'integer' } },
+    ],
+    responses: { ...r200('List of references', arrOf('Project')), ...inputRes, ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -67,7 +78,14 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
       const orgChecked = await Promise.all(
         refs.map(async (ref) => {
           const hasAccess = await userHasOrgAccess(userId, ref.organizationId);
-          return hasAccess ? ref : null;
+          if (!hasAccess) return null;
+          if (await isTeamMemberInOrg(userId, ref.organizationId)) {
+            const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, ref.organizationId));
+            if (!allowedProjectIds.has(ref.sourceProjectId) || !allowedProjectIds.has(ref.targetProjectId)) {
+              return null;
+            }
+          }
+          return ref;
         })
       );
 
@@ -78,7 +96,12 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
     }
   });
 
-  app.get("/api/cross-project-references/by-project/:projectId", async (req, res) => {
+  apiRoute(app, 'get', '/api/cross-project-references/by-project/:projectId', {
+    tag: 'Projects',
+    summary: 'Get all cross-project references for a project',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Project references', arrOf('Project')), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -91,7 +114,18 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
         return res.status(403).json({ message: "Access denied" });
       }
 
-      const refs = await getCrossProjectReferencesByProject(projectId);
+      if (await isTeamMemberInOrg(userId, project.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, project.organizationId));
+        if (!allowedProjectIds.has(projectId)) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      let refs = await getCrossProjectReferencesByProject(projectId);
+      if (await isTeamMemberInOrg(userId, project.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, project.organizationId));
+        refs = refs.filter(ref => allowedProjectIds.has(ref.sourceProjectId) && allowedProjectIds.has(ref.targetProjectId));
+      }
       res.json(refs);
     } catch (err) {
       const classified = classifyError(err);
@@ -99,7 +133,27 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
     }
   });
 
-  app.post("/api/cross-project-references", async (req, res) => {
+  apiRoute(app, 'post', '/api/cross-project-references', {
+    tag: 'Projects',
+    summary: 'Create a cross-project reference',
+    requestBody: body({
+      type: 'object',
+      properties: {
+        organizationId: { type: 'integer' },
+        referenceType: { type: 'string', enum: ['task_to_task', 'project_to_project'] },
+        sourceType: { type: 'string', enum: ['task', 'project'] },
+        sourceId: { type: 'integer' },
+        sourceProjectId: { type: 'integer' },
+        targetType: { type: 'string', enum: ['task', 'project'] },
+        targetId: { type: 'integer' },
+        targetProjectId: { type: 'integer' },
+        relationshipType: { type: 'string', enum: ['blocks', 'is_blocked_by', 'relates_to', 'duplicates', 'depends_on', 'is_dependency_of'] },
+        notes: { type: 'string', nullable: true },
+      },
+      required: ['organizationId', 'referenceType', 'sourceType', 'sourceId', 'sourceProjectId', 'targetType', 'targetId', 'targetProjectId', 'relationshipType'],
+    }),
+    responses: { ...r201('Reference created', ref('Project')), ...createRes, '409': { description: 'Reference already exists' } },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -108,6 +162,13 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
 
       if (!await userHasOrgAccess(userId, input.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
+      }
+
+      if (await isTeamMemberInOrg(userId, input.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, input.organizationId));
+        if (!allowedProjectIds.has(input.sourceProjectId) || !allowedProjectIds.has(input.targetProjectId)) {
+          return res.status(403).json({ message: "Access denied" });
+        }
       }
 
       const sourceProject = await storage.getProject(input.sourceProjectId);
@@ -170,7 +231,12 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
     }
   });
 
-  app.delete("/api/cross-project-references/:id", async (req, res) => {
+  apiRoute(app, 'delete', '/api/cross-project-references/:id', {
+    tag: 'Projects',
+    summary: 'Delete a cross-project reference',
+    parameters: [pathId()],
+    responses: { ...r204('Reference deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -181,6 +247,13 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
 
       if (!await userHasOrgAccess(userId, ref.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
+      }
+
+      if (await isTeamMemberInOrg(userId, ref.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, ref.organizationId));
+        if (!allowedProjectIds.has(ref.sourceProjectId) || !allowedProjectIds.has(ref.targetProjectId)) {
+          return res.status(403).json({ message: "Access denied" });
+        }
       }
 
       if (ref.createdBy && ref.createdBy !== userId) {
@@ -199,7 +272,12 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
     }
   });
 
-  app.get("/api/projects/:projectId/tasks-for-reference", async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/tasks-for-reference', {
+    tag: 'Projects',
+    summary: 'Get tasks available for cross-project referencing',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Task list', arrOf('Project')), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -210,6 +288,13 @@ export function registerCrossProjectReferenceRoutes(app: Express) {
 
       if (!await userHasOrgAccess(userId, project.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
+      }
+
+      if (await isTeamMemberInOrg(userId, project.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, project.organizationId));
+        if (!allowedProjectIds.has(projectId)) {
+          return res.status(403).json({ message: "Access denied" });
+        }
       }
 
       const projectTasks = await storage.getTasks(projectId);

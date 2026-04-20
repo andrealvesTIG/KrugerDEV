@@ -12,6 +12,8 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, TrendingUp, FileSpreadsheet } from "lucide-react";
 import type { CostItem } from "@shared/schema";
+import { formatCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 
 interface ProjectFinancialGridProps {
   projectId: number;
@@ -86,16 +88,6 @@ function flattenTree(nodes: CostItemNode[], expanded: Set<number>): CostItemNode
   return result;
 }
 
-function formatCurrency(value: string | number | null | undefined): string {
-  const num = parseFloat(String(value || 0));
-  if (isNaN(num)) return "$0";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(num);
-}
 
 function getMonthValue(item: CostItem, month: string, viewMode: ViewMode): number {
   if (viewMode === "aop") {
@@ -505,7 +497,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                   )}
 
                   <div className="p-2 text-center font-medium text-sm">
-                    {formatCurrency(getTotalValue(item, viewMode))}
+                    <CompactCurrency value={getTotalValue(item, viewMode)} />
                   </div>
 
                   <div className="p-1 flex items-center gap-0.5">
@@ -543,7 +535,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                 {MONTHS.map((m) => (
                   <div key={m.key} className="p-2"></div>
                 ))}
-                <div className="p-2 text-center">{formatCurrency(grandTotal)}</div>
+                <div className="p-2 text-center"><CompactCurrency value={grandTotal} /></div>
                 <div className="p-2"></div>
               </div>
             )}

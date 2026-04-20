@@ -22,10 +22,16 @@ import {
 } from "./helpers";
 import { createTaskAssignmentNotification, createRiskAssignmentNotification, createTaskFieldChangeNotification } from "../services/notificationEngine";
 import { addWorkingDays, ensureWorkingDay, calculateEndDate, calculateDuration, nextWorkingDay, formatDateStr, workingDaysBetweenExclusive } from "../lib/workingDays";
+import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404, p } from "../route-registry";
 
 export function registerProjectItemRoutes(app: Express) {
   // --- Risks ---
-  app.get(api.risks.list.path, async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/risks', {
+    tag: 'Risks',
+    summary: 'List risks for a project',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Project risks', arrOf('Risk')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -43,7 +49,12 @@ export function registerProjectItemRoutes(app: Express) {
     }
   });
 
-  app.post(api.risks.create.path, async (req, res) => {
+  apiRoute(app, 'post', '/api/risks', {
+    tag: 'Risks',
+    summary: 'Create a new risk',
+    requestBody: body(ref('RiskRequest')),
+    responses: { ...r201('Risk created', ref('Risk')), ...inputRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       
@@ -91,7 +102,13 @@ export function registerProjectItemRoutes(app: Express) {
     }
   });
 
-  app.put(api.risks.update.path, async (req, res) => {
+  apiRoute(app, 'put', '/api/risks/:id', {
+    tag: 'Risks',
+    summary: 'Update risk',
+    parameters: [pathId()],
+    requestBody: body(ref('RiskRequest'), false),
+    responses: { ...r200('Risk updated', ref('Risk')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -140,7 +157,12 @@ export function registerProjectItemRoutes(app: Express) {
     }
   });
 
-  app.delete(api.risks.delete.path, async (req, res) => {
+  apiRoute(app, 'delete', '/api/risks/:id', {
+    tag: 'Risks',
+    summary: 'Delete risk',
+    parameters: [pathId()],
+    responses: { ...r204('Risk deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -160,7 +182,12 @@ export function registerProjectItemRoutes(app: Express) {
   });
 
   // Risk History
-  app.get(api.risks.getHistory.path, async (req, res) => {
+  apiRoute(app, 'get', '/api/risks/:id/history', {
+    tag: 'Risks',
+    summary: 'Get risk change history',
+    parameters: [pathId()],
+    responses: { ...r200('Risk history', { type: 'array', items: { type: 'object' } }), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -177,7 +204,12 @@ export function registerProjectItemRoutes(app: Express) {
   });
 
   // Convert Risk to Issue
-  app.post('/api/risks/:id/convert-to-issue', async (req, res) => {
+  apiRoute(app, 'post', '/api/risks/:id/convert-to-issue', {
+    tag: 'Risks',
+    summary: 'Convert risk to issue',
+    parameters: [pathId()],
+    responses: { ...r200('Risk converted to issue', { type: 'object' }), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -215,7 +247,12 @@ export function registerProjectItemRoutes(app: Express) {
   });
 
   // AI-powered Risk Mitigation Suggestions
-  app.post('/api/risks/ai-mitigation', async (req, res) => {
+  apiRoute(app, 'post', '/api/risks/ai-mitigation', {
+    tag: 'Risks',
+    summary: 'Get AI-powered risk mitigation suggestions',
+    requestBody: body({ type: 'object', properties: { title: { type: 'string' }, description: { type: 'string' }, probability: { type: 'string' }, impact: { type: 'string' }, projectContext: { type: 'string' }, organizationId: { type: 'integer' } } }),
+    responses: { ...r200('Mitigation suggestions', ref('Risk')), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -282,7 +319,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   // --- Milestones ---
-  app.get(api.milestones.list.path, async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/milestones', {
+    tag: 'Milestones',
+    summary: 'List milestones for a project',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Project milestones', arrOf('Milestone')), ...idRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const projectId = Number(req.params.projectId);
@@ -295,7 +337,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     res.json(milestones);
   });
 
-  app.get(api.milestones.listAll.path, async (req, res) => {
+  apiRoute(app, 'get', '/api/milestones', {
+    tag: 'Milestones',
+    summary: 'List all milestones',
+    parameters: [qInt('organizationId', false)],
+    responses: { ...r200('All milestones', arrOf('Milestone')), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     
     if (!await userHasAnyOrgAccess(userId)) {
@@ -331,7 +378,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     res.json(filteredMilestones);
   });
 
-  app.post(api.milestones.create.path, async (req, res) => {
+  apiRoute(app, 'post', '/api/milestones', {
+    tag: 'Milestones',
+    summary: 'Create a new milestone',
+    requestBody: body(ref('MilestoneRequest')),
+    responses: { ...r201('Milestone created', ref('Milestone')), ...inputRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -354,7 +406,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
-  app.put(api.milestones.update.path, async (req, res) => {
+  apiRoute(app, 'put', '/api/milestones/:id', {
+    tag: 'Milestones',
+    summary: 'Update milestone',
+    parameters: [pathId()],
+    requestBody: body(ref('MilestoneRequest'), false),
+    responses: { ...r200('Milestone updated', ref('Milestone')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -375,7 +433,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
-  app.delete(api.milestones.delete.path, async (req, res) => {
+  apiRoute(app, 'delete', '/api/milestones/:id', {
+    tag: 'Milestones',
+    summary: 'Delete milestone',
+    parameters: [pathId()],
+    responses: { ...r204('Milestone deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -395,7 +458,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   // --- Issues ---
-  app.get(api.issues.list.path, async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/issues', {
+    tag: 'Issues',
+    summary: 'List issues for a project',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Project issues', arrOf('Issue')), ...idRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const projectId = Number(req.params.projectId);
@@ -408,7 +476,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     res.json(issues);
   });
 
-  app.get(api.issues.listAll.path, async (req, res) => {
+  apiRoute(app, 'get', '/api/issues', {
+    tag: 'Issues',
+    summary: 'List all issues',
+    parameters: [qInt('organizationId', false), qStr('itemType', false)],
+    responses: { ...r200('All issues', arrOf('Issue')), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     
     // Deny access if user is not a member of any organization
@@ -466,7 +539,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     res.json(filteredIssues);
   });
 
-  app.post(api.issues.create.path, async (req, res) => {
+  apiRoute(app, 'post', '/api/issues', {
+    tag: 'Issues',
+    summary: 'Create a new issue',
+    requestBody: body(ref('IssueRequest')),
+    responses: { ...r201('Issue created', ref('Issue')), ...inputRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       
@@ -520,7 +598,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
-  app.put(api.issues.update.path, async (req, res) => {
+  apiRoute(app, 'put', '/api/issues/:id', {
+    tag: 'Issues',
+    summary: 'Update issue',
+    parameters: [pathId()],
+    requestBody: body(ref('IssueRequest'), false),
+    responses: { ...r200('Issue updated', ref('Issue')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -569,7 +653,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
-  app.delete(api.issues.delete.path, async (req, res) => {
+  apiRoute(app, 'delete', '/api/issues/:id', {
+    tag: 'Issues',
+    summary: 'Delete issue',
+    parameters: [pathId()],
+    responses: { ...r204('Issue deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -592,7 +681,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   // Issue History
-  app.get(api.issues.getHistory.path, async (req, res) => {
+  apiRoute(app, 'get', '/api/issues/:id/history', {
+    tag: 'Issues',
+    summary: 'Get issue change history',
+    parameters: [pathId()],
+    responses: { ...r200('Issue history', { type: 'array', items: { type: 'object' } }), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -609,7 +703,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   // Escalate issue/risk to portfolio
-  app.post('/api/issues/:id/escalate', async (req, res) => {
+  apiRoute(app, 'post', '/api/issues/:id/escalate', {
+    tag: 'Issues',
+    summary: 'Escalate issue to portfolio',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { escalate: { type: 'boolean' } } }),
+    responses: { ...r200('Escalation updated', ref('Issue')), ...fullRes },
+  }, async (req, res) => {
     try {
       const issueId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -653,7 +753,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   // Get portfolio escalated issues
-  app.get('/api/portfolios/:id/escalated-items', async (req, res) => {
+  apiRoute(app, 'get', '/api/portfolios/:id/escalated-items', {
+    tag: 'Issues',
+    summary: 'Get portfolio escalated items',
+    parameters: [pathId()],
+    responses: { ...r200('Escalated items', ref('Issue')), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -944,6 +1049,22 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       await storage.batchUpdateTaskFields(durationFixes);
     }
   }
+
+  async function recalculateProjectProgress(projectId: number) {
+    const allTasks = await storage.getTasks(projectId);
+    let avg = 0;
+    if (allTasks.length > 0) {
+      const childIds = new Set(allTasks.filter(t => t.parentId).map(t => t.parentId!));
+      const leafTasks = allTasks.filter(t => !childIds.has(t.id));
+      if (leafTasks.length > 0) {
+        avg = Math.round(leafTasks.reduce((sum, t) => sum + (t.progress || 0), 0) / leafTasks.length);
+      }
+    }
+    const project = await storage.getProject(projectId);
+    if (project && project.completionPercentage !== avg) {
+      await storage.updateProject(projectId, { completionPercentage: avg });
+    }
+  }
   
   async function enrichTasksWithTimesheetHours(taskList: Task[]): Promise<Task[]> {
     if (taskList.length === 0) return taskList;
@@ -958,7 +1079,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     });
   }
 
-  app.get(api.tasks.list.path, async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/tasks', {
+    tag: 'Tasks',
+    summary: 'List tasks for a project',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Project tasks', arrOf('Task')), ...idRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const tasks = await storage.getTasks(Number(req.params.projectId));
@@ -967,7 +1093,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   // Get single task by ID
-  app.get('/api/tasks/:id', async (req, res) => {
+  apiRoute(app, 'get', '/api/tasks/:id', {
+    tag: 'Tasks',
+    summary: 'Get task by ID',
+    parameters: [pathId()],
+    responses: { ...r200('Task details', ref('Task')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -992,7 +1123,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
-  app.get(api.tasks.listAll.path, async (req, res) => {
+  apiRoute(app, 'get', '/api/tasks', {
+    tag: 'Tasks',
+    summary: 'List all tasks',
+    parameters: [qInt('organizationId', false), qInt('limit', false), qInt('offset', false), qStr('startDateFrom', false), qStr('startDateTo', false), qStr('endDateFrom', false), qStr('endDateTo', false), qStr('overdue', false), qStr('today', false), qStr('sortBy', false), qStr('sortOrder', false)],
+    responses: { ...r200('Tasks list', arrOf('Task')), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     
     if (!await userHasAnyOrgAccess(userId)) {
@@ -1072,7 +1208,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     res.json({ tasks: enrichedTasks, total, hasMore });
   });
 
-  app.post(api.tasks.create.path, async (req, res) => {
+  apiRoute(app, 'post', '/api/tasks', {
+    tag: 'Tasks',
+    summary: 'Create a new task',
+    requestBody: body(ref('TaskRequest')),
+    responses: { ...r201('Task created', ref('Task')), ...inputRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       
@@ -1227,6 +1368,23 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         }
       }
       
+      if (input.status === "Not Started") {
+        input.progress = 0;
+      } else if (input.status === "Completed") {
+        input.progress = 100;
+      } else if (input.status === "In Progress" && (input.progress === undefined || input.progress === null)) {
+        input.progress = input.progress ?? 50;
+      }
+      if (input.progress !== undefined && input.progress !== null) {
+        if (input.progress === 100 && (!input.status || input.status === "Not Started")) {
+          input.status = "Completed";
+        } else if (input.progress > 0 && (!input.status || input.status === "Not Started")) {
+          input.status = "In Progress";
+        } else if (input.progress === 0 && input.status === "In Progress") {
+          input.status = "Not Started";
+        }
+      }
+
       const task = await storage.createTask(input);
       
       // Recalculate WBS for all tasks in the project
@@ -1255,6 +1413,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       // Roll up values from children to parent tasks
       if (task.projectId) {
         await rollUpParentTasks(task.projectId);
+        await recalculateProjectProgress(task.projectId);
       }
       
       // Re-fetch the task to return the fully updated version (with WBS, outlineLevel, etc.)
@@ -1311,7 +1470,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     { message: 'taskIds with updates, or taskUpdates array required' }
   );
 
-  app.post(api.tasks.bulkUpdate.path, async (req, res) => {
+  apiRoute(app, 'post', '/api/tasks/bulk-update', {
+    tag: 'Tasks',
+    summary: 'Bulk update tasks',
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Tasks updated', ref('Task')), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1381,6 +1545,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
         for (const pid of projectIds) {
           await rollUpParentTasks(pid);
+          await recalculateProjectProgress(pid);
         }
       }
 
@@ -1448,6 +1613,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
         for (const pid of projectIds) {
           await rollUpParentTasks(pid);
+          await recalculateProjectProgress(pid);
         }
       }
 
@@ -1458,7 +1624,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
-  app.post(api.tasks.bulkDelete.path, async (req, res) => {
+  apiRoute(app, 'post', '/api/tasks/bulk-delete', {
+    tag: 'Tasks',
+    summary: 'Bulk delete tasks',
+    requestBody: body({ type: 'object', properties: { taskIds: { type: 'array', items: { type: 'integer' } } } }),
+    responses: { ...r200('Tasks deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1484,6 +1655,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       for (const pid of projectIds) {
         await rollUpParentTasks(pid);
         await recalculateProjectWBS(pid);
+        await recalculateProjectProgress(pid);
       }
 
       return res.json({ deletedCount });
@@ -1493,7 +1665,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
-  app.put(api.tasks.update.path, async (req, res) => {
+  apiRoute(app, 'put', '/api/tasks/:id', {
+    tag: 'Tasks',
+    summary: 'Update task',
+    parameters: [pathId()],
+    requestBody: body(ref('TaskRequest'), false),
+    responses: { ...r200('Task updated', ref('Task')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1695,6 +1873,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       // Roll up values from children to parent tasks
       if (updated.projectId) {
         await rollUpParentTasks(updated.projectId);
+        await recalculateProjectProgress(updated.projectId);
       }
       
       // Recalculate WBS if outline level or taskIndex changed
@@ -1783,7 +1962,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
-  app.delete(api.tasks.delete.path, async (req, res) => {
+  apiRoute(app, 'delete', '/api/tasks/:id', {
+    tag: 'Tasks',
+    summary: 'Delete task',
+    parameters: [pathId()],
+    responses: { ...r204('Task deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1799,6 +1983,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       
       if (task.projectId) {
         await recalculateProjectWBS(task.projectId);
+        await recalculateProjectProgress(task.projectId);
       }
       
       res.status(204).send();
@@ -1809,7 +1994,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   // Task History
-  app.get(api.tasks.getHistory.path, async (req, res) => {
+  apiRoute(app, 'get', '/api/tasks/:id/history', {
+    tag: 'Tasks',
+    summary: 'Get task change history',
+    parameters: [pathId()],
+    responses: { ...r200('Task history', { type: 'array', items: { type: 'object' } }), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1828,7 +2018,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
-  app.get('/api/tasks/:id/notes-history', async (req, res) => {
+  apiRoute(app, 'get', '/api/tasks/:id/notes-history', {
+    tag: 'Tasks',
+    summary: 'Get task notes history',
+    parameters: [pathId()],
+    responses: { ...r200('Notes history', { type: 'array', items: { type: 'object' } }), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1848,7 +2043,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   // Task Dependencies
-  app.get(api.tasks.getDependencies.path, async (req, res) => {
+  apiRoute(app, 'get', '/api/tasks/:id/dependencies', {
+    tag: 'Tasks',
+    summary: 'Get task dependencies',
+    parameters: [pathId()],
+    responses: { ...r200('Task dependencies', arrOf('TaskDependency')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1867,7 +2067,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
-  app.post(api.tasks.addDependency.path, async (req, res) => {
+  apiRoute(app, 'post', '/api/tasks/:id/dependencies', {
+    tag: 'Tasks',
+    summary: 'Add task dependency',
+    parameters: [pathId()],
+    requestBody: body(ref('TaskDependencyCreateRequest')),
+    responses: { ...r201('Dependency created', ref('TaskDependencyCreateResponse')), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       
@@ -2010,7 +2216,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
-  app.put(api.tasks.updateDependency.path, async (req, res) => {
+  apiRoute(app, 'put', '/api/tasks/:id/dependencies/:dependsOnTaskId', {
+    tag: 'Tasks',
+    summary: 'Update task dependency',
+    parameters: [pathId(), pathId('dependsOnTaskId')],
+    requestBody: body(ref('TaskDependencyUpdateRequest')),
+    responses: { ...r200('Dependency updated', ref('TaskDependencyUpdateResponse')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       const emailCheck = await requireEmailVerified(userId);
@@ -2052,7 +2264,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
-  app.delete(api.tasks.removeDependency.path, async (req, res) => {
+  apiRoute(app, 'delete', '/api/tasks/:id/dependencies/:dependsOnTaskId', {
+    tag: 'Tasks',
+    summary: 'Remove task dependency',
+    parameters: [pathId(), pathId('dependsOnTaskId')],
+    responses: { ...r204('Dependency removed'), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const taskId = Number(req.params.id);
@@ -2067,7 +2284,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   // Get all dependencies for a project (for CPM calculation)
-  app.get('/api/projects/:projectId/dependencies', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/dependencies', {
+    tag: 'Tasks',
+    summary: 'Get all dependencies for a project',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Project dependencies', arrOf('TaskDependency')), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2258,7 +2480,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   }
 
   // Recalculate schedule - enforce all dependency date constraints
-  app.post('/api/projects/:projectId/recalculate-schedule', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/recalculate-schedule', {
+    tag: 'Tasks',
+    summary: 'Recalculate project schedule (CPM)',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Schedule recalculated', { type: 'object' }), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2279,7 +2506,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   // Reorder tasks (drag and drop) - updates taskIndex for all affected tasks
-  app.post('/api/projects/:projectId/tasks/reorder', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/tasks/reorder', {
+    tag: 'Tasks',
+    summary: 'Reorder tasks in project',
+    parameters: [pathId('projectId')],
+    requestBody: body({ type: 'object', properties: { taskIds: { type: 'array', items: { type: 'integer' } } } }),
+    responses: { ...r200('Tasks reordered', { type: 'object' }), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2326,7 +2559,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   // Reindex tasks and recalculate WBS for a project
-  app.post('/api/projects/:projectId/tasks/reindex', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/tasks/reindex', {
+    tag: 'Tasks',
+    summary: 'Reindex task row indices',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Tasks reindexed', { type: 'object' }), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2361,7 +2599,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   // Batch baseline update for tasks
-  app.post('/api/projects/:projectId/tasks/baseline', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/tasks/baseline', {
+    tag: 'Tasks',
+    summary: 'Set or clear task baseline dates',
+    parameters: [pathId('projectId')],
+    requestBody: body({ type: 'object', properties: { taskIds: { type: 'array', items: { type: 'integer' } }, clearBaseline: { type: 'boolean' } } }, false),
+    responses: { ...r200('Baseline result', { type: 'object' }), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       const projectId = Number(req.params.projectId);
@@ -2408,7 +2652,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   // Project Financials
-  app.get(api.projectFinancials.list.path, async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/financials', {
+    tag: 'Project Financials',
+    summary: 'List financials for a project',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Project financials', arrOf('ProjectFinancial')), ...idRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const projectId = Number(req.params.projectId);
@@ -2418,7 +2667,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     res.json(financials);
   });
 
-  app.get(api.projectFinancials.get.path, async (req, res) => {
+  apiRoute(app, 'get', '/api/project-financials/:id', {
+    tag: 'Project Financials',
+    summary: 'Get financial record by ID',
+    parameters: [pathId()],
+    responses: { ...r200('Financial record', ref('ProjectFinancial')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2432,7 +2686,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
-  app.post(api.projectFinancials.create.path, async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/financials', {
+    tag: 'Project Financials',
+    summary: 'Create financial record for project',
+    parameters: [pathId('projectId')],
+    requestBody: body(ref('ProjectFinancial')),
+    responses: { ...r201('Financial record created', ref('ProjectFinancial')), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       
@@ -2456,7 +2716,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
-  app.put(api.projectFinancials.update.path, async (req, res) => {
+  apiRoute(app, 'put', '/api/project-financials/:id', {
+    tag: 'Project Financials',
+    summary: 'Update financial record',
+    parameters: [pathId()],
+    requestBody: body(ref('ProjectFinancial'), false),
+    responses: { ...r200('Financial record updated', ref('ProjectFinancial')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2474,7 +2740,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
-  app.delete(api.projectFinancials.delete.path, async (req, res) => {
+  apiRoute(app, 'delete', '/api/project-financials/:id', {
+    tag: 'Project Financials',
+    summary: 'Delete financial record',
+    parameters: [pathId()],
+    responses: { ...r204('Financial record deleted'), ...fullRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const id = Number(req.params.id);
@@ -2486,7 +2757,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
   // ==================== TASK CSV IMPORT ====================
 
-  app.post('/api/projects/:id/import-csv', upload.single('file'), async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:id/import-csv', {
+    tag: 'Tasks',
+    summary: 'Import tasks from CSV file',
+    parameters: [pathId()],
+    requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } } } },
+    responses: { ...r200('Tasks imported', { type: 'object' }), ...createRes },
+  }, upload.single('file'), async (req, res) => {
     try {
       const projectId = Number(req.params.id);
       const project = await storage.getProject(projectId);

@@ -142,7 +142,7 @@ export async function createTimesheetEntry(entry: InsertTimesheetEntry): Promise
       const [existing] = await db.select()
         .from(timesheetEntries)
         .where(and(
-          eq(timesheetEntries.userId, entry.userId),
+          eq(timesheetEntries.resourceId, entry.resourceId),
           eq(timesheetEntries.taskId, entry.taskId),
           eq(timesheetEntries.entryDate, entry.entryDate)
         ))
@@ -208,9 +208,9 @@ export async function bulkApproveTimesheetEntries(ids: number[], approvedBy: str
     .returning();
 }
 
-export async function rejectTimesheetEntry(id: number, rejectionReason: string): Promise<TimesheetEntry> {
+export async function rejectTimesheetEntry(id: number, rejectionReason: string, rejectedBy?: string): Promise<TimesheetEntry> {
   const [updated] = await db.update(timesheetEntries)
-    .set({ status: "Rejected", rejectionReason, rejectedAt: new Date(), updatedAt: new Date() })
+    .set({ status: "Rejected", rejectionReason, rejectedAt: new Date(), rejectedBy: rejectedBy || null, updatedAt: new Date() })
     .where(eq(timesheetEntries.id, id))
     .returning();
   return updated;

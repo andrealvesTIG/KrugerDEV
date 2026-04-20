@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { format, differenceInDays, isAfter, isBefore } from "date-fns";
+import { formatCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import type { Project, Risk, Issue, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -204,14 +206,7 @@ export function ProjectStatusReport({
     }
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(value);
-  };
+  const fmtCurrency = (value: number) => formatCurrency(value, { autoCompact: true });
 
   const budgetHealth = financialSummary.actual > financialSummary.budget ? "Red" : 
                        financialSummary.actual > financialSummary.budget * 0.9 ? "Yellow" : "Green";
@@ -437,7 +432,7 @@ export function ProjectStatusReport({
                   <BarChart data={financialChartData} layout="vertical">
                     <XAxis type="number" hide />
                     <YAxis type="category" dataKey="name" width={60} fontSize={12} />
-                    <Tooltip formatter={(value: number) => [formatCurrency(value), '']} />
+                    <Tooltip formatter={(value: number) => [fmtCurrency(value), '']} />
                     <Bar dataKey="value" radius={4} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -449,7 +444,7 @@ export function ProjectStatusReport({
                       "font-medium",
                       financialSummary.variance < 0 ? "text-red-600" : "text-green-600"
                     )}>
-                      {formatCurrency(financialSummary.variance)}
+                      <CompactCurrency value={financialSummary.variance} />
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-sm">

@@ -1,0 +1,84 @@
+You are auditing this project for database/schema consistency and bugs.
+
+Your tasks, in order:
+
+1. Infer the expected database schema from the codebase.
+   - Scan models, migrations, ORM definitions, SQL files, repositories, services, controllers, validators, DTOs, API handlers, and UI forms.
+   - Build a clear list of:
+     - expected tables
+     - expected columns per table
+     - types if detectable
+     - nullability / required fields if detectable
+     - indexes / foreign keys if detectable
+
+2. Compare the expected schema from the code against the actual schema present in the project.
+   - Look at migration files, schema files, seed files, raw SQL, and any database setup scripts.
+   - Identify:
+     - missing tables referenced by code
+     - missing columns referenced by code
+     - renamed columns/tables that code may still use under old names
+     - type mismatches
+     - nullable vs required mismatches
+     - missing foreign keys / relation mismatches
+     - dead schema objects that are no longer used by code
+
+3. Trace every finding to exact code locations.
+   - For each mismatch, provide:
+     - file path
+     - function/class/query name
+     - relevant code snippet or line reference
+     - why it is a problem
+     - likely runtime impact
+
+4. Check for query-level issues caused by schema mismatches.
+   - Look for:
+     - SELECT/INSERT/UPDATE statements using non-existent columns
+     - joins on wrong keys
+     - filters/sorts on missing fields
+     - wrong table aliases
+     - assumptions about relation cardinality
+     - ORM include/populate/select mismatches
+
+5. After the schema audit, do a broader bug hunt across the codebase.
+   Focus on:
+   - runtime errors
+   - null/undefined access
+   - async/await mistakes
+   - unhandled promise rejections
+   - bad error handling
+   - incorrect conditionals
+   - edge cases
+   - off-by-one logic
+   - stale variable names after refactors
+   - validation gaps
+   - broken imports/exports
+   - incorrect API contract assumptions
+   - transaction safety issues
+   - race conditions
+   - security issues such as unsafe queries, auth bypasses, or trust of client input
+
+6. Prioritize findings.
+   Label each item as:
+   - Critical
+   - High
+   - Medium
+   - Low
+
+7. Output format:
+   Start with:
+   - Executive summary
+   - Confirmed schema mismatches
+   - Probable schema mismatches needing verification
+   - General bugs found
+   - Recommended fixes in priority order
+
+8. Important rules:
+   - Do not guess silently. If uncertain, mark it clearly as “probable” or “needs verification”.
+   - Prefer confirmed findings supported by code references.
+   - Be exhaustive but concise.
+   - At the end, include a final section called:
+     FINAL BUG SWEEP
+     where you do one last pass for non-schema bugs that may have been missed earlier.
+
+Goal:
+Produce a practical audit that helps a developer quickly fix schema inconsistencies first, then code bugs.

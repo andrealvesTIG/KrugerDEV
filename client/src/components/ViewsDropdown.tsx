@@ -111,7 +111,7 @@ interface GridColumn {
 }
 
 interface ViewsDropdownProps {
-  mode: 'grid' | 'gantt';
+  mode: 'grid' | 'gantt' | 'list';
   organizationId: number | null;
   allColumns: GridColumn[];
   visibleColumns: string[];

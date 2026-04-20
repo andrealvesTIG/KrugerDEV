@@ -10,12 +10,29 @@ import {
   billingTransactions,
   type BillingTransaction, type InsertBillingTransaction,
 } from "@shared/models/billing";
-import { eq, and, desc, isNull } from "drizzle-orm";
+import { eq, and, desc, isNull, inArray, sql } from "drizzle-orm";
 
 export async function getProjectFinancials(projectId: number): Promise<ProjectFinancial[]> {
   return await db.select().from(projectFinancials)
     .where(eq(projectFinancials.projectId, projectId))
     .orderBy(projectFinancials.fiscalYear, projectFinancials.category, projectFinancials.lineItem);
+}
+
+export async function getFinancialBudgetTotals(projectIds: number[]): Promise<Record<number, number>> {
+  if (projectIds.length === 0) return {};
+  const rows = await db
+    .select({
+      projectId: projectFinancials.projectId,
+      total: sql<string>`coalesce(sum(${projectFinancials.budgetAmount}), 0)`,
+    })
+    .from(projectFinancials)
+    .where(inArray(projectFinancials.projectId, projectIds))
+    .groupBy(projectFinancials.projectId);
+  const result: Record<number, number> = {};
+  for (const row of rows) {
+    result[row.projectId] = Number(row.total);
+  }
+  return result;
 }
 
 export async function getProjectFinancial(id: number): Promise<ProjectFinancial | undefined> {

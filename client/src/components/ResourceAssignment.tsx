@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Check, Users, X, Plus, Mail, Loader2, UserPlus } from "lucide-react";
+import { Check, Users, X, Plus, Mail, Loader2, UserPlus, Bell } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -15,6 +16,55 @@ import type { Resource } from "@shared/schema";
 export interface ResourceAllocation {
   resourceId: number;
   allocationPercentage: number; // 0-100%
+}
+
+function AllocationInput({ value, onChange, resourceId }: { value: number; onChange: (v: number) => void; resourceId: number }) {
+  const [localValue, setLocalValue] = useState(String(value));
+  const [isFocused, setIsFocused] = useState(false);
+
+  React.useEffect(() => {
+    if (!isFocused) {
+      setLocalValue(String(value));
+    }
+  }, [value, isFocused]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setLocalValue(raw);
+    const parsed = parseInt(raw);
+    if (!isNaN(parsed)) {
+      onChange(Math.min(100, Math.max(0, parsed)));
+    }
+  };
+
+  const handleBlur = () => {
+    const parsed = parseInt(localValue);
+    const clamped = isNaN(parsed) ? 0 : Math.min(100, Math.max(0, parsed));
+    onChange(clamped);
+    setLocalValue(String(clamped));
+    setIsFocused(false);
+  };
+
+  return (
+    <input
+      type="number"
+      min={0}
+      max={100}
+      step={1}
+      value={localValue}
+      onFocus={(e) => { setIsFocused(true); e.target.select(); }}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') { handleBlur(); (e.target as HTMLInputElement).blur(); }
+        e.stopPropagation();
+      }}
+      className="h-8 w-16 text-base md:text-xs text-center px-1 rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring cursor-text"
+      data-testid={`input-allocation-${resourceId}`}
+    />
+  );
 }
 
 interface ResourceAssignmentProps {
@@ -142,6 +192,27 @@ export function ResourceAssignment({
     }
   });
 
+  const notifyMutation = useMutation({
+    mutationFn: async () => {
+      if (!taskId) throw new Error("No task selected");
+      const response = await apiRequest("POST", `/api/tasks/${taskId}/notify-assignees`);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Notifications sent",
+        description: `Assignment notifications sent to ${data.sent} team member${data.sent !== 1 ? 's' : ''}${data.skipped > 0 ? ` (${data.skipped} skipped - no email)` : ''}.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to send notifications",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    }
+  });
+
   const addToProjectTeam = async (resourceId: number) => {
     if (!projectId) return;
     try {
@@ -220,10 +291,10 @@ export function ResourceAssignment({
         {selectedResources.map(resource => (
           <div 
             key={resource.id} 
-            className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors group"
+            className="flex flex-wrap items-center gap-2 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors group"
             data-testid={`badge-resource-${resource.id}`}
           >
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-primary-foreground text-sm font-semibold shrink-0">
                 {resource.displayName.charAt(0).toUpperCase()}
               </div>
@@ -232,17 +303,13 @@ export function ResourceAssignment({
                 <div className="text-xs text-muted-foreground truncate">{resource.email || 'No email'}</div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 ml-auto">
               {showAllocations && onAllocationsChange && (
                 <div className="flex items-center gap-1 bg-muted/50 rounded-md px-2 py-1">
-                  <Input
-                    type="number"
-                    min={0}
-                    max={100}
+                  <AllocationInput
                     value={getAllocation(resource.id)}
-                    onChange={(e) => updateAllocation(resource.id, parseInt(e.target.value) || 0)}
-                    className="h-6 w-12 text-xs text-center px-1 border-0 bg-transparent focus-visible:ring-1"
-                    data-testid={`input-allocation-${resource.id}`}
+                    onChange={(v) => updateAllocation(resource.id, v)}
+                    resourceId={resource.id}
                   />
                   <span className="text-xs text-muted-foreground font-medium">%</span>
                 </div>
@@ -250,7 +317,7 @@ export function ResourceAssignment({
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); removeResource(resource.id); }}
-                className="opacity-0 group-hover:opacity-100 rounded-full p-1.5 hover:bg-destructive/10 hover:text-destructive transition-all"
+                className="opacity-100 md:opacity-0 md:group-hover:opacity-100 rounded-full p-2 hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-all"
                 data-testid={`button-remove-resource-${resource.id}`}
               >
                 <X className="h-4 w-4" />
@@ -281,7 +348,7 @@ export function ResourceAssignment({
             Add Team Member
           </Button>
         </PopoverTrigger>
-          <PopoverContent className="w-72 p-0" align="start">
+          <PopoverContent className="w-[calc(100vw-2rem)] sm:w-72 p-0" align="start">
             {showInviteForm ? (
               <div className="p-3 space-y-3">
                 <div className="flex items-center gap-2">
@@ -442,7 +509,7 @@ export function ResourceAssignment({
                   <button
                     type="button"
                     onClick={() => setShowInviteForm(true)}
-                    className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-primary rounded-sm hover:bg-accent transition-colors"
+                    className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-primary rounded-sm hover:bg-accent transition-colors"
                     data-testid="button-invite-new-resource"
                   >
                     <UserPlus className="h-4 w-4" />
@@ -453,6 +520,36 @@ export function ResourceAssignment({
             )}
           </PopoverContent>
         </Popover>
+
+        {taskId && selectedResources.length > 0 && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full gap-2 hover:border-primary hover:bg-primary/5 transition-colors"
+                onClick={() => notifyMutation.mutate()}
+                disabled={notifyMutation.isPending}
+              >
+                {notifyMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Bell className="h-4 w-4" />
+                    Send Assignment Notification
+                  </>
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Send an email notification to all assigned team members</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
     </div>
   );
 }

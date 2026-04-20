@@ -16,13 +16,26 @@ import {
   parseMppFile,
   parseXmlMspdi,
   parseCsv,
+  isTeamMemberInOrg,
+  getTeamMemberProjectIds,
 } from "./helpers";
+import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
+
+async function teamMemberCanAccessProject(userId: string, projectId: number, organizationId: number): Promise<boolean> {
+  if (!await isTeamMemberInOrg(userId, organizationId)) return true;
+  const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, organizationId));
+  return allowedProjectIds.has(projectId);
+}
 
 export function registerProjectFeatureRoutes(app: Express) {
   // =========== CHANGE REQUESTS ===========
   
-  // Get all change requests for a project
-  app.get('/api/projects/:projectId/change-requests', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/change-requests', {
+    tag: 'Change Requests',
+    summary: 'List change requests for project',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Change requests', arrOf('ChangeRequest')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -31,6 +44,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await userHasOrgAccess(userId, project.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
       const changeRequests = await storage.getChangeRequests(projectId);
       res.json(changeRequests);
@@ -41,8 +57,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Create a change request
-  app.post('/api/projects/:projectId/change-requests', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/change-requests', {
+    tag: 'Change Requests',
+    summary: 'Create change request',
+    parameters: [pathId('projectId')],
+    requestBody: body(ref('ChangeRequest')),
+    responses: { ...r201('Change request created', ref('ChangeRequest')), ...createRes },
+  }, async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
       const userId = getUserIdFromRequest(req);
@@ -51,6 +72,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await userHasOrgAccess(userId, project.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
       
       // Require email verification before creating
@@ -94,8 +118,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Update a change request
-  app.patch('/api/change-requests/:id', async (req, res) => {
+  apiRoute(app, 'patch', '/api/change-requests/:id', {
+    tag: 'Change Requests',
+    summary: 'Update change request',
+    parameters: [pathId()],
+    requestBody: body(ref('ChangeRequest')),
+    responses: { ...r200('Change request updated', ref('ChangeRequest')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -105,6 +134,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       const crProject = await storage.getProject(existingCR.projectId);
       if (crProject && !await userHasOrgAccess(userId, crProject.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (crProject && !await teamMemberCanAccessProject(userId, existingCR.projectId, crProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
       const updates = { ...req.body };
       
@@ -126,8 +158,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Delete a change request
-  app.delete('/api/change-requests/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/change-requests/:id', {
+    tag: 'Change Requests',
+    summary: 'Delete change request',
+    parameters: [pathId()],
+    responses: { ...r200('Change request deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -137,6 +173,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       const crProject = await storage.getProject(existingCR.projectId);
       if (crProject && !await userHasOrgAccess(userId, crProject.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (crProject && !await teamMemberCanAccessProject(userId, existingCR.projectId, crProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
       await storage.deleteChangeRequest(id);
       res.json({ success: true });
@@ -149,8 +188,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // =========== PROJECT DOCUMENTS ===========
   
-  // Get all documents for a project
-  app.get('/api/projects/:projectId/documents', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/documents', {
+    tag: 'Documents',
+    summary: 'List project documents',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Documents list', arrOf('Document')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -159,6 +202,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await userHasOrgAccess(userId, project.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
       const documents = await storage.getProjectDocuments(projectId);
       res.json(documents);
@@ -169,8 +215,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Create a document record (metadata only - actual file upload handled separately)
-  app.post('/api/projects/:projectId/documents', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/documents', {
+    tag: 'Documents',
+    summary: 'Add document to project',
+    parameters: [pathId('projectId')],
+    requestBody: body(ref('Document')),
+    responses: { ...r201('Document added', ref('Document')), ...createRes },
+  }, async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
       const userId = getUserIdFromRequest(req);
@@ -179,6 +230,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await userHasOrgAccess(userId, project.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
       
       // Require email verification before creating
@@ -223,8 +277,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Update a document
-  app.patch('/api/documents/:id', async (req, res) => {
+  apiRoute(app, 'patch', '/api/documents/:id', {
+    tag: 'Documents',
+    summary: 'Update document',
+    parameters: [pathId()],
+    requestBody: body(ref('Document')),
+    responses: { ...r200('Document updated', ref('Document')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -234,6 +293,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       const docProject = await storage.getProject(existingDoc.projectId);
       if (docProject && !await userHasOrgAccess(userId, docProject.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (docProject && !await teamMemberCanAccessProject(userId, existingDoc.projectId, docProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
       const { name, description, fileUrl, fileType, fileSize, category, version, status, tags } = req.body;
       const safeUpdate: Record<string, any> = {};
@@ -255,8 +317,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Delete a document
-  app.delete('/api/documents/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/documents/:id', {
+    tag: 'Documents',
+    summary: 'Delete document',
+    parameters: [pathId()],
+    responses: { ...r200('Document deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -266,6 +332,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       const docProject = await storage.getProject(existingDoc.projectId);
       if (docProject && !await userHasOrgAccess(userId, docProject.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (docProject && !await teamMemberCanAccessProject(userId, existingDoc.projectId, docProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
       await storage.deleteProjectDocument(id);
       res.json({ success: true });
@@ -278,8 +347,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // =========== PROJECT COMMENTS ===========
   
-  // Get all comments for a project
-  app.get('/api/projects/:projectId/comments', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/comments', {
+    tag: 'Comments',
+    summary: 'List project comments',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Comments list', arrOf('Comment')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -296,6 +369,9 @@ export function registerProjectFeatureRoutes(app: Express) {
         if (!accessibleOrgIds.includes(project.organizationId)) {
           return res.status(404).json({ message: "Project not found" });
         }
+        if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
       }
       
       const comments = await storage.getProjectComments(projectId);
@@ -307,8 +383,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Create a comment for a project (supports replies via parentId and @mentions)
-  app.post('/api/projects/:projectId/comments', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/comments', {
+    tag: 'Comments',
+    summary: 'Add comment to project',
+    parameters: [pathId('projectId')],
+    requestBody: body({ type: 'object', properties: { content: { type: 'string' } } }),
+    responses: { ...r201('Comment added', ref('Comment')), ...createRes },
+  }, async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
       const userId = getUserIdFromRequest(req);
@@ -329,6 +410,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(project.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
+      }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
       
       // Validate content
@@ -412,8 +496,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Delete a comment
-  app.delete('/api/comments/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/comments/:id', {
+    tag: 'Comments',
+    summary: 'Delete comment',
+    parameters: [pathId()],
+    responses: { ...r200('Comment deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       const id = Number(req.params.id);
@@ -437,6 +525,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (!accessibleOrgIds.includes(project.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
       }
+      if (!await teamMemberCanAccessProject(userId, comment.projectId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
       
       await storage.deleteProjectComment(id);
       res.json({ success: true });
@@ -449,8 +540,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // =========== BILLABLE STATUS COMMENTS ===========
   
-  // Get all billable status comments for a project
-  app.get('/api/projects/:projectId/billable-status-comments', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/billable-status-comments', {
+    tag: 'Comments',
+    summary: 'List billable status comments for project',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Billable status comments', ref('Comment')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -466,6 +561,9 @@ export function registerProjectFeatureRoutes(app: Express) {
         if (!accessibleOrgIds.includes(project.organizationId)) {
           return res.status(404).json({ message: "Project not found" });
         }
+        if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
       }
       
       const comments = await storage.getBillableStatusComments(projectId);
@@ -477,8 +575,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Create a billable status comment for a project
-  app.post('/api/projects/:projectId/billable-status-comments', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/billable-status-comments', {
+    tag: 'Comments',
+    summary: 'Add billable status comment',
+    parameters: [pathId('projectId')],
+    requestBody: body({ type: 'object', properties: { content: { type: 'string' }, billableStatus: { type: 'string' } } }),
+    responses: { ...r201('Comment added', ref('Comment')), ...createRes },
+  }, async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
       const userId = getUserIdFromRequest(req);
@@ -495,6 +598,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(project.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
+      }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
       
       const content = req.body.content?.trim();
@@ -529,8 +635,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // =========== HEALTH STATUS HISTORY ===========
   
-  // Get health status history for a project
-  app.get('/api/projects/:projectId/health-status-history', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/health-status-history', {
+    tag: 'Comments',
+    summary: 'Get project health status history',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Health status history', { type: 'array', items: { type: 'object' } }), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -546,6 +656,9 @@ export function registerProjectFeatureRoutes(app: Express) {
         if (!accessibleOrgIds.includes(project.organizationId)) {
           return res.status(404).json({ message: "Project not found" });
         }
+        if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
       }
       
       const history = await storage.getHealthStatusHistory(projectId);
@@ -559,8 +672,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // =========== PROJECT INVOICES ===========
   
-  // Get all invoices for an organization
-  app.get('/api/organizations/:organizationId/invoices', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:organizationId/invoices', {
+    tag: 'Invoices',
+    summary: 'List organization invoices',
+    parameters: [pathId('organizationId')],
+    responses: { ...r200('Invoices list', arrOf('Invoice')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -582,8 +699,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Get all invoices for a project
-  app.get('/api/projects/:projectId/invoices', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/invoices', {
+    tag: 'Invoices',
+    summary: 'List project invoices',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Project invoices', { type: 'object' }), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       const projectId = Number(req.params.projectId);
@@ -598,6 +719,9 @@ export function registerProjectFeatureRoutes(app: Express) {
         if (!accessibleOrgIds.includes(project.organizationId)) {
           return res.status(404).json({ message: "Project not found" });
         }
+        if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
       }
       
       const invoices = await storage.getProjectInvoices(projectId);
@@ -609,8 +733,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Create a new invoice
-  app.post('/api/projects/:projectId/invoices', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/invoices', {
+    tag: 'Invoices',
+    summary: 'Create project invoice',
+    parameters: [pathId('projectId')],
+    requestBody: body(ref('Invoice')),
+    responses: { ...r201('Invoice created', ref('Invoice')), ...createRes },
+  }, async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
       const userId = getUserIdFromRequest(req);
@@ -627,6 +756,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(project.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
+      }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
       
       const user = await storage.getUser(userId);
@@ -661,8 +793,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Update an invoice
-  app.patch('/api/invoices/:invoiceId', async (req, res) => {
+  apiRoute(app, 'patch', '/api/invoices/:invoiceId', {
+    tag: 'Invoices',
+    summary: 'Update invoice',
+    parameters: [pathId('invoiceId')],
+    requestBody: body(ref('Invoice')),
+    responses: { ...r200('Invoice updated', ref('Invoice')), ...updateRes },
+  }, async (req, res) => {
     try {
       const invoiceId = Number(req.params.invoiceId);
       const userId = getUserIdFromRequest(req);
@@ -683,6 +820,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      if (!await teamMemberCanAccessProject(userId, invoice.projectId, project.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -707,8 +847,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Delete an invoice
-  app.delete('/api/invoices/:invoiceId', async (req, res) => {
+  apiRoute(app, 'delete', '/api/invoices/:invoiceId', {
+    tag: 'Invoices',
+    summary: 'Delete invoice',
+    parameters: [pathId('invoiceId')],
+    responses: { ...r200('Invoice deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
+  }, async (req, res) => {
     try {
       const invoiceId = Number(req.params.invoiceId);
       const userId = getUserIdFromRequest(req);
@@ -731,6 +875,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (!accessibleOrgIds.includes(project.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
       }
+      if (!await teamMemberCanAccessProject(userId, invoice.projectId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
       
       await storage.deleteProjectInvoice(invoiceId);
       res.status(204).send();
@@ -743,8 +890,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // =========== INVOICE NOTES ===========
   
-  // Get all notes for an invoice
-  app.get('/api/invoices/:invoiceId/notes', async (req, res) => {
+  apiRoute(app, 'get', '/api/invoices/:invoiceId/notes', {
+    tag: 'Invoice Notes',
+    summary: 'List invoice notes',
+    parameters: [pathId('invoiceId')],
+    responses: { ...r200('Invoice notes', { type: 'object' }), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       const invoiceId = Number(req.params.invoiceId);
@@ -764,6 +915,9 @@ export function registerProjectFeatureRoutes(app: Express) {
         if (!accessibleOrgIds.includes(project.organizationId)) {
           return res.status(404).json({ message: "Invoice not found" });
         }
+        if (!await teamMemberCanAccessProject(userId, invoice.projectId, project.organizationId)) {
+          return res.status(403).json({ message: "Access denied" });
+        }
       }
       
       const notes = await storage.getInvoiceNotes(invoiceId);
@@ -775,8 +929,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Create a note for an invoice
-  app.post('/api/invoices/:invoiceId/notes', async (req, res) => {
+  apiRoute(app, 'post', '/api/invoices/:invoiceId/notes', {
+    tag: 'Invoice Notes',
+    summary: 'Create invoice note',
+    parameters: [pathId('invoiceId')],
+    requestBody: body({ type: 'object', properties: { note: { type: 'string' } } }),
+    responses: { ...r201('Note created', ref('Invoice')), ...createRes },
+  }, async (req, res) => {
     try {
       const invoiceId = Number(req.params.invoiceId);
       const userId = getUserIdFromRequest(req);
@@ -797,6 +956,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      if (!await teamMemberCanAccessProject(userId, invoice.projectId, project.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -828,8 +990,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // =========== PROJECT VIEWS ===========
   
-  // Get all views for a user in a specific mode (grid or gantt)
-  app.get('/api/organizations/:orgId/project-views', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:orgId/project-views', {
+    tag: 'Project Views',
+    summary: 'List project views for organization',
+    parameters: [pathId('orgId'), qStr('mode', true, 'View mode (grid, gantt, or list)')],
+    responses: { ...r200('Project views', { type: 'object' }), ...idRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
       const mode = req.query.mode as string;
@@ -839,8 +1005,8 @@ export function registerProjectFeatureRoutes(app: Express) {
         return res.status(401).json({ message: "Authentication required" });
       }
       
-      if (!mode || !['grid', 'gantt'].includes(mode)) {
-        return res.status(400).json({ message: "Mode must be 'grid' or 'gantt'" });
+      if (!mode || !['grid', 'gantt', 'list'].includes(mode)) {
+        return res.status(400).json({ message: "Mode must be 'grid', 'gantt', or 'list'" });
       }
       
       const accessibleOrgIds = await getUserOrgIds(userId);
@@ -857,8 +1023,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Create a new project view
-  app.post('/api/organizations/:orgId/project-views', async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:orgId/project-views', {
+    tag: 'Project Views',
+    summary: 'Create project view',
+    parameters: [pathId('orgId')],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('View created', ref('ProjectView')), ...createRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
       const userId = getUserIdFromRequest(req);
@@ -874,8 +1045,8 @@ export function registerProjectFeatureRoutes(app: Express) {
       
       const { mode, name, visibleColumns, columnOrder, columnWidths, frozenColumns, isDefault } = req.body;
       
-      if (!mode || !['grid', 'gantt'].includes(mode)) {
-        return res.status(400).json({ message: "Mode must be 'grid' or 'gantt'" });
+      if (!mode || !['grid', 'gantt', 'list'].includes(mode)) {
+        return res.status(400).json({ message: "Mode must be 'grid', 'gantt', or 'list'" });
       }
       
       if (!name || name.trim().length === 0) {
@@ -919,8 +1090,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Update a project view
-  app.patch('/api/project-views/:id', async (req, res) => {
+  apiRoute(app, 'patch', '/api/project-views/:id', {
+    tag: 'Project Views',
+    summary: 'Update project view',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('View updated', ref('ProjectView')), ...updateRes },
+  }, async (req, res) => {
     try {
       const viewId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -977,8 +1153,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Delete a project view
-  app.delete('/api/project-views/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/project-views/:id', {
+    tag: 'Project Views',
+    summary: 'Delete project view',
+    parameters: [pathId()],
+    responses: { ...r200('View deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
+  }, async (req, res) => {
     try {
       const viewId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -1011,8 +1191,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Set a view as default
-  app.post('/api/project-views/:id/set-default', async (req, res) => {
+  apiRoute(app, 'post', '/api/project-views/:id/set-default', {
+    tag: 'Project Views',
+    summary: 'Set project view as default',
+    parameters: [pathId()],
+    responses: { ...r200('Default view set', { type: 'object' }), ...fullRes },
+  }, async (req, res) => {
     try {
       const viewId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -1042,8 +1226,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // =========== SYSTEM PROJECT VIEWS (Admin-managed org-level views) ===========
   
-  // Get all system views for an organization (read-only for all members)
-  app.get('/api/organizations/:orgId/system-project-views', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:orgId/system-project-views', {
+    tag: 'System Project Views',
+    summary: 'List system project views for organization',
+    parameters: [pathId('orgId'), qStr('mode', true, 'View mode (grid, gantt, or list)')],
+    responses: { ...r200('System project views', { type: 'object' }), ...idRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
       const mode = req.query.mode as string;
@@ -1053,8 +1241,8 @@ export function registerProjectFeatureRoutes(app: Express) {
         return res.status(401).json({ message: "Authentication required" });
       }
       
-      if (!mode || !['grid', 'gantt'].includes(mode)) {
-        return res.status(400).json({ message: "Mode must be 'grid' or 'gantt'" });
+      if (!mode || !['grid', 'gantt', 'list'].includes(mode)) {
+        return res.status(400).json({ message: "Mode must be 'grid', 'gantt', or 'list'" });
       }
       
       const accessibleOrgIds = await getUserOrgIds(userId);
@@ -1071,8 +1259,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Get all system views for org settings (admin only, includes inactive)
-  app.get('/api/organizations/:orgId/system-project-views/all', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:orgId/system-project-views/all', {
+    tag: 'System Project Views',
+    summary: 'List all system project views including inactive',
+    parameters: [pathId('orgId')],
+    responses: { ...r200('All system project views', arrOf('ProjectView')), ...fullRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
       const userId = getUserIdFromRequest(req);
@@ -1103,8 +1295,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Create a new system project view (admin only)
-  app.post('/api/organizations/:orgId/system-project-views', async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:orgId/system-project-views', {
+    tag: 'System Project Views',
+    summary: 'Create system project view',
+    parameters: [pathId('orgId')],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('System view created', ref('ProjectView')), ...createRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
       const userId = getUserIdFromRequest(req);
@@ -1125,8 +1322,8 @@ export function registerProjectFeatureRoutes(app: Express) {
       
       const { mode, name, description, visibleColumns, columnOrder, columnWidths, filterCriteria, isActive, displayOrder } = req.body;
       
-      if (!mode || !['grid', 'gantt'].includes(mode)) {
-        return res.status(400).json({ message: "Mode must be 'grid' or 'gantt'" });
+      if (!mode || !['grid', 'gantt', 'list'].includes(mode)) {
+        return res.status(400).json({ message: "Mode must be 'grid', 'gantt', or 'list'" });
       }
       
       if (!name || name.trim().length === 0) {
@@ -1160,8 +1357,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Update a system project view (admin only)
-  app.patch('/api/system-project-views/:id', async (req, res) => {
+  apiRoute(app, 'patch', '/api/system-project-views/:id', {
+    tag: 'System Project Views',
+    summary: 'Update system project view',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('System view updated', ref('ProjectView')), ...updateRes },
+  }, async (req, res) => {
     try {
       const viewId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -1206,8 +1408,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Delete a system project view (admin only)
-  app.delete('/api/system-project-views/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/system-project-views/:id', {
+    tag: 'System Project Views',
+    summary: 'Delete system project view',
+    parameters: [pathId()],
+    responses: { ...r204('System view deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const viewId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -1243,7 +1449,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // ==================== COST ITEMS (Financial Grid) ====================
 
-  app.get('/api/projects/:projectId/cost-items', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/cost-items', {
+    tag: 'Cost Items',
+    summary: 'List cost items for project',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Cost items', arrOf('CostItem')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1251,6 +1462,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       const fiscalYear = req.query.fiscalYear ? Number(req.query.fiscalYear) : undefined;
       const project = await storage.getProject(projectId);
       if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       const items = await storage.getCostItems(projectId, fiscalYear);
       res.json(items);
     } catch (err) {
@@ -1259,21 +1473,44 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.get('/api/cost-items/:id', async (req, res) => {
+  apiRoute(app, 'get', '/api/cost-items/:id', {
+    tag: 'Cost Items',
+    summary: 'Get cost item by ID',
+    parameters: [pathId()],
+    responses: { ...r200('Cost item', ref('CostItem')), ...idRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const item = await storage.getCostItem(Number(req.params.id));
     if (!item) return res.status(404).json({ message: "Cost item not found" });
+    const costProject = await storage.getProject(item.projectId);
+    if (costProject) {
+      if (!await userHasOrgAccess(userId, costProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      if (!await teamMemberCanAccessProject(userId, item.projectId, costProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+    }
     res.json(item);
   });
 
-  app.post('/api/projects/:projectId/cost-items', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/cost-items', {
+    tag: 'Cost Items',
+    summary: 'Create cost item',
+    parameters: [pathId('projectId')],
+    requestBody: body(ref('CostItem')),
+    responses: { ...r201('Cost item created', ref('CostItem')), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const projectId = Number(req.params.projectId);
       const project = await storage.getProject(projectId);
       if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
       
       const { name, parentId, wbs, comments, category, fiscalYear, aopTotal, fcstTotal, actTotal,
         fcstM1, fcstM2, fcstM3, fcstM4, fcstM5, fcstM6, fcstM7, fcstM8, fcstM9, fcstM10, fcstM11, fcstM12,
@@ -1307,13 +1544,28 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.put('/api/cost-items/:id', async (req, res) => {
+  apiRoute(app, 'put', '/api/cost-items/:id', {
+    tag: 'Cost Items',
+    summary: 'Update cost item',
+    parameters: [pathId()],
+    requestBody: body(ref('CostItem')),
+    responses: { ...r200('Cost item updated', ref('CostItem')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const id = Number(req.params.id);
       const existing = await storage.getCostItem(id);
       if (!existing) return res.status(404).json({ message: "Cost item not found" });
+      const costProject = await storage.getProject(existing.projectId);
+      if (costProject) {
+        if (!await userHasOrgAccess(userId, costProject.organizationId)) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+        if (!await teamMemberCanAccessProject(userId, existing.projectId, costProject.organizationId)) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+      }
       
       const { name, description, category, estimatedCost, actualCost, status, startDate, endDate, notes } = req.body;
       const safeUpdate: Record<string, any> = {};
@@ -1335,12 +1587,26 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.delete('/api/cost-items/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/cost-items/:id', {
+    tag: 'Cost Items',
+    summary: 'Delete cost item',
+    parameters: [pathId()],
+    responses: { ...r200('Cost item deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const id = Number(req.params.id);
     const existing = await storage.getCostItem(id);
     if (!existing) return res.status(404).json({ message: "Cost item not found" });
+    const costProject = await storage.getProject(existing.projectId);
+    if (costProject) {
+      if (!await userHasOrgAccess(userId, costProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      if (!await teamMemberCanAccessProject(userId, existing.projectId, costProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+    }
     await storage.deleteCostItem(id);
     res.status(204).send();
   });
@@ -1348,8 +1614,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // ==================== MPP IMPORTS ====================
   
-  // Get all MPP imports for an organization
-  app.get('/api/mpp-imports', async (req, res) => {
+  apiRoute(app, 'get', '/api/mpp-imports', {
+    tag: 'MPP Imports',
+    summary: 'List MPP imports for organization',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('MPP imports list', { type: 'array', items: { type: 'object' } }), ...authRes },
+  }, async (req, res) => {
     try {
       const organizationId = Number(req.query.organizationId);
       if (isNaN(organizationId)) {
@@ -1364,8 +1634,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Get tasks for a specific import
-  app.get('/api/mpp-imports/:id/tasks', async (req, res) => {
+  apiRoute(app, 'get', '/api/mpp-imports/:id/tasks', {
+    tag: 'MPP Imports',
+    summary: 'Get tasks for MPP import',
+    parameters: [pathId()],
+    responses: { ...r200('Import tasks', { type: 'object' }), ...idRes },
+  }, async (req, res) => {
     try {
       const id = Number(req.params.id);
       const tasks = await storage.getMppImportTasks(id);
@@ -1377,8 +1651,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Upload and parse MPP file (XML or CSV)
-  app.post('/api/mpp-imports/upload', upload.single('file'), async (req, res) => {
+  apiRoute(app, 'post', '/api/mpp-imports/upload', {
+    tag: 'MPP Imports',
+    summary: 'Upload and parse MPP file',
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('File uploaded and parsed', { type: 'object' }), ...createRes },
+  }, upload.single('file'), async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       
@@ -1504,8 +1782,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Convert MPP import to a project with tasks
-  app.post('/api/mpp-imports/:id/convert', async (req, res) => {
+  apiRoute(app, 'post', '/api/mpp-imports/:id/convert', {
+    tag: 'MPP Imports',
+    summary: 'Convert MPP import to project',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Import converted to project', { type: 'object' }), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -1568,8 +1851,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Sync MPP import to an existing project (update tasks)
-  app.post('/api/mpp-imports/:id/sync', async (req, res) => {
+  apiRoute(app, 'post', '/api/mpp-imports/:id/sync', {
+    tag: 'MPP Imports',
+    summary: 'Sync MPP import to existing project',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Import synced to project', { type: 'object' }), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -1635,8 +1923,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  // Delete an MPP import
-  app.delete('/api/mpp-imports/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/mpp-imports/:id', {
+    tag: 'MPP Imports',
+    summary: 'Delete MPP import',
+    parameters: [pathId()],
+    responses: { ...r200('Import deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
+  }, async (req, res) => {
     try {
       const id = Number(req.params.id);
       await storage.deleteMppImport(id);
@@ -1650,7 +1942,12 @@ export function registerProjectFeatureRoutes(app: Express) {
 
   // =========== PROJECT TEMPLATES ===========
 
-  app.get('/api/project-templates', async (req, res) => {
+  apiRoute(app, 'get', '/api/project-templates', {
+    tag: 'Project Templates',
+    summary: 'List project templates',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Templates list', arrOf('ProjectTemplate')), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1666,7 +1963,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.get('/api/project-templates/:id', async (req, res) => {
+  apiRoute(app, 'get', '/api/project-templates/:id', {
+    tag: 'Project Templates',
+    summary: 'Get project template by ID',
+    parameters: [pathId()],
+    responses: { ...r200('Template details', ref('ProjectTemplate')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1683,7 +1985,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.post('/api/project-templates/from-mpp', upload.single('file'), async (req, res) => {
+  apiRoute(app, 'post', '/api/project-templates/from-mpp', {
+    tag: 'Project Templates',
+    summary: 'Create template from MPP file',
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('Template created from file', ref('ProjectTemplate')), ...createRes },
+  }, upload.single('file'), async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1782,7 +2089,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.post('/api/project-templates/from-project', async (req, res) => {
+  apiRoute(app, 'post', '/api/project-templates/from-project', {
+    tag: 'Project Templates',
+    summary: 'Create template from existing project',
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('Template created from project', ref('ProjectTemplate')), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1795,6 +2107,9 @@ export function registerProjectFeatureRoutes(app: Express) {
       const project = await storage.getProject(Number(projectId));
       if (!project) return res.status(404).json({ message: 'Project not found' });
       if (!await userHasOrgAccess(userId, project.organizationId)) return res.status(403).json({ message: 'Access denied' });
+      if (!await teamMemberCanAccessProject(userId, Number(projectId), project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
 
       const projectTasks = await storage.getTasks(Number(projectId));
       const projectMilestones = await storage.getMilestones(Number(projectId));
@@ -1886,7 +2201,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.put('/api/project-templates/:id', async (req, res) => {
+  apiRoute(app, 'put', '/api/project-templates/:id', {
+    tag: 'Project Templates',
+    summary: 'Update project template',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Template updated', ref('ProjectTemplate')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1909,7 +2230,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.delete('/api/project-templates/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/project-templates/:id', {
+    tag: 'Project Templates',
+    summary: 'Delete project template',
+    parameters: [pathId()],
+    responses: { ...r200('Template deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1953,7 +2279,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.post('/api/project-templates/:id/duplicate', async (req, res) => {
+  apiRoute(app, 'post', '/api/project-templates/:id/duplicate', {
+    tag: 'Project Templates',
+    summary: 'Duplicate project template',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }, false),
+    responses: { ...r201('Template duplicated', { type: 'object' }), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2042,7 +2374,12 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.get('/api/project-templates/:id/download', async (req, res) => {
+  apiRoute(app, 'get', '/api/project-templates/:id/download', {
+    tag: 'Project Templates',
+    summary: 'Download project template file',
+    parameters: [pathId()],
+    responses: { ...r200('Template file download', { type: 'object' }), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2094,7 +2431,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.post('/api/project-templates/:id/reimport', upload.single('file'), async (req, res) => {
+  apiRoute(app, 'post', '/api/project-templates/:id/reimport', {
+    tag: 'Project Templates',
+    summary: 'Reimport template from new file',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Template reimported', { type: 'object' }), ...updateRes },
+  }, upload.single('file'), async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -2215,7 +2558,13 @@ export function registerProjectFeatureRoutes(app: Express) {
     }
   });
 
-  app.post('/api/project-templates/:id/create-project', async (req, res) => {
+  apiRoute(app, 'post', '/api/project-templates/:id/create-project', {
+    tag: 'Project Templates',
+    summary: 'Create project from template',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('Project created from template', ref('ProjectTemplate')), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });

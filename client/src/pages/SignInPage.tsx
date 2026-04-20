@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { formatCurrency } from "@/lib/format";
 import { useLocation, Link, useSearch } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -378,8 +379,8 @@ export default function SignInPage() {
                 <Link href="/partners" className="hidden sm:inline text-slate-200 hover:text-orange-400 text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-partners">
                   Partners
                 </Link>
-                <Link href="/investor-room" className="hidden sm:inline text-slate-200 hover:text-orange-400 text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-investor-room">
-                  Investors
+                <Link href="/media" className="hidden sm:inline text-slate-200 hover:text-orange-400 text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-media">
+                  Media
                 </Link>
                 <Button onClick={scrollToSignIn} size="sm" className="bg-orange-500 hover:bg-orange-400 text-white font-semibold text-xs sm:text-sm px-3 sm:px-4 shadow-lg shadow-orange-500/30" data-testid="button-nav-get-started">
                   <span className="hidden sm:inline">Get Started Free</span>
@@ -387,7 +388,7 @@ export default function SignInPage() {
                 </Button>
                 <button
                   onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                  className="text-slate-200 hover:text-white p-1"
+                  className="sm:hidden text-slate-200 hover:text-white p-1"
                   aria-label="Toggle menu"
                 >
                   {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -396,7 +397,7 @@ export default function SignInPage() {
             </div>
           </div>
           {mobileMenuOpen && (
-            <div className="absolute left-0 right-0 top-full z-50 border-t border-slate-700 bg-slate-900 shadow-2xl shadow-black/60">
+            <div className="sm:hidden absolute left-0 right-0 top-full z-50 border-t border-slate-700 bg-slate-900 shadow-2xl shadow-black/60">
               <div className="max-w-7xl mx-auto max-h-[70vh] overflow-y-auto">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                   <div className="p-5 sm:border-r sm:border-slate-700/50">
@@ -429,6 +430,13 @@ export default function SignInPage() {
                         className="block text-sm font-medium text-slate-200 hover:text-orange-400 hover:bg-slate-700/40 rounded-md px-3 py-2.5 transition-colors"
                       >
                         Partners
+                      </Link>
+                      <Link
+                        href="/media"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="block text-sm font-medium text-slate-200 hover:text-orange-400 hover:bg-slate-700/40 rounded-md px-3 py-2.5 transition-colors"
+                      >
+                        Media
                       </Link>
                     </div>
                   </div>
@@ -1317,7 +1325,7 @@ function getPlanFeatures(plan: PlanData, creditCosts: CreditCostData[]): string[
   }
 
   if (plan.extraSeatPriceCents) {
-    features.push(`$${plan.extraSeatPriceCents / 100}/extra seat`);
+    features.push(`${formatCurrency(plan.extraSeatPriceCents / 100, { showCents: true })}/extra seat`);
   }
 
   const projectsCap = getHardCap(rules, 'projects');
@@ -1438,7 +1446,7 @@ function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
               const priceDisplay = isCustom
                 ? 'Contact'
                 : plan.monthlyPriceCents != null
-                  ? `$${plan.monthlyPriceCents / 100}`
+                  ? formatCurrency(plan.monthlyPriceCents / 100, { showCents: true })
                   : '$0';
               const subtitle = isFree ? 'Forever free' : isCustom ? 'Custom pricing' : 'per month';
 

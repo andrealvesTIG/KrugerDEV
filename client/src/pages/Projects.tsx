@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect, Fragment } from "react";
 import { useProjects, useCreateProject, useUpdateProject } from "@/hooks/use-projects";
 import { useExternalProjects } from "@/hooks/use-external-shares";
 import { usePortfolios } from "@/hooks/use-portfolios";
@@ -12,9 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { z } from "zod";
+import { PROJECT_STATUSES, PROJECT_HEALTH_VALUES, PROJECT_PRIORITIES } from "@shared/schema";
 import type { Project, Resource, Portfolio } from "@shared/schema";
+import { DEFAULT_PROJECT_STATUS_LIST } from "@/lib/project-statuses";
 import { Link, useLocation } from "wouter";
-import { Plus, Search, Calendar, AlertCircle, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, ChevronLeft, ChevronRight, Download, Loader2, ExternalLink, Table2, Settings2, Check, Crown, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown, FileSpreadsheet, Cloud, Rocket, Lock as LockIcon, Shield } from "lucide-react";
+import { Plus, Search, Calendar, AlertCircle, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, ChevronLeft, ChevronRight, Download, Loader2, ExternalLink, Table2, Settings2, Check, Crown, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown, FileSpreadsheet, Cloud, Rocket, Lock as LockIcon, Shield, Layers, FolderOpen } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -25,12 +27,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format, differenceInDays, parseISO, addDays, startOfMonth, eachDayOfInterval } from "date-fns";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCorners, useDroppable, useDraggable, closestCenter } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, TouchSensor, useSensor, useSensors, closestCorners, useDroppable, useDraggable, closestCenter } from "@dnd-kit/core";
 import { useSortable, SortableContext, horizontalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/hooks/use-auth";
@@ -40,10 +43,8 @@ import { ViewsDropdown, type ProjectFilterView } from "@/components/ViewsDropdow
 import { useColumnState, sortData, type SortDirection } from "@/hooks/use-column-state";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { PageTransition, FadeIn } from "@/components/ui/page-transition";
-import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues, useBulkUpdateProjectCustomFieldValues } from "@/hooks/use-custom-fields";
+import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues, useBulkUpdateProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
 import type { CustomFieldDefinition, ProjectCustomFieldValue } from "@shared/schema";
-
-const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing", "Closed"];
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
@@ -172,6 +173,88 @@ const HEALTH_CONFIG: Record<string, { dot: string; bg: string; label: string }> 
   Red: { dot: "bg-rose-500", bg: "bg-rose-500", label: "Off Track" },
 };
 
+interface ListColumn {
+  id: string;
+  label: string;
+  width: string;
+  align?: "left" | "right";
+  alwaysVisible?: boolean;
+  defaultVisible?: boolean;
+}
+
+const LIST_COLUMNS: ListColumn[] = [
+  { id: "name", label: "Project", width: "minmax(0,1fr)", alwaysVisible: true, defaultVisible: true },
+  { id: "status", label: "Status", width: "110px", defaultVisible: true },
+  { id: "priority", label: "Priority", width: "90px", defaultVisible: true },
+  { id: "health", label: "Health", width: "80px", defaultVisible: true },
+  { id: "progress", label: "Progress", width: "140px", defaultVisible: true },
+  { id: "budget", label: "Budget", width: "100px", align: "right", defaultVisible: true },
+  { id: "endDate", label: "Due Date", width: "100px", align: "right", defaultVisible: true },
+  { id: "startDate", label: "Start Date", width: "100px", align: "right", defaultVisible: false },
+  { id: "projectType", label: "Type", width: "100px", defaultVisible: false },
+  { id: "methodology", label: "Methodology", width: "100px", defaultVisible: false },
+  { id: "createdAt", label: "Created", width: "100px", align: "right", defaultVisible: false },
+  { id: "updatedAt", label: "Updated", width: "100px", align: "right", defaultVisible: false },
+  { id: "actions", label: "", width: "40px", alwaysVisible: true, defaultVisible: true },
+];
+
+const LIST_COLUMNS_STORAGE_KEY = "project-list-visible-columns";
+const LIST_COLUMN_ORDER_KEY = "project-list-column-order";
+const LIST_SORT_STORAGE_KEY = "project-list-sort";
+
+function loadVisibleColumns(): string[] {
+  try {
+    const stored = localStorage.getItem(LIST_COLUMNS_STORAGE_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return LIST_COLUMNS.filter(c => c.defaultVisible).map(c => c.id);
+}
+
+function saveVisibleColumns(cols: string[]) {
+  try { localStorage.setItem(LIST_COLUMNS_STORAGE_KEY, JSON.stringify(cols)); } catch {}
+}
+
+function loadListColumnOrder(): string[] {
+  try {
+    const stored = localStorage.getItem(LIST_COLUMN_ORDER_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return LIST_COLUMNS.map(c => c.id);
+}
+
+function saveListColumnOrder(order: string[]) {
+  try { localStorage.setItem(LIST_COLUMN_ORDER_KEY, JSON.stringify(order)); } catch {}
+}
+
+interface ListSortState {
+  columnId: string;
+  direction: "asc" | "desc";
+}
+
+function loadListSort(): ListSortState | null {
+  try {
+    const stored = localStorage.getItem(LIST_SORT_STORAGE_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return null;
+}
+
+function saveListSort(sort: ListSortState | null) {
+  try { localStorage.setItem(LIST_SORT_STORAGE_KEY, JSON.stringify(sort)); } catch {}
+}
+
+type GroupByOption = "none" | "portfolio" | "status" | "priority" | "health" | "projectType" | "methodology" | `cf_${number}`;
+
+const GROUP_BY_STANDARD: { value: GroupByOption; label: string }[] = [
+  { value: "none", label: "None" },
+  { value: "portfolio", label: "Portfolio" },
+  { value: "status", label: "Status" },
+  { value: "priority", label: "Priority" },
+  { value: "health", label: "Health" },
+  { value: "projectType", label: "Project Type" },
+  { value: "methodology", label: "Methodology" },
+];
+
 interface ProjectsListViewProps {
   projects: Project[];
   filteredProjects: Project[];
@@ -189,6 +272,14 @@ interface ProjectsListViewProps {
   onPageSizeChange?: (size: number) => void;
   selectedPageSize?: number;
   isLoading?: boolean;
+  groupBy: GroupByOption;
+  onGroupByChange: (value: GroupByOption) => void;
+  customFieldDefs?: CustomFieldDefinition[];
+  customFieldValues?: ProjectCustomFieldValue[];
+  filterView?: ProjectFilterView;
+  onFilterViewChange?: (filterView: ProjectFilterView) => void;
+  organizationId?: number | null;
+  statusList?: string[];
 }
 
 function ProjectsListView({
@@ -208,45 +299,211 @@ function ProjectsListView({
   onPageSizeChange,
   selectedPageSize,
   isLoading,
+  groupBy,
+  onGroupByChange,
+  customFieldDefs,
+  customFieldValues,
+  filterView = "all",
+  onFilterViewChange,
+  organizationId,
+  statusList = DEFAULT_PROJECT_STATUS_LIST,
 }: ProjectsListViewProps) {
+  const PROJECT_STATUS_LIST = statusList;
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(loadVisibleColumns);
+  const [listColumnOrder, setListColumnOrder] = useState<string[]>(loadListColumnOrder);
+  const [listSort, setListSort] = useState<ListSortState | null>(loadListSort);
+  const [manageColumnsOpen, setManageColumnsOpen] = useState(false);
 
   const toggleGroup = useCallback((groupKey: string) => {
     setCollapsedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
   }, []);
 
+  const toggleColumn = useCallback((colId: string) => {
+    setVisibleColumnIds(prev => {
+      const next = prev.includes(colId) ? prev.filter(id => id !== colId) : [...prev, colId];
+      saveVisibleColumns(next);
+      return next;
+    });
+  }, []);
+
+  const resetColumns = useCallback(() => {
+    const defaults = LIST_COLUMNS.filter(c => c.defaultVisible).map(c => c.id);
+    setVisibleColumnIds(defaults);
+    saveVisibleColumns(defaults);
+    const defaultOrder = LIST_COLUMNS.map(c => c.id);
+    setListColumnOrder(defaultOrder);
+    saveListColumnOrder(defaultOrder);
+  }, []);
+
+  const handleSort = useCallback((columnId: string) => {
+    if (columnId === "actions" || columnId === "progress") return;
+    setListSort(prev => {
+      let next: ListSortState | null;
+      if (!prev || prev.columnId !== columnId) {
+        next = { columnId, direction: "asc" };
+      } else if (prev.direction === "asc") {
+        next = { columnId, direction: "desc" };
+      } else {
+        next = null;
+      }
+      saveListSort(next);
+      return next;
+    });
+  }, []);
+
+  const allListColumns = useMemo(() => LIST_COLUMNS.map(c => ({ id: c.id, label: c.label })), []);
+  const defaultListColumns = useMemo(() => LIST_COLUMNS.filter(c => c.defaultVisible).map(c => c.id), []);
+  const defaultListColumnOrder = useMemo(() => LIST_COLUMNS.map(c => c.id), []);
+
+  const handleApplyView = useCallback((view: { visibleColumns: string[]; columnOrder: string[] }) => {
+    setVisibleColumnIds(view.visibleColumns);
+    saveVisibleColumns(view.visibleColumns);
+    setListColumnOrder(view.columnOrder);
+    saveListColumnOrder(view.columnOrder);
+  }, []);
+
+  const visibleColumns = useMemo(() => {
+    const cols = LIST_COLUMNS.filter(c => c.alwaysVisible || visibleColumnIds.includes(c.id));
+    const orderMap = new Map(listColumnOrder.map((id, i) => [id, i]));
+    return cols.sort((a, b) => {
+      const ai = orderMap.get(a.id) ?? 999;
+      const bi = orderMap.get(b.id) ?? 999;
+      return ai - bi;
+    });
+  }, [visibleColumnIds, listColumnOrder]);
+
+  const getProjectFieldValue = useCallback((project: Project, columnId: string): any => {
+    switch (columnId) {
+      case "name": return project.name;
+      case "status": return project.status;
+      case "priority": {
+        const order: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+        return order[project.priority || "Medium"] ?? 4;
+      }
+      case "health": {
+        const order: Record<string, number> = { Red: 0, Yellow: 1, Green: 2 };
+        return order[project.health || "Green"] ?? 3;
+      }
+      case "budget": return Number(project.budget) || 0;
+      case "endDate": return project.endDate ? new Date(project.endDate) : null;
+      case "startDate": return project.startDate ? new Date(project.startDate) : null;
+      case "projectType": return (project as any).projectType || "";
+      case "methodology": return (project as any).methodology || "";
+      case "createdAt": return project.createdAt ? new Date(project.createdAt) : null;
+      case "updatedAt": return (project as any).updatedAt ? new Date((project as any).updatedAt) : null;
+      default: return "";
+    }
+  }, []);
+
+  const sortedProjects = useMemo(() => {
+    if (!listSort) return projects;
+    return sortData(projects, { columnId: listSort.columnId, direction: listSort.direction }, getProjectFieldValue);
+  }, [projects, listSort, getProjectFieldValue]);
+
+  const cfValuesMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (customFieldValues || []).forEach(v => {
+      if (v.value != null) map.set(`${v.projectId}_${v.fieldDefinitionId}`, v.value);
+    });
+    return map;
+  }, [customFieldValues]);
+
+  const groupByOptions = useMemo(() => {
+    const options = [...GROUP_BY_STANDARD];
+    (customFieldDefs || []).forEach(def => {
+      if (def.entityType === "project" && def.isActive) {
+        options.push({ value: `cf_${def.id}` as GroupByOption, label: def.name });
+      }
+    });
+    return options;
+  }, [customFieldDefs]);
+
+  useEffect(() => {
+    if (groupBy !== "none" && !groupByOptions.some(o => o.value === groupBy)) {
+      onGroupByChange("none");
+    }
+  }, [groupBy, groupByOptions, onGroupByChange]);
+
   const groupedProjects = useMemo(() => {
-    const groups: { key: string; portfolio: Portfolio | null; projects: Project[] }[] = [];
+    if (groupBy === "none") {
+      return [{ key: "__all__", label: "", projects: sortedProjects, meta: null as any }];
+    }
+
     const portfolioMap = new Map<number, Portfolio>();
     portfolios.forEach(p => portfolioMap.set(p.id, p));
 
-    const byPortfolio = new Map<number | null, Project[]>();
-    projects.forEach(project => {
-      const pid = project.portfolioId ?? null;
-      const resolvedPid = pid !== null && portfolioMap.has(pid) ? pid : null;
-      if (!byPortfolio.has(resolvedPid)) byPortfolio.set(resolvedPid, []);
-      byPortfolio.get(resolvedPid)!.push(project);
-    });
-
-    const sortedPortfolioIds = Array.from(byPortfolio.keys()).sort((a, b) => {
-      if (a === null) return 1;
-      if (b === null) return -1;
-      const nameA = portfolioMap.get(a)?.name || '';
-      const nameB = portfolioMap.get(b)?.name || '';
-      return nameA.localeCompare(nameB);
-    });
-
-    sortedPortfolioIds.forEach(pid => {
-      const portfolioProjects = byPortfolio.get(pid) || [];
-      if (pid === null) {
-        groups.push({ key: 'unassigned', portfolio: null, projects: portfolioProjects });
-      } else {
-        groups.push({ key: `portfolio-${pid}`, portfolio: portfolioMap.get(pid)!, projects: portfolioProjects });
+    const getGroupKeyAndLabel = (project: Project): { key: string; label: string; sortOrder: number } => {
+      switch (groupBy) {
+        case "portfolio": {
+          const pid = project.portfolioId ?? null;
+          const resolvedPid = pid !== null && portfolioMap.has(pid) ? pid : null;
+          if (resolvedPid === null) return { key: "unassigned", label: "Unassigned", sortOrder: 999 };
+          const p = portfolioMap.get(resolvedPid)!;
+          return { key: `portfolio-${resolvedPid}`, label: p.name, sortOrder: 0 };
+        }
+        case "status": {
+          const s = project.status || "Unknown";
+          const idx = PROJECT_STATUS_LIST.indexOf(s);
+          return { key: `status-${s}`, label: s, sortOrder: idx >= 0 ? idx : 999 };
+        }
+        case "priority": {
+          const p = project.priority || "Medium";
+          const order: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+          return { key: `priority-${p}`, label: p, sortOrder: order[p] ?? 4 };
+        }
+        case "health": {
+          const h = project.health || "Green";
+          const order: Record<string, number> = { Red: 0, Yellow: 1, Green: 2 };
+          const labels: Record<string, string> = { Green: "On Track", Yellow: "At Risk", Red: "Off Track" };
+          return { key: `health-${h}`, label: labels[h] || h, sortOrder: order[h] ?? 3 };
+        }
+        case "projectType": {
+          const t = (project as any).projectType || "";
+          if (!t) return { key: "type-unset", label: "No Type", sortOrder: 999 };
+          return { key: `type-${t}`, label: t, sortOrder: 0 };
+        }
+        case "methodology": {
+          const m = (project as any).methodology || "";
+          if (!m) return { key: "method-unset", label: "No Methodology", sortOrder: 999 };
+          return { key: `method-${m}`, label: m, sortOrder: 0 };
+        }
+        default: {
+          if (groupBy.startsWith("cf_")) {
+            const defId = parseInt(groupBy.slice(3));
+            const raw = cfValuesMap.get(`${project.id}_${defId}`) || "";
+            if (!raw) return { key: `cf-${defId}-unset`, label: "Not Set", sortOrder: 999 };
+            const cfDef = (customFieldDefs || []).find(d => d.id === defId);
+            let displayLabel = raw;
+            if (cfDef?.fieldType === "checkbox") {
+              displayLabel = raw === "true" ? "Yes" : "No";
+            } else if (cfDef?.fieldType === "multiselect") {
+              try { displayLabel = JSON.parse(raw).join(", "); } catch { /* use raw */ }
+            }
+            return { key: `cf-${defId}-${raw}`, label: displayLabel, sortOrder: 0 };
+          }
+          return { key: "__all__", label: "", sortOrder: 0 };
+        }
       }
+    };
+
+    const groupMap = new Map<string, { label: string; projects: Project[]; sortOrder: number; portfolio: Portfolio | null }>();
+    sortedProjects.forEach(project => {
+      const { key, label, sortOrder } = getGroupKeyAndLabel(project);
+      if (!groupMap.has(key)) {
+        const portfolio = groupBy === "portfolio" && project.portfolioId ? portfolioMap.get(project.portfolioId) || null : null;
+        groupMap.set(key, { label, projects: [], sortOrder, portfolio });
+      }
+      groupMap.get(key)!.projects.push(project);
     });
 
-    return groups;
-  }, [projects, portfolios]);
+    return Array.from(groupMap.entries())
+      .sort(([, a], [, b]) => {
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+        return a.label.localeCompare(b.label);
+      })
+      .map(([key, val]) => ({ key, label: val.label, projects: val.projects, meta: val.portfolio }));
+  }, [sortedProjects, portfolios, groupBy, cfValuesMap, customFieldDefs]);
 
   const allCollapsed = groupedProjects.length > 0 && groupedProjects.every(g => collapsedGroups[g.key] === true);
 
@@ -260,12 +517,200 @@ function ProjectsListView({
     setCollapsedGroups({});
   }, []);
 
-  const renderProjectRow = (project: Project, index: number) => {
+  const renderCellContent = (project: Project, columnId: string) => {
     const progress = projectProgress[project.id] || 0;
     const health = HEALTH_CONFIG[project.health || 'Green'] || HEALTH_CONFIG.Green;
     const riskData = getRiskScoreForProject(project.id);
     const showRisk = riskData && ((Date.now() - new Date(riskData.generatedAt).getTime()) / (1000 * 60 * 60 * 24)) <= 5;
 
+    switch (columnId) {
+      case "name":
+        return (
+          <div className="flex items-center gap-3 min-w-0 pl-1">
+            <div className={cn("w-1 h-8 rounded-full shrink-0", health.bg)} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors" title={project.name}>
+                  {project.name}
+                </span>
+                {(project as any).isInternal && (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-violet-300 text-violet-600 dark:border-violet-700 dark:text-violet-400 shrink-0">
+                    Internal
+                  </Badge>
+                )}
+                {project.timesheetBlocked && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <LockIcon className="h-3 w-3 text-amber-500 shrink-0" />
+                    </TooltipTrigger>
+                    <TooltipContent>Timesheet entries blocked</TooltipContent>
+                  </Tooltip>
+                )}
+                {project.source === "planner" && project.plannerPlanId && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(`https://planner.cloud.microsoft/webui/plan/${project.plannerPlanId}/view/board`, '_blank'); }} className="shrink-0">
+                        <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Synced from Microsoft Planner</TooltipContent>
+                  </Tooltip>
+                )}
+                {(project.source === "planner-premium" || project.source === "planner_premium") && project.plannerPlanId && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); const tenantId = project.dataverseTenantId || ''; const planId = project.plannerPlanId; const premiumUrl = tenantId ? `https://planner.cloud.microsoft/${tenantId}/en-US/Home/Planner/#/plantaskboard?planId=${planId}` : `https://planner.cloud.microsoft/webui/plan/${planId}/view/board`; window.open(premiumUrl, '_blank'); }} className="shrink-0 flex items-center gap-0.5">
+                        <img src={plannerLogoPath} alt="Planner Premium" className="h-4 w-4" />
+                        <Crown className="h-2.5 w-2.5 text-purple-500" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Synced from Planner Premium</TooltipContent>
+                  </Tooltip>
+                )}
+                {project.source === "imported" && project.sourceFileUrl && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); const link = document.createElement('a'); link.href = project.sourceFileUrl!; link.download = project.sourceFileName || 'project.mpp'; link.click(); }} className="shrink-0">
+                        <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Imported from MS Project</TooltipContent>
+                  </Tooltip>
+                )}
+                {(project as any).isExternal && (
+                  <ExternalBadge organizationName={(project as any).sourceOrganizationName} accessRole={(project as any).accessRole} />
+                )}
+                {showRisk && riskData && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 gap-0.5 shrink-0 ${getRiskScoreColor(riskData.riskScore)}`}>
+                          <Shield className="h-2.5 w-2.5" />
+                          {riskData.riskScore}
+                        </Badge>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">{riskData.summary}</TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      case "status":
+        return (
+          <div className="flex items-center sm:justify-start" onClick={(e) => e.preventDefault()}>
+            <Select value={project.status} onValueChange={(newStatus) => handleStatusChange(project.id, newStatus)}>
+              <SelectTrigger className={cn("h-6 w-auto text-[11px] font-medium border-0 px-2 py-0 rounded-md shadow-none", STATUS_COLORS[project.status] || STATUS_COLORS.Initiation)} onClick={(e) => e.preventDefault()}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent onClick={(e) => e.stopPropagation()}>
+                {PROJECT_STATUS_LIST.map(status => (
+                  <SelectItem key={status} value={status}>{status}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        );
+      case "priority":
+        return (
+          <Badge className={cn("text-[11px] font-medium px-2 py-0.5 rounded-md border-0", PRIORITY_COLORS[project.priority || 'Medium'])}>
+            {project.priority}
+          </Badge>
+        );
+      case "health":
+        return (
+          <div className="flex items-center gap-1.5">
+            <div className={cn("w-2 h-2 rounded-full shrink-0", health.dot)} />
+            <span className="text-xs text-muted-foreground hidden lg:inline">{health.label}</span>
+          </div>
+        );
+      case "progress":
+        return (
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-20 rounded-full bg-muted overflow-hidden">
+              <div className={cn("h-full rounded-full transition-all duration-500", health.bg)} style={{ width: `${progress}%` }} />
+            </div>
+            <span className="text-xs font-medium text-muted-foreground w-8">{progress}%</span>
+          </div>
+        );
+      case "budget":
+        return (
+          <span className="text-sm font-medium text-foreground tabular-nums">
+            {Number(project.budget) > 0 ? <CompactCurrency value={project.budget} /> : '\u2014'}
+          </span>
+        );
+      case "endDate":
+        return (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : '\u2014'}
+          </span>
+        );
+      case "startDate":
+        return (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : '\u2014'}
+          </span>
+        );
+      case "projectType":
+        return (
+          <span className="text-xs text-muted-foreground truncate">
+            {(project as any).projectType || '\u2014'}
+          </span>
+        );
+      case "methodology":
+        return (
+          <span className="text-xs text-muted-foreground truncate">
+            {(project as any).methodology || '\u2014'}
+          </span>
+        );
+      case "createdAt":
+        return (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {project.createdAt ? format(new Date(project.createdAt), 'MMM d, yyyy') : '\u2014'}
+          </span>
+        );
+      case "updatedAt":
+        return (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {(project as any).updatedAt ? format(new Date((project as any).updatedAt), 'MMM d, yyyy') : '\u2014'}
+          </span>
+        );
+      case "actions":
+        return (
+          <div className="flex justify-end" onClick={(e) => e.preventDefault()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.preventDefault()}>
+                  <MoreVertical className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href={`/projects/${project.id}`}>
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Details
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={(e) => { e.preventDefault(); setRiskAssessProjectId(project.id); }}>
+                  <Shield className="h-4 w-4 mr-2" />
+                  AI Risk Assessment
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={(e) => { e.preventDefault(); setDeleteProjectId(project.id); }} className="text-red-600 focus:text-red-600">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const renderProjectRow = (project: Project, index: number) => {
     return (
       <motion.div
         key={project.id}
@@ -274,220 +719,99 @@ function ProjectsListView({
         transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.3) }}
       >
         <Link href={`/projects/${project.id}`}>
-          <div className="group grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_110px_90px_80px_140px_100px_100px_40px] gap-3 sm:gap-0 items-center px-4 py-3 hover:bg-muted/40 transition-colors duration-150 cursor-pointer">
-            <div className="flex items-center gap-3 min-w-0 pl-1">
-              <div className={cn("w-1 h-8 rounded-full shrink-0", health.bg)} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors" title={project.name}>
-                    {project.name}
-                  </span>
-                  {(project as any).isInternal && (
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-violet-300 text-violet-600 dark:border-violet-700 dark:text-violet-400 shrink-0">
-                      Internal
-                    </Badge>
-                  )}
-                  {project.timesheetBlocked && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <LockIcon className="h-3 w-3 text-amber-500 shrink-0" />
-                      </TooltipTrigger>
-                      <TooltipContent>Timesheet entries blocked</TooltipContent>
-                    </Tooltip>
-                  )}
-                  {project.source === "planner" && project.plannerPlanId && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            window.open(`https://planner.cloud.microsoft/webui/plan/${project.plannerPlanId}/view/board`, '_blank');
-                          }}
-                          className="shrink-0"
-                        >
-                          <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>Synced from Microsoft Planner</TooltipContent>
-                    </Tooltip>
-                  )}
-                  {(project.source === "planner-premium" || project.source === "planner_premium") && project.plannerPlanId && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const tenantId = project.dataverseTenantId || '';
-                            const planId = project.plannerPlanId;
-                            const premiumUrl = tenantId 
-                              ? `https://planner.cloud.microsoft/${tenantId}/en-US/Home/Planner/#/plantaskboard?planId=${planId}`
-                              : `https://planner.cloud.microsoft/webui/plan/${planId}/view/board`;
-                            window.open(premiumUrl, '_blank');
-                          }}
-                          className="shrink-0 flex items-center gap-0.5"
-                        >
-                          <img src={plannerLogoPath} alt="Planner Premium" className="h-4 w-4" />
-                          <Crown className="h-2.5 w-2.5 text-purple-500" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>Synced from Planner Premium</TooltipContent>
-                    </Tooltip>
-                  )}
-                  {project.source === "imported" && project.sourceFileUrl && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const link = document.createElement('a');
-                            link.href = project.sourceFileUrl!;
-                            link.download = project.sourceFileName || 'project.mpp';
-                            link.click();
-                          }}
-                          className="shrink-0"
-                        >
-                          <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>Imported from MS Project</TooltipContent>
-                    </Tooltip>
-                  )}
-                  {(project as any).isExternal && (
-                    <ExternalBadge 
-                      organizationName={(project as any).sourceOrganizationName}
-                      accessRole={(project as any).accessRole}
-                    />
-                  )}
-                  {showRisk && riskData && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div>
-                          <Badge
-                            variant="secondary"
-                            className={`text-[10px] px-1.5 py-0 gap-0.5 shrink-0 ${getRiskScoreColor(riskData.riskScore)}`}
-                          >
-                            <Shield className="h-2.5 w-2.5" />
-                            {riskData.riskScore}
-                          </Badge>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">{riskData.summary}</TooltipContent>
-                    </Tooltip>
-                  )}
-                </div>
+          <div
+            className="group grid grid-cols-1 gap-3 sm:gap-0 items-center px-4 py-3 hover:bg-muted/40 transition-colors duration-150 cursor-pointer"
+            style={{ gridTemplateColumns: visibleColumns.map(c => c.width).join(" ") }}
+          >
+            {visibleColumns.map(col => (
+              <div key={col.id} className={col.align === "right" ? "text-right" : ""}>
+                {renderCellContent(project, col.id)}
               </div>
-            </div>
-
-            <div className="flex items-center sm:justify-start" onClick={(e) => e.preventDefault()}>
-              <Select 
-                value={project.status} 
-                onValueChange={(newStatus) => handleStatusChange(project.id, newStatus)}
-              >
-                <SelectTrigger 
-                  className={cn(
-                    "h-6 w-auto text-[11px] font-medium border-0 px-2 py-0 rounded-md shadow-none",
-                    STATUS_COLORS[project.status] || STATUS_COLORS.Initiation
-                  )}
-                  onClick={(e) => e.preventDefault()}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent onClick={(e) => e.stopPropagation()}>
-                  {PROJECT_STATUS_LIST.map(status => (
-                    <SelectItem key={status} value={status}>{status}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Badge className={cn(
-                "text-[11px] font-medium px-2 py-0.5 rounded-md border-0",
-                PRIORITY_COLORS[project.priority || 'Medium']
-              )}>
-                {project.priority}
-              </Badge>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <div className={cn("w-2 h-2 rounded-full shrink-0", health.dot)} />
-              <span className="text-xs text-muted-foreground hidden lg:inline">{health.label}</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="h-1.5 w-20 rounded-full bg-muted overflow-hidden">
-                <div 
-                  className={cn("h-full rounded-full transition-all duration-500", health.bg)}
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <span className="text-xs font-medium text-muted-foreground w-8">{progress}%</span>
-            </div>
-
-            <div className="text-right">
-              <span className="text-sm font-medium text-foreground tabular-nums">
-                {Number(project.budget) > 0 ? `$${Number(project.budget).toLocaleString()}` : '\u2014'}
-              </span>
-            </div>
-
-            <div className="text-right">
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : '\u2014'}
-              </span>
-            </div>
-
-            <div className="flex justify-end" onClick={(e) => e.preventDefault()}>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button 
-                    size="icon" 
-                    variant="ghost"
-                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => e.preventDefault()}
-                  >
-                    <MoreVertical className="h-3.5 w-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem asChild>
-                    <Link href={`/projects/${project.id}`}>
-                      <Eye className="h-4 w-4 mr-2" />
-                      View Details
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={(e) => { e.preventDefault(); setRiskAssessProjectId(project.id); }}
-                  >
-                    <Shield className="h-4 w-4 mr-2" />
-                    AI Risk Assessment
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={(e) => { e.preventDefault(); setDeleteProjectId(project.id); }} 
-                    className="text-red-600 focus:text-red-600"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            ))}
           </div>
         </Link>
       </motion.div>
     );
   };
 
+  const currentGroupLabel = groupByOptions.find(o => o.value === groupBy)?.label || "None";
+
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      {groupedProjects.length > 1 && (
-        <div className="flex items-center justify-end gap-1 px-4 py-1.5 bg-muted/30 border-b border-border">
+      <div className="flex items-center justify-between gap-2 px-4 py-2 bg-muted/20 border-b border-border">
+        <div className="flex items-center gap-4">
+          <ViewsDropdown
+            mode="list"
+            organizationId={organizationId ?? null}
+            allColumns={allListColumns}
+            visibleColumns={visibleColumnIds}
+            columnOrder={listColumnOrder}
+            onApplyView={handleApplyView}
+            defaultColumns={defaultListColumns}
+            defaultColumnOrder={defaultListColumnOrder}
+            filterView={filterView}
+            onFilterViewChange={onFilterViewChange}
+          />
+          <div className="flex items-center gap-2">
+            <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground">Group by:</span>
+            <Select value={groupBy} onValueChange={(v) => onGroupByChange(v as GroupByOption)}>
+              <SelectTrigger className="h-7 w-auto min-w-[120px] text-xs border-border/60 bg-background shadow-none gap-1">
+                <SelectValue>{currentGroupLabel}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {groupByOptions.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Popover open={manageColumnsOpen} onOpenChange={setManageColumnsOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground">
+                <Settings2 className="h-3.5 w-3.5" />
+                Columns
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-2" align="start">
+              <div className="flex items-center justify-between px-2 pb-2 border-b border-border mb-1">
+                <span className="text-xs font-semibold text-foreground">Manage Columns</span>
+                <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 text-muted-foreground" onClick={resetColumns}>
+                  Reset
+                </Button>
+              </div>
+              <div className="space-y-0.5 max-h-[300px] overflow-auto">
+                {LIST_COLUMNS.filter(c => !c.alwaysVisible).map(col => (
+                  <label
+                    key={col.id}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer text-sm"
+                  >
+                    <Checkbox
+                      checked={visibleColumnIds.includes(col.id)}
+                      onCheckedChange={() => toggleColumn(col.id)}
+                      className="h-3.5 w-3.5"
+                    />
+                    <span className="text-xs">{col.label}</span>
+                  </label>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+          {listSort && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-[11px] px-2 text-muted-foreground hover:text-foreground gap-1"
+              onClick={() => { setListSort(null); saveListSort(null); }}
+            >
+              <X className="h-3 w-3" />
+              Clear sort
+            </Button>
+          )}
+        </div>
+        {groupBy !== "none" && groupedProjects.length > 1 && (
           <Button
             variant="ghost"
             size="sm"
@@ -506,42 +830,74 @@ function ProjectsListView({
               </>
             )}
           </Button>
-        </div>
-      )}
-      <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_110px_90px_80px_140px_100px_100px_40px] gap-0 px-4 py-2.5 bg-muted/50 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-        <span className="pl-3">Project</span>
-        <span>Status</span>
-        <span>Priority</span>
-        <span>Health</span>
-        <span>Progress</span>
-        <span className="text-right">Budget</span>
-        <span className="text-right">Due Date</span>
-        <span></span>
+        )}
+      </div>
+      <div
+        className="hidden sm:grid gap-0 px-4 py-2.5 bg-muted/50 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+        style={{ gridTemplateColumns: visibleColumns.map(c => c.width).join(" ") }}
+      >
+        {visibleColumns.map(col => {
+          const isSortable = col.id !== "actions" && col.id !== "progress";
+          const sortDir = listSort?.columnId === col.id ? listSort.direction : null;
+          return (
+            <span
+              key={col.id}
+              className={cn(
+                col.align === "right" ? "text-right" : col.id === "name" ? "pl-3" : "",
+                isSortable && "cursor-pointer select-none hover:text-foreground transition-colors group/sort"
+              )}
+              onClick={isSortable ? () => handleSort(col.id) : undefined}
+            >
+              <span className="inline-flex items-center gap-1">
+                {col.label}
+                {isSortable && sortDir === "asc" && <ArrowUp className="h-3 w-3 text-primary" />}
+                {isSortable && sortDir === "desc" && <ArrowDown className="h-3 w-3 text-primary" />}
+                {isSortable && !sortDir && <ChevronsUpDown className="h-3 w-3 opacity-0 group-hover/sort:opacity-50 transition-opacity" />}
+              </span>
+            </span>
+          );
+        })}
       </div>
 
       <div className="divide-y divide-border">
-        {groupedProjects.length === 1 && !groupedProjects[0].portfolio ? (
-          groupedProjects[0].projects.map((project, index) => renderProjectRow(project, index))
+        {groupBy === "none" ? (
+          sortedProjects.map((project, index) => renderProjectRow(project, index))
         ) : (
           groupedProjects.map((group) => {
             const isCollapsed = collapsedGroups[group.key] === true;
-            const portfolio = group.portfolio;
+            const portfolio = groupBy === "portfolio" ? group.meta as Portfolio | null : null;
             const portfolioHealth = portfolio ? (HEALTH_CONFIG[portfolio.healthScore || 'Green'] || HEALTH_CONFIG.Green) : null;
+
+            const statusColor = groupBy === "status" ? (STATUS_COLORS[group.label] || "") : "";
+            const priorityColor = groupBy === "priority" ? (PRIORITY_COLORS[group.label] || "") : "";
+            const healthConfig = groupBy === "health" ? (Object.values(HEALTH_CONFIG).find(h => h.label === group.label) || null) : null;
 
             return (
               <div key={group.key}>
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.key)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 bg-muted/30 hover:bg-muted/50 transition-colors duration-150 border-b border-border cursor-pointer"
+                  className="w-full flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-muted/60 to-muted/30 hover:from-muted/80 hover:to-muted/50 transition-all duration-150 border-b-2 border-border/60 cursor-pointer"
                 >
                   <ChevronRight className={cn("h-4 w-4 text-muted-foreground shrink-0 transition-transform duration-200", isCollapsed ? "" : "rotate-90")} />
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <span className="text-sm font-semibold text-foreground truncate">
-                      {portfolio ? portfolio.name : "Unassigned"}
+                    {groupBy === "portfolio" && (
+                      <FolderOpen className="h-4 w-4 text-primary/70 shrink-0" />
+                    )}
+                    {groupBy === "status" && statusColor && (
+                      <div className={cn("w-3 h-3 rounded-sm shrink-0", statusColor.split(" ")[0])} />
+                    )}
+                    {groupBy === "health" && healthConfig && (
+                      <div className={cn("w-3 h-3 rounded-full shrink-0", healthConfig.dot)} />
+                    )}
+                    {groupBy === "priority" && priorityColor && (
+                      <div className={cn("w-3 h-3 rounded-sm shrink-0", priorityColor.split(" ")[0])} />
+                    )}
+                    <span className="text-sm font-bold text-foreground truncate tracking-tight">
+                      {group.label}
                     </span>
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
-                      {group.projects.length} {group.projects.length === 1 ? 'project' : 'projects'}
+                    <Badge variant="secondary" className="text-[10px] px-2 py-0.5 shrink-0 font-semibold rounded-full bg-primary/10 text-primary border-0">
+                      {group.projects.length}
                     </Badge>
                     {portfolio && portfolioHealth && (
                       <>
@@ -556,7 +912,7 @@ function ProjectsListView({
                         )}
                         {portfolio.budgetAllocated && Number(portfolio.budgetAllocated) > 0 && (
                           <span className="text-[11px] text-muted-foreground shrink-0">
-                            Budget: ${Number(portfolio.budgetAllocated).toLocaleString()}
+                            Budget: <CompactCurrency value={portfolio.budgetAllocated} />
                           </span>
                         )}
                       </>
@@ -618,6 +974,7 @@ export default function Projects() {
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [filterView, setFilterView] = useState<ProjectFilterView>("active");
   const [sortBy, setSortBy] = useState<"createdAt" | "startDate" | "updatedAt">("updatedAt");
+  const [listGroupBy, setListGroupBy] = useState<GroupByOption>("portfolio");
   const { data: projects, isLoading } = useProjects(currentOrganization?.id, selectedPortfolio !== "all" ? parseInt(selectedPortfolio) : undefined);
   const { data: externalProjects } = useExternalProjects();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
@@ -633,6 +990,21 @@ export default function Projects() {
     queryKey: ['/api/project-risk-assessments/org', currentOrganization?.id],
     enabled: !!currentOrganization?.id,
   });
+
+  const { data: orgWorkflowSteps } = useQuery<Array<{ id: number; stepKey: string; position: number; label: string; description: string | null; isTerminal: boolean | null; isActive: boolean | null }>>({
+    queryKey: ['/api/organizations', currentOrganization?.id, 'project-workflow'],
+    queryFn: async () => {
+      const res = await fetch(`/api/organizations/${currentOrganization!.id}/project-workflow`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  const PROJECT_STATUS_LIST = useMemo(() => {
+    if (!orgWorkflowSteps || orgWorkflowSteps.length === 0) return DEFAULT_PROJECT_STATUS_LIST;
+    return orgWorkflowSteps.filter(s => s.isActive !== false).map(s => s.stepKey);
+  }, [orgWorkflowSteps]);
 
   const { data: exportCustomFieldDefs } = useCustomFieldDefinitions(currentOrganization?.id);
   const { data: exportCfValues } = useOrganizationProjectCustomFieldValues(currentOrganization?.id);
@@ -682,6 +1054,7 @@ export default function Projects() {
     localStorage.setItem("projects-view-preference", newView);
   };
   const updateProject = useUpdateProject();
+  const updateCfValue = useUpdateProjectCustomFieldValue();
   const createProject = useCreateProject();
   const { toast } = useToast();
   const [deleteProjectId, setDeleteProjectId] = useState<number | null>(null);
@@ -715,6 +1088,8 @@ export default function Projects() {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "risk-assessment", "latest"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "risk-assessment", "history"] });
       queryClient.invalidateQueries({ queryKey: ['/api/project-risk-assessments/org', currentOrganization?.id] });
+      // Project list shows the riskScore column; refresh it so the new score appears immediately.
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
       toast({ title: "Success", description: "Risk assessment generated successfully." });
       setRiskAssessProjectId(null);
       navigate(`/projects/${projectId}`);
@@ -747,7 +1122,7 @@ export default function Projects() {
       { header: "Start Date", key: "startDate", width: 15 },
       { header: "End Date", key: "endDate", width: 15 },
       { header: "Budget", key: "budget", width: 15 },
-      { header: "Completion %", key: "completion", width: 12 }
+      { header: "Progress %", key: "completion", width: 12 }
     ];
 
     const cfColumns = exportProjectCustomFields.map(cf => ({
@@ -1120,6 +1495,34 @@ export default function Projects() {
     );
   };
 
+  const handleKanbanProjectUpdate = (projectId: number, updates: Partial<Project>) => {
+    updateProject.mutate(
+      { id: projectId, ...updates },
+      {
+        onSuccess: () => {
+          toast({ title: "Project updated" });
+        },
+        onError: (err) => {
+          toast({ title: "Error", description: err.message, variant: "destructive" });
+        }
+      }
+    );
+  };
+
+  const handleKanbanCfChange = (projectId: number, fieldDefinitionId: number, value: string | null) => {
+    updateCfValue.mutate(
+      { projectId, fieldDefinitionId, value },
+      {
+        onSuccess: () => {
+          toast({ title: "Project updated" });
+        },
+        onError: (err) => {
+          toast({ title: "Error", description: err.message, variant: "destructive" });
+        }
+      }
+    );
+  };
+
   return (
     <PageTransition className="space-y-8">
       <FadeIn className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1402,6 +1805,14 @@ export default function Projects() {
                 onPageSizeChange={handleListPageSizeChange}
                 selectedPageSize={listPageSize}
                 isLoading={isLoading}
+                groupBy={listGroupBy}
+                onGroupByChange={setListGroupBy}
+                customFieldDefs={exportCustomFieldDefs}
+                customFieldValues={exportCfValues}
+                filterView={filterView}
+                onFilterViewChange={setFilterView}
+                organizationId={currentOrganization?.id || null}
+                statusList={PROJECT_STATUS_LIST}
               />
             ) : view === "grid" ? (
               <ProjectsGridView 
@@ -1419,6 +1830,7 @@ export default function Projects() {
                 }}
                 filterView={filterView}
                 onFilterViewChange={setFilterView}
+                statusList={PROJECT_STATUS_LIST}
               />
             ) : view === "kanban" ? (
               <ProjectsKanbanView 
@@ -1426,6 +1838,10 @@ export default function Projects() {
                 portfolios={portfolios || []}
                 onStatusChange={handleStatusChange}
                 onPortfolioChange={handlePortfolioChange}
+                onProjectUpdate={handleKanbanProjectUpdate}
+                customFieldDefs={exportCustomFieldDefs || []}
+                cfValues={exportCfValues || []}
+                onCustomFieldChange={handleKanbanCfChange}
               />
             ) : (
               <ProjectsGanttView projects={filteredProjects || []} organizationId={currentOrganization?.id || null} />
@@ -1453,6 +1869,14 @@ export default function Projects() {
           onPageSizeChange={handleListPageSizeChange}
           selectedPageSize={listPageSize}
           isLoading={isLoading}
+          groupBy={listGroupBy}
+          onGroupByChange={setListGroupBy}
+          customFieldDefs={exportCustomFieldDefs}
+          customFieldValues={exportCfValues}
+          filterView={filterView}
+          onFilterViewChange={setFilterView}
+          organizationId={currentOrganization?.id || null}
+          statusList={PROJECT_STATUS_LIST}
         />
       ) : !isFullscreen && view === "grid" ? (
         <ProjectsGridView 
@@ -1465,6 +1889,7 @@ export default function Projects() {
           organizationId={currentOrganization?.id || null}
           filterView={filterView}
           onFilterViewChange={setFilterView}
+          statusList={PROJECT_STATUS_LIST}
         />
       ) : !isFullscreen && view === "kanban" ? (
         <ProjectsKanbanView 
@@ -1472,6 +1897,10 @@ export default function Projects() {
           portfolios={portfolios || []}
           onStatusChange={handleStatusChange}
           onPortfolioChange={handlePortfolioChange}
+          onProjectUpdate={handleKanbanProjectUpdate}
+          customFieldDefs={exportCustomFieldDefs || []}
+          cfValues={exportCfValues || []}
+          onCustomFieldChange={handleKanbanCfChange}
         />
       ) : !isFullscreen ? (
         <ProjectsGanttView projects={filteredProjects || []} organizationId={currentOrganization?.id || null} />
@@ -1588,7 +2017,7 @@ const ALL_GRID_COLUMNS: GridColumn[] = [
   { id: "forecastCost", label: "Forecast Cost", defaultVisible: false },
   { id: "costVariance", label: "Cost Variance", defaultVisible: false },
   { id: "scheduleVariance", label: "Schedule Variance", defaultVisible: false },
-  { id: "completion", label: "Completion %", defaultVisible: true },
+  { id: "completion", label: "Progress %", defaultVisible: true },
   { id: "projectType", label: "Project Type", defaultVisible: false },
   { id: "methodology", label: "Methodology", defaultVisible: false },
   { id: "department", label: "Department", defaultVisible: false },
@@ -1627,11 +2056,6 @@ function saveColumnOrder(order: string[]) {
 
 function saveColumns(columns: string[]) {
   localStorage.setItem(GRID_COLUMN_STORAGE_KEY, JSON.stringify(columns));
-}
-
-interface Portfolio {
-  id: number;
-  name: string;
 }
 
 interface ResizableSortableColumnHeaderProps {
@@ -1781,6 +2205,7 @@ function ProjectsGridView({
   onExitFullscreen,
   filterView,
   onFilterViewChange,
+  statusList = DEFAULT_PROJECT_STATUS_LIST,
 }: { 
   projects: Project[];
   portfolios: Portfolio[];
@@ -1793,7 +2218,9 @@ function ProjectsGridView({
   onExitFullscreen?: () => void;
   filterView?: ProjectFilterView;
   onFilterViewChange?: (filterView: ProjectFilterView) => void;
+  statusList?: string[];
 }) {
+  const PROJECT_STATUS_LIST = statusList;
   const { toast } = useToast();
   const [visibleColumns, setVisibleColumns] = useState<string[]>(getStoredColumns);
   const [columnOrder, setColumnOrder] = useState<string[]>(getStoredColumnOrder);
@@ -1802,6 +2229,24 @@ function ProjectsGridView({
   const [editValue, setEditValue] = useState<string>("");
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [internalFullscreen, setInternalFullscreen] = useState(false);
+  const [gridGroupBy, setGridGroupBy] = useState<GroupByOption>(() => {
+    try {
+      const stored = localStorage.getItem("projects-grid-group-by");
+      if (stored) return stored as GroupByOption;
+    } catch {}
+    return "none";
+  });
+  const [gridCollapsedGroups, setGridCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  const handleGridGroupByChange = useCallback((value: GroupByOption) => {
+    setGridGroupBy(value);
+    setGridCollapsedGroups({});
+    try { localStorage.setItem("projects-grid-group-by", value); } catch {}
+  }, []);
+
+  const toggleGridGroup = useCallback((groupKey: string) => {
+    setGridCollapsedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
+  }, []);
 
   const [gridPageSize, setGridPageSize] = useState<number>(() => {
     const saved = localStorage.getItem("projects-grid-page-size");
@@ -1977,6 +2422,115 @@ function ProjectsGridView({
     const start = (gridCurrentPage - 1) * gridPageSize;
     return sortedProjects.slice(start, start + gridPageSize);
   }, [sortedProjects, gridCurrentPage, gridPageSize]);
+
+  const gridGroupByOptions = useMemo(() => {
+    const options = [...GROUP_BY_STANDARD];
+    projectCustomFields.forEach(def => {
+      options.push({ value: `cf_${def.id}` as GroupByOption, label: def.name });
+    });
+    return options;
+  }, [projectCustomFields]);
+
+  useEffect(() => {
+    if (gridGroupBy !== "none" && !gridGroupByOptions.some(o => o.value === gridGroupBy)) {
+      handleGridGroupByChange("none");
+    }
+  }, [gridGroupBy, gridGroupByOptions, handleGridGroupByChange]);
+
+  const gridGroupedProjects = useMemo(() => {
+    if (gridGroupBy === "none") {
+      return [{ key: "__all__", label: "", projects: displayedProjects, meta: null as any }];
+    }
+
+    const portfolioMap = new Map<number, Portfolio>();
+    portfolios.forEach(p => portfolioMap.set(p.id, p));
+
+    const getGroupKeyAndLabel = (project: Project): { key: string; label: string; sortOrder: number } => {
+      switch (gridGroupBy) {
+        case "portfolio": {
+          const pid = project.portfolioId ?? null;
+          const resolvedPid = pid !== null && portfolioMap.has(pid) ? pid : null;
+          if (resolvedPid === null) return { key: "unassigned", label: "Unassigned", sortOrder: 999 };
+          const p = portfolioMap.get(resolvedPid)!;
+          return { key: `portfolio-${resolvedPid}`, label: p.name, sortOrder: 0 };
+        }
+        case "status": {
+          const s = project.status || "Unknown";
+          const idx = PROJECT_STATUS_LIST.indexOf(s);
+          return { key: `status-${s}`, label: s, sortOrder: idx >= 0 ? idx : 999 };
+        }
+        case "priority": {
+          const p = project.priority || "Medium";
+          const order: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+          return { key: `priority-${p}`, label: p, sortOrder: order[p] ?? 4 };
+        }
+        case "health": {
+          const h = project.health || "Green";
+          const order: Record<string, number> = { Red: 0, Yellow: 1, Green: 2 };
+          const labels: Record<string, string> = { Green: "On Track", Yellow: "At Risk", Red: "Off Track" };
+          return { key: `health-${h}`, label: labels[h] || h, sortOrder: order[h] ?? 3 };
+        }
+        case "projectType": {
+          const t = project.projectType || "";
+          if (!t) return { key: "type-unset", label: "No Type", sortOrder: 999 };
+          return { key: `type-${t}`, label: t, sortOrder: 0 };
+        }
+        case "methodology": {
+          const m = project.methodology || "";
+          if (!m) return { key: "method-unset", label: "No Methodology", sortOrder: 999 };
+          return { key: `method-${m}`, label: m, sortOrder: 0 };
+        }
+        default: {
+          if (gridGroupBy.startsWith("cf_")) {
+            const defId = parseInt(gridGroupBy.slice(3));
+            const cfVal = cfValuesMap.get(`${project.id}_${defId}`);
+            const raw = cfVal?.value || "";
+            if (!raw) return { key: `cf-${defId}-unset`, label: "Not Set", sortOrder: 999 };
+            const cfDef = projectCustomFields.find(d => d.id === defId);
+            let displayLabel = raw;
+            if (cfDef?.fieldType === "checkbox") {
+              displayLabel = raw === "true" ? "Yes" : "No";
+            } else if (cfDef?.fieldType === "multiselect") {
+              try { displayLabel = JSON.parse(raw).join(", "); } catch { /* use raw */ }
+            }
+            return { key: `cf-${defId}-${raw}`, label: displayLabel, sortOrder: 0 };
+          }
+          return { key: "__all__", label: "", sortOrder: 0 };
+        }
+      }
+    };
+
+    const groupMap = new Map<string, { label: string; projects: Project[]; sortOrder: number; portfolio: Portfolio | null }>();
+    displayedProjects.forEach(project => {
+      const { key, label, sortOrder } = getGroupKeyAndLabel(project);
+      if (!groupMap.has(key)) {
+        const portfolio = gridGroupBy === "portfolio" && project.portfolioId ? portfolioMap.get(project.portfolioId) || null : null;
+        groupMap.set(key, { label, projects: [], sortOrder, portfolio });
+      }
+      groupMap.get(key)!.projects.push(project);
+    });
+
+    return Array.from(groupMap.entries())
+      .sort(([, a], [, b]) => {
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+        return a.label.localeCompare(b.label);
+      })
+      .map(([key, val]) => ({ key, label: val.label, projects: val.projects, meta: val.portfolio }));
+  }, [displayedProjects, portfolios, gridGroupBy, cfValuesMap, projectCustomFields]);
+
+  const gridAllGroupsCollapsed = gridGroupedProjects.length > 0 && gridGroupedProjects.every(g => gridCollapsedGroups[g.key] === true);
+
+  const gridCollapseAll = useCallback(() => {
+    const collapsed: Record<string, boolean> = {};
+    gridGroupedProjects.forEach(g => { collapsed[g.key] = true; });
+    setGridCollapsedGroups(collapsed);
+  }, [gridGroupedProjects]);
+
+  const gridExpandAll = useCallback(() => {
+    setGridCollapsedGroups({});
+  }, []);
+
+  const gridCurrentGroupLabel = gridGroupByOptions.find(o => o.value === gridGroupBy)?.label || "None";
 
   const handleApplyView = (view: { visibleColumns: string[]; columnOrder: string[] }) => {
     setVisibleColumns(view.visibleColumns);
@@ -2258,7 +2812,7 @@ function ProjectsGridView({
               </Badge>
             </SelectTrigger>
             <SelectContent>
-              {["Critical", "High", "Medium", "Low"].map(priority => (
+              {[...PROJECT_PRIORITIES].reverse().map(priority => (
                 <SelectItem key={priority} value={priority}>{priority}</SelectItem>
               ))}
             </SelectContent>
@@ -2282,7 +2836,7 @@ function ProjectsGridView({
               </div>
             </SelectTrigger>
             <SelectContent>
-              {["Green", "Yellow", "Red"].map(health => (
+              {PROJECT_HEALTH_VALUES.map(health => (
                 <SelectItem key={health} value={health}>{health}</SelectItem>
               ))}
             </SelectContent>
@@ -2297,7 +2851,7 @@ function ProjectsGridView({
       case "budget":
         return (
           <div className="flex items-center gap-2 group">
-            <span className="text-sm font-medium">${Number(project.budget || 0).toLocaleString()}</span>
+            <CompactCurrency value={project.budget || 0} className="text-sm font-medium" />
             <Button 
               size="icon" 
               variant="ghost" 
@@ -2418,14 +2972,14 @@ function ProjectsGridView({
       case "actualEndDate":
         return <span className="text-sm">{project.actualEndDate ? format(new Date(project.actualEndDate), 'MMM d, yyyy') : "-"}</span>;
       case "actualCost":
-        return <span className="text-sm">${Number(project.actualCost || 0).toLocaleString()}</span>;
+        return <CompactCurrency value={project.actualCost || 0} className="text-sm" />;
       case "forecastCost":
-        return <span className="text-sm">{project.forecastCost ? `$${Number(project.forecastCost).toLocaleString()}` : "-"}</span>;
+        return project.forecastCost ? <CompactCurrency value={project.forecastCost} className="text-sm" /> : <span className="text-sm">-</span>;
       case "costVariance":
         const costVar = Number(project.costVariance || 0);
         return (
           <span className={cn("text-sm", costVar < 0 ? "text-rose-600" : costVar > 0 ? "text-emerald-600" : "")}>
-            {project.costVariance ? `$${costVar.toLocaleString()}` : "-"}
+            {project.costVariance ? <CompactCurrency value={costVar} /> : "-"}
           </span>
         );
       case "scheduleVariance":
@@ -2533,6 +3087,42 @@ function ProjectsGridView({
               filterView={filterView}
               onFilterViewChange={onFilterViewChange}
             />
+            <div className="flex items-center gap-2">
+              <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-medium text-muted-foreground">Group by:</span>
+              <Select value={gridGroupBy} onValueChange={(v) => handleGridGroupByChange(v as GroupByOption)}>
+                <SelectTrigger className="h-7 w-auto min-w-[120px] text-xs border-border/60 bg-background shadow-none gap-1">
+                  <SelectValue>{gridCurrentGroupLabel}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {gridGroupByOptions.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {gridGroupBy !== "none" && gridGroupedProjects.length > 1 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[11px] px-2 text-muted-foreground hover:text-foreground"
+                onClick={gridAllGroupsCollapsed ? gridExpandAll : gridCollapseAll}
+              >
+                {gridAllGroupsCollapsed ? (
+                  <>
+                    <ChevronsUpDown className="h-3 w-3 mr-1" />
+                    Expand All
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-3 w-3 mr-1" />
+                    Collapse All
+                  </>
+                )}
+              </Button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {selectedProjects.size > 0 && (
@@ -2622,18 +3212,56 @@ function ProjectsGridView({
       {/* Toolbar - Only show in non-fullscreen mode */}
       {!isFullscreen && (
         <div className="flex justify-between gap-2">
-          <ViewsDropdown
-            mode="grid"
-            organizationId={organizationId}
-            allColumns={allGridColumns}
-            visibleColumns={visibleColumns}
-            columnOrder={columnOrder}
-            onApplyView={handleApplyView}
-            defaultColumns={defaultColumns}
-            defaultColumnOrder={defaultColumnOrder}
-            filterView={filterView}
-            onFilterViewChange={onFilterViewChange}
-          />
+          <div className="flex items-center gap-4">
+            <ViewsDropdown
+              mode="grid"
+              organizationId={organizationId}
+              allColumns={allGridColumns}
+              visibleColumns={visibleColumns}
+              columnOrder={columnOrder}
+              onApplyView={handleApplyView}
+              defaultColumns={defaultColumns}
+              defaultColumnOrder={defaultColumnOrder}
+              filterView={filterView}
+              onFilterViewChange={onFilterViewChange}
+            />
+            <div className="flex items-center gap-2">
+              <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-medium text-muted-foreground">Group by:</span>
+              <Select value={gridGroupBy} onValueChange={(v) => handleGridGroupByChange(v as GroupByOption)}>
+                <SelectTrigger className="h-7 w-auto min-w-[120px] text-xs border-border/60 bg-background shadow-none gap-1">
+                  <SelectValue>{gridCurrentGroupLabel}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {gridGroupByOptions.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {gridGroupBy !== "none" && gridGroupedProjects.length > 1 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[11px] px-2 text-muted-foreground hover:text-foreground"
+                onClick={gridAllGroupsCollapsed ? gridExpandAll : gridCollapseAll}
+              >
+                {gridAllGroupsCollapsed ? (
+                  <>
+                    <ChevronsUpDown className="h-3 w-3 mr-1" />
+                    Expand All
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-3 w-3 mr-1" />
+                    Collapse All
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
           <div className="flex gap-2">
             <Popover>
               <PopoverTrigger asChild>
@@ -2680,7 +3308,7 @@ function ProjectsGridView({
           <Table>
             <TableHeader className={cn(isFullscreen && "sticky top-0 z-20 bg-card shadow-sm")}>
               <TableRow className={cn(isFullscreen && "bg-card")}>
-                <TableHead className={cn("w-10", isFullscreen && "bg-card")}>
+                <TableHead className={cn("w-10 sticky left-0 z-10 bg-card", isFullscreen && "bg-card")}>
                   <Checkbox 
                     checked={projects.length > 0 && selectedProjects.size === projects.length}
                     onCheckedChange={toggleSelectAll}
@@ -2713,66 +3341,125 @@ function ProjectsGridView({
                   </TableCell>
                 </TableRow>
               ) : (
-                displayedProjects.map(project => (
-                  <TableRow 
-                    key={project.id} 
-                    data-testid={`grid-row-${project.id}`}
-                    className={cn(selectedProjects.has(project.id) && "bg-muted/50")}
-                  >
-                    <TableCell>
-                      <Checkbox 
-                        checked={selectedProjects.has(project.id)}
-                        onCheckedChange={() => toggleSelectProject(project.id)}
-                        data-testid={`checkbox-project-${project.id}`}
-                      />
-                    </TableCell>
-                    {orderedVisibleColumns.map(column => {
-                      const width = getColumnWidth(column.id, defaultWidths[column.id as keyof typeof defaultWidths] || 150);
-                      return (
-                        <TableCell 
-                          key={column.id}
-                          className="overflow-hidden"
-                          style={{ 
-                            width: `${width}px`, 
-                            minWidth: `${width}px`, 
-                            maxWidth: `${width}px` 
-                          }}
+                gridGroupedProjects.map((group) => {
+                  const isGroupCollapsed = gridCollapsedGroups[group.key] === true;
+                  const showGroupHeader = gridGroupBy !== "none";
+                  const portfolio = gridGroupBy === "portfolio" ? group.meta as Portfolio | null : null;
+                  const portfolioHealth = portfolio ? (HEALTH_CONFIG[portfolio.healthScore || 'Green'] || HEALTH_CONFIG.Green) : null;
+                  const statusColor = gridGroupBy === "status" ? (STATUS_COLORS[group.label] || "") : "";
+                  const priorityColor = gridGroupBy === "priority" ? (PRIORITY_COLORS[group.label] || "") : "";
+                  const healthConfig = gridGroupBy === "health" ? (Object.values(HEALTH_CONFIG).find(h => h.label === group.label) || null) : null;
+
+                  return (
+                    <Fragment key={group.key}>
+                      {showGroupHeader && (
+                        <TableRow className="bg-gradient-to-r from-muted/60 to-muted/30 hover:from-muted/80 hover:to-muted/50 cursor-pointer border-b-2 border-border/60" onClick={() => toggleGridGroup(group.key)}>
+                          <TableCell colSpan={orderedVisibleColumns.length + 2} className="py-2.5 px-4">
+                            <div className="flex items-center gap-3">
+                              <ChevronRight className={cn("h-4 w-4 text-muted-foreground shrink-0 transition-transform duration-200", isGroupCollapsed ? "" : "rotate-90")} />
+                              {gridGroupBy === "portfolio" && (
+                                <FolderOpen className="h-4 w-4 text-primary/70 shrink-0" />
+                              )}
+                              {gridGroupBy === "status" && statusColor && (
+                                <div className={cn("w-3 h-3 rounded-sm shrink-0", statusColor.split(" ")[0])} />
+                              )}
+                              {gridGroupBy === "health" && healthConfig && (
+                                <div className={cn("w-3 h-3 rounded-full shrink-0", healthConfig.dot)} />
+                              )}
+                              {gridGroupBy === "priority" && priorityColor && (
+                                <div className={cn("w-3 h-3 rounded-sm shrink-0", priorityColor.split(" ")[0])} />
+                              )}
+                              <span className="text-sm font-bold text-foreground truncate tracking-tight">
+                                {group.label}
+                              </span>
+                              <Badge variant="secondary" className="text-[10px] px-2 py-0.5 shrink-0 font-semibold rounded-full bg-primary/10 text-primary border-0">
+                                {group.projects.length}
+                              </Badge>
+                              {portfolio && portfolioHealth && (
+                                <>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <div className={cn("w-2 h-2 rounded-full", portfolioHealth.dot)} />
+                                    <span className="text-[11px] text-muted-foreground">{portfolioHealth.label}</span>
+                                  </div>
+                                  {portfolio.status && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
+                                      {portfolio.status}
+                                    </Badge>
+                                  )}
+                                  {portfolio.budgetAllocated && Number(portfolio.budgetAllocated) > 0 && (
+                                    <span className="text-[11px] text-muted-foreground shrink-0">
+                                      Budget: <CompactCurrency value={portfolio.budgetAllocated} />
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {!isGroupCollapsed && group.projects.map(project => (
+                        <TableRow 
+                          key={project.id} 
+                          data-testid={`grid-row-${project.id}`}
+                          className={cn(selectedProjects.has(project.id) && "bg-muted/50")}
                         >
-                          {renderCellContent(project, column.id)}
-                        </TableCell>
-                      );
-                    })}
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="icon" variant="ghost" data-testid={`grid-menu-${project.id}`}>
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link href={`/projects/${project.id}`}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              View Details
-                            </Link>
-                          </DropdownMenuItem>
-                          {isAdmin && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                onClick={() => onDeleteProject(project.id)} 
-                                className="text-red-600 focus:text-red-600"
+                          <TableCell>
+                            <Checkbox 
+                              checked={selectedProjects.has(project.id)}
+                              onCheckedChange={() => toggleSelectProject(project.id)}
+                              data-testid={`checkbox-project-${project.id}`}
+                            />
+                          </TableCell>
+                          {orderedVisibleColumns.map(column => {
+                            const width = getColumnWidth(column.id, defaultWidths[column.id as keyof typeof defaultWidths] || 150);
+                            return (
+                              <TableCell 
+                                key={column.id}
+                                className="overflow-hidden"
+                                style={{ 
+                                  width: `${width}px`, 
+                                  minWidth: `${width}px`, 
+                                  maxWidth: `${width}px` 
+                                }}
                               >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
+                                {renderCellContent(project, column.id)}
+                              </TableCell>
+                            );
+                          })}
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button size="icon" variant="ghost" data-testid={`grid-menu-${project.id}`}>
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/projects/${project.id}`}>
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    View Details
+                                  </Link>
+                                </DropdownMenuItem>
+                                {isAdmin && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem 
+                                      onClick={() => onDeleteProject(project.id)} 
+                                      className="text-red-600 focus:text-red-600"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </Fragment>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -2816,39 +3503,128 @@ function ProjectsGridView({
 }
 
 // Kanban View Components
-const PROJECT_STATUSES = [
-  { id: "Initiation", label: "Initiation", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
-  { id: "Planning", label: "Planning", color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" },
-  { id: "Execution", label: "Execution", color: "bg-amber-100 text-amber-700 dark:bg-amber-800 dark:text-amber-200" },
-  { id: "Monitoring", label: "Monitoring", color: "bg-purple-100 text-purple-700 dark:bg-purple-800 dark:text-purple-200" },
-  { id: "Closing", label: "Closing", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200" },
-  { id: "Billing", label: "Billing", color: "bg-cyan-100 text-cyan-700 dark:bg-cyan-800 dark:text-cyan-200" },
-  { id: "Closed", label: "Closed", color: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200", isLocked: true },
+const KANBAN_STATUS_COLUMN_COLORS: Record<string, string> = {
+  "Initiation": "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200",
+  "Planning": "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200",
+  "Execution": "bg-amber-100 text-amber-700 dark:bg-amber-800 dark:text-amber-200",
+  "Monitoring": "bg-purple-100 text-purple-700 dark:bg-purple-800 dark:text-purple-200",
+  "Closing": "bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200",
+  "Billing": "bg-cyan-100 text-cyan-700 dark:bg-cyan-800 dark:text-cyan-200",
+  "Closed": "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+};
+
+const KANBAN_STATUS_COLUMNS = [
+  ...PROJECT_STATUSES.map(s => ({ id: s, label: s, color: KANBAN_STATUS_COLUMN_COLORS[s] || "" })),
+  { id: "Billing", label: "Billing", color: KANBAN_STATUS_COLUMN_COLORS["Billing"] },
+  { id: "Closed", label: "Closed", color: KANBAN_STATUS_COLUMN_COLORS["Closed"], isLocked: true },
 ];
+
+const KANBAN_PRIORITY_COLUMN_COLORS: Record<string, string> = {
+  "Critical": "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
+  "High": "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  "Medium": "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+  "Low": "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+};
+
+const KANBAN_PRIORITY_COLUMNS = [...PROJECT_PRIORITIES].reverse().map(p => ({
+  id: p,
+  label: p,
+  color: KANBAN_PRIORITY_COLUMN_COLORS[p] || "",
+}));
+
+const KANBAN_HEALTH_COLUMN_META: Record<string, { label: string; color: string }> = {
+  "Green": { label: "On Track", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
+  "Yellow": { label: "At Risk", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+  "Red": { label: "Off Track", color: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400" },
+};
+
+const KANBAN_HEALTH_COLUMNS = PROJECT_HEALTH_VALUES.map(h => ({
+  id: h,
+  label: KANBAN_HEALTH_COLUMN_META[h]?.label || h,
+  color: KANBAN_HEALTH_COLUMN_META[h]?.color || "",
+}));
+
+type KanbanGroupBy = "status" | "portfolio" | "priority" | "health" | "projectType" | "methodology" | `cf_${number}`;
+
+const KANBAN_GROUP_BY_OPTIONS: { value: KanbanGroupBy; label: string }[] = [
+  { value: "status", label: "Status" },
+  { value: "portfolio", label: "Portfolio" },
+  { value: "priority", label: "Priority" },
+  { value: "health", label: "Health" },
+  { value: "projectType", label: "Project Type" },
+  { value: "methodology", label: "Methodology" },
+];
+
+const DRAGGABLE_GROUPS = new Set<string>(["status", "portfolio", "priority", "health"]);
 
 function ProjectsKanbanView({ 
   projects, 
   portfolios,
   onStatusChange,
   onPortfolioChange,
+  onProjectUpdate,
+  customFieldDefs,
+  cfValues,
+  onCustomFieldChange,
 }: { 
   projects: Project[]; 
   portfolios: Portfolio[];
   onStatusChange: (projectId: number, newStatus: string) => void;
   onPortfolioChange: (projectId: number, portfolioId: number | null) => void;
+  onProjectUpdate: (projectId: number, updates: Partial<Project>) => void;
+  customFieldDefs: CustomFieldDefinition[];
+  cfValues: ProjectCustomFieldValue[];
+  onCustomFieldChange: (projectId: number, fieldDefinitionId: number, value: string | null) => void;
 }) {
   const [activeProject, setActiveProject] = useState<Project | null>(null);
-  const [groupBy, setGroupBy] = useState<"status" | "portfolio">("status");
+  const [groupBy, setGroupBy] = useState<KanbanGroupBy>("status");
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
         distance: 8,
       },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5,
+      },
     })
   );
 
+  const projectCustomFields = useMemo(() => {
+    return customFieldDefs.filter(d => d.entityType === "project" && d.isActive);
+  }, [customFieldDefs]);
+
+  const cfValuesMap = useMemo(() => {
+    const map = new Map<string, ProjectCustomFieldValue>();
+    cfValues.forEach(v => {
+      map.set(`${v.projectId}_${v.fieldDefinitionId}`, v);
+    });
+    return map;
+  }, [cfValues]);
+
+  const groupByOptions = useMemo(() => {
+    const options = [...KANBAN_GROUP_BY_OPTIONS];
+    projectCustomFields.forEach(def => {
+      options.push({ value: `cf_${def.id}` as KanbanGroupBy, label: def.name });
+    });
+    return options;
+  }, [projectCustomFields]);
+
+  const isDraggable = useMemo(() => {
+    if (DRAGGABLE_GROUPS.has(groupBy)) return true;
+    if (groupBy.startsWith("cf_")) {
+      const defId = parseInt(groupBy.slice(3));
+      const cfDef = projectCustomFields.find(d => d.id === defId);
+      return cfDef?.fieldType === "select" || cfDef?.fieldType === "checkbox";
+    }
+    return false;
+  }, [groupBy, projectCustomFields]);
+
   const handleDragStart = (event: DragStartEvent) => {
+    if (!isDraggable) return;
     const projectId = Number(event.active.id);
     const project = projects.find(p => p.id === projectId);
     if (project) setActiveProject(project);
@@ -2856,78 +3632,173 @@ function ProjectsKanbanView({
 
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveProject(null);
+    if (!isDraggable) return;
     const { active, over } = event;
     if (!over) return;
     
     const projectId = Number(active.id);
     const targetId = String(over.id);
     const project = projects.find(p => p.id === projectId);
+    if (!project) return;
     
     if (groupBy === "status") {
-      if (project && project.status !== targetId && PROJECT_STATUSES.some(s => s.id === targetId)) {
+      if (project.status !== targetId && KANBAN_STATUS_COLUMNS.some(s => s.id === targetId)) {
         onStatusChange(projectId, targetId);
       }
-    } else {
+    } else if (groupBy === "portfolio") {
       const newPortfolioId = targetId === "unassigned" ? null : Number(targetId);
-      const currentPortfolioId = project?.portfolioId ?? null;
-      if (project && currentPortfolioId !== newPortfolioId) {
+      const currentPortfolioId = project.portfolioId ?? null;
+      if (currentPortfolioId !== newPortfolioId) {
         onPortfolioChange(projectId, newPortfolioId);
+      }
+    } else if (groupBy === "priority") {
+      if (project.priority !== targetId) {
+        onProjectUpdate(projectId, { priority: targetId });
+      }
+    } else if (groupBy === "health") {
+      if (project.health !== targetId) {
+        onProjectUpdate(projectId, { health: targetId });
+      }
+    } else if (groupBy.startsWith("cf_")) {
+      const defId = parseInt(groupBy.slice(3));
+      const cfDef = projectCustomFields.find(d => d.id === defId);
+      if (cfDef) {
+        const newValue = targetId === "__unset__" ? null : targetId;
+        const currentVal = cfValuesMap.get(`${projectId}_${defId}`)?.value || null;
+        if (currentVal !== newValue) {
+          onCustomFieldChange(projectId, defId, newValue);
+        }
       }
     }
   };
 
-  const portfolioColumns = useMemo(() => {
-    const cols: { id: string; label: string; color: string }[] = portfolios.map(p => ({
-      id: String(p.id),
-      label: p.name,
-      color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200",
-    }));
-    cols.push({
-      id: "unassigned",
-      label: "Unassigned",
-      color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200",
-    });
-    return cols;
-  }, [portfolios]);
+  const columns = useMemo(() => {
+    const defaultColor = "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200";
 
-  const columns = groupBy === "status" ? PROJECT_STATUSES : portfolioColumns;
+    switch (groupBy) {
+      case "status":
+        return KANBAN_STATUS_COLUMNS;
+      case "portfolio": {
+        const cols = portfolios.map(p => ({
+          id: String(p.id),
+          label: p.name,
+          color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200",
+        }));
+        cols.push({ id: "unassigned", label: "Unassigned", color: defaultColor });
+        return cols;
+      }
+      case "priority":
+        return KANBAN_PRIORITY_COLUMNS;
+      case "health":
+        return KANBAN_HEALTH_COLUMNS;
+      case "projectType": {
+        const types = new Set<string>();
+        projects.forEach(p => { if (p.projectType) types.add(p.projectType); });
+        const cols = Array.from(types).sort().map(t => ({ id: t, label: t, color: defaultColor }));
+        cols.push({ id: "__unset__", label: "No Type", color: defaultColor });
+        return cols;
+      }
+      case "methodology": {
+        const methods = new Set<string>();
+        projects.forEach(p => { if (p.methodology) methods.add(p.methodology); });
+        const cols = Array.from(methods).sort().map(m => ({ id: m, label: m, color: defaultColor }));
+        cols.push({ id: "__unset__", label: "No Methodology", color: defaultColor });
+        return cols;
+      }
+      default: {
+        if (groupBy.startsWith("cf_")) {
+          const defId = parseInt(groupBy.slice(3));
+          const cfDef = projectCustomFields.find(d => d.id === defId);
+          if (cfDef) {
+            if (cfDef.fieldType === "select" && cfDef.options) {
+              try {
+                const options: string[] = JSON.parse(cfDef.options);
+                const cols = options.map(opt => ({ id: opt, label: opt, color: defaultColor }));
+                cols.push({ id: "__unset__", label: "Not Set", color: defaultColor });
+                return cols;
+              } catch { /* fallthrough */ }
+            }
+            if (cfDef.fieldType === "checkbox") {
+              return [
+                { id: "true", label: "Yes", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
+                { id: "false", label: "No", color: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
+              ];
+            }
+            const values = new Set<string>();
+            projects.forEach(p => {
+              const val = cfValuesMap.get(`${p.id}_${defId}`)?.value;
+              if (val) {
+                if (cfDef.fieldType === "multiselect") {
+                  try { JSON.parse(val).forEach((v: string) => values.add(v)); } catch { values.add(val); }
+                } else {
+                  values.add(val);
+                }
+              }
+            });
+            const cols = Array.from(values).sort().map(v => ({ id: v, label: v, color: defaultColor }));
+            cols.push({ id: "__unset__", label: "Not Set", color: defaultColor });
+            return cols;
+          }
+        }
+        return KANBAN_STATUS_COLUMNS;
+      }
+    }
+  }, [groupBy, portfolios, projects, projectCustomFields, cfValuesMap]);
 
-  const getProjectsForColumn = (columnId: string) => {
-    if (groupBy === "status") {
-      return projects.filter(p => p.status === columnId);
+  const getProjectsForColumn = useCallback((columnId: string) => {
+    switch (groupBy) {
+      case "status":
+        return projects.filter(p => p.status === columnId);
+      case "portfolio":
+        if (columnId === "unassigned") {
+          return projects.filter(p => !p.portfolioId || !portfolios.some(pf => pf.id === p.portfolioId));
+        }
+        return projects.filter(p => p.portfolioId === Number(columnId));
+      case "priority":
+        return projects.filter(p => (p.priority || "Medium") === columnId);
+      case "health":
+        return projects.filter(p => (p.health || "Green") === columnId);
+      case "projectType":
+        if (columnId === "__unset__") return projects.filter(p => !p.projectType);
+        return projects.filter(p => p.projectType === columnId);
+      case "methodology":
+        if (columnId === "__unset__") return projects.filter(p => !p.methodology);
+        return projects.filter(p => p.methodology === columnId);
+      default: {
+        if (groupBy.startsWith("cf_")) {
+          const defId = parseInt(groupBy.slice(3));
+          const cfDef = projectCustomFields.find(d => d.id === defId);
+          return projects.filter(p => {
+            const val = cfValuesMap.get(`${p.id}_${defId}`)?.value || "";
+            if (columnId === "__unset__") return !val;
+            if (cfDef?.fieldType === "multiselect") {
+              try { return (JSON.parse(val) as string[]).includes(columnId); } catch { return val === columnId; }
+            }
+            if (cfDef?.fieldType === "checkbox") {
+              return (val || "false") === columnId;
+            }
+            return val === columnId;
+          });
+        }
+        return projects.filter(p => p.status === columnId);
+      }
     }
-    if (columnId === "unassigned") {
-      return projects.filter(p => !p.portfolioId || !portfolios.some(pf => pf.id === p.portfolioId));
-    }
-    return projects.filter(p => p.portfolioId === Number(columnId));
-  };
+  }, [groupBy, projects, portfolios, projectCustomFields, cfValuesMap]);
 
   return (
     <div>
       <div className="flex items-center gap-2 mb-4">
         <span className="text-xs text-muted-foreground font-medium">Group by:</span>
-        <div className="flex items-center rounded-md border border-border overflow-hidden">
-          <button
-            type="button"
-            className={cn(
-              "px-3 py-1 text-xs font-medium transition-colors",
-              groupBy === "status" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
-            )}
-            onClick={() => setGroupBy("status")}
-          >
-            Status
-          </button>
-          <button
-            type="button"
-            className={cn(
-              "px-3 py-1 text-xs font-medium transition-colors",
-              groupBy === "portfolio" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
-            )}
-            onClick={() => setGroupBy("portfolio")}
-          >
-            Portfolio
-          </button>
-        </div>
+        <Select value={groupBy} onValueChange={(v) => setGroupBy(v as KanbanGroupBy)}>
+          <SelectTrigger className="w-[160px] h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {groupByOptions.map(opt => (
+              <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <DndContext 
         sensors={sensors} 
@@ -2936,14 +3807,15 @@ function ProjectsKanbanView({
         onDragEnd={handleDragEnd}
       >
         <div className={cn(
-          "grid grid-cols-1 gap-4",
-          columns.length <= 5 ? "md:grid-cols-5" : columns.length <= 7 ? "md:grid-cols-4 lg:grid-cols-7" : "md:grid-cols-4"
+          "flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 md:grid md:overflow-x-visible md:snap-none md:pb-0",
+          columns.length <= 3 ? "md:grid-cols-3" : columns.length <= 5 ? "md:grid-cols-5" : columns.length <= 7 ? "md:grid-cols-4 lg:grid-cols-7" : "md:grid-cols-4"
         )}>
           {columns.map(col => (
             <ProjectKanbanColumn
               key={col.id}
               column={col}
               projects={getProjectsForColumn(col.id)}
+              isDraggable={isDraggable}
             />
           ))}
         </div>
@@ -2966,10 +3838,12 @@ function ProjectsKanbanView({
 
 function ProjectKanbanColumn({ 
   column, 
-  projects 
+  projects,
+  isDraggable,
 }: { 
   column: { id: string; label: string; color: string }; 
   projects: Project[];
+  isDraggable: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
@@ -2979,20 +3853,21 @@ function ProjectKanbanColumn({
     <div 
       ref={setNodeRef}
       className={cn(
-        "space-y-3 min-h-[300px] rounded-lg transition-colors p-2",
-        isOver && "bg-primary/5 ring-2 ring-primary ring-dashed"
+        "space-y-3 min-h-[300px] rounded-lg transition-colors p-2 min-w-[280px] snap-center flex-shrink-0 md:min-w-0 md:flex-shrink",
+        isDraggable && isOver && "bg-primary/5 ring-2 ring-primary ring-dashed"
       )}
     >
-      <div className={cn("rounded-lg p-3 font-semibold text-center", column.color)}>
-        {column.label} ({projects.length})
+      <div className={cn("rounded-lg p-3 font-semibold text-center flex items-center justify-center gap-2", column.color)}>
+        <span>{column.label}</span>
+        <Badge variant="secondary" className="text-xs font-medium">{projects.length}</Badge>
       </div>
       <div className="space-y-3">
         {projects.map(project => (
-          <DraggableProjectCard key={project.id} project={project} />
+          <DraggableProjectCard key={project.id} project={project} isDraggable={isDraggable} />
         ))}
         {projects.length === 0 && (
           <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
-            Drop projects here
+            {isDraggable ? "Drop projects here" : "No projects"}
           </div>
         )}
       </div>
@@ -3000,7 +3875,7 @@ function ProjectKanbanColumn({
   );
 }
 
-function DraggableProjectCard({ project }: { project: Project }) {
+function DraggableProjectCard({ project, isDraggable = true }: { project: Project; isDraggable?: boolean }) {
   const {
     attributes,
     listeners,
@@ -3009,6 +3884,7 @@ function DraggableProjectCard({ project }: { project: Project }) {
     isDragging,
   } = useDraggable({
     id: project.id,
+    disabled: !isDraggable,
   });
 
   const style = transform ? {
@@ -3019,8 +3895,7 @@ function DraggableProjectCard({ project }: { project: Project }) {
     <div
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
+      {...(isDraggable ? { ...attributes, ...listeners } : {})}
       className={cn(isDragging && "opacity-50")}
     >
       <Link href={`/projects/${project.id}`}>

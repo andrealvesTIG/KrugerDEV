@@ -8,6 +8,7 @@ import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory, 
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments } from "@/hooks/use-resources";
 import type { Risk } from "@shared/schema";
 import { format, parseISO } from "date-fns";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import { cn } from "@/lib/utils";
 
 import { CreateRiskDialog } from "@/components/CreateRiskDialog";
@@ -501,7 +502,7 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
                   )}
                   {risk.costExposure && (
                     <span className="text-xs text-muted-foreground">
-                      <span className="font-medium">Exposure:</span> ${Number(risk.costExposure).toLocaleString()}
+                      <span className="font-medium">Exposure:</span> <CompactCurrency value={risk.costExposure} />
                     </span>
                   )}
                 </div>

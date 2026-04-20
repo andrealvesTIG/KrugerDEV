@@ -41,6 +41,8 @@ import {
   Shield, Share2, Download, FileText, Sparkles, RefreshCw, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown
 } from "lucide-react";
 import { format, addDays, differenceInDays, parseISO, startOfMonth, eachDayOfInterval } from "date-fns";
+import { formatCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import { cn, normalizeSearch } from "@/lib/utils";
 import type { Project, Task } from "@shared/schema";
 import ProjectGanttView from "@/components/project/ProjectGanttView";
@@ -143,7 +145,7 @@ export default function PortfolioDetails() {
     return <div className="p-8 text-center text-muted-foreground">Portfolio not found</div>;
   }
 
-  const { portfolio, metrics } = overview;
+  const { portfolio, metrics, financialBudgets } = overview;
 
   const handleRiskAssessmentClick = async () => {
     try {
@@ -266,7 +268,7 @@ export default function PortfolioDetails() {
             <PortfolioTasksTab portfolioId={id} organizationId={currentOrganization?.id || 0} />
           </TabsContent>
           <TabsContent value="projects">
-            <ProjectsTab portfolioId={id} organizationId={currentOrganization?.id || 0} isCustom={!!portfolio.isCustom} />
+            <ProjectsTab portfolioId={id} organizationId={currentOrganization?.id || 0} isCustom={!!portfolio.isCustom} financialBudgets={financialBudgets} />
           </TabsContent>
           <TabsContent value="risks">
             <RisksTab
@@ -296,7 +298,7 @@ export default function PortfolioDetails() {
             <KeyDatesTab portfolioId={id} />
           </TabsContent>
           <TabsContent value="dashboard">
-            <DashboardTab portfolioId={id} metrics={metrics} onNavigate={setActiveTab} />
+            <DashboardTab portfolioId={id} metrics={metrics} onNavigate={setActiveTab} financialBudgets={financialBudgets} />
           </TabsContent>
           <TabsContent value="scoring">
             <PortfolioScoringTab portfolioId={id} />
@@ -391,15 +393,14 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-emerald-600" />
-              <span className="text-2xl font-bold">${metrics.totalBudget.toLocaleString()}</span>
+              <CompactCurrency value={metrics.totalBudget} className="text-2xl font-bold" />
             </div>
           </CardContent>
         </Card>
 
         <Card data-testid="card-metric-completion">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Avg Completion</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Avg Progress</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
@@ -630,7 +631,7 @@ const portfolioZoomLabels: Record<PortfolioZoomLevel, string> = {
   1825: '5 Years'
 };
 
-function ProjectsTab({ portfolioId, organizationId, isCustom }: { portfolioId: number; organizationId: number; isCustom?: boolean }) {
+function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }: { portfolioId: number; organizationId: number; isCustom?: boolean; financialBudgets?: Record<number, number> }) {
   const { data: projects, isLoading } = usePortfolioProjects(portfolioId);
   const { data: allProjects } = useProjects(organizationId);
   const [view, setView] = useState<"list" | "gantt">("list");
@@ -753,66 +754,69 @@ function ProjectsTab({ portfolioId, organizationId, isCustom }: { portfolioId: n
   return (
     <>
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <CardTitle>Included Projects</CardTitle>
-            {isCustom && (
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
-                Custom
-              </Badge>
-            )}
+      <CardHeader>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <CardTitle>Included Projects</CardTitle>
+              {isCustom && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
+                  Custom
+                </Badge>
+              )}
+            </div>
+            <CardDescription>
+              {isCustom 
+                ? "Projects included in this custom portfolio (can include projects from any portfolio)" 
+                : "All projects within this portfolio"}
+            </CardDescription>
           </div>
-          <CardDescription>
-            {isCustom 
-              ? "Projects included in this custom portfolio (can include projects from any portfolio)" 
-              : "All projects within this portfolio"}
-          </CardDescription>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            size="sm"
-            onClick={() => setIsAddDialogOpen(true)}
-            data-testid="button-add-project-to-portfolio"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Project
-          </Button>
-          <div className="flex rounded-lg border border-border overflow-hidden">
+          <div className="flex items-center gap-2">
             <Button
-              variant={view === "list" ? "default" : "ghost"}
               size="sm"
-              onClick={() => setView("list")}
-              className="rounded-none"
-              data-testid="button-portfolio-view-list"
+              onClick={() => setIsAddDialogOpen(true)}
+              data-testid="button-add-project-to-portfolio"
             >
-              <List className="h-4 w-4 mr-2" />
-              List
+              <Plus className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Add Project</span>
+              <span className="sm:hidden">Add</span>
             </Button>
-            <Button
-              variant={view === "gantt" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setView("gantt")}
-              className="rounded-none"
-              data-testid="button-portfolio-view-gantt"
-            >
-              <GanttChart className="h-4 w-4 mr-2" />
-              Gantt
-            </Button>
+            <div className="flex rounded-lg border border-border overflow-hidden">
+              <Button
+                variant={view === "list" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setView("list")}
+                className="rounded-none px-2 sm:px-3"
+                data-testid="button-portfolio-view-list"
+              >
+                <List className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">List</span>
+              </Button>
+              <Button
+                variant={view === "gantt" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setView("gantt")}
+                className="rounded-none px-2 sm:px-3"
+                data-testid="button-portfolio-view-gantt"
+              >
+                <GanttChart className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Gantt</span>
+              </Button>
+            </div>
           </div>
         </div>
       </CardHeader>
       <CardContent>
         {view === "list" ? (
-          <div className="rounded-md border">
-            <table className="w-full">
+          <div className="rounded-md border overflow-x-auto">
+            <table className="w-full min-w-[500px]">
               <thead className="bg-muted/50">
                 <tr className="border-b">
                   <th className="p-3 text-left text-sm font-medium text-muted-foreground">Project</th>
                   <th className="p-3 text-left text-sm font-medium text-muted-foreground">Status</th>
                   <th className="p-3 text-left text-sm font-medium text-muted-foreground">Health</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Progress</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Budget</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground hidden md:table-cell">Progress</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground hidden sm:table-cell">Budget</th>
                   <th className="p-3 text-left text-sm font-medium text-muted-foreground"></th>
                 </tr>
               </thead>
@@ -833,13 +837,13 @@ function ProjectsTab({ portfolioId, organizationId, isCustom }: { portfolioId: n
                     <td className="p-3">
                       <Badge className={cn("text-xs", healthColors[project.health || "Green"])}>{project.health}</Badge>
                     </td>
-                    <td className="p-3">
+                    <td className="p-3 hidden md:table-cell">
                       <div className="flex items-center gap-2">
                         <Progress value={project.completionPercentage || 0} className="w-20 h-2" />
                         <span className="text-sm">{project.completionPercentage || 0}%</span>
                       </div>
                     </td>
-                    <td className="p-3 text-sm">${Number(project.budget).toLocaleString()}</td>
+                    <td className="p-3 text-sm hidden sm:table-cell"><CompactCurrency value={financialBudgets && project.id in financialBudgets ? financialBudgets[project.id] : project.budget} /></td>
                     <td className="p-3">
                       <div className="flex items-center gap-1">
                         <DropdownMenu>
@@ -1365,7 +1369,7 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-amber-600" />
@@ -1373,7 +1377,7 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
               </CardTitle>
               <CardDescription className="mt-1">All risks from projects in this portfolio ({allRisks.length} total, {escalatedRisks.length} escalated)</CardDescription>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
               {recentAssessment && (
                 <div
                   className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
@@ -1412,6 +1416,7 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
               ) : (
                 <Button
                   variant="outline"
+                  size="sm"
                   onClick={onRiskAssessmentClick}
                   disabled={generateRiskAssessment.isPending}
                   data-testid="button-risk-assessment"
@@ -1421,24 +1426,25 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
                   ) : (
                     <Shield className="h-4 w-4 mr-2" />
                   )}
-                  AI Risk Assessment
+                  <span className="hidden sm:inline">AI Risk Assessment</span>
+                  <span className="sm:hidden">AI Risk</span>
                 </Button>
               )}
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <table className="w-full">
+          <div className="rounded-md border overflow-x-auto">
+            <table className="w-full min-w-[500px]">
               <thead className="bg-muted/50">
                 <tr className="border-b">
                   <th className="p-3 text-left text-sm font-medium text-muted-foreground">Risk</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Project</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground hidden sm:table-cell">Project</th>
                   <th className="p-3 text-left text-sm font-medium text-muted-foreground">Probability</th>
                   <th className="p-3 text-left text-sm font-medium text-muted-foreground">Impact</th>
                   <th className="p-3 text-left text-sm font-medium text-muted-foreground">Status</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Due Date</th>
-                  <th className="p-3 text-right text-sm font-medium text-muted-foreground">Cost Exposure</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground hidden md:table-cell">Due Date</th>
+                  <th className="p-3 text-right text-sm font-medium text-muted-foreground hidden lg:table-cell">Cost Exposure</th>
                   <th className="p-3 w-12"></th>
                 </tr>
               </thead>
@@ -1461,7 +1467,7 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
                         </div>
                       </div>
                     </td>
-                    <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                    <td className="p-3 hidden sm:table-cell" onClick={(e) => e.stopPropagation()}>
                       <Link href={`/projects/${risk.projectId}`}>
                         <Badge variant="outline" className="text-xs cursor-pointer hover:bg-primary/10">{risk.projectName}</Badge>
                       </Link>
@@ -1477,11 +1483,11 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
                         {risk.status}
                       </Badge>
                     </td>
-                    <td className="p-3 text-sm text-muted-foreground">
+                    <td className="p-3 text-sm text-muted-foreground hidden md:table-cell">
                       {risk.dueDate ? new Date(risk.dueDate).toLocaleDateString() : "—"}
                     </td>
-                    <td className="p-3 text-sm text-right tabular-nums">
-                      {risk.costExposure ? `$${Number(risk.costExposure).toLocaleString()}` : "—"}
+                    <td className="p-3 text-sm text-right tabular-nums hidden lg:table-cell">
+                      {risk.costExposure ? <CompactCurrency value={risk.costExposure} /> : "—"}
                     </td>
                     <td className="p-3" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
@@ -2013,16 +2019,16 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
           <CardDescription>All issues from projects in this portfolio ({allIssues.length} total, {escalatedIssues.length} escalated)</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <table className="w-full">
+          <div className="rounded-md border overflow-x-auto">
+            <table className="w-full min-w-[400px]">
               <thead className="bg-muted/50">
                 <tr className="border-b">
                   <th className="p-3 text-left text-sm font-medium text-muted-foreground">Issue</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Project</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Type</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground hidden sm:table-cell">Project</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground hidden md:table-cell">Type</th>
                   <th className="p-3 text-left text-sm font-medium text-muted-foreground">Priority</th>
                   <th className="p-3 text-left text-sm font-medium text-muted-foreground">Status</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Assignee</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground hidden lg:table-cell">Assignee</th>
                   <th className="p-3 w-12"></th>
                 </tr>
               </thead>
@@ -2045,12 +2051,12 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
                         </div>
                       </div>
                     </td>
-                    <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                    <td className="p-3 hidden sm:table-cell" onClick={(e) => e.stopPropagation()}>
                       <Link href={`/projects/${issue.projectId}`}>
                         <Badge variant="outline" className="text-xs cursor-pointer hover:bg-primary/10">{issue.projectName}</Badge>
                       </Link>
                     </td>
-                    <td className="p-3">
+                    <td className="p-3 hidden md:table-cell">
                       <Badge variant="secondary" className="text-xs">{issue.type}</Badge>
                     </td>
                     <td className="p-3">
@@ -2059,7 +2065,7 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
                     <td className="p-3">
                       <Badge className={cn("text-xs", statusColors[issue.status || "Open"])}>{issue.status}</Badge>
                     </td>
-                    <td className="p-3 text-sm text-muted-foreground">{issue.assignee || "-"}</td>
+                    <td className="p-3 text-sm text-muted-foreground hidden lg:table-cell">{issue.assignee || "-"}</td>
                     <td className="p-3" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -2715,19 +2721,22 @@ function KeyDatesTab({ portfolioId }: { portfolioId: number }) {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4">
-          <div>
-            <CardTitle>Key Dates</CardTitle>
-            <CardDescription>Portfolio-level key dates and deadlines</CardDescription>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <CardTitle>Key Dates</CardTitle>
+              <CardDescription>Portfolio-level key dates and deadlines</CardDescription>
+            </div>
+            <Button size="sm" onClick={openCreate}>
+              <Plus className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Add Key Date</span>
+              <span className="sm:hidden">Add</span>
+            </Button>
           </div>
-          <Button size="sm" onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Key Date
-          </Button>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-2 mb-4">
-            <div className="relative flex-1 max-w-sm">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-4">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search key dates..."
@@ -2736,32 +2745,34 @@ function KeyDatesTab({ portfolioId }: { portfolioId: number }) {
                 className="pl-9"
               />
             </div>
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {KEY_DATE_TYPES.map(t => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                {KEY_DATE_STATUSES.map(s => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="w-[120px] sm:w-[140px]">
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {KEY_DATE_TYPES.map(t => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-[120px] sm:w-[140px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  {KEY_DATE_STATUSES.map(s => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <div className="rounded-md border">
-            <table className="w-full">
+          <div className="rounded-md border overflow-x-auto">
+            <table className="w-full min-w-[400px]">
               <thead className="bg-muted/50">
                 <tr className="border-b">
                   <th className="p-3 w-10"></th>
@@ -2770,7 +2781,7 @@ function KeyDatesTab({ portfolioId }: { portfolioId: number }) {
                       Key Date <SortIcon field="title" />
                     </button>
                   </th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground hidden sm:table-cell">
                     <button onClick={() => handleSort("keyDateType")} className="flex items-center hover:text-foreground transition-colors">
                       Type <SortIcon field="keyDateType" />
                     </button>
@@ -2832,7 +2843,7 @@ function KeyDatesTab({ portfolioId }: { portfolioId: number }) {
                           </div>
                         )}
                       </td>
-                      <td className="p-3">
+                      <td className="p-3 hidden sm:table-cell">
                         {isEditingThis("keyDateType") ? (
                           <Select value={editingValue} onValueChange={(v) => { setEditingValue(v); setTimeout(() => { updateMutation.mutateAsync({ id: kd.id, keyDateType: v }).catch(() => toast({ title: "Failed to update", variant: "destructive" })); setEditingCell(null); }, 0); }}>
                             <SelectTrigger className="h-8 text-xs w-[130px]" autoFocus>
@@ -3038,10 +3049,11 @@ function KeyDatesTab({ portfolioId }: { portfolioId: number }) {
   );
 }
 
-function DashboardTab({ portfolioId, metrics, onNavigate }: { 
+function DashboardTab({ portfolioId, metrics, onNavigate, financialBudgets }: { 
   portfolioId: number; 
   metrics: any;
   onNavigate: (tab: string) => void;
+  financialBudgets?: Record<number, number>;
 }) {
   const { data: projects } = usePortfolioProjects(portfolioId);
   const { data: risks } = usePortfolioRisks(portfolioId);
@@ -3083,7 +3095,7 @@ function DashboardTab({ portfolioId, metrics, onNavigate }: {
 
   const projectBudgetData = projects?.slice(0, 5).map(p => ({
     name: p.name.length > 15 ? p.name.substring(0, 15) + "..." : p.name,
-    budget: Number(p.budget),
+    budget: financialBudgets && p.id in financialBudgets ? financialBudgets[p.id] : Number(p.budget),
     completion: p.completionPercentage || 0,
   })) || [];
 
@@ -3140,7 +3152,7 @@ function DashboardTab({ portfolioId, metrics, onNavigate }: {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Avg Completion</p>
+                <p className="text-sm text-muted-foreground">Avg Progress</p>
                 <p className="text-3xl font-bold text-blue-600">{metrics.avgCompletion}%</p>
               </div>
               <TrendingUp className="h-8 w-8 text-blue-500/50" />
@@ -3199,9 +3211,9 @@ function DashboardTab({ portfolioId, metrics, onNavigate }: {
               <div className="h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={projectBudgetData} layout="vertical">
-                    <XAxis type="number" tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
+                    <XAxis type="number" tickFormatter={(v) => formatCurrency(v, { autoCompact: true })} />
                     <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(value: number) => `$${value.toLocaleString()}`} />
+                    <Tooltip formatter={(value: number) => formatCurrency(value, { autoCompact: true })} />
                     <Bar dataKey="budget" fill="#3b82f6" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>

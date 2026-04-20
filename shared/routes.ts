@@ -134,7 +134,7 @@ export const api = {
       method: 'PUT' as const,
       path: '/api/projects/:id',
       input: insertProjectSchema.partial().extend({
-        completionPercentage: z.number().int().optional(),
+        completionPercentage: z.number().int().min(0).max(100).optional(),
         health: z.string().optional(),
         startDate: z.union([z.string(), z.date(), z.null()]).optional(),
         endDate: z.union([z.string(), z.date(), z.null()]).optional(),

@@ -7,8 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Check, History, Milestone as MilestoneIcon, ChevronLeft, ChevronRight } from "lucide-react";
-import { DndContext, DragEndEvent, DragOverEvent, DragOverlay, DragStartEvent, closestCorners, pointerWithin, rectIntersection, useSensor, useSensors, PointerSensor, useDroppable, type CollisionDetection } from "@dnd-kit/core";
+import { Loader2, Plus, Check, History, Milestone as MilestoneIcon, ChevronLeft, ChevronRight, Columns3 } from "lucide-react";
+import { DndContext, DragEndEvent, DragOverEvent, DragOverlay, DragStartEvent, closestCorners, pointerWithin, rectIntersection, useSensor, useSensors, PointerSensor, TouchSensor, useDroppable, type CollisionDetection } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
@@ -313,6 +313,12 @@ function ProjectKanbanView({
       activationConstraint: {
         distance: canDrag ? 8 : 999999,
       },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5,
+      },
     })
   );
 
@@ -428,6 +434,44 @@ function ProjectKanbanView({
     setActiveOverColumn(null);
   };
 
+  const handleKeyboardMove = useCallback((taskId: number, direction: 'left' | 'right') => {
+    if (!canDrag) return;
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const currentGroupVal = getGroupValue(task);
+    const currentIdx = columns.findIndex(c => c.id === currentGroupVal);
+    if (currentIdx === -1) return;
+    const newIdx = direction === 'left' ? currentIdx - 1 : currentIdx + 1;
+    if (newIdx < 0 || newIdx >= columns.length) return;
+    const targetColumnId = columns[newIdx].id;
+    if (groupBy === 'status') {
+      onStatusChange(taskId, targetColumnId);
+    } else if (groupBy === 'assignee' && onResourceAssign) {
+      const currentAssignedIds = taskAssignmentsMap.get(taskId) || [];
+      if (targetColumnId === "Unassigned") {
+        onResourceAssign(taskId, []);
+      } else {
+        const targetResourceId = Number(targetColumnId);
+        const otherAssignments = currentAssignedIds.filter(id => id !== (currentAssignedIds[0] || -1));
+        onResourceAssign(taskId, [targetResourceId, ...otherAssignments]);
+      }
+    } else if (groupBy.startsWith('cf_')) {
+      const cfId = Number(groupBy.slice(3));
+      const cfDef = taskCustomFields.find(d => d.id === cfId);
+      if (cfDef) {
+        let newValue: string | null;
+        if (targetColumnId === 'No Value') {
+          newValue = null;
+        } else if (cfDef.fieldType === 'checkbox') {
+          newValue = targetColumnId === 'Yes' ? 'true' : 'false';
+        } else {
+          newValue = targetColumnId;
+        }
+        updateTaskCfValue.mutate({ taskId, fieldDefinitionId: cfId, value: newValue });
+      }
+    }
+  }, [canDrag, tasks, getGroupValue, columns, groupBy, onStatusChange, onResourceAssign, taskAssignmentsMap, taskCustomFields, updateTaskCfValue]);
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -460,16 +504,19 @@ function ProjectKanbanView({
   }, []);
 
   return (
-    <Card className="overflow-hidden transition-all duration-200">
+    <Card className={cn(
+      "overflow-hidden transition-all duration-200",
+      isFullscreen && "flex-1 flex flex-col min-h-0"
+    )}>
       <CardContent className={cn(
         "p-0 flex flex-col",
-        isFullscreen && "h-full"
+        isFullscreen && "h-full flex-1 min-h-0"
       )}>
-        <div className="flex items-center gap-3 p-3 border-b bg-muted/30 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Group by:</span>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 border-b bg-muted/30">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xs text-muted-foreground flex-shrink-0">Group by:</span>
             <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupByField)}>
-              <SelectTrigger className="h-8 w-[160px] text-xs" data-testid="kanban-group-by">
+              <SelectTrigger className="h-8 w-full sm:w-[160px] text-xs" data-testid="kanban-group-by">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -481,13 +528,13 @@ function ProjectKanbanView({
           </div>
           
           {resources && resources.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Resource:</span>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-xs text-muted-foreground flex-shrink-0">Resource:</span>
               <Select 
                 value={filterResourceId?.toString() || "all"} 
                 onValueChange={(v) => setFilterResourceId(v === "all" ? null : Number(v))}
               >
-                <SelectTrigger className="h-8 w-[150px] text-xs" data-testid="kanban-filter-resource">
+                <SelectTrigger className="h-8 w-full sm:w-[150px] text-xs" data-testid="kanban-filter-resource">
                   <SelectValue placeholder="All Resources" />
                 </SelectTrigger>
                 <SelectContent>
@@ -500,9 +547,9 @@ function ProjectKanbanView({
             </div>
           )}
           
-          <div className="flex items-center gap-1 ml-auto">
+          <div className="flex items-center gap-1 sm:ml-auto">
             {(canScrollLeft || canScrollRight) && (
-              <div className="flex items-center gap-1 mr-2">
+              <div className="hidden sm:flex items-center gap-1 mr-2">
                 <Button
                   variant="outline"
                   size="icon"
@@ -528,10 +575,24 @@ function ProjectKanbanView({
             </span>
           </div>
         </div>
-        <div className={cn("p-4 relative", isFullscreen && "flex-1 overflow-hidden")}>
+        <div className={cn("p-4 relative", isFullscreen && "flex-1 overflow-hidden min-h-0")}>
           {!canDrag && (
             <div className="text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded mb-3 inline-block">
               {isReadOnly ? 'Project is read-only' : 'Drag and drop is available when grouping by Status, Assignee, or Custom Fields'}
+            </div>
+          )}
+          {canDrag && !isReadOnly && (
+            <div className="text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded mb-3 inline-block hidden md:inline-block">
+              Tip: Focus a card and press Ctrl+Arrow to move between columns
+            </div>
+          )}
+          {filteredTasks.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Columns3 className="h-12 w-12 text-muted-foreground/40 mb-3" />
+              <p className="text-sm font-medium text-muted-foreground">No tasks to display</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">
+                {filterResourceId !== null ? "Try clearing the resource filter." : showSummary ? "This project has no tasks yet." : "Try enabling summary tasks or clearing filters."}
+              </p>
             </div>
           )}
           <DndContext 
@@ -544,9 +605,12 @@ function ProjectKanbanView({
           >
             <div 
               ref={scrollContainerRef}
-              className={cn("grid gap-6 overflow-x-auto pb-2", isFullscreen && "h-full")}
+              className={cn(
+                "flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 md:grid md:gap-6 md:overflow-x-auto md:snap-none md:pb-2",
+                isFullscreen && "h-full"
+              )}
               style={{ 
-                gridTemplateColumns: `repeat(${columns.length}, minmax(280px, 1fr))` 
+                gridTemplateColumns: columns.length > 0 ? `repeat(${columns.length}, minmax(280px, 1fr))` : undefined
               }}
             >
               {columns.map(column => {
@@ -591,6 +655,7 @@ function ProjectKanbanView({
                   isDragEnabled={canDrag}
                   taskAssignmentsMap={taskAssignmentsMap}
                   isReadOnly={isReadOnly}
+                  onKeyboardMove={handleKeyboardMove}
                 />);
               })}
             </div>
@@ -623,6 +688,7 @@ function ProjectKanbanColumn({
   isDragEnabled,
   taskAssignmentsMap,
   isReadOnly,
+  onKeyboardMove,
 }: { 
   column: { id: string; label: string; color: string }; 
   tasks: Task[]; 
@@ -634,6 +700,7 @@ function ProjectKanbanColumn({
   isDragEnabled?: boolean;
   taskAssignmentsMap?: Map<number, number[]>;
   isReadOnly?: boolean;
+  onKeyboardMove?: (taskId: number, direction: 'left' | 'right') => void;
 }) {
   const { setNodeRef } = useDroppable({
     id: column.id,
@@ -648,12 +715,13 @@ function ProjectKanbanColumn({
     <div 
       ref={setNodeRef}
       className={cn(
-        "space-y-4 min-h-[200px] rounded-lg transition-colors p-2",
+        "space-y-4 min-h-[200px] rounded-lg transition-colors p-2 min-w-[280px] snap-center flex-shrink-0 md:min-w-0 md:flex-shrink",
         isActiveOver && "bg-primary/10 ring-2 ring-primary ring-dashed"
       )}
     >
-      <div className={cn("rounded-lg p-3 font-semibold", column.color)}>
-        {column.label} ({tasks.length})
+      <div className={cn("rounded-lg p-3 font-semibold flex items-center justify-between", column.color)}>
+        <span>{column.label}</span>
+        <Badge variant="secondary" className="text-xs font-medium ml-2">{tasks.length}</Badge>
       </div>
       <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
         <div className="space-y-3">
@@ -669,6 +737,7 @@ function ProjectKanbanColumn({
               isDragEnabled={isDragEnabled}
               assignedResourceIds={taskAssignmentsMap?.get(task.id) || []}
               isReadOnly={isReadOnly}
+              onKeyboardMove={onKeyboardMove}
             />
           ))}
           {tasks.length === 0 && isDragEnabled && (
@@ -697,6 +766,7 @@ function ProjectDraggableTaskCard({
   isDragEnabled,
   assignedResourceIds,
   isReadOnly,
+  onKeyboardMove,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
@@ -707,6 +777,7 @@ function ProjectDraggableTaskCard({
   isDragEnabled?: boolean;
   assignedResourceIds: number[];
   isReadOnly?: boolean;
+  onKeyboardMove?: (taskId: number, direction: 'left' | 'right') => void;
 }) {
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const {
@@ -729,7 +800,7 @@ function ProjectDraggableTaskCard({
   const style: React.CSSProperties = isDragEnabled ? {
     transform: CSS.Transform.toString(transform),
     transition,
-    touchAction: 'none',
+    touchAction: 'manipulation',
   } : {};
 
   const assignedResources = useMemo(() => {
@@ -758,6 +829,18 @@ function ProjectDraggableTaskCard({
     setIsAssignOpen(false);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (onKeyboardMove && (e.ctrlKey || e.metaKey)) {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        onKeyboardMove(task.id, 'left');
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        onKeyboardMove(task.id, 'right');
+      }
+    }
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -767,9 +850,17 @@ function ProjectDraggableTaskCard({
         isDragEnabled ? "cursor-grab active:cursor-grabbing" : "cursor-default",
         isDragging && "opacity-50"
       )}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
     >
       <Card 
-        className="hover:shadow-md transition-shadow"
+        className={cn(
+          "hover:shadow-md transition-shadow border-l-[3px]",
+          task.priority === 'Critical' ? "border-l-rose-500" :
+          task.priority === 'High' ? "border-l-amber-500" :
+          task.priority === 'Medium' ? "border-l-blue-400" :
+          "border-l-slate-300 dark:border-l-slate-600"
+        )}
         onClick={handleClick}
         data-testid={`kanban-task-${task.id}`}
       >
@@ -779,6 +870,15 @@ function ProjectDraggableTaskCard({
             <span className="truncate" title={task.name}>{task.name}</span>
           </div>
           <div className="flex items-center gap-1 mt-2 flex-wrap">
+            {task.priority && (task.priority === 'Critical' || task.priority === 'High') && (
+              <Badge variant="secondary" className={cn(
+                "text-[10px] py-0",
+                task.priority === 'Critical' ? "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300" :
+                "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300"
+              )}>
+                {task.priority}
+              </Badge>
+            )}
             {assignedResources.length > 0 ? (
               assignedResources.map(r => (
                 <Badge key={r.id} variant="secondary" className="text-[10px] py-0 max-w-[100px] truncate" title={r.displayName}>
@@ -820,7 +920,10 @@ function ProjectDraggableTaskCard({
               {task.progress || 0}%
             </Badge>
             {task.endDate && (
-              <span className="text-xs text-muted-foreground">
+              <span className={cn(
+                "text-xs",
+                task.status !== 'Completed' && parseISO(task.endDate) < new Date(new Date().toDateString()) ? "text-destructive font-medium" : "text-muted-foreground"
+              )}>
                 Due: {format(parseISO(task.endDate), 'MMM d')}
               </span>
             )}

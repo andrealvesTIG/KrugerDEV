@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from "react";
   import { Button } from "@/components/ui/button";
   import { Badge } from "@/components/ui/badge";
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-  import { Loader2, TrendingUp, TrendingDown, Users, Building2, Activity, BarChart3, Calendar, ArrowUpRight, ArrowDownRight, Minus, RefreshCw, Search, X, ArrowUp, ArrowDown, CheckCircle, Globe, Zap, Clock, CreditCard, UserPlus } from "lucide-react";
+  import { Loader2, TrendingUp, TrendingDown, Users, Building2, Activity, BarChart3, Calendar, ArrowUpRight, ArrowDownRight, Minus, RefreshCw, Search, X, ArrowUp, ArrowDown, CheckCircle, Globe, Zap, Clock, CreditCard, UserPlus, LineChart } from "lucide-react";
   import { Input } from "@/components/ui/input";
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
   import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -13,6 +13,8 @@ import { useState, useMemo, useEffect } from "react";
   import { format, subDays, subMonths } from "date-fns";
   import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
   import { useToast } from "@/hooks/use-toast";
+  import { useExcludedEmailDomains } from "@/hooks/use-excluded-email-domains";
+  import { EmailDomainExclusionControl } from "@/components/dashboard/EmailDomainExclusionControl";
 
   // ===== ANALYTICS TAB =====
 
@@ -67,11 +69,67 @@ export function AnalyticsTab() {
   const [chartView, setChartView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [userFilter, setUserFilter] = useState<UserFilter>(null);
   const [userSearch, setUserSearch] = useState('');
-  const [sortColumn, setSortColumn] = useState<'name' | 'email' | 'role' | 'source' | 'verified' | 'signedUp'>('signedUp');
+  type SortKey = 'name' | 'email' | 'insights' | 'role' | 'source' | 'verified' | 'signedUp' | 'profile';
+  type ColumnKey = SortKey;
+  const DEFAULT_COLUMN_ORDER: ColumnKey[] = ['name', 'email', 'insights', 'role', 'source', 'verified', 'signedUp', 'profile'];
+  const COLUMN_ORDER_STORAGE_KEY = 'analytics-tab-user-columns-v1';
+  const [sortColumn, setSortColumn] = useState<SortKey>('signedUp');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [columnOrder, setColumnOrder] = useState<ColumnKey[]>(() => {
+    if (typeof window === 'undefined') return DEFAULT_COLUMN_ORDER;
+    try {
+      const raw = window.localStorage.getItem(COLUMN_ORDER_STORAGE_KEY);
+      if (!raw) return DEFAULT_COLUMN_ORDER;
+      const parsed: unknown = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return DEFAULT_COLUMN_ORDER;
+      const valid = parsed.filter((k): k is ColumnKey => typeof k === 'string' && (DEFAULT_COLUMN_ORDER as string[]).includes(k));
+      const missing = DEFAULT_COLUMN_ORDER.filter(k => !valid.includes(k));
+      return [...valid, ...missing];
+    } catch {
+      return DEFAULT_COLUMN_ORDER;
+    }
+  });
+  const [draggingColumn, setDraggingColumn] = useState<ColumnKey | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(COLUMN_ORDER_STORAGE_KEY, JSON.stringify(columnOrder));
+    } catch {
+      /* ignore */
+    }
+  }, [columnOrder]);
+
+  const moveColumn = (from: ColumnKey, to: ColumnKey) => {
+    if (from === to) return;
+    setColumnOrder(prev => {
+      const next = prev.filter(k => k !== from);
+      const idx = next.indexOf(to);
+      if (idx === -1) return prev;
+      next.splice(idx, 0, from);
+      return next;
+    });
+  };
+
+  const { appendToUrl, queryKeyPart, domains: excludedDomains, enabled: exclusionEnabled } = useExcludedEmailDomains();
+  const excludedDomainSet = useMemo(
+    () => new Set((exclusionEnabled ? excludedDomains : []).map(d => d.toLowerCase())),
+    [excludedDomains, exclusionEnabled],
+  );
+  const isExcludedEmail = (email: string | null | undefined) => {
+    if (!email || excludedDomainSet.size === 0) return false;
+    const at = email.lastIndexOf('@');
+    if (at < 0) return false;
+    return excludedDomainSet.has(email.slice(at + 1).toLowerCase());
+  };
 
   const { data: analytics, isLoading, refetch } = useQuery<AnalyticsDashboard>({
-    queryKey: ['/api/admin/analytics/dashboard'],
+    queryKey: ['/api/admin/analytics/dashboard', queryKeyPart],
+    queryFn: async () => {
+      const res = await fetch(appendToUrl('/api/admin/analytics/dashboard'));
+      if (!res.ok) throw new Error('Failed to fetch analytics');
+      return res.json();
+    },
     staleTime: 0,
   });
 
@@ -88,7 +146,7 @@ export function AnalyticsTab() {
     setUserFilter(prev => prev === filter ? null : filter);
   };
 
-  const handleSort = (column: typeof sortColumn) => {
+  const handleSort = (column: SortKey) => {
     if (sortColumn === column) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
@@ -99,7 +157,7 @@ export function AnalyticsTab() {
 
   const filteredUsers = useMemo(() => {
     if (allUsers.length === 0) return [];
-    let filtered = [...allUsers];
+    let filtered = allUsers.filter(u => !isExcludedEmail(u.email));
 
     const toNYDate = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
     const todayNY = toNYDate(new Date());
@@ -154,14 +212,36 @@ export function AnalyticsTab() {
         }
         case 'signedUp':
           return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * dir;
+        case 'insights':
+        case 'profile':
+          return a.id.localeCompare(b.id) * dir;
         default:
           return 0;
       }
     });
     return filtered;
-  }, [userFilter, allUsers, sortColumn, sortDirection, userSearch]);
+  }, [userFilter, allUsers, sortColumn, sortDirection, userSearch, excludedDomainSet]);
 
   const filterLabel = userFilter === 'total' ? 'All Users' : userFilter === 'today' ? 'New Users Today' : userFilter === 'week' ? 'New Users This Week' : userFilter === 'month' ? 'New Users This Month' : 'All Users';
+
+  const userMetricCounts = useMemo(() => {
+    const nonExcluded = allUsers.filter(u => !isExcludedEmail(u.email));
+    const toNYDate = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    const todayNY = toNYDate(new Date());
+    const subtractDays = (dateStr: string, days: number) => {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const dt = new Date(y, m - 1, d - days);
+      return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    };
+    const weekCutoff = subtractDays(todayNY, 7);
+    const monthCutoff = subtractDays(todayNY, 30);
+    return {
+      total: nonExcluded.length,
+      today: nonExcluded.filter(u => toNYDate(new Date(u.createdAt)) === todayNY).length,
+      week: nonExcluded.filter(u => toNYDate(new Date(u.createdAt)) >= weekCutoff).length,
+      month: nonExcluded.filter(u => toNYDate(new Date(u.createdAt)) >= monthCutoff).length,
+    };
+  }, [allUsers, excludedDomainSet]);
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -231,9 +311,12 @@ export function AnalyticsTab() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Analytics Dashboard</h2>
-        <p className="text-muted-foreground">Comprehensive user and application statistics</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold">Analytics Dashboard</h2>
+          <p className="text-muted-foreground">Comprehensive user and application statistics</p>
+        </div>
+        <EmailDomainExclusionControl />
       </div>
 
       {/* Key Metrics Cards */}
@@ -257,7 +340,7 @@ export function AnalyticsTab() {
                 </Tooltip>
               </TooltipProvider>
             </div>
-            <div className="text-2xl font-bold mt-1">{formatNumber(analytics.userMetrics.totalUsers)}</div>
+            <div className="text-2xl font-bold mt-1">{formatNumber(userMetricCounts.total)}</div>
           </CardContent>
         </Card>
 
@@ -280,7 +363,7 @@ export function AnalyticsTab() {
                 </Tooltip>
               </TooltipProvider>
             </div>
-            <div className="text-2xl font-bold mt-1 text-green-600">{analytics.userMetrics.newUsersToday}</div>
+            <div className="text-2xl font-bold mt-1 text-green-600">{userMetricCounts.today}</div>
           </CardContent>
         </Card>
 
@@ -303,7 +386,7 @@ export function AnalyticsTab() {
                 </Tooltip>
               </TooltipProvider>
             </div>
-            <div className="text-2xl font-bold mt-1">{analytics.userMetrics.newUsersThisWeek}</div>
+            <div className="text-2xl font-bold mt-1">{userMetricCounts.week}</div>
           </CardContent>
         </Card>
 
@@ -326,7 +409,7 @@ export function AnalyticsTab() {
                 </Tooltip>
               </TooltipProvider>
             </div>
-            <div className="text-2xl font-bold mt-1">{analytics.userMetrics.newUsersThisMonth}</div>
+            <div className="text-2xl font-bold mt-1">{userMetricCounts.month}</div>
           </CardContent>
         </Card>
 
@@ -388,123 +471,175 @@ export function AnalyticsTab() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {([
-                      ['name', 'Name'],
-                      ['email', 'Email'],
-                      ['role', 'Role'],
-                      ['source', 'Source'],
-                      ['verified', 'Verified'],
-                      ['signedUp', 'Signed Up'],
-                    ] as const).map(([key, label]) => (
-                      <TableHead
-                        key={key}
-                        className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
-                        onClick={() => handleSort(key)}
-                      >
-                        <div className="flex items-center gap-1">
-                          {label}
-                          {sortColumn === key ? (
-                            sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                          ) : (
-                            <ArrowDown className="h-3 w-3 opacity-0 group-hover:opacity-30" />
-                          )}
-                        </div>
-                      </TableHead>
-                    ))}
-                    <TableHead>Profile</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">
-                        {[user.firstName, user.lastName].filter(Boolean).join(' ') || '-'}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{user.email}</TableCell>
-                      <TableCell>
-                        <Badge variant={user.role === 'super_admin' ? 'default' : 'outline'} className="text-xs">
-                          {user.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {user.signupSource ? (() => {
-                          const sourceLabels: Record<string, string> = {
-                            'signin': 'Sign In',
-                            'signup': 'Signup Page',
-                            'auth-page': 'Auth Page',
-                            'uncon2026': 'UnCon 2026',
-                            'construction': 'Construction',
-                            'healthcare': 'Healthcare',
-                            'energy': 'Energy',
-                            'government': 'Government',
-                            'financial-services': 'Financial Services',
-                            'manufacturing': 'Manufacturing',
-                            'industrial-automation': 'Industrial Automation',
-                            'google': 'Google',
-                            'microsoft': 'Microsoft',
-                            'resource-invite': 'Resource Invite',
-                          };
-                          const sourceLinks: Record<string, string> = {
-                            'uncon2026': '/uncon2026',
-                            'construction': '/construction',
-                            'healthcare': '/healthcare',
-                            'energy': '/energy',
-                            'government': '/government',
-                            'financial-services': '/financial-services',
-                            'manufacturing': '/manufacturing',
-                            'industrial-automation': '/industrial-automation',
-                            'signin': '/signin',
-                            'signup': '/signup',
-                            'auth-page': '/auth',
-                          };
-                          const label = sourceLabels[user.signupSource] || user.signupSource;
-                          const link = sourceLinks[user.signupSource];
-                          return link ? (
+              {(() => {
+                const sourceLabels: Record<string, string> = {
+                  'signin': 'Sign In',
+                  'signup': 'Signup Page',
+                  'auth-page': 'Auth Page',
+                  'uncon2026': 'UnCon 2026',
+                  'construction': 'Construction',
+                  'healthcare': 'Healthcare',
+                  'energy': 'Energy',
+                  'government': 'Government',
+                  'financial-services': 'Financial Services',
+                  'manufacturing': 'Manufacturing',
+                  'industrial-automation': 'Industrial Automation',
+                  'google': 'Google',
+                  'microsoft': 'Microsoft',
+                  'resource-invite': 'Resource Invite',
+                };
+                const sourceLinks: Record<string, string> = {
+                  'uncon2026': '/uncon2026',
+                  'construction': '/construction',
+                  'healthcare': '/healthcare',
+                  'energy': '/energy',
+                  'government': '/government',
+                  'financial-services': '/financial-services',
+                  'manufacturing': '/manufacturing',
+                  'industrial-automation': '/industrial-automation',
+                  'signin': '/signin',
+                  'signup': '/signup',
+                  'auth-page': '/auth',
+                };
+                const COLUMN_LABELS: Record<ColumnKey, string> = {
+                  name: 'Name',
+                  email: 'Email',
+                  insights: 'Insights',
+                  role: 'Role',
+                  source: 'Source',
+                  verified: 'Verified',
+                  signedUp: 'Signed Up',
+                  profile: 'Profile',
+                };
+                const renderCell = (key: ColumnKey, user: AnalyticsUser) => {
+                  switch (key) {
+                    case 'name':
+                      return (
+                        <TableCell key={key} className="font-medium">
+                          {[user.firstName, user.lastName].filter(Boolean).join(' ') || '-'}
+                        </TableCell>
+                      );
+                    case 'email':
+                      return <TableCell key={key} className="text-muted-foreground">{user.email}</TableCell>;
+                    case 'insights':
+                      return (
+                        <TableCell key={key}>
+                          <a
+                            href={`/admin/users/${user.id}/insights`}
+                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                            data-testid={`link-user-insights-${user.id}`}
+                          >
+                            <LineChart className="h-3 w-3" />
+                            View
+                          </a>
+                        </TableCell>
+                      );
+                    case 'role':
+                      return (
+                        <TableCell key={key}>
+                          <Badge variant={user.role === 'super_admin' ? 'default' : 'outline'} className="text-xs">
+                            {user.role}
+                          </Badge>
+                        </TableCell>
+                      );
+                    case 'source': {
+                      if (!user.signupSource) {
+                        return <TableCell key={key}><span className="text-muted-foreground text-xs">-</span></TableCell>;
+                      }
+                      const label = sourceLabels[user.signupSource] || user.signupSource;
+                      const link = sourceLinks[user.signupSource];
+                      return (
+                        <TableCell key={key}>
+                          {link ? (
                             <a href={link} target="_blank" rel="noopener noreferrer">
                               <Badge variant="outline" className="text-xs cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors">
                                 {label}
                               </Badge>
                             </a>
                           ) : (
-                            <Badge variant="outline" className="text-xs">
-                              {label}
+                            <Badge variant="outline" className="text-xs">{label}</Badge>
+                          )}
+                        </TableCell>
+                      );
+                    }
+                    case 'verified':
+                      return (
+                        <TableCell key={key}>
+                          {user.emailVerified ? (
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Yes
                             </Badge>
-                          );
-                        })() : (
-                          <span className="text-muted-foreground text-xs">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {user.emailVerified ? (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            Yes
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-muted-foreground">No</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {user.createdAt ? format(new Date(user.createdAt), 'MMM d, yyyy h:mm a') : '-'}
-                      </TableCell>
-                      <TableCell>
-                        <a
-                          href={`https://fridayreport.ai/badges/${user.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                        >
-                          <Globe className="h-3 w-3" />
-                          View
-                        </a>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                          ) : (
+                            <Badge variant="outline" className="text-muted-foreground">No</Badge>
+                          )}
+                        </TableCell>
+                      );
+                    case 'signedUp':
+                      return (
+                        <TableCell key={key} className="text-muted-foreground text-sm">
+                          {user.createdAt ? format(new Date(user.createdAt), 'MMM d, yyyy h:mm a') : '-'}
+                        </TableCell>
+                      );
+                    case 'profile':
+                      return (
+                        <TableCell key={key}>
+                          <a
+                            href={`https://fridayreport.ai/badges/${user.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          >
+                            <Globe className="h-3 w-3" />
+                            View
+                          </a>
+                        </TableCell>
+                      );
+                  }
+                };
+                return (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        {columnOrder.map((key) => (
+                          <TableHead
+                            key={key}
+                            draggable
+                            onDragStart={() => setDraggingColumn(key)}
+                            onDragOver={(e) => { e.preventDefault(); }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              if (draggingColumn) moveColumn(draggingColumn, key);
+                              setDraggingColumn(null);
+                            }}
+                            onDragEnd={() => setDraggingColumn(null)}
+                            className={`cursor-grab active:cursor-grabbing select-none hover:bg-muted/50 transition-colors ${draggingColumn === key ? 'opacity-50' : ''}`}
+                            onClick={() => handleSort(key)}
+                            data-testid={`th-column-${key}`}
+                            title="Click to sort • Drag to reorder"
+                          >
+                            <div className="flex items-center gap-1">
+                              {COLUMN_LABELS[key]}
+                              {sortColumn === key ? (
+                                sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                              ) : (
+                                <ArrowDown className="h-3 w-3 opacity-0 group-hover:opacity-30" />
+                              )}
+                            </div>
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredUsers.map((user) => (
+                        <TableRow key={user.id}>
+                          {columnOrder.map((key) => renderCell(key, user))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                );
+              })()}
             </div>
           )}
         </CardContent>

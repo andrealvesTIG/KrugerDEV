@@ -1,4 +1,5 @@
 import { AlertTriangle, Wallet, UserPlus } from "lucide-react";
+import { formatCurrency } from "@/lib/format";
 import { useLocation } from "wouter";
 import {
   Dialog,
@@ -63,7 +64,7 @@ export function LimitExceededDialog({
   };
 
   const formatPrice = (cents: number) => {
-    return `$${(cents / 100).toFixed(2)}`;
+    return formatCurrency(cents / 100, { showCents: true });
   };
 
   const defaultMessage = isSeatsLimit

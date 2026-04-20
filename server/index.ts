@@ -169,8 +169,8 @@ app.use((req, res, next) => {
 
 (async () => {
   registerObjectStorageRoutes(app);
-  setupSwagger(app);
   await registerRoutes(httpServer, app);
+  setupSwagger(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -229,64 +229,90 @@ app.use((req, res, next) => {
     () => {
       log(`serving on port ${port}`);
       
-      // Schedule report check every 15 minutes
-      cron.schedule('*/15 * * * *', async () => {
-        try {
-          const sentCount = await checkAndSendDueReports();
-          if (sentCount > 0) {
-            log(`Sent ${sentCount} scheduled reports`, "cron");
-          }
-        } catch (error) {
-          console.error("Error in scheduled reports cron job:", error);
-        }
-      });
-      log("Scheduled reports cron job started (every 15 minutes)", "cron");
+      // Cron jobs only run in production by default. Set ENABLE_CRON=true to
+      // enable them in development for manual testing.
+      const cronEnabled = process.env.NODE_ENV === "production" || process.env.ENABLE_CRON === "true";
 
-      cleanupDuplicateBillingCycles().then(count => {
-        if (count > 0) log(`Cleaned up ${count} duplicate billing cycle(s)`, "billing");
-      }).catch(err => {
-        console.error("[billing] Failed to cleanup duplicate cycles:", err);
-      });
+      if (cronEnabled) {
+        // Schedule report check every 15 minutes
+        cron.schedule('*/15 * * * *', async () => {
+          try {
+            const sentCount = await checkAndSendDueReports();
+            if (sentCount > 0) {
+              log(`Sent ${sentCount} scheduled reports`, "cron");
+            }
+          } catch (error) {
+            console.error("Error in scheduled reports cron job:", error);
+          }
+        });
+        log("Scheduled reports cron job started (every 15 minutes)", "cron");
 
-      cron.schedule('*/15 * * * 1-5', async () => {
-        try {
-          const result = await runScheduledReminders();
-          const total = result.submissionReminders + result.approvalReminders + result.escalations + result.digestsSent;
-          if (total > 0) {
-            log(`Timesheet reminders: ${result.submissionReminders} submission, ${result.approvalReminders} approval, ${result.escalations} escalations, ${result.digestsSent} digests`, "cron");
-          }
-          if (result.errors.length > 0) {
-            console.error("Timesheet reminder errors:", result.errors);
-          }
-        } catch (error) {
-          console.error("Error in timesheet reminder cron job:", error);
-        }
-      });
-      log("Timesheet reminder cron job started (weekdays, checks every 15 min for org-scheduled times)", "cron");
+        cleanupDuplicateBillingCycles().then(count => {
+          if (count > 0) log(`Cleaned up ${count} duplicate billing cycle(s)`, "billing");
+        }).catch(err => {
+          console.error("[billing] Failed to cleanup duplicate cycles:", err);
+        });
 
-      cron.schedule('*/15 * * * *', async () => {
-        try {
-          const count = await checkAndRunDueAgentActions();
-          if (count > 0) {
-            log(`AI Project Agent: executed ${count} action(s)`, "cron");
+        cron.schedule('*/15 * * * 1-5', async () => {
+          try {
+            const result = await runScheduledReminders();
+            const total = result.submissionReminders + result.approvalReminders + result.escalations + result.digestsSent;
+            if (total > 0) {
+              log(`Timesheet reminders: ${result.submissionReminders} submission, ${result.approvalReminders} approval, ${result.escalations} escalations, ${result.digestsSent} digests`, "cron");
+            }
+            if (result.errors.length > 0) {
+              console.error("Timesheet reminder errors:", result.errors);
+            }
+          } catch (error) {
+            console.error("Error in timesheet reminder cron job:", error);
           }
-        } catch (error) {
-          console.error("Error in project agent cron job:", error);
-        }
-      });
-      log("AI Project Agent cron job started (every 15 minutes)", "cron");
+        });
+        log("Timesheet reminder cron job started (weekdays, checks every 15 min for org-scheduled times)", "cron");
 
-      cron.schedule('0 8 * * *', async () => {
-        try {
-          const count = await checkDueDateNotifications();
-          if (count > 0) {
-            log(`Due date notifications: sent ${count} notification(s)`, "cron");
+        cron.schedule('*/15 * * * *', async () => {
+          try {
+            const count = await checkAndRunDueAgentActions();
+            if (count > 0) {
+              log(`AI Project Agent: executed ${count} action(s)`, "cron");
+            }
+          } catch (error) {
+            console.error("Error in project agent cron job:", error);
           }
-        } catch (error) {
-          console.error("Error in due date notification cron job:", error);
-        }
-      });
-      log("RFI/Submittal due date notification cron job started (daily at 8 AM)", "cron");
+        });
+        log("AI Project Agent cron job started (every 15 minutes)", "cron");
+
+        cron.schedule('0 8 * * *', async () => {
+          try {
+            const count = await checkDueDateNotifications();
+            if (count > 0) {
+              log(`Due date notifications: sent ${count} notification(s)`, "cron");
+            }
+          } catch (error) {
+            console.error("Error in due date notification cron job:", error);
+          }
+        });
+        log("RFI/Submittal due date notification cron job started (daily at 8 AM)", "cron");
+
+        // Daily telemetry retention sweep at 03:17 UTC: hash old IPs, delete
+        // raw page-events older than 90 days, purge unlinked anonymous events
+        // older than 7 days.
+        cron.schedule('17 3 * * *', async () => {
+          try {
+            const { runTelemetryRetentionSweep } = await import("./services/telemetryRetention");
+            const r = await runTelemetryRetentionSweep();
+            log(
+              `Telemetry retention sweep: hashedIps=${r.hashedPageEventIps + r.hashedAcquisitionIps} `
+              + `deletedOld=${r.deletedOldPageEvents} purgedAnon=${r.deletedUnlinkedAnonEvents}`,
+              "cron",
+            );
+          } catch (error) {
+            console.error("Error in telemetry retention sweep:", error);
+          }
+        });
+        log("Telemetry retention sweep scheduled (daily 03:17 UTC)", "cron");
+      } else {
+        log("Cron jobs disabled in development (set ENABLE_CRON=true to enable)", "cron");
+      }
     },
   );
 })();

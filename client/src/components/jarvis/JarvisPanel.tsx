@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useJarvis, type JarvisMessage, type FileAttachment } from "@/hooks/use-jarvis";
 import { useSpeechRecognition, useSpeechSynthesis } from "@/hooks/use-speech";
-import { JarvisOrb } from "./JarvisOrb";
 import {
-  Mic, MicOff, Send, Square, Trash2, Volume2, VolumeX,
-  ChevronRight, X, MessageSquare, Minimize2, Radio, Zap, FileText,
+  Mic, MicOff, Send, Square, Trash2,
+  ChevronRight, X, MessageSquare, Minimize2, Zap, FileText,
   Paperclip, FolderOpen, Briefcase, User2,
+  MessageCircle, AudioLines, PenLine,
 } from "lucide-react";
 import {
   Tooltip, TooltipContent, TooltipTrigger
@@ -17,6 +17,8 @@ import {
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
+
+type InteractionMode = "chat" | "voice" | "dictate";
 
 const GLOBAL_PROMPTS = [
   "Which projects are at risk?",
@@ -259,6 +261,12 @@ function MessageBubble({ message, index, onNavigate }: { message: JarvisMessage;
   );
 }
 
+const MODE_CONFIG: Record<InteractionMode, { icon: typeof MessageCircle; label: string; description: string }> = {
+  chat: { icon: MessageCircle, label: "Chat", description: "Type your questions" },
+  voice: { icon: AudioLines, label: "Voice", description: "Hands-free conversation" },
+  dictate: { icon: PenLine, label: "Dictate", description: "Speak, review, then send" },
+};
+
 interface JarvisPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -270,8 +278,9 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
   const { messages, isLoading, sendMessage, clearMessages, stopGeneration, conciseMode, setConciseMode, pageContext } = useJarvis();
   const [input, setInput] = useState("");
   const [interimText, setInterimText] = useState("");
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [mode, setMode] = useState<InteractionMode>("chat");
   const [showChat, setShowChat] = useState(false);
+  const [micError, setMicError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const prevMessageCountRef = useRef(0);
@@ -291,57 +300,57 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
 
   const handleVoiceResult = useCallback((transcript: string) => {
     setInterimText("");
-    if (transcript.trim()) {
+    if (!transcript.trim()) return;
+
+    if (mode === "voice" || mode === "dictate") {
       stopSpeakingRef.current();
       window.speechSynthesis.cancel();
       if (isLoadingRef.current) stopGeneration();
       sendMessage(transcript.trim());
     }
-  }, [sendMessage, stopGeneration]);
+  }, [mode, sendMessage, stopGeneration]);
 
   const handleInterimResult = useCallback((transcript: string) => {
     setInterimText(transcript);
-    if (transcript.trim() && window.speechSynthesis.speaking) {
+    if (mode === "voice" && transcript.trim() && window.speechSynthesis.speaking) {
       stopSpeakingRef.current();
       window.speechSynthesis.cancel();
     }
+  }, [mode]);
+
+  const handleSpeechError = useCallback((error: string) => {
+    setMicError(error);
+    setTimeout(() => setMicError(null), 6000);
   }, []);
 
-  const { isListening, isSupported: micSupported, startListening, toggleListening, stopListening } = useSpeechRecognition({
+  const { isListening, isSupported: micSupported, startListening, toggleListening, stopListening, error: speechError, clearError: clearSpeechError } = useSpeechRecognition({
     onResult: handleVoiceResult,
     onInterimResult: handleInterimResult,
+    onError: handleSpeechError,
   });
 
   const { isSpeaking, speak, stop: stopSpeaking } = useSpeechSynthesis();
   useEffect(() => { stopSpeakingRef.current = stopSpeaking; }, [stopSpeaking]);
 
   useEffect(() => {
-    if (isListening && (isSpeaking || window.speechSynthesis.speaking)) {
-      stopSpeaking();
-      window.speechSynthesis.cancel();
+    if (isSpeaking && isListening && mode === "voice") {
+      stopListening();
     }
-  }, [isListening, isSpeaking, stopSpeaking]);
+  }, [isSpeaking, isListening, stopListening, mode]);
 
-  const interruptAndListen = useCallback(() => {
-    stopSpeaking();
-    stopGeneration();
-    if (!isListening) {
-      startListening();
-    }
-  }, [stopSpeaking, stopGeneration, isListening, startListening]);
+  const voiceEnabled = mode === "voice";
 
   const handleMicToggle = useCallback(() => {
     if (isListening) {
       stopListening();
     } else {
       if (isSpeaking || isLoading) {
-        interruptAndListen();
-      } else {
-        startListening();
+        stopSpeaking();
+        stopGeneration();
       }
+      startListening();
     }
-  }, [isListening, isSpeaking, isLoading, stopListening, interruptAndListen, startListening]);
-  const [continuousVoice, setContinuousVoice] = useState(false);
+  }, [isListening, isSpeaking, isLoading, stopListening, stopSpeaking, stopGeneration, startListening]);
 
   useEffect(() => {
     if (!voiceEnabled || !messages.length) return;
@@ -356,7 +365,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
   }, [messages, isLoading, voiceEnabled, speak]);
 
   useEffect(() => {
-    if (continuousVoice && voiceEnabled && !isSpeaking && !isLoading && !isListening && open && messages.length > 0) {
+    if ((mode === "voice" || mode === "dictate") && !isSpeaking && !isLoading && !isListening && open && messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg.role === "assistant" && lastMsg.content) {
         const timer = setTimeout(() => {
@@ -366,16 +375,16 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
           if (!isListening && !isSpeaking && !isLoading) {
             startListening();
           }
-        }, 800);
+        }, mode === "dictate" ? 400 : 800);
         return () => clearTimeout(timer);
       }
     }
-  }, [isSpeaking, isLoading, isListening, continuousVoice, voiceEnabled, open, messages, startListening]);
+  }, [isSpeaking, isLoading, isListening, mode, open, messages, startListening]);
 
   useEffect(() => {
     if (open && autoListen && !autoListenHandledRef.current) {
       autoListenHandledRef.current = true;
-      setContinuousVoice(true);
+      setMode("voice");
       autoListenTimerRef.current = setTimeout(() => {
         autoListenTimerRef.current = null;
         startListening();
@@ -384,16 +393,28 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
     }
     if (!open) {
       autoListenHandledRef.current = false;
-      setContinuousVoice(false);
       if (autoListenTimerRef.current) {
         clearTimeout(autoListenTimerRef.current);
         autoListenTimerRef.current = null;
       }
       stopListening();
       stopSpeaking();
+      window.speechSynthesis.cancel();
       setInterimText("");
     }
   }, [open, autoListen, startListening, stopListening, stopSpeaking, onAutoListenConsumed]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        stopListening();
+        stopSpeaking();
+        window.speechSynthesis.cancel();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [stopListening, stopSpeaking]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -407,6 +428,19 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
     }
     prevMessageCountRef.current = messages.length;
   }, [messages.length]);
+
+  useEffect(() => {
+    if (mode === "chat" || mode === "dictate") {
+      if (isSpeaking) stopSpeaking();
+    }
+    if (mode === "chat") {
+      if (isListening) stopListening();
+    }
+    if ((mode === "voice" || mode === "dictate") && open && !isListening && !isLoading && !isSpeaking) {
+      const timer = setTimeout(() => startListening(), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [mode]);
 
   const [pendingFiles, setPendingFiles] = useState<FileAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -516,17 +550,6 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
     }
   };
 
-  const orbState: "idle" | "listening" | "thinking" | "speaking" =
-    isListening ? "listening"
-    : isSpeaking ? "speaking"
-    : isLoading ? "thinking"
-    : "idle";
-
-  const statusText =
-    isListening ? (interimText || "Listening...")
-    : isSpeaking ? "Speaking..."
-    : isLoading ? "Analyzing..."
-    : "Ready";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -535,7 +558,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
         className="w-full sm:w-[520px] md:w-[580px] sm:!max-w-[580px] p-0 flex flex-col gap-0 border-l border-cyan-900/30 bg-[#0a0e1a] [&>button]:hidden overflow-hidden"
       >
         <VisuallyHidden.Root>
-          <SheetTitle>Friday Agent</SheetTitle>
+          <SheetTitle>Friday Report</SheetTitle>
           <SheetDescription>AI-powered project management agent</SheetDescription>
         </VisuallyHidden.Root>
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -612,74 +635,132 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
             </div>
           </div>
 
-          <div className={cn(
-            "flex flex-col items-center justify-center transition-all duration-500 ease-out flex-shrink-0",
-            showChat && messages.length > 0 ? "py-3" : "py-8 flex-1"
-          )}>
-            <div className="relative">
-              <JarvisOrb state={orbState} size={showChat && messages.length > 0 ? 80 : 200} />
-
-              <AnimatePresence>
-                {isListening && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-cyan-500/10 border border-cyan-500/20 rounded-full px-3 py-1"
-                  >
-                    <span className="text-xs text-cyan-400 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse" />
-                      REC
-                    </span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <motion.div
-              key={statusText}
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-3 text-center"
-            >
-              <p className={cn(
-                "text-sm tracking-wide",
-                orbState === "idle" ? "text-cyan-600" : "text-cyan-400"
-              )}>
-                {statusText}
-              </p>
-              {interimText && (
-                <p className="text-xs text-cyan-500/60 mt-1 max-w-[280px] truncate italic">
-                  "{interimText}"
-                </p>
-              )}
-            </motion.div>
-
-            {!showChat && messages.length === 0 && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="mt-6 w-full max-w-xs px-4"
-              >
-                <p className="text-[10px] font-medium text-cyan-700 uppercase tracking-widest mb-2 text-center">
-                  Suggested
-                </p>
-                <div className="space-y-1.5">
-                  {getSuggestedPrompts(pageContext.entityType).map((prompt) => (
-                    <button
-                      key={prompt}
-                      onClick={() => sendMessage(prompt)}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left rounded border border-cyan-900/30 text-cyan-400/80 hover:text-cyan-300 hover:bg-cyan-900/20 hover:border-cyan-700/30 transition-all group"
-                    >
-                      <ChevronRight className="h-3 w-3 text-cyan-700 group-hover:text-cyan-400 transition-colors flex-shrink-0" />
-                      <span className="truncate">{prompt}</span>
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
+          <div className="flex items-center justify-center gap-1 px-4 py-2 border-b border-cyan-900/15 bg-slate-900/30">
+            {(Object.keys(MODE_CONFIG) as InteractionMode[]).map((m) => {
+              const cfg = MODE_CONFIG[m];
+              const Icon = cfg.icon;
+              const isActive = mode === m;
+              const isDisabled = (m === "voice" || m === "dictate") && !micSupported;
+              return (
+                <button
+                  key={m}
+                  onClick={() => !isDisabled && setMode(m)}
+                  disabled={isDisabled}
+                  className={cn(
+                    "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium transition-all",
+                    isActive
+                      ? "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-[0_0_8px_rgba(0,200,255,0.1)]"
+                      : "text-cyan-700 hover:text-cyan-500 hover:bg-cyan-900/20 border border-transparent",
+                    isDisabled && "opacity-30 cursor-not-allowed"
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {cfg.label}
+                </button>
+              );
+            })}
           </div>
+
+          {mode === "voice" && (
+            <div className={cn(
+              "flex flex-col items-center justify-center transition-all duration-300 flex-shrink-0",
+              showChat && messages.length > 0 ? "py-4" : "py-10 flex-1"
+            )}>
+              <div className="flex flex-col items-center gap-5">
+                <div className="relative">
+                  <Button
+                    size="icon"
+                    onClick={handleMicToggle}
+                    className={cn(
+                      "h-20 w-20 rounded-full transition-colors",
+                      isListening
+                        ? "bg-red-500/15 text-red-400 hover:bg-red-500/25 ring-2 ring-red-500/50"
+                        : isLoading
+                        ? "bg-cyan-900/30 text-cyan-600 border border-cyan-800/40"
+                        : "bg-cyan-900/30 text-cyan-400 hover:bg-cyan-800/40 border border-cyan-700/40"
+                    )}
+                  >
+                    {isListening ? <MicOff className="h-8 w-8" /> : <Mic className="h-8 w-8" />}
+                  </Button>
+                  {isListening && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping" />
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+                    </span>
+                  )}
+                </div>
+
+                <div className="text-center">
+                  <p className={cn(
+                    "text-sm font-medium",
+                    isListening ? "text-red-400" : isSpeaking ? "text-green-400" : isLoading ? "text-cyan-500" : "text-cyan-600"
+                  )}>
+                    {isListening ? "Listening..." : isSpeaking ? "Speaking..." : isLoading ? "Thinking..." : "Tap to speak"}
+                  </p>
+                  {interimText && (
+                    <p className="text-xs text-cyan-500/60 mt-1.5 max-w-[260px] truncate italic">
+                      "{interimText}"
+                    </p>
+                  )}
+                  {!showChat && messages.length === 0 && !isListening && !isLoading && !isSpeaking && (
+                    <p className="text-xs text-cyan-800 mt-2 max-w-[220px]">
+                      Friday will listen and respond automatically
+                    </p>
+                  )}
+                </div>
+
+                {(isLoading || isSpeaking) && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => { stopGeneration(); stopSpeaking(); }}
+                    className="text-orange-400 hover:bg-orange-900/20 hover:text-orange-300 h-8 px-3"
+                  >
+                    <Square className="h-3.5 w-3.5 mr-1.5" />
+                    <span className="text-xs">Stop</span>
+                  </Button>
+                )}
+
+                {micError && (
+                  <p className="text-xs text-red-400/80 text-center max-w-[260px] px-3 py-1.5 rounded bg-red-900/20 border border-red-800/30">
+                    {micError}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {mode !== "voice" && (
+            <div className={cn(
+              "flex flex-col items-center justify-center transition-all duration-300 flex-shrink-0",
+              showChat && messages.length > 0 ? "py-2" : "py-6"
+            )}>
+              {!(showChat && messages.length > 0) && messages.length === 0 && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.2 }}
+                  className="w-full max-w-xs px-4"
+                >
+                  <p className="text-[10px] font-medium text-cyan-700 uppercase tracking-widest mb-2 text-center">
+                    Suggested
+                  </p>
+                  <div className="space-y-1.5">
+                    {getSuggestedPrompts(pageContext.entityType).map((prompt) => (
+                      <button
+                        key={prompt}
+                        onClick={() => sendMessage(prompt)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left rounded border border-cyan-900/30 text-cyan-400/80 hover:text-cyan-300 hover:bg-cyan-900/20 hover:border-cyan-700/30 transition-all group"
+                      >
+                        <ChevronRight className="h-3 w-3 text-cyan-700 group-hover:text-cyan-400 transition-colors flex-shrink-0" />
+                        <span className="truncate">{prompt}</span>
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          )}
 
           {showChat && messages.length > 0 && (
             <div className="flex-1 min-h-0 flex flex-col border-t border-cyan-900/20 overflow-hidden">
@@ -718,175 +799,163 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
             </div>
           )}
 
-          <div className="flex-shrink-0 border-t border-cyan-900/20 p-3 bg-[#0a0e1a]/80 backdrop-blur">
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept=".txt,.csv,.json,.xml,.md,.log,.yaml,.yml,.html,.htm,.sql,.js,.ts,.py,.pdf,.xls,.xlsx,.tsv,.ini,.conf,.cfg"
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-            <AnimatePresence>
-              {csvChunkQueue.length > 0 && !isLoading && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mb-2 p-2 rounded border border-cyan-700/30 bg-cyan-900/20"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] text-cyan-400">
-                      <Paperclip className="h-2.5 w-2.5 inline mr-1" />
-                      {csvChunkQueue[0]?.name} — {csvChunkQueue[0]?.chunks.length} chunk{csvChunkQueue[0]?.chunks.length !== 1 ? "s" : ""} remaining
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 px-2 text-[10px] text-cyan-400 hover:text-cyan-200 hover:bg-cyan-900/40 border border-cyan-700/30"
-                      onClick={processNextChunk}
-                    >
-                      Send next chunk →
-                    </Button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-            <AnimatePresence>
-              {pendingFiles.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mb-2 flex flex-wrap gap-1.5"
-                >
-                  {pendingFiles.map(f => (
-                    <span
-                      key={f.name}
-                      className="flex items-center gap-1 px-2 py-1 rounded text-[10px] bg-cyan-900/30 text-cyan-400 border border-cyan-800/30"
-                    >
-                      <Paperclip className="h-2.5 w-2.5" />
-                      <span className="max-w-[120px] truncate">{f.name}</span>
-                      <span className="text-cyan-700">({(f.size / 1024).toFixed(0)}KB)</span>
-                      <button
-                        onClick={() => removeFile(f.name)}
-                        className="ml-0.5 text-cyan-700 hover:text-red-400 transition-colors"
+          {mode !== "voice" && (
+            <div className="flex-shrink-0 border-t border-cyan-900/20 p-3 bg-[#0a0e1a]/80 backdrop-blur">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".txt,.csv,.json,.xml,.md,.log,.yaml,.yml,.html,.htm,.sql,.js,.ts,.py,.pdf,.xls,.xlsx,.tsv,.ini,.conf,.cfg"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              <AnimatePresence>
+                {csvChunkQueue.length > 0 && !isLoading && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-2 p-2 rounded border border-cyan-700/30 bg-cyan-900/20"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-cyan-400">
+                        <Paperclip className="h-2.5 w-2.5 inline mr-1" />
+                        {csvChunkQueue[0]?.name} — {csvChunkQueue[0]?.chunks.length} chunk{csvChunkQueue[0]?.chunks.length !== 1 ? "s" : ""} remaining
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-[10px] text-cyan-400 hover:text-cyan-200 hover:bg-cyan-900/40 border border-cyan-700/30"
+                        onClick={processNextChunk}
                       >
-                        <X className="h-2.5 w-2.5" />
-                      </button>
-                    </span>
-                  ))}
-                </motion.div>
+                        Send next chunk
+                      </Button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <AnimatePresence>
+                {pendingFiles.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-2 flex flex-wrap gap-1.5"
+                  >
+                    {pendingFiles.map(f => (
+                      <span
+                        key={f.name}
+                        className="flex items-center gap-1 px-2 py-1 rounded text-[10px] bg-cyan-900/30 text-cyan-400 border border-cyan-800/30"
+                      >
+                        <Paperclip className="h-2.5 w-2.5" />
+                        <span className="max-w-[120px] truncate">{f.name}</span>
+                        <span className="text-cyan-700">({(f.size / 1024).toFixed(0)}KB)</span>
+                        <button
+                          onClick={() => removeFile(f.name)}
+                          className="ml-0.5 text-cyan-700 hover:text-red-400 transition-colors"
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              {micError && mode === "dictate" && (
+                <div className="mb-2 text-xs text-red-400/80 text-center px-3 py-1.5 rounded bg-red-900/20 border border-red-800/30">
+                  {micError}
+                </div>
               )}
-            </AnimatePresence>
-            <div className="flex items-center gap-2 mb-2">
-              {micSupported && (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={handleMicToggle}
-                  className={cn(
-                    "h-9 w-9 rounded-full transition-all flex-shrink-0",
-                    isListening
-                      ? "bg-red-500/20 text-red-400 hover:bg-red-500/30 ring-2 ring-red-500/40 animate-pulse"
-                      : "text-cyan-500 hover:bg-cyan-900/30 hover:text-cyan-400"
-                  )}
-                >
-                  {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                </Button>
-              )}
-              <Tooltip>
-                <TooltipTrigger asChild>
+              <div className="flex items-center gap-2 mb-1.5">
+                {mode === "dictate" && micSupported && (
+                  <div className="relative flex-shrink-0">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={handleMicToggle}
+                      className={cn(
+                        "h-9 w-9 rounded-full transition-colors flex-shrink-0",
+                        isListening
+                          ? "bg-red-500/15 text-red-400 hover:bg-red-500/25 ring-2 ring-red-500/50"
+                          : "text-cyan-500 hover:bg-cyan-900/30 hover:text-cyan-400"
+                      )}
+                    >
+                      {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                    </Button>
+                    {isListening && (
+                      <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                      </span>
+                    )}
+                  </div>
+                )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isListening || pendingFiles.length >= 5}
+                      className="h-9 w-9 rounded-full text-cyan-500 hover:bg-cyan-900/30 hover:text-cyan-400 disabled:opacity-30 flex-shrink-0"
+                    >
+                      <Paperclip className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="text-xs">Attach files (max 5, 500KB each)</p>
+                  </TooltipContent>
+                </Tooltip>
+                <div className="flex-1 min-w-0 relative">
+                  <Textarea
+                    ref={textareaRef}
+                    value={mode === "dictate" && isListening && interimText ? input + (input ? " " : "") + interimText : input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={
+                      mode === "dictate"
+                        ? (isListening ? "Listening... speak now" : "Speak or type here")
+                        : (pageContext.entityType ? `Ask about this ${pageContext.entityType}...` : "Ask Friday anything...")
+                    }
+                    className="min-h-[38px] max-h-[80px] resize-none text-sm bg-slate-900/50 border-cyan-900/30 text-cyan-100 placeholder:text-cyan-800 focus-visible:ring-cyan-500/30 focus-visible:border-cyan-700/50 pr-2"
+                    rows={1}
+                    disabled={mode === "dictate" && isListening}
+                  />
+                </div>
+                {isLoading ? (
                   <Button
                     size="icon"
                     variant="ghost"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isListening || pendingFiles.length >= 5}
-                    className="h-9 w-9 rounded-full text-cyan-500 hover:bg-cyan-900/30 hover:text-cyan-400 disabled:opacity-30 flex-shrink-0"
+                    onClick={() => { stopGeneration(); stopSpeaking(); }}
+                    title="Stop response"
+                    className="h-9 w-9 rounded-full text-orange-400 hover:bg-orange-900/20 flex-shrink-0"
                   >
-                    <Paperclip className="h-4 w-4" />
+                    <Square className="h-4 w-4" />
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p className="text-xs">Attach files (max 5, 500KB each)</p>
-                </TooltipContent>
-              </Tooltip>
-              <div className="flex-1 min-w-0 relative">
-                <Textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={isListening ? "Listening..." : pageContext.entityType ? `Ask about this ${pageContext.entityType}...` : "Ask Friday anything..."}
-                  className="min-h-[38px] max-h-[80px] resize-none text-sm bg-slate-900/50 border-cyan-900/30 text-cyan-100 placeholder:text-cyan-800 focus-visible:ring-cyan-500/30 focus-visible:border-cyan-700/50 pr-2"
-                  rows={1}
-                  disabled={isListening}
-                />
+                ) : (
+                  <Button
+                    size="icon"
+                    onClick={handleSend}
+                    disabled={(!input.trim() && pendingFiles.length === 0) || (mode === "dictate" && isListening)}
+                    className="h-9 w-9 rounded-full bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 disabled:opacity-30 disabled:bg-transparent border border-cyan-500/20 flex-shrink-0"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
-              {(isLoading || isSpeaking) ? (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => { stopGeneration(); stopSpeaking(); }}
-                  title="Stop response"
-                  className="h-9 w-9 rounded-full text-orange-400 hover:bg-orange-900/20 flex-shrink-0"
-                >
-                  <Square className="h-4 w-4" />
-                </Button>
-              ) : (
-                <Button
-                  size="icon"
-                  onClick={handleSend}
-                  disabled={(!input.trim() && pendingFiles.length === 0) || isListening}
-                  className="h-9 w-9 rounded-full bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 disabled:opacity-30 disabled:bg-transparent border border-cyan-500/20 flex-shrink-0"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-            <div className="flex items-center justify-center gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  if (voiceEnabled && isSpeaking) stopSpeaking();
-                  setVoiceEnabled(!voiceEnabled);
-                }}
-                className={cn(
-                  "h-6 px-2 rounded",
-                  voiceEnabled
-                    ? "text-cyan-500 hover:bg-cyan-900/30"
-                    : "text-cyan-800 hover:bg-cyan-900/20"
-                )}
-              >
-                {voiceEnabled ? <Volume2 className="h-3 w-3 mr-1" /> : <VolumeX className="h-3 w-3 mr-1" />}
-                <span className="text-[10px]">{voiceEnabled ? "Voice on" : "Voice off"}</span>
-              </Button>
-              <span className="text-cyan-900">·</span>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setContinuousVoice(!continuousVoice)}
-                title={continuousVoice ? "Hands-free mode ON" : "Hands-free mode OFF"}
-                className={cn(
-                  "h-6 px-2 rounded relative",
-                  continuousVoice
-                    ? "text-green-400 hover:bg-green-900/20"
-                    : "text-cyan-800 hover:bg-cyan-900/20"
-                )}
-              >
-                <Radio className="h-3 w-3 mr-1" />
-                <span className="text-[10px]">{continuousVoice ? "Hands-free" : "Hands-free"}</span>
-                {continuousVoice && (
-                  <span className="ml-1 w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-                )}
-              </Button>
-              <span className="text-cyan-900">·</span>
-              <p className="text-[9px] text-cyan-900 tracking-wide">
+              <p className="text-[9px] text-cyan-900 tracking-wide text-center">
                 AI-GENERATED
               </p>
             </div>
-          </div>
+          )}
+
+          {mode === "voice" && (
+            <div className="flex-shrink-0 border-t border-cyan-900/20 py-2 px-3 bg-[#0a0e1a]/80">
+              <p className="text-[9px] text-cyan-900 tracking-wide text-center">
+                AI-GENERATED
+              </p>
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>

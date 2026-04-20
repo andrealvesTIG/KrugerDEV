@@ -40,10 +40,15 @@ import {
   seedDatabase,
   formatZodErrors,
 } from "./helpers";
+import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400 } from "../route-registry";
 
 export function registerOrganizationRoutes(app: Express) {
   // --- Organizations ---
-  app.get('/api/organizations', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations', {
+    tag: 'Organizations',
+    summary: 'List all organizations',
+    responses: { ...r200('List of organizations', arrOf('Organization')), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -65,7 +70,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  app.get('/api/organizations/:id', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:id', {
+    tag: 'Organizations',
+    summary: 'Get organization by ID',
+    parameters: [pathId()],
+    responses: { ...r200('Organization details', ref('Organization')), ...idRes },
+  }, async (req, res) => {
     const orgId = Number(req.params.id);
     const userId = getUserIdFromRequest(req);
     
@@ -79,7 +89,12 @@ export function registerOrganizationRoutes(app: Express) {
     res.json(org);
   });
 
-  app.post('/api/organizations', async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations', {
+    tag: 'Organizations',
+    summary: 'Create a new organization',
+    requestBody: body({ type: 'object', required: ['name'], properties: { name: { type: 'string' }, description: { type: 'string' } } }),
+    responses: { ...r201('Organization created', ref('Organization')), ...inputRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       
@@ -123,7 +138,13 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  app.put('/api/organizations/:id', async (req, res) => {
+  apiRoute(app, 'put', '/api/organizations/:id', {
+    tag: 'Organizations',
+    summary: 'Update organization',
+    parameters: [pathId()],
+    requestBody: body(ref('Organization')),
+    responses: { ...r200('Organization updated', ref('Organization')), ...updateRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -146,7 +167,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  app.get('/api/organizations/:id/risk-assessment-config', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:id/risk-assessment-config', {
+    tag: 'Organizations',
+    summary: 'Get risk assessment configuration',
+    parameters: [pathId()],
+    responses: { ...r200('Risk assessment config', ref('Organization')), ...idRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -178,7 +204,13 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  app.put('/api/organizations/:id/risk-assessment-config', async (req, res) => {
+  apiRoute(app, 'put', '/api/organizations/:id/risk-assessment-config', {
+    tag: 'Organizations',
+    summary: 'Update risk assessment configuration',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Config updated', ref('Organization')), ...updateRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -215,7 +247,125 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  app.get('/api/organizations/:id/scheduling-defaults', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:id/friday-agent-config', {
+    tag: 'Organizations',
+    summary: 'Get Friday Agent configuration',
+    parameters: [pathId()],
+    responses: { ...r200('Friday Agent config', { type: 'object' }), ...idRes },
+  }, async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const memberships = await storage.getUserOrganizations(userId!);
+      const membership = memberships.find(m => m.organizationId === orgId);
+      if (!membership || !['owner', 'org_admin'].includes(membership.role)) {
+        const [user] = await db.select().from(users).where(eq(users.id, userId!));
+        if (!hasAdminAccess(user)) {
+          return res.status(403).json({ message: 'Only admins can view Friday Agent config' });
+        }
+      }
+      const org = await storage.getOrganization(orgId);
+      if (!org) return res.status(404).json({ message: 'Organization not found' });
+      const { DEFAULT_FRIDAY_AGENT_CONFIG } = await import('@shared/schema');
+      const rawConfig = { ...DEFAULT_FRIDAY_AGENT_CONFIG, ...((org as any).fridayAgentConfig || {}) };
+      const maskedConfig = { ...rawConfig };
+      if (maskedConfig.azureApiKey) {
+        const crypto = await import('crypto');
+        try {
+          const decrypted = decryptApiKey(maskedConfig.azureApiKey, crypto);
+          maskedConfig.azureApiKey = decrypted.length > 8
+            ? decrypted.slice(0, 4) + '••••••••' + decrypted.slice(-4)
+            : '••••••••';
+        } catch {
+          maskedConfig.azureApiKey = maskedConfig.azureApiKey.length > 8
+            ? maskedConfig.azureApiKey.slice(0, 4) + '••••••••' + maskedConfig.azureApiKey.slice(-4)
+            : '••••••••';
+        }
+      }
+      res.json(maskedConfig);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get Friday Agent config' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'put', '/api/organizations/:id/friday-agent-config', {
+    tag: 'Organizations',
+    summary: 'Update Friday Agent configuration',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Config updated', { type: 'object' }), ...updateRes },
+  }, async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const memberships = await storage.getUserOrganizations(userId!);
+      const membership = memberships.find(m => m.organizationId === orgId);
+      if (!membership || !['owner', 'org_admin'].includes(membership.role)) {
+        const [user] = await db.select().from(users).where(eq(users.id, userId!));
+        if (!hasAdminAccess(user)) {
+          return res.status(403).json({ message: 'Only admins can update Friday Agent config' });
+        }
+      }
+      const { fridayAgentConfigSchema } = await import('@shared/schema');
+      const parsed = fridayAgentConfigSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Invalid config', errors: parsed.error.flatten() });
+      }
+      if (parsed.data.azureEndpoint) {
+        parsed.data.azureEndpoint = parsed.data.azureEndpoint.trim()
+          .replace(/\/openai\/v1\/?$/i, '')
+          .replace(/\/openai\/?$/i, '')
+          .replace(/\/+$/, '');
+      }
+      if (parsed.data.useOrgAzure) {
+        const endpointVal = parsed.data.azureEndpoint;
+        if (!endpointVal) {
+          return res.status(400).json({ message: 'Azure endpoint is required when using org-specific model.' });
+        }
+        try {
+          const url = new URL(endpointVal);
+          if (!['http:', 'https:'].includes(url.protocol)) {
+            return res.status(400).json({ message: 'Azure endpoint must use http or https protocol.' });
+          }
+        } catch {
+          return res.status(400).json({ message: 'Azure endpoint must be a valid URL.' });
+        }
+        const keyVal = parsed.data.azureApiKey?.trim();
+        if (!keyVal || keyVal.includes('••••')) {
+          const org = await storage.getOrganization(orgId);
+          const existingKey = ((org as any)?.fridayAgentConfig as any)?.azureApiKey || '';
+          if (!existingKey) {
+            return res.status(400).json({ message: 'Azure API key is required when using org-specific model.' });
+          }
+        }
+      }
+      const org = await storage.getOrganization(orgId);
+      if (parsed.data.azureApiKey && parsed.data.azureApiKey.includes('••••')) {
+        parsed.data.azureApiKey = ((org as any)?.fridayAgentConfig as any)?.azureApiKey || '';
+      } else if (parsed.data.azureApiKey && parsed.data.azureApiKey.length > 0) {
+        parsed.data.azureApiKey = encryptApiKey(parsed.data.azureApiKey);
+      }
+      const updated = await storage.updateOrganization(orgId, { fridayAgentConfig: parsed.data } as any);
+      res.json((updated as any)?.fridayAgentConfig || parsed.data);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update Friday Agent config' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'get', '/api/organizations/:id/scheduling-defaults', {
+    tag: 'Organizations',
+    summary: 'Get organization scheduling defaults',
+    parameters: [pathId()],
+    responses: { ...r200('Scheduling defaults', { type: 'object', properties: { defaultDependencyType: { type: 'string', enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'] }, defaultLagDays: { type: 'integer' }, enforceDefaults: { type: 'boolean' } } }), ...idRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -232,7 +382,13 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  app.put('/api/organizations/:id/scheduling-defaults', async (req, res) => {
+  apiRoute(app, 'put', '/api/organizations/:id/scheduling-defaults', {
+    tag: 'Organizations',
+    summary: 'Update organization scheduling defaults',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { defaultDependencyType: { type: 'string', enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'] }, defaultLagDays: { type: 'integer' }, enforceDefaults: { type: 'boolean' } } }),
+    responses: { ...r200('Scheduling defaults updated', { type: 'object', properties: { defaultDependencyType: { type: 'string', enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'] }, defaultLagDays: { type: 'integer' }, enforceDefaults: { type: 'boolean' } } }), ...updateRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -260,8 +416,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Get all organization integrations with status
-  app.get('/api/organizations/:id/integrations', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:id/integrations', {
+    tag: 'Organizations',
+    summary: 'Get organization integrations',
+    parameters: [pathId()],
+    responses: { ...r200('Integration settings', ref('Organization')), ...idRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -280,8 +440,13 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Dashboard tab order - admin only
-  app.put('/api/organizations/:id/dashboard-tab-order', async (req, res) => {
+  apiRoute(app, 'put', '/api/organizations/:id/dashboard-tab-order', {
+    tag: 'Organizations',
+    summary: 'Update dashboard tab order',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { tabOrder: { type: 'array', items: { type: 'string' } } } }),
+    responses: { ...r200('Tab order updated', ref('Organization')), ...updateRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -329,8 +494,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Get dashboard tab order
-  app.get('/api/organizations/:id/dashboard-tab-order', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:id/dashboard-tab-order', {
+    tag: 'Organizations',
+    summary: 'Get dashboard tab order',
+    parameters: [pathId()],
+    responses: { ...r200('Tab order', ref('Organization')), ...idRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -347,8 +516,13 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Organization logo upload URL
-  app.post('/api/organizations/:id/logo/upload-url', async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:id/logo/upload-url', {
+    tag: 'Organizations',
+    summary: 'Get presigned logo upload URL',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { contentType: { type: 'string' } } }),
+    responses: { ...r200('Upload URL', ref('Organization')), ...createRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -378,8 +552,13 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Direct logo upload (uses local storage as fallback when object storage is unavailable)
-  app.post('/api/organizations/:id/logo/upload', imageUpload.single('logo'), async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:id/logo/upload', {
+    tag: 'Organizations',
+    summary: 'Upload organization logo directly',
+    parameters: [pathId()],
+    requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } } } },
+    responses: { ...r200('Logo uploaded', { type: 'array', items: { type: 'object' } }), ...createRes },
+  }, imageUpload.single('logo'), async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -454,8 +633,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Deactivate organization (soft delete)
-  app.delete('/api/organizations/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/organizations/:id', {
+    tag: 'Organizations',
+    summary: 'Delete organization',
+    parameters: [pathId()],
+    responses: { ...r200('Organization deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -476,8 +659,11 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Get deactivated organizations (super_admin only)
-  app.get('/api/admin/organizations/deactivated', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/organizations/deactivated', {
+    tag: 'Admin',
+    summary: 'List deactivated organizations',
+    responses: { ...r200('Deactivated orgs', { type: 'object' }), ...stdRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -497,8 +683,11 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Get all organization members (super_admin only)
-  app.get('/api/admin/organization-members', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/organization-members', {
+    tag: 'Admin',
+    summary: 'List all organization members (admin)',
+    responses: { ...r200('All org members', { type: 'array', items: { type: 'object' } }), ...stdRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -522,8 +711,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Reactivate (restore) organization (super_admin only)
-  app.post('/api/admin/organizations/:id/reactivate', async (req, res) => {
+  apiRoute(app, 'post', '/api/admin/organizations/:id/reactivate', {
+    tag: 'Admin',
+    summary: 'Reactivate a deactivated organization',
+    parameters: [pathId()],
+    responses: { ...r200('Organization reactivated', { type: 'object' }), ...fullRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -545,7 +738,11 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  app.get('/api/admin/organizations/subscriptions', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/organizations/subscriptions', {
+    tag: 'Admin',
+    summary: 'List all organization subscriptions',
+    responses: { ...r200('All subscriptions', { type: 'array', items: { type: 'object' } }), ...stdRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -569,8 +766,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Send upgrade offer email to users (super_admin or marketing)
-  app.post('/api/admin/send-upgrade-offer', async (req, res) => {
+  apiRoute(app, 'post', '/api/admin/send-upgrade-offer', {
+    tag: 'Admin',
+    summary: 'Send upgrade offer email to users',
+    requestBody: body({ type: 'object', required: ['userIds', 'customMessage'], properties: { userIds: { type: 'array', items: { type: 'string' } }, customMessage: { type: 'string' } } }),
+    responses: { ...r200('Upgrade offers sent', { type: 'object' }), ...stdRes, ...e400 },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -627,8 +828,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Get organization billing info (super_admin only)
-  app.get('/api/admin/organizations/:id/billing', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/organizations/:id/billing', {
+    tag: 'Admin',
+    summary: 'Get organization billing info',
+    parameters: [pathId()],
+    responses: { ...r200('Organization billing info', { type: 'object' }), ...fullRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -677,8 +882,13 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // Update organization billing (super_admin only) - change plan and/or bonus seats
-  app.put('/api/admin/organizations/:id/billing', async (req, res) => {
+  apiRoute(app, 'put', '/api/admin/organizations/:id/billing', {
+    tag: 'Admin',
+    summary: 'Update organization billing',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { planCode: { type: 'string' }, bonusSeats: { type: 'integer' }, billingHidden: { type: 'boolean' } } }),
+    responses: { ...r200('Organization billing updated', { type: 'object' }), ...fullRes, ...e400 },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -787,8 +997,12 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
-  // --- Get all task resource assignments for organization (for grouping) ---
-  app.get('/api/organizations/:id/task-assignments', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:id/task-assignments', {
+    tag: 'Organizations',
+    summary: 'Get all task assignments for organization',
+    parameters: [pathId()],
+    responses: { ...r200('Task assignments', arrOf('Organization')), ...idRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);

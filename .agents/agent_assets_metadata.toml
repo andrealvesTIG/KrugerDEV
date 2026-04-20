@@ -48,3 +48,33 @@ id = "yyLw7wDAn1WlrVJoaNDcn"
 uri = "file://.local/qa-audit-report.md"
 type = "text"
 title = "QA Audit Report — FridayReport.AI"
+
+[[outputs]]
+id = "jeVuNb0AjGmejMPVC2ls3"
+uri = "file://.local/data_quality_report.md"
+type = "text"
+title = "Data Quality & Mismatch Analysis Report"
+
+[[outputs]]
+id = "jbSjSUY2vIWJPGMubiFP8"
+uri = "file://.local/timesheet_quality_report.md"
+type = "text"
+title = "Timesheet Dashboard Data Quality & Mismatch Analysis Report"
+
+[[outputs]]
+id = "p3VWXfwHV-47oZj5WiO23"
+uri = "file://.local/timesheet_production_quality_report.md"
+type = "text"
+title = "PRODUCTION Timesheet Data Quality Report"
+
+[[outputs]]
+id = "mo7vIEU4q7l8_frOo0Yy7"
+uri = "file://.local/codebase_audit_report.md"
+type = "text"
+title = "Codebase Audit Report — Bugs, Schema Mismatches & Risks"
+
+[[outputs]]
+id = "uAUbZbyRwaLCngDLUUgGY"
+uri = "file://schema_diff_report.json"
+type = "unspecified"
+title = "Schema Diff Report (DB ↔ Drizzle)"

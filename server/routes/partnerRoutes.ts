@@ -3,6 +3,7 @@ import { db } from "../db";
 import { z } from "zod";
 import { partnerApplications } from "@shared/schema";
 import { sendEmail } from "../services/email";
+import { apiRoute, body, r201, inputRes } from "../route-registry";
 
 const partnerApplicationRequestSchema = z.object({
   name: z.string().min(1).max(200),
@@ -169,7 +170,23 @@ Please review this application in the database.`;
 }
 
 export function registerPartnerRoutes(app: Express) {
-  app.post("/api/partner-applications", async (req, res) => {
+  apiRoute(app, 'post', '/api/partner-applications', {
+    tag: 'Other',
+    summary: 'Submit a partner application',
+    security: [],
+    requestBody: body({
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        email: { type: 'string', format: 'email' },
+        company: { type: 'string', nullable: true },
+        partnerType: { type: 'string', enum: ['consulting', 'independent', 'trainer'] },
+        message: { type: 'string', nullable: true },
+      },
+      required: ['name', 'email', 'partnerType'],
+    }),
+    responses: { ...r201('Application submitted', { type: 'object' }), ...inputRes },
+  }, async (req, res) => {
     try {
       const clientIp = req.ip || req.socket.remoteAddress || "unknown";
       if (isRateLimited(clientIp)) {

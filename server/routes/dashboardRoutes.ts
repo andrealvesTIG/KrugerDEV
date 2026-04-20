@@ -10,12 +10,24 @@ import {
   hasAdminAccess,
   userHasOrgAccess,
   openai,
+  isTeamMemberInOrg,
+  getTeamMemberProjectIds,
+  getTeamMemberRiskIds,
+  getTeamMemberIssueIds,
+  getTeamMemberTaskIds,
 } from "./helpers";
+import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
+import { getRequestEmailDomainExclusion } from "../lib/emailDomainFilter";
 
 export function registerDashboardRoutes(app: Express) {
   // ==================== DASHBOARD AGGREGATION ENDPOINTS ====================
 
-  app.get('/api/dashboard/summary', async (req, res) => {
+  apiRoute(app, 'get', '/api/dashboard/summary', {
+    tag: 'Dashboards',
+    summary: 'Get dashboard summary',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Dashboard summary data', { type: 'object' }), ...authRes },
+  }, async (req, res) => {
     try {
       const organizationId = Number(req.query.organizationId);
       if (!organizationId) {
@@ -26,7 +38,7 @@ export function registerDashboardRoutes(app: Express) {
         return res.status(403).json({ message: "Access denied" });
       }
 
-      const orgProjects = await db.select({
+      let orgProjects = await db.select({
         id: projects.id,
         status: projects.status,
         health: projects.health,
@@ -37,6 +49,19 @@ export function registerDashboardRoutes(app: Express) {
       }).from(projects).where(
         and(eq(projects.organizationId, organizationId), sql`${projects.deletedAt} IS NULL`)
       );
+
+      const isTeamMember = userId ? await isTeamMemberInOrg(userId, organizationId) : false;
+      let allowedTaskIdsList: number[] | null = null;
+      let allowedRiskIdsList: number[] | null = null;
+      let allowedIssueIdsList: number[] | null = null;
+
+      if (isTeamMember) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId!, organizationId));
+        orgProjects = orgProjects.filter(p => allowedProjectIds.has(p.id));
+        allowedTaskIdsList = await getTeamMemberTaskIds(userId!, organizationId);
+        allowedRiskIdsList = await getTeamMemberRiskIds(userId!, organizationId);
+        allowedIssueIdsList = await getTeamMemberIssueIds(userId!, organizationId);
+      }
 
       const projectIds = orgProjects.map(p => p.id);
 
@@ -50,11 +75,21 @@ export function registerDashboardRoutes(app: Express) {
       if (projectIds.length > 0) {
         const today = new Date().toISOString().split('T')[0];
 
+        const taskWhereConditions = [
+          inArray(tasks.projectId, projectIds),
+          sql`${tasks.deletedAt} IS NULL`,
+        ];
+        if (allowedTaskIdsList !== null && allowedTaskIdsList.length > 0) {
+          taskWhereConditions.push(inArray(tasks.id, allowedTaskIdsList));
+        } else if (allowedTaskIdsList !== null) {
+          taskWhereConditions.push(sql`false`);
+        }
+
         const taskCountRows = await db.select({
           status: tasks.status,
           cnt: sql<number>`count(*)::int`,
         }).from(tasks).where(
-          and(inArray(tasks.projectId, projectIds), sql`${tasks.deletedAt} IS NULL`)
+          and(...taskWhereConditions)
         ).groupBy(tasks.status);
 
         for (const row of taskCountRows) {
@@ -64,31 +99,56 @@ export function registerDashboardRoutes(app: Express) {
           else if (row.status === 'Not Started') taskStats.notStarted += row.cnt;
         }
 
+        const overdueConditions = [
+          inArray(tasks.projectId, projectIds),
+          sql`${tasks.deletedAt} IS NULL`,
+          sql`${tasks.status} != 'Completed'`,
+          sql`${tasks.endDate} IS NOT NULL`,
+          sql`${tasks.endDate}::date < ${today}::date`,
+        ];
+        if (allowedTaskIdsList !== null && allowedTaskIdsList.length > 0) {
+          overdueConditions.push(inArray(tasks.id, allowedTaskIdsList));
+        } else if (allowedTaskIdsList !== null) {
+          overdueConditions.push(sql`false`);
+        }
+
         const [overdueRow] = await db.select({
           cnt: sql<number>`count(*)::int`,
         }).from(tasks).where(
-          and(
-            inArray(tasks.projectId, projectIds),
-            sql`${tasks.deletedAt} IS NULL`,
-            sql`${tasks.status} != 'Completed'`,
-            sql`${tasks.endDate} IS NOT NULL`,
-            sql`${tasks.endDate}::date < ${today}::date`
-          )
+          and(...overdueConditions)
         );
         taskStats.overdue = overdueRow?.cnt || 0;
+
+        const assigneeConditions = [
+          inArray(tasks.projectId, projectIds),
+          sql`${tasks.deletedAt} IS NULL`,
+          sql`${tasks.assignee} IS NOT NULL`,
+          sql`${tasks.assignee} != ''`,
+        ];
+        if (allowedTaskIdsList !== null && allowedTaskIdsList.length > 0) {
+          assigneeConditions.push(inArray(tasks.id, allowedTaskIdsList));
+        } else if (allowedTaskIdsList !== null) {
+          assigneeConditions.push(sql`false`);
+        }
 
         tasksByAssignee = await db.select({
           assignee: tasks.assignee,
           status: tasks.status,
           count: sql<number>`count(*)::int`,
         }).from(tasks).where(
-          and(
-            inArray(tasks.projectId, projectIds),
-            sql`${tasks.deletedAt} IS NULL`,
-            sql`${tasks.assignee} IS NOT NULL`,
-            sql`${tasks.assignee} != ''`
-          )
+          and(...assigneeConditions)
         ).groupBy(tasks.assignee, tasks.status);
+
+        const riskWhereConditions = [
+          inArray(issues.projectId, projectIds),
+          eq(issues.itemType, 'risk'),
+          sql`${issues.deletedAt} IS NULL`,
+        ];
+        if (allowedRiskIdsList !== null && allowedRiskIdsList.length > 0) {
+          riskWhereConditions.push(inArray(issues.id, allowedRiskIdsList));
+        } else if (allowedRiskIdsList !== null) {
+          riskWhereConditions.push(sql`false`);
+        }
 
         const riskRows = await db.select({
           status: issues.status,
@@ -96,11 +156,7 @@ export function registerDashboardRoutes(app: Express) {
           impact: issues.impact,
           cnt: sql<number>`count(*)::int`,
         }).from(issues).where(
-          and(
-            inArray(issues.projectId, projectIds),
-            eq(issues.itemType, 'risk'),
-            sql`${issues.deletedAt} IS NULL`
-          )
+          and(...riskWhereConditions)
         ).groupBy(issues.status, issues.priority, issues.impact);
 
         for (const row of riskRows) {
@@ -116,23 +172,26 @@ export function registerDashboardRoutes(app: Express) {
           priority: issues.priority,
           count: sql<number>`count(*)::int`,
         }).from(issues).where(
-          and(
-            inArray(issues.projectId, projectIds),
-            eq(issues.itemType, 'risk'),
-            sql`${issues.deletedAt} IS NULL`
-          )
+          and(...riskWhereConditions)
         ).groupBy(issues.priority);
+
+        const issueWhereConditions = [
+          inArray(issues.projectId, projectIds),
+          eq(issues.itemType, 'issue'),
+          sql`${issues.deletedAt} IS NULL`,
+        ];
+        if (allowedIssueIdsList !== null && allowedIssueIdsList.length > 0) {
+          issueWhereConditions.push(inArray(issues.id, allowedIssueIdsList));
+        } else if (allowedIssueIdsList !== null) {
+          issueWhereConditions.push(sql`false`);
+        }
 
         const issueRows = await db.select({
           status: issues.status,
           priority: issues.priority,
           cnt: sql<number>`count(*)::int`,
         }).from(issues).where(
-          and(
-            inArray(issues.projectId, projectIds),
-            eq(issues.itemType, 'issue'),
-            sql`${issues.deletedAt} IS NULL`
-          )
+          and(...issueWhereConditions)
         ).groupBy(issues.status, issues.priority);
 
         for (const row of issueRows) {
@@ -147,11 +206,7 @@ export function registerDashboardRoutes(app: Express) {
           priority: issues.priority,
           count: sql<number>`count(*)::int`,
         }).from(issues).where(
-          and(
-            inArray(issues.projectId, projectIds),
-            eq(issues.itemType, 'issue'),
-            sql`${issues.deletedAt} IS NULL`
-          )
+          and(...issueWhereConditions)
         ).groupBy(issues.priority);
       }
 
@@ -191,7 +246,12 @@ export function registerDashboardRoutes(app: Express) {
     }
   });
 
-  app.get('/api/risks', async (req, res) => {
+  apiRoute(app, 'get', '/api/risks', {
+    tag: 'Dashboards',
+    summary: 'List all risks across projects',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Risks list', arrOf('Organization')), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       const organizationId = Number(req.query.organizationId);
@@ -202,7 +262,23 @@ export function registerDashboardRoutes(app: Express) {
         return res.status(403).json({ message: "Access denied" });
       }
       const orgProjects = await storage.getProjects(organizationId);
-      const projectIds = orgProjects.map(p => p.id);
+      let projectIds = orgProjects.map(p => p.id);
+
+      if (userId && await isTeamMemberInOrg(userId, organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, organizationId));
+        projectIds = projectIds.filter(id => allowedProjectIds.has(id));
+        if (projectIds.length === 0) return res.json([]);
+        const allowedRiskIds = new Set(await getTeamMemberRiskIds(userId, organizationId));
+        const allRisks = await db.select().from(issues).where(
+          and(
+            inArray(issues.projectId, projectIds),
+            eq(issues.itemType, 'risk'),
+            sql`${issues.deletedAt} IS NULL`
+          )
+        );
+        return res.json(allRisks.filter(r => allowedRiskIds.has(r.id)));
+      }
+
       if (projectIds.length === 0) return res.json([]);
       const allRisks = await db.select().from(issues).where(
         and(
@@ -219,8 +295,12 @@ export function registerDashboardRoutes(app: Express) {
     }
   });
 
-  // Get all resource assignments (dashboard)
-  app.get('/api/resource-assignments', async (req, res) => {
+  apiRoute(app, 'get', '/api/resource-assignments', {
+    tag: 'Dashboards',
+    summary: 'Get all resource assignments',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Resource assignments list', arrOf('Organization')), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -232,7 +312,13 @@ export function registerDashboardRoutes(app: Express) {
       if (!await userHasOrgAccess(userId, organizationId)) {
         return res.status(403).json({ message: "Access denied" });
       }
-      const allAssignments = await storage.getAllTaskResourceAssignments(organizationId);
+      let allAssignments = await storage.getAllTaskResourceAssignments(organizationId);
+
+      if (userId && await isTeamMemberInOrg(userId, organizationId)) {
+        const allowedTaskIds = new Set(await getTeamMemberTaskIds(userId, organizationId));
+        allAssignments = allAssignments.filter(a => allowedTaskIds.has(a.taskId));
+      }
+
       res.json(allAssignments);
     } catch (err) {
       console.error("Error fetching resource assignments:", err);
@@ -241,8 +327,12 @@ export function registerDashboardRoutes(app: Express) {
     }
   });
 
-  // Get dashboard utilization data
-  app.get('/api/dashboard/utilization', async (req, res) => {
+  apiRoute(app, 'get', '/api/dashboard/utilization', {
+    tag: 'Dashboards',
+    summary: 'Get dashboard utilization data',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Utilization data', { type: 'object' }), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -262,8 +352,11 @@ export function registerDashboardRoutes(app: Express) {
     }
   });
 
-  // Onboarding endpoints
-  app.get('/api/onboarding/status', async (req, res) => {
+  apiRoute(app, 'get', '/api/onboarding/status', {
+    tag: 'Dashboards',
+    summary: 'Get onboarding status',
+    responses: { ...r200('Onboarding status', ref('Organization')), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -277,7 +370,12 @@ export function registerDashboardRoutes(app: Express) {
     }
   });
 
-  app.post('/api/onboarding/complete', async (req, res) => {
+  apiRoute(app, 'post', '/api/onboarding/complete', {
+    tag: 'Dashboards',
+    summary: 'Complete onboarding',
+    requestBody: body({ type: 'object', properties: { companyName: { type: 'string' }, industry: { type: 'string' }, createDemoData: { type: 'boolean' } } }),
+    responses: { ...r200('Onboarding completed', { type: 'object' }), ...inputRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -295,7 +393,11 @@ export function registerDashboardRoutes(app: Express) {
     }
   });
 
-  app.post('/api/onboarding/skip', async (req, res) => {
+  apiRoute(app, 'post', '/api/onboarding/skip', {
+    tag: 'Dashboards',
+    summary: 'Skip onboarding',
+    responses: { ...r200('Onboarding skipped', { type: 'object' }), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -308,7 +410,11 @@ export function registerDashboardRoutes(app: Express) {
     }
   });
 
-  app.post('/api/onboarding/generate-sample-data', async (req, res) => {
+  apiRoute(app, 'post', '/api/onboarding/generate-sample-data', {
+    tag: 'Dashboards',
+    summary: 'Generate sample data for onboarding',
+    responses: { ...r200('Sample data generated', { type: 'object' }), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -325,8 +431,11 @@ export function registerDashboardRoutes(app: Express) {
     }
   });
 
-  // Demo Data Generation (Org Admin or Super Admin)
-  app.get('/api/demo-data/industries', async (req, res) => {
+  apiRoute(app, 'get', '/api/demo-data/industries', {
+    tag: 'Dashboards',
+    summary: 'List available demo data industries',
+    responses: { ...r200('Industries list', arrOf('Organization')), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     const user = userId ? await storage.getUser(userId) : null;
     
@@ -353,7 +462,12 @@ export function registerDashboardRoutes(app: Express) {
     res.json(industries);
   });
 
-  app.post('/api/demo-data/generate', async (req, res) => {
+  apiRoute(app, 'post', '/api/demo-data/generate', {
+    tag: 'Dashboards',
+    summary: 'Generate demo data for organization',
+    requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, industry: { type: 'string' }, customIndustry: { type: 'string' }, dataTypes: { type: 'array', items: { type: 'string' } } } }),
+    responses: { ...r201('Demo data generated', { type: 'object' }), ...createRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     const user = userId ? await storage.getUser(userId) : null;
     
@@ -934,7 +1048,12 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
     }
   });
 
-  app.delete('/api/demo-data/:organizationId', async (req, res) => {
+  apiRoute(app, 'delete', '/api/demo-data/:organizationId', {
+    tag: 'Dashboards',
+    summary: 'Delete demo data for organization',
+    parameters: [pathId('organizationId')],
+    responses: { ...r200('Demo data deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     const user = userId ? await storage.getUser(userId) : null;
     
@@ -974,7 +1093,12 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
     }
   });
 
-  app.get('/api/dashboard/kpi-metrics', async (req, res) => {
+  apiRoute(app, 'get', '/api/dashboard/kpi-metrics', {
+    tag: 'Dashboards',
+    summary: 'Get KPI metrics for organization',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('KPI metrics data', { type: 'object' }), ...authRes },
+  }, async (req, res) => {
     try {
       const organizationId = Number(req.query.organizationId);
       if (!organizationId) {
@@ -996,15 +1120,47 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         { label: "Month 4+", daysAgo: 9999 },
       ];
 
-      const orgProjectIds = await db.select({ id: projects.id })
+      let orgProjectIds = await db.select({ id: projects.id })
         .from(projects)
         .where(and(eq(projects.organizationId, organizationId), sql`${projects.deletedAt} IS NULL`));
+      
+      const isTeamMember = await isTeamMemberInOrg(userId, organizationId);
+      if (isTeamMember) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, organizationId));
+        orgProjectIds = orgProjectIds.filter(p => allowedProjectIds.has(p.id));
+      }
+      
       const projectIds = orgProjectIds.map(p => p.id);
+
+      let allowedTaskIdSet: Set<number> | null = null;
+      let allowedIssueIdSet: Set<number> | null = null;
+      if (isTeamMember) {
+        const [taskIds, issueIds] = await Promise.all([
+          getTeamMemberTaskIds(userId, organizationId),
+          getTeamMemberIssueIds(userId, organizationId),
+        ]);
+        allowedTaskIdSet = new Set(taskIds);
+        allowedIssueIdSet = new Set(issueIds);
+      }
 
       const orgMemberIds = await db.select({ userId: organizationMembers.userId })
         .from(organizationMembers)
         .where(eq(organizationMembers.organizationId, organizationId));
       const memberUserIds = orgMemberIds.map(m => m.userId);
+
+      const taskConditions = [inArray(tasks.projectId, projectIds), sql`${tasks.deletedAt} IS NULL`];
+      if (allowedTaskIdSet && allowedTaskIdSet.size > 0) {
+        taskConditions.push(inArray(tasks.id, Array.from(allowedTaskIdSet)));
+      } else if (allowedTaskIdSet) {
+        taskConditions.push(sql`1=0`);
+      }
+
+      const issueConditions = [inArray(issues.projectId, projectIds), eq(issues.itemType, 'issue'), sql`${issues.deletedAt} IS NULL`];
+      if (allowedIssueIdSet && allowedIssueIdSet.size > 0) {
+        issueConditions.push(inArray(issues.id, Array.from(allowedIssueIdSet)));
+      } else if (allowedIssueIdSet) {
+        issueConditions.push(sql`1=0`);
+      }
 
       const [
         tasksCreatedRaw,
@@ -1021,80 +1177,101 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         projectIds.length > 0
           ? db.select({
               createdAt: tasks.createdAt,
-            }).from(tasks).where(and(inArray(tasks.projectId, projectIds), sql`${tasks.deletedAt} IS NULL`))
+            }).from(tasks).where(and(...taskConditions))
           : Promise.resolve([]),
 
         projectIds.length > 0
           ? db.select({
               createdAt: tasks.updatedAt,
             }).from(tasks).where(and(
-              inArray(tasks.projectId, projectIds),
-              sql`${tasks.deletedAt} IS NULL`,
+              ...taskConditions,
               eq(tasks.status, 'Completed')
             ))
           : Promise.resolve([]),
 
-        db.select({
-          createdAt: projects.createdAt,
-        }).from(projects).where(and(eq(projects.organizationId, organizationId), sql`${projects.deletedAt} IS NULL`)),
+        projectIds.length > 0
+          ? db.select({
+              createdAt: projects.createdAt,
+            }).from(projects).where(and(inArray(projects.id, projectIds), sql`${projects.deletedAt} IS NULL`))
+          : Promise.resolve([]),
 
         projectIds.length > 0
           ? db.select({
               createdAt: issues.createdAt,
-            }).from(issues).where(and(
-              inArray(issues.projectId, projectIds),
-              eq(issues.itemType, 'issue'),
-              sql`${issues.deletedAt} IS NULL`
-            ))
+            }).from(issues).where(and(...issueConditions))
           : Promise.resolve([]),
 
         projectIds.length > 0
           ? db.select({
               resolvedDate: issues.actualResolutionDate,
             }).from(issues).where(and(
-              inArray(issues.projectId, projectIds),
-              eq(issues.itemType, 'issue'),
-              sql`${issues.deletedAt} IS NULL`,
+              ...issueConditions,
               sql`${issues.actualResolutionDate} IS NOT NULL`
             ))
           : Promise.resolve([]),
 
-        db.select({
-          hours: timesheetEntries.hours,
-          entryDate: timesheetEntries.entryDate,
-        }).from(timesheetEntries).where(eq(timesheetEntries.organizationId, organizationId)),
-
-        db.select({
-          createdAt: featureUsageLogs.createdAt,
-          count: featureUsageLogs.usageCount,
-        }).from(featureUsageLogs).where(eq(featureUsageLogs.organizationId, organizationId)),
-
         projectIds.length > 0
           ? db.select({
-              changedBy: taskChangeLogs.changedBy,
-              changedAt: taskChangeLogs.changedAt,
-            }).from(taskChangeLogs)
-              .innerJoin(tasks, eq(taskChangeLogs.taskId, tasks.id))
-              .where(and(
-                sql`${taskChangeLogs.changedBy} IS NOT NULL`,
-                inArray(tasks.projectId, projectIds)
-              ))
+              hours: timesheetEntries.hours,
+              entryDate: timesheetEntries.entryDate,
+            }).from(timesheetEntries).where(
+              isTeamMember
+                ? and(eq(timesheetEntries.organizationId, organizationId), inArray(timesheetEntries.projectId, projectIds), eq(timesheetEntries.userId, userId))
+                : and(eq(timesheetEntries.organizationId, organizationId), inArray(timesheetEntries.projectId, projectIds))
+            )
+          : Promise.resolve([]),
+
+        !isTeamMember
+          ? db.select({
+              createdAt: featureUsageLogs.createdAt,
+              count: featureUsageLogs.usageCount,
+            }).from(featureUsageLogs).where(eq(featureUsageLogs.organizationId, organizationId))
+          : Promise.resolve([]),
+
+        projectIds.length > 0
+          ? (() => {
+              const changeConditions = [sql`${taskChangeLogs.changedBy} IS NOT NULL`, inArray(tasks.projectId, projectIds)];
+              if (allowedTaskIdSet && allowedTaskIdSet.size > 0) {
+                changeConditions.push(inArray(tasks.id, Array.from(allowedTaskIdSet)));
+              } else if (allowedTaskIdSet) {
+                changeConditions.push(sql`1=0`);
+              }
+              return db.select({
+                changedBy: taskChangeLogs.changedBy,
+                changedAt: taskChangeLogs.changedAt,
+              }).from(taskChangeLogs)
+                .innerJoin(tasks, eq(taskChangeLogs.taskId, tasks.id))
+                .where(and(...changeConditions));
+            })()
           : Promise.resolve([]),
 
         projectIds.length > 0
           ? db.select({
               changedAt: projectChangeLogs.changedAt,
+              changedBy: projectChangeLogs.changedBy,
             }).from(projectChangeLogs).where(inArray(projectChangeLogs.projectId, projectIds))
           : Promise.resolve([]),
 
         projectIds.length > 0
-          ? db.select({
-              changedAt: taskChangeLogs.changedAt,
-            }).from(taskChangeLogs)
-              .innerJoin(tasks, eq(taskChangeLogs.taskId, tasks.id))
-              .where(inArray(tasks.projectId, projectIds))
+          ? (() => {
+              const taskChangeConditions = [inArray(tasks.projectId, projectIds)];
+              if (allowedTaskIdSet && allowedTaskIdSet.size > 0) {
+                taskChangeConditions.push(inArray(tasks.id, Array.from(allowedTaskIdSet)));
+              } else if (allowedTaskIdSet) {
+                taskChangeConditions.push(sql`1=0`);
+              }
+              return db.select({
+                changedAt: taskChangeLogs.changedAt,
+                changedBy: taskChangeLogs.changedBy,
+              }).from(taskChangeLogs)
+                .innerJoin(tasks, eq(taskChangeLogs.taskId, tasks.id))
+                .where(and(...taskChangeConditions));
+            })()
           : Promise.resolve([]),
       ]);
+
+      const filteredProjectChanges = projectChangesRaw as Array<{ changedAt: Date | null; changedBy: string | null }>;
+      const filteredTaskChanges = taskChangesRaw as Array<{ changedAt: Date | null; changedBy: string | null }>;
 
       function getCohortIndex(date: Date | string | null): number {
         if (!date) return cohortBoundaries.length - 1;
@@ -1152,10 +1329,10 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         cohorts[i].activeUsers = activeUserSets[i].size;
       }
 
-      for (const pc of projectChangesRaw) {
+      for (const pc of filteredProjectChanges) {
         cohorts[getCohortIndex(pc.changedAt)].projectUpdates++;
       }
-      for (const tc of taskChangesRaw) {
+      for (const tc of filteredTaskChanges) {
         cohorts[getCohortIndex(tc.changedAt)].taskUpdates++;
       }
 
@@ -1167,8 +1344,8 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         issuesResolved: issuesResolvedRaw.length,
         hoursLogged: Math.round(hoursLoggedRaw.reduce((s, h) => s + Number(h.hours || 0), 0) * 10) / 10,
         featureUsage: featureUsageRaw.reduce((s, f) => s + (f.count || 1), 0),
-        totalMembers: memberUserIds.length,
-        totalActivities: (projectChangesRaw as any[]).length + (taskChangesRaw as any[]).length,
+        totalMembers: isTeamMember ? 0 : memberUserIds.length,
+        totalActivities: filteredProjectChanges.length + filteredTaskChanges.length,
       };
 
       res.json({ cohorts: cohorts.reverse(), totals });
@@ -1179,7 +1356,11 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
     }
   });
 
-  app.get('/api/admin/kpi-metrics', async (req, res) => {
+  apiRoute(app, 'get', '/api/admin/kpi-metrics', {
+    tag: 'Dashboards',
+    summary: 'Get admin KPI metrics',
+    responses: { ...r200('Admin KPI metrics data', { type: 'object' }), ...stdRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -1189,6 +1370,8 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
       if (!hasAdminAccess(currentUser)) {
         return res.status(403).json({ message: "Admin access required" });
       }
+
+      const exclusion = await getRequestEmailDomainExclusion(req);
 
       const now = new Date();
       const cohortBoundaries = [
@@ -1202,7 +1385,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
       ];
 
       const [
-        signupsRaw,
+        signupsRawAll,
         tasksCreatedRaw,
         tasksCompletedRaw,
         projectsCreatedRaw,
@@ -1273,8 +1456,11 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
 
         db.select({
           changedAt: taskChangeLogs.changedAt,
+          changedBy: taskChangeLogs.changedBy,
         }).from(taskChangeLogs),
       ]);
+
+      const signupsRaw = signupsRawAll.filter(u => !exclusion.excludedUserIds.has(u.id));
 
       function getCohortIndex(date: Date | string | null): number {
         if (!date) return cohortBoundaries.length - 1;
@@ -1328,7 +1514,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
 
       const activeUserSets: Set<string>[] = cohortBoundaries.map(() => new Set());
       for (const a of activeUsersRaw) {
-        if (a.changedBy) {
+        if (a.changedBy && !exclusion.excludedUserIds.has(a.changedBy)) {
           activeUserSets[getCohortIndex(a.changedAt)].add(a.changedBy);
         }
       }
@@ -1337,11 +1523,16 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
       }
 
       for (const pc of projectChangesRaw) {
+        if (pc.changedBy && exclusion.excludedUserIds.has(pc.changedBy)) continue;
         cohorts[getCohortIndex(pc.changedAt)].projectUpdates++;
       }
       for (const tc of taskChangesRaw) {
+        if (tc.changedBy && exclusion.excludedUserIds.has(tc.changedBy)) continue;
         cohorts[getCohortIndex(tc.changedAt)].taskUpdates++;
       }
+
+      const filteredProjectChanges = projectChangesRaw.filter(pc => !pc.changedBy || !exclusion.excludedUserIds.has(pc.changedBy));
+      const filteredTaskChanges = (taskChangesRaw as Array<{ changedAt: Date | null; changedBy: string | null }>).filter(tc => !tc.changedBy || !exclusion.excludedUserIds.has(tc.changedBy));
 
       const totals = {
         newSignups: signupsRaw.length,
@@ -1353,7 +1544,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         hoursLogged: Math.round(hoursLoggedRaw.reduce((s, h) => s + Number(h.hours || 0), 0) * 10) / 10,
         featureUsage: featureUsageRaw.reduce((s, f) => s + (f.count || 1), 0),
         totalUsers: signupsRaw.length,
-        totalActivities: projectChangesRaw.length + taskChangesRaw.length,
+        totalActivities: filteredProjectChanges.length + filteredTaskChanges.length,
       };
 
       function toDate(d: Date | string | null): Date | null {
@@ -1377,12 +1568,12 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
 
       const allActivityEntries: { userId: string; date: Date }[] = [];
       for (const a of activeUsersRaw) {
-        if (a.changedBy && a.changedAt) {
+        if (a.changedBy && a.changedAt && !exclusion.excludedUserIds.has(a.changedBy)) {
           allActivityEntries.push({ userId: a.changedBy, date: toDate(a.changedAt)! });
         }
       }
       for (const pc of projectChangesRaw) {
-        if (pc.changedBy && pc.changedAt) {
+        if (pc.changedBy && pc.changedAt && !exclusion.excludedUserIds.has(pc.changedBy)) {
           allActivityEntries.push({ userId: pc.changedBy, date: toDate(pc.changedAt)! });
         }
       }
@@ -1539,6 +1730,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
           ELSE 'Other'
         END`;
 
+      const userOk = exclusion.userNotInSql('user_id');
       const [topFeaturesResult, errorHotspotsResult, frictionTrendResult] = await Promise.all([
         db.execute(sql.raw(`
           SELECT ${featureCaseExpr} as feature,
@@ -1551,6 +1743,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
           WHERE created_at >= NOW() - INTERVAL '30 days'
             AND path NOT LIKE '/api/auth%'
             AND path NOT LIKE '/api/billing%'
+            AND ${userOk}
           GROUP BY ${featureCaseExpr}
           ORDER BY total_requests DESC
           LIMIT 15
@@ -1566,6 +1759,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
             FROM api_request_logs
             WHERE created_at >= NOW() - INTERVAL '30 days'
               AND path NOT LIKE '/api/auth%'
+              AND ${userOk}
             GROUP BY ${featureCaseExpr}
           )
           SELECT feature, errors as error_count, affected_users,
@@ -1589,6 +1783,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
           FROM api_request_logs
           WHERE created_at >= NOW() - INTERVAL '90 days'
             AND path NOT LIKE '/api/auth%'
+            AND ${userOk}
           GROUP BY DATE_TRUNC('week', created_at)
           ORDER BY DATE_TRUNC('week', created_at) ASC
         `)),
@@ -1629,20 +1824,26 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
             AND method != 'GET'
             AND path NOT LIKE '/api/auth%'
             AND path NOT LIKE '/api/billing%'
+            AND ${userOk}
           GROUP BY ${featureCaseExpr}
           ORDER BY count DESC
           LIMIT 10
         `)),
-        db.select({
-          orgId: organizations.id,
-          orgName: organizations.name,
-          memberCount: sql<number>`(SELECT COUNT(*) FROM organization_members WHERE organization_id = ${organizations.id})`,
-          activeCount: sql<number>`(SELECT COUNT(DISTINCT changed_by) FROM task_change_logs tcl
-            INNER JOIN tasks t ON tcl.task_id = t.id
-            INNER JOIN projects p ON t.project_id = p.id
-            WHERE p.organization_id = ${organizations.id}
-            AND tcl.changed_at >= NOW() - INTERVAL '7 days')`,
-        }).from(organizations).limit(20),
+        (() => {
+          const omOk = sql.raw(exclusion.userNotInSql('user_id'));
+          const tclOk = sql.raw(exclusion.userNotInSql('changed_by'));
+          return db.select({
+            orgId: organizations.id,
+            orgName: organizations.name,
+            memberCount: sql<number>`(SELECT COUNT(*) FROM organization_members WHERE organization_id = ${organizations.id} AND ${omOk})`,
+            activeCount: sql<number>`(SELECT COUNT(DISTINCT changed_by) FROM task_change_logs tcl
+              INNER JOIN tasks t ON tcl.task_id = t.id
+              INNER JOIN projects p ON t.project_id = p.id
+              WHERE p.organization_id = ${organizations.id}
+              AND tcl.changed_at >= NOW() - INTERVAL '7 days'
+              AND ${tclOk})`,
+          }).from(organizations).limit(20);
+        })(),
       ]);
 
       const topActions = topActionsResult.rows.map((r: Record<string, unknown>) => ({
@@ -1651,12 +1852,14 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         uniqueUsers: Number(r.unique_users || 0),
       }));
 
-      const orgBreakdown = orgBreakdownRaw.map(o => ({
-        orgId: o.orgId,
-        orgName: o.orgName,
-        memberCount: Number(o.memberCount || 0),
-        activeCount: Number(o.activeCount || 0),
-      }));
+      const orgBreakdown = orgBreakdownRaw
+        .filter(o => !exclusion.excludedOrgIds.has(o.orgId))
+        .map(o => ({
+          orgId: o.orgId,
+          orgName: o.orgName,
+          memberCount: Number(o.memberCount || 0),
+          activeCount: Number(o.activeCount || 0),
+        }));
 
       res.json({
         cohorts: cohorts.reverse(),
@@ -1664,6 +1867,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         topFeatures,
         errorHotspots,
         frictionTrend,
+        excludedEmailDomains: exclusion.domains,
         userActivity: {
           totalUsers: signupsRaw.length,
           activeUsers7d: activeUsers7d.size,

@@ -23,10 +23,16 @@ import { mapDataversePriorityToProjectPriority, mapDataverseProgressToStatus } f
 import { addWorkingDays, ensureWorkingDay, calculateEndDate, calculateDuration, nextWorkingDay, formatDateStr, workingDaysBetweenExclusive } from "../lib/workingDays";
 import { createProjectAssignmentNotification } from "../services/notificationEngine";
 import { sendEmail } from "../services/email";
+import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404, p } from "../route-registry";
 
 export function registerProjectRoutes(app: Express) {
   // --- Projects ---
-  app.get(api.projects.list.path, async (req, res) => {
+  apiRoute(app, 'get', api.projects.list.path, {
+    tag: 'Projects',
+    summary: 'List projects',
+    parameters: [qInt('organizationId', false, 'Filter by organization'), qInt('portfolioId', false, 'Filter by portfolio'), qStr('isInternal', false, 'Filter by internal status'), qInt('page', false, 'Page number'), qInt('pageSize', false, 'Page size')],
+    responses: { ...r200('List of projects', arrOf('Project')), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     
     // Deny access if user is not a member of any organization
@@ -93,7 +99,12 @@ export function registerProjectRoutes(app: Express) {
     res.json(filteredProjects);
   });
 
-  app.get(api.projects.get.path, async (req, res) => {
+  apiRoute(app, 'get', api.projects.get.path, {
+    tag: 'Projects',
+    summary: 'Get project by ID',
+    parameters: [pathId()],
+    responses: { ...r200('Project details', ref('Project')), ...idRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const project = await storage.getProject(Number(req.params.id));
@@ -118,7 +129,12 @@ export function registerProjectRoutes(app: Express) {
     });
   });
 
-  app.post(api.projects.create.path, async (req, res) => {
+  apiRoute(app, 'post', api.projects.create.path, {
+    tag: 'Projects',
+    summary: 'Create a new project',
+    requestBody: body(ref('ProjectRequest')),
+    responses: { ...r201('Project created', ref('Project')), ...inputRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       
@@ -157,7 +173,9 @@ export function registerProjectRoutes(app: Express) {
       const project = await storage.createProject(sanitizedInput);
       
       if (userId) {
-        logUserActivity(userId, 'create_project', 'project', project.id, { name: project.name, organizationId: project.organizationId }, req);
+        await logUserActivity(userId, 'create_project', 'project', project.id, { name: project.name, organizationId: project.organizationId }, req).catch((e) => {
+          console.error('[activity] failed to log create_project:', e);
+        });
       }
       
       // Record usage after successful creation
@@ -211,7 +229,12 @@ export function registerProjectRoutes(app: Express) {
   });
 
   // Import project from Microsoft Planner (organization-scoped)
-  app.post('/api/planner/import', async (req, res) => {
+  apiRoute(app, 'post', '/api/planner/import', {
+    tag: 'Projects',
+    summary: 'Import tasks from Microsoft Planner',
+    requestBody: body({ type: 'object', properties: { planId: { type: 'string' }, projectId: { type: 'integer' }, organizationId: { type: 'integer' } }, required: ['planId', 'projectId'] }),
+    responses: { ...r201('Planner tasks imported', ref('Project')), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       
@@ -537,7 +560,12 @@ export function registerProjectRoutes(app: Express) {
   });
 
   // Import project from Dataverse (Planner Premium)
-  app.post('/api/dataverse/import', async (req, res) => {
+  apiRoute(app, 'post', '/api/dataverse/import', {
+    tag: 'Projects',
+    summary: 'Import tasks from Microsoft Planner Premium (Dataverse)',
+    requestBody: body({ type: 'object', properties: { planId: { type: 'string' }, environmentUrl: { type: 'string' }, organizationId: { type: 'integer' } }, required: ['planId', 'environmentUrl'] }),
+    responses: { ...r201('Planner Premium tasks imported', ref('Project')), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       
@@ -1182,7 +1210,12 @@ export function registerProjectRoutes(app: Express) {
   });
 
   // Sync tasks from Planner for a project
-  app.post('/api/projects/:id/sync-planner', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:id/sync-planner', {
+    tag: 'Projects',
+    summary: 'Sync project data to/from planner view',
+    parameters: [pathId()],
+    responses: { ...r200('Planner synced', ref('Project')), ...updateRes },
+  }, async (req, res) => {
     try {
       const projectId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -3032,7 +3065,13 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.put(api.projects.update.path, async (req, res) => {
+  apiRoute(app, 'put', api.projects.update.path, {
+    tag: 'Projects',
+    summary: 'Update project',
+    parameters: [pathId()],
+    requestBody: body(ref('ProjectRequest'), false),
+    responses: { ...r200('Project updated', ref('Project')), ...updateRes },
+  }, async (req, res) => {
     try {
       const projectId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -3123,7 +3162,12 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.delete(api.projects.delete.path, async (req, res) => {
+  apiRoute(app, 'delete', api.projects.delete.path, {
+    tag: 'Projects',
+    summary: 'Delete project',
+    parameters: [pathId()],
+    responses: { ...r204('Project deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -3146,7 +3190,12 @@ export function registerProjectRoutes(app: Express) {
   });
 
   // Convert imported project to editable (native) mode
-  app.post('/api/projects/:id/make-editable', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:id/make-editable', {
+    tag: 'Projects',
+    summary: 'Convert read-only project to editable',
+    parameters: [pathId()],
+    responses: { ...r200('Project is now editable', ref('Project')), ...updateRes },
+  }, async (req, res) => {
     try {
       const projectId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
@@ -3203,7 +3252,12 @@ export function registerProjectRoutes(app: Express) {
   });
 
   // Project History
-  app.get(api.projects.getHistory.path, async (req, res) => {
+  apiRoute(app, 'get', api.projects.getHistory.path, {
+    tag: 'Projects',
+    summary: 'Get project change history',
+    parameters: [pathId()],
+    responses: { ...r200('Change history', { type: 'array', items: { type: 'object' } }), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -3220,7 +3274,12 @@ export function registerProjectRoutes(app: Express) {
   });
 
   // Project Export (CSV and MSPDI/XML)
-  app.get('/api/projects/:id/export', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:id/export', {
+    tag: 'Projects',
+    summary: 'Export project schedule',
+    parameters: [pathId(), p('format', 'query', { type: 'string', enum: ['csv', 'mspdi', 'xml'] }, false, 'Export format')],
+    responses: { '200': { description: 'Exported file', content: { 'text/csv': { schema: { type: 'string' } }, 'application/xml': { schema: { type: 'string' } } } }, ...fullRes },
+  }, async (req, res) => {
     try {
       const projectId = Number(req.params.id);
       const format = (req.query.format as string) || 'csv';
@@ -3623,7 +3682,12 @@ export function registerProjectRoutes(app: Express) {
   });
 
   // Project Status Report Email
-  app.post('/api/projects/:id/status-report/email', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:id/status-report/email', {
+    tag: 'Projects',
+    summary: 'Email AI status report for project',
+    parameters: [pathId()],
+    responses: { ...r200('Status report emailed', { type: 'object', properties: { message: { type: 'string' } } }), ...createRes },
+  }, async (req, res) => {
     try {
       const projectId = Number(req.params.id);
       const { recipientEmail, executiveSummary, pdfBase64, pdfFileName } = req.body;
@@ -4114,7 +4178,12 @@ Generated by FridayReport.AI
   });
 
   // Get Status Report History for a project
-  app.get('/api/projects/:id/status-report/history', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:id/status-report/history', {
+    tag: 'Projects',
+    summary: 'Get status report history for project',
+    parameters: [pathId()],
+    responses: { ...r200('Status report history', { type: 'array', items: { type: 'object' } }), ...idRes },
+  }, async (req, res) => {
     try {
       const projectId = Number(req.params.id);
       const project = await storage.getProject(projectId);

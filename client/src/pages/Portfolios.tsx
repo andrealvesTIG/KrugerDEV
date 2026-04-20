@@ -385,14 +385,14 @@ export default function Portfolios() {
 
       {/* Table View */}
       {viewMode === "table" && (
-        <Card>
+        <Card className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Description</TableHead>
+                <TableHead className="hidden md:table-cell">Description</TableHead>
                 <TableHead className="text-center">Projects</TableHead>
-                <TableHead className="text-center">Health Summary</TableHead>
+                <TableHead className="text-center hidden sm:table-cell">Health Summary</TableHead>
                 <TableHead className="w-[60px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -422,13 +422,13 @@ export default function Portfolios() {
                         </div>
                       </Link>
                     </TableCell>
-                    <TableCell className="max-w-[300px]">
+                    <TableCell className="max-w-[300px] hidden md:table-cell">
                       <span className="text-muted-foreground line-clamp-1">{portfolio.description || "—"}</span>
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge variant="secondary">{healthSummary.total}</Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <div className="flex items-center justify-center gap-1">
                         {healthSummary.green > 0 && (
                           <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-xs">

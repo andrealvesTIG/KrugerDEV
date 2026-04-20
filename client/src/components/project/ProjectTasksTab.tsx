@@ -8,6 +8,8 @@ import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskNotesHistory } from "@/hooks/use-tasks";
 import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
+import { useCustomFieldDefinitions, useTaskCustomFieldValues, useUpdateTaskCustomFieldValue } from "@/hooks/use-custom-fields";
+import type { CustomFieldDefinition } from "@shared/schema";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { useSidebarState } from "@/components/layout/Sidebar";
@@ -16,7 +18,7 @@ import { useForm, Controller } from "react-hook-form";
 import { useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { cn, normalizeSearch } from "@/lib/utils";
-import { insertTaskSchema } from "@shared/schema";
+import { insertTaskSchema, TASK_STATUSES, TASK_STATUS, DEFAULT_TASK_STATUS } from "@shared/schema";
 import type { Task, TaskResourceAssignment, Resource } from "@shared/schema";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { TaskDependenciesSection, type TaskDependenciesSectionHandle, type PendingDepChange } from "@/components/TaskDependenciesSection";
@@ -149,6 +151,166 @@ function NotesHistorySection({ taskId, onRestore, readOnly }: { taskId: number; 
   );
 }
 
+function TaskCustomFieldsSection({
+  taskId,
+  defs,
+  readOnly,
+}: {
+  taskId: number;
+  defs: CustomFieldDefinition[];
+  readOnly: boolean;
+}) {
+  const { data: values = [] } = useTaskCustomFieldValues(taskId);
+  const updateValue = useUpdateTaskCustomFieldValue();
+  const [localValues, setLocalValues] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    const map: Record<number, string> = {};
+    for (const v of values) {
+      map[v.fieldDefinitionId] = (v.value as string) ?? "";
+    }
+    setLocalValues(map);
+  }, [values]);
+
+  const setVal = (fieldId: number, val: string) => {
+    setLocalValues(prev => ({ ...prev, [fieldId]: val }));
+  };
+
+  const persist = (fieldId: number, val: string) => {
+    updateValue.mutate({ taskId, fieldDefinitionId: fieldId, value: val === "" ? null : val });
+  };
+
+  if (defs.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No task custom fields have been configured. Add them in Organization Settings &rarr; Custom Fields.
+      </p>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {defs.map(field => {
+        const value = localValues[field.id] ?? "";
+        const fieldId = `cf-task-${field.id}`;
+        const opts = (field.options as string[] | null | undefined) ?? [];
+        return (
+          <div key={field.id} className="space-y-2">
+            <Label htmlFor={fieldId}>
+              {field.name}
+              {field.isRequired && <span className="text-red-500 ml-1">*</span>}
+            </Label>
+            {field.fieldType === "checkbox" ? (
+              <div className="flex items-center h-10">
+                <Checkbox
+                  id={fieldId}
+                  checked={value === "true"}
+                  disabled={readOnly}
+                  onCheckedChange={(checked) => {
+                    const next = checked ? "true" : "false";
+                    setVal(field.id, next);
+                    persist(field.id, next);
+                  }}
+                  data-testid={`input-cf-${field.id}`}
+                />
+              </div>
+            ) : field.fieldType === "select" ? (
+              <Select
+                value={value}
+                disabled={readOnly}
+                onValueChange={(v) => { setVal(field.id, v); persist(field.id, v); }}
+              >
+                <SelectTrigger id={fieldId} data-testid={`input-cf-${field.id}`}>
+                  <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {opts.map(opt => (
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : field.fieldType === "multiselect" ? (
+              <div className="flex flex-wrap gap-1.5" data-testid={`input-cf-${field.id}`}>
+                {opts.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No options configured.</p>
+                ) : opts.map(opt => {
+                  const selected = value ? value.split(',').map(s => s.trim()).includes(opt) : false;
+                  return (
+                    <Badge
+                      key={opt}
+                      variant={selected ? "default" : "outline"}
+                      className={cn("cursor-pointer", readOnly && "pointer-events-none opacity-60")}
+                      onClick={() => {
+                        if (readOnly) return;
+                        const current = value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
+                        const next = current.includes(opt)
+                          ? current.filter(o => o !== opt)
+                          : [...current, opt];
+                        const joined = next.join(',');
+                        setVal(field.id, joined);
+                        persist(field.id, joined);
+                      }}
+                    >
+                      {opt}
+                    </Badge>
+                  );
+                })}
+              </div>
+            ) : field.fieldType === "date" ? (
+              <Input
+                id={fieldId}
+                type="date"
+                value={value}
+                disabled={readOnly}
+                onChange={(e) => setVal(field.id, e.target.value)}
+                onBlur={(e) => persist(field.id, e.target.value)}
+                data-testid={`input-cf-${field.id}`}
+              />
+            ) : field.fieldType === "number" ? (
+              <Input
+                id={fieldId}
+                type="number"
+                value={value}
+                disabled={readOnly}
+                onChange={(e) => setVal(field.id, e.target.value)}
+                onBlur={(e) => persist(field.id, e.target.value)}
+                data-testid={`input-cf-${field.id}`}
+              />
+            ) : field.fieldType === "url" ? (
+              <Input
+                id={fieldId}
+                type="url"
+                placeholder="https://..."
+                value={value}
+                disabled={readOnly}
+                onChange={(e) => setVal(field.id, e.target.value)}
+                onBlur={(e) => persist(field.id, e.target.value)}
+                data-testid={`input-cf-${field.id}`}
+              />
+            ) : (
+              <Input
+                id={fieldId}
+                type="text"
+                value={value}
+                disabled={readOnly}
+                onChange={(e) => setVal(field.id, e.target.value)}
+                onBlur={(e) => persist(field.id, e.target.value)}
+                data-testid={`input-cf-${field.id}`}
+              />
+            )}
+            {field.description && (
+              <p className="text-xs text-muted-foreground">{field.description}</p>
+            )}
+          </div>
+        );
+      })}
+      <p className="col-span-full text-xs text-muted-foreground">
+        Changes save automatically when you tab out or pick a value.
+      </p>
+    </div>
+  );
+}
+
 function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId, sourceFileName, sourceFileUrl, dataverseOrgId, dataverseTenantId, urlTaskId, readOnly = false, projectUpdatedAt }: { 
   projectId: number; 
   projectName?: string; 
@@ -168,6 +330,12 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const { data: tasks, isLoading, refetch: refetchTasks } = useTasks(projectId);
   const { data: resources } = useResources(currentOrganization?.id ?? null);
   const { data: allTaskAssignments } = useAllTaskResourceAssignments(currentOrganization?.id ?? null);
+  const { data: allCustomFieldDefs = [] } = useCustomFieldDefinitions(currentOrganization?.id ?? null);
+  const taskCustomFieldDefs = useMemo(
+    () => allCustomFieldDefs.filter((d: CustomFieldDefinition) => d.entityType === 'task'),
+    [allCustomFieldDefs]
+  );
+  const updateTaskCustomFieldValue = useUpdateTaskCustomFieldValue();
 
   const teamResources = useMemo(() => {
     if (!resources) return [];
@@ -390,6 +558,35 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const plannerBannerStorageKey = `plannerBannerCollapsed:${projectId}`;
+  const [isPlannerBannerCollapsed, setIsPlannerBannerCollapsedState] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem(`plannerBannerCollapsed:${projectId}`) === "true";
+    } catch {
+      return false;
+    }
+  });
+  const setIsPlannerBannerCollapsed = (updater: boolean | ((prev: boolean) => boolean)) => {
+    setIsPlannerBannerCollapsedState((prev) => {
+      const next = typeof updater === "function" ? (updater as (p: boolean) => boolean)(prev) : updater;
+      try {
+        window.localStorage.setItem(plannerBannerStorageKey, String(next));
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  };
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(`plannerBannerCollapsed:${projectId}`);
+      setIsPlannerBannerCollapsedState(stored === "true");
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
   const lastInitializedTaskId = useRef<number | null>(null);
   const inviteAssignedRef = useRef(false);
@@ -457,7 +654,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       endDate: calculateEndDateFromWorkingDays(format(new Date(), 'yyyy-MM-dd'), 1),
       durationDays: 1,
       progress: 0,
-      status: "Not Started",
+      status: DEFAULT_TASK_STATUS,
       assignee: "",
       baselineStartDate: null as string | null,
       baselineEndDate: null as string | null,
@@ -555,7 +752,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       endDate: task.endDate || calculateEndDateFromWorkingDays(format(new Date(), 'yyyy-MM-dd'), 1),
       durationDays: taskDuration,
       progress: task.progress || 0,
-      status: task.status || "Not Started",
+      status: task.status || DEFAULT_TASK_STATUS,
       assignee: task.assignee || "",
       baselineStartDate: task.baselineStartDate || null,
       baselineEndDate: task.baselineEndDate || null,
@@ -596,7 +793,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       endDate: calculateEndDateFromWorkingDays(todayStr, 1),
       durationDays: 1,
       progress: 0,
-      status: "Not Started",
+      status: DEFAULT_TASK_STATUS,
       assignee: "",
       baselineStartDate: null,
       baselineEndDate: null,
@@ -615,7 +812,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       endDate: isOngoingTask ? null : data.endDate,
       durationDays: isOngoingTask ? null : (durationDays ?? 1),
       progress: data.progress || 0,
-      status: data.status || "Not Started",
+      status: data.status || DEFAULT_TASK_STATUS,
       assignee: data.assignee || null,
       isMilestone: isOngoingTask ? false : isMilestone,
       baselineStartDate: data.baselineStartDate || null,
@@ -705,27 +902,40 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     <div 
       data-schedule-export="true"
       className={cn(
-        "space-y-4",
-        isFullscreen && "fixed top-14 right-0 bottom-0 z-40 bg-background p-4 flex flex-col overflow-hidden"
+        isFullscreen
+          ? "fixed top-14 right-0 bottom-0 z-40 bg-background flex flex-col overflow-hidden gap-2 p-2 sm:gap-3 sm:p-4"
+          : "space-y-4"
       )}
       style={isFullscreen ? { left: isMobile ? 0 : sidebarWidth } : undefined}
     >
-      {/* Planner project banner */}
-      {isPlannerProject && (
+      {/* Planner project banner - hidden in fullscreen to save space */}
+      {isPlannerProject && !isFullscreen && (
         <div className="space-y-2">
-          <div className="p-3 rounded-lg border bg-muted/50 space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="relative p-3 pr-10 rounded-lg border bg-muted/50 space-y-2">
+            <button
+              type="button"
+              onClick={() => setIsPlannerBannerCollapsed((v) => !v)}
+              className="absolute top-2 right-2 hover-elevate rounded p-1"
+              aria-label={isPlannerBannerCollapsed ? "Expand banner" : "Collapse banner"}
+              aria-expanded={!isPlannerBannerCollapsed}
+              data-testid="button-toggle-planner-banner"
+            >
+              {isPlannerBannerCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            <div className={cn("flex items-center justify-between gap-2", !isPlannerBannerCollapsed && "flex-wrap")}>
               <div className="flex items-center gap-3 min-w-0">
                 <img src={plannerLogoPath} alt="Microsoft Planner" className="h-6 w-6 shrink-0" />
                 <div className="min-w-0">
-                  <span className="font-medium">Planner Premium Task Management Options:</span>
-                  <div className="mt-1 space-y-0.5">
-                    <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">1. Sync Now – Edit tasks in Planner (view-only in FridayReport)</p>
-                    <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">2. Detach & Edit – Disconnect from Planner and continue managing tasks directly in FridayReport</p>
-                  </div>
+                  <span className={cn("font-medium", isPlannerBannerCollapsed && "truncate block")}>Planner Premium Task Management Options:</span>
+                  {!isPlannerBannerCollapsed && (
+                    <div className="mt-1 space-y-0.5">
+                      <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">1. Sync Now – Edit tasks in Planner (view-only in FridayReport)</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">2. Detach & Edit – Disconnect from Planner and continue managing tasks directly in FridayReport</p>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className={cn("flex items-center gap-2", !isPlannerBannerCollapsed && "flex-wrap")}>
                 <a 
                   href={(() => {
                     if (!plannerPlanId) return "https://planner.cloud.microsoft";
@@ -776,7 +986,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                 </Tooltip>
               </div>
             </div>
-            {lastSyncedAt && (
+            {!isPlannerBannerCollapsed && lastSyncedAt && (
               <p className="text-xs text-muted-foreground pl-9" data-testid="text-last-synced">
                 Last Synced: {format(new Date(lastSyncedAt), "MM/dd/yyyy h:mm a")}
               </p>
@@ -821,8 +1031,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           )}
         </div>
       )}
-      {/* MS Project imported project banner */}
-      {isMsProjectImported && (
+      {/* MS Project imported project banner - hidden in fullscreen to save space */}
+      {isMsProjectImported && !isFullscreen && (
         <div className="p-3 rounded-lg border bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 space-y-3">
           <div className="flex items-start gap-3">
             <img src={msprojectLogoPath} alt="Microsoft Project" className="h-6 w-6 shrink-0 mt-0.5" />
@@ -1047,31 +1257,31 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <div data-schedule-toolbar="true" className="flex flex-wrap items-center justify-between gap-3">
+      <div data-schedule-toolbar="true" className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 flex-shrink-0">
         <Tabs value={view} onValueChange={(v) => setView(v as "table" | "gantt" | "kanban")}>
           <TabsList>
-            <TabsTrigger value="gantt" className="gap-2">
-              <GanttChartSquare className="h-4 w-4" />
+            <TabsTrigger value="gantt" className="gap-1.5 text-xs sm:text-sm sm:gap-2">
+              <GanttChartSquare className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Gantt
             </TabsTrigger>
-            <TabsTrigger value="table" className="gap-2">
-              <Table className="h-4 w-4" />
+            <TabsTrigger value="table" className="gap-1.5 text-xs sm:text-sm sm:gap-2">
+              <Table className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Table
             </TabsTrigger>
-            <TabsTrigger value="kanban" className="gap-2">
-              <Columns3 className="h-4 w-4" />
+            <TabsTrigger value="kanban" className="gap-1.5 text-xs sm:text-sm sm:gap-2">
+              <Columns3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Kanban
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <div className="flex items-center gap-3 flex-1 justify-end flex-wrap">
-          <div className="relative max-w-xs w-full sm:w-auto">
+        <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-end">
+          <div className={cn("relative", isFullscreen && isMobile ? "w-auto" : "max-w-xs w-full sm:w-auto")}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search tasks..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 w-full sm:w-60"
+              className={cn("pl-9", isFullscreen && isMobile ? "w-32" : "w-full sm:w-60")}
               data-testid="input-task-search"
             />
           </div>
@@ -1098,12 +1308,15 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               
               {/* Tabbed content */}
               <Tabs value={activeDialogTab} onValueChange={setActiveDialogTab} className="flex-1 flex flex-col min-h-0">
-                <TabsList className="grid w-full grid-cols-5">
+                <TabsList className={cn("grid w-full", taskCustomFieldDefs.length > 0 ? "grid-cols-6" : "grid-cols-5")}>
                   <TabsTrigger value="details" className="text-xs">Details</TabsTrigger>
                   <TabsTrigger value="schedule" className="text-xs">Schedule</TabsTrigger>
                   <TabsTrigger value="resources" className="text-xs">Resources</TabsTrigger>
                   <TabsTrigger value="dependencies" className="text-xs" disabled={!editingTask || isOngoingTask}>Dependencies</TabsTrigger>
                   <TabsTrigger value="notes" className="text-xs">Notes</TabsTrigger>
+                  {taskCustomFieldDefs.length > 0 && (
+                    <TabsTrigger value="custom-fields" className="text-xs">Custom Fields</TabsTrigger>
+                  )}
                 </TabsList>
                 
                 <div className="flex-1 overflow-y-auto py-4 min-h-[280px]">
@@ -1116,19 +1329,19 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                           <Select onValueChange={(val) => {
                             const prevStatus = field.value;
                             field.onChange(val);
-                            if (val === "Not Started") {
+                            if (val === TASK_STATUS.NOT_STARTED) {
                               form.setValue("progress", 0);
-                            } else if (val === "Completed") {
+                            } else if (val === TASK_STATUS.COMPLETED) {
                               form.setValue("progress", 100);
-                            } else if (val === "In Progress" && prevStatus === "Completed") {
+                            } else if (val === TASK_STATUS.IN_PROGRESS && prevStatus === TASK_STATUS.COMPLETED) {
                               form.setValue("progress", 50);
                             }
-                          }} value={field.value || "Not Started"}>
+                          }} value={field.value || DEFAULT_TASK_STATUS}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="Not Started">Not Started</SelectItem>
-                              <SelectItem value="In Progress">In Progress</SelectItem>
-                              <SelectItem value="Completed">Completed</SelectItem>
+                              {TASK_STATUSES.map((status) => (
+                                <SelectItem key={status} value={status}>{status}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         )} />
@@ -1147,12 +1360,12 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                                 field.onChange(newProgress);
                                 const currentStatus = form.getValues("status");
                                 if (newProgress === 100) {
-                                  form.setValue("status", "Completed");
+                                  form.setValue("status", TASK_STATUS.COMPLETED);
                                 } else if (newProgress === 0) {
-                                  form.setValue("status", "Not Started");
+                                  form.setValue("status", TASK_STATUS.NOT_STARTED);
                                 } else {
-                                  if (currentStatus === "Completed" || currentStatus === "Not Started") {
-                                    form.setValue("status", "In Progress");
+                                  if (currentStatus === TASK_STATUS.COMPLETED || currentStatus === TASK_STATUS.NOT_STARTED) {
+                                    form.setValue("status", TASK_STATUS.IN_PROGRESS);
                                   }
                                 }
                               }}
@@ -1468,6 +1681,23 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                       />
                     )}
                   </TabsContent>
+
+                  {/* Custom Fields Tab */}
+                  {taskCustomFieldDefs.length > 0 && (
+                    <TabsContent value="custom-fields" className="mt-0 space-y-4">
+                      {editingTask ? (
+                        <TaskCustomFieldsSection
+                          taskId={editingTask.id}
+                          defs={taskCustomFieldDefs}
+                          readOnly={readOnly}
+                        />
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          Save the task first to set values for custom fields.
+                        </p>
+                      )}
+                    </TabsContent>
+                  )}
                 </div>
               </Tabs>
               
@@ -1579,6 +1809,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           onOpenChange={setIsHistoryOpen} 
         />
       </div>
+      <div className={cn(isFullscreen && "flex-1 min-h-0 flex flex-col")}>
       {view === "table" ? (
         <Suspense fallback={<div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
         <ProjectGanttView 
@@ -1600,7 +1831,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               startDate: todayStr,
               endDate: calculateEndDateFromWorkingDays(todayStr, 1),
               durationDays: 1,
-              status: "Not Started",
+              status: DEFAULT_TASK_STATUS,
               progress: 0,
             });
           }}
@@ -1627,7 +1858,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               startDate: todayStr,
               endDate: calculateEndDateFromWorkingDays(todayStr, 1),
               durationDays: 1,
-              status: "Not Started",
+              status: DEFAULT_TASK_STATUS,
               progress: 0,
             });
           }}
@@ -1652,11 +1883,11 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             if (task) {
               // Auto-update progress based on status
               let progressUpdate: number | undefined;
-              if (newStatus === "Not Started") {
+              if (newStatus === TASK_STATUS.NOT_STARTED) {
                 progressUpdate = 0;
-              } else if (newStatus === "In Progress") {
+              } else if (newStatus === TASK_STATUS.IN_PROGRESS) {
                 progressUpdate = 50;
-              } else if (newStatus === "Completed") {
+              } else if (newStatus === TASK_STATUS.COMPLETED) {
                 progressUpdate = 100;
               }
               
@@ -1670,6 +1901,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           }}
         />
       )}
+      </div>
     </div>
   );
 }

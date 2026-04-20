@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatCurrency } from "@/lib/format";
   import { useAuth } from "@/hooks/use-auth";
   import { useQuery, useMutation } from "@tanstack/react-query";
   import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -266,12 +267,12 @@ export function PlansTab() {
   const formatPrice = (cents: number | null) => {
     if (cents === null) return "Contact Us";
     if (cents === 0) return "Free";
-    return `$${(cents / 100).toFixed(2)}/mo`;
+    return `${formatCurrency(cents / 100, { showCents: true })}/mo`;
   };
 
   const formatOveragePrice = (microcents: number | null) => {
     if (!microcents) return "N/A";
-    return `$${(microcents / 1000000).toFixed(4)}`;
+    return formatCurrency(microcents / 1000000, { decimals: 4 });
   };
 
   if (isLoading) {
@@ -385,7 +386,7 @@ export function PlansTab() {
                   <TableCell>{plan.maxSeats || "Unlimited"}</TableCell>
                   <TableCell>
                     {plan.extraSeatPriceCents !== null 
-                      ? `$${(plan.extraSeatPriceCents / 100).toFixed(2)}/mo`
+                      ? `${formatCurrency(plan.extraSeatPriceCents / 100, { showCents: true })}/mo`
                       : "N/A"}
                   </TableCell>
                   <TableCell>

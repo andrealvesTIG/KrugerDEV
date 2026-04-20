@@ -75,7 +75,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
 
   useWakeWord(() => {
     if (!jarvisOpen) setJarvisOpen(true);
-  }, jarvisOpen);
+  }, false);
 
   useEffect(() => {
     if (jarvisOpen) {
@@ -127,6 +127,9 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:text-sm focus:font-medium">
+        Skip to main content
+      </a>
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <EmailVerificationBanner />
@@ -307,7 +310,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
               size="icon"
               onClick={toggleJarvis}
               className="hidden sm:inline-flex text-muted-foreground hover:text-foreground"
-              aria-label="Friday Agent"
+              aria-label="Friday Report"
               data-testid="button-friday-agent"
             >
               <Bot className="h-4 w-4" />
@@ -339,7 +342,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
           </div>
           <HelpDialog open={helpDialogOpen} onOpenChange={setHelpDialogOpen} />
         </header>
-        <main className="flex-1 overflow-hidden flex flex-col">
+        <main id="main-content" className="flex-1 overflow-hidden flex flex-col">
           {isFullBleedPage ? (
             <div className="flex-1 overflow-hidden">
               {children}

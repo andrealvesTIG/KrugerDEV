@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useExcludedEmailDomains } from "@/hooks/use-excluded-email-domains";
+import { EmailDomainExclusionControl } from "@/components/dashboard/EmailDomainExclusionControl";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -759,11 +761,13 @@ const SUB_TABS: { key: SubTab; label: string }[] = [
 
 export function KpiAnalyticsTab() {
   const [subTab, setSubTab] = useState<SubTab>("overview");
+  const { appendToUrl, queryKeyPart } = useExcludedEmailDomains();
 
   const { data, isLoading, error } = useQuery<AdminKpiMetricsResponse>({
-    queryKey: ["/api/admin/kpi-metrics"],
+    queryKey: ["/api/admin/kpi-metrics", queryKeyPart],
     queryFn: async () => {
-      const res = await fetch("/api/admin/kpi-metrics");
+      const url = appendToUrl("/api/admin/kpi-metrics");
+      const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch admin KPI metrics");
       return res.json();
     },
@@ -810,6 +814,9 @@ export function KpiAnalyticsTab() {
           <p className="text-muted-foreground">
             Platform-wide user engagement analysis from activation through their lifecycle
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <EmailDomainExclusionControl />
         </div>
         <div className="flex gap-1 bg-muted p-1 rounded-lg">
           {SUB_TABS.map((t) => (

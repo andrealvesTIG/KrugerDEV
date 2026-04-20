@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate, ClipboardList, MessageSquare, FileCheck, PenSquare, ClipboardCheck, Shield, Gavel, FileSignature, CalendarDays, MailOpen } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate, ClipboardList, MessageSquare, FileCheck, PenSquare, ClipboardCheck, Shield, Gavel, FileSignature, CalendarDays, MailOpen, Newspaper, BarChart3, Check, Search, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
@@ -10,6 +10,7 @@ import { useOrganization } from "@/hooks/use-organization";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { WaffleMenu } from "@/components/WaffleMenu";
 import type { SidebarStructure, SidebarGroup, SidebarItem } from "@shared/schema";
 
@@ -110,6 +111,8 @@ const moduleDefinitions: Record<string, { name: string; href: string; icon: Reac
   "construction-invoices": { name: "Payment Apps", href: "/construction-invoices", icon: Receipt },
   meetings: { name: "Meetings", href: "/meetings", icon: CalendarDays },
   correspondence: { name: "Correspondence", href: "/correspondence", icon: MailOpen },
+  media: { name: "Media", href: "/media", icon: Newspaper },
+  "powerbi-agent": { name: "Power BI Request", href: "/powerbi-agent", icon: BarChart3 },
 };
 
 const navigation = [
@@ -127,6 +130,7 @@ const navigation = [
   { name: "Timesheets", href: "/timesheets", icon: Clock, key: "timesheets" },
   { name: "Resources", href: "/resources", icon: Users, key: "resources" },
   { name: "Calendar", href: "/calendar", icon: Calendar, key: "calendar" },
+  { name: "Media", href: "/media", icon: Newspaper, key: "media" },
 ];
 
 const helpNavigation = [
@@ -161,6 +165,7 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
       { type: "module" as const, key: "lessons-learned", hidden: false },
       { type: "module" as const, key: "user-guide", hidden: false },
       { type: "module" as const, key: "training", hidden: false },
+      { type: "module" as const, key: "media", hidden: false },
     ]},
   ];
 }
@@ -206,6 +211,7 @@ function migrateOldFlatStructure(structure: SidebarStructure): SidebarStructure 
       { type: "module" as const, key: "lessons-learned", hidden: getItemHidden("lessons-learned") },
       { type: "module" as const, key: "user-guide", hidden: helpGroup?.items.find(i => i.type === "module" && i.key === "user-guide")?.hidden ?? false },
       { type: "module" as const, key: "training", hidden: helpGroup?.items.find(i => i.type === "module" && i.key === "training")?.hidden ?? false },
+      { type: "module" as const, key: "media", hidden: helpGroup?.items.find(i => i.type === "module" && i.key === "media")?.hidden ?? false },
       ...customLinks,
     ]},
   ];
@@ -277,6 +283,15 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   ensureModule("construction-invoices", "portfolio", "change-orders");
   ensureModule("meetings", "portfolio", "construction-invoices");
   ensureModule("correspondence", "portfolio", "meetings");
+  ensureModule("media", "help", "training");
+
+  // Remove the legacy Power BI Request sidebar entry: it now lives only inside the
+  // New Intake dialog as an intake type that redirects to /powerbi-agent.
+  updatedStructure = updatedStructure.map(g => ({
+    ...g,
+    items: g.items.filter(item => !(item.type === "module" && item.key === "powerbi-agent")),
+  }));
+
   
   const helpGroup = updatedStructure.find(g => g.id === "help");
   if (!helpGroup) {
@@ -304,10 +319,63 @@ const userMenuItems = [
   { name: "Super Admin", href: "/super-admin", icon: Crown, superAdminOnly: true },
 ];
 
+function MobileOrgSwitcher({ organizations, currentOrganization, onSelect }: {
+  organizations: any[];
+  currentOrganization: any;
+  onSelect: (org: any) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="md:hidden px-4 pb-2">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="w-full flex items-center justify-between gap-2 bg-slate-800 border border-slate-700 text-white hover:bg-slate-700 h-10 px-3 rounded-md text-sm transition-colors"
+            data-testid="mobile-org-switcher"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <Building2 className="h-4 w-4 flex-shrink-0 text-slate-400" />
+              <span className="truncate">{currentOrganization?.name || "Select organization"}</span>
+            </div>
+            <ChevronsUpDown className="h-4 w-4 flex-shrink-0 text-slate-400" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 z-[60]" align="start">
+          <Command>
+            <CommandInput placeholder="Search organizations..." className="text-base md:text-sm" />
+            <CommandList className="max-h-[240px]">
+              <CommandEmpty>No organization found.</CommandEmpty>
+              <CommandGroup>
+                {organizations.map(org => (
+                  <CommandItem
+                    key={org.id}
+                    value={org.name}
+                    onSelect={() => {
+                      onSelect(org);
+                      setOpen(false);
+                    }}
+                    data-testid={`mobile-org-item-${org.id}`}
+                    className="cursor-pointer"
+                  >
+                    <Check className={cn("h-4 w-4 mr-2 flex-shrink-0", currentOrganization?.id === org.id ? "opacity-100" : "opacity-0")} />
+                    <span className="truncate">{org.name}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 export function Sidebar() {
   const [location, setLocation] = useLocation();
   const { logout, user } = useAuth();
-  const { currentOrganization, setCurrentOrganization, organizations } = useOrganization();
+  const { currentOrganization, setCurrentOrganization, organizations, memberships } = useOrganization();
   const { isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen } = useSidebarState();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [logoLoadFailed, setLogoLoadFailed] = useState(false);
@@ -322,6 +390,22 @@ export function Sidebar() {
   useEffect(() => {
     setAvatarLoadFailed(false);
   }, [user?.avatarUrl, user?.profileImageUrl]);
+
+  const currentOrgRole = useMemo(() => {
+    if (!currentOrganization || !memberships.length) return null;
+    const membership = memberships.find(m => m.organizationId === currentOrganization.id);
+    return membership?.role || null;
+  }, [currentOrganization, memberships]);
+
+  const isTeamMember = currentOrgRole === 'team_member';
+
+  const teamMemberHiddenModules = new Set([
+    'resources', 'simulation', 'pmo-radar', 'invoices', 'intakes', 'templates'
+  ]);
+
+  const teamMemberHiddenGroups = new Set([
+    'resource-management', 'finance'
+  ]);
 
   const getEffectiveSidebarStructure = (): SidebarStructure => {
     if (currentOrganization?.sidebarStructure 
@@ -438,32 +522,14 @@ export function Sidebar() {
       </div>
       {/* Mobile Organization Switcher */}
       {organizations.length > 1 && (
-        <div className="md:hidden px-4 pb-2">
-          <Select
-            value={currentOrganization?.id?.toString() || ""}
-            onValueChange={(value) => {
-              const org = organizations.find(o => o.id.toString() === value);
-              if (org) {
-                setCurrentOrganization(org);
-                setIsMobileOpen(false);
-              }
-            }}
-          >
-            <SelectTrigger className="w-full bg-slate-800 border-slate-700 text-white hover:bg-slate-700 h-9 text-sm" data-testid="mobile-org-switcher">
-              <div className="flex items-center gap-2 min-w-0">
-                <Building2 className="h-4 w-4 flex-shrink-0 text-slate-400" />
-                <SelectValue placeholder="Select organization" />
-              </div>
-            </SelectTrigger>
-            <SelectContent className="z-[60] max-h-[240px] overflow-y-auto">
-              {organizations.map(org => (
-                <SelectItem key={org.id} value={org.id.toString()} data-testid={`mobile-org-item-${org.id}`}>
-                  {org.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <MobileOrgSwitcher
+          organizations={organizations}
+          currentOrganization={currentOrganization}
+          onSelect={(org) => {
+            setCurrentOrganization(org);
+            setIsMobileOpen(false);
+          }}
+        />
       )}
       {organizations.length === 1 && (
         <div className="md:hidden px-4 pb-2">
@@ -480,8 +546,13 @@ export function Sidebar() {
           
           return sidebarStructure.map((group, groupIndex) => {
             if (group.hidden) return null;
+            if (isTeamMember && teamMemberHiddenGroups.has(group.id)) return null;
             
-            const visibleItems = group.items.filter(item => !item.hidden);
+            const visibleItems = group.items.filter(item => {
+              if (item.hidden) return false;
+              if (isTeamMember && item.type === 'module' && teamMemberHiddenModules.has(item.key)) return false;
+              return true;
+            });
             if (visibleItems.length === 0 && group.id !== "help") return null;
             
             const isGroupCollapsed = collapsedGroups[group.id] ?? !!group.collapsedByDefault;
@@ -747,6 +818,9 @@ export function Sidebar() {
                   return null;
                 }
                 if (item.href === '/billing' && currentOrganization?.billingHidden && user?.role !== 'super_admin' && user?.role !== 'marketing') {
+                  return null;
+                }
+                if (isTeamMember && (item.href === '/org-settings' || item.href === '/billing' || item.href === '/scheduled-reports')) {
                   return null;
                 }
                 const isActive = location === item.href;

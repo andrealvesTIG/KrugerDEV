@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, parseISO } from "date-fns";
+import { formatCurrency as sharedFormatCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -618,14 +620,7 @@ export function FinancialsTab({ projectId, readOnly = false }: { projectId: numb
     actual: capexTotals.actual + opexTotals.actual,
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
+  const formatCurrency = (value: number): React.ReactNode => <CompactCurrency value={value} />;
 
   const getVariance = (budget: number, actual: number) => {
     const variance = budget - actual;
@@ -645,7 +640,7 @@ export function FinancialsTab({ projectId, readOnly = false }: { projectId: numb
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-4">
+      <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <CardTitle className="flex items-center gap-2">
             <DollarSign className="h-5 w-5" />
@@ -668,7 +663,7 @@ export function FinancialsTab({ projectId, readOnly = false }: { projectId: numb
               <DialogDescription>Add a new budget/expense line item for this project</DialogDescription>
             </DialogHeader>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Category</Label>
                   <Controller control={form.control} name="category" render={({ field }) => (
@@ -695,7 +690,7 @@ export function FinancialsTab({ projectId, readOnly = false }: { projectId: numb
                   )} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Line Item <span className="text-destructive">*</span></Label>
                   <Input {...form.register("lineItem")} placeholder="e.g., Software Licenses" data-testid="input-line-item" />
@@ -723,7 +718,7 @@ export function FinancialsTab({ projectId, readOnly = false }: { projectId: numb
                 <Label>Description</Label>
                 <Input {...form.register("description")} placeholder="Optional description" data-testid="input-financial-description" />
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Budget</Label>
                   <Input type="number" {...form.register("budgetAmount")} data-testid="input-budget-amount" />
@@ -752,18 +747,18 @@ export function FinancialsTab({ projectId, readOnly = false }: { projectId: numb
         </Dialog>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="border rounded-lg overflow-x-auto">
+          <table className="w-full text-sm min-w-0">
             <thead className="bg-slate-100 dark:bg-slate-800 border-b">
               <tr>
                 <th className="text-left px-3 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300">Line Item</th>
-                <th className="text-center px-2 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-16">Year</th>
-                <th className="text-center px-2 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-20">Period</th>
+                <th className="text-center px-2 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-16 hidden sm:table-cell">Year</th>
+                <th className="text-center px-2 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-20 hidden sm:table-cell">Period</th>
                 <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-28">Budget</th>
-                <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-28">Planned</th>
-                <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-28">Actual</th>
-                <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-28">Variance</th>
-                <th className="w-16 px-2 py-2"></th>
+                <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-28 hidden md:table-cell">Planned</th>
+                <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-28 hidden md:table-cell">Actual</th>
+                <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-28 hidden lg:table-cell">Variance</th>
+                <th className="w-12 sm:w-16 px-1 sm:px-2 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -790,14 +785,16 @@ export function FinancialsTab({ projectId, readOnly = false }: { projectId: numb
                     />
                   ))}
                   <tr className="border-b bg-slate-50/50 dark:bg-slate-800/30">
-                    <td colSpan={3} className="px-3 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 text-right">CapEx Subtotal</td>
+                    <td className="px-3 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 text-right">CapEx Subtotal</td>
+                    <td className="hidden sm:table-cell"></td>
+                    <td className="hidden sm:table-cell"></td>
                     <td className="px-3 py-1.5 text-right text-xs font-medium tabular-nums">{formatCurrency(capexTotals.budget)}</td>
-                    <td className="px-3 py-1.5 text-right text-xs font-medium tabular-nums">{formatCurrency(capexTotals.planned)}</td>
-                    <td className="px-3 py-1.5 text-right text-xs font-medium tabular-nums">{formatCurrency(capexTotals.actual)}</td>
-                    <td className={cn("px-3 py-1.5 text-right text-xs font-medium tabular-nums", capexTotals.budget - capexTotals.actual >= 0 ? "text-slate-700 dark:text-slate-300" : "text-red-600 dark:text-red-400")}>
+                    <td className="px-3 py-1.5 text-right text-xs font-medium tabular-nums hidden md:table-cell">{formatCurrency(capexTotals.planned)}</td>
+                    <td className="px-3 py-1.5 text-right text-xs font-medium tabular-nums hidden md:table-cell">{formatCurrency(capexTotals.actual)}</td>
+                    <td className={cn("px-3 py-1.5 text-right text-xs font-medium tabular-nums hidden lg:table-cell", capexTotals.budget - capexTotals.actual >= 0 ? "text-slate-700 dark:text-slate-300" : "text-red-600 dark:text-red-400")}>
                       {formatCurrency(capexTotals.budget - capexTotals.actual)}
                     </td>
-                    <td className="px-2 py-1.5"></td>
+                    <td className="px-1 sm:px-2 py-1.5"></td>
                   </tr>
                 </>
               )}
@@ -824,14 +821,16 @@ export function FinancialsTab({ projectId, readOnly = false }: { projectId: numb
                     />
                   ))}
                   <tr className="border-b bg-slate-50/50 dark:bg-slate-800/30">
-                    <td colSpan={3} className="px-3 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 text-right">OpEx Subtotal</td>
+                    <td className="px-3 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 text-right">OpEx Subtotal</td>
+                    <td className="hidden sm:table-cell"></td>
+                    <td className="hidden sm:table-cell"></td>
                     <td className="px-3 py-1.5 text-right text-xs font-medium tabular-nums">{formatCurrency(opexTotals.budget)}</td>
-                    <td className="px-3 py-1.5 text-right text-xs font-medium tabular-nums">{formatCurrency(opexTotals.planned)}</td>
-                    <td className="px-3 py-1.5 text-right text-xs font-medium tabular-nums">{formatCurrency(opexTotals.actual)}</td>
-                    <td className={cn("px-3 py-1.5 text-right text-xs font-medium tabular-nums", opexTotals.budget - opexTotals.actual >= 0 ? "text-slate-700 dark:text-slate-300" : "text-red-600 dark:text-red-400")}>
+                    <td className="px-3 py-1.5 text-right text-xs font-medium tabular-nums hidden md:table-cell">{formatCurrency(opexTotals.planned)}</td>
+                    <td className="px-3 py-1.5 text-right text-xs font-medium tabular-nums hidden md:table-cell">{formatCurrency(opexTotals.actual)}</td>
+                    <td className={cn("px-3 py-1.5 text-right text-xs font-medium tabular-nums hidden lg:table-cell", opexTotals.budget - opexTotals.actual >= 0 ? "text-slate-700 dark:text-slate-300" : "text-red-600 dark:text-red-400")}>
                       {formatCurrency(opexTotals.budget - opexTotals.actual)}
                     </td>
-                    <td className="px-2 py-1.5"></td>
+                    <td className="px-1 sm:px-2 py-1.5"></td>
                   </tr>
                 </>
               )}
@@ -845,14 +844,16 @@ export function FinancialsTab({ projectId, readOnly = false }: { projectId: numb
             </tbody>
             <tfoot>
               <tr className="bg-slate-200 dark:bg-slate-700 border-t-2 border-slate-300 dark:border-slate-600">
-                <td colSpan={3} className="px-3 py-2 text-sm font-bold text-slate-800 dark:text-slate-100 text-right">Grand Total</td>
+                <td className="px-3 py-2 text-sm font-bold text-slate-800 dark:text-slate-100 text-right">Grand Total</td>
+                <td className="hidden sm:table-cell"></td>
+                <td className="hidden sm:table-cell"></td>
                 <td className="px-3 py-2 text-right text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100">{formatCurrency(grandTotals.budget)}</td>
-                <td className="px-3 py-2 text-right text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100">{formatCurrency(grandTotals.planned)}</td>
-                <td className="px-3 py-2 text-right text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100">{formatCurrency(grandTotals.actual)}</td>
-                <td className={cn("px-3 py-2 text-right text-sm font-bold tabular-nums", grandTotals.budget - grandTotals.actual >= 0 ? "text-slate-800 dark:text-slate-100" : "text-red-700 dark:text-red-400")}>
+                <td className="px-3 py-2 text-right text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100 hidden md:table-cell">{formatCurrency(grandTotals.planned)}</td>
+                <td className="px-3 py-2 text-right text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100 hidden md:table-cell">{formatCurrency(grandTotals.actual)}</td>
+                <td className={cn("px-3 py-2 text-right text-sm font-bold tabular-nums hidden lg:table-cell", grandTotals.budget - grandTotals.actual >= 0 ? "text-slate-800 dark:text-slate-100" : "text-red-700 dark:text-red-400")}>
                   {formatCurrency(grandTotals.budget - grandTotals.actual)}
                 </td>
-                <td className="px-2 py-2"></td>
+                <td className="px-1 sm:px-2 py-2"></td>
               </tr>
             </tfoot>
           </table>
@@ -882,95 +883,157 @@ export function FinancialTableRow({
   saveEdit: (id: number) => void;
   cancelEdit: () => void;
   deleteFinancial: any;
-  formatCurrency: (value: number) => string;
+  formatCurrency: (value: number) => React.ReactNode;
   getVariance: (budget: number, actual: number) => { variance: number; percent: number };
 }) {
   const variance = getVariance(Number(item.budgetAmount), Number(item.actualAmount));
+  const [expanded, setExpanded] = useState(false);
   
   return (
-    <tr className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-financial-${item.id}`}>
-      <td className="px-3 py-2 min-w-0 max-w-[200px] overflow-hidden">
-        <div className="text-sm font-medium truncate" title={item.lineItem}>{item.lineItem}</div>
-        {item.description && <div className="text-xs text-muted-foreground truncate" title={item.description}>{item.description}</div>}
-      </td>
-      <td className="px-2 py-2 text-center text-xs tabular-nums">{item.fiscalYear}</td>
-      <td className="px-2 py-2 text-center text-xs">{item.fiscalPeriod}</td>
-      <td className="px-3 py-2 text-right">
-        {isEditing ? (
-          <Input
-            type="number"
-            value={editValues.budgetAmount || ""}
-            onChange={(e) => setEditValues({ ...editValues, budgetAmount: e.target.value })}
-            className="w-24 h-7 text-xs text-right"
-            data-testid="input-edit-budget"
-          />
-        ) : (
-          <span className="text-xs tabular-nums">{formatCurrency(Number(item.budgetAmount))}</span>
-        )}
-      </td>
-      <td className="px-3 py-2 text-right">
-        {isEditing ? (
-          <Input
-            type="number"
-            value={editValues.plannedAmount || ""}
-            onChange={(e) => setEditValues({ ...editValues, plannedAmount: e.target.value })}
-            className="w-24 h-7 text-xs text-right"
-            data-testid="input-edit-planned"
-          />
-        ) : (
-          <span className="text-xs tabular-nums">{formatCurrency(Number(item.plannedAmount))}</span>
-        )}
-      </td>
-      <td className="px-3 py-2 text-right">
-        {isEditing ? (
-          <Input
-            type="number"
-            value={editValues.actualAmount || ""}
-            onChange={(e) => setEditValues({ ...editValues, actualAmount: e.target.value })}
-            className="w-24 h-7 text-xs text-right"
-            data-testid="input-edit-actual"
-          />
-        ) : (
-          <span className="text-xs tabular-nums">{formatCurrency(Number(item.actualAmount))}</span>
-        )}
-      </td>
-      <td className={cn(
-        "px-3 py-2 text-right text-xs tabular-nums",
-        variance.variance >= 0 ? "text-slate-700 dark:text-slate-300" : "text-red-600 dark:text-red-400"
-      )}>
-        {formatCurrency(variance.variance)}
-        <span className="text-[10px] ml-0.5 text-muted-foreground">({variance.percent.toFixed(0)}%)</span>
-      </td>
-      <td className="px-2 py-2">
-        <div className="flex justify-end gap-0.5">
+    <>
+      <tr className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-financial-${item.id}`}>
+        <td className="px-3 py-2 min-w-0 max-w-[200px] overflow-hidden">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className="lg:hidden shrink-0 p-0.5 -ml-1 rounded hover:bg-muted/50"
+              onClick={() => setExpanded(!expanded)}
+              aria-label={expanded ? "Collapse details" : "Expand details"}
+            >
+              {expanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+            </button>
+            <div className="min-w-0">
+              <div className="text-sm font-medium truncate" title={item.lineItem}>{item.lineItem}</div>
+              {item.description && <div className="text-xs text-muted-foreground truncate" title={item.description}>{item.description}</div>}
+              <div className="sm:hidden text-[10px] text-muted-foreground mt-0.5">{item.fiscalYear} &middot; {item.fiscalPeriod}</div>
+            </div>
+          </div>
+        </td>
+        <td className="px-2 py-2 text-center text-xs tabular-nums hidden sm:table-cell">{item.fiscalYear}</td>
+        <td className="px-2 py-2 text-center text-xs hidden sm:table-cell">{item.fiscalPeriod}</td>
+        <td className="px-3 py-2 text-right">
           {isEditing ? (
-            <>
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => saveEdit(item.id)} data-testid="button-save-edit">
-                <Check className="h-3 w-3 text-green-600" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={cancelEdit} data-testid="button-cancel-edit">
-                <X className="h-3 w-3 text-slate-400" />
-              </Button>
-            </>
+            <Input
+              type="number"
+              value={editValues.budgetAmount || ""}
+              onChange={(e) => setEditValues({ ...editValues, budgetAmount: e.target.value })}
+              className="w-24 h-7 text-xs text-right"
+              data-testid="input-edit-budget"
+            />
           ) : (
-            <>
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => startEdit(item)} data-testid={`button-edit-financial-${item.id}`}>
-                <Pencil className="h-3 w-3 text-slate-400" />
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => deleteFinancial.mutate(item.id)}
-                data-testid={`button-delete-financial-${item.id}`}
-              >
-                <Trash2 className="h-3 w-3 text-slate-400" />
-              </Button>
-            </>
+            <span className="text-xs tabular-nums">{formatCurrency(Number(item.budgetAmount))}</span>
           )}
-        </div>
-      </td>
-    </tr>
+        </td>
+        <td className="px-3 py-2 text-right hidden md:table-cell">
+          {isEditing ? (
+            <Input
+              type="number"
+              value={editValues.plannedAmount || ""}
+              onChange={(e) => setEditValues({ ...editValues, plannedAmount: e.target.value })}
+              className="w-24 h-7 text-xs text-right"
+              data-testid="input-edit-planned"
+            />
+          ) : (
+            <span className="text-xs tabular-nums">{formatCurrency(Number(item.plannedAmount))}</span>
+          )}
+        </td>
+        <td className="px-3 py-2 text-right hidden md:table-cell">
+          {isEditing ? (
+            <Input
+              type="number"
+              value={editValues.actualAmount || ""}
+              onChange={(e) => setEditValues({ ...editValues, actualAmount: e.target.value })}
+              className="w-24 h-7 text-xs text-right"
+              data-testid="input-edit-actual"
+            />
+          ) : (
+            <span className="text-xs tabular-nums">{formatCurrency(Number(item.actualAmount))}</span>
+          )}
+        </td>
+        <td className={cn(
+          "px-3 py-2 text-right text-xs tabular-nums hidden lg:table-cell",
+          variance.variance >= 0 ? "text-slate-700 dark:text-slate-300" : "text-red-600 dark:text-red-400"
+        )}>
+          {formatCurrency(variance.variance)}
+          <span className="text-[10px] ml-0.5 text-muted-foreground">({variance.percent.toFixed(0)}%)</span>
+        </td>
+        <td className="px-1 sm:px-2 py-2">
+          <div className="flex justify-end gap-0.5">
+            {isEditing ? (
+              <>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => saveEdit(item.id)} data-testid="button-save-edit">
+                  <Check className="h-3 w-3 text-green-600" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={cancelEdit} data-testid="button-cancel-edit">
+                  <X className="h-3 w-3 text-slate-400" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => startEdit(item)} data-testid={`button-edit-financial-${item.id}`}>
+                  <Pencil className="h-3 w-3 text-slate-400" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => deleteFinancial.mutate(item.id)}
+                  data-testid={`button-delete-financial-${item.id}`}
+                >
+                  <Trash2 className="h-3 w-3 text-slate-400" />
+                </Button>
+              </>
+            )}
+          </div>
+        </td>
+      </tr>
+      {expanded && (
+        <tr className="lg:hidden border-b bg-muted/20">
+          <td colSpan={8} className="px-3 py-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 text-xs">
+              <div className="md:hidden">
+                <span className="text-muted-foreground block mb-0.5">Planned</span>
+                {isEditing ? (
+                  <Input
+                    type="number"
+                    value={editValues.plannedAmount || ""}
+                    onChange={(e) => setEditValues({ ...editValues, plannedAmount: e.target.value })}
+                    className="h-8 text-base md:text-sm text-right w-full"
+                    data-testid="input-edit-planned-mobile"
+                  />
+                ) : (
+                  <span className="tabular-nums font-medium">{formatCurrency(Number(item.plannedAmount))}</span>
+                )}
+              </div>
+              <div className="md:hidden">
+                <span className="text-muted-foreground block mb-0.5">Actual</span>
+                {isEditing ? (
+                  <Input
+                    type="number"
+                    value={editValues.actualAmount || ""}
+                    onChange={(e) => setEditValues({ ...editValues, actualAmount: e.target.value })}
+                    className="h-8 text-base md:text-sm text-right w-full"
+                    data-testid="input-edit-actual-mobile"
+                  />
+                ) : (
+                  <span className="tabular-nums font-medium">{formatCurrency(Number(item.actualAmount))}</span>
+                )}
+              </div>
+              <div>
+                <span className="text-muted-foreground block mb-0.5">Variance</span>
+                <span className={cn(
+                  "tabular-nums font-medium",
+                  variance.variance >= 0 ? "text-slate-700 dark:text-slate-300" : "text-red-600 dark:text-red-400"
+                )}>
+                  {formatCurrency(variance.variance)}
+                  <span className="text-[10px] ml-0.5 text-muted-foreground">({variance.percent.toFixed(0)}%)</span>
+                </span>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -3433,11 +3496,7 @@ export function InvoicesTab({ projectId, organizationId, contractTotal }: { proj
 
   const formatCurrency = (amount: string | null, currency: string | null) => {
     if (!amount) return '-';
-    const num = parseFloat(amount);
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency || 'USD',
-    }).format(num);
+    return sharedFormatCurrency(amount, { showCents: true, currency: currency || 'USD' });
   };
 
   const invoiceFinancials = useMemo(() => {
@@ -3963,7 +4022,7 @@ export function InvoicesTab({ projectId, organizationId, contractTotal }: { proj
                           <td className="py-2 px-3">{inv.name}</td>
                           <td className="py-2 px-3">{inv.customerName || '-'}</td>
                           <td className="py-2 px-3 text-right">
-                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(inv.amount || 0)}
+                            {sharedFormatCurrency(inv.amount || 0, { showCents: true })}
                           </td>
                           <td className="py-2 px-3">
                             <Badge variant="outline" className="text-xs">{inv.status}</Badge>
@@ -3980,7 +4039,7 @@ export function InvoicesTab({ projectId, organizationId, contractTotal }: { proj
                   <h4 className="font-medium mb-2">Selected Invoice</h4>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div><span className="text-muted-foreground">Number:</span> {selectedDynamicsInvoice.invoiceNumber}</div>
-                    <div><span className="text-muted-foreground">Amount:</span> {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(selectedDynamicsInvoice.amount || 0)}</div>
+                    <div><span className="text-muted-foreground">Amount:</span> {sharedFormatCurrency(selectedDynamicsInvoice.amount || 0, { showCents: true })}</div>
                     <div className="col-span-2"><span className="text-muted-foreground">Name:</span> {selectedDynamicsInvoice.name}</div>
                     {selectedDynamicsInvoice.description && (
                       <div className="col-span-2"><span className="text-muted-foreground">Description:</span> {selectedDynamicsInvoice.description}</div>

@@ -517,7 +517,7 @@ async function main() {
   console.log(`  FK mismatches:        ${fkMismatches.length}`);
   console.log();
 
-  const totalIssues = missingTables.length + missingCols.length + typeMismatches.length + pkMismatches.length + fkMissing.length + fkMismatches.length;
+  const totalIssues = missingTables.length + missingCols.length + typeMismatches.length + nullMismatches.length + pkMismatches.length + fkMissing.length + fkMismatches.length;
   if (totalIssues === 0) {
     console.log("  STATUS: ALL GOOD - Schema and database are in sync!");
   } else {

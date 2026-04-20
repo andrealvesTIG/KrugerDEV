@@ -7,20 +7,23 @@ import {
   classifyError,
   getUserIdFromRequest,
   getUserOrgIds,
+  isTeamMemberInOrg,
+  getTeamMemberProjectIds,
+  getTeamMemberPortfolioIds,
+  getTeamMemberRiskIds,
+  getTeamMemberIssueIds,
+  getTeamMemberTaskIds,
 } from "./helpers";
+import { apiRoute, pathId, body, ref, arrOf, r200, r201, qInt, authRes, stdRes, fullRes, createRes, e401 } from "../route-registry";
 
 export function registerAnalyticsRoutes(app: Express) {
-  // ==================== ANALYTICS API (Power BI Integration) ====================
 
-  // Helper: Get user ID from either session or API key (Basic auth)
-  // Power BI uses Basic auth where username=email and password=apiKey
   async function getAnalyticsUserId(req: ExpressRequest): Promise<{ userId: string; organizationId?: number } | null> {
     const userId = getUserIdFromRequest(req);
     if (userId) {
       return { userId, organizationId: (req as any).bearerOrgId };
     }
 
-    // Try Basic auth (email:apiKey) — not handled by middleware
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Basic ')) {
       try {
@@ -42,8 +45,11 @@ export function registerAnalyticsRoutes(app: Express) {
     return null;
   }
 
-  // API Key Management
-  app.get('/api/user/api-key', async (req, res) => {
+  apiRoute(app, 'get', '/api/user/api-key', {
+    tag: 'User Account',
+    summary: 'Get current user API key status',
+    responses: { ...r200('API key info', ref('User')), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -56,17 +62,20 @@ export function registerAnalyticsRoutes(app: Express) {
     
     res.json({ 
       hasApiKey: !!user.apiKey,
-      apiKey: user.apiKey ? `${user.apiKey.slice(0, 8)}...` : null // Show partial for security
+      apiKey: user.apiKey ? `${user.apiKey.slice(0, 8)}...` : null
     });
   });
 
-  app.post('/api/user/api-key/generate', async (req, res) => {
+  apiRoute(app, 'post', '/api/user/api-key/generate', {
+    tag: 'User Account',
+    summary: 'Generate new API key',
+    responses: { ...r201('API key generated', { type: 'object', properties: { apiKey: { type: 'string' } } }), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
     }
     
-    // Generate a secure random API key
     const crypto = await import('crypto');
     const apiKey = crypto.randomBytes(32).toString('hex');
     
@@ -86,7 +95,11 @@ export function registerAnalyticsRoutes(app: Express) {
     });
   });
 
-  app.delete('/api/user/api-key', async (req, res) => {
+  apiRoute(app, 'delete', '/api/user/api-key', {
+    tag: 'User Account',
+    summary: 'Revoke API key',
+    responses: { ...r200('API key revoked', { type: 'object', properties: { message: { type: 'string' } } }), ...authRes },
+  }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -97,18 +110,19 @@ export function registerAnalyticsRoutes(app: Express) {
     res.json({ success: true, message: "API key revoked" });
   });
 
-  // Delete own account
-  app.delete('/api/user/account', async (req, res) => {
+  apiRoute(app, 'delete', '/api/user/account', {
+    tag: 'User Account',
+    summary: 'Delete own account',
+    responses: { ...r200('Account deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
 
-      // Delete the user and all associated data
       await storage.deleteUser(userId);
 
-      // Clear the session
       if (req.session) {
         req.session.destroy((err: Error | null) => {
           if (err) {
@@ -159,8 +173,32 @@ export function registerAnalyticsRoutes(app: Express) {
     return { userId, targetOrgIds };
   }
 
-  // API Token Management (Bearer tokens scoped to organizations)
-  app.post('/api/organizations/:orgId/api-tokens', async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:orgId/api-tokens', {
+    tag: 'API Tokens',
+    summary: 'Generate a new Bearer token for the Analytics API',
+    parameters: [pathId('orgId')],
+    requestBody: body({
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Optional label for the token (e.g., "Power BI Production")' },
+        expiresAt: { type: 'string', format: 'date-time', description: 'Optional expiration date' },
+      },
+    }, false),
+    responses: {
+      ...r201('Token created', {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          token: { type: 'string', description: 'Full token value (shown only once)' },
+          name: { type: 'string' },
+          organizationId: { type: 'integer' },
+          expiresAt: { type: 'string', format: 'date-time' },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+      }),
+      ...createRes,
+    },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -199,7 +237,29 @@ export function registerAnalyticsRoutes(app: Express) {
     }
   });
 
-  app.get('/api/organizations/:orgId/api-tokens', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:orgId/api-tokens', {
+    tag: 'API Tokens',
+    summary: 'List Bearer tokens for the current user in this organization',
+    parameters: [pathId('orgId')],
+    responses: {
+      ...r200('List of tokens (masked)', {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'integer' },
+            name: { type: 'string' },
+            token: { type: 'string', description: 'Masked token value' },
+            organizationId: { type: 'integer' },
+            lastUsedAt: { type: 'string', format: 'date-time' },
+            expiresAt: { type: 'string', format: 'date-time' },
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+        },
+      }),
+      ...stdRes,
+    },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -230,7 +290,12 @@ export function registerAnalyticsRoutes(app: Express) {
     }
   });
 
-  app.delete('/api/organizations/:orgId/api-tokens/:tokenId', async (req, res) => {
+  apiRoute(app, 'delete', '/api/organizations/:orgId/api-tokens/:tokenId', {
+    tag: 'API Tokens',
+    summary: 'Revoke a Bearer token',
+    parameters: [pathId('orgId'), pathId('tokenId')],
+    responses: { ...r200('Token revoked', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
@@ -258,26 +323,48 @@ export function registerAnalyticsRoutes(app: Express) {
     }
   });
 
-  // Analytics: Projects flat data for Power BI
-  app.get('/api/analytics/projects', async (req, res) => {
+  apiRoute(app, 'get', '/api/analytics/projects', {
+    tag: 'Analytics',
+    summary: 'Get projects data for Power BI',
+    security: [{ basicAuth: [] }, { bearerAuth: [] }],
+    parameters: [qInt('organizationId', false, 'Organization ID (optional with Bearer token)')],
+    responses: { ...r200('Projects analytics data', arrOf('Project')), ...e401 },
+  }, async (req, res) => {
     try {
       const scope = await resolveAnalyticsScope(req, res);
       if (!scope) return;
       const { targetOrgIds } = scope;
       
-      // Fetch projects for all accessible organizations
+      const { userId } = scope;
       const allProjects: any[] = [];
       for (const orgId of targetOrgIds) {
-        const projects = await storage.getProjects(orgId);
+        let orgProjects = await storage.getProjects(orgId);
         const portfolios = await storage.getPortfolios(orgId);
         const org = await storage.getOrganization(orgId);
-        
-        for (const project of projects) {
+
+        const isTeamMember = await isTeamMemberInOrg(userId, orgId);
+        let allowedTaskIdsForProj: Set<number> | null = null;
+        let allowedRiskIdsForProj: Set<number> | null = null;
+        let allowedIssueIdsForProj: Set<number> | null = null;
+
+        if (isTeamMember) {
+          const allowedIds = new Set(await getTeamMemberProjectIds(userId, orgId));
+          orgProjects = orgProjects.filter(p => allowedIds.has(p.id));
+          allowedTaskIdsForProj = new Set(await getTeamMemberTaskIds(userId, orgId));
+          allowedRiskIdsForProj = new Set(await getTeamMemberRiskIds(userId, orgId));
+          allowedIssueIdsForProj = new Set(await getTeamMemberIssueIds(userId, orgId));
+        }
+
+        for (const project of orgProjects) {
           const portfolio = portfolios.find(p => p.id === project.portfolioId);
-          const tasks = await storage.getTasks(project.id);
-          const risks = await storage.getRisks(project.id);
-          const issues = await storage.getIssues(project.id);
+          let tasks = await storage.getTasks(project.id);
+          let risks = await storage.getRisks(project.id);
+          let issues = await storage.getIssues(project.id);
           const milestones = await storage.getMilestones(project.id);
+
+          if (allowedTaskIdsForProj) tasks = tasks.filter(t => allowedTaskIdsForProj!.has(t.id));
+          if (allowedRiskIdsForProj) risks = risks.filter(r => allowedRiskIdsForProj!.has(r.id));
+          if (allowedIssueIdsForProj) issues = issues.filter(i => allowedIssueIdsForProj!.has(i.id));
           
           allProjects.push({
             projectId: project.id,
@@ -317,20 +404,33 @@ export function registerAnalyticsRoutes(app: Express) {
     }
   });
 
-  // Analytics: Portfolios summary for Power BI
-  app.get('/api/analytics/portfolios', async (req, res) => {
+  apiRoute(app, 'get', '/api/analytics/portfolios', {
+    tag: 'Analytics',
+    summary: 'Get portfolios data for Power BI',
+    security: [{ basicAuth: [] }, { bearerAuth: [] }],
+    parameters: [qInt('organizationId', false, 'Organization ID (optional with Bearer token)')],
+    responses: { ...r200('Portfolios analytics data', arrOf('Portfolio')), ...e401 },
+  }, async (req, res) => {
     try {
       const scope = await resolveAnalyticsScope(req, res);
       if (!scope) return;
       const { targetOrgIds } = scope;
       
+      const { userId } = scope;
       const allPortfolios: any[] = [];
       for (const orgId of targetOrgIds) {
-        const portfolios = await storage.getPortfolios(orgId);
-        const projects = await storage.getProjects(orgId);
+        let orgPortfolios = await storage.getPortfolios(orgId);
+        let projects = await storage.getProjects(orgId);
         const org = await storage.getOrganization(orgId);
+
+        if (await isTeamMemberInOrg(userId, orgId)) {
+          const allowedPortIds = new Set(await getTeamMemberPortfolioIds(userId, orgId));
+          orgPortfolios = orgPortfolios.filter(p => allowedPortIds.has(p.id));
+          const allowedProjIds = new Set(await getTeamMemberProjectIds(userId, orgId));
+          projects = projects.filter(p => allowedProjIds.has(p.id));
+        }
         
-        for (const portfolio of portfolios) {
+        for (const portfolio of orgPortfolios) {
           const portfolioProjects = projects.filter(p => p.portfolioId === portfolio.id);
           const totalBudget = portfolioProjects.reduce((sum, p) => sum + (Number(p.budget) || 0), 0);
           const avgCompletion = portfolioProjects.length > 0 
@@ -363,22 +463,37 @@ export function registerAnalyticsRoutes(app: Express) {
     }
   });
 
-  // Analytics: Risks flat data for Power BI
-  app.get('/api/analytics/risks', async (req, res) => {
+  apiRoute(app, 'get', '/api/analytics/risks', {
+    tag: 'Analytics',
+    summary: 'Get risks data for Power BI',
+    security: [{ basicAuth: [] }, { bearerAuth: [] }],
+    parameters: [qInt('organizationId', false, 'Organization ID (optional with Bearer token)')],
+    responses: { ...r200('Risks analytics data', arrOf('Risk')), ...e401 },
+  }, async (req, res) => {
     try {
       const scope = await resolveAnalyticsScope(req, res);
       if (!scope) return;
       const { targetOrgIds } = scope;
       
+      const { userId } = scope;
       const allRisks: any[] = [];
       for (const orgId of targetOrgIds) {
-        const projects = await storage.getProjects(orgId);
+        let orgProjects = await storage.getProjects(orgId);
         const org = await storage.getOrganization(orgId);
+        const isTeamMember = await isTeamMemberInOrg(userId, orgId);
+        let allowedRiskIds: Set<number> | null = null;
+
+        if (isTeamMember) {
+          const allowedIds = new Set(await getTeamMemberProjectIds(userId, orgId));
+          orgProjects = orgProjects.filter(p => allowedIds.has(p.id));
+          allowedRiskIds = new Set(await getTeamMemberRiskIds(userId, orgId));
+        }
         
-        for (const project of projects) {
+        for (const project of orgProjects) {
           const risks = await storage.getRisks(project.id);
           
           for (const risk of risks) {
+            if (allowedRiskIds && !allowedRiskIds.has(risk.id)) continue;
             allRisks.push({
               riskId: risk.id,
               title: risk.title,
@@ -406,22 +521,37 @@ export function registerAnalyticsRoutes(app: Express) {
     }
   });
 
-  // Analytics: Issues flat data for Power BI
-  app.get('/api/analytics/issues', async (req, res) => {
+  apiRoute(app, 'get', '/api/analytics/issues', {
+    tag: 'Analytics',
+    summary: 'Get issues data for Power BI',
+    security: [{ basicAuth: [] }, { bearerAuth: [] }],
+    parameters: [qInt('organizationId', false, 'Organization ID (optional with Bearer token)')],
+    responses: { ...r200('Issues analytics data', arrOf('Issue')), ...e401 },
+  }, async (req, res) => {
     try {
       const scope = await resolveAnalyticsScope(req, res);
       if (!scope) return;
       const { targetOrgIds } = scope;
       
+      const { userId } = scope;
       const allIssues: any[] = [];
       for (const orgId of targetOrgIds) {
-        const projects = await storage.getProjects(orgId);
+        let orgProjects = await storage.getProjects(orgId);
         const org = await storage.getOrganization(orgId);
+        const isTeamMember = await isTeamMemberInOrg(userId, orgId);
+        let allowedIssueIds: Set<number> | null = null;
+
+        if (isTeamMember) {
+          const allowedIds = new Set(await getTeamMemberProjectIds(userId, orgId));
+          orgProjects = orgProjects.filter(p => allowedIds.has(p.id));
+          allowedIssueIds = new Set(await getTeamMemberIssueIds(userId, orgId));
+        }
         
-        for (const project of projects) {
+        for (const project of orgProjects) {
           const issues = await storage.getIssues(project.id);
           
           for (const issue of issues) {
+            if (allowedIssueIds && !allowedIssueIds.has(issue.id)) continue;
             allIssues.push({
               issueId: issue.id,
               title: issue.title,
@@ -448,19 +578,32 @@ export function registerAnalyticsRoutes(app: Express) {
     }
   });
 
-  // Analytics: Milestones flat data for Power BI
-  app.get('/api/analytics/milestones', async (req, res) => {
+  apiRoute(app, 'get', '/api/analytics/milestones', {
+    tag: 'Analytics',
+    summary: 'Get task milestones data for Power BI (legacy)',
+    security: [{ basicAuth: [] }, { bearerAuth: [] }],
+    parameters: [qInt('organizationId', false, 'Organization ID (optional with Bearer token)')],
+    responses: { ...r200('Task milestones analytics data', arrOf('Milestone')), ...e401 },
+    deprecated: true,
+    description: 'Legacy endpoint returning task milestones. For portfolio key dates, use the /portfolios/{id}/key-dates endpoints.',
+  }, async (req, res) => {
     try {
       const scope = await resolveAnalyticsScope(req, res);
       if (!scope) return;
       const { targetOrgIds } = scope;
       
+      const { userId } = scope;
       const allMilestones: any[] = [];
       for (const orgId of targetOrgIds) {
-        const projects = await storage.getProjects(orgId);
+        let orgProjects = await storage.getProjects(orgId);
         const org = await storage.getOrganization(orgId);
+
+        if (await isTeamMemberInOrg(userId, orgId)) {
+          const allowedIds = new Set(await getTeamMemberProjectIds(userId, orgId));
+          orgProjects = orgProjects.filter(p => allowedIds.has(p.id));
+        }
         
-        for (const project of projects) {
+        for (const project of orgProjects) {
           const milestones = await storage.getMilestones(project.id);
           
           for (const milestone of milestones) {
@@ -487,15 +630,26 @@ export function registerAnalyticsRoutes(app: Express) {
     }
   });
 
-  // Analytics: Intakes flat data for Power BI
-  app.get('/api/analytics/intakes', async (req, res) => {
+  apiRoute(app, 'get', '/api/analytics/intakes', {
+    tag: 'Analytics',
+    summary: 'Get intakes data for Power BI',
+    security: [{ basicAuth: [] }, { bearerAuth: [] }],
+    parameters: [qInt('organizationId', false, 'Organization ID (optional with Bearer token)')],
+    responses: { ...r200('Intakes analytics data', arrOf('ProjectIntake')), ...e401 },
+  }, async (req, res) => {
     try {
       const scope = await resolveAnalyticsScope(req, res);
       if (!scope) return;
       const { targetOrgIds } = scope;
       
+      const { userId } = scope;
+
       const allIntakes: any[] = [];
       for (const orgId of targetOrgIds) {
+        if (userId && await isTeamMemberInOrg(userId, orgId)) {
+          continue;
+        }
+
         const intakes = await storage.getProjectIntakes(orgId);
         const org = await storage.getOrganization(orgId);
         
@@ -527,19 +681,42 @@ export function registerAnalyticsRoutes(app: Express) {
     }
   });
 
-  // Analytics: Summary metrics for Power BI dashboards
-  app.get('/api/analytics/summary', async (req, res) => {
+  apiRoute(app, 'get', '/api/analytics/summary', {
+    tag: 'Analytics',
+    summary: 'Get summary analytics for Power BI',
+    security: [{ basicAuth: [] }, { bearerAuth: [] }],
+    parameters: [qInt('organizationId', false, 'Organization ID (optional with Bearer token)')],
+    responses: { ...r200('Summary analytics', { type: 'object' }), ...e401 },
+  }, async (req, res) => {
     try {
       const scope = await resolveAnalyticsScope(req, res, { organizations: [] });
       if (!scope) return;
       const { targetOrgIds } = scope;
       
+      const { userId } = scope;
       const summaries: any[] = [];
       for (const orgId of targetOrgIds) {
         const org = await storage.getOrganization(orgId);
-        const projects = await storage.getProjects(orgId);
-        const portfolios = await storage.getPortfolios(orgId);
-        const intakes = await storage.getProjectIntakes(orgId);
+        let projects = await storage.getProjects(orgId);
+        let orgPortfolios = await storage.getPortfolios(orgId);
+
+        const isTeamMember = await isTeamMemberInOrg(userId, orgId);
+        let allowedRiskIds: Set<number> | null = null;
+        let allowedIssueIds: Set<number> | null = null;
+        let allowedTaskIds: Set<number> | null = null;
+
+        if (isTeamMember) {
+          const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, orgId));
+          projects = projects.filter(p => allowedProjectIds.has(p.id));
+          const allowedPortfolioIds = new Set(await getTeamMemberPortfolioIds(userId, orgId));
+          orgPortfolios = orgPortfolios.filter(p => allowedPortfolioIds.has(p.id));
+          allowedRiskIds = new Set(await getTeamMemberRiskIds(userId, orgId));
+          allowedIssueIds = new Set(await getTeamMemberIssueIds(userId, orgId));
+          allowedTaskIds = new Set(await getTeamMemberTaskIds(userId, orgId));
+        }
+
+        const portfolios = orgPortfolios;
+        const intakes = isTeamMember ? [] : await storage.getProjectIntakes(orgId);
         
         let totalRisks = 0, openRisks = 0, highRisks = 0;
         let totalIssues = 0, openIssues = 0;
@@ -547,10 +724,14 @@ export function registerAnalyticsRoutes(app: Express) {
         let totalTasks = 0, completedTasks = 0;
         
         for (const project of projects) {
-          const risks = await storage.getRisks(project.id);
-          const issues = await storage.getIssues(project.id);
+          let risks = await storage.getRisks(project.id);
+          let issues = await storage.getIssues(project.id);
           const milestones = await storage.getMilestones(project.id);
-          const tasks = await storage.getTasks(project.id);
+          let tasks = await storage.getTasks(project.id);
+
+          if (allowedRiskIds) risks = risks.filter(r => allowedRiskIds!.has(r.id));
+          if (allowedIssueIds) issues = issues.filter(i => allowedIssueIds!.has(i.id));
+          if (allowedTaskIds) tasks = tasks.filter(t => allowedTaskIds!.has(t.id));
           
           totalRisks += risks.length;
           openRisks += risks.filter(r => r.status === 'Open').length;

@@ -1,4 +1,5 @@
 import { useParams, Link, useLocation } from "wouter";
+import { formatCurrency } from "@/lib/format";
 import { useResource, useUpdateResource, useResourceSkills, useAddResourceSkill, useRemoveResourceSkill } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { useCustomFieldDefinitions, useResourceCustomFieldValues, useUpdateResourceCustomFieldValue } from "@/hooks/use-custom-fields";
@@ -235,17 +236,17 @@ export default function ResourceDetails() {
       
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-6">
-            <Avatar className="h-24 w-24">
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
+            <Avatar className="h-16 w-16 sm:h-24 sm:w-24">
               <AvatarImage src={resource.photoUrl || undefined} />
-              <AvatarFallback className="text-2xl bg-primary/10 text-primary">
+              <AvatarFallback className="text-xl sm:text-2xl bg-primary/10 text-primary">
                 {getInitials(resource.displayName)}
               </AvatarFallback>
             </Avatar>
             
-            <div className="flex-1 space-y-2">
-              <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-2xl font-bold" data-testid="text-resource-name">{resource.displayName}</h1>
+            <div className="flex-1 space-y-2 min-w-0">
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-bold truncate" data-testid="text-resource-name">{resource.displayName}</h1>
                 <Badge variant={resource.isActive ? "default" : "secondary"} data-testid="badge-resource-status">
                   {resource.isActive ? "Active" : "Inactive"}
                 </Badge>
@@ -293,6 +294,18 @@ export default function ResourceDetails() {
             </div>
             
             <div className="flex gap-2">
+              {resource.userId && (
+                <a
+                  href={`/badges/${resource.userId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button variant="outline" size="sm" className="gap-1.5">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Public Profile
+                  </Button>
+                </a>
+              )}
               {isEditing ? (
                 <>
                   <Button variant="outline" onClick={() => setIsEditing(false)} data-testid="button-cancel-edit">
@@ -314,24 +327,26 @@ export default function ResourceDetails() {
       </Card>
       
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5" data-testid="tabs-resource-details">
-          <TabsTrigger value="details" className="gap-2">
+        <TabsList className="flex w-full flex-wrap h-auto gap-1 justify-start" data-testid="tabs-resource-details">
+          <TabsTrigger value="details" className="gap-1 sm:gap-2">
             <UserIcon className="h-4 w-4" />
             Details
           </TabsTrigger>
-          <TabsTrigger value="assignments" className="gap-2">
+          <TabsTrigger value="assignments" className="gap-1 sm:gap-2">
             <ClipboardList className="h-4 w-4" />
-            Assignments
+            <span className="sm:hidden">Tasks</span>
+            <span className="hidden sm:inline">Assignments</span>
           </TabsTrigger>
-          <TabsTrigger value="stats" className="gap-2">
+          <TabsTrigger value="stats" className="gap-1 sm:gap-2">
             <PieChart className="h-4 w-4" />
             Stats
           </TabsTrigger>
-          <TabsTrigger value="allocations" className="gap-2">
+          <TabsTrigger value="allocations" className="gap-1 sm:gap-2">
             <FolderKanban className="h-4 w-4" />
-            Allocations
+            <span className="sm:hidden">Alloc</span>
+            <span className="hidden sm:inline">Allocations</span>
           </TabsTrigger>
-          <TabsTrigger value="issues" className="gap-2">
+          <TabsTrigger value="issues" className="gap-1 sm:gap-2">
             <AlertCircle className="h-4 w-4" />
             Issues
           </TabsTrigger>
@@ -460,7 +475,7 @@ export default function ResourceDetails() {
                           data-testid="input-hourly-rate"
                         />
                       ) : (
-                        <p className="text-sm mt-1">{resource.hourlyRate ? `$${resource.hourlyRate}/hr` : "—"}</p>
+                        <p className="text-sm mt-1">{resource.hourlyRate ? `${formatCurrency(resource.hourlyRate, { showCents: true })}/hr` : "—"}</p>
                       )}
                     </div>
                     
@@ -500,7 +515,7 @@ export default function ResourceDetails() {
                     )}
                   </div>
                   
-                  <div className="flex items-center gap-6">
+                  <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                     <div className="flex items-center gap-2">
                       <Switch 
                         checked={isEditing ? (editValues.isActive ?? true) : (resource.isActive ?? true)}
@@ -657,15 +672,16 @@ export default function ResourceDetails() {
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : uniqueTaskAssignments.length > 0 ? (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Task</TableHead>
                       <TableHead>Project</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Progress</TableHead>
-                      <TableHead>Due Date</TableHead>
-                      <TableHead className="text-right">Allocation</TableHead>
+                      <TableHead className="hidden md:table-cell">Progress</TableHead>
+                      <TableHead className="hidden sm:table-cell">Due Date</TableHead>
+                      <TableHead className="text-right hidden lg:table-cell">Allocation</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -682,20 +698,21 @@ export default function ResourceDetails() {
                             {assignment.status}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden md:table-cell">
                           <div className="flex items-center gap-2">
                             <Progress value={assignment.progress} className="h-2 w-16" />
                             <span className="text-xs text-muted-foreground">{assignment.progress}%</span>
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden sm:table-cell">
                           {assignment.endDate ? format(new Date(assignment.endDate), "MMM d, yyyy") : "—"}
                         </TableCell>
-                        <TableCell className="text-right">{assignment.allocationPercentage ? `${assignment.allocationPercentage}%` : "100%"}</TableCell>
+                        <TableCell className="text-right hidden lg:table-cell">{assignment.allocationPercentage ? `${assignment.allocationPercentage}%` : "100%"}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               ) : (
                 <div className="py-8 text-center text-muted-foreground">
                   <ClipboardList className="h-12 w-12 mx-auto mb-2 opacity-50" />
@@ -822,14 +839,15 @@ export default function ResourceDetails() {
             </CardHeader>
             <CardContent>
               {allocations.length > 0 ? (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Project</TableHead>
                       <TableHead className="text-center">Tasks</TableHead>
-                      <TableHead className="text-center">Completed</TableHead>
-                      <TableHead className="text-center">Progress</TableHead>
-                      <TableHead className="text-right">Hours</TableHead>
+                      <TableHead className="text-center hidden sm:table-cell">Completed</TableHead>
+                      <TableHead className="text-center hidden md:table-cell">Progress</TableHead>
+                      <TableHead className="text-right hidden sm:table-cell">Hours</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -843,8 +861,8 @@ export default function ResourceDetails() {
                           </Link>
                         </TableCell>
                         <TableCell className="text-center">{allocation.taskCount}</TableCell>
-                        <TableCell className="text-center">{allocation.completedTasks}</TableCell>
-                        <TableCell className="text-center">
+                        <TableCell className="text-center hidden sm:table-cell">{allocation.completedTasks}</TableCell>
+                        <TableCell className="text-center hidden md:table-cell">
                           <div className="flex items-center justify-center gap-2">
                             <Progress 
                               value={allocation.taskCount > 0 ? (allocation.completedTasks / allocation.taskCount) * 100 : 0} 
@@ -855,11 +873,12 @@ export default function ResourceDetails() {
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-right">{allocation.totalHours || "—"}</TableCell>
+                        <TableCell className="text-right hidden sm:table-cell">{allocation.totalHours || "—"}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               ) : (
                 <div className="py-8 text-center text-muted-foreground">
                   <FolderKanban className="h-12 w-12 mx-auto mb-2 opacity-50" />
@@ -882,21 +901,22 @@ export default function ResourceDetails() {
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : issueAssignments && issueAssignments.length > 0 ? (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Issue</TableHead>
-                      <TableHead>Project</TableHead>
+                      <TableHead className="hidden sm:table-cell">Project</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Priority</TableHead>
-                      <TableHead>Due Date</TableHead>
+                      <TableHead className="hidden md:table-cell">Due Date</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {issueAssignments.map((issue) => (
                       <TableRow key={issue.issueId} data-testid={`row-issue-${issue.issueId}`}>
                         <TableCell className="font-medium">{issue.issueTitle}</TableCell>
-                        <TableCell>
+                        <TableCell className="hidden sm:table-cell">
                           <Link href={`/projects/${issue.projectId}`}>
                             <span className="text-primary hover:underline cursor-pointer">{issue.projectName}</span>
                           </Link>
@@ -911,13 +931,14 @@ export default function ResourceDetails() {
                             {issue.priority}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden md:table-cell">
                           {issue.dueDate ? format(new Date(issue.dueDate), "MMM d, yyyy") : "—"}
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               ) : (
                 <div className="py-8 text-center text-muted-foreground">
                   <AlertCircle className="h-12 w-12 mx-auto mb-2 opacity-50" />

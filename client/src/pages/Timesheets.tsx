@@ -169,9 +169,10 @@ interface TaskRowProps {
   timesheetLocked?: boolean;
   onViewAudit?: (entryId: number) => void;
   overtimeThreshold?: number;
+  isDayView?: boolean;
 }
 
-function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, clearRow, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName, taskColumnWidth = 360, timesheetLocked = false, onViewAudit, overtimeThreshold = 40 }: TaskRowProps) {
+function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, clearRow, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName, taskColumnWidth = 360, timesheetLocked = false, onViewAudit, overtimeThreshold = 40, isDayView = false }: TaskRowProps) {
   const rowTotal = getRowTotal(task.id);
   const isRowOvertime = rowTotal > overtimeThreshold;
   
@@ -184,7 +185,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
       transition={{ duration: 0.2, delay: index * 0.02 }}
       className={`border-t border-border/50 hover:bg-muted/20 transition-colors group ${timesheetLocked ? "opacity-75" : ""}`}
     >
-      <td className={`px-3 py-1.5 ${indented ? 'pl-10' : ''} align-middle`} style={{ width: taskColumnWidth, minWidth: taskColumnWidth, maxWidth: taskColumnWidth }}>
+      <td className={`px-3 py-1.5 ${indented ? 'pl-10' : ''} align-middle sticky left-0 z-10 bg-card`} style={{ width: taskColumnWidth, minWidth: taskColumnWidth, maxWidth: taskColumnWidth }}>
         <div className="flex items-center gap-2 w-full overflow-hidden">
           {timesheetLocked ? (
             <Tooltip>
@@ -238,7 +239,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
                 }}
                 placeholder="0"
                 disabled={!isEditable}
-                className={`w-16 text-center h-9 rounded-lg border-2 ${
+                className={`${isDayView ? 'w-full max-w-[120px]' : 'w-16'} text-center text-base md:text-sm h-10 md:h-9 rounded-lg border-2 ${
                   isPeriodClosed
                     ? "border-destructive/30 bg-destructive/5"
                     : isCellOvertime
@@ -289,7 +290,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
                     type="button"
                     onClick={() => openNoteEditor(task.id, dateKey)}
                     className={`absolute -right-5 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted transition-opacity ${
-                      hasNote ? 'opacity-100 text-primary' : 'opacity-0 group-hover/cell:opacity-60 text-muted-foreground'
+                      hasNote ? 'opacity-100 text-primary' : 'opacity-60 md:opacity-0 md:group-hover/cell:opacity-60 text-muted-foreground'
                     }`}
                     data-testid={`button-note-${task.id}-${dateKey}`}
                   >
@@ -304,36 +305,38 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
           </td>
         );
       })}
-      <td className="px-2 py-1 bg-emerald-500/5 text-center align-middle">
-        <div className="relative flex items-center justify-center">
-          <span className={`font-medium tabular-nums ${isRowOvertime ? "text-amber-600" : "text-foreground"}`}>{rowTotal}h</span>
-          {isRowOvertime && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="absolute -right-4">
-                  <AlertTriangle className="h-3 w-3 text-amber-500" />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top">Over {overtimeThreshold} hours this week</TooltipContent>
-            </Tooltip>
-          )}
-          {rowTotal > 0 && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={() => clearRow(task.id)}
-                  className="absolute -right-4 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
-                  data-testid={`button-clear-row-${task.id}`}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top">Clear row</TooltipContent>
-            </Tooltip>
-          )}
-        </div>
-      </td>
+      {!isDayView && (
+        <td className="px-2 py-1 bg-emerald-500/5 text-center align-middle">
+          <div className="relative flex items-center justify-center">
+            <span className={`font-medium tabular-nums ${isRowOvertime ? "text-amber-600" : "text-foreground"}`}>{rowTotal}h</span>
+            {isRowOvertime && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="absolute -right-4">
+                    <AlertTriangle className="h-3 w-3 text-amber-500" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">Over {overtimeThreshold} hours this week</TooltipContent>
+              </Tooltip>
+            )}
+            {rowTotal > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => clearRow(task.id)}
+                    className="absolute -right-4 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                    data-testid={`button-clear-row-${task.id}`}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Clear row</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        </td>
+      )}
     </motion.tr>
   );
 }
@@ -546,11 +549,12 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   };
 
   const TASK_COL_WIDTH_KEY = "timesheet_task_column_width";
-  const DEFAULT_TASK_COL_WIDTH = 360;
+  const DEFAULT_TASK_COL_WIDTH = typeof window !== 'undefined' && window.innerWidth < 640 ? 180 : 360;
   const [taskColumnWidth, setTaskColumnWidth] = useState(() => {
     try {
       const saved = typeof window !== 'undefined' ? localStorage.getItem(TASK_COL_WIDTH_KEY) : null;
-      return saved ? Math.max(150, Math.min(800, Number(saved))) : DEFAULT_TASK_COL_WIDTH;
+      const minWidth = typeof window !== 'undefined' && window.innerWidth < 640 ? 150 : 180;
+      return saved ? Math.max(minWidth, Math.min(800, Number(saved))) : DEFAULT_TASK_COL_WIDTH;
     } catch {
       return DEFAULT_TASK_COL_WIDTH;
     }
@@ -569,7 +573,8 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   const handleMouseMove = (e: MouseEvent) => {
     if (!isResizing.current) return;
     setTaskColumnWidth(prev => {
-      const newWidth = Math.max(150, Math.min(800, prev + e.movementX));
+      const minW = typeof window !== 'undefined' && window.innerWidth < 640 ? 150 : 180;
+      const newWidth = Math.max(minW, Math.min(800, prev + e.movementX));
       return newWidth;
     });
   };
@@ -815,15 +820,154 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
     );
   }
 
+  const renderMobileCards = () => (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between px-1">
+        <span className="text-sm font-medium text-muted-foreground">
+          Total: <span className={`font-bold ${getGrandTotal() > overtimeThreshold ? "text-amber-600" : "text-emerald-600"}`}>{getGrandTotal()}h</span>
+        </span>
+        {getGrandTotal() > 0 && (
+          <Button variant="ghost" size="sm" onClick={clearAllRows} aria-label="Clear all hours" className="text-muted-foreground h-7 text-xs">
+            <Trash2 className="h-3 w-3 mr-1" /> Clear All
+          </Button>
+        )}
+      </div>
+
+      {groupByProject && groupedTasks.map((group) => {
+        const isCollapsed = collapsedProjects?.has(group.project.id) ?? true;
+        return (
+          <div key={`mobile-group-${group.project.id}`}>
+            <button
+              type="button"
+              className="flex items-center gap-2 w-full px-2 py-2 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
+              onClick={() => toggleProjectCollapse(group.project.id)}
+            >
+              <motion.div animate={{ rotate: isCollapsed ? -90 : 0 }} transition={{ duration: 0.2 }}>
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </motion.div>
+              <FolderOpen className="h-4 w-4 text-primary shrink-0" />
+              <span className="font-medium text-sm text-foreground truncate flex-1 text-left">{group.project.name}</span>
+              <Badge variant="secondary" className="text-xs shrink-0">{group.tasks.length}</Badge>
+              <span className="text-xs font-medium text-emerald-600">{getProjectTotal(group.project.id)}h</span>
+            </button>
+            <AnimatePresence>
+              {!isCollapsed && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="space-y-2 mt-2">
+                  {group.tasks.map(({ task, project, timesheetLocked }) => renderMobileTaskCard(task, project, timesheetLocked))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        );
+      })}
+
+      {!groupByProject && assignedTasks.map(({ task, project, timesheetLocked }) => renderMobileTaskCard(task, project, timesheetLocked))}
+    </div>
+  );
+
+  const renderMobileTaskCard = (task: Task, project: Project, timesheetLocked?: boolean) => {
+    const rowTotal = getRowTotal(task.id);
+    return (
+      <div key={`mobile-${task.id}`} className={`rounded-xl border border-border bg-card p-3 space-y-2 ${timesheetLocked ? "opacity-75" : ""}`}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              {timesheetLocked ? <Lock className="h-3.5 w-3.5 text-amber-500 shrink-0" /> : <ListTodo className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+              <span className="text-sm font-medium text-foreground truncate">{task.name}</span>
+            </div>
+            <span className="text-xs text-muted-foreground truncate block pl-5">{project.name}</span>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <span className={`text-sm font-semibold tabular-nums ${rowTotal > overtimeThreshold ? "text-amber-600" : "text-foreground"}`}>{rowTotal}h</span>
+            {rowTotal > 0 && (
+              <button type="button" onClick={() => clearRow(task.id)} aria-label={`Clear hours for ${task.name}`} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+                <Trash2 className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        </div>
+        <div className={`grid gap-1.5 ${dates.length <= 1 ? 'grid-cols-1' : dates.length <= 5 ? `grid-cols-${dates.length}` : 'grid-cols-7'}`} style={{ gridTemplateColumns: `repeat(${dates.length}, minmax(0, 1fr))` }}>
+          {dates.map((date) => {
+            const dateKey = formatDateKey(date);
+            const entry = entries.find(e => e.taskId === task.id && e.entryDate === dateKey);
+            const status = entry?.status;
+            const isPeriodClosed = isDateInClosedPeriod(date);
+            const isEditable = (!status || status === "Draft" || status === "Rejected") && !isPeriodClosed && !timesheetLocked;
+            const isTodayDate = isToday(date);
+            const isWeekendDay = isWeekend(date);
+            const hasNote = !!(gridData[task.id]?.[dateKey]?.notes);
+
+            return (
+              <div key={dateKey} className="flex flex-col items-center gap-0.5">
+                <span className={`text-[10px] font-medium leading-none ${
+                  isTodayDate ? "text-blue-600 dark:text-blue-400" : isWeekendDay ? "text-muted-foreground/60" : "text-muted-foreground"
+                }`}>
+                  {format(date, "EEE")}
+                </span>
+                <span className={`text-xs font-semibold leading-none ${
+                  isTodayDate ? "text-blue-600 dark:text-blue-400" : "text-foreground"
+                }`}>
+                  {format(date, "d")}
+                </span>
+                <div className="relative w-full">
+                  <Input
+                    ref={(el) => { inputRefs.current[`${task.id}-${dateKey}`] = el; }}
+                    type="text"
+                    inputMode="decimal"
+                    aria-label={`Hours for ${task.name} on ${format(date, "EEEE, MMM d")}`}
+                    value={gridData[task.id]?.[dateKey]?.hours || ""}
+                    onChange={(e) => handleHoursChange(task.id, dateKey, e.target.value)}
+                    onFocus={(e) => { e.target.select(); handleCellFocus(task.id, dateKey); }}
+                    placeholder="0"
+                    disabled={!isEditable}
+                    className={`w-full text-center text-base h-11 rounded-lg border-2 px-1 ${
+                      isPeriodClosed ? "border-destructive/30 bg-destructive/5" :
+                      isTodayDate ? "border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-900/20" :
+                      isWeekendDay ? "border-muted bg-muted/30" :
+                      "border-border bg-background"
+                    } ${!isEditable ? "opacity-60 cursor-not-allowed" : ""} 
+                    ${status === "Approved" ? "border-green-300 dark:border-green-700" : ""} 
+                    ${status === "Rejected" ? "border-destructive/30" : ""}
+                    focus:ring-2 focus:ring-primary/20`}
+                    data-testid={`input-hours-${task.id}-${dateKey}`}
+                  />
+                  {status && status !== "Draft" && (
+                    <div className="absolute -top-1 -right-1">
+                      {status === "Approved" && <Check className="h-3 w-3 text-green-500" />}
+                      {status === "Submitted" && <Clock className="h-3 w-3 text-amber-500" />}
+                      {status === "Rejected" && <X className="h-3 w-3 text-destructive" />}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => openNoteEditor(task.id, dateKey)}
+                    aria-label={hasNote ? "Edit note" : "Add note"}
+                    className={`absolute -bottom-1 left-1/2 -translate-x-1/2 p-0.5 rounded ${hasNote ? 'text-primary' : 'text-muted-foreground/40'}`}
+                  >
+                    <StickyNote className="h-2.5 w-2.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className={isFullscreen ? "flex flex-col h-full" : "space-y-4"}>
-      <div ref={tableContainerRef} className={`bg-card ${isFullscreen ? 'flex-1 min-h-0 overflow-auto' : 'rounded-xl border border-border overflow-x-auto'}`}>
+      <div className="md:hidden">
+        {renderMobileCards()}
+      </div>
+
+      <div ref={tableContainerRef} className={`bg-card hidden md:block ${isFullscreen ? 'flex-1 min-h-0 overflow-auto' : 'rounded-xl border border-border overflow-x-auto'}`}>
         <table className="w-full border-collapse">
           <thead className="sticky top-0 z-20 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.1)]" style={{ backgroundColor: 'hsl(var(--card))' }}>
             <tr style={{ backgroundColor: 'hsl(var(--muted) / 0.3)' }}>
               <th 
-                className="text-left px-3 py-2.5 font-medium text-muted-foreground relative group" 
-                style={{ width: taskColumnWidth, minWidth: taskColumnWidth }}
+                className="text-left px-3 py-2.5 font-medium text-muted-foreground relative group sticky left-0 z-30" 
+                style={{ width: taskColumnWidth, minWidth: taskColumnWidth, backgroundColor: 'hsl(var(--card))' }}
               >
                 <span>Tasks</span>
                 <div
@@ -874,39 +1018,41 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                   </th>
                 );
               })}
-              <th className="px-2 py-2 text-center min-w-[80px] bg-emerald-500/5">
-                <div className="text-xs font-medium text-emerald-600 flex items-center justify-center gap-1">
-                  Total
-                  {getGrandTotal() > 0 && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={clearAllRows}
-                          className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                          data-testid="button-clear-all"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">Clear all hours</TooltipContent>
-                    </Tooltip>
-                  )}
-                </div>
-                <div className={`text-lg font-bold flex items-center justify-center gap-1 ${
-                  getGrandTotal() > overtimeThreshold ? "text-amber-600" : "text-emerald-600"
-                }`}>
-                  {getGrandTotal()}h
-                  {getGrandTotal() > overtimeThreshold && (
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <AlertTriangle className="h-4 w-4" />
-                      </TooltipTrigger>
-                      <TooltipContent>Over {overtimeThreshold} hours this week</TooltipContent>
-                    </Tooltip>
-                  )}
-                </div>
-              </th>
+              {viewMode !== "day" && (
+                <th className="px-2 py-2 text-center min-w-[80px] bg-emerald-500/5">
+                  <div className="text-xs font-medium text-emerald-600 flex items-center justify-center gap-1">
+                    Total
+                    {getGrandTotal() > 0 && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={clearAllRows}
+                            className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                            data-testid="button-clear-all"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">Clear all hours</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                  <div className={`text-lg font-bold flex items-center justify-center gap-1 ${
+                    getGrandTotal() > overtimeThreshold ? "text-amber-600" : "text-emerald-600"
+                  }`}>
+                    {getGrandTotal()}h
+                    {getGrandTotal() > overtimeThreshold && (
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <AlertTriangle className="h-4 w-4" />
+                        </TooltipTrigger>
+                        <TooltipContent>Over {overtimeThreshold} hours this week</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -925,7 +1071,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                       onClick={() => toggleProjectCollapse(group.project.id)}
                       data-testid={`row-project-header-${group.project.id}`}
                     >
-                      <td className="px-3 py-1.5" style={{ width: taskColumnWidth, minWidth: taskColumnWidth, maxWidth: taskColumnWidth }}>
+                      <td className="px-3 py-1.5 sticky left-0 z-10 bg-card" style={{ width: taskColumnWidth, minWidth: taskColumnWidth, maxWidth: taskColumnWidth }}>
                         <div className="flex items-center gap-2 min-w-0">
                           <motion.div
                             animate={{ rotate: isCollapsed ? -90 : 0 }}
@@ -948,9 +1094,11 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                           -
                         </td>
                       ))}
-                      <td className="px-2 py-1 text-center font-medium text-emerald-600 bg-emerald-500/5 align-middle">
-                        {projectTotal}h
-                      </td>
+                      {viewMode !== "day" && (
+                        <td className="px-2 py-1 text-center font-medium text-emerald-600 bg-emerald-500/5 align-middle">
+                          {projectTotal}h
+                        </td>
+                      )}
                     </motion.tr>
                     
                     <AnimatePresence>
@@ -980,6 +1128,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                             timesheetLocked={timesheetLocked}
                             onViewAudit={onViewAudit}
                             overtimeThreshold={overtimeThreshold}
+                            isDayView={viewMode === "day"}
                           />
                         );
                       })}
@@ -1011,6 +1160,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                   timesheetLocked={timesheetLocked}
                   onViewAudit={onViewAudit}
                   overtimeThreshold={overtimeThreshold}
+                  isDayView={viewMode === "day"}
                 />
               ))
             )}
@@ -1018,9 +1168,9 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
         </table>
       </div>
 
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-muted-foreground">Quick entry:</span>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground hidden sm:inline">Quick entry:</span>
           {QUICK_TIME_PRESETS.map(preset => (
             <Button
               key={preset.value}
@@ -1033,8 +1183,8 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
               {preset.label}
             </Button>
           ))}
-          {!selectedCell && <span className="text-xs text-muted-foreground">(select a cell first)</span>}
-          <div className="h-4 w-px bg-border mx-1" />
+          {!selectedCell && <span className="text-xs text-muted-foreground hidden sm:inline">(select a cell first)</span>}
+          <div className="h-4 w-px bg-border mx-0.5 sm:mx-1" />
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -1044,8 +1194,8 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                 disabled={undoHistory.length === 0}
                 data-testid="button-undo"
               >
-                <Undo2 className="h-4 w-4 mr-1" />
-                Undo
+                <Undo2 className="h-4 w-4 sm:mr-1" />
+                <span className="hidden sm:inline">Undo</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
@@ -1062,7 +1212,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
           <Button 
             onClick={handleSave} 
             disabled={!hasChanges || isSaving}
-            className="bg-primary"
+            className="bg-primary w-full sm:w-auto"
             data-testid="button-save-timesheet"
           >
             {isSaving ? (
@@ -1382,7 +1532,7 @@ function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void 
                   data-testid="button-bulk-approve"
                 >
                   {isProcessing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Check className="mr-1 h-4 w-4" />}
-                  Approve Selected ({selectedIds.size})
+                  Approve ({selectedIds.size})
                 </Button>
                 <Button 
                   size="sm" 
@@ -1392,7 +1542,7 @@ function ApprovalTab({ onViewAudit }: { onViewAudit?: (entryId: number) => void 
                   data-testid="button-bulk-reject"
                 >
                   <X className="mr-1 h-4 w-4" />
-                  Reject Selected
+                  Reject
                 </Button>
               </>
             )}
@@ -3514,26 +3664,26 @@ export default function Timesheets() {
   if (isFullscreen) {
     return (
       <div className="fixed inset-0 z-50 bg-background flex flex-col">
-        <div className="flex items-center justify-between gap-4 px-4 py-2 border-b bg-background shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
+        <div className="flex items-center justify-between gap-2 sm:gap-4 px-3 sm:px-4 py-2 border-b bg-background shrink-0">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 shrink-0">
               <Clock className="h-4 w-4 text-blue-600" />
             </div>
-            <div>
-              <h2 className="text-lg font-semibold">Timesheet - {viewMode === "day" ? "Day" : viewMode === "workweek" ? "Work Week" : "Full Week"}</h2>
-              <p className="text-xs text-muted-foreground">
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-lg font-semibold truncate">Timesheet - {viewMode === "day" ? "Day" : viewMode === "workweek" ? "Work Week" : "Full Week"}</h2>
+              <p className="text-xs text-muted-foreground truncate">
                 {format(dates[0], "EEE, MMM d")} - {format(dates[dates.length - 1], "EEE, MMM d, yyyy")}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-end">
             {uniqueProjects.length > 1 && (
               <Select 
                 value={filterProjectId?.toString() || "all"} 
                 onValueChange={(v) => setFilterProjectId(v === "all" ? null : Number(v))}
               >
-                <SelectTrigger className="w-[180px]" data-testid="select-filter-project-fullscreen">
-                  <FolderOpen className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectTrigger className="w-[130px] sm:w-[180px]" data-testid="select-filter-project-fullscreen">
+                  <FolderOpen className="h-4 w-4 mr-1 sm:mr-2 text-muted-foreground" />
                   <SelectValue placeholder="All Projects" />
                 </SelectTrigger>
                 <SelectContent>
@@ -3554,11 +3704,11 @@ export default function Timesheets() {
                     data-testid="button-toggle-closed-projects-fullscreen"
                   >
                     {hideClosedProjects ? (
-                      <EyeOff className="h-4 w-4 mr-2" />
+                      <EyeOff className="h-4 w-4 sm:mr-2" />
                     ) : (
-                      <Eye className="h-4 w-4 mr-2" />
+                      <Eye className="h-4 w-4 sm:mr-2" />
                     )}
-                    {hideClosedProjects ? `${closedProjectCount} Hidden` : "Hide Closed"}
+                    <span className="hidden sm:inline">{hideClosedProjects ? `${closedProjectCount} Hidden` : "Hide Closed"}</span>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -3601,8 +3751,8 @@ export default function Timesheets() {
                   disabled={viewMode === "day"}
                   data-testid="button-copy-previous-week-fullscreen"
                 >
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copy Last Week
+                  <Copy className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Copy Last Week</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Copy hours from previous week (only empty cells)</TooltipContent>
@@ -3614,8 +3764,8 @@ export default function Timesheets() {
                   size="sm"
                   data-testid="button-add-time-off-fullscreen"
                 >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Time Off
+                  <Plus className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Time Off</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-80" align="end">
@@ -3759,8 +3909,8 @@ export default function Timesheets() {
                   onClick={() => setClearWeekDialogOpen(true)}
                   data-testid="button-clear-week"
                 >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Clear Week
+                  <Trash2 className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Clear Week</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Clear all time entries for this week</TooltipContent>
@@ -3804,8 +3954,8 @@ export default function Timesheets() {
               }}
               data-testid="button-exit-fullscreen"
             >
-              <Minimize2 className="h-4 w-4 mr-2" />
-              Exit Fullscreen
+              <Minimize2 className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Exit Fullscreen</span>
             </Button>
           </div>
         </div>
@@ -3872,8 +4022,8 @@ export default function Timesheets() {
           </div>
         </div>
 
-        <div className="border-b border-border">
-          <nav className="flex gap-6">
+        <div className="border-b border-border overflow-x-auto -mx-4 px-4">
+          <nav className="flex gap-4 sm:gap-6 min-w-max">
             <button
               onClick={() => setActiveTab("entry")}
               className={`pb-3 text-sm font-medium transition-colors relative ${
@@ -4062,9 +4212,9 @@ export default function Timesheets() {
             className="space-y-6"
           >
             <Card className="border-0 shadow-sm bg-card">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <div className="flex items-center gap-2">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-1 sm:gap-2">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -4112,11 +4262,11 @@ export default function Timesheets() {
                       <ChevronRight className="h-5 w-5" />
                     </Button>
 
-                    <div className="ml-2">
-                      <div className="text-lg font-semibold text-foreground">
+                    <div className="ml-1 sm:ml-2">
+                      <div className="text-base sm:text-lg font-semibold text-foreground">
                         {format(currentDate, "MMMM yyyy")}
                       </div>
-                      <div className="text-sm text-muted-foreground">
+                      <div className="text-xs sm:text-sm text-muted-foreground">
                         {format(dates[0], "EEE, MMM d")} - {format(dates[dates.length - 1], "EEE, MMM d")}
                       </div>
                     </div>
@@ -4128,8 +4278,8 @@ export default function Timesheets() {
                         value={filterProjectId?.toString() || "all"} 
                         onValueChange={(v) => setFilterProjectId(v === "all" ? null : Number(v))}
                       >
-                        <SelectTrigger className="w-[180px]" data-testid="select-filter-project">
-                          <FolderOpen className="h-4 w-4 mr-2 text-muted-foreground" />
+                        <SelectTrigger className="w-[140px] sm:w-[180px]" data-testid="select-filter-project">
+                          <FolderOpen className="h-4 w-4 mr-1 sm:mr-2 text-muted-foreground" />
                           <SelectValue placeholder="All Projects" />
                         </SelectTrigger>
                         <SelectContent>
@@ -4151,11 +4301,11 @@ export default function Timesheets() {
                             data-testid="button-toggle-closed-projects"
                           >
                             {hideClosedProjects ? (
-                              <EyeOff className="h-4 w-4 mr-2" />
+                              <EyeOff className="h-4 w-4 sm:mr-2" />
                             ) : (
-                              <Eye className="h-4 w-4 mr-2" />
+                              <Eye className="h-4 w-4 sm:mr-2" />
                             )}
-                            {hideClosedProjects ? `${closedProjectCount} Hidden` : "Hide Closed"}
+                            <span className="hidden sm:inline">{hideClosedProjects ? `${closedProjectCount} Hidden` : "Hide Closed"}</span>
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>
@@ -4167,7 +4317,7 @@ export default function Timesheets() {
                     )}
 
                     <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
-                      <SelectTrigger className="w-[130px]" data-testid="select-view-mode">
+                      <SelectTrigger className="w-[110px] sm:w-[130px]" data-testid="select-view-mode">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -4489,7 +4639,7 @@ export default function Timesheets() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="h-5 w-5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                             onClick={() => handleDeleteTimeOff(entry.id)}
                             data-testid={`delete-time-off-${entry.id}`}
                           >

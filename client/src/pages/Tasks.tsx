@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { Link } from "wouter";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png"; 
@@ -34,7 +34,7 @@ import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, 
 import { PageTransition, FadeIn } from "@/components/ui/page-transition";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { format, addDays, differenceInDays, startOfMonth, endOfMonth, eachDayOfInterval, isWithinInterval, parseISO } from "date-fns";
@@ -42,16 +42,18 @@ import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, parseD
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { insertTaskSchema, type Task } from "@shared/schema";
+import { insertTaskSchema, type Task, TASK_STATUSES, TASK_STATUS, DEFAULT_TASK_STATUS } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import { CreateTaskDialog } from "@/components/CreateTaskDialog";
 
+const ProjectGanttView = lazy(() => import("@/components/project/ProjectGanttView"));
+
 const statusColors = {
-  "Not Started": "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-  "In Progress": "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-  "Completed": "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  [TASK_STATUS.NOT_STARTED]: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  [TASK_STATUS.IN_PROGRESS]: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  [TASK_STATUS.COMPLETED]: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
 };
 
 type GroupBy = "project" | "portfolio" | "resource";
@@ -291,7 +293,7 @@ export default function Tasks() {
       endDate: calculateEndDateFromWorkingDays(format(new Date(), 'yyyy-MM-dd'), 1),
       durationDays: 1,
       progress: 0,
-      status: "Not Started",
+      status: DEFAULT_TASK_STATUS,
       assignee: "",
       baselineStartDate: null as string | null,
       baselineEndDate: null as string | null,
@@ -340,7 +342,7 @@ export default function Tasks() {
       endDate: task.endDate,
       durationDays: taskDuration,
       progress: task.progress || 0,
-      status: task.status || "Not Started",
+      status: task.status || DEFAULT_TASK_STATUS,
       assignee: task.assignee || "",
       baselineStartDate: task.baselineStartDate || null,
       baselineEndDate: task.baselineEndDate || null,
@@ -364,7 +366,7 @@ export default function Tasks() {
       endDate: calculateEndDateFromWorkingDays(todayStr, 1),
       durationDays: 1,
       progress: 0,
-      status: "Not Started",
+      status: DEFAULT_TASK_STATUS,
       assignee: "",
       baselineStartDate: null,
       baselineEndDate: null,
@@ -425,7 +427,7 @@ export default function Tasks() {
       endDate: data.endDate,
       durationDays: durationDays ?? 1,
       progress: data.progress || 0,
-      status: data.status || "Not Started",
+      status: data.status || DEFAULT_TASK_STATUS,
       assignee: data.assignee || null,
       baselineStartDate: data.baselineStartDate || null,
       baselineEndDate: data.baselineEndDate || null,
@@ -579,7 +581,7 @@ export default function Tasks() {
         );
       })()}
 
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-display font-bold text-foreground">Tasks</h1>
           <Button
@@ -596,7 +598,7 @@ export default function Tasks() {
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
           </Button>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -610,13 +612,13 @@ export default function Tasks() {
           </div>
           <Tabs value={view} onValueChange={(v) => setView(v as "gantt" | "kanban")}>
             <TabsList className="h-9">
-              <TabsTrigger value="gantt" className="gap-1.5 px-2.5">
+              <TabsTrigger value="gantt" className="gap-1.5 px-2.5" data-testid="tab-gantt">
                 <GanttChart className="h-4 w-4" />
-                <span className="hidden sm:inline">Gantt</span>
+                Gantt
               </TabsTrigger>
-              <TabsTrigger value="kanban" className="gap-1.5 px-2.5">
+              <TabsTrigger value="kanban" className="gap-1.5 px-2.5" data-testid="tab-kanban">
                 <Columns3 className="h-4 w-4" />
-                <span className="hidden sm:inline">Kanban</span>
+                Kanban
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -757,11 +759,14 @@ export default function Tasks() {
                 </div>
 
                 <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
-                  <TabsList className="grid w-full grid-cols-4">
+                  <TabsList className="flex w-full flex-wrap h-auto gap-1 justify-start">
                     <TabsTrigger value="details" className="text-xs">Details</TabsTrigger>
                     <TabsTrigger value="schedule" className="text-xs">Schedule</TabsTrigger>
                     <TabsTrigger value="resources" className="text-xs">Resources</TabsTrigger>
-                    <TabsTrigger value="dependencies" className="text-xs" disabled={!editingTask}>Dependencies</TabsTrigger>
+                    <TabsTrigger value="dependencies" className="text-xs" disabled={!editingTask}>
+                      <span className="sm:hidden">Deps</span>
+                      <span className="hidden sm:inline">Dependencies</span>
+                    </TabsTrigger>
                   </TabsList>
 
                   <div className="flex-1 overflow-y-auto py-4 min-h-[280px]">
@@ -773,19 +778,19 @@ export default function Tasks() {
                             <Select onValueChange={(val) => {
                               const prevStatus = field.value;
                               field.onChange(val);
-                              if (val === "Not Started") {
+                              if (val === TASK_STATUS.NOT_STARTED) {
                                 form.setValue("progress", 0);
-                              } else if (val === "Completed") {
+                              } else if (val === TASK_STATUS.COMPLETED) {
                                 form.setValue("progress", 100);
-                              } else if (val === "In Progress" && prevStatus === "Completed") {
+                              } else if (val === TASK_STATUS.IN_PROGRESS && prevStatus === TASK_STATUS.COMPLETED) {
                                 form.setValue("progress", 50);
                               }
-                            }} value={field.value || "Not Started"}>
+                            }} value={field.value || DEFAULT_TASK_STATUS}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="Not Started">Not Started</SelectItem>
-                                <SelectItem value="In Progress">In Progress</SelectItem>
-                                <SelectItem value="Completed">Completed</SelectItem>
+                                {TASK_STATUSES.map((status) => (
+                                  <SelectItem key={status} value={status}>{status}</SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           )} />
@@ -804,12 +809,12 @@ export default function Tasks() {
                                   field.onChange(newProgress);
                                   const currentStatus = form.getValues("status");
                                   if (newProgress === 100) {
-                                    form.setValue("status", "Completed");
+                                    form.setValue("status", TASK_STATUS.COMPLETED);
                                   } else if (newProgress === 0) {
-                                    form.setValue("status", "Not Started");
+                                    form.setValue("status", TASK_STATUS.NOT_STARTED);
                                   } else {
-                                    if (currentStatus === "Completed" || currentStatus === "Not Started") {
-                                      form.setValue("status", "In Progress");
+                                    if (currentStatus === TASK_STATUS.COMPLETED || currentStatus === TASK_STATUS.NOT_STARTED) {
+                                      form.setValue("status", TASK_STATUS.IN_PROGRESS);
                                     }
                                   }
                                 }}
@@ -1298,56 +1303,28 @@ function GroupedTasksView({
                     <FolderKanban className="h-4 w-4 text-primary" />
                   )}
                 </div>
-                <CardTitle className="text-base leading-snug flex-1" title={group.name}>{group.name}</CardTitle>
+                <CardTitle className="text-base leading-snug flex-1 flex items-baseline gap-2 flex-wrap" title={group.name}>
+                  <span>{group.name}</span>
+                  {group.icon === "project" && group.projectId && (
+                    <Link
+                      href={`/projects/${group.projectId}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-[11px] font-normal text-muted-foreground hover:text-primary hover:underline"
+                    >
+                      View project
+                    </Link>
+                  )}
+                </CardTitle>
                 <Badge variant="secondary" className="flex-shrink-0 mt-0.5">
                   {group.tasks.length} {group.tasks.length === 1 ? "task" : "tasks"}
                 </Badge>
               </div>
-              {group.source && group.icon === "project" && group.projectId && (
-                <Link
-                  href={`/projects/${group.projectId}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="ml-[40px] w-fit"
-                >
-                  <Badge 
-                    variant="outline" 
-                    className={cn(
-                      "text-xs gap-1 cursor-pointer hover:opacity-80 transition-opacity",
-                      group.source === "planner" && "border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-300",
-                      group.source === "planner_premium" && "border-purple-300 text-purple-700 dark:border-purple-700 dark:text-purple-300",
-                      group.source === "imported" && "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300"
-                    )}
-                  >
-                    {group.source === "planner" && (
-                      <>
-                        <img src={plannerLogoPath} alt="Planner" className="h-3 w-3" />
-                        <Cloud className="h-2.5 w-2.5 text-indigo-500" />
-                        Planner
-                      </>
-                    )}
-                    {group.source === "planner_premium" && (
-                      <>
-                        <img src={plannerLogoPath} alt="Planner Premium" className="h-3 w-3" />
-                        <Crown className="h-2.5 w-2.5 text-purple-500" />
-                        Premium
-                      </>
-                    )}
-                    {group.source === "imported" && (
-                      <>
-                        <img src={msprojectLogoPath} alt="MS Project" className="h-3 w-3" />
-                        <FileSpreadsheet className="h-2.5 w-2.5 text-emerald-500" />
-                        MS Project
-                      </>
-                    )}
-                  </Badge>
-                </Link>
-              )}
             </div>
           </CardHeader>
           {expandedGroups.has(group.id) && (
             <CardContent className="pt-0">
               {view === "gantt" ? (
-                <GanttView tasks={group.tasks} projects={projects} onTaskClick={onTaskClick} embedded organizationId={organizationId} />
+                <GroupGanttContent group={group} organizationId={organizationId} onTaskClick={onTaskClick} projects={projects} />
               ) : (
                 <KanbanView 
                   tasks={group.tasks} 
@@ -1366,938 +1343,61 @@ function GroupedTasksView({
   );
 }
 
-type TaskZoomLevel = 'day' | 'week' | 'month' | 'quarter' | 'year' | '5year';
-const taskZoomLevels: TaskZoomLevel[] = ['day', 'week', 'month', 'quarter', 'year', '5year'];
-const taskZoomLabels: Record<TaskZoomLevel, string> = {
-  'day': 'Day',
-  'week': 'Week',
-  'month': 'Month',
-  'quarter': 'Quarter',
-  'year': 'Year',
-  '5year': '5 Years'
-};
+function GroupGanttContent({ group, organizationId, onTaskClick, projects }: { group: TaskGroup; organizationId: number | null; onTaskClick: (task: Task) => void; projects: any[] }) {
+  const createTask = useCreateTask();
 
-type TaskGanttColumn = 'actions' | 'outlineLevel' | 'task' | 'startDate' | 'endDate' | 'duration' | 'progress' | 'status' | 'priority' | 'assignee' | 'resources' | 'wbs' | 'phase' | 'category' | 'estimatedHours' | 'actualHours' | 'remainingHours' | 'timesheetBlocked';
+  const sortByTaskIndex = (taskList: Task[]) =>
+    [...taskList].sort((a, b) => (a.taskIndex ?? 999999) - (b.taskIndex ?? 999999));
 
-const TASK_GANTT_COLUMNS: { id: TaskGanttColumn; label: string; width: string }[] = [
-  { id: 'actions', label: '', width: 'w-10' },
-  { id: 'outlineLevel', label: 'Level', width: 'w-14' },
-  { id: 'task', label: 'Task', width: 'w-64' },
-  { id: 'wbs', label: 'WBS', width: 'w-20' },
-  { id: 'startDate', label: 'Start', width: 'w-24' },
-  { id: 'endDate', label: 'End', width: 'w-24' },
-  { id: 'duration', label: 'Duration', width: 'w-20' },
-  { id: 'progress', label: '%', width: 'w-14' },
-  { id: 'status', label: 'Status', width: 'w-28' },
-  { id: 'priority', label: 'Priority', width: 'w-24' },
-  { id: 'assignee', label: 'Assignee', width: 'w-32' },
-  { id: 'resources', label: 'Resources', width: 'w-32' },
-  { id: 'phase', label: 'Phase', width: 'w-24' },
-  { id: 'category', label: 'Category', width: 'w-24' },
-  { id: 'estimatedHours', label: 'Est. Hours', width: 'w-24' },
-  { id: 'actualHours', label: 'Actual Hours', width: 'w-24' },
-  { id: 'remainingHours', label: 'Rem. Hours', width: 'w-24' },
-  { id: 'timesheetBlocked', label: 'TS Blocked', width: 'w-20' },
-];
-
-function GanttTaskRow({ 
-  task, 
-  projects, 
-  onTaskClick, 
-  minDate, 
-  maxDate,
-  visibleColumns,
-  organizationId,
-  onIndent,
-  onOutdent,
-  hasChildren,
-  isCollapsed,
-  onToggleCollapse,
-  allowIndentation = true,
-  preloadedAssignments,
-  precomputedDates,
-}: { 
-  task: Task; 
-  projects: any[]; 
-  onTaskClick: (task: Task) => void;
-  minDate: Date;
-  maxDate: Date;
-  visibleColumns: TaskGanttColumn[];
-  organizationId: number | null;
-  onIndent: (task: Task) => void;
-  onOutdent: (task: Task) => void;
-  hasChildren: boolean;
-  isCollapsed: boolean;
-  onToggleCollapse: (taskId: number) => void;
-  allowIndentation?: boolean;
-  preloadedAssignments?: (TaskResourceAssignment & { resource: Resource })[];
-  precomputedDates?: { start: Date | null; end: Date | null; baselineStart: Date | null; baselineEnd: Date | null; startFormatted: string; endFormatted: string };
-}) {
-  const [isEditingResources, setIsEditingResources] = useState(false);
-  const { data: fetchedAssignments } = useTaskResourceAssignments(isEditingResources ? task.id : null);
-  const taskAssignments = fetchedAssignments ?? preloadedAssignments;
-  const updateTaskResources = useUpdateTaskResourceAssignments();
-  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
-  const [resourceAllocations, setResourceAllocations] = useState<ResourceAllocation[]>([]);
-  const inviteAssignedRef = useRef(false);
-
-  useEffect(() => {
-    if (taskAssignments) {
-      setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
-      setResourceAllocations(taskAssignments.map(a => ({
-        resourceId: a.resourceId,
-        allocationPercentage: a.allocationPercentage ?? 100
-      })));
-    }
-  }, [taskAssignments]);
-  
-  const getProjectName = (projectId: number) => {
-    return projects.find(p => p.id === projectId)?.name || "Unknown";
-  };
-
-  const hasValidDates = task.startDate && task.endDate;
-  const start = precomputedDates?.start ?? (hasValidDates ? parseISO(task.startDate) : null);
-  const end = precomputedDates?.end ?? (hasValidDates ? parseISO(task.endDate) : null);
-  
-  let leftPercent = 0;
-  let widthPercent = 0;
-  
-  if (start && end) {
-    const totalDays = differenceInDays(maxDate, minDate) || 1;
-    const startOffset = differenceInDays(start, minDate);
-    const duration = differenceInDays(end, start) + 1;
-    leftPercent = (startOffset / totalDays) * 100;
-    widthPercent = (duration / totalDays) * 100;
-  }
-
-  const hasBaseline = task.baselineStartDate && task.baselineEndDate;
-  const baselineStart = precomputedDates?.baselineStart ?? (hasBaseline ? parseISO(task.baselineStartDate!) : null);
-  const baselineEnd = precomputedDates?.baselineEnd ?? (hasBaseline ? parseISO(task.baselineEndDate!) : null);
-  
-  let baselineLeftPercent = 0;
-  let baselineWidthPercent = 0;
-  
-  if (baselineStart && baselineEnd) {
-    const totalDays = differenceInDays(maxDate, minDate) || 1;
-    const baselineStartOffset = differenceInDays(baselineStart, minDate);
-    const baselineDuration = differenceInDays(baselineEnd, baselineStart) + 1;
-    baselineLeftPercent = (baselineStartOffset / totalDays) * 100;
-    baselineWidthPercent = (baselineDuration / totalDays) * 100;
-  }
-  
-  // Calculate schedule variance
-  const scheduleVariance = (end && baselineEnd) 
-    ? differenceInDays(end, baselineEnd) 
-    : null;
-
-  const assignedNames = taskAssignments && taskAssignments.length > 0
-    ? taskAssignments.map(a => a.resource.displayName).join(", ")
-    : "—";
-
-  const handleSaveResources = () => {
-    if (!inviteAssignedRef.current) {
-      updateTaskResources.mutate({ 
-        taskId: task.id, 
-        resourceIds: selectedResourceIds,
-        allocations: resourceAllocations,
-        expectedUpdatedAt: task.updatedAt ? new Date(task.updatedAt).toISOString() : undefined,
-      });
-    }
-    inviteAssignedRef.current = false;
-    setIsEditingResources(false);
-  };
-
-  const progressPercent = task.progress || 0;
-  const outlineLevel = task.outlineLevel || 1;
-  const canIndent = outlineLevel < 6;
-  const canOutdent = outlineLevel > 1;
-
-  return (
-    <div 
-      className="flex border-b hover:bg-muted/30 transition-colors group"
-      data-testid={`gantt-task-${task.id}`}
-    >
-      {visibleColumns.includes('actions') && allowIndentation && (
-        <div className="w-10 flex-shrink-0 border-r p-1 flex items-center justify-center">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                data-testid={`button-task-actions-${task.id}`}
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem 
-                onClick={(e) => { e.stopPropagation(); onIndent(task); }}
-                disabled={!canIndent}
-                data-testid={`button-indent-task-${task.id}`}
-              >
-                <Indent className="h-4 w-4 mr-2" />
-                {canIndent ? `Indent (Level ${outlineLevel} → ${outlineLevel + 1})` : 'Indent (Max level reached)'}
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={(e) => { e.stopPropagation(); onOutdent(task); }}
-                disabled={!canOutdent}
-                data-testid={`button-outdent-task-${task.id}`}
-              >
-                <Outdent className="h-4 w-4 mr-2" />
-                {canOutdent ? `Outdent (Level ${outlineLevel} → ${outlineLevel - 1})` : 'Outdent (Top level reached)'}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
-      {visibleColumns.includes('outlineLevel') && (
-        <div className="w-14 flex-shrink-0 border-r px-1 py-0.5 flex items-center justify-center">
-          <Badge variant="outline" className="text-xs font-mono">
-            {outlineLevel}
-          </Badge>
-        </div>
-      )}
-      {visibleColumns.includes('task') && (
-        <div 
-          className={cn(
-            "w-64 flex-shrink-0 border-r py-1 cursor-pointer",
-            hasChildren && "font-semibold bg-muted/30"
-          )}
-          onClick={() => onTaskClick(task)}
-          style={{ paddingLeft: `${4 + (outlineLevel - 1) * 16}px`, paddingRight: '4px' }}
-        >
-          <div className="font-medium text-xs truncate flex items-center gap-1">
-            {hasChildren ? (
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-4 w-4 p-0 flex-shrink-0"
-                onClick={(e) => { e.stopPropagation(); onToggleCollapse(task.id); }}
-                data-testid={`task-toggle-${task.id}`}
-              >
-                {isCollapsed ? (
-                  <ChevronRight className="h-3 w-3" />
-                ) : (
-                  <ChevronDown className="h-3 w-3" />
-                )}
-              </Button>
-            ) : (
-              <span className="w-4 flex-shrink-0" />
-            )}
-            <span className="truncate">{task.name}</span>
-          </div>
-          <Link 
-            href={`/projects/${task.projectId}`}
-            onClick={(e) => e.stopPropagation()}
-            className="text-[10px] text-muted-foreground break-words hover:text-primary hover:underline block ml-5"
-            data-testid={`link-project-${task.projectId}`}
-          >
-            {getProjectName(task.projectId)}
-          </Link>
-        </div>
-      )}
-      {visibleColumns.includes('wbs') && (
-        <div className="w-20 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
-          {task.wbs || '—'}
-        </div>
-      )}
-      {visibleColumns.includes('startDate') && (
-        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
-          {precomputedDates?.startFormatted ?? (task.startDate ? format(parseISO(task.startDate), 'MM/dd/yy') : '—')}
-        </div>
-      )}
-      {visibleColumns.includes('endDate') && (
-        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
-          {precomputedDates?.endFormatted ?? (task.endDate ? format(parseISO(task.endDate), 'MM/dd/yy') : '—')}
-        </div>
-      )}
-      {visibleColumns.includes('duration') && (
-        <div className="w-20 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
-          {task.durationDays != null ? formatDuration(task.durationDays) : '—'}
-        </div>
-      )}
-      {visibleColumns.includes('progress') && (
-        <div className="w-14 flex-shrink-0 border-r px-1 py-0.5 text-xs text-center font-medium flex items-center justify-center">
-          {progressPercent}%
-        </div>
-      )}
-      {visibleColumns.includes('status') && (
-        <div className="w-28 flex-shrink-0 border-r px-1 py-0.5 text-xs flex items-center">
-          <Badge 
-            variant="outline" 
-            className={cn(
-              "text-[10px] py-0",
-              task.status === "Completed" && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-              task.status === "In Progress" && "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-              task.status === "Not Started" && "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
-            )}
-          >
-            {task.status || 'Not Started'}
-          </Badge>
-        </div>
-      )}
-      {visibleColumns.includes('priority') && (
-        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs flex items-center">
-          <Badge 
-            variant="outline" 
-            className={cn(
-              "text-[10px] py-0",
-              task.priority === "Critical" && "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
-              task.priority === "High" && "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-              task.priority === "Medium" && "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-              task.priority === "Low" && "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
-            )}
-          >
-            {task.priority || 'Medium'}
-          </Badge>
-        </div>
-      )}
-      {visibleColumns.includes('assignee') && (
-        <div className="w-32 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
-          {taskAssignments && taskAssignments.length > 0 ? (
-            <div className="flex -space-x-1.5">
-              {taskAssignments.slice(0, 3).map((a) => (
-                <MicrosoftContactCard
-                  key={a.id}
-                  displayName={a.resource.displayName}
-                  email={a.resource.email}
-                  title={a.resource.title}
-                  department={a.resource.department}
-                  phone={a.resource.phone}
-                  photoUrl={a.resource.photoUrl}
-                  side="top"
-                >
-                  <div 
-                    className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-[10px] font-semibold border border-background cursor-pointer hover:bg-primary/20 transition-colors hover:z-10"
-                    title={a.resource.displayName}
-                  >
-                    {a.resource.displayName.charAt(0).toUpperCase()}
-                  </div>
-                </MicrosoftContactCard>
-              ))}
-              {taskAssignments.length > 3 && (
-                <div 
-                  className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-muted-foreground text-[10px] font-medium border border-background"
-                  title={taskAssignments.slice(3).map(a => a.resource.displayName).join(", ")}
-                >
-                  +{taskAssignments.length - 3}
-                </div>
-              )}
-            </div>
-          ) : (
-            <span>—</span>
-          )}
-        </div>
-      )}
-      {visibleColumns.includes('resources') && (
-        <Dialog open={isEditingResources} onOpenChange={setIsEditingResources}>
-          <DialogTrigger asChild>
-            <div 
-              className="w-32 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground cursor-pointer hover:bg-muted/50 flex items-center"
-              onClick={(e) => { e.stopPropagation(); }}
-              data-testid={`resources-cell-${task.id}`}
-            >
-              {taskAssignments && taskAssignments.length > 0 ? (
-                <div className="flex -space-x-1.5">
-                  {taskAssignments.slice(0, 3).map((a) => (
-                    <MicrosoftContactCard
-                      key={a.id}
-                      displayName={a.resource.displayName}
-                      email={a.resource.email}
-                      title={a.resource.title}
-                      department={a.resource.department}
-                      phone={a.resource.phone}
-                      side="top"
-                      align="center"
-                    >
-                      <div 
-                        className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-[10px] font-semibold border border-background"
-                        data-testid={`resource-avatar-${a.id}`}
-                      >
-                        {a.resource.displayName.charAt(0).toUpperCase()}
-                      </div>
-                    </MicrosoftContactCard>
-                  ))}
-                  {taskAssignments.length > 3 && (
-                    <div 
-                      className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-muted-foreground text-[10px] font-medium border border-background"
-                      title={taskAssignments.slice(3).map(a => a.resource.displayName).join(", ")}
-                    >
-                      +{taskAssignments.length - 3}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <span>—</span>
-              )}
-            </div>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]" onClick={(e) => e.stopPropagation()}>
-            <DialogHeader>
-              <DialogTitle>Assign Resources</DialogTitle>
-              <DialogDescription>
-                Assign team members to "{task.name}"
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <ResourceAssignment
-                organizationId={organizationId}
-                selectedResourceIds={selectedResourceIds}
-                onSelectionChange={setSelectedResourceIds}
-                allocations={resourceAllocations}
-                onAllocationsChange={setResourceAllocations}
-                showAllocations={true}
-                label="Resources"
-                projectId={task.projectId}
-                projectName={getProjectName(task.projectId)}
-                taskId={task.id}
-                taskName={task.name}
-                onInviteAssigned={() => { inviteAssignedRef.current = true; }}
-              />
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEditingResources(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSaveResources}>
-                Save Changes
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-      {visibleColumns.includes('phase') && (
-        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center truncate">
-          {task.phase || '—'}
-        </div>
-      )}
-      {visibleColumns.includes('category') && (
-        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center truncate">
-          {task.category || '—'}
-        </div>
-      )}
-      {visibleColumns.includes('estimatedHours') && (
-        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center truncate" data-testid={`task-estimated-hours-${task.id}`}>
-          {task.estimatedHours ? `${task.estimatedHours}h` : '—'}
-        </div>
-      )}
-      {visibleColumns.includes('actualHours') && (
-        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center gap-1 truncate" data-testid={`task-actual-hours-${task.id}`}>
-          <span>{task.actualHours ? `${task.actualHours}h` : '—'}</span>
-          {task.estimatedHours && task.actualHours && (() => {
-            const variance = Number(task.actualHours) - Number(task.estimatedHours);
-            return variance > 0 ? (
-              <span className="text-[10px] font-medium text-rose-600 dark:text-rose-400">+{variance}h</span>
-            ) : (
-              <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">{variance}h</span>
-            );
-          })()}
-        </div>
-      )}
-      {visibleColumns.includes('remainingHours') && (
-        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center truncate" data-testid={`task-remaining-hours-${task.id}`}>
-          {task.remainingHours ? `${task.remainingHours}h` : '—'}
-        </div>
-      )}
-      {visibleColumns.includes('timesheetBlocked') && (
-        <div className="w-20 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center justify-center" data-testid={`task-timesheet-blocked-${task.id}`}>
-          {task.timesheetBlocked ? <LockIcon className="h-3 w-3 text-amber-500" /> : <span className="text-muted-foreground/50">—</span>}
-        </div>
-      )}
-      <div className="flex-1 relative px-1 py-0.5 min-h-[28px]">
-        {/* Baseline bar (rendered first, below actual bar) */}
-        {hasBaseline && baselineStart && baselineEnd && (
-          <div
-            className="absolute rounded-sm cursor-pointer border border-dashed border-orange-400 dark:border-orange-500 bg-orange-100/50 dark:bg-orange-900/30"
-            style={{
-              left: `${Math.max(0, baselineLeftPercent)}%`,
-              width: `${Math.min(100 - baselineLeftPercent, baselineWidthPercent)}%`,
-              minWidth: '20px',
-              top: '18px',
-              height: '8px'
-            }}
-            onClick={() => onTaskClick(task)}
-            title={`Baseline: ${format(baselineStart, 'MMM d')} - ${format(baselineEnd, 'MMM d')}`}
-          />
-        )}
-        
-        {/* Actual task bar */}
-        {hasValidDates ? (
-          <div
-            className={cn(
-              "absolute rounded overflow-hidden cursor-pointer",
-              task.status === "Completed" ? "bg-emerald-200 dark:bg-emerald-900" :
-              task.status === "In Progress" ? "bg-blue-200 dark:bg-blue-900" : "bg-slate-200 dark:bg-slate-700"
-            )}
-            style={{
-              left: `${Math.max(0, leftPercent)}%`,
-              width: `${Math.min(100 - leftPercent, widthPercent)}%`,
-              minWidth: '30px',
-              top: '4px',
-              height: '14px'
-            }}
-            onClick={() => onTaskClick(task)}
-          >
-            <div 
-              className={cn(
-                "h-full transition-all",
-                task.status === "Completed" ? "bg-emerald-500" :
-                task.status === "In Progress" ? "bg-blue-500" : "bg-slate-400"
-              )}
-              style={{ width: `${progressPercent}%` }}
-            />
-            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-foreground">
-              {progressPercent}%
-            </span>
-          </div>
-        ) : (
-          <div className="h-full flex items-center" onClick={() => onTaskClick(task)}>
-            <Badge variant="outline" className="text-[10px] py-0 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
-              <CalendarIcon className="h-2.5 w-2.5 mr-0.5" />
-              No dates
-            </Badge>
-          </div>
-        )}
-        
-        {/* Schedule variance indicator */}
-        {scheduleVariance !== null && scheduleVariance !== 0 && (
-          <div 
-            className={cn(
-              "absolute right-0.5 top-0.5 text-[9px] px-0.5 rounded",
-              scheduleVariance > 0 
-                ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400" 
-                : "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400"
-            )}
-            title={scheduleVariance > 0 ? `${scheduleVariance} days late` : `${Math.abs(scheduleVariance)} days early`}
-          >
-            {scheduleVariance > 0 ? `+${scheduleVariance}d` : `${scheduleVariance}d`}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function GanttView({ tasks, projects, onTaskClick, embedded = false, organizationId = null }: { tasks: Task[]; projects: any[]; onTaskClick: (task: Task) => void; embedded?: boolean; organizationId?: number | null }) {
-  const today = new Date();
-  const [zoomLevel, setZoomLevel] = useState<TaskZoomLevel>('month');
-  const [visibleColumns, setVisibleColumns] = useState<TaskGanttColumn[]>(['actions', 'outlineLevel', 'task', 'startDate', 'endDate', 'progress', 'resources', 'estimatedHours', 'actualHours']);
-  const updateTask = useUpdateTask();
-  const { toast } = useToast();
-  const { data: orgTaskAssignments } = useOrgFullTaskAssignments(organizationId);
-  
-  const toggleColumn = (col: TaskGanttColumn) => {
-    if (col === 'task' || col === 'actions') return;
-    setVisibleColumns(prev => 
-      prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
-    );
-  };
-
-  const handleIndent = (task: Task) => {
-    const currentLevel = Math.max(1, Math.min(6, task.outlineLevel || 1));
-    const newLevel = Math.min(6, currentLevel + 1);
-    if (currentLevel >= 6 || newLevel > 6) {
-      toast({ title: "Cannot indent", description: "Maximum outline level (6) reached", variant: "destructive" });
-      return;
-    }
-    updateTask.mutate({ 
-      id: task.id, 
-      projectId: task.projectId, 
-      outlineLevel: newLevel 
-    }, {
-      onSuccess: () => {
-        toast({ title: "Updated", description: `Task indented to level ${newLevel}` });
-      }
-    });
-  };
-
-  const handleOutdent = (task: Task) => {
-    const currentLevel = Math.max(1, Math.min(6, task.outlineLevel || 1));
-    const newLevel = Math.max(1, currentLevel - 1);
-    if (currentLevel <= 1 || newLevel < 1) {
-      toast({ title: "Cannot outdent", description: "Minimum outline level (1) reached", variant: "destructive" });
-      return;
-    }
-    updateTask.mutate({ 
-      id: task.id, 
-      projectId: task.projectId, 
-      outlineLevel: newLevel 
-    }, {
-      onSuccess: () => {
-        toast({ title: "Updated", description: `Task outdented to level ${newLevel}` });
-      }
-    });
-  };
-
-  // Collapse/expand state management
-  const [collapsedTasks, setCollapsedTasks] = useState<Set<number>>(new Set());
-
-  const toggleCollapse = (taskId: number) => {
-    setCollapsedTasks(prev => {
-      const next = new Set(prev);
-      if (next.has(taskId)) {
-        next.delete(taskId);
-      } else {
-        next.add(taskId);
-      }
-      return next;
-    });
-  };
-
-  // Determine which tasks have children and filter visible tasks
-  // Uses tasks in their original order to preserve hierarchy
-  const { visibleTasks, taskHasChildren } = useMemo(() => {
-    const taskHasChildren: Record<number, boolean> = {};
-
-    // First pass: determine which tasks have children based on outline levels
-    for (let i = 0; i < tasks.length; i++) {
-      const currentTask = tasks[i];
-      const currentLevel = currentTask.outlineLevel || 1;
-      
-      if (i + 1 < tasks.length) {
-        const nextTask = tasks[i + 1];
-        const nextLevel = nextTask.outlineLevel || 1;
-        if (nextLevel > currentLevel) {
-          taskHasChildren[currentTask.id] = true;
-        }
-      }
-    }
-
-    // Second pass: filter out collapsed children
-    const visibleTasks: Task[] = [];
-    let skipUntilLevel = -1;
-
-    for (const task of tasks) {
-      const taskLevel = task.outlineLevel || 1;
-
-      if (skipUntilLevel > 0 && taskLevel > skipUntilLevel) {
-        continue;
-      } else {
-        skipUntilLevel = -1;
-      }
-
-      visibleTasks.push(task);
-
-      if (collapsedTasks.has(task.id) && taskHasChildren[task.id]) {
-        skipUntilLevel = taskLevel;
-      }
-    }
-
-    return { visibleTasks, taskHasChildren };
-  }, [tasks, collapsedTasks]);
-
-  const taskParsedDatesMap = useMemo(() => {
-    const map = new Map<number, { start: Date | null; end: Date | null; baselineStart: Date | null; baselineEnd: Date | null; startFormatted: string; endFormatted: string }>();
-    for (const t of tasks) {
-      const start = t.startDate ? parseISO(t.startDate) : null;
-      const end = t.endDate ? parseISO(t.endDate) : null;
-      const baselineStart = t.baselineStartDate ? parseISO(t.baselineStartDate) : null;
-      const baselineEnd = t.baselineEndDate ? parseISO(t.baselineEndDate) : null;
-      map.set(t.id, {
-        start,
-        end,
-        baselineStart,
-        baselineEnd,
-        startFormatted: start ? format(start, 'MM/dd/yy') : '—',
-        endFormatted: end ? format(end, 'MM/dd/yy') : '—',
-      });
-    }
-    return map;
-  }, [tasks]);
-
-  const { minDate, maxDate, dateRange, autoZoomLevel } = useMemo(() => {
-    const tasksWithDates = tasks.filter(t => {
-      const parsed = taskParsedDatesMap.get(t.id);
-      return parsed?.start && parsed?.end;
-    });
-    
-    let minDate: Date;
-    let maxDate: Date;
-    
-    if (tasksWithDates.length > 0) {
-      const dates = tasksWithDates.flatMap(t => {
-        const parsed = taskParsedDatesMap.get(t.id)!;
-        return [parsed.start!, parsed.end!];
-      });
-      const earliestDate = new Date(Math.min(...dates.map(d => d.getTime())));
-      const latestDate = new Date(Math.max(...dates.map(d => d.getTime())));
-      
-      const totalDays = differenceInDays(latestDate, earliestDate);
-      let autoZoom: TaskZoomLevel = 'month';
-      if (totalDays <= 14) autoZoom = 'day';
-      else if (totalDays <= 60) autoZoom = 'week';
-      else if (totalDays <= 180) autoZoom = 'month';
-      else if (totalDays <= 365) autoZoom = 'quarter';
-      else if (totalDays <= 730) autoZoom = 'year';
-      else autoZoom = '5year';
-      
-      minDate = startOfMonth(earliestDate);
-      maxDate = endOfMonth(latestDate);
-      
-      return { minDate, maxDate, dateRange: eachDayOfInterval({ start: minDate, end: maxDate }), autoZoomLevel: autoZoom };
-    } else {
-      minDate = startOfMonth(today);
-      maxDate = endOfMonth(addDays(today, 60));
-      return { minDate, maxDate, dateRange: eachDayOfInterval({ start: minDate, end: maxDate }), autoZoomLevel: 'month' as TaskZoomLevel };
-    }
-  }, [tasks, taskParsedDatesMap, today]);
-
-  useEffect(() => {
-    setZoomLevel(autoZoomLevel);
-  }, [autoZoomLevel]);
-
-  const { adjustedMinDate, adjustedMaxDate, adjustedDateRange } = useMemo(() => {
-    let adjMinDate = minDate;
-    let adjMaxDate = maxDate;
-    
-    if (zoomLevel === 'quarter') {
-      adjMinDate = new Date(minDate.getFullYear(), Math.floor(minDate.getMonth() / 3) * 3, 1);
-      adjMaxDate = new Date(maxDate.getFullYear(), Math.ceil((maxDate.getMonth() + 1) / 3) * 3, 0);
-    } else if (zoomLevel === 'year') {
-      adjMinDate = new Date(minDate.getFullYear(), 0, 1);
-      adjMaxDate = new Date(maxDate.getFullYear(), 11, 31);
-    } else if (zoomLevel === '5year') {
-      const startYear = minDate.getFullYear();
-      adjMinDate = new Date(startYear, 0, 1);
-      adjMaxDate = new Date(startYear + 4, 11, 31);
-    }
-    
-    const adjustedDateRange = eachDayOfInterval({ start: adjMinDate, end: adjMaxDate });
-    return { adjustedMinDate: adjMinDate, adjustedMaxDate: adjMaxDate, adjustedDateRange };
-  }, [minDate, maxDate, zoomLevel]);
-
-  const { filteredDates, dateFormat, columnWidth } = useMemo(() => {
-    switch (zoomLevel) {
-      case 'day':
-        return { filteredDates: adjustedDateRange, dateFormat: 'd', columnWidth: 'min-w-[40px]' };
-      case 'week':
-        return { filteredDates: adjustedDateRange.filter((_, i) => i % 7 === 0), dateFormat: 'MMM d', columnWidth: 'min-w-[100px]' };
-      case 'month':
-        return { filteredDates: adjustedDateRange.filter((date) => date.getDate() === 1), dateFormat: 'MMM yyyy', columnWidth: 'min-w-[100px]' };
-      case 'quarter':
-        return { filteredDates: adjustedDateRange.filter((date) => date.getDate() === 1 && date.getMonth() % 3 === 0), dateFormat: 'QQQ yyyy', columnWidth: 'min-w-[80px]' };
-      case 'year':
-        return { filteredDates: adjustedDateRange.filter((date) => date.getDate() === 1 && date.getMonth() === 0), dateFormat: 'yyyy', columnWidth: 'min-w-[80px]' };
-      case '5year':
-        return { filteredDates: adjustedDateRange.filter((date) => date.getDate() === 1 && date.getMonth() === 0), dateFormat: 'yyyy', columnWidth: 'min-w-[60px]' };
-      default:
-        return { filteredDates: adjustedDateRange.filter((_, i) => i % 7 === 0), dateFormat: 'MMM d', columnWidth: 'min-w-[100px]' };
-    }
-  }, [adjustedDateRange, zoomLevel]);
-
-  const columnsTotalWidth = useMemo(() => {
-    let w = 0;
-    if (visibleColumns.includes('actions')) w += 40;
-    if (visibleColumns.includes('outlineLevel')) w += 56;
-    if (visibleColumns.includes('task')) w += 256;
-    if (visibleColumns.includes('startDate')) w += 96;
-    if (visibleColumns.includes('endDate')) w += 96;
-    if (visibleColumns.includes('progress')) w += 56;
-    if (visibleColumns.includes('resources')) w += 128;
-    if (visibleColumns.includes('estimatedHours')) w += 96;
-    if (visibleColumns.includes('actualHours')) w += 96;
-    if (visibleColumns.includes('remainingHours')) w += 96;
-    if (visibleColumns.includes('timesheetBlocked')) w += 80;
-    return w;
-  }, [visibleColumns]);
-
-  const handleZoomIn = () => {
-    const idx = taskZoomLevels.indexOf(zoomLevel);
-    if (idx > 0) setZoomLevel(taskZoomLevels[idx - 1]);
-  };
-
-  const handleZoomOut = () => {
-    const idx = taskZoomLevels.indexOf(zoomLevel);
-    if (idx < taskZoomLevels.length - 1) setZoomLevel(taskZoomLevels[idx + 1]);
-  };
-
-  if (tasks.length === 0) {
-    if (embedded) {
-      return (
-        <div className="py-8 text-center text-muted-foreground">
-          No tasks in this group.
-        </div>
-      );
-    }
-    return (
-      <Card>
-        <CardContent className="py-12 text-center text-muted-foreground">
-          No tasks yet. Add your first task to see the Gantt chart.
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const zoomControls = (
-    <div className="flex items-center justify-between gap-4 p-3 border-b bg-muted/30 flex-wrap">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-muted-foreground">
-          View: {taskZoomLabels[zoomLevel]}
-        </span>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1">
-              <Columns3 className="h-3.5 w-3.5" />
-              Columns
-              <ChevronDown className="h-3 w-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {TASK_GANTT_COLUMNS.map(col => (
-              <DropdownMenuItem 
-                key={col.id}
-                onClick={() => toggleColumn(col.id)}
-                className="gap-2"
-              >
-                <Checkbox 
-                  checked={visibleColumns.includes(col.id)} 
-                  disabled={col.id === 'task' || col.id === 'actions'}
-                />
-                {col.label || col.id}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <div className="flex items-center gap-1">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={handleZoomIn}
-          disabled={taskZoomLevels.indexOf(zoomLevel) === 0}
-          data-testid="button-task-gantt-zoom-in"
-        >
-          <ZoomIn className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={handleZoomOut}
-          disabled={taskZoomLevels.indexOf(zoomLevel) === taskZoomLevels.length - 1}
-          data-testid="button-task-gantt-zoom-out"
-        >
-          <ZoomOut className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
+  const renderGantt = (projectId: number, tasks: Task[]) => (
+    <Suspense fallback={<div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+      <ProjectGanttView
+        tasks={sortByTaskIndex(tasks)}
+        projectId={projectId}
+        organizationId={organizationId}
+        onTaskClick={onTaskClick}
+        onDependencyLineClick={onTaskClick}
+        onCreateTask={(name) => {
+          const todayStr = format(new Date(), 'yyyy-MM-dd');
+          createTask.mutate({
+            projectId,
+            name,
+            startDate: todayStr,
+            endDate: calculateEndDateFromWorkingDays(todayStr, 1),
+            durationDays: 1,
+            status: DEFAULT_TASK_STATUS,
+            progress: 0,
+          });
+        }}
+      />
+    </Suspense>
   );
 
-  const ganttContent = (
-    <div className="overflow-x-auto">
-      <div style={{ minWidth: `${columnsTotalWidth + 400}px` }}>
-        {!embedded && zoomControls}
-        <div className="flex border-b bg-muted/50 sticky top-0 z-10">
-          {visibleColumns.includes('actions') && !embedded && (
-            <div className="w-10 flex-shrink-0 border-r px-1 py-1"></div>
-          )}
-          {visibleColumns.includes('outlineLevel') && (
-            <div className="w-14 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground text-center">Level</div>
-          )}
-          {visibleColumns.includes('task') && (
-            <div className="w-64 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Task</div>
-          )}
-          {visibleColumns.includes('wbs') && (
-            <div className="w-20 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">WBS</div>
-          )}
-          {visibleColumns.includes('startDate') && (
-            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Start</div>
-          )}
-          {visibleColumns.includes('endDate') && (
-            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">End</div>
-          )}
-          {visibleColumns.includes('duration') && (
-            <div className="w-20 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Duration</div>
-          )}
-          {visibleColumns.includes('progress') && (
-            <div className="w-14 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground text-center">%</div>
-          )}
-          {visibleColumns.includes('status') && (
-            <div className="w-28 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Status</div>
-          )}
-          {visibleColumns.includes('priority') && (
-            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Priority</div>
-          )}
-          {visibleColumns.includes('assignee') && (
-            <div className="w-32 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Assignee</div>
-          )}
-          {visibleColumns.includes('resources') && (
-            <div className="w-32 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Resources</div>
-          )}
-          {visibleColumns.includes('phase') && (
-            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Phase</div>
-          )}
-          {visibleColumns.includes('category') && (
-            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Category</div>
-          )}
-          {visibleColumns.includes('estimatedHours') && (
-            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Est. Hours</div>
-          )}
-          {visibleColumns.includes('actualHours') && (
-            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Actual Hours</div>
-          )}
-          {visibleColumns.includes('remainingHours') && (
-            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Rem. Hours</div>
-          )}
-          {visibleColumns.includes('timesheetBlocked') && (
-            <div className="w-20 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground text-center">TS Blocked</div>
-          )}
-          <div className="flex-1 flex">
-            {filteredDates.map((date, i) => (
-              <div key={i} className={cn("flex-1 px-1 py-1 text-center text-xs font-medium text-muted-foreground border-l", columnWidth)}>
-                {format(date, dateFormat)}
-              </div>
-            ))}
-          </div>
-        </div>
-        {visibleTasks.map(task => (
-          <GanttTaskRow
-            key={task.id}
-            task={task}
-            projects={projects}
-            onTaskClick={onTaskClick}
-            minDate={adjustedMinDate}
-            maxDate={adjustedMaxDate}
-            visibleColumns={visibleColumns}
-            organizationId={organizationId}
-            onIndent={handleIndent}
-            onOutdent={handleOutdent}
-            hasChildren={!!taskHasChildren[task.id]}
-            isCollapsed={collapsedTasks.has(task.id)}
-            onToggleCollapse={toggleCollapse}
-            allowIndentation={!embedded}
-            preloadedAssignments={orgTaskAssignments?.filter(a => a.taskId === task.id)}
-            precomputedDates={taskParsedDatesMap.get(task.id)}
-          />
-        ))}
-      </div>
-    </div>
-  );
+  if (group.projectId != null) {
+    return renderGantt(group.projectId, group.tasks);
+  }
 
-  const taskGanttRenderCountRef = useRef(0);
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      taskGanttRenderCountRef.current += 1;
-      if (taskGanttRenderCountRef.current % 20 === 1) {
-        performance.mark('task-gantt-render-start');
-        requestAnimationFrame(() => {
-          performance.mark('task-gantt-render-end');
-          performance.measure('task-gantt-render', 'task-gantt-render-start', 'task-gantt-render-end');
-        });
-      }
-    }
+  const subGroups = new Map<number, Task[]>();
+  group.tasks.forEach(task => {
+    if (!subGroups.has(task.projectId)) subGroups.set(task.projectId, []);
+    subGroups.get(task.projectId)!.push(task);
   });
 
-  if (embedded) {
-    return <div className="border rounded-md">{ganttContent}</div>;
-  }
-
   return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-0">
-        {ganttContent}
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      {Array.from(subGroups.entries()).map(([projectId, tasks]) => {
+        const project = projects.find(p => p.id === projectId);
+        return (
+          <div key={projectId}>
+            <div className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+              <FolderKanban className="h-3.5 w-3.5" />
+              {project?.name || "Unknown Project"}
+            </div>
+            {renderGantt(projectId, tasks)}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -2317,10 +1417,12 @@ function KanbanView({
   organizationId?: number | null;
 }) {
   const { data: orgTaskAssignments } = useOrgFullTaskAssignments(organizationId);
+  const { data: orgResources } = useResources(organizationId);
+  const [filterResourceId, setFilterResourceId] = useState<number | null>(null);
   const columns = [
-    { id: "Not Started", label: "Not Started", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
-    { id: "In Progress", label: "In Progress", color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" },
-    { id: "Completed", label: "Completed", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200" },
+    { id: TASK_STATUS.NOT_STARTED, label: TASK_STATUS.NOT_STARTED, color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
+    { id: TASK_STATUS.IN_PROGRESS, label: TASK_STATUS.IN_PROGRESS, color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" },
+    { id: TASK_STATUS.COMPLETED, label: TASK_STATUS.COMPLETED, color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200" },
   ];
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -2330,6 +1432,12 @@ function KanbanView({
       activationConstraint: {
         distance: 8,
       },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5,
+      },
     })
   );
 
@@ -2337,9 +1445,17 @@ function KanbanView({
     return projects.find(p => p.id === projectId)?.name || "Unknown";
   };
 
+  const filteredTasks = useMemo(() => {
+    if (filterResourceId === null) return tasks;
+    return tasks.filter(t => {
+      const assignments = orgTaskAssignments?.filter(a => a.taskId === t.id);
+      return assignments && assignments.some(a => a.resourceId === filterResourceId);
+    });
+  }, [tasks, filterResourceId, orgTaskAssignments]);
+
   const handleDragStart = (event: DragStartEvent) => {
     const taskId = Number(event.active.id);
-    const task = tasks.find(t => t.id === taskId);
+    const task = filteredTasks.find(t => t.id === taskId);
     if (task) setActiveTask(task);
   };
 
@@ -2350,51 +1466,97 @@ function KanbanView({
     
     const taskId = Number(active.id);
     const newStatus = String(over.id);
-    const task = tasks.find(t => t.id === taskId);
+    const task = filteredTasks.find(t => t.id === taskId);
     
     if (task && task.status !== newStatus && columns.some(c => c.id === newStatus)) {
       onStatusChange(taskId, newStatus);
     }
   };
 
+  const handleKeyboardMove = useCallback((taskId: number, direction: 'left' | 'right') => {
+    const task = filteredTasks.find(t => t.id === taskId);
+    if (!task) return;
+    const currentStatus = task.status || "Not Started";
+    const currentIdx = columns.findIndex(c => c.id === currentStatus);
+    if (currentIdx === -1) return;
+    const newIdx = direction === 'left' ? currentIdx - 1 : currentIdx + 1;
+    if (newIdx < 0 || newIdx >= columns.length) return;
+    onStatusChange(taskId, columns[newIdx].id);
+  }, [filteredTasks, columns, onStatusChange]);
+
   return (
-    <DndContext 
-      sensors={sensors} 
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {columns.map(column => (
-          <KanbanColumn
-            key={column.id}
-            column={column}
-            tasks={tasks.filter(t => (t.status || "Not Started") === column.id)}
-            getProjectName={getProjectName}
-            onTaskClick={onTaskClick}
-            onDeleteTask={onDeleteTask}
-            orgTaskAssignments={orgTaskAssignments}
-          />
-        ))}
-      </div>
-      <DragOverlay>
-        {activeTask && (
-          <div className="opacity-80">
-            <Card className="shadow-lg border-primary">
-              <CardContent className="p-4">
-                <div className="font-medium text-sm">{activeTask.name}</div>
-                <Link 
-                  href={`/projects/${activeTask.projectId}`}
-                  className="text-xs text-muted-foreground mt-1 hover:text-primary hover:underline block"
-                >
-                  {getProjectName(activeTask.projectId)}
-                </Link>
-              </CardContent>
-            </Card>
+    <div className="space-y-3">
+      {orgResources && orgResources.length > 0 && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Resource:</span>
+          <Select 
+            value={filterResourceId?.toString() || "all"} 
+            onValueChange={(v) => setFilterResourceId(v === "all" ? null : Number(v))}
+          >
+            <SelectTrigger className="h-8 w-full sm:w-[180px] text-xs">
+              <SelectValue placeholder="All Resources" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Resources</SelectItem>
+              {[...orgResources].sort((a, b) => a.displayName.localeCompare(b.displayName)).map(r => (
+                <SelectItem key={r.id} value={r.id.toString()}>{r.displayName}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className="text-xs text-muted-foreground ml-auto">
+            {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+      )}
+      {filteredTasks.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Columns3 className="h-12 w-12 text-muted-foreground/40 mb-3" />
+          <p className="text-sm font-medium text-muted-foreground">No tasks to display</p>
+          <p className="text-xs text-muted-foreground/70 mt-1">
+            {filterResourceId !== null ? "Try clearing the resource filter or add tasks to this group." : "Tasks will appear here once they are created."}
+          </p>
+        </div>
+      ) : (
+        <DndContext 
+          sensors={sensors} 
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {columns.map(column => (
+              <KanbanColumn
+                key={column.id}
+                column={column}
+                tasks={filteredTasks.filter(t => (t.status || DEFAULT_TASK_STATUS) === column.id)}
+                getProjectName={getProjectName}
+                onTaskClick={onTaskClick}
+                onDeleteTask={onDeleteTask}
+                orgTaskAssignments={orgTaskAssignments}
+                onKeyboardMove={handleKeyboardMove}
+              />
+            ))}
           </div>
-        )}
-      </DragOverlay>
-    </DndContext>
+          <DragOverlay>
+            {activeTask && (
+              <div className="opacity-80">
+                <Card className="shadow-lg border-primary">
+                  <CardContent className="p-4">
+                    <div className="font-medium text-sm">{activeTask.name}</div>
+                    <Link 
+                      href={`/projects/${activeTask.projectId}`}
+                      className="text-xs text-muted-foreground mt-1 hover:text-primary hover:underline block"
+                    >
+                      {getProjectName(activeTask.projectId)}
+                    </Link>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </DragOverlay>
+        </DndContext>
+      )}
+    </div>
   );
 }
 
@@ -2405,6 +1567,7 @@ function KanbanColumn({
   onTaskClick,
   onDeleteTask,
   orgTaskAssignments,
+  onKeyboardMove,
 }: { 
   column: { id: string; label: string; color: string }; 
   tasks: Task[]; 
@@ -2412,6 +1575,7 @@ function KanbanColumn({
   onTaskClick: (task: Task) => void;
   onDeleteTask: (task: Task) => void;
   orgTaskAssignments?: (TaskResourceAssignment & { resource: Resource })[];
+  onKeyboardMove?: (taskId: number, direction: 'left' | 'right') => void;
 }) {
   const { setNodeRef, isOver } = useSortable({
     id: column.id,
@@ -2425,8 +1589,9 @@ function KanbanColumn({
         isOver && "bg-primary/5 ring-2 ring-primary ring-dashed"
       )}
     >
-      <div className={cn("rounded-lg p-3 font-semibold", column.color)}>
-        {column.label} ({tasks.length})
+      <div className={cn("rounded-lg p-3 font-semibold flex items-center justify-between", column.color)}>
+        <span>{column.label}</span>
+        <Badge variant="secondary" className="text-xs font-medium ml-2">{tasks.length}</Badge>
       </div>
       <div className="space-y-3">
         {tasks.map(task => (
@@ -2437,6 +1602,7 @@ function KanbanColumn({
             onTaskClick={onTaskClick}
             onDeleteTask={onDeleteTask}
             preloadedAssignments={orgTaskAssignments?.filter(a => a.taskId === task.id)}
+            onKeyboardMove={onKeyboardMove}
           />
         ))}
         {tasks.length === 0 && (
@@ -2455,12 +1621,14 @@ function DraggableTaskCard({
   onTaskClick,
   onDeleteTask,
   preloadedAssignments,
+  onKeyboardMove,
 }: { 
   task: Task; 
   getProjectName: (id: number) => string;
   onTaskClick: (task: Task) => void;
   onDeleteTask: (task: Task) => void;
   preloadedAssignments?: (TaskResourceAssignment & { resource: Resource })[];
+  onKeyboardMove?: (taskId: number, direction: 'left' | 'right') => void;
 }) {
   const taskAssignments = preloadedAssignments;
   const {
@@ -2479,6 +1647,18 @@ function DraggableTaskCard({
     transition,
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (onKeyboardMove && (e.ctrlKey || e.metaKey)) {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        onKeyboardMove(task.id, 'left');
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        onKeyboardMove(task.id, 'right');
+      }
+    }
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -2486,13 +1666,21 @@ function DraggableTaskCard({
       {...attributes}
       {...listeners}
       className={cn(isDragging && "opacity-50")}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
     >
       <Card 
-        className="cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing group relative"
+        className={cn(
+          "cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing group relative border-l-[3px]",
+          task.priority === 'Critical' ? "border-l-rose-500" :
+          task.priority === 'High' ? "border-l-amber-500" :
+          task.priority === 'Medium' ? "border-l-blue-400" :
+          "border-l-slate-300 dark:border-l-slate-600"
+        )}
         onClick={() => onTaskClick(task)}
         data-testid={`kanban-task-${task.id}`}
       >
-        <div className="absolute top-2 right-2 invisible group-hover:visible z-10">
+        <div className="absolute top-2 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:pointer-events-none md:group-hover:pointer-events-auto transition-opacity z-10">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -2523,15 +1711,26 @@ function DraggableTaskCard({
             {task.timesheetBlocked && <LockIcon className="h-3 w-3 text-amber-500 flex-shrink-0" />}
             <span className="truncate">{task.name}</span>
           </div>
-          <Link 
-            href={`/projects/${task.projectId}`}
-            onClick={(e) => e.stopPropagation()}
-            className="text-xs text-muted-foreground mt-1 hover:text-primary hover:underline block break-words"
-            title={getProjectName(task.projectId)}
-            data-testid={`kanban-link-project-${task.projectId}`}
-          >
-            {getProjectName(task.projectId)}
-          </Link>
+          <div className="flex items-center gap-1 mt-1 flex-wrap">
+            <Link 
+              href={`/projects/${task.projectId}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-xs text-muted-foreground hover:text-primary hover:underline break-words"
+              title={getProjectName(task.projectId)}
+              data-testid={`kanban-link-project-${task.projectId}`}
+            >
+              {getProjectName(task.projectId)}
+            </Link>
+            {task.priority && (task.priority === 'Critical' || task.priority === 'High') && (
+              <Badge variant="secondary" className={cn(
+                "text-[10px] py-0 ml-auto",
+                task.priority === 'Critical' ? "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300" :
+                "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300"
+              )}>
+                {task.priority}
+              </Badge>
+            )}
+          </div>
           {taskAssignments && taskAssignments.length > 0 && (
             <div className="flex items-center gap-1 mt-2">
               <span className="text-xs text-muted-foreground">Assigned:</span>
@@ -2571,7 +1770,10 @@ function DraggableTaskCard({
               {task.progress || 0}%
             </Badge>
             {task.endDate && (
-              <span className="text-xs text-muted-foreground">
+              <span className={cn(
+                "text-xs",
+                task.status !== 'Completed' && parseISO(task.endDate) < new Date(new Date().toDateString()) ? "text-destructive font-medium" : "text-muted-foreground"
+              )}>
                 Due: {format(parseISO(task.endDate), 'MMM d')}
               </span>
             )}

@@ -9,14 +9,24 @@ import {
   userHasOrgAccess,
   getUserOrgRole,
   requireEmailVerified,
+  isTeamMemberInOrg,
+  getTeamMemberProjectIds,
+  getUserResourceIds,
 } from "./helpers";
 import { createTaskAssignmentNotification, createTaskUnassignmentNotification, createRiskAssignmentNotification } from "../services/notificationEngine";
+import { sendTaskAssignmentNotificationEmail } from "../services/email";
+import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
 
 export function registerResourceRoutes(app: Express) {
   // ==================== RESOURCES ====================
   
   // Get all resources for an organization
-  app.get('/api/resources', async (req, res) => {
+  apiRoute(app, 'get', '/api/resources', {
+    tag: 'Resources',
+    summary: 'List resources',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Resources list', arrOf('Resource')), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -27,7 +37,24 @@ export function registerResourceRoutes(app: Express) {
       if (!await userHasOrgAccess(userId, organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
-      const resourceList = await storage.getResources(organizationId);
+      let resourceList = await storage.getResources(organizationId);
+
+      if (await isTeamMemberInOrg(userId, organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, organizationId));
+        const allAssignments = await storage.getTaskResourceAssignmentsByOrgId(organizationId);
+        const orgTasks = await storage.getTasksByOrganization(organizationId);
+        const allowedTaskIds = new Set(orgTasks.filter(t => allowedProjectIds.has(t.projectId)).map(t => t.id));
+        const allowedResourceIds = new Set<number>();
+        for (const a of allAssignments) {
+          if (allowedTaskIds.has(a.taskId)) {
+            allowedResourceIds.add(a.resourceId);
+          }
+        }
+        const userResIds = await getUserResourceIds(userId, organizationId);
+        for (const id of userResIds) allowedResourceIds.add(id);
+        resourceList = resourceList.filter(r => allowedResourceIds.has(r.id));
+      }
+
       res.json(resourceList);
     } catch (err) {
       console.error("Error fetching resources:", err);
@@ -37,7 +64,12 @@ export function registerResourceRoutes(app: Express) {
   });
 
   // Find potential duplicate resources for matching and merging
-  app.get('/api/resources/duplicates', async (req, res) => {
+  apiRoute(app, 'get', '/api/resources/duplicates', {
+    tag: 'Resources',
+    summary: 'Find duplicate resources',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Duplicate groups', { type: 'object' }), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -49,7 +81,23 @@ export function registerResourceRoutes(app: Express) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
       
-      const allResources = await storage.getResources(organizationId);
+      let allResources = await storage.getResources(organizationId);
+
+      if (await isTeamMemberInOrg(userId, organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, organizationId));
+        const allAssignments = await storage.getTaskResourceAssignmentsByOrgId(organizationId);
+        const orgTasks = await storage.getTasksByOrganization(organizationId);
+        const allowedTaskIds = new Set(orgTasks.filter(t => allowedProjectIds.has(t.projectId)).map(t => t.id));
+        const allowedResourceIds = new Set<number>();
+        for (const a of allAssignments) {
+          if (allowedTaskIds.has(a.taskId)) {
+            allowedResourceIds.add(a.resourceId);
+          }
+        }
+        const userResIds = await getUserResourceIds(userId, organizationId);
+        for (const id of userResIds) allowedResourceIds.add(id);
+        allResources = allResources.filter(r => allowedResourceIds.has(r.id));
+      }
       
       // Normalize string for comparison (remove accents, lowercase)
       const normalize = (str: string): string => {
@@ -171,7 +219,12 @@ export function registerResourceRoutes(app: Express) {
   });
 
   // Merge two resources - keep primary, transfer assignments from secondary, delete secondary
-  app.post('/api/resources/merge', async (req, res) => {
+  apiRoute(app, 'post', '/api/resources/merge', {
+    tag: 'Resources',
+    summary: 'Merge duplicate resources',
+    requestBody: body({ type: 'object', properties: { primaryId: { type: 'integer' }, duplicateIds: { type: 'array', items: { type: 'integer' } } } }),
+    responses: { ...r200('Resources merged', ref('Resource')), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -223,7 +276,12 @@ export function registerResourceRoutes(app: Express) {
 
   // Get all resource assignments for an organization (for Assignments View)
   // NOTE: This route MUST come before /api/resources/:id to avoid "assignments" being treated as an ID
-  app.get('/api/resources/assignments', async (req, res) => {
+  apiRoute(app, 'get', '/api/resources/assignments', {
+    tag: 'Resources',
+    summary: 'Get resource assignments across all projects',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Assignments', arrOf('Resource')), ...authRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -236,7 +294,7 @@ export function registerResourceRoutes(app: Express) {
       }
 
       // Get all task resource assignments with related data
-      const assignments = await db.select({
+      let assignments = await db.select({
         assignmentId: taskResourceAssignments.id,
         taskId: taskResourceAssignments.taskId,
         resourceId: taskResourceAssignments.resourceId,
@@ -267,6 +325,11 @@ export function registerResourceRoutes(app: Express) {
         .where(eq(resources.organizationId, organizationId))
         .orderBy(resources.displayName, projects.name, tasks.name);
 
+      if (await isTeamMemberInOrg(userId, organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, organizationId));
+        assignments = assignments.filter(a => allowedProjectIds.has(a.projectId));
+      }
+
       res.json(assignments);
     } catch (err) {
       console.error("Error fetching resource assignments:", err);
@@ -276,7 +339,12 @@ export function registerResourceRoutes(app: Express) {
   });
 
   // Get a single resource
-  app.get('/api/resources/:id', async (req, res) => {
+  apiRoute(app, 'get', '/api/resources/:id', {
+    tag: 'Resources',
+    summary: 'Get resource by ID',
+    parameters: [pathId()],
+    responses: { ...r200('Resource details', ref('Resource')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -284,6 +352,21 @@ export function registerResourceRoutes(app: Express) {
       if (!resource) return res.status(404).json({ message: "Resource not found" });
       if (!await userHasOrgAccess(userId, resource.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (await isTeamMemberInOrg(userId, resource.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, resource.organizationId));
+        const allAssignments = await storage.getTaskResourceAssignmentsByOrgId(resource.organizationId);
+        const orgTasks = await storage.getTasksByOrganization(resource.organizationId);
+        const allowedTaskIds = new Set(orgTasks.filter(t => allowedProjectIds.has(t.projectId)).map(t => t.id));
+        const allowedResIds = new Set<number>();
+        for (const a of allAssignments) {
+          if (allowedTaskIds.has(a.taskId)) allowedResIds.add(a.resourceId);
+        }
+        const userResIds = await getUserResourceIds(userId, resource.organizationId);
+        for (const id of userResIds) allowedResIds.add(id);
+        if (!allowedResIds.has(resource.id)) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
       }
       res.json(resource);
     } catch (err) {
@@ -293,7 +376,12 @@ export function registerResourceRoutes(app: Express) {
   });
 
   // Get task assignments for a resource
-  app.get('/api/resources/:id/task-assignments', async (req, res) => {
+  apiRoute(app, 'get', '/api/resources/:id/task-assignments', {
+    tag: 'Resources',
+    summary: 'Get resource task assignments',
+    parameters: [pathId()],
+    responses: { ...r200('Task assignments', ref('Resource')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -303,7 +391,22 @@ export function registerResourceRoutes(app: Express) {
       if (!await userHasOrgAccess(userId, resource.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
-      const assignments = await db.select({
+      if (await isTeamMemberInOrg(userId, resource.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, resource.organizationId));
+        const orgAssignments = await storage.getTaskResourceAssignmentsByOrgId(resource.organizationId);
+        const orgTasks = await storage.getTasksByOrganization(resource.organizationId);
+        const allowedTaskIds = new Set(orgTasks.filter(t => allowedProjectIds.has(t.projectId)).map(t => t.id));
+        const allowedResIds = new Set<number>();
+        for (const a of orgAssignments) {
+          if (allowedTaskIds.has(a.taskId)) allowedResIds.add(a.resourceId);
+        }
+        const userResIds = await getUserResourceIds(userId, resource.organizationId);
+        for (const id of userResIds) allowedResIds.add(id);
+        if (!allowedResIds.has(resourceId)) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+      }
+      let assignments = await db.select({
         taskId: taskResourceAssignments.taskId,
         taskName: tasks.name,
         projectId: tasks.projectId,
@@ -318,6 +421,10 @@ export function registerResourceRoutes(app: Express) {
         .innerJoin(tasks, eq(taskResourceAssignments.taskId, tasks.id))
         .innerJoin(projects, eq(tasks.projectId, projects.id))
         .where(eq(taskResourceAssignments.resourceId, resourceId));
+      if (await isTeamMemberInOrg(userId, resource.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, resource.organizationId));
+        assignments = assignments.filter(a => allowedProjectIds.has(a.projectId));
+      }
       res.json(assignments);
     } catch (err) {
       console.error("Error fetching task assignments:", err);
@@ -327,7 +434,12 @@ export function registerResourceRoutes(app: Express) {
   });
 
   // Get issue assignments for a resource
-  app.get('/api/resources/:id/issue-assignments', async (req, res) => {
+  apiRoute(app, 'get', '/api/resources/:id/issue-assignments', {
+    tag: 'Resources',
+    summary: 'Get resource issue assignments',
+    parameters: [pathId()],
+    responses: { ...r200('Issue assignments', ref('Resource')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -337,7 +449,22 @@ export function registerResourceRoutes(app: Express) {
       if (!await userHasOrgAccess(userId, resource.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
-      const assignments = await db.select({
+      if (await isTeamMemberInOrg(userId, resource.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, resource.organizationId));
+        const orgAssignments = await storage.getTaskResourceAssignmentsByOrgId(resource.organizationId);
+        const orgTasks = await storage.getTasksByOrganization(resource.organizationId);
+        const allowedTaskIds = new Set(orgTasks.filter(t => allowedProjectIds.has(t.projectId)).map(t => t.id));
+        const allowedResIds = new Set<number>();
+        for (const a of orgAssignments) {
+          if (allowedTaskIds.has(a.taskId)) allowedResIds.add(a.resourceId);
+        }
+        const userResIds = await getUserResourceIds(userId, resource.organizationId);
+        for (const id of userResIds) allowedResIds.add(id);
+        if (!allowedResIds.has(resourceId)) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+      }
+      let assignments = await db.select({
         issueId: issueResourceAssignments.issueId,
         issueTitle: issues.title,
         projectId: issues.projectId,
@@ -350,6 +477,10 @@ export function registerResourceRoutes(app: Express) {
         .innerJoin(issues, eq(issueResourceAssignments.issueId, issues.id))
         .innerJoin(projects, eq(issues.projectId, projects.id))
         .where(eq(issueResourceAssignments.resourceId, resourceId));
+      if (await isTeamMemberInOrg(userId, resource.organizationId)) {
+        const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, resource.organizationId));
+        assignments = assignments.filter(a => allowedProjectIds.has(a.projectId));
+      }
       res.json(assignments);
     } catch (err) {
       console.error("Error fetching issue assignments:", err);
@@ -359,7 +490,12 @@ export function registerResourceRoutes(app: Express) {
   });
 
   // Create a resource
-  app.post('/api/resources', async (req, res) => {
+  apiRoute(app, 'post', '/api/resources', {
+    tag: 'Resources',
+    summary: 'Create a new resource',
+    requestBody: body(ref('Resource')),
+    responses: { ...r201('Resource created', ref('Resource')), ...inputRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       
@@ -412,7 +548,13 @@ export function registerResourceRoutes(app: Express) {
   });
 
   // Update a resource
-  app.put('/api/resources/:id', async (req, res) => {
+  apiRoute(app, 'put', '/api/resources/:id', {
+    tag: 'Resources',
+    summary: 'Update resource',
+    parameters: [pathId()],
+    requestBody: body(ref('Resource')),
+    responses: { ...r200('Resource updated', ref('Resource')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -443,7 +585,12 @@ export function registerResourceRoutes(app: Express) {
   });
 
   // Delete a resource (requires admin role)
-  app.delete('/api/resources/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/resources/:id', {
+    tag: 'Resources',
+    summary: 'Delete resource',
+    parameters: [pathId()],
+    responses: { ...r204('Resource deleted'), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -466,7 +613,12 @@ export function registerResourceRoutes(app: Express) {
   });
 
   // Create a resource with invitation - creates resource, org invite, and sends magic link email
-  app.post('/api/resources/invite', async (req, res) => {
+  apiRoute(app, 'post', '/api/resources/invite', {
+    tag: 'Resources',
+    summary: 'Invite resource via email',
+    requestBody: body({ type: 'object', properties: { email: { type: 'string' }, organizationId: { type: 'integer' } } }),
+    responses: { ...r201('Invitation sent', ref('Resource')), ...createRes },
+  }, async (req, res) => {
     try {
       const currentUserId = getUserIdFromRequest(req);
       if (!currentUserId) {
@@ -632,7 +784,12 @@ export function registerResourceRoutes(app: Express) {
   // ==================== TASK RESOURCE ASSIGNMENTS ====================
   
   // Get all task resource assignments for an organization with full resource data (bulk endpoint - avoids N+1 queries)
-  app.get('/api/organizations/:id/full-task-assignments', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:id/full-task-assignments', {
+    tag: 'Resources',
+    summary: 'Get full task assignments for organization',
+    parameters: [pathId()],
+    responses: { ...r200('Task assignments with resource data', { type: 'object' }), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -649,7 +806,12 @@ export function registerResourceRoutes(app: Express) {
   });
 
   // Get all task resource assignments for a project (bulk endpoint - avoids N+1 queries)
-  app.get('/api/projects/:id/task-resource-assignments', async (req, res) => {
+  apiRoute(app, 'get', '/api/projects/:id/task-resource-assignments', {
+    tag: 'Resources',
+    summary: 'Get all task resource assignments for a project',
+    parameters: [pathId()],
+    responses: { ...r200('Task resource assignments', arrOf('Resource')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -667,7 +829,13 @@ export function registerResourceRoutes(app: Express) {
     }
   });
 
-  app.post('/api/projects/:id/team-members', async (req, res) => {
+  apiRoute(app, 'post', '/api/projects/:id/team-members', {
+    tag: 'Resources',
+    summary: 'Add team member to project',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { resourceId: { type: 'integer' } } }),
+    responses: { ...r200('Team member added', ref('Resource')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -699,7 +867,12 @@ export function registerResourceRoutes(app: Express) {
     }
   });
 
-  app.delete('/api/projects/:id/team-members/:resourceId', async (req, res) => {
+  apiRoute(app, 'delete', '/api/projects/:id/team-members/:resourceId', {
+    tag: 'Resources',
+    summary: 'Remove team member from project',
+    parameters: [pathId(), pathId('resourceId')],
+    responses: { ...r200('Team member removed', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -730,7 +903,12 @@ export function registerResourceRoutes(app: Express) {
   });
 
   // Get all issue resource assignments for an organization (bulk endpoint - avoids N+1 queries)
-  app.get('/api/organizations/:id/issue-assignments', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:id/issue-assignments', {
+    tag: 'Resources',
+    summary: 'Get all issue resource assignments for organization',
+    parameters: [pathId()],
+    responses: { ...r200('Issue assignments', arrOf('Resource')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -747,7 +925,12 @@ export function registerResourceRoutes(app: Express) {
   });
 
   // Get assignments for a task
-  app.get('/api/tasks/:taskId/resources', async (req, res) => {
+  apiRoute(app, 'get', '/api/tasks/:taskId/resources', {
+    tag: 'Resources',
+    summary: 'Get resources assigned to a task',
+    parameters: [pathId('taskId')],
+    responses: { ...r200('Task resources', arrOf('Resource')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -767,7 +950,13 @@ export function registerResourceRoutes(app: Express) {
   });
 
   // Update assignments for a task (replace all)
-  app.put('/api/tasks/:taskId/resources', async (req, res) => {
+  apiRoute(app, 'put', '/api/tasks/:taskId/resources', {
+    tag: 'Resources',
+    summary: 'Update task resource assignments',
+    parameters: [pathId('taskId')],
+    requestBody: body({ type: 'object', properties: { resourceIds: { type: 'array', items: { type: 'integer' } } } }),
+    responses: { ...r200('Assignments updated', ref('Resource')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -874,10 +1063,100 @@ export function registerResourceRoutes(app: Express) {
     }
   });
 
+  // Send assignment notification emails to all resources assigned to a task
+  apiRoute(app, 'post', '/api/tasks/:taskId/notify-assignees', {
+    tag: 'Resources',
+    summary: 'Send assignment notification emails to all resources assigned to a task',
+    parameters: [pathId('taskId')],
+    responses: { ...r200('Notification result', { type: 'object' }), ...idRes, ...e400, ...e404 },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+      const taskId = Number(req.params.taskId);
+      if (!Number.isInteger(taskId) || taskId <= 0) {
+        return res.status(400).json({ message: 'Invalid task ID' });
+      }
+
+      const task = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+      if (!task[0]) return res.status(404).json({ message: 'Task not found' });
+
+      const project = await db.select().from(projects).where(eq(projects.id, task[0].projectId)).limit(1);
+      if (!project[0]) return res.status(404).json({ message: 'Project not found' });
+
+      if (!await userHasOrgAccess(userId, project[0].organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const userRole = await getUserOrgRole(userId, project[0].organizationId);
+      if (userRole === 'viewer') {
+        return res.status(403).json({ message: 'Viewers cannot send notifications' });
+      }
+
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error });
+      }
+
+      const assignments = await storage.getTaskResourceAssignments(taskId);
+      if (assignments.length === 0) {
+        return res.status(400).json({ message: 'No resources assigned to this task' });
+      }
+
+      const appUrl = process.env.REPLIT_DEV_DOMAIN
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : process.env.APP_URL || 'https://fridayreport.ai';
+      const projectUrl = `${appUrl}/projects/${project[0].id}`;
+
+      const formatDate = (d: Date | string | null) => {
+        if (!d) return null;
+        const date = typeof d === 'string' ? new Date(d) : d;
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      };
+
+      let sent = 0;
+      let skipped = 0;
+      for (const assignment of assignments) {
+        const resource = await db.select().from(resources).where(eq(resources.id, assignment.resourceId)).limit(1);
+        if (!resource[0] || !resource[0].email) {
+          skipped++;
+          continue;
+        }
+        try {
+          const success = await sendTaskAssignmentNotificationEmail(
+            resource[0].email,
+            resource[0].displayName,
+            task[0].name,
+            project[0].name,
+            formatDate(task[0].startDate),
+            formatDate(task[0].endDate),
+            projectUrl
+          );
+          if (success) sent++;
+          else skipped++;
+        } catch (emailErr) {
+          console.error('Error sending assignment notification email:', emailErr);
+          skipped++;
+        }
+      }
+
+      res.json({ sent, skipped, total: assignments.length });
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error sending assignment notifications" : classified.message });
+    }
+  });
+
   // ==================== ISSUE RESOURCE ASSIGNMENTS ====================
   
   // Get assignments for an issue
-  app.get('/api/issues/:issueId/resources', async (req, res) => {
+  apiRoute(app, 'get', '/api/issues/:issueId/resources', {
+    tag: 'Resources',
+    summary: 'Get resources assigned to an issue',
+    parameters: [pathId('issueId')],
+    responses: { ...r200('Issue resources', arrOf('Resource')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -900,7 +1179,13 @@ export function registerResourceRoutes(app: Express) {
   });
 
   // Update assignments for an issue (replace all)
-  app.put('/api/issues/:issueId/resources', async (req, res) => {
+  apiRoute(app, 'put', '/api/issues/:issueId/resources', {
+    tag: 'Resources',
+    summary: 'Update issue resource assignments',
+    parameters: [pathId('issueId')],
+    requestBody: body({ type: 'object', properties: { resourceIds: { type: 'array', items: { type: 'integer' } } } }),
+    responses: { ...r200('Assignments updated', ref('Resource')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -961,7 +1246,12 @@ export function registerResourceRoutes(app: Express) {
   // ==================== RISK RESOURCE ASSIGNMENTS ====================
   
   // Get assignments for a risk
-  app.get('/api/risks/:riskId/resources', async (req, res) => {
+  apiRoute(app, 'get', '/api/risks/:riskId/resources', {
+    tag: 'Resources',
+    summary: 'Get resources assigned to a risk',
+    parameters: [pathId('riskId')],
+    responses: { ...r200('Risk resources', arrOf('Resource')), ...idRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -984,7 +1274,13 @@ export function registerResourceRoutes(app: Express) {
   });
 
   // Update assignments for a risk (replace all)
-  app.put('/api/risks/:riskId/resources', async (req, res) => {
+  apiRoute(app, 'put', '/api/risks/:riskId/resources', {
+    tag: 'Resources',
+    summary: 'Update risk resource assignments',
+    parameters: [pathId('riskId')],
+    requestBody: body({ type: 'object', properties: { resourceIds: { type: 'array', items: { type: 'integer' } } } }),
+    responses: { ...r200('Assignments updated', ref('Resource')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
@@ -1044,7 +1340,12 @@ export function registerResourceRoutes(app: Express) {
 
   // ==================== RESOURCE SKILLS ====================
 
-  app.get('/api/organizations/:orgId/resources/:resourceId/skills', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:orgId/resources/:resourceId/skills', {
+    tag: 'Resources',
+    summary: 'Get resource skills',
+    parameters: [pathId('orgId'), pathId('resourceId')],
+    responses: { ...r200('Resource skills', { type: 'array', items: { type: 'object' } }), ...idRes },
+  }, async (req, res) => {
     try {
       const skills = await storage.getResourceSkills(Number(req.params.resourceId));
       res.json(skills);
@@ -1055,7 +1356,12 @@ export function registerResourceRoutes(app: Express) {
     }
   });
 
-  app.get('/api/organizations/:orgId/resource-skills', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:orgId/resource-skills', {
+    tag: 'Resources',
+    summary: 'List all resource skills for org',
+    parameters: [pathId('orgId')],
+    responses: { ...r200('All resource skills', arrOf('Resource')), ...idRes },
+  }, async (req, res) => {
     try {
       const skills = await storage.getResourceSkillsByOrg(Number(req.params.orgId));
       res.json(skills);
@@ -1066,7 +1372,13 @@ export function registerResourceRoutes(app: Express) {
     }
   });
 
-  app.post('/api/organizations/:orgId/resources/:resourceId/skills', async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:orgId/resources/:resourceId/skills', {
+    tag: 'Resources',
+    summary: 'Add skill to resource',
+    parameters: [pathId('orgId'), pathId('resourceId')],
+    requestBody: body({ type: 'object', properties: { name: { type: 'string' }, level: { type: 'string' } } }),
+    responses: { ...r201('Skill added', ref('Resource')), ...createRes },
+  }, async (req, res) => {
     try {
       const skill = await storage.addResourceSkill({
         organizationId: Number(req.params.orgId),
@@ -1081,7 +1393,13 @@ export function registerResourceRoutes(app: Express) {
     }
   });
 
-  app.patch('/api/organizations/:orgId/resource-skills/:id', async (req, res) => {
+  apiRoute(app, 'patch', '/api/organizations/:orgId/resource-skills/:id', {
+    tag: 'Resources',
+    summary: 'Update a resource skill',
+    parameters: [pathId('orgId'), pathId()],
+    requestBody: body({ type: 'object', properties: { name: { type: 'string' }, level: { type: 'string' } } }),
+    responses: { ...r200('Skill updated', ref('Resource')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -1104,7 +1422,12 @@ export function registerResourceRoutes(app: Express) {
     }
   });
 
-  app.delete('/api/organizations/:orgId/resource-skills/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/organizations/:orgId/resource-skills/:id', {
+    tag: 'Resources',
+    summary: 'Delete a resource skill',
+    parameters: [pathId('orgId'), pathId()],
+    responses: { ...r200('Skill deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -1123,7 +1446,12 @@ export function registerResourceRoutes(app: Express) {
 
   // ==================== RESOURCE AVAILABILITY ====================
 
-  app.get('/api/organizations/:orgId/resources/:resourceId/availability', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:orgId/resources/:resourceId/availability', {
+    tag: 'Resources',
+    summary: 'Get resource availability',
+    parameters: [pathId('orgId'), pathId('resourceId')],
+    responses: { ...r200('Availability data', { type: 'object' }), ...idRes },
+  }, async (req, res) => {
     try {
       const entries = await storage.getResourceAvailability(Number(req.params.resourceId));
       res.json(entries);
@@ -1134,7 +1462,12 @@ export function registerResourceRoutes(app: Express) {
     }
   });
 
-  app.get('/api/organizations/:orgId/resource-availability', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:orgId/resource-availability', {
+    tag: 'Resources',
+    summary: 'List all resource availability for org',
+    parameters: [pathId('orgId')],
+    responses: { ...r200('All availability', arrOf('Resource')), ...idRes },
+  }, async (req, res) => {
     try {
       const { startDate, endDate } = req.query;
       const entries = await storage.getResourceAvailabilityByOrg(
@@ -1150,7 +1483,13 @@ export function registerResourceRoutes(app: Express) {
     }
   });
 
-  app.post('/api/organizations/:orgId/resources/:resourceId/availability', async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:orgId/resources/:resourceId/availability', {
+    tag: 'Resources',
+    summary: 'Add availability entry for resource',
+    parameters: [pathId('orgId'), pathId('resourceId')],
+    requestBody: body({ type: 'object', properties: { startDate: { type: 'string', format: 'date' }, endDate: { type: 'string', format: 'date' }, hoursPerWeek: { type: 'number' } } }),
+    responses: { ...r201('Availability entry created', ref('Resource')), ...createRes },
+  }, async (req, res) => {
     try {
       const entry = await storage.addResourceAvailability({
         organizationId: Number(req.params.orgId),
@@ -1165,7 +1504,13 @@ export function registerResourceRoutes(app: Express) {
     }
   });
 
-  app.patch('/api/organizations/:orgId/resource-availability/:id', async (req, res) => {
+  apiRoute(app, 'patch', '/api/organizations/:orgId/resource-availability/:id', {
+    tag: 'Resources',
+    summary: 'Update an availability entry',
+    parameters: [pathId('orgId'), pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Availability updated', ref('Resource')), ...updateRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -1189,7 +1534,12 @@ export function registerResourceRoutes(app: Express) {
     }
   });
 
-  app.delete('/api/organizations/:orgId/resource-availability/:id', async (req, res) => {
+  apiRoute(app, 'delete', '/api/organizations/:orgId/resource-availability/:id', {
+    tag: 'Resources',
+    summary: 'Delete an availability entry',
+    parameters: [pathId('orgId'), pathId()],
+    responses: { ...r200('Availability deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -1208,7 +1558,13 @@ export function registerResourceRoutes(app: Express) {
 
   // ==================== AI RESOURCE OPTIMIZATION ====================
 
-  app.post('/api/organizations/:orgId/resource-optimization', async (req, res) => {
+  apiRoute(app, 'post', '/api/organizations/:orgId/resource-optimization', {
+    tag: 'Resources',
+    summary: 'Run AI resource optimization',
+    parameters: [pathId('orgId')],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Optimization results', { type: 'array', items: { type: 'object' } }), ...createRes },
+  }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -1238,7 +1594,12 @@ export function registerResourceRoutes(app: Express) {
 
   // ==================== RESOURCE UTILIZATION & CAPACITY ====================
 
-  app.get('/api/organizations/:orgId/resource-utilization', async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:orgId/resource-utilization', {
+    tag: 'Resources',
+    summary: 'Get resource utilization report',
+    parameters: [pathId('orgId')],
+    responses: { ...r200('Utilization data', { type: 'object' }), ...idRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
       const { startDate, endDate } = req.query;

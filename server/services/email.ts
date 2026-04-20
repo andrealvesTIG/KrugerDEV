@@ -385,6 +385,99 @@ Simply log in with your Microsoft account to get started.
   return sendEmail({ to: email, subject, text, html });
 }
 
+export async function sendTaskAssignmentNotificationEmail(
+  email: string,
+  resourceName: string,
+  taskName: string,
+  projectName: string,
+  startDate: string | null,
+  endDate: string | null,
+  projectUrl: string
+): Promise<boolean> {
+  const escapeHtml = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  const safeResourceName = escapeHtml(resourceName);
+  const safeTaskName = escapeHtml(taskName);
+  const safeProjectName = escapeHtml(projectName);
+
+  const subject = `Task Assignment: ${taskName} - ${projectName}`;
+
+  const dateInfo = startDate && endDate
+    ? `${startDate} – ${endDate}`
+    : startDate
+      ? `Starting ${startDate}`
+      : endDate
+        ? `Due ${endDate}`
+        : 'No dates set';
+
+  const text = `
+Hi ${resourceName},
+
+You have been assigned to the task "${taskName}" in project "${projectName}".
+
+Dates: ${dateInfo}
+
+View the project here: ${projectUrl}
+
+- The FridayReport.AI Team
+`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">FridayReport.AI</h1>
+  </div>
+  
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+    <h2 style="margin-top: 0; color: #1f2937;">Task Assignment</h2>
+    
+    <p>Hi <strong>${safeResourceName}</strong>,</p>
+    
+    <p>You have been assigned to a task in <strong>${safeProjectName}</strong>.</p>
+    
+    <div style="background: #f9fafb; padding: 20px; border-radius: 6px; margin: 20px 0;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="padding: 6px 0; color: #6b7280; font-size: 14px; width: 80px;">Task</td>
+          <td style="padding: 6px 0; font-weight: 600;">${safeTaskName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #6b7280; font-size: 14px;">Project</td>
+          <td style="padding: 6px 0; font-weight: 600;">${safeProjectName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #6b7280; font-size: 14px;">Dates</td>
+          <td style="padding: 6px 0;">${dateInfo}</td>
+        </tr>
+      </table>
+    </div>
+    
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${escapeHtml(projectUrl)}" style="display: inline-block; background-color: #f97316; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 6px; font-weight: 600; font-size: 16px;">View Project</a>
+    </div>
+    
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+    
+    <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0;">
+      This notification was sent because you are assigned to this task.
+    </p>
+    <p style="font-size: 11px; color: #9ca3af; margin: 12px 0 0; text-align: center;">
+      <a href="https://fridayreport.ai/profile?section=notifications" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
+    </p>
+  </div>
+</body>
+</html>
+`;
+
+  return sendEmail({ to: email, subject, text, html });
+}
+
 export async function sendAccessRequestDecisionNotification(
   userEmail: string,
   organizationName: string,

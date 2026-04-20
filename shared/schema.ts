@@ -10,6 +10,58 @@ const numeric = customType<{ data: number; driverData: string }>({
 });
 import { users } from "./models/auth";
 
+export const PROJECT_STATUSES = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"] as const;
+export const PROJECT_STATUSES_EXTENDED = [...PROJECT_STATUSES, "Billing", "Closed"] as const;
+export const PROJECT_HEALTH_VALUES = ["Green", "Yellow", "Red"] as const;
+export const PROJECT_PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
+export const BILLABLE_STATUSES = ["N/A", "On Track", "Waiting for Approval", "Verbal Approval", "Email Approval", "SOW Signed", "PO Received", "Partially Invoiced", "At Risk", "Ready for Invoice", "Critical", "Invoiced"] as const;
+export const ISSUE_TYPES = ["Bug", "Enhancement", "Task", "Question", "Defect", "Support"] as const;
+export const TASK_STATUS = {
+  NOT_STARTED: "Not Started",
+  IN_PROGRESS: "In Progress",
+  ON_HOLD: "On Hold",
+  COMPLETED: "Completed",
+  CANCELLED: "Cancelled",
+} as const;
+export const TASK_PRIORITY = {
+  LOW: "Low",
+  MEDIUM: "Medium",
+  HIGH: "High",
+  CRITICAL: "Critical",
+} as const;
+export const TASK_STATUSES = ["Not Started", "In Progress", "On Hold", "Completed", "Cancelled"] as const;
+export const TASK_PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
+export type TaskStatus = (typeof TASK_STATUSES)[number];
+export type TaskPriority = (typeof TASK_PRIORITIES)[number];
+export const DEFAULT_TASK_STATUS: string = TASK_STATUS.NOT_STARTED;
+export const DEFAULT_TASK_PRIORITY: string = TASK_PRIORITY.MEDIUM;
+
+export const projectStatusEnum = z.enum(PROJECT_STATUSES_EXTENDED);
+export const issueTypeEnum = z.enum(ISSUE_TYPES);
+export const projectHealthEnum = z.enum(PROJECT_HEALTH_VALUES);
+export const projectPriorityEnum = z.enum(PROJECT_PRIORITIES);
+export const billableStatusEnum = z.enum(BILLABLE_STATUSES);
+export const taskStatusEnum = z.enum(TASK_STATUSES);
+export const taskPriorityEnum = z.enum(TASK_PRIORITIES);
+
+export const fridayAgentConfigSchema = z.object({
+  useOrgAzure: z.boolean().default(false),
+  azureEndpoint: z.string().max(500).default(""),
+  azureApiKey: z.string().max(500).default(""),
+  azureDeployment: z.string().max(200).default(""),
+  azureApiVersion: z.string().max(50).default("2024-12-01-preview"),
+});
+
+export type FridayAgentConfig = z.infer<typeof fridayAgentConfigSchema>;
+
+export const DEFAULT_FRIDAY_AGENT_CONFIG: FridayAgentConfig = {
+  useOrgAzure: false,
+  azureEndpoint: "",
+  azureApiKey: "",
+  azureDeployment: "",
+  azureApiVersion: "2024-12-01-preview",
+};
+
 export * from "./models/auth";
 export * from "./models/chat";
 export * from "./models/billing";
@@ -122,6 +174,7 @@ export const organizations = pgTable("organizations", {
   timezone: text("timezone").default("UTC"),
   deactivatedAt: timestamp("deactivated_at"), // Soft delete timestamp
   deactivatedBy: varchar("deactivated_by").references(() => users.id), // Who deactivated
+  fridayAgentConfig: jsonb("friday_agent_config"), // Friday AI agent configuration (per-org)
 });
 
 // Organization Members (Join table for users <-> organizations)
@@ -251,6 +304,7 @@ export const projects = pgTable("projects", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   portfolioId: integer("portfolio_id").references(() => portfolios.id),
+  workflowId: integer("workflow_id"), // FK to project_workflows.id (nullable; assigned when org has multiple workflows)
   name: text("name").notNull(),
   projectCode: text("project_code"), // Unique project identifier (e.g., "PRJ-2025-001")
   description: text("description"),
@@ -1268,11 +1322,32 @@ export const costItems = pgTable("cost_items", {
   index("cost_items_project_id_idx").on(table.projectId),
 ]);
 
+// Intake Types - Categorize intakes (e.g. "Default", "Power BI Request").
+// `behavior` controls special handling: 'standard' = normal intake form,
+// 'powerbi_redirect' = selecting this type sends the user to the Power BI agent
+// instead of creating a normal intake row.
+export const intakeTypes = pgTable("intake_types", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  behavior: text("behavior").notNull().default("standard"), // 'standard' | 'powerbi_redirect'
+  isSystem: boolean("is_system").notNull().default(false), // seeded defaults that cannot be deleted
+  isActive: boolean("is_active").notNull().default(true),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("intake_types_org_id_idx").on(table.organizationId),
+]);
+
 // Project Intakes (Intake workflow for new project ideas)
 export const projectIntakes = pgTable("project_intakes", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   intakeNumber: text("intake_number"), // Auto-generated intake ID (e.g., "INT-2026-001")
+  intakeTypeId: integer("intake_type_id").references(() => intakeTypes.id, { onDelete: "set null" }),
+  workflowId: integer("workflow_id"), // FK to intake_workflows.id (nullable; assigned when org has multiple intake workflows)
   
   // Basic Information (Intake Form tab)
   projectName: text("project_name").notNull(),
@@ -1340,10 +1415,30 @@ export const projectIntakes = pgTable("project_intakes", {
   index("project_intakes_portfolio_id_idx").on(table.portfolioId),
 ]);
 
+// Intake Workflows - Named intake workflow templates per organization
+export const intakeWorkflows = pgTable("intake_workflows", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  isDefault: boolean("is_default").default(false),
+  isActive: boolean("is_active").default(true),
+  creationMode: text("creation_mode").notNull().default("dialog"), // 'dialog' | 'url'
+  creationUrl: text("creation_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("intake_workflows_org_id_idx").on(table.organizationId),
+  uniqueIndex("intake_workflows_one_default_per_org")
+    .on(table.organizationId)
+    .where(sql`${table.isDefault} = true`),
+]);
+
 // Intake Workflow Steps - Configurable workflow steps per organization
 export const intakeWorkflowSteps = pgTable("intake_workflow_steps", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  workflowId: integer("workflow_id").references(() => intakeWorkflows.id, { onDelete: "cascade" }),
   stepKey: text("step_key").notNull(), // Canonical step identifier: intake_capture, triage, business_case, technical_evaluation, governance_review, decision
   position: integer("position").notNull(), // Order in workflow (0-5)
   label: text("label").notNull(), // Display name (can be customized per org)
@@ -1354,6 +1449,75 @@ export const intakeWorkflowSteps = pgTable("intake_workflow_steps", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// Project Workflows - Named project lifecycle workflow templates per organization
+export const projectWorkflows = pgTable("project_workflows", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  isDefault: boolean("is_default").default(false),
+  isActive: boolean("is_active").default(true),
+  creationMode: text("creation_mode").notNull().default("dialog"), // 'dialog' | 'url'
+  creationUrl: text("creation_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("project_workflows_org_id_idx").on(table.organizationId),
+  uniqueIndex("project_workflows_one_default_per_org")
+    .on(table.organizationId)
+    .where(sql`${table.isDefault} = true`),
+]);
+
+// Project Workflow Steps - Configurable project lifecycle steps per workflow
+export const projectWorkflowSteps = pgTable("project_workflow_steps", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  workflowId: integer("workflow_id").references(() => projectWorkflows.id, { onDelete: "cascade" }),
+  stepKey: text("step_key").notNull(),
+  position: integer("position").notNull(),
+  label: text("label").notNull(),
+  description: text("description"),
+  isTerminal: boolean("is_terminal").default(false),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("project_workflow_steps_workflow_id_idx").on(table.workflowId),
+]);
+
+// Power BI Intake Requests - Captured via AI chat agent
+export const powerbiIntakeRequests = pgTable("powerbi_intake_requests", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  requestNumber: text("request_number"),
+  submittedBy: varchar("submitted_by").references(() => users.id),
+  status: text("status").default("new"),
+  reportType: text("report_type"),
+  reportName: text("report_name"),
+  description: text("description"),
+  numberOfPages: integer("number_of_pages"),
+  numberOfDrillDownPages: integer("number_of_drill_down_pages"),
+  numberOfDataSources: integer("number_of_data_sources"),
+  dataSources: text("data_sources"),
+  integrations: text("integrations"),
+  calculationComplexity: text("calculation_complexity"),
+  refreshFrequency: text("refresh_frequency"),
+  filtersAndSlicers: text("filters_and_slicers"),
+  visualRequirements: text("visual_requirements"),
+  securityRequirements: text("security_requirements"),
+  targetDeliveryDate: text("target_delivery_date"),
+  additionalNotes: text("additional_notes"),
+  conversationLog: text("conversation_log"),
+  estimatedEffortHours: integer("estimated_effort_hours"),
+  effortBreakdown: jsonb("effort_breakdown"),
+  projectIntakeId: integer("project_intake_id").references(() => projectIntakes.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("powerbi_intake_org_id_idx").on(table.organizationId),
+  uniqueIndex("powerbi_intake_request_number_idx").on(table.requestNumber),
+]);
 
 // MPP Imports - Store imported Microsoft Project data
 export const mppImports = pgTable("mpp_imports", {
@@ -1630,6 +1794,9 @@ export const insertProjectSchema = createInsertSchema(projects).omit({ id: true,
 const baseRiskSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
 export const insertRiskSchema = baseRiskSchema.extend({
   escalatedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),
+  // Force itemType to "risk" so the shared issues table cannot be used to insert
+  // non-risk rows through the risk endpoints.
+  itemType: z.literal("risk").default("risk"),
 });
 /** @deprecated Renamed to Portfolio Key Dates. Schema kept for backward compatibility. */
 export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true });
@@ -1639,6 +1806,7 @@ export const updatePortfolioKeyDateSchema = insertPortfolioKeyDateSchema.pick({ 
 const baseIssueSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
 export const insertIssueSchema = baseIssueSchema.extend({
   escalatedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),
+  type: issueTypeEnum.default("Bug").optional(),
 });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true }).extend({
   durationDays: z.number().min(0).max(36500).nullable().optional(),
@@ -1663,6 +1831,7 @@ export const insertRiskResourceAssignmentSchema = insertIssueResourceAssignmentS
 export const insertTimesheetEntrySchema = createInsertSchema(timesheetEntries).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCostItemSchema = createInsertSchema(costItems).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProjectIntakeSchema = createInsertSchema(projectIntakes).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertIntakeTypeSchema = createInsertSchema(intakeTypes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMppImportSchema = createInsertSchema(mppImports).omit({ id: true, createdAt: true, lastSyncedAt: true });
 export const insertMppImportTaskSchema = createInsertSchema(mppImportTasks).omit({ id: true, createdAt: true });
 export const insertChangeRequestSchema = createInsertSchema(changeRequests).omit({ id: true, createdAt: true });
@@ -1766,6 +1935,8 @@ export type InsertCostItem = z.infer<typeof insertCostItemSchema>;
 
 export type ProjectIntake = typeof projectIntakes.$inferSelect;
 export type InsertProjectIntake = z.infer<typeof insertProjectIntakeSchema>;
+export type IntakeType = typeof intakeTypes.$inferSelect;
+export type InsertIntakeType = z.infer<typeof insertIntakeTypeSchema>;
 
 export type MppImport = typeof mppImports.$inferSelect;
 export type InsertMppImport = z.infer<typeof insertMppImportSchema>;
@@ -4201,3 +4372,126 @@ export const insertCorrespondenceSchema = createInsertSchema(correspondence).omi
 });
 export type Correspondence = typeof correspondence.$inferSelect;
 export type InsertCorrespondence = z.infer<typeof insertCorrespondenceSchema>;
+
+export const blogPosts = pgTable("blog_posts", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  slug: text("slug").notNull().unique(),
+  excerpt: text("excerpt"),
+  content: text("content").notNull(),
+  coverImageUrl: text("cover_image_url"),
+  author: text("author").notNull().default("Friday Report Team"),
+  status: text("status").notNull().default("draft"),
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("blog_posts_slug_idx").on(table.slug),
+  index("blog_posts_status_idx").on(table.status),
+  index("blog_posts_published_at_idx").on(table.publishedAt),
+]);
+
+export const insertBlogPostSchema = createInsertSchema(blogPosts).omit({ id: true, createdAt: true, updatedAt: true });
+export type BlogPost = typeof blogPosts.$inferSelect;
+export type InsertBlogPost = typeof blogPosts.$inferInsert;
+
+// User Acquisition - one row per user, captured at signup
+export const userAcquisition = pgTable("user_acquisition", {
+  userId: varchar("user_id").primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  referrer: text("referrer"),
+  referrerHost: text("referrer_host"),
+  landingPath: text("landing_path"),
+  utmSource: text("utm_source"),
+  utmMedium: text("utm_medium"),
+  utmCampaign: text("utm_campaign"),
+  utmTerm: text("utm_term"),
+  utmContent: text("utm_content"),
+  gclid: text("gclid"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  country: text("country"),
+  region: text("region"),
+  city: text("city"),
+  deviceType: text("device_type"),
+  browser: text("browser"),
+  os: text("os"),
+  signupMethod: text("signup_method"),
+  anonymousId: varchar("anonymous_id"),
+  firstSeenAt: timestamp("first_seen_at"),
+  signedUpAt: timestamp("signed_up_at").defaultNow(),
+}, (table) => [
+  index("user_acquisition_anonymous_id_idx").on(table.anonymousId),
+  index("user_acquisition_signed_up_at_idx").on(table.signedUpAt),
+]);
+
+export type UserAcquisition = typeof userAcquisition.$inferSelect;
+export type InsertUserAcquisition = typeof userAcquisition.$inferInsert;
+
+// User Page Events - persisted page-view + click stream from frontend
+export const userPageEvents = pgTable("user_page_events", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
+  anonymousId: varchar("anonymous_id"),
+  sessionId: varchar("session_id"),
+  eventType: text("event_type").notNull(), // 'page_view' | 'click' | 'custom'
+  path: text("path"),
+  element: text("element"),
+  label: text("label"),
+  metadata: jsonb("metadata"),
+  occurredAt: timestamp("occurred_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(), // server-side time, used for caps/retention
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+}, (table) => [
+  index("user_page_events_user_id_occurred_at_idx").on(table.userId, table.occurredAt),
+  index("user_page_events_anonymous_id_idx").on(table.anonymousId),
+  index("user_page_events_created_at_idx").on(table.createdAt),
+  index("user_page_events_session_id_idx").on(table.sessionId),
+]);
+
+export type UserPageEvent = typeof userPageEvents.$inferSelect;
+export type InsertUserPageEvent = typeof userPageEvents.$inferInsert;
+
+// === LinkedIn Enrichment & Follow-up Drafts (Task #25) ===
+
+// Per-user LinkedIn / profile enrichment cache (1 row per user).
+export const userEnrichment = pgTable("user_enrichment", {
+  userId: varchar("user_id").primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  source: text("source"),                  // 'proxycurl' | 'openai_inference' | 'manual' | 'none'
+  status: text("status").default("ok"),    // 'ok' | 'error' | 'not_configured' | 'pending'
+  errorMessage: text("error_message"),
+  linkedinUrl: text("linkedin_url"),
+  headline: text("headline"),
+  currentRole: text("current_role"),
+  currentCompany: text("current_company"),
+  currentCompanyIndustry: text("current_company_industry"),
+  location: text("location"),
+  photoUrl: text("photo_url"),
+  recentPositions: jsonb("recent_positions"), // [{title, company, startDate, endDate}]
+  rawPayload: jsonb("raw_payload"),
+  fetchedAt: timestamp("fetched_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type UserEnrichment = typeof userEnrichment.$inferSelect;
+export type InsertUserEnrichment = typeof userEnrichment.$inferInsert;
+
+// Per-user AI-drafted follow-up messages, kept as a small history.
+export const userFollowupDrafts = pgTable("user_followup_drafts", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  authorId: varchar("author_id").references(() => users.id),
+  authorName: text("author_name"),
+  tone: text("tone").default("friendly"),  // 'friendly' | 'formal' | 'brief'
+  subject: text("subject"),
+  content: text("content").notNull(),
+  status: text("status").default("draft"), // 'draft' | 'edited' | 'sent' | 'copied'
+  meta: jsonb("meta"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("user_followup_drafts_user_idx").on(table.userId, table.createdAt),
+]);
+
+export type UserFollowupDraft = typeof userFollowupDrafts.$inferSelect;
+export type InsertUserFollowupDraft = typeof userFollowupDrafts.$inferInsert;

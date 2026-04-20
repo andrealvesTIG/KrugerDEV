@@ -5,6 +5,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileText, Download, ArrowUpCircle, ArrowDownCircle, XCircle, PlusCircle, PlayCircle, Filter } from "lucide-react";
 import type { SimulationLogEntry, SimulationLogAction } from "@/lib/simulationEngine";
 import type { SimulationSummary } from "./FiltersPanel";
+import { formatCurrency as sharedFmtCurrency } from "@/lib/format";
+import { CompactCurrency } from "@/components/CompactCurrency";
 
 interface SimulationReportDialogProps {
   open: boolean;
@@ -31,11 +33,7 @@ const ACTION_CONFIG: Record<SimulationLogAction, { label: string; color: string;
 
 type FilterType = "all" | SimulationLogAction;
 
-function formatCurrency(val: number): string {
-  if (val >= 1_000_000) { const v = val / 1_000_000; return `$${v % 1 === 0 ? v : v.toFixed(1)}M`; }
-  if (val >= 1_000) { const v = val / 1_000; return `$${v % 1 === 0 ? v : v.toFixed(1)}K`; }
-  return `$${val.toLocaleString()}`;
-}
+const fmtCurrency = (val: number) => sharedFmtCurrency(val, { autoCompact: true });
 
 export default function SimulationReportDialog({
   open,
@@ -95,7 +93,7 @@ export default function SimulationReportDialog({
       const summaryItems = [
         `Total Signals: ${totalSignals}`,
         `High: ${highCount}  |  Medium: ${mediumCount}  |  Low: ${lowCount}`,
-        `Cost Exposure: ${formatCurrency(totalCostExposure)}`,
+        `Cost Exposure: ${fmtCurrency(totalCostExposure)}`,
         `Resolved: ${summary.closedCount}  |  Escalated: ${summary.escalatedCount}  |  New: ${summary.newCount}`,
       ];
       summaryItems.forEach((item, i) => {
@@ -170,11 +168,11 @@ export default function SimulationReportDialog({
 
         let costText = "";
         if (entry.originalCostExposure !== undefined && entry.projectedCostExposure !== undefined) {
-          costText = `${formatCurrency(entry.originalCostExposure)} → ${formatCurrency(entry.projectedCostExposure)}`;
+          costText = `${fmtCurrency(entry.originalCostExposure)} → ${fmtCurrency(entry.projectedCostExposure)}`;
         } else if (entry.projectedCostExposure !== undefined) {
-          costText = formatCurrency(entry.projectedCostExposure);
+          costText = fmtCurrency(entry.projectedCostExposure);
         } else if (entry.originalCostExposure !== undefined) {
-          costText = formatCurrency(entry.originalCostExposure);
+          costText = fmtCurrency(entry.originalCostExposure);
         }
         doc.text(costText, margin + 163, y + 2);
 
@@ -273,7 +271,7 @@ export default function SimulationReportDialog({
           {totalCostExposure > 0 && (
             <div className="rounded-lg border p-3 bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800">
               <div className="text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1">Projected Total Cost Exposure</div>
-              <div className="text-lg font-bold text-amber-700 dark:text-amber-400">{formatCurrency(totalCostExposure)}</div>
+              <div className="text-lg font-bold text-amber-700 dark:text-amber-400"><CompactCurrency value={totalCostExposure} /></div>
             </div>
           )}
 
@@ -351,8 +349,8 @@ export default function SimulationReportDialog({
                           {(entry.originalCostExposure !== undefined || entry.projectedCostExposure !== undefined) && (
                             <span className="ml-2">
                               Cost: {entry.originalCostExposure !== undefined && entry.projectedCostExposure !== undefined
-                                ? `${formatCurrency(entry.originalCostExposure)} → ${formatCurrency(entry.projectedCostExposure)}`
-                                : formatCurrency(entry.originalCostExposure ?? entry.projectedCostExposure ?? 0)
+                                ? <><CompactCurrency value={entry.originalCostExposure} /> → <CompactCurrency value={entry.projectedCostExposure} /></>
+                                : <CompactCurrency value={entry.originalCostExposure ?? entry.projectedCostExposure ?? 0} />
                               }
                             </span>
                           )}

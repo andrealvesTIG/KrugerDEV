@@ -9,6 +9,8 @@ import {
   runStatusReport,
   calculateNextWeeklyRun,
 } from "../services/projectAgentService";
+import { apiRoute, pathId, ref, arrOf, r200, r201, body, authRes, fullRes, inputRes } from "../route-registry";
+import { isTeamMemberInOrg, getTeamMemberProjectIds, userHasOrgAccess } from "./helpers";
 
 function getUserIdFromRequest(req: Request): string | null {
   const user = req.user as any;
@@ -16,25 +18,12 @@ function getUserIdFromRequest(req: Request): string | null {
 }
 
 export function registerProjectAgentRoutes(app: Express) {
-  app.get("/api/projects/:projectId/agent", async (req: Request, res: Response) => {
-    const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: "Authentication required" });
-
-    const projectId = Number(req.params.projectId);
-    const [agent] = await db.select().from(projectAgents).where(eq(projectAgents.projectId, projectId));
-    res.json(agent || null);
-  });
-
-  app.get("/api/projects/:projectId/agent/stakeholders", async (req: Request, res: Response) => {
-    const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: "Authentication required" });
-
-    const projectId = Number(req.params.projectId);
-    const stakeholders = await getProjectStakeholders(projectId);
-    res.json(stakeholders);
-  });
-
-  app.put("/api/projects/:projectId/agent", async (req: Request, res: Response) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/agent', {
+    tag: 'Projects',
+    summary: 'Get project agent configuration',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Agent config', ref('Project')), ...authRes },
+  }, async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: "Authentication required" });
 
@@ -43,6 +32,84 @@ export function registerProjectAgentRoutes(app: Express) {
     const [project] = await db.select({ id: projects.id, organizationId: projects.organizationId })
       .from(projects).where(eq(projects.id, projectId));
     if (!project) return res.status(404).json({ message: "Project not found" });
+    if (project.organizationId && !await userHasOrgAccess(userId, project.organizationId)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    if (project.organizationId && await isTeamMemberInOrg(userId, project.organizationId)) {
+      const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, project.organizationId));
+      if (!allowedProjectIds.has(projectId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+    }
+
+    const [agent] = await db.select().from(projectAgents).where(eq(projectAgents.projectId, projectId));
+    res.json(agent || null);
+  });
+
+  apiRoute(app, 'get', '/api/projects/:projectId/agent/stakeholders', {
+    tag: 'Projects',
+    summary: 'Get project agent stakeholders',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Stakeholder list', arrOf('Project')), ...authRes },
+  }, async (req: Request, res: Response) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+    const projectId = Number(req.params.projectId);
+
+    const [project] = await db.select({ id: projects.id, organizationId: projects.organizationId })
+      .from(projects).where(eq(projects.id, projectId));
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (project.organizationId && !await userHasOrgAccess(userId, project.organizationId)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    if (project.organizationId && await isTeamMemberInOrg(userId, project.organizationId)) {
+      const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, project.organizationId));
+      if (!allowedProjectIds.has(projectId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+    }
+
+    const stakeholders = await getProjectStakeholders(projectId);
+    res.json(stakeholders);
+  });
+
+  apiRoute(app, 'put', '/api/projects/:projectId/agent', {
+    tag: 'Projects',
+    summary: 'Create or update project agent configuration',
+    parameters: [pathId('projectId')],
+    requestBody: body({
+      type: 'object',
+      properties: {
+        enabled: { type: 'boolean' },
+        agendaEnabled: { type: 'boolean' },
+        agendaDay: { type: 'integer' },
+        agendaTime: { type: 'string' },
+        taskFollowUpEnabled: { type: 'boolean' },
+        taskFollowUpDay: { type: 'integer' },
+        taskFollowUpTime: { type: 'string' },
+        statusReportEnabled: { type: 'boolean' },
+        statusReportDay: { type: 'integer' },
+        statusReportTime: { type: 'string' },
+        timezone: { type: 'string' },
+      },
+    }),
+    responses: { ...r200('Updated agent', ref('Project')), ...fullRes },
+  }, async (req: Request, res: Response) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+    const projectId = Number(req.params.projectId);
+
+    const [project] = await db.select({ id: projects.id, organizationId: projects.organizationId })
+      .from(projects).where(eq(projects.id, projectId));
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (project.organizationId && !await userHasOrgAccess(userId, project.organizationId)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    if (project.organizationId && await isTeamMemberInOrg(userId, project.organizationId)) {
+      return res.status(403).json({ message: "Team members cannot modify agent configurations" });
+    }
 
     const {
       enabled, agendaEnabled, agendaDay, agendaTime,
@@ -110,11 +177,30 @@ export function registerProjectAgentRoutes(app: Express) {
     res.json(agent);
   });
 
-  app.get("/api/projects/:projectId/agent/logs", async (req: Request, res: Response) => {
+  apiRoute(app, 'get', '/api/projects/:projectId/agent/logs', {
+    tag: 'Projects',
+    summary: 'Get project agent execution logs',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Agent logs', { type: 'array', items: { type: 'object' } }), ...authRes },
+  }, async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: "Authentication required" });
 
     const projectId = Number(req.params.projectId);
+
+    const [project] = await db.select({ id: projects.id, organizationId: projects.organizationId })
+      .from(projects).where(eq(projects.id, projectId));
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (project.organizationId && !await userHasOrgAccess(userId, project.organizationId)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    if (project.organizationId && await isTeamMemberInOrg(userId, project.organizationId)) {
+      const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, project.organizationId));
+      if (!allowedProjectIds.has(projectId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+    }
+
     const [agent] = await db.select({ id: projectAgents.id })
       .from(projectAgents).where(eq(projectAgents.projectId, projectId));
 
@@ -128,12 +214,27 @@ export function registerProjectAgentRoutes(app: Express) {
     res.json(logs);
   });
 
-  app.post("/api/projects/:projectId/agent/trigger/:action", async (req: Request, res: Response) => {
+  apiRoute(app, 'post', '/api/projects/:projectId/agent/trigger/:action', {
+    tag: 'Projects',
+    summary: 'Manually trigger a project agent action',
+    parameters: [pathId('projectId'), { name: 'action', in: 'path', required: true, schema: { type: 'string', enum: ['meeting_agenda', 'task_follow_up', 'status_report'] } }],
+    responses: { ...r200('Action result', { type: 'object' }), ...fullRes, ...inputRes },
+  }, async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ message: "Authentication required" });
 
     const projectId = Number(req.params.projectId);
     const action = req.params.action;
+
+    const [projectForTrigger] = await db.select({ id: projects.id, organizationId: projects.organizationId })
+      .from(projects).where(eq(projects.id, projectId));
+    if (!projectForTrigger) return res.status(404).json({ message: "Project not found" });
+    if (projectForTrigger.organizationId && !await userHasOrgAccess(userId, projectForTrigger.organizationId)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    if (projectForTrigger.organizationId && await isTeamMemberInOrg(userId, projectForTrigger.organizationId)) {
+      return res.status(403).json({ message: "Team members cannot trigger agent actions" });
+    }
 
     const [agent] = await db.select().from(projectAgents)
       .where(eq(projectAgents.projectId, projectId));
