@@ -164,7 +164,7 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
             ],
             financials: [
               { category: 'CapEx', lineItem: 'Cloud Infrastructure', description: 'Cloud VMs, storage, and networking costs', budgetAmount: '450000', plannedAmount: '420000', actualAmount: '185000', notes: 'On track with quarterly spend' },
-              { category: 'OpEx', lineItem: 'Cloud Consulting', description: 'Partner consulting services', budgetAmount: '280000', plannedAmount: '250000', actualAmount: '120000', notes: 'Phase 1 consulting complete' },
+              { category: 'OpEx', lineItem: 'Cloud Implementation Services', description: 'Implementation partner services', budgetAmount: '280000', plannedAmount: '250000', actualAmount: '120000', notes: 'Phase 1 implementation complete' },
             ],
             lessonsLearned: [
               { title: 'Early Vendor Engagement', description: 'Engaging cloud vendors early helped identify compatibility issues before migration started', category: 'Process', type: 'Success', impact: 'High', phase: 'Planning', recommendation: 'Include vendor technical reviews in all future migration projects', status: 'Active' },
@@ -252,7 +252,7 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
             ],
             financials: [
               { category: 'CapEx', lineItem: 'Security Tools', description: 'Identity and security platform licenses', budgetAmount: '320000', plannedAmount: '320000', actualAmount: '290000', notes: 'Annual licenses renewed' },
-              { category: 'OpEx', lineItem: 'Security Consulting', description: 'Zero trust architecture consulting', budgetAmount: '180000', plannedAmount: '160000', actualAmount: '95000', notes: 'Phase 2 in progress' },
+              { category: 'OpEx', lineItem: 'Security Specialist Support', description: 'Zero trust architecture specialist support', budgetAmount: '180000', plannedAmount: '160000', actualAmount: '95000', notes: 'Phase 2 in progress' },
             ],
           },
         ],
@@ -303,7 +303,7 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
               { category: 'OpEx', lineItem: 'UX Agency', description: 'External UX design and research', budgetAmount: '250000', plannedAmount: '230000', actualAmount: '120000', notes: 'Phase 1 research complete' },
             ],
             lessonsLearned: [
-              { title: 'Patient Feedback Integration', description: 'Incorporating real patient feedback early in design improved acceptance rates', category: 'Process', type: 'Success', impact: 'High', phase: 'Planning', recommendation: 'Include patient advisory councils in all patient-facing projects', status: 'Active' },
+              { title: 'Patient Feedback Integration', description: 'Incorporating real patient feedback early in design improved acceptance rates', category: 'Process', type: 'Success', impact: 'High', phase: 'Planning', recommendation: 'Include patient experience councils in all patient-facing projects', status: 'Active' },
               { title: 'HIPAA Review Timing', description: 'HIPAA compliance review should happen earlier to avoid design rework', category: 'Compliance', type: 'Improvement', impact: 'Medium', phase: 'Planning', recommendation: 'Engage compliance team in sprint zero for all healthcare projects', status: 'Active' },
             ],
             changeRequests: [
@@ -385,7 +385,7 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
               { title: 'Data quality issues in legacy system', description: 'Missing procedure duration data for 15% of cases', priority: 'High', status: 'In Progress', type: 'Task', assignee: 'Analytics Team', costExposure: '65000' },
             ],
             financials: [
-              { category: 'OpEx', lineItem: 'Data Science Consulting', description: 'External ML expertise', budgetAmount: '180000', plannedAmount: '180000', actualAmount: '110000', notes: 'Phase 2 in progress' },
+              { category: 'OpEx', lineItem: 'Data Science Specialist Support', description: 'External ML expertise', budgetAmount: '180000', plannedAmount: '180000', actualAmount: '110000', notes: 'Phase 2 in progress' },
               { category: 'CapEx', lineItem: 'Infrastructure', description: 'ML training infrastructure', budgetAmount: '80000', plannedAmount: '75000', actualAmount: '60000', notes: 'GPU cluster provisioned' },
             ],
           },
@@ -465,7 +465,7 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
               { name: 'Consent Management', description: 'Implement customer consent framework', progress: 60, status: 'In Progress', assignee: 'Identity Team' },
             ],
             risks: [
-              { title: 'Regulatory Non-Compliance', description: 'APIs may not fully meet PSD2 RTS requirements', probability: 'Medium', impact: 'Critical', status: 'Open', mitigationPlan: 'Engage regulatory consultant for compliance review', costExposure: '40000' },
+              { title: 'Regulatory Non-Compliance', description: 'APIs may not fully meet PSD2 RTS requirements', probability: 'Medium', impact: 'Critical', status: 'Open', mitigationPlan: 'Engage regulatory specialist for compliance review', costExposure: '40000' },
             ],
             milestones: [
               { title: 'API Gateway Live', description: 'Production API gateway deployed', dueDaysFromNow: -60, completed: true, status: 'Done', priority: 'Critical', assignee: 'Platform Lead' },
@@ -476,7 +476,7 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
             ],
             financials: [
               { category: 'CapEx', lineItem: 'API Platform', description: 'API management platform licenses', budgetAmount: '800000', plannedAmount: '780000', actualAmount: '720000', notes: '3-year license agreement' },
-              { category: 'OpEx', lineItem: 'Regulatory Consulting', description: 'PSD2 compliance expertise', budgetAmount: '250000', plannedAmount: '250000', actualAmount: '180000', notes: 'Ongoing engagement' },
+              { category: 'OpEx', lineItem: 'Regulatory Compliance Services', description: 'PSD2 compliance expertise', budgetAmount: '250000', plannedAmount: '250000', actualAmount: '180000', notes: 'Ongoing engagement' },
             ],
           },
         ],
@@ -513,7 +513,7 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
             ],
             financials: [
               { category: 'CapEx', lineItem: 'AML Platform', description: 'Platform licensing and implementation', budgetAmount: '2000000', plannedAmount: '1800000', actualAmount: '200000', notes: 'Initial assessment phase' },
-              { category: 'OpEx', lineItem: 'Consulting', description: 'Implementation partner services', budgetAmount: '800000', plannedAmount: '700000', actualAmount: '100000', notes: 'Discovery phase complete' },
+              { category: 'OpEx', lineItem: 'Implementation Services', description: 'Implementation partner services', budgetAmount: '800000', plannedAmount: '700000', actualAmount: '100000', notes: 'Discovery phase complete' },
             ],
           },
         ],
@@ -723,7 +723,7 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
             ],
             financials: [
               { category: 'CapEx', lineItem: 'Digital Twin Platform', description: 'Platform licensing', budgetAmount: '400000', plannedAmount: '380000', actualAmount: '50000', notes: 'POC license only' },
-              { category: 'OpEx', lineItem: 'Consulting', description: 'Implementation partner', budgetAmount: '300000', plannedAmount: '280000', actualAmount: '60000', notes: 'Discovery phase' },
+              { category: 'OpEx', lineItem: 'Implementation Services', description: 'Implementation partner', budgetAmount: '300000', plannedAmount: '280000', actualAmount: '60000', notes: 'Discovery phase' },
             ],
           },
         ],
