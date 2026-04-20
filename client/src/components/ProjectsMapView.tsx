@@ -453,6 +453,7 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
                 zoom={3}
                 scrollWheelZoom
                 style={{ height: "100%", width: "100%" }}
+                attributionControl={false}
               >
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
