@@ -493,6 +493,9 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editingCell, setEditingCell] = useState<{ itemKey: string; month: number; typeKey: string } | null>(null);
   const [editValue, setEditValue] = useState("");
+  // Inline text-field editing for Cost Item / Comments / WBS columns.
+  const [editingText, setEditingText] = useState<{ itemKey: string; field: "itemName" | "comments" | "wbs" } | null>(null);
+  const [editTextValue, setEditTextValue] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -684,6 +687,51 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     } else {
       createItemMutation.mutate({ fiscalYear, ...payload });
     }
+  };
+
+  const beginTextEdit = (row: GridRow, field: "itemName" | "comments" | "wbs") => {
+    if (row.type !== "item" || !row.itemKey) return;
+    const current =
+      field === "itemName" ? (row.itemName || row.label || "") :
+      field === "comments" ? (row.comments || "") :
+      (row.wbs || "");
+    setEditTextValue(current);
+    setEditingText({ itemKey: row.itemKey, field });
+  };
+
+  const cancelTextEdit = () => {
+    setEditingText(null);
+    setEditTextValue("");
+  };
+
+  const saveTextEdit = () => {
+    if (!editingText) return;
+    const { itemKey, field } = editingText;
+    const sample = entries.find(e => e.itemKey === itemKey);
+    if (!sample) { cancelTextEdit(); return; }
+    const next = editTextValue.trim();
+    const currentVal =
+      field === "itemName" ? (sample.itemName || "") :
+      field === "comments" ? (sample.comments || "") :
+      (sample.wbs || "");
+    if (next === currentVal.trim()) { cancelTextEdit(); return; }
+    if (field === "itemName" && !next) {
+      toast({ title: "Item name is required", variant: "destructive" });
+      return;
+    }
+    const payload: any = {
+      itemName: sample.itemName,
+      financialView: sample.financialView ?? null,
+      costCategory: sample.costCategory ?? null,
+      costSpecification: sample.costSpecification ?? null,
+      category: sample.category ?? null,
+      wbs: sample.wbs ?? null,
+      comments: sample.comments ?? null,
+      [field]: next || null,
+    };
+    if (field === "itemName") payload.itemName = next;
+    updateItemMutation.mutate({ itemKey, data: payload });
+    cancelTextEdit();
   };
 
   const handleCellClick = (row: GridRow, monthIdx: number, typeKey: string) => {
@@ -1248,6 +1296,29 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                             <Badge variant="secondary" className="text-[10px] uppercase tracking-wide font-semibold whitespace-nowrap">
                               {row.label}
                             </Badge>
+                          ) : isItem && editingText?.itemKey === row.itemKey && editingText?.field === "itemName" ? (
+                            <Input
+                              autoFocus
+                              value={editTextValue}
+                              onFocus={(e) => e.currentTarget.select()}
+                              onChange={(e) => setEditTextValue(e.target.value)}
+                              onBlur={saveTextEdit}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") { e.preventDefault(); saveTextEdit(); }
+                                else if (e.key === "Escape") { e.preventDefault(); cancelTextEdit(); }
+                              }}
+                              className="h-6 text-xs px-1 py-0 ring-2 ring-primary/40 min-w-0 flex-1"
+                              data-testid={`input-itemname-${row.itemKey}`}
+                            />
+                          ) : isItem ? (
+                            <span
+                              className="truncate cursor-text rounded-sm px-1 -mx-1 hover:ring-1 hover:ring-primary/30 hover:bg-background"
+                              onClick={() => beginTextEdit(row, "itemName")}
+                              title="Click to rename"
+                              data-testid={`label-itemname-${row.itemKey}`}
+                            >
+                              {row.label}
+                            </span>
                           ) : (
                             <span className="truncate">{row.label}</span>
                           )}
@@ -1280,21 +1351,65 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                           )}
                         </div>
 
-                        {/* Comments (sticky) */}
+                        {/* Comments (sticky) — click to edit when on an item row */}
                         <div
-                          className={`px-3 py-1.5 text-xs text-muted-foreground truncate flex items-center sticky z-[1] ${stickyBgClass} ${stickyHover}`}
+                          className={`px-3 py-1.5 text-xs text-muted-foreground flex items-center sticky z-[1] ${stickyBgClass} ${stickyHover}`}
                           style={{ left: `${stickyL2}px` }}
                           title={row.comments || ""}
                         >
-                          {isItem ? (row.comments || "") : ""}
+                          {isItem && editingText?.itemKey === row.itemKey && editingText?.field === "comments" ? (
+                            <Input
+                              autoFocus
+                              value={editTextValue}
+                              onFocus={(e) => e.currentTarget.select()}
+                              onChange={(e) => setEditTextValue(e.target.value)}
+                              onBlur={saveTextEdit}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") { e.preventDefault(); saveTextEdit(); }
+                                else if (e.key === "Escape") { e.preventDefault(); cancelTextEdit(); }
+                              }}
+                              className="h-6 text-xs px-1 py-0 ring-2 ring-primary/40 w-full"
+                              data-testid={`input-comments-${row.itemKey}`}
+                            />
+                          ) : isItem ? (
+                            <span
+                              className="truncate cursor-text rounded-sm px-1 -mx-1 w-full hover:ring-1 hover:ring-primary/30 hover:bg-background min-h-[1.25rem]"
+                              onClick={() => beginTextEdit(row, "comments")}
+                              data-testid={`label-comments-${row.itemKey}`}
+                            >
+                              {row.comments || <span className="opacity-40">—</span>}
+                            </span>
+                          ) : ""}
                         </div>
 
-                        {/* WBS (sticky, last frozen col → edge shadow) */}
+                        {/* WBS (sticky, last frozen col → edge shadow) — click to edit */}
                         <div
-                          className={`px-3 py-1.5 text-xs text-muted-foreground tabular-nums truncate flex items-center sticky z-[1] ${stickyBgClass} ${stickyHover} ${stickyEdgeShadow}`}
+                          className={`px-3 py-1.5 text-xs text-muted-foreground tabular-nums flex items-center sticky z-[1] ${stickyBgClass} ${stickyHover} ${stickyEdgeShadow}`}
                           style={{ left: `${stickyL3}px` }}
                         >
-                          {isItem ? (row.wbs || "") : ""}
+                          {isItem && editingText?.itemKey === row.itemKey && editingText?.field === "wbs" ? (
+                            <Input
+                              autoFocus
+                              value={editTextValue}
+                              onFocus={(e) => e.currentTarget.select()}
+                              onChange={(e) => setEditTextValue(e.target.value)}
+                              onBlur={saveTextEdit}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") { e.preventDefault(); saveTextEdit(); }
+                                else if (e.key === "Escape") { e.preventDefault(); cancelTextEdit(); }
+                              }}
+                              className="h-6 text-xs px-1 py-0 ring-2 ring-primary/40 w-full tabular-nums"
+                              data-testid={`input-wbs-${row.itemKey}`}
+                            />
+                          ) : isItem ? (
+                            <span
+                              className="truncate cursor-text rounded-sm px-1 -mx-1 w-full hover:ring-1 hover:ring-primary/30 hover:bg-background min-h-[1.25rem]"
+                              onClick={() => beginTextEdit(row, "wbs")}
+                              data-testid={`label-wbs-${row.itemKey}`}
+                            >
+                              {row.wbs || <span className="opacity-40">—</span>}
+                            </span>
+                          ) : ""}
                         </div>
 
                         {/* Per-scenario row totals */}
