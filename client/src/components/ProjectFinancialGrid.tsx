@@ -21,6 +21,49 @@ interface ProjectFinancialGridProps {
 
 type FinancialTypeKey = string;
 
+// Per–financial-type color palette. The three system keys (aop/fcst/act) get
+// dedicated brand colors; custom keys cycle through the fallback palette so any
+// admin-added type still pops visibly in the toolbar.
+const TYPE_PALETTES: Record<string, {
+  activeBg: string; activeText: string; activeRing: string; dotOn: string; dotOff: string;
+}> = {
+  aop: {
+    activeBg: "bg-blue-500/15 dark:bg-blue-400/20",
+    activeText: "text-blue-700 dark:text-blue-200",
+    activeRing: "ring-1 ring-inset ring-blue-500/40",
+    dotOn: "bg-blue-500",
+    dotOff: "bg-blue-500/30",
+  },
+  fcst: {
+    activeBg: "bg-amber-500/15 dark:bg-amber-400/20",
+    activeText: "text-amber-800 dark:text-amber-200",
+    activeRing: "ring-1 ring-inset ring-amber-500/40",
+    dotOn: "bg-amber-500",
+    dotOff: "bg-amber-500/30",
+  },
+  act: {
+    activeBg: "bg-emerald-500/15 dark:bg-emerald-400/20",
+    activeText: "text-emerald-700 dark:text-emerald-200",
+    activeRing: "ring-1 ring-inset ring-emerald-500/40",
+    dotOn: "bg-emerald-500",
+    dotOff: "bg-emerald-500/30",
+  },
+};
+const FALLBACK_TYPE_PALETTES = [
+  { activeBg: "bg-violet-500/15 dark:bg-violet-400/20", activeText: "text-violet-700 dark:text-violet-200", activeRing: "ring-1 ring-inset ring-violet-500/40", dotOn: "bg-violet-500", dotOff: "bg-violet-500/30" },
+  { activeBg: "bg-pink-500/15 dark:bg-pink-400/20",     activeText: "text-pink-700 dark:text-pink-200",     activeRing: "ring-1 ring-inset ring-pink-500/40",   dotOn: "bg-pink-500",   dotOff: "bg-pink-500/30" },
+  { activeBg: "bg-cyan-500/15 dark:bg-cyan-400/20",     activeText: "text-cyan-700 dark:text-cyan-200",     activeRing: "ring-1 ring-inset ring-cyan-500/40",   dotOn: "bg-cyan-500",   dotOff: "bg-cyan-500/30" },
+  { activeBg: "bg-rose-500/15 dark:bg-rose-400/20",     activeText: "text-rose-700 dark:text-rose-200",     activeRing: "ring-1 ring-inset ring-rose-500/40",   dotOn: "bg-rose-500",   dotOff: "bg-rose-500/30" },
+  { activeBg: "bg-teal-500/15 dark:bg-teal-400/20",     activeText: "text-teal-700 dark:text-teal-200",     activeRing: "ring-1 ring-inset ring-teal-500/40",   dotOn: "bg-teal-500",   dotOff: "bg-teal-500/30" },
+];
+function getTypePalette(key: string) {
+  if (TYPE_PALETTES[key]) return TYPE_PALETTES[key];
+  // Stable hash so the same custom key always gets the same color.
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
+  return FALLBACK_TYPE_PALETTES[Math.abs(h) % FALLBACK_TYPE_PALETTES.length];
+}
+
 const MONTHS = [
   { num: 1, label: "Oct" },
   { num: 2, label: "Nov" },
@@ -676,29 +719,38 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
             />
           </div>
 
-          {/* Segmented scenario toggle */}
+          {/* Segmented financial-type toggle — colored per type for quick scanning */}
           <div className="inline-flex h-9 items-center rounded-md border bg-muted/40 p-0.5 gap-0.5">
-            {allTypes.map((s) => (
-              <button
-                key={s.key}
-                type="button"
-                onClick={() => toggleTypeVisibility(s.key)}
-                className={`inline-flex items-center gap-1 px-3 h-8 text-xs font-medium rounded-sm transition-all ${
-                  s.enabled
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-background/60"
-                }`}
-                data-testid={`button-view-${s.key}`}
-                title={
-                  s.enabled
-                    ? `${s.label} — ${s.editable ? "editable" : "read-only"}. Click to hide.`
-                    : `${s.label} — hidden. Click to show.`
-                }
-              >
-                {s.enabled && !s.editable && <Lock className="h-3 w-3 opacity-60" />}
-                {s.label}
-              </button>
-            ))}
+            {allTypes.map((s) => {
+              const palette = getTypePalette(s.key);
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => toggleTypeVisibility(s.key)}
+                  className={`inline-flex items-center gap-1.5 px-3 h-8 text-xs font-semibold rounded-sm transition-all ${
+                    s.enabled
+                      ? `${palette.activeBg} ${palette.activeText} ${palette.activeRing} shadow-sm`
+                      : `text-muted-foreground hover:text-foreground hover:bg-background/60`
+                  }`}
+                  data-testid={`button-view-${s.key}`}
+                  title={
+                    s.enabled
+                      ? `${s.label} — ${s.editable ? "editable" : "read-only"}. Click to hide.`
+                      : `${s.label} — hidden. Click to show.`
+                  }
+                >
+                  <span
+                    className={`inline-block h-2 w-2 rounded-full ${
+                      s.enabled ? palette.dotOn : palette.dotOff
+                    }`}
+                    aria-hidden="true"
+                  />
+                  {s.enabled && !s.editable && <Lock className="h-3 w-3 opacity-60" />}
+                  <span className="uppercase tracking-wide">{s.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           <Select value={String(fiscalYear)} onValueChange={(v) => setFiscalYear(Number(v))}>
