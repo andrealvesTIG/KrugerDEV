@@ -41,7 +41,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Users, UserPlus, Flag, FlagTriangleRight, ImageDown, Mail, Briefcase, ZoomIn, ZoomOut, Maximize2, ListTodo, MoreVertical, UserMinus, PanelLeft } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Users, UserPlus, Flag, FlagTriangleRight, ImageDown, Mail, Briefcase, ZoomIn, ZoomOut, Maximize2, ListTodo, MoreVertical, UserMinus, PanelLeft, CircleDot } from "lucide-react";
 import { toPng } from "html-to-image";
 import ExcelJS from "exceljs";
 import { GANTT_COLUMNS, type GanttColumn } from "@/components/project/ProjectGanttView";
@@ -3413,41 +3413,82 @@ function ProjectTeamTab({
   const [teamPeriodCount, setTeamPeriodCount] = useState(12);
   const [teamDisplayUnit, setTeamDisplayUnit] = useState<TeamDisplayUnit>("hours");
   const [expandedMembers, setExpandedMembers] = useState<Set<number>>(new Set());
+  const teamScrollContainerRef = useRef<HTMLDivElement>(null);
+  const hasScrolledToTodayTeam = useRef(false);
 
   const today = useMemo(() => new Date(), []);
 
+  const teamRawDataRange = useMemo(() => {
+    let minDate = new Date();
+    let maxDate = new Date();
+    if (projectTaskAssignments && projectTasks) {
+      const assignedTaskIds = new Set(projectTaskAssignments.map(a => a.taskId));
+      for (const task of projectTasks) {
+        if (!assignedTaskIds.has(task.id)) continue;
+        if (task.startDate) {
+          const s = parseISO(task.startDate);
+          if (s < minDate) minDate = s;
+        }
+        if (task.endDate) {
+          const e = parseISO(task.endDate);
+          if (e > maxDate) maxDate = e;
+        }
+      }
+    }
+    return { minDate, maxDate };
+  }, [projectTaskAssignments, projectTasks]);
+
+  const pastTeamPeriodCount = useMemo((): number => {
+    const { minDate } = teamRawDataRange;
+    const todayStart = startOfDay(today);
+    const minStart = startOfDay(minDate);
+    if (minStart >= todayStart) return 0;
+    const daysDiff = differenceInDays(todayStart, minStart);
+    if (daysDiff <= 0) return 0;
+    switch (teamTimeScale) {
+      case "day": return Math.min(daysDiff, 60);
+      case "week": return Math.min(Math.ceil(daysDiff / 7), 26);
+      case "month": return Math.min(Math.ceil(daysDiff / 30), 12);
+      case "quarter": return Math.min(Math.ceil(daysDiff / 90), 8);
+      case "year": return Math.min(Math.ceil(daysDiff / 365), 5);
+    }
+  }, [teamRawDataRange, teamTimeScale, today]);
+
   const teamPeriods = useMemo(() => {
     const result: { start: Date; end: Date; label: string; workDays: number }[] = [];
-    for (let i = 0; i < teamPeriodCount; i++) {
+    const startOffset = -pastTeamPeriodCount;
+    const totalCount = pastTeamPeriodCount + teamPeriodCount;
+    for (let i = 0; i < totalCount; i++) {
+      const offset = startOffset + i;
       let periodStart: Date, periodEnd: Date, label: string, workDays: number;
       switch (teamTimeScale) {
         case "day":
-          periodStart = startOfDay(addDays(today, i));
-          periodEnd = endOfDay(addDays(today, i));
+          periodStart = startOfDay(addDays(today, offset));
+          periodEnd = endOfDay(addDays(today, offset));
           label = format(periodStart, "MMM d");
           workDays = [0, 6].includes(periodStart.getDay()) ? 0 : 1;
           break;
         case "week":
-          periodStart = startOfWeek(addWeeks(today, i), { weekStartsOn: 1 });
-          periodEnd = endOfWeek(addWeeks(today, i), { weekStartsOn: 1 });
+          periodStart = startOfWeek(addWeeks(today, offset), { weekStartsOn: 1 });
+          periodEnd = endOfWeek(addWeeks(today, offset), { weekStartsOn: 1 });
           label = format(periodStart, "MMM d");
           workDays = 5;
           break;
         case "month":
-          periodStart = startOfMonth(addMonths(today, i));
-          periodEnd = endOfMonth(addMonths(today, i));
+          periodStart = startOfMonth(addMonths(today, offset));
+          periodEnd = endOfMonth(addMonths(today, offset));
           label = format(periodStart, "MMM yy");
           workDays = 22;
           break;
         case "quarter":
-          periodStart = startOfQuarter(addQuarters(today, i));
-          periodEnd = endOfQuarter(addQuarters(today, i));
+          periodStart = startOfQuarter(addQuarters(today, offset));
+          periodEnd = endOfQuarter(addQuarters(today, offset));
           label = `Q${Math.floor(periodStart.getMonth() / 3) + 1} ${format(periodStart, "yy")}`;
           workDays = 65;
           break;
         case "year":
-          periodStart = startOfYear(addYears(today, i));
-          periodEnd = endOfYear(addYears(today, i));
+          periodStart = startOfYear(addYears(today, offset));
+          periodEnd = endOfYear(addYears(today, offset));
           label = format(periodStart, "yyyy");
           workDays = 260;
           break;
@@ -3455,7 +3496,35 @@ function ProjectTeamTab({
       result.push({ start: periodStart, end: periodEnd, label, workDays });
     }
     return result;
-  }, [teamTimeScale, teamPeriodCount, today]);
+  }, [teamTimeScale, teamPeriodCount, pastTeamPeriodCount, today]);
+
+  const teamTodayIndex = useMemo((): number => {
+    const now = new Date();
+    return teamPeriods.findIndex(p => p.start <= now && p.end >= now);
+  }, [teamPeriods]);
+
+  const scrollTeamToToday = () => {
+    const container = teamScrollContainerRef.current;
+    if (!container || teamTodayIndex < 0) return;
+    const nameColWidth = 256;
+    const cellWidth = teamTimeScale === "day" ? 50 : 65;
+    const targetScroll = nameColWidth + (teamTodayIndex * cellWidth) - (container.clientWidth / 4);
+    container.scrollTo({ left: Math.max(0, targetScroll), behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    if (hasScrolledToTodayTeam.current) return;
+    if (teamTodayIndex < 0 || !teamScrollContainerRef.current) return;
+    const timer = setTimeout(() => {
+      scrollTeamToToday();
+      hasScrolledToTodayTeam.current = true;
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [teamTodayIndex]);
+
+  useEffect(() => {
+    hasScrolledToTodayTeam.current = false;
+  }, [teamTimeScale, teamPeriodCount]);
 
   const getTeamPeriodCapacity = (weeklyCapacity: number, period: { workDays: number }) => {
     switch (teamTimeScale) {
@@ -3749,10 +3818,16 @@ function ProjectTeamTab({
                     <Maximize2 className="h-4 w-4 sm:mr-1" />
                     <span className="hidden sm:inline text-xs">Autofit</span>
                   </Button>
+                  {teamTodayIndex >= 0 && (
+                    <Button variant="outline" size="icon" className="h-8 w-8 sm:w-auto sm:px-3" onClick={scrollTeamToToday} title="Scroll to today">
+                      <CircleDot className="h-4 w-4 sm:mr-1" />
+                      <span className="hidden sm:inline text-xs">Today</span>
+                    </Button>
+                  )}
                 </div>
               </div>
 
-              <div className="overflow-auto border rounded-md" style={{ maxHeight: "560px" }}>
+              <div ref={teamScrollContainerRef} className="overflow-auto border rounded-md" style={{ maxHeight: "560px" }}>
                 <div style={{ minWidth: `${256 + teamPeriods.length * (teamTimeScale === "day" ? 50 : 65)}px` }}>
                   <div className="flex border-b sticky top-0 bg-background" style={{ zIndex: 20 }}>
                     <div className="w-44 sm:w-64 flex-shrink-0 p-2 font-medium text-sm border-r bg-background sticky left-0" style={{ zIndex: 30 }}>
