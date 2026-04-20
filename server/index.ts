@@ -14,6 +14,7 @@ import { checkAndSendDueReports } from "./services/scheduledReports";
 import { runScheduledReminders } from "./services/timesheetReminderEngine";
 import { checkAndRunDueAgentActions } from "./services/projectAgentService";
 import { cleanupDuplicateBillingCycles } from "./services/billing";
+import { backfillFinancialEntries } from "./migrations/backfillFinancialEntries";
 
 process.on('uncaughtException', (err) => {
   const msg = err instanceof Error ? err.message : String(err);
@@ -227,7 +228,16 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
-      
+
+      // One-shot backfill of legacy cost_items into normalized financial_entries.
+      backfillFinancialEntries()
+        .then(({ migrated, skipped }) => {
+          if (migrated > 0 || skipped > 0) {
+            log(`Financial entries backfill: ${migrated} migrated, ${skipped} already migrated`, "migration");
+          }
+        })
+        .catch(err => console.error("[migration] Failed to backfill financial entries:", err));
+
       // Cron jobs only run in production by default. Set ENABLE_CRON=true to
       // enable them in development for manual testing.
       const cronEnabled = process.env.NODE_ENV === "production" || process.env.ENABLE_CRON === "true";

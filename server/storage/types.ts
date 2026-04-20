@@ -25,6 +25,7 @@ import type {
   RiskResourceAssignment, InsertRiskResourceAssignment,
   CostItem, InsertCostItem, UpdateCostItemRequest,
   CostItemChangeLog, InsertCostItemChangeLog,
+  FinancialEntry,
   MultiYearWbs, InsertMultiYearWbs,
   ProjectIntake, InsertProjectIntake, UpdateProjectIntakeRequest,
   MppImport, InsertMppImport,
@@ -303,6 +304,30 @@ export interface IFinancialStorage {
   deleteCostItem(id: number): Promise<void>;
   getCostItemChangeLogs(projectId: number): Promise<CostItemChangeLog[]>;
   createCostItemChangeLog(data: InsertCostItemChangeLog): Promise<void>;
+  getFinancialEntries(projectId: number, fiscalYear?: number): Promise<FinancialEntry[]>;
+  createFinancialItem(args: {
+    projectId: number;
+    fiscalYear: number;
+    itemKey?: string;
+    dimensions: import("./financialStorage").FinancialItemDimensions;
+  }): Promise<string>;
+  upsertFinancialCell(args: {
+    projectId: number;
+    fiscalYear: number;
+    itemKey: string;
+    scenario: import("./financialStorage").FinancialScenario;
+    month: number;
+    amount: number;
+  }): Promise<{ previous: number; next: number; entry: FinancialEntry }>;
+  updateFinancialItemDimensions(args: {
+    projectId: number;
+    itemKey: string;
+    dimensions: Partial<import("./financialStorage").FinancialItemDimensions>;
+  }): Promise<{ updated: number; previous: import("./financialStorage").FinancialItemDimensions | null }>;
+  deleteFinancialItem(args: {
+    projectId: number;
+    itemKey: string;
+  }): Promise<import("./financialStorage").FinancialItemDimensions | null>;
   getBillingTransactions(userId?: string, orgId?: number, limit?: number, offset?: number): Promise<BillingTransaction[]>;
   getBillingTransaction(id: number): Promise<BillingTransaction | undefined>;
   createBillingTransaction(transaction: InsertBillingTransaction): Promise<BillingTransaction>;

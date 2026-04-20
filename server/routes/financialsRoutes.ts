@@ -2,7 +2,8 @@ import type { Express, Request } from "express";
 import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { storage } from "../storage";
-import { multiYearWbs, type CostItem, type InsertCostItem } from "@shared/schema";
+import { multiYearWbs } from "@shared/schema";
+import type { FinancialItemDimensions, FinancialScenario } from "../storage/financialStorage";
 import {
   getUserIdFromRequest,
   userHasOrgAccess,
@@ -15,18 +16,6 @@ async function teamMemberCanAccessProject(userId: string, projectId: number, org
   const allowedProjectIds = new Set(await getTeamMemberProjectIds(userId, organizationId));
   return allowedProjectIds.has(projectId);
 }
-
-const META_FIELDS = [
-  "name", "wbs", "comments", "financialView", "costCategory", "costSpecification",
-] as const;
-const MONTH_FIELDS = [
-  "aopM1","aopM2","aopM3","aopM4","aopM5","aopM6","aopM7","aopM8","aopM9","aopM10","aopM11","aopM12",
-  "fcstM1","fcstM2","fcstM3","fcstM4","fcstM5","fcstM6","fcstM7","fcstM8","fcstM9","fcstM10","fcstM11","fcstM12",
-  "actM1","actM2","actM3","actM4","actM5","actM6","actM7","actM8","actM9","actM10","actM11","actM12",
-] as const;
-type MetaField = (typeof META_FIELDS)[number];
-type MonthField = (typeof MONTH_FIELDS)[number];
-type TrackedField = MetaField | MonthField;
 
 async function ensureProjectAccess(req: Request, projectId: number) {
   const userId = getUserIdFromRequest(req);
@@ -42,19 +31,21 @@ async function ensureProjectAccess(req: Request, projectId: number) {
   return { ok: true as const, project, userId };
 }
 
-function pickCostItemUpdate(body: any): Partial<InsertCostItem> {
+const DIMENSION_FIELDS = [
+  "itemName", "financialView", "costCategory", "costSpecification",
+  "category", "wbs", "comments", "sortOrder",
+] as const;
+type DimensionField = (typeof DIMENSION_FIELDS)[number];
+
+function pickDimensions(body: any): Partial<FinancialItemDimensions> {
   const out: any = {};
-  const fields = [
-    ...META_FIELDS,
-    "category", "parentId", "sortOrder",
-    "aopTotal", "fcstTotal", "actTotal",
-    ...MONTH_FIELDS,
-  ];
-  for (const f of fields) {
+  for (const f of DIMENSION_FIELDS) {
     if (body && Object.prototype.hasOwnProperty.call(body, f)) out[f] = body[f];
   }
   return out;
 }
+
+const SCENARIOS = new Set<FinancialScenario>(["aop", "fcst", "act"]);
 
 const WBS_FIELDS = [
   "fiscalYear", "sapProjectNumber", "sapCapitalNumber", "sapExpenseNumber",
@@ -77,197 +68,201 @@ async function changedByName(userId: string | null | undefined): Promise<string>
 }
 
 export function registerFinancialsRoutes(app: Express) {
-  // ===================== COST ITEMS =====================
+  // ===================== FINANCIAL ENTRIES (normalized) =====================
 
-  app.get("/api/projects/:projectId/cost-items", async (req, res) => {
+  // List every cell for a project (optionally filtered by fiscal year). The
+  // grid groups/pivots these client-side.
+  app.get("/api/projects/:projectId/financial-entries", async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
       const fiscalYear = req.query.fiscalYear ? Number(req.query.fiscalYear) : undefined;
       const guard = await ensureProjectAccess(req, projectId);
       if (!guard.ok) return res.status(guard.status).json({ message: guard.message });
-      const items = await storage.getCostItems(projectId, fiscalYear);
-      res.json(items);
+      const entries = await storage.getFinancialEntries(projectId, fiscalYear);
+      res.json(entries);
     } catch (err) {
-      console.error("Error fetching cost items:", err);
-      res.status(500).json({ message: "Error fetching cost items" });
+      console.error("Error fetching financial entries:", err);
+      res.status(500).json({ message: "Error fetching financial entries" });
     }
   });
 
-  app.get("/api/cost-items/:id", async (req, res) => {
-    try {
-      const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ message: "Authentication required" });
-      const item = await storage.getCostItem(Number(req.params.id));
-      if (!item) return res.status(404).json({ message: "Cost item not found" });
-      const guard = await ensureProjectAccess(req, item.projectId);
-      if (!guard.ok) return res.status(guard.status).json({ message: guard.message });
-      res.json(item);
-    } catch (err) {
-      console.error("Error fetching cost item:", err);
-      res.status(500).json({ message: "Error fetching cost item" });
-    }
-  });
-
-  app.post("/api/projects/:projectId/cost-items", async (req, res) => {
+  // Create a new logical item (writes 36 zero-amount cells).
+  app.post("/api/projects/:projectId/financial-items", async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
       const guard = await ensureProjectAccess(req, projectId);
       if (!guard.ok) return res.status(guard.status).json({ message: guard.message });
       const userId = guard.userId;
 
-      const {
-        name, parentId, wbs, comments, category, fiscalYear,
-        financialView, costCategory, costSpecification,
-        aopTotal, fcstTotal, actTotal,
-        aopM1, aopM2, aopM3, aopM4, aopM5, aopM6, aopM7, aopM8, aopM9, aopM10, aopM11, aopM12,
-        fcstM1, fcstM2, fcstM3, fcstM4, fcstM5, fcstM6, fcstM7, fcstM8, fcstM9, fcstM10, fcstM11, fcstM12,
-        actM1, actM2, actM3, actM4, actM5, actM6, actM7, actM8, actM9, actM10, actM11, actM12,
-        sortOrder,
-      } = req.body || {};
-
-      if (!name || !fiscalYear) {
-        return res.status(400).json({ message: "name and fiscalYear are required" });
+      const { fiscalYear } = req.body || {};
+      const dimensions = pickDimensions(req.body) as FinancialItemDimensions;
+      if (!fiscalYear) return res.status(400).json({ message: "fiscalYear is required" });
+      if (!dimensions.itemName || !String(dimensions.itemName).trim()) {
+        return res.status(400).json({ message: "itemName is required" });
       }
 
-      const item = await storage.createCostItem({
+      const itemKey = await storage.createFinancialItem({
         projectId,
-        parentId: parentId || null,
-        name,
-        wbs,
-        comments,
-        category,
-        financialView,
-        costCategory,
-        costSpecification,
-        fiscalYear,
-        aopTotal, fcstTotal, actTotal,
-        aopM1, aopM2, aopM3, aopM4, aopM5, aopM6, aopM7, aopM8, aopM9, aopM10, aopM11, aopM12,
-        fcstM1, fcstM2, fcstM3, fcstM4, fcstM5, fcstM6, fcstM7, fcstM8, fcstM9, fcstM10, fcstM11, fcstM12,
-        actM1, actM2, actM3, actM4, actM5, actM6, actM7, actM8, actM9, actM10, actM11, actM12,
-        sortOrder: sortOrder || 0,
-      } as InsertCostItem);
+        fiscalYear: Number(fiscalYear),
+        dimensions,
+      });
 
       try {
         await storage.createCostItemChangeLog({
-          costItemId: item.id,
+          costItemId: null,
           projectId,
           changedBy: userId,
           changedByName: await changedByName(userId),
-          changeType: "created",
-          changeSummary: `Cost item "${name}" created (${financialView || "N/A"} > ${costCategory || "N/A"} > ${costSpecification || "N/A"})`,
+          changeType: "item_created",
+          changeSummary: `Created "${dimensions.itemName}" (${dimensions.financialView || "N/A"} > ${dimensions.costCategory || "N/A"} > ${dimensions.costSpecification || "N/A"})`,
           previousValues: null,
-          newValues: JSON.stringify({ name, financialView, costCategory, costSpecification, wbs, comments }),
+          newValues: JSON.stringify({ itemKey, fiscalYear, ...dimensions }),
         });
       } catch (logErr) {
-        console.error("Error creating cost item change log:", logErr);
+        console.error("Error creating change log:", logErr);
       }
 
-      res.status(201).json(item);
+      res.status(201).json({ itemKey, fiscalYear: Number(fiscalYear), ...dimensions });
     } catch (err) {
-      console.error("Error creating cost item:", err);
-      res.status(500).json({ message: "Error creating cost item" });
+      console.error("Error creating financial item:", err);
+      res.status(500).json({ message: "Error creating financial item" });
     }
   });
 
-  app.put("/api/cost-items/:id", async (req, res) => {
+  // Update a single cell (one scenario × one month for one logical item).
+  app.put("/api/projects/:projectId/financial-cells", async (req, res) => {
     try {
-      const id = Number(req.params.id);
-      const existing = await storage.getCostItem(id);
-      if (!existing) return res.status(404).json({ message: "Cost item not found" });
-      const guard = await ensureProjectAccess(req, existing.projectId);
+      const projectId = Number(req.params.projectId);
+      const guard = await ensureProjectAccess(req, projectId);
       if (!guard.ok) return res.status(guard.status).json({ message: guard.message });
       const userId = guard.userId;
 
-      const updates = pickCostItemUpdate(req.body);
-      const updated = await storage.updateCostItem(id, updates);
+      const { fiscalYear, itemKey, scenario, month, amount } = req.body || {};
+      if (!fiscalYear || !itemKey || !scenario || !month) {
+        return res.status(400).json({ message: "fiscalYear, itemKey, scenario, month are required" });
+      }
+      if (!SCENARIOS.has(scenario)) {
+        return res.status(400).json({ message: "scenario must be aop|fcst|act" });
+      }
+      const monthNum = Number(month);
+      if (monthNum < 1 || monthNum > 12) {
+        return res.status(400).json({ message: "month must be 1..12" });
+      }
 
-      try {
-        const changedFields: TrackedField[] = [];
-        const prevValues: Partial<Record<TrackedField, unknown>> = {};
-        const newValues: Partial<Record<TrackedField, unknown>> = {};
-        const body = req.body as Partial<Record<TrackedField, unknown>>;
+      const result = await storage.upsertFinancialCell({
+        projectId,
+        fiscalYear: Number(fiscalYear),
+        itemKey,
+        scenario,
+        month: monthNum,
+        amount: Number(amount) || 0,
+      });
 
-        const allFields: ReadonlyArray<TrackedField> = [...META_FIELDS, ...MONTH_FIELDS];
-        for (const field of allFields) {
-          const existingVal = (existing as any)[field];
-          const incomingVal = body[field];
-          const oldStr = String(existingVal ?? "0");
-          const newStr = String(incomingVal !== undefined ? incomingVal : existingVal ?? "0");
-          if (oldStr !== newStr) {
-            changedFields.push(field);
-            prevValues[field] = existingVal;
-            newValues[field] = incomingVal;
-          }
-        }
-
-        if (changedFields.length > 0) {
-          const monthChanges = changedFields.filter((f): f is MonthField => (MONTH_FIELDS as readonly string[]).includes(f));
-          const metaChanges = changedFields.filter((f): f is MetaField => (META_FIELDS as readonly string[]).includes(f));
-          let summary = `Updated "${existing.name}"`;
-          if (metaChanges.length > 0) summary += `: ${metaChanges.join(", ")} changed`;
-          if (monthChanges.length > 0)
-            summary += `${metaChanges.length > 0 ? "; " : ": "}${monthChanges.length} financial value(s) updated`;
-
+      if (result.previous !== result.next) {
+        try {
           await storage.createCostItemChangeLog({
-            costItemId: id,
-            projectId: existing.projectId,
+            costItemId: null,
+            projectId,
             changedBy: userId,
             changedByName: await changedByName(userId),
-            changeType: "updated",
-            changeSummary: summary,
-            previousValues: JSON.stringify(prevValues),
-            newValues: JSON.stringify(newValues),
+            changeType: "cell",
+            changeSummary: `"${result.entry.itemName}" ${scenario.toUpperCase()} M${monthNum}: ${result.previous} → ${result.next}`,
+            previousValues: JSON.stringify({
+              itemKey, scenario, month: monthNum, fiscalYear: Number(fiscalYear), amount: result.previous,
+            }),
+            newValues: JSON.stringify({
+              itemKey, scenario, month: monthNum, fiscalYear: Number(fiscalYear), amount: result.next,
+            }),
           });
+        } catch (logErr) {
+          console.error("Error creating change log:", logErr);
         }
-      } catch (logErr) {
-        console.error("Error creating cost item change log:", logErr);
       }
 
-      res.json(updated);
-    } catch (err) {
-      console.error("Error updating cost item:", err);
-      res.status(500).json({ message: "Error updating cost item" });
+      res.json(result.entry);
+    } catch (err: any) {
+      console.error("Error updating financial cell:", err);
+      res.status(500).json({ message: err?.message || "Error updating financial cell" });
     }
   });
 
-  app.delete("/api/cost-items/:id", async (req, res) => {
+  // Update dimension fields (rename, change category, etc.) across every cell of an item.
+  app.patch("/api/projects/:projectId/financial-items/:itemKey", async (req, res) => {
     try {
-      const id = Number(req.params.id);
-      const existing = await storage.getCostItem(id);
-      if (!existing) return res.status(404).json({ message: "Cost item not found" });
-      const guard = await ensureProjectAccess(req, existing.projectId);
+      const projectId = Number(req.params.projectId);
+      const itemKey = req.params.itemKey;
+      const guard = await ensureProjectAccess(req, projectId);
       if (!guard.ok) return res.status(guard.status).json({ message: guard.message });
       const userId = guard.userId;
+
+      const dimensions = pickDimensions(req.body);
+      const fiscalYear = req.body?.fiscalYear ?? (req.query.fiscalYear ? Number(req.query.fiscalYear) : undefined);
+      const result = await storage.updateFinancialItemDimensions({
+        projectId,
+        itemKey,
+        fiscalYear: fiscalYear !== undefined ? Number(fiscalYear) : undefined,
+        dimensions,
+      });
+      if (result.updated === 0) return res.status(404).json({ message: "Item not found" });
 
       try {
         await storage.createCostItemChangeLog({
-          costItemId: id,
-          projectId: existing.projectId,
+          costItemId: null,
+          projectId,
           changedBy: userId,
           changedByName: await changedByName(userId),
-          changeType: "deleted",
-          changeSummary: `Cost item "${existing.name}" deleted (${existing.financialView || "N/A"} > ${existing.costCategory || "N/A"} > ${existing.costSpecification || "N/A"})`,
-          previousValues: JSON.stringify({
-            name: existing.name,
-            financialView: existing.financialView,
-            costCategory: existing.costCategory,
-            costSpecification: existing.costSpecification,
-          }),
-          newValues: null,
+          changeType: "item_updated",
+          changeSummary: `Updated dimensions of "${result.previous?.itemName ?? itemKey}"`,
+          previousValues: JSON.stringify({ itemKey, ...result.previous }),
+          newValues: JSON.stringify({ itemKey, ...dimensions }),
         });
       } catch (logErr) {
-        console.error("Error creating cost item change log:", logErr);
+        console.error("Error creating change log:", logErr);
       }
 
-      await storage.deleteCostItem(id);
-      res.status(204).send();
+      res.json({ itemKey, updated: result.updated });
     } catch (err) {
-      console.error("Error deleting cost item:", err);
-      res.status(500).json({ message: "Error deleting cost item" });
+      console.error("Error updating financial item:", err);
+      res.status(500).json({ message: "Error updating financial item" });
     }
   });
 
-  app.get("/api/projects/:projectId/cost-items/history", async (req, res) => {
+  // Delete every cell of a logical item.
+  app.delete("/api/projects/:projectId/financial-items/:itemKey", async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const itemKey = req.params.itemKey;
+      const guard = await ensureProjectAccess(req, projectId);
+      if (!guard.ok) return res.status(guard.status).json({ message: guard.message });
+      const userId = guard.userId;
+
+      const fiscalYear = req.query.fiscalYear ? Number(req.query.fiscalYear) : undefined;
+      const previous = await storage.deleteFinancialItem({ projectId, itemKey, fiscalYear });
+      if (!previous) return res.status(404).json({ message: "Item not found" });
+
+      try {
+        await storage.createCostItemChangeLog({
+          costItemId: null,
+          projectId,
+          changedBy: userId,
+          changedByName: await changedByName(userId),
+          changeType: "item_deleted",
+          changeSummary: `Deleted "${previous.itemName}"`,
+          previousValues: JSON.stringify({ itemKey, ...previous }),
+          newValues: null,
+        });
+      } catch (logErr) {
+        console.error("Error creating change log:", logErr);
+      }
+
+      res.status(204).send();
+    } catch (err) {
+      console.error("Error deleting financial item:", err);
+      res.status(500).json({ message: "Error deleting financial item" });
+    }
+  });
+
+  app.get("/api/projects/:projectId/financial-entries/history", async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
       const guard = await ensureProjectAccess(req, projectId);
@@ -275,12 +270,13 @@ export function registerFinancialsRoutes(app: Express) {
       const history = await storage.getCostItemChangeLogs(projectId);
       res.json(history);
     } catch (err) {
-      console.error("Error fetching cost item history:", err);
-      res.status(500).json({ message: "Error fetching cost item history" });
+      console.error("Error fetching financial history:", err);
+      res.status(500).json({ message: "Error fetching financial history" });
     }
   });
 
-  app.post("/api/projects/:projectId/cost-items/undo", async (req, res) => {
+  // Undo: replays the most recent change in reverse.
+  app.post("/api/projects/:projectId/financial-entries/undo", async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
       const guard = await ensureProjectAccess(req, projectId);
@@ -288,47 +284,85 @@ export function registerFinancialsRoutes(app: Express) {
       const userId = guard.userId;
 
       const history = await storage.getCostItemChangeLogs(projectId);
-      if (history.length === 0) return res.status(400).json({ message: "No changes to undo" });
-      const lastChange = history[0];
+      // Skip prior undo records — undoing an undo would just toggle forever.
+      const last = history.find(h => {
+        try {
+          const meta = h.newValues ? JSON.parse(h.newValues) : null;
+          if (meta && meta.__undo) return false;
+          const prevMeta = h.previousValues ? JSON.parse(h.previousValues) : null;
+          if (prevMeta && prevMeta.__undo) return false;
+        } catch { /* fall through */ }
+        return true;
+      });
+      if (!last) return res.status(400).json({ message: "No changes to undo" });
 
-      if (lastChange.changeType === "updated" && lastChange.previousValues) {
-        const prevValues = JSON.parse(lastChange.previousValues);
-        const costItem = await storage.getCostItem(lastChange.costItemId!);
-        if (!costItem) return res.status(404).json({ message: "Cost item no longer exists" });
-
-        await storage.updateCostItem(lastChange.costItemId!, prevValues);
+      if (last.changeType === "cell" && last.previousValues) {
+        const prev = JSON.parse(last.previousValues);
+        const newJson = last.newValues ? JSON.parse(last.newValues) : null;
+        await storage.upsertFinancialCell({
+          projectId,
+          fiscalYear: prev.fiscalYear,
+          itemKey: prev.itemKey,
+          scenario: prev.scenario,
+          month: prev.month,
+          amount: Number(prev.amount) || 0,
+        });
         await storage.createCostItemChangeLog({
-          costItemId: lastChange.costItemId,
+          costItemId: null,
           projectId,
           changedBy: userId,
           changedByName: await changedByName(userId),
-          changeType: "updated",
-          changeSummary: `Undo: reverted changes to "${costItem.name}"`,
-          previousValues: lastChange.newValues,
-          newValues: lastChange.previousValues,
+          changeType: "cell",
+          changeSummary: `Undo: reverted ${prev.scenario?.toUpperCase()} M${prev.month}`,
+          previousValues: JSON.stringify({ ...(newJson ?? prev), __undo: true }),
+          newValues: JSON.stringify({ ...prev, __undo: true }),
         });
-        return res.json({ message: "Change undone successfully", undoneChange: lastChange });
-      } else if (lastChange.changeType === "created") {
-        const costItem = await storage.getCostItem(lastChange.costItemId!);
-        if (costItem) {
-          await storage.deleteCostItem(lastChange.costItemId!);
+        return res.json({ message: "Cell change undone", undone: last });
+      }
+
+      if (last.changeType === "item_updated" && last.previousValues) {
+        const prev = JSON.parse(last.previousValues);
+        const result = await storage.updateFinancialItemDimensions({
+          projectId,
+          itemKey: prev.itemKey,
+          dimensions: prev,
+        });
+        await storage.createCostItemChangeLog({
+          costItemId: null,
+          projectId,
+          changedBy: userId,
+          changedByName: await changedByName(userId),
+          changeType: "item_updated",
+          changeSummary: `Undo: reverted dimensions of "${prev.itemName ?? prev.itemKey}"`,
+          previousValues: JSON.stringify({ ...(last.newValues ? JSON.parse(last.newValues) : {}), __undo: true }),
+          newValues: JSON.stringify({ ...(last.previousValues ? JSON.parse(last.previousValues) : {}), __undo: true }),
+        });
+        return res.json({ message: "Item update undone", undone: last, updated: result.updated });
+      }
+
+      if (last.changeType === "item_created" && last.newValues) {
+        const created = JSON.parse(last.newValues);
+        const previous = await storage.deleteFinancialItem({ projectId, itemKey: created.itemKey });
+        if (previous) {
           await storage.createCostItemChangeLog({
-            costItemId: lastChange.costItemId,
+            costItemId: null,
             projectId,
             changedBy: userId,
             changedByName: await changedByName(userId),
-            changeType: "deleted",
-            changeSummary: `Undo: removed "${costItem.name}" (reverted creation)`,
-            previousValues: lastChange.newValues,
-            newValues: null,
+            changeType: "item_deleted",
+            changeSummary: `Undo: removed "${previous.itemName}" (reverted creation)`,
+            previousValues: JSON.stringify({ itemKey: created.itemKey, ...previous, __undo: true }),
+            newValues: JSON.stringify({ __undo: true }),
           });
         }
-        return res.json({ message: "Creation undone successfully", undoneChange: lastChange });
-      } else if (lastChange.changeType === "deleted") {
+        return res.json({ message: "Creation undone", undone: last });
+      }
+
+      if (last.changeType === "item_deleted") {
         return res.status(400).json({ message: "Cannot undo deletion — please recreate the item manually" });
       }
 
-      return res.status(400).json({ message: "Cannot undo this type of change" });
+      return res.status(400).json({ message: "Cannot undo this change" });
     } catch (err) {
       console.error("Error undoing change:", err);
       res.status(500).json({ message: "Error undoing change" });

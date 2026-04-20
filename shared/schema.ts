@@ -1340,7 +1340,10 @@ export const costItems = pgTable("cost_items", {
   index("cost_items_project_id_idx").on(table.projectId),
 ]);
 
-// Cost Item Change Logs (audit trail / undo support for cost items)
+// Cost Item Change Logs (audit trail / undo support for financial entries)
+// Note: `costItemId` is now used loosely — for normalized financial entries it is
+// left null and the `previousValues`/`newValues` JSON carry the cell context
+// (itemKey, scenario, month, dimensions, amount).
 export const costItemChangeLogs = pgTable("cost_item_change_logs", {
   id: serial("id").primaryKey(),
   costItemId: integer("cost_item_id"),
@@ -1348,12 +1351,46 @@ export const costItemChangeLogs = pgTable("cost_item_change_logs", {
   changedBy: varchar("changed_by").references(() => users.id),
   changedByName: text("changed_by_name"),
   changedAt: timestamp("changed_at").defaultNow(),
-  changeType: text("change_type").notNull(), // "created" | "updated" | "deleted"
+  changeType: text("change_type").notNull(), // "cell" | "item_created" | "item_updated" | "item_deleted"
   changeSummary: text("change_summary"),
   previousValues: text("previous_values"), // JSON string
   newValues: text("new_values"), // JSON string
 }, (table) => [
   index("cost_item_change_logs_project_id_idx").on(table.projectId),
+]);
+
+// Financial Entries — fully normalized fact table.
+// One row per (project, fiscal year, scenario, month, logical item).
+// All dimension fields are denormalized onto every row; rows that share the
+// same `itemKey` represent the same logical item across all 36 cells
+// (3 scenarios × 12 months).
+export const financialEntries = pgTable("financial_entries", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  fiscalYear: integer("fiscal_year").notNull(),
+  scenario: text("scenario").notNull(), // "aop" | "fcst" | "act"
+  month: integer("month").notNull(),    // 1..12 (M1=Oct .. M12=Sep)
+  amount: numeric("amount").default("0").notNull(),
+  // Logical-item identity (shared by every cell of one item)
+  itemKey: text("item_key").notNull(),
+  itemName: text("item_name").notNull(),
+  // Dimension fields (denormalized, identical across rows of the same item)
+  financialView: text("financial_view"),       // "Capital" | "Direct Expense" | "Labor"
+  costCategory: text("cost_category"),
+  costSpecification: text("cost_specification"),
+  category: text("category"),                  // legacy free-form category
+  wbs: text("wbs"),
+  comments: text("comments"),
+  sortOrder: integer("sort_order").default(0),
+  isDemo: boolean("is_demo").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("financial_entries_project_year_idx").on(table.projectId, table.fiscalYear),
+  index("financial_entries_item_key_idx").on(table.itemKey),
+  uniqueIndex("financial_entries_cell_unique_idx").on(
+    table.projectId, table.fiscalYear, table.itemKey, table.scenario, table.month,
+  ),
 ]);
 
 // Multi-Year WBS — fiscal year project rollup with SAP fields
@@ -1884,6 +1921,7 @@ export const insertRiskResourceAssignmentSchema = insertIssueResourceAssignmentS
 export const insertTimesheetEntrySchema = createInsertSchema(timesheetEntries).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCostItemSchema = createInsertSchema(costItems).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCostItemChangeLogSchema = createInsertSchema(costItemChangeLogs).omit({ id: true, changedAt: true });
+export const insertFinancialEntrySchema = createInsertSchema(financialEntries).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMultiYearWbsSchema = createInsertSchema(multiYearWbs).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProjectIntakeSchema = createInsertSchema(projectIntakes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertIntakeTypeSchema = createInsertSchema(intakeTypes).omit({ id: true, createdAt: true, updatedAt: true });
@@ -1990,6 +2028,9 @@ export type InsertCostItem = z.infer<typeof insertCostItemSchema>;
 
 export type CostItemChangeLog = typeof costItemChangeLogs.$inferSelect;
 export type InsertCostItemChangeLog = z.infer<typeof insertCostItemChangeLogSchema>;
+
+export type FinancialEntry = typeof financialEntries.$inferSelect;
+export type InsertFinancialEntry = z.infer<typeof insertFinancialEntrySchema>;
 
 export type MultiYearWbs = typeof multiYearWbs.$inferSelect;
 export type InsertMultiYearWbs = z.infer<typeof insertMultiYearWbsSchema>;
