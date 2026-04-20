@@ -1447,7 +1447,15 @@ export default function ProjectDetails() {
       </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full min-w-0">
+      <Tabs value={activeTab} onValueChange={(next) => {
+        setActiveTab(next);
+        try {
+          const url = new URL(window.location.href);
+          if (next && next !== 'summary') url.searchParams.set('tab', next);
+          else url.searchParams.delete('tab');
+          window.history.replaceState({}, '', url.toString());
+        } catch {}
+      }} className="w-full min-w-0">
         <TabsList className="bg-muted/80 border border-border p-1.5 rounded-xl gap-1 h-auto flex-wrap">
           {/* Render main tabs in user-defined order with drag-drop support */}
           {orderedMainTabs.map(tab => (
