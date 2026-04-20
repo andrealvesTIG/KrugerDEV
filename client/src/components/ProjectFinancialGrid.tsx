@@ -264,23 +264,24 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   };
 
   const handleCellEdit = (item: CostItem, field: string) => {
-    const value = getMonthValue(item, field.replace("fcst", "").replace("act", ""), viewMode);
+    const monthKey = field.replace(/^(fcst|act|aop)/, "");
+    const value = getMonthValue(item, monthKey, viewMode);
     setEditValue(String(value));
     setEditingCell({ id: item.id, field });
   };
 
-  const saveCellEdit = () => {
+  const saveCellEdit = (next?: { id: number; field: string } | null) => {
     if (!editingCell) return;
-    
+
     const numValue = parseFloat(editValue) || 0;
     const updates: Partial<CostItem> = {
       [editingCell.field]: numValue,
     };
-    
-    // Recalculate total
+
+    // Recalculate total for the active view (fcst/act). AOP totals are managed via the dialog.
     const item = costItems.find((i) => i.id === editingCell.id);
-    if (item) {
-      const prefix = viewMode === "act" ? "act" : "fcst";
+    if (item && (viewMode === "fcst" || viewMode === "act")) {
+      const prefix = viewMode;
       let total = 0;
       MONTHS.forEach((m) => {
         const key = `${prefix}${m.key}` as keyof CostItem;
@@ -294,6 +295,18 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     }
 
     updateMutation.mutate({ id: editingCell.id, data: updates });
+
+    if (next) {
+      const nextItem = costItems.find((i) => i.id === next.id);
+      if (nextItem) {
+        const monthKey = next.field.replace(/^(fcst|act|aop)/, "");
+        const v = getMonthValue(nextItem, monthKey, viewMode);
+        setEditValue(String(v));
+        setEditingCell(next);
+        return;
+      }
+    }
+
     setEditingCell(null);
     setEditValue("");
   };
@@ -301,6 +314,47 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   const cancelCellEdit = () => {
     setEditingCell(null);
     setEditValue("");
+  };
+
+  // Excel-like navigation: returns the next editable cell in the given direction.
+  const getNeighborCell = (
+    direction: "up" | "down" | "left" | "right",
+  ): { id: number; field: string } | null => {
+    if (!editingCell) return null;
+    if (viewMode !== "fcst" && viewMode !== "act") return null;
+
+    const editableRows = flatItems.filter((it) => !hasChildren(it.id));
+    const rowIdx = editableRows.findIndex((it) => it.id === editingCell.id);
+    if (rowIdx === -1) return null;
+
+    const colIdx = MONTHS.findIndex((m) => `${viewMode}${m.key}` === editingCell.field);
+    if (colIdx === -1) return null;
+
+    let nextRow = rowIdx;
+    let nextCol = colIdx;
+
+    if (direction === "up") nextRow = Math.max(0, rowIdx - 1);
+    if (direction === "down") nextRow = Math.min(editableRows.length - 1, rowIdx + 1);
+    if (direction === "left") {
+      if (colIdx > 0) nextCol = colIdx - 1;
+      else if (rowIdx > 0) {
+        nextRow = rowIdx - 1;
+        nextCol = MONTHS.length - 1;
+      }
+    }
+    if (direction === "right") {
+      if (colIdx < MONTHS.length - 1) nextCol = colIdx + 1;
+      else if (rowIdx < editableRows.length - 1) {
+        nextRow = rowIdx + 1;
+        nextCol = 0;
+      }
+    }
+
+    if (nextRow === rowIdx && nextCol === colIdx) return null;
+    return {
+      id: editableRows[nextRow].id,
+      field: `${viewMode}${MONTHS[nextCol].key}`,
+    };
   };
 
   const grandTotal = useMemo(() => {
@@ -479,10 +533,20 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                               value={editValue}
                               onFocus={(e) => e.currentTarget.select()}
                               onChange={(e) => setEditValue(e.target.value)}
-                              onBlur={saveCellEdit}
+                              onBlur={() => saveCellEdit()}
                               onKeyDown={(e) => {
-                                if (e.key === "Enter") saveCellEdit();
-                                if (e.key === "Escape") cancelCellEdit();
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  saveCellEdit(getNeighborCell(e.shiftKey ? "up" : "down"));
+                                } else if (e.key === "Tab") {
+                                  e.preventDefault();
+                                  saveCellEdit(getNeighborCell(e.shiftKey ? "left" : "right"));
+                                } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                                  e.preventDefault();
+                                  saveCellEdit(getNeighborCell(e.key === "ArrowUp" ? "up" : "down"));
+                                } else if (e.key === "Escape") {
+                                  cancelCellEdit();
+                                }
                               }}
                               className="h-7 text-xs text-center p-1"
                               data-testid={`input-${field}-${item.id}`}
