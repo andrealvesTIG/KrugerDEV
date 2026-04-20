@@ -2077,7 +2077,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
         );
 
         // Container scroll height: respect fullscreen
-        const tableMaxH = isFullscreen ? "max-h-[calc(100vh-180px)]" : "max-h-[calc(100vh-260px)]";
+        const tableMaxH = isFullscreen ? "h-[calc(100vh-180px)]" : "h-[calc(100vh-260px)]";
 
         const frozenWidthPx = COL_COST + COL_COMMENTS + COL_WBS;
 
