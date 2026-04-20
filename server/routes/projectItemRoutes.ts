@@ -2906,7 +2906,10 @@ Format your response as a numbered list with clear, concise strategies. Do not i
             for (const [header, info] of cfHeaderMap) {
               if (info.scope !== 'project') continue;
               const raw = (row[header] ?? '').trim();
-              if (raw === '') continue;
+              // Skip blanks only for non-required fields; for required fields
+              // we still call upsert so server-side enforcement can report the
+              // violation on the row.
+              if (raw === '' && !info.def.isRequired) continue;
               try {
                 await storage.upsertProjectCustomFieldValue({
                   projectId,
@@ -3037,7 +3040,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
             for (const [header, info] of cfHeaderMap) {
               if (info.scope !== 'task') continue;
               const raw = (row[header] ?? '').trim();
-              if (raw === '') continue;
+              if (raw === '' && !info.def.isRequired) continue;
               try {
                 await storage.upsertTaskCustomFieldValue({
                   taskId: taskIdForCf,

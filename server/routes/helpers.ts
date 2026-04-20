@@ -86,6 +86,12 @@ function formatZodErrors(err: z.ZodError): string {
 function classifyError(err: unknown): { status: number; message: string } {
   const errMsg = err instanceof Error ? err.message : String(err);
   const errCode = (err as any)?.code;
+  const explicitStatus = (err as any)?.status;
+
+  // Honor explicit HTTP status set by application-level validation errors.
+  if (typeof explicitStatus === 'number' && explicitStatus >= 400 && explicitStatus < 600) {
+    return { status: explicitStatus, message: errMsg };
+  }
 
   // PostgreSQL constraint violations → 400 Bad Request
   if (errCode === '23505') {
