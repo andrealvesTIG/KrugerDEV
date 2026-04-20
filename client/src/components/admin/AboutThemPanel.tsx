@@ -42,19 +42,30 @@ export function AboutThemPanel({ userId, enrichment, detected, onUpdated }: Prop
   const [editing, setEditing] = useState(!enrichment?.linkedinUrl && !detected.linkedinUrl);
   const [urlValue, setUrlValue] = useState(enrichment?.linkedinUrl || detected.linkedinUrl || "");
 
+  const parseJsonResponse = async <T,>(res: Response, fallbackMsg: string): Promise<T> => {
+    const text = await res.text();
+    let body: unknown = null;
+    try { body = text ? JSON.parse(text) : null; } catch {
+      throw new Error(`${fallbackMsg} (HTTP ${res.status} ${res.statusText} — server returned a non-JSON response)`);
+    }
+    if (!res.ok) {
+      const msg = (body && typeof body === 'object' && 'message' in body && typeof (body as { message?: unknown }).message === 'string')
+        ? (body as { message: string }).message
+        : `${fallbackMsg} (HTTP ${res.status} ${res.statusText})`;
+      throw new Error(msg);
+    }
+    return body as T;
+  };
+
   const saveUrlMut = useMutation({
     mutationFn: async (linkedinUrl: string) => {
       const res = await fetch(`/api/admin/users/${userId}/linkedin-url`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ linkedinUrl }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Failed to save LinkedIn URL');
-      }
-      return res.json();
+      return parseJsonResponse<unknown>(res, 'Failed to save LinkedIn URL');
     },
     onSuccess: () => {
       toast({ title: 'LinkedIn URL saved', description: 'You can now refresh enrichment.' });
@@ -71,15 +82,15 @@ export function AboutThemPanel({ userId, enrichment, detected, onUpdated }: Prop
     mutationFn: async (force: boolean) => {
       const res = await fetch(`/api/admin/users/${userId}/enrich`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ force }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Enrichment failed');
+      const data = await parseJsonResponse<{ enrichment?: EnrichmentRow }>(res, 'Enrichment failed');
+      if (!data || typeof data !== 'object' || !('enrichment' in data)) {
+        throw new Error('Enrichment failed: malformed response from server');
       }
-      return res.json();
+      return data;
     },
     onSuccess: (data: { enrichment?: EnrichmentRow }) => {
       const status = data.enrichment?.status;
