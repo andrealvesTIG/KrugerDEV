@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock, MoreVertical, ChevronsDownUp, ChevronsUpDown, Loader2, Undo2, Redo2 } from "lucide-react";
+import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock, MoreVertical, ChevronsDownUp, ChevronsUpDown, Loader2, Undo2, Redo2, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Activity, Sparkles, Target, Flame, Gauge } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -138,6 +138,127 @@ function formatCurrency(value: number): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+// ===== Variance & Insights helpers =====
+type VarianceMode = "off" | "forecast" | "budget";
+type VarianceStatus = "ok" | "risk" | "over" | "under" | "none";
+
+interface VarianceCalc {
+  varDollar: number;
+  varPct: number;        // signed; positive = bad (over budget / actuals exceed forecast)
+  status: VarianceStatus;
+  available: boolean;
+  baseline: number;      // denominator used for varPct (FCST YTD or AOP)
+  current: number;       // numerator (ACT YTD or EAC)
+  pctAvailable: boolean; // false when baseline is 0 (var % is N/A)
+}
+
+function statusFromPct(pct: number, baseline: number): VarianceStatus {
+  if (baseline === 0 && pct === 0) return "none";
+  const abs = Math.abs(pct);
+  if (abs <= 0.05) return "ok";
+  if (pct < 0 && abs > 0.05) return "under"; // meaningfully under baseline (favorable)
+  if (abs <= 0.15) return "risk";
+  return "over";
+}
+
+// FY position relative to "today": "past" (FY ended) → YTD = full year,
+// "current" (today is in this FY) → YTD up to currentMonthIdx,
+// "future" (FY hasn't started) → YTD = 0.
+type FyPosition = "past" | "current" | "future";
+
+function computeVariance(
+  monthly: Record<string, number[]> | undefined,
+  totals: Record<string, number> | undefined,
+  mode: VarianceMode,
+  currentMonthIdx: number,
+  fyPosition: FyPosition = "current",
+): VarianceCalc {
+  const empty: VarianceCalc = { varDollar: 0, varPct: 0, status: "none", available: false, baseline: 0, current: 0, pctAvailable: false };
+  if (mode === "off" || !monthly || !totals) return empty;
+  const actArr = monthly["act"] ?? new Array(12).fill(0);
+  const fcstArr = monthly["fcst"] ?? new Array(12).fill(0);
+  const aopTotal = totals["aop"] ?? 0;
+
+  // Effective month cutoff: -1 means "no months counted yet" (future FY),
+  // 11 means "all months counted" (past FY).
+  const cutoff = fyPosition === "past" ? 11
+    : fyPosition === "future" ? -1
+    : currentMonthIdx;
+
+  if (mode === "forecast") {
+    let actYTD = 0, fcstYTD = 0;
+    for (let i = 0; i <= cutoff; i++) {
+      actYTD += actArr[i] ?? 0;
+      fcstYTD += fcstArr[i] ?? 0;
+    }
+    const v = actYTD - fcstYTD;
+    const pctAvailable = fcstYTD !== 0;
+    const pct = pctAvailable ? v / fcstYTD : 0;
+    return {
+      varDollar: v,
+      varPct: pct,
+      status: pctAvailable ? statusFromPct(pct, fcstYTD) : (v === 0 ? "none" : "risk"),
+      available: !!(fcstYTD || actYTD),
+      baseline: fcstYTD,
+      current: actYTD,
+      pctAvailable,
+    };
+  }
+  // budget mode: EAC vs AOP
+  let actYTD = 0;
+  let fcstRemaining = 0;
+  for (let i = 0; i <= cutoff; i++) actYTD += actArr[i] ?? 0;
+  for (let i = cutoff + 1; i < 12; i++) fcstRemaining += fcstArr[i] ?? 0;
+  const eac = actYTD + fcstRemaining;
+  const v = eac - aopTotal;
+  const pctAvailable = aopTotal !== 0;
+  const pct = pctAvailable ? v / aopTotal : 0;
+  return {
+    varDollar: v,
+    varPct: pct,
+    status: pctAvailable ? statusFromPct(pct, aopTotal) : (v === 0 ? "none" : "risk"),
+    available: !!(aopTotal || eac),
+    baseline: aopTotal,
+    current: eac,
+    pctAvailable,
+  };
+}
+
+const STATUS_STYLES: Record<VarianceStatus, { dot: string; pill: string; accent: string; label: string }> = {
+  ok:    { dot: "bg-emerald-500",  pill: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 ring-1 ring-inset ring-emerald-500/30", accent: "border-emerald-500", label: "On Track" },
+  under: { dot: "bg-emerald-500",  pill: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 ring-1 ring-inset ring-emerald-500/30", accent: "border-emerald-500", label: "Under" },
+  risk:  { dot: "bg-amber-500",    pill: "bg-amber-500/15 text-amber-800 dark:text-amber-300 ring-1 ring-inset ring-amber-500/30",       accent: "border-amber-500",   label: "At Risk" },
+  over:  { dot: "bg-red-500",      pill: "bg-red-500/15 text-red-700 dark:text-red-300 ring-1 ring-inset ring-red-500/30",                accent: "border-red-500",     label: "Over" },
+  none:  { dot: "bg-muted-foreground/40", pill: "bg-muted text-muted-foreground ring-1 ring-inset ring-border",                            accent: "border-transparent", label: "—" },
+};
+
+function formatPct(p: number): string {
+  if (!isFinite(p)) return "—";
+  const sign = p > 0 ? "+" : "";
+  return `${sign}${(p * 100).toFixed(1)}%`;
+}
+
+// Per-cell tone for ACT-vs-FCST and FCST-vs-AOP comparison.
+// Returns Tailwind classes to apply to the cell's container.
+function getCellTone(
+  typeKey: string,
+  monthVal: number,
+  baselineMonthVal: number,
+  thresholds: { warn: number; bad: number },
+): string {
+  if (typeKey !== "act" && typeKey !== "fcst") return "";
+  if (baselineMonthVal === 0) return "";
+  const diff = monthVal - baselineMonthVal;
+  const pct = diff / Math.abs(baselineMonthVal);
+  const abs = Math.abs(pct);
+  if (abs <= thresholds.warn) return "";
+  if (pct > 0 && abs > thresholds.bad)  return "bg-red-500/10 text-red-700 dark:text-red-300";
+  if (pct > 0 && abs > thresholds.warn) return "bg-amber-500/10 text-amber-800 dark:text-amber-300";
+  if (pct < 0 && abs > thresholds.bad)  return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300";
+  if (pct < 0 && abs > thresholds.warn) return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+  return "";
 }
 
 /**
@@ -793,15 +914,71 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     });
   };
 
-  // For ETC computation we need act+fcst aggregated regardless of whether the
-  // user has hidden them, otherwise the ETC blend would be missing inputs.
+  // ===== Variance + Insights persisted preferences (per-org) =====
+  const varianceStorageKey = orgId ? `fr.financial-variance-mode.${orgId}` : null;
+  const insightsStorageKey = orgId ? `fr.financial-insights-show.${orgId}` : null;
+  const [varianceMode, setVarianceModeState] = useState<VarianceMode>(() => {
+    if (typeof window === "undefined" || !varianceStorageKey) return "off";
+    try {
+      const v = window.localStorage.getItem(varianceStorageKey) as VarianceMode | null;
+      return v === "forecast" || v === "budget" || v === "off" ? v : "off";
+    } catch { return "off"; }
+  });
+  const [showInsights, setShowInsightsState] = useState<boolean>(() => {
+    if (typeof window === "undefined" || !insightsStorageKey) return true;
+    try { return window.localStorage.getItem(insightsStorageKey) !== "0"; } catch { return true; }
+  });
+  useEffect(() => {
+    if (typeof window === "undefined" || !varianceStorageKey) return;
+    try {
+      const v = window.localStorage.getItem(varianceStorageKey) as VarianceMode | null;
+      setVarianceModeState(v === "forecast" || v === "budget" || v === "off" ? v : "off");
+    } catch { setVarianceModeState("off"); }
+  }, [varianceStorageKey]);
+  useEffect(() => {
+    if (typeof window === "undefined" || !insightsStorageKey) return;
+    try { setShowInsightsState(window.localStorage.getItem(insightsStorageKey) !== "0"); } catch { setShowInsightsState(true); }
+  }, [insightsStorageKey]);
+  const setVarianceMode = (m: VarianceMode) => {
+    setVarianceModeState(m);
+    if (typeof window !== "undefined" && varianceStorageKey) {
+      try { window.localStorage.setItem(varianceStorageKey, m); } catch {}
+    }
+  };
+  const toggleInsights = () => {
+    setShowInsightsState(prev => {
+      const next = !prev;
+      if (typeof window !== "undefined" && insightsStorageKey) {
+        try { window.localStorage.setItem(insightsStorageKey, next ? "1" : "0"); } catch {}
+      }
+      return next;
+    });
+  };
+  // Variance columns appended after the financial-type columns in the Total
+  // block. Only present when variance mode is on. Each is read-only, derived.
+  const varianceCols = useMemo(() => {
+    if (varianceMode === "off") return [] as { key: string; label: string }[];
+    return [
+      { key: "var_dollar", label: "Var $" },
+      { key: "var_pct", label: "Var %" },
+      { key: "var_status", label: "Status" },
+    ];
+  }, [varianceMode]);
+  // Cell-tone thresholds for ACT-vs-FCST and FCST-vs-AOP comparisons.
+  const toneThresholds = { warn: 0.10, bad: 0.25 };
+
+  // For ETC, variance, and insights computation we need aop+act+fcst aggregated
+  // regardless of whether the user has hidden them, otherwise the derived
+  // values (ETC blend, EAC, variance, KPI tiles) would be missing inputs.
   const aggregationTypeKeys = useMemo(() => {
-    if (!showEtc) return enabledTypeKeys;
     const set = new Set(enabledTypeKeys);
-    set.add("act");
-    set.add("fcst");
+    if (showEtc || varianceMode !== "off" || showInsights) {
+      set.add("act");
+      set.add("fcst");
+      set.add("aop");
+    }
     return Array.from(set);
-  }, [enabledTypeKeys, showEtc]);
+  }, [enabledTypeKeys, showEtc, varianceMode, showInsights]);
 
   const ETC_TYPE: FinancialType = useMemo(
     () => ({ key: "etc", label: "ETC", enabled: true, editable: false }),
@@ -902,6 +1079,94 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     };
     return { rows: newRows, grandTotalByType: newGrand };
   }, [rawRows, rawGrandTotalByType, showEtc, currentMonthIdx, monthCalendar]);
+
+  // ===== Project-level grand monthly totals per type, used by Insights strip =====
+  const grandMonthly = useMemo(() => {
+    const out: Record<string, number[]> = {
+      aop: new Array(12).fill(0),
+      fcst: new Array(12).fill(0),
+      act: new Array(12).fill(0),
+    };
+    for (const r of rows) {
+      if (r.type !== "view") continue;
+      for (const k of ["aop", "fcst", "act"]) {
+        const arr = r.monthlyByType[k];
+        if (!arr) continue;
+        for (let i = 0; i < 12; i++) out[k][i] += arr[i] ?? 0;
+      }
+    }
+    return out;
+  }, [rows]);
+
+  // FY position: past / current / future. Drives YTD cutoff in variance and
+  // insights so a future FY shows 0 YTD (not full-year totals as YTD).
+  const fyPosition: FyPosition = useMemo(() => {
+    if (currentMonthIdx >= 0) return "current";
+    // currentMonthIdx is -1 when "today" is outside this fiscal year.
+    // Compare today vs FY start (Oct 1 of fiscalYear - 1) and FY end (Sep 30 of fiscalYear).
+    const today = new Date();
+    const fyStart = new Date(fiscalYear - 1, 9, 1); // Oct = month 9
+    const fyEnd = new Date(fiscalYear, 8, 30, 23, 59, 59);
+    if (today < fyStart) return "future";
+    if (today > fyEnd) return "past";
+    return "current";
+  }, [currentMonthIdx, fiscalYear]);
+
+  const grandVariance = useMemo(
+    () => computeVariance(grandMonthly, grandTotalByType, varianceMode === "off" ? "budget" : varianceMode, currentMonthIdx, fyPosition),
+    [grandMonthly, grandTotalByType, varianceMode, currentMonthIdx, fyPosition],
+  );
+
+  const insights = useMemo(() => {
+    const aopTotal = grandTotalByType["aop"] ?? 0;
+    const fcstTotal = grandTotalByType["fcst"] ?? 0;
+    const actTotal = grandTotalByType["act"] ?? 0;
+    const cutoff = fyPosition === "past" ? 11 : fyPosition === "future" ? -1 : currentMonthIdx;
+    let actYTD = 0, fcstYTD = 0, fcstRemaining = 0;
+    for (let i = 0; i <= cutoff; i++) {
+      actYTD += grandMonthly.act[i] ?? 0;
+      fcstYTD += grandMonthly.fcst[i] ?? 0;
+    }
+    for (let i = cutoff + 1; i < 12; i++) fcstRemaining += grandMonthly.fcst[i] ?? 0;
+    const eac = actYTD + fcstRemaining;
+    const eacVar = eac - aopTotal;
+    const eacPct = aopTotal ? eacVar / aopTotal : 0;
+    // Forecast accuracy: 1 − |ACT − FCST| / FCST_YTD (clamped 0..1)
+    const accuracy = fcstYTD ? Math.max(0, 1 - Math.abs(actYTD - fcstYTD) / Math.abs(fcstYTD)) : null;
+    // Burn rate: avg monthly ACT over last 3 completed months vs prior 3
+    let burn = 0, burnPrev = 0, burnMonths = 0, burnPrevMonths = 0;
+    const cm = fyPosition === "past" ? 11 : currentMonthIdx;
+    if (cm >= 0) {
+      for (let i = Math.max(0, cm - 2); i <= cm; i++) { burn += grandMonthly.act[i] ?? 0; burnMonths++; }
+      for (let i = Math.max(0, cm - 5); i < cm - 2; i++) { burnPrev += grandMonthly.act[i] ?? 0; burnPrevMonths++; }
+    }
+    const burnAvg = burnMonths ? burn / burnMonths : 0;
+    const burnPrevAvg = burnPrevMonths ? burnPrev / burnPrevMonths : 0;
+    const burnTrendPct = burnPrevAvg ? (burnAvg - burnPrevAvg) / burnPrevAvg : 0;
+    // Months of runway at current burn (vs remaining AOP budget)
+    const runway = burnAvg > 0 ? Math.max(0, (aopTotal - actYTD) / burnAvg) : null;
+    // Top variance driver across item rows
+    let topDriver: { itemKey: string; itemName: string; varDollar: number; status: VarianceStatus } | null = null;
+    let topAbs = 0;
+    for (const r of rows) {
+      if (r.type !== "item" || !r.itemKey) continue;
+      const v = computeVariance(r.monthlyByType, r.totalByType, varianceMode === "off" ? "budget" : varianceMode, currentMonthIdx, fyPosition);
+      if (!v.available) continue;
+      const a = Math.abs(v.varDollar);
+      if (a > topAbs) {
+        topAbs = a;
+        topDriver = { itemKey: r.itemKey, itemName: r.itemName ?? r.label, varDollar: v.varDollar, status: v.status };
+      }
+    }
+    return {
+      aopTotal, fcstTotal, actTotal,
+      actYTD, fcstYTD, eac, eacVar, eacPct,
+      accuracy,
+      burnAvg, burnPrevAvg, burnTrendPct,
+      runway,
+      topDriver,
+    };
+  }, [grandMonthly, grandTotalByType, currentMonthIdx, rows, varianceMode, fyPosition]);
 
   // Build period columns based on view mode. Each period carries the set of
   // fiscal-month indices (0..11) it aggregates and the calendar year used by
@@ -1425,6 +1690,40 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
             ))}
           </div>
 
+          {/* Variance mode + Insights toggle */}
+          <div className="inline-flex h-9 items-center rounded-md border bg-muted/40 p-0.5 gap-0.5" role="group" aria-label="Variance & insights">
+            <Select value={varianceMode} onValueChange={(v) => setVarianceMode(v as VarianceMode)}>
+              <SelectTrigger
+                className="h-8 px-2 text-xs font-semibold border-0 bg-transparent shadow-none gap-1.5 w-auto min-w-[120px]"
+                data-testid="select-variance-mode"
+                title="Variance columns: compare ACT/EAC to a baseline"
+              >
+                <Gauge className="h-3.5 w-3.5 text-muted-foreground" />
+                <SelectValue placeholder="Variance" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="off">Variance: Off</SelectItem>
+                <SelectItem value="forecast">Forecast accuracy (ACT − FCST YTD)</SelectItem>
+                <SelectItem value="budget">Budget health (EAC − AOP)</SelectItem>
+              </SelectContent>
+            </Select>
+            <button
+              type="button"
+              onClick={toggleInsights}
+              aria-pressed={showInsights}
+              className={`inline-flex items-center gap-1.5 px-2.5 h-8 text-xs font-semibold rounded-sm transition-all ${
+                showInsights
+                  ? "bg-background text-foreground shadow-sm ring-1 ring-inset ring-border"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+              }`}
+              title={showInsights ? "Hide the insights strip above the grid" : "Show the insights strip above the grid"}
+              data-testid="button-toggle-insights"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Insights
+            </button>
+          </div>
+
           <Select value={String(fiscalYear)} onValueChange={(v) => setFiscalYear(Number(v))}>
             <SelectTrigger className="w-28 h-9" data-testid="select-fiscal-year">
               <SelectValue />
@@ -1448,6 +1747,110 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
           {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
         </Button>
       </div>
+
+      {showInsights && (
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2 mb-3" data-testid="insights-strip">
+          {/* EAC vs AOP */}
+          {(() => {
+            const status = statusFromPct(insights.eacPct, insights.aopTotal);
+            const styles = STATUS_STYLES[status];
+            const Icon = status === "over" ? TrendingUp : status === "risk" ? AlertTriangle : status === "under" ? TrendingDown : CheckCircle2;
+            return (
+              <div className={`rounded-lg border bg-card px-3 py-2.5 flex items-start gap-2 border-l-4 ${styles.accent}`} data-testid="insight-eac">
+                <Target className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">EAC vs AOP</div>
+                  <div className="text-sm font-bold tabular-nums truncate flex items-center gap-1.5">
+                    <CompactCurrency value={insights.eac} />
+                    <Icon className="h-3 w-3 opacity-70" />
+                  </div>
+                  <div className="text-[11px] tabular-nums text-muted-foreground">
+                    <span className={insights.eacVar > 0 ? "text-red-600 dark:text-red-400 font-semibold" : insights.eacVar < 0 ? "text-emerald-700 dark:text-emerald-400 font-semibold" : ""}>
+                      {insights.eacVar !== 0 ? formatCurrency(insights.eacVar) : "$0"}
+                    </span>
+                    {insights.aopTotal !== 0 && <span className="ml-1">({formatPct(insights.eacPct)})</span>}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Forecast accuracy */}
+          <div className="rounded-lg border bg-card px-3 py-2.5 flex items-start gap-2" data-testid="insight-accuracy">
+            <Activity className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Forecast Accuracy YTD</div>
+              <div className="text-sm font-bold tabular-nums">
+                {insights.accuracy === null ? <span className="text-muted-foreground/50">—</span> : `${(insights.accuracy * 100).toFixed(1)}%`}
+              </div>
+              <div className="text-[11px] text-muted-foreground tabular-nums truncate">
+                ACT <CompactCurrency value={insights.actYTD} /> vs FCST <CompactCurrency value={insights.fcstYTD} />
+              </div>
+            </div>
+          </div>
+
+          {/* Burn rate */}
+          <div className="rounded-lg border bg-card px-3 py-2.5 flex items-start gap-2" data-testid="insight-burn">
+            <Flame className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Burn Rate (3-mo avg)</div>
+              <div className="text-sm font-bold tabular-nums truncate">
+                {insights.burnAvg ? <CompactCurrency value={insights.burnAvg} /> : <span className="text-muted-foreground/50">—</span>}
+                <span className="text-[10px] text-muted-foreground font-normal ml-1">/mo</span>
+              </div>
+              <div className="text-[11px] tabular-nums">
+                {insights.burnPrevAvg ? (
+                  <span className={insights.burnTrendPct > 0.05 ? "text-red-600 dark:text-red-400" : insights.burnTrendPct < -0.05 ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}>
+                    {insights.burnTrendPct > 0 ? <TrendingUp className="inline h-3 w-3 mr-0.5" /> : <TrendingDown className="inline h-3 w-3 mr-0.5" />}
+                    {formatPct(insights.burnTrendPct)} vs prior 3mo
+                  </span>
+                ) : <span className="text-muted-foreground/60">No prior period</span>}
+              </div>
+            </div>
+          </div>
+
+          {/* Runway */}
+          <div className="rounded-lg border bg-card px-3 py-2.5 flex items-start gap-2" data-testid="insight-runway">
+            <Gauge className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Budget Runway</div>
+              <div className="text-sm font-bold tabular-nums">
+                {insights.runway === null ? <span className="text-muted-foreground/50">—</span> :
+                  insights.runway > 24 ? "24+ mo" : `${insights.runway.toFixed(1)} mo`}
+              </div>
+              <div className="text-[11px] text-muted-foreground tabular-nums truncate">
+                Remaining AOP <CompactCurrency value={insights.aopTotal - insights.actYTD} />
+              </div>
+            </div>
+          </div>
+
+          {/* Top variance driver */}
+          <div className="rounded-lg border bg-card px-3 py-2.5 flex items-start gap-2 col-span-2 md:col-span-1" data-testid="insight-top-driver">
+            <AlertTriangle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Top Variance Driver</div>
+              {insights.topDriver ? (
+                <>
+                  <div className="text-sm font-semibold truncate" title={insights.topDriver.itemName}>
+                    {insights.topDriver.itemName}
+                  </div>
+                  <div className="text-[11px] tabular-nums">
+                    <span className={insights.topDriver.varDollar > 0 ? "text-red-600 dark:text-red-400 font-semibold" : "text-emerald-700 dark:text-emerald-400 font-semibold"}>
+                      {formatCurrency(insights.topDriver.varDollar)}
+                    </span>
+                    <span className={`ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide ${STATUS_STYLES[insights.topDriver.status].pill}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${STATUS_STYLES[insights.topDriver.status].dot}`} />
+                      {STATUS_STYLES[insights.topDriver.status].label}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="text-sm text-muted-foreground/60">No variance data yet</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {(() => {
         const N_TOTAL = Math.max(displayedTypes.length, 1);
@@ -1630,12 +2033,24 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
           }
         }
 
+        // Variance columns sit just after the per-type Total cols. Widths are
+        // fixed-ish so they don't dominate the layout: $ wider than %, Status
+        // narrowest (just a pill).
+        const varianceSubPx: number[] = varianceCols.map(c => {
+          if (c.key === "var_dollar") return 84;
+          if (c.key === "var_pct") return 64;
+          return 86; // var_status (room for "On Track")
+        });
+        const N_VAR = varianceCols.length;
+
         const totalColsTpl = totalSubPx.map(p => `${p}px`).join(" ");
+        const varianceColsTpl = varianceSubPx.map(p => `${p}px`).join(" ");
         const periodColsTpl = periodSubPx.map(p => `${p}px`).join(" ");
-        const gridTemplate = `${COL_COST}px ${COL_COMMENTS}px ${COL_WBS}px ${totalColsTpl} ${periodColsTpl}`;
+        const gridTemplate = `${COL_COST}px ${COL_COMMENTS}px ${COL_WBS}px ${totalColsTpl}${varianceColsTpl ? " " + varianceColsTpl : ""} ${periodColsTpl}`;
         const minWidthPx =
           COL_COST + COL_COMMENTS + COL_WBS +
           totalSubPx.reduce((a, b) => a + b, 0) +
+          varianceSubPx.reduce((a, b) => a + b, 0) +
           periodSubPx.reduce((a, b) => a + b, 0);
 
         // Sticky-left offsets for the first three "frozen" columns
@@ -1761,7 +2176,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                   </div>
                   <div
                     className={`flex items-center justify-center ${monthBorder}`}
-                    style={{ gridColumn: `span ${N_TOTAL}` }}
+                    style={{ gridColumn: `span ${N_TOTAL + N_VAR}` }}
                   ></div>
                   {periodYearGroups.map((g, gi) => (
                     <div
@@ -1797,6 +2212,18 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                   >
                     Total
                   </div>
+                  {N_VAR > 0 && (
+                    <div
+                      className={`flex items-center justify-center gap-1 text-[11px] font-bold uppercase tracking-wider text-foreground ${monthBorder} bg-muted/60`}
+                      style={{ gridColumn: `span ${N_VAR}` }}
+                      title={varianceMode === "forecast"
+                        ? "Forecast variance: Actuals YTD − Forecast YTD"
+                        : "Budget variance: EAC (ACT YTD + remaining FCST) − AOP"}
+                    >
+                      <Gauge className="h-3 w-3 opacity-70" />
+                      {varianceMode === "forecast" ? "Forecast Var" : "Budget Var"}
+                    </div>
+                  )}
                   {periodCols.map((p, idx) => (
                     <div
                       key={`mn-${p.key}`}
@@ -1837,6 +2264,20 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                       </div>
                     );
                   })}
+                  {varianceCols.map((c, i) => (
+                    <div
+                      key={`vlab-${c.key}`}
+                      className={`flex items-center justify-center gap-1 ${i === 0 ? monthBorder : typeBorder} bg-slate-500/10 text-slate-700 dark:text-slate-300`}
+                      title={
+                        c.key === "var_dollar" ? "Variance in dollars (current − baseline)" :
+                        c.key === "var_pct" ? "Variance as percent of baseline" :
+                        "Status pill: On Track / At Risk / Over / Under"
+                      }
+                    >
+                      <Lock className="h-2.5 w-2.5 opacity-60" />
+                      <span>{c.label}</span>
+                    </div>
+                  ))}
                   {periodCols.map((p, idx) => (
                     monthDisplayedTypes.map((s, i) => {
                       const palette = getTypePalette(s.key);
@@ -2066,6 +2507,58 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                           );
                         })}
 
+                        {/* Variance cells (read-only, derived) */}
+                        {(() => {
+                          if (N_VAR === 0) return null;
+                          // Only show variance for rows that have meaningful
+                          // numeric data (item rows + roll-up rows).
+                          const showVar = row.type !== "view" || true;
+                          const vc = showVar
+                            ? computeVariance(row.monthlyByType, row.totalByType, varianceMode, currentMonthIdx, fyPosition)
+                            : { available: false, varDollar: 0, varPct: 0, status: "none" as VarianceStatus, pctAvailable: false, baseline: 0, current: 0 };
+                          const styles = STATUS_STYLES[vc.status];
+                          return varianceCols.map((c, i) => {
+                            const borderCls = i === 0 ? monthBorder : typeBorder;
+                            if (!vc.available) {
+                              return (
+                                <div key={`var-${c.key}`} className={`px-1 py-1 text-center text-[11px] tabular-nums flex items-center justify-center text-muted-foreground/30 ${borderCls}`}>—</div>
+                              );
+                            }
+                            if (c.key === "var_dollar") {
+                              const cls = vc.status === "over" ? "text-red-600 dark:text-red-400" : vc.status === "risk" ? "text-amber-700 dark:text-amber-400" : vc.status === "under" || vc.status === "ok" ? "text-emerald-700 dark:text-emerald-400" : "";
+                              return (
+                                <div key={`var-${c.key}`} className={`px-1 py-1 text-center text-[11px] font-semibold tabular-nums flex items-center justify-center ${borderCls} ${cls}`} title={`${formatCurrency(vc.varDollar)} (${formatPct(vc.varPct)})`}>
+                                  {vc.varDollar !== 0 ? <CompactCurrency value={vc.varDollar} /> : "—"}
+                                </div>
+                              );
+                            }
+                            if (c.key === "var_pct") {
+                              if (!vc.pctAvailable) {
+                                return (
+                                  <div key={`var-${c.key}`} className={`px-1 py-1 text-center text-[10px] tabular-nums flex items-center justify-center text-muted-foreground/50 ${borderCls}`} title="No baseline to compute percent">
+                                    N/A
+                                  </div>
+                                );
+                              }
+                              const cls = vc.status === "over" ? "text-red-600 dark:text-red-400" : vc.status === "risk" ? "text-amber-700 dark:text-amber-400" : vc.status === "under" || vc.status === "ok" ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground/40";
+                              return (
+                                <div key={`var-${c.key}`} className={`px-1 py-1 text-center text-[11px] font-semibold tabular-nums flex items-center justify-center ${borderCls} ${cls}`}>
+                                  {formatPct(vc.varPct)}
+                                </div>
+                              );
+                            }
+                            // status pill
+                            return (
+                              <div key={`var-${c.key}`} className={`px-1 py-1 flex items-center justify-center ${borderCls}`}>
+                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide ${styles.pill}`}>
+                                  <span className={`h-1.5 w-1.5 rounded-full ${styles.dot}`} />
+                                  {styles.label}
+                                </span>
+                              </div>
+                            );
+                          });
+                        })()}
+
                         {/* Per-period per-scenario cells (1, 4, or 12 cols).
                             ETC excluded — only renders in the Total column. */}
                         {periodCols.map((p, pIdx) => (
@@ -2075,13 +2568,23 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                             if (arr) for (const mi of p.monthIndices) value += arr[mi] ?? 0;
                             const borderCls = sIdx === 0 ? monthBorder : typeBorder;
                             const hi = periodHi(pIdx);
+                            // Per-cell tone: ACT vs FCST (same period), FCST vs AOP
+                            let baselineVal = 0;
+                            if (s.key === "act") {
+                              const fcstArr = row.monthlyByType["fcst"];
+                              if (fcstArr) for (const mi of p.monthIndices) baselineVal += fcstArr[mi] ?? 0;
+                            } else if (s.key === "fcst") {
+                              const aopArr = row.monthlyByType["aop"];
+                              if (aopArr) for (const mi of p.monthIndices) baselineVal += aopArr[mi] ?? 0;
+                            }
+                            const tone = (row.type === "item" || row.type === "view") ? getCellTone(s.key, value, baselineVal, toneThresholds) : "";
                             // Aggregated periods (quarter/year) are read-only
                             // since entries are stored per-month server-side.
                             if (!isItem || !isMonthView) {
                               return (
                                 <div
                                   key={`${p.key}-${s.key}`}
-                                  className={`px-1 py-1 text-center text-[11px] tabular-nums flex items-center justify-center ${borderCls} ${hi}`}
+                                  className={`px-1 py-1 text-center text-[11px] tabular-nums flex items-center justify-center ${borderCls} ${hi} ${tone}`}
                                 >
                                   {value !== 0 ? formatCurrency(value) : <span className="text-muted-foreground/30">—</span>}
                                 </div>
@@ -2228,6 +2731,9 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                                 className={`px-1 py-1 ${sIdx === 0 ? monthBorder : typeBorder}`}
                               />
                             ))}
+                            {varianceCols.map((c, i) => (
+                              <div key={`qa-var-${c.key}`} className={`px-1 py-1 ${i === 0 ? monthBorder : typeBorder}`} />
+                            ))}
                             {periodCols.map((p, idx) => (
                               monthDisplayedTypes.map((s, sIdx) => (
                                 <div
@@ -2287,6 +2793,9 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                             className={`px-1 py-1 ${sIdx === 0 ? monthBorder : typeBorder}`}
                           />
                         ))}
+                        {varianceCols.map((c, i) => (
+                          <div key={`ph-var-${c.key}`} className={`px-1 py-1 ${i === 0 ? monthBorder : typeBorder}`} />
+                        ))}
                         {periodCols.map((p, idx) => (
                           monthDisplayedTypes.map((s, sIdx) => (
                             <div
@@ -2329,6 +2838,37 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                           className={`px-1 py-1.5 text-center text-[11px] font-bold tabular-nums flex items-center justify-center ${sIdx === 0 ? monthBorder : typeBorder}`}
                         >
                           {v !== 0 ? <CompactCurrency value={v} /> : <span className="text-muted-foreground/40">—</span>}
+                        </div>
+                      );
+                    })}
+                    {N_VAR > 0 && varianceCols.map((c, i) => {
+                      const borderCls = i === 0 ? monthBorder : typeBorder;
+                      if (!grandVariance.available) {
+                        return <div key={`gt-var-${c.key}`} className={`px-1 py-1.5 text-center text-[11px] tabular-nums flex items-center justify-center text-muted-foreground/30 ${borderCls}`}>—</div>;
+                      }
+                      const styles = STATUS_STYLES[grandVariance.status];
+                      if (c.key === "var_dollar") {
+                        const cls = grandVariance.status === "over" ? "text-red-600 dark:text-red-400" : grandVariance.status === "risk" ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400";
+                        return (
+                          <div key={`gt-var-${c.key}`} className={`px-1 py-1.5 text-center text-[11px] font-bold tabular-nums flex items-center justify-center ${borderCls} ${cls}`} title={`${formatCurrency(grandVariance.varDollar)} (${formatPct(grandVariance.varPct)})`}>
+                            {grandVariance.varDollar !== 0 ? <CompactCurrency value={grandVariance.varDollar} /> : "—"}
+                          </div>
+                        );
+                      }
+                      if (c.key === "var_pct") {
+                        const cls = grandVariance.status === "over" ? "text-red-600 dark:text-red-400" : grandVariance.status === "risk" ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400";
+                        return (
+                          <div key={`gt-var-${c.key}`} className={`px-1 py-1.5 text-center text-[11px] font-bold tabular-nums flex items-center justify-center ${borderCls} ${cls}`}>
+                            {formatPct(grandVariance.varPct)}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={`gt-var-${c.key}`} className={`px-1 py-1.5 flex items-center justify-center ${borderCls}`}>
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide ${styles.pill}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${styles.dot}`} />
+                            {styles.label}
+                          </span>
                         </div>
                       );
                     })}
