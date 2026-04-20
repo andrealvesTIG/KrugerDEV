@@ -36,7 +36,7 @@ import { Input } from "@/components/ui/input";
 import { 
   Loader2, DollarSign, Target, AlertTriangle, Bug, 
   CheckCircle2, FolderOpen, TrendingUp, BarChart3, ArrowRight,
-  Calendar, Users, Briefcase, AlertCircle, ChevronLeft, ChevronRight, List, GanttChart, Plus, Search, X,
+  Calendar, Users, Briefcase, AlertCircle, ChevronLeft, ChevronRight, List, GanttChart, Plus, Search, X, Table2, LayoutGrid,
   Star, Award, FileCheck, Pencil, Trash2, Check, MoreHorizontal, MoreVertical, ArrowUpToLine,
   Shield, Share2, Download, FileText, Sparkles, RefreshCw, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown
 } from "lucide-react";
@@ -58,8 +58,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ProjectsListView, type GroupByOption } from "@/pages/Projects";
-import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues } from "@/hooks/use-custom-fields";
+import { ProjectsListView, ProjectsGridView, ProjectsKanbanView, ProjectsGanttView, type GroupByOption } from "@/pages/Projects";
+import { usePortfolios } from "@/hooks/use-portfolios";
+import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
+import { useDeleteProject } from "@/hooks/use-projects";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function PortfolioDetails() {
   const [, params] = useRoute("/portfolios/:id");
@@ -636,7 +639,20 @@ const portfolioZoomLabels: Record<PortfolioZoomLevel, string> = {
 function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }: { portfolioId: number; organizationId: number; isCustom?: boolean; financialBudgets?: Record<number, number> }) {
   const { data: projects, isLoading } = usePortfolioProjects(portfolioId);
   const { data: allProjects } = useProjects(organizationId);
-  const [view, setView] = useState<"list" | "gantt">("list");
+  const { data: portfoliosList } = usePortfolios(organizationId);
+  const { user } = useAuth();
+  const deleteProject = useDeleteProject();
+  const updateCfValue = useUpdateProjectCustomFieldValue();
+  const viewStorageKey = `portfolio-${portfolioId}-projects-view`;
+  const [view, setView] = useState<"list" | "grid" | "kanban" | "gantt">(() => {
+    try {
+      const stored = localStorage.getItem(viewStorageKey);
+      if (stored === "list" || stored === "grid" || stored === "kanban" || stored === "gantt") return stored;
+    } catch {}
+    return "list";
+  });
+  useEffect(() => { try { localStorage.setItem(viewStorageKey, view); } catch {} }, [view, viewStorageKey]);
+  const isAdmin = user?.role === 'super_admin' || user?.role === 'org_admin';
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedProjectIds, setSelectedProjectIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -799,7 +815,7 @@ function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }
               <span className="hidden sm:inline">Add Project</span>
               <span className="sm:hidden">Add</span>
             </Button>
-            <div className="flex rounded-lg border border-border overflow-hidden">
+            <div className="flex flex-wrap sm:flex-nowrap rounded-lg border border-border overflow-hidden">
               <Button
                 variant={view === "list" ? "default" : "ghost"}
                 size="sm"
@@ -809,6 +825,26 @@ function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }
               >
                 <List className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">List</span>
+              </Button>
+              <Button
+                variant={view === "grid" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setView("grid")}
+                className="rounded-none px-2 sm:px-3"
+                data-testid="button-portfolio-view-grid"
+              >
+                <Table2 className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Grid</span>
+              </Button>
+              <Button
+                variant={view === "kanban" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setView("kanban")}
+                className="rounded-none px-2 sm:px-3"
+                data-testid="button-portfolio-view-kanban"
+              >
+                <LayoutGrid className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Kanban</span>
               </Button>
               <Button
                 variant={view === "gantt" ? "default" : "ghost"}
@@ -829,7 +865,7 @@ function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }
           <ProjectsListView
             projects={projects || []}
             filteredProjects={projects || []}
-            portfolios={[]}
+            portfolios={portfoliosList || []}
             projectProgress={projectProgress}
             getRiskScoreForProject={() => undefined}
             getRiskScoreColor={() => ""}
@@ -848,8 +884,29 @@ function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }
             organizationId={organizationId || null}
             portfolioId={portfolioId}
           />
+        ) : view === "grid" ? (
+          <ProjectsGridView
+            projects={projects || []}
+            portfolios={portfoliosList || []}
+            onStatusChange={handleStatusChange}
+            onDeleteProject={(id) => setRemoveProjectId(id)}
+            onUpdateProject={(id, data) => updateProject.mutate({ id, ...data })}
+            isAdmin={isAdmin}
+            organizationId={organizationId || null}
+          />
+        ) : view === "kanban" ? (
+          <ProjectsKanbanView
+            projects={projects || []}
+            portfolios={portfoliosList || []}
+            onStatusChange={handleStatusChange}
+            onPortfolioChange={(projectId, newPortfolioId) => updateProject.mutate({ id: projectId, portfolioId: newPortfolioId })}
+            onProjectUpdate={(projectId, updates) => updateProject.mutate({ id: projectId, ...updates })}
+            customFieldDefs={customFieldDefs || []}
+            cfValues={cfValues || []}
+            onCustomFieldChange={(projectId, fieldDefinitionId, value) => updateCfValue.mutate({ projectId, fieldDefinitionId, value })}
+          />
         ) : (
-          <PortfolioProjectsGanttView projects={projects || []} />
+          <ProjectsGanttView projects={projects || []} organizationId={organizationId || null} />
         )}
       </CardContent>
     </Card>
