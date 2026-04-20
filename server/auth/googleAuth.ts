@@ -335,6 +335,24 @@ export function setupGoogleAuth(app: Express) {
 
       await ensureUserOrganization(newUser.id, email);
 
+      // Capture acquisition data (UTMs/referrer/device/geo) for the new user.
+      try {
+        const { recordAcquisition, parseFirstTouch } = await import("../services/acquisition");
+        let firstTouch: unknown = null;
+        const cookieFt = req.cookies?.fr_first_touch;
+        if (cookieFt) {
+          try { firstTouch = JSON.parse(cookieFt); } catch { firstTouch = null; }
+        }
+        await recordAcquisition({
+          userId: newUser.id,
+          signupMethod: 'google',
+          firstTouch: parseFirstTouch(firstTouch),
+          req,
+        });
+      } catch (acqErr) {
+        console.error("Failed to record acquisition for Google OAuth user:", acqErr);
+      }
+
       sendWelcomeEmail(email, firstName || null).catch(err => {
         console.error("Failed to send welcome email for Google OAuth user:", err);
       });

@@ -327,6 +327,24 @@ export async function setupMicrosoftAuth(app: Express) {
             signupSource: req.session.oauthSignupSource || req.cookies?.oauth_signup_source || "microsoft",
           }).returning();
 
+          // Capture acquisition data (UTMs/referrer/device/geo) for the new user.
+          try {
+            const { recordAcquisition, parseFirstTouch } = await import("../services/acquisition");
+            let firstTouch: unknown = null;
+            const cookieFt = req.cookies?.fr_first_touch;
+            if (cookieFt) {
+              try { firstTouch = JSON.parse(cookieFt); } catch { firstTouch = null; }
+            }
+            await recordAcquisition({
+              userId: existingUser.id,
+              signupMethod: 'microsoft',
+              firstTouch: parseFirstTouch(firstTouch),
+              req,
+            });
+          } catch (acqErr) {
+            console.error("Failed to record acquisition for Microsoft OAuth user:", acqErr);
+          }
+
           sendWelcomeEmail(email, firstName || null).catch(err => {
             console.error("Failed to send welcome email for Microsoft OAuth user:", err);
           });

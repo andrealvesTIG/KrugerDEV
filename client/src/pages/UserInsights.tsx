@@ -1,13 +1,16 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useParams, useLocation, Link } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useParams, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Loader2, Copy, Mail, ArrowLeft, Globe, MapPin, Smartphone, Monitor, Calendar, ExternalLink, ChevronDown, ChevronRight, Eye, MousePointerClick, Activity, AlertCircle, Search } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2, Copy, Mail, ArrowLeft, Globe, MapPin, Smartphone, Monitor, Calendar, ExternalLink, ChevronDown, ChevronRight, Eye, MousePointerClick, Activity, AlertCircle, Search, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type Insights = {
@@ -26,6 +29,15 @@ type Insights = {
     risksCount: number;
     issuesCount: number;
     salesTemperature: 'cold' | 'warm' | 'hot';
+    aiEventCount?: number;
+    lastAiEventAt?: string | null;
+    integrationsCount?: number;
+    helpTicketCount?: number;
+    lastHelpTicketAt?: string | null;
+    planName?: string | null;
+    trialEndsAt?: string | null;
+    aiCreditsRemaining?: number | null;
+    onboardingCompleted?: boolean;
   };
   topActions: { action: string; count: number }[];
   topPages: { path: string; count: number }[];
@@ -132,6 +144,13 @@ export default function UserInsights() {
   const [filter, setFilter] = useState<'all' | 'page' | 'action'>('all');
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [extraItems, setExtraItems] = useState<TimelineItem[]>([]);
+  const [olderCursor, setOlderCursor] = useState<string | null>(null);
+  const [hasMoreOlder, setHasMoreOlder] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailMessage, setEmailMessage] = useState('');
 
   const insightsQ = useQuery<Insights>({
     queryKey: ['/api/admin/users', userId, 'insights'],
@@ -151,13 +170,64 @@ export default function UserInsights() {
       if (filter !== 'all') url.searchParams.set('type', filter);
       const res = await fetch(url.pathname + url.search, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to load timeline');
-      return res.json();
+      const data = await res.json();
+      // Reset paginated extras whenever the base query reloads (e.g., filter change)
+      setExtraItems([]);
+      setOlderCursor(data.nextCursor || null);
+      setHasMoreOlder(Boolean(data.hasMore));
+      return data;
     },
     enabled: !!userId,
   });
 
+  const loadOlder = async () => {
+    if (!olderCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const url = new URL(`/api/admin/users/${userId}/timeline`, window.location.origin);
+      url.searchParams.set('limit', '200');
+      url.searchParams.set('cursor', olderCursor);
+      if (filter !== 'all') url.searchParams.set('type', filter);
+      const res = await fetch(url.pathname + url.search, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to load older events');
+      const data = await res.json();
+      setExtraItems(prev => [...prev, ...(data.items || [])]);
+      setOlderCursor(data.nextCursor || null);
+      setHasMoreOlder(Boolean(data.hasMore));
+    } catch (err) {
+      toast({ title: 'Could not load older events', description: err instanceof Error ? err.message : 'Unknown error', variant: 'destructive' });
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const sendEmailMut = useMutation({
+    mutationFn: async (payload: { subject: string; message: string }) => {
+      const res = await fetch(`/api/admin/users/${userId}/send-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Failed to send email' }));
+        throw new Error(err.message || 'Failed to send email');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'Email sent', description: 'Your message was delivered.' });
+      setEmailOpen(false);
+      setEmailSubject('');
+      setEmailMessage('');
+    },
+    onError: (err: unknown) => {
+      toast({ title: 'Could not send email', description: err instanceof Error ? err.message : 'Unknown error', variant: 'destructive' });
+    },
+  });
+
   const filteredItems = useMemo(() => {
-    const items = timelineQ.data?.items || [];
+    const items = [...(timelineQ.data?.items || []), ...extraItems];
     if (!search.trim()) return items;
     const q = search.toLowerCase();
     return items.filter(it =>
@@ -166,7 +236,7 @@ export default function UserInsights() {
       (it.element || '').toLowerCase().includes(q) ||
       (it.label || '').toLowerCase().includes(q)
     );
-  }, [timelineQ.data, search]);
+  }, [timelineQ.data, extraItems, search]);
 
   const sessions = useMemo(() => groupBySession(filteredItems), [filteredItems]);
 
@@ -266,9 +336,18 @@ export default function UserInsights() {
               <Button variant="outline" size="sm" onClick={copyEmail} data-testid="button-copy-email-cta">
                 <Copy className="h-4 w-4 mr-1" /> Copy email
               </Button>
-              <a href={`mailto:${user.email}`}>
-                <Button size="sm" data-testid="button-send-email-cta"><Mail className="h-4 w-4 mr-1" /> Send email</Button>
-              </a>
+              <Button
+                size="sm"
+                onClick={() => {
+                  const fname = user.firstName || (user.email || '').split('@')[0] || 'there';
+                  setEmailSubject(`Following up from FridayReport.AI`);
+                  setEmailMessage(`Hi ${fname},\n\nI wanted to personally check in on your FridayReport.AI experience. I noticed you've been exploring the platform — let me know if there's anything I can help with, or if you'd like a quick walkthrough of features that match your team's workflow.\n\nHappy to find a time that works.`);
+                  setEmailOpen(true);
+                }}
+                data-testid="button-send-email-cta"
+              >
+                <Mail className="h-4 w-4 mr-1" /> Send sales email
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -324,7 +403,27 @@ export default function UserInsights() {
         <KpiCard label="Tasks" value={summary.tasksCount} />
         <KpiCard label="Risks" value={summary.risksCount} />
         <KpiCard label="Issues" value={summary.issuesCount} />
+        <KpiCard label="AI usage" value={summary.aiEventCount ?? 0} />
+        <KpiCard label="Integrations" value={summary.integrationsCount ?? 0} />
+        <KpiCard label="Help tickets" value={summary.helpTicketCount ?? 0} />
       </div>
+
+      {/* Sales-actionable */}
+      <Card data-testid="card-sales-signals">
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4" /> Sales signals</CardTitle></CardHeader>
+        <CardContent className="text-sm">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <KV k="Plan" v={summary.planName || 'Free / Trial'} />
+            <KV k="Trial ends" v={summary.trialEndsAt ? new Date(summary.trialEndsAt).toLocaleDateString() : '—'} />
+            <KV k="AI credits left" v={summary.aiCreditsRemaining != null ? String(summary.aiCreditsRemaining) : '—'} />
+            <KV k="Onboarding" v={summary.onboardingCompleted ? 'Complete' : 'In progress'} />
+            <KV k="Last AI use" v={summary.lastAiEventAt ? relativeTime(summary.lastAiEventAt) : 'Never'} />
+            <KV k="Last help ticket" v={summary.lastHelpTicketAt ? relativeTime(summary.lastHelpTicketAt) : 'None'} />
+            <KV k="Signup source" v={user.signupSource || acquisition?.signupMethod || '—'} />
+            <KV k="Email verified" v={user.emailVerified ? 'Yes' : 'No'} />
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
@@ -377,7 +476,7 @@ export default function UserInsights() {
           ) : sessions.length === 0 ? (
             <div className="text-sm text-muted-foreground py-6 text-center">No events captured yet.</div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-6" data-testid="timeline-sessions">
               {sessions.map((s, idx) => {
                 const startD = new Date(s.startsAt);
                 const endD = new Date(s.endsAt);
@@ -423,10 +522,75 @@ export default function UserInsights() {
                   </div>
                 );
               })}
+              {hasMoreOlder && (
+                <div className="flex justify-center pt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={loadOlder}
+                    disabled={loadingMore}
+                    data-testid="button-load-older"
+                  >
+                    {loadingMore ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ChevronDown className="h-4 w-4 mr-2" />}
+                    Load older events
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Sales email dialog */}
+      <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Send sales email</DialogTitle>
+            <DialogDescription>
+              Sending to <strong>{user.email}</strong>. They will see it as coming from FridayReport.AI.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="email-subject">Subject</Label>
+              <Input
+                id="email-subject"
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+                maxLength={200}
+                data-testid="input-email-subject"
+              />
+            </div>
+            <div>
+              <Label htmlFor="email-message">Message</Label>
+              <Textarea
+                id="email-message"
+                value={emailMessage}
+                onChange={(e) => setEmailMessage(e.target.value)}
+                rows={10}
+                maxLength={8000}
+                data-testid="input-email-message"
+              />
+              <div className="text-xs text-muted-foreground mt-1">
+                {emailMessage.length}/8000 characters
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailOpen(false)} data-testid="button-email-cancel">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => sendEmailMut.mutate({ subject: emailSubject, message: emailMessage })}
+              disabled={sendEmailMut.isPending || !emailSubject.trim() || !emailMessage.trim()}
+              data-testid="button-email-send"
+            >
+              {sendEmailMut.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+              Send email
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

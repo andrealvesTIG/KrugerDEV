@@ -1453,12 +1453,16 @@ export function registerUserRoutes(app: Express) {
     try {
       const termsConsent = await storage.getUserConsentByType(userId, 'terms_of_service');
       const privacyConsent = await storage.getUserConsentByType(userId, 'privacy_policy');
+      const marketingConsent = await storage.getUserConsentByType(userId, 'marketing');
+      const analyticsConsent = await storage.getUserConsentByType(userId, 'analytics');
 
       res.json({
         currentTermsVersion: CURRENT_TERMS_VERSION,
         currentPrivacyVersion: CURRENT_PRIVACY_VERSION,
         termsAccepted: termsConsent ? termsConsent.version === CURRENT_TERMS_VERSION : false,
         privacyAccepted: privacyConsent ? privacyConsent.version === CURRENT_PRIVACY_VERSION : false,
+        marketingAccepted: marketingConsent ? !marketingConsent.revoked : false,
+        analyticsAccepted: analyticsConsent ? !analyticsConsent.revoked : false,
         termsConsentDate: termsConsent?.acceptedAt,
         privacyConsentDate: privacyConsent?.acceptedAt,
         needsConsent: !termsConsent || termsConsent.version !== CURRENT_TERMS_VERSION ||

@@ -717,7 +717,7 @@ export async function setupAuth(app: Express) {
       // Parse metadata to check for terms acceptance and signup source
       let termsAcceptedAt: Date | null = null;
       let signupSource: string | null = null;
-      let firstTouchPayload: any = null;
+      let firstTouchPayload: unknown = null;
       if (magicToken.metadata) {
         try {
           const metadata = JSON.parse(magicToken.metadata);

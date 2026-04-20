@@ -6,7 +6,10 @@ const ANON_KEY = 'fr_anon_id';
 const SESSION_KEY = 'fr_session_id';
 const SESSION_LAST_KEY = 'fr_session_last_at';
 const FIRST_TOUCH_KEY = 'fr_first_touch';
+const FIRST_TOUCH_COOKIE = 'fr_first_touch';
+const ANALYTICS_CONSENT_KEY = 'fr_analytics_consent'; // 'granted' | 'denied'
 const SESSION_GAP_MS = 30 * 60 * 1000; // 30 min
+const FIRST_TOUCH_COOKIE_DAYS = 30;
 
 type EventType = 'page_view' | 'click' | 'custom';
 
@@ -26,14 +29,27 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null;
 const FLUSH_INTERVAL_MS = 5000;
 const MAX_BATCH = 30;
 
+interface CryptoWithRandomUUID extends Crypto {
+  randomUUID(): string;
+}
+
 function uuid(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return (crypto as any).randomUUID();
+  if (typeof crypto !== 'undefined' && typeof (crypto as CryptoWithRandomUUID).randomUUID === 'function') {
+    return (crypto as CryptoWithRandomUUID).randomUUID();
   }
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
     const r = (Math.random() * 16) | 0;
     return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
   });
+}
+
+function setCookie(name: string, value: string, days: number) {
+  try {
+    const exp = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toUTCString();
+    document.cookie = `${name}=${encodeURIComponent(value)}; expires=${exp}; path=/; SameSite=Lax`;
+  } catch {
+    // ignore
+  }
 }
 
 export function getAnonymousId(): string {
@@ -78,13 +94,26 @@ export interface FirstTouchData {
   firstSeenAt?: string | null;
 }
 
+function persistFirstTouch(data: FirstTouchData) {
+  try {
+    const json = JSON.stringify(data);
+    localStorage.setItem(FIRST_TOUCH_KEY, json);
+    // Also persist as a cookie so OAuth redirects (Google/Microsoft) can see it server-side.
+    setCookie(FIRST_TOUCH_COOKIE, json, FIRST_TOUCH_COOKIE_DAYS);
+  } catch {
+    // ignore
+  }
+}
+
 export function captureFirstTouch(): FirstTouchData {
   try {
     const existing = localStorage.getItem(FIRST_TOUCH_KEY);
     if (existing) {
-      const parsed = JSON.parse(existing);
+      const parsed = JSON.parse(existing) as FirstTouchData;
       // Always refresh anonymousId in case it was rotated.
       parsed.anonymousId = getAnonymousId();
+      // Refresh cookie so it survives a clean cookie wipe / OAuth redirect.
+      persistFirstTouch(parsed);
       return parsed;
     }
     const params = new URLSearchParams(window.location.search);
@@ -100,7 +129,7 @@ export function captureFirstTouch(): FirstTouchData {
       anonymousId: getAnonymousId(),
       firstSeenAt: new Date().toISOString(),
     };
-    localStorage.setItem(FIRST_TOUCH_KEY, JSON.stringify(data));
+    persistFirstTouch(data);
     return data;
   } catch {
     return { anonymousId: getAnonymousId(), firstSeenAt: new Date().toISOString() };
@@ -111,12 +140,37 @@ export function getFirstTouch(): FirstTouchData {
   try {
     const existing = localStorage.getItem(FIRST_TOUCH_KEY);
     if (existing) {
-      const parsed = JSON.parse(existing);
+      const parsed = JSON.parse(existing) as FirstTouchData;
       parsed.anonymousId = getAnonymousId();
       return parsed;
     }
   } catch {}
   return captureFirstTouch();
+}
+
+// --- Consent gating ----------------------------------------------------------
+
+let analyticsConsentGranted: boolean | null = null;
+
+export function setAnalyticsConsent(granted: boolean) {
+  analyticsConsentGranted = granted;
+  try {
+    localStorage.setItem(ANALYTICS_CONSENT_KEY, granted ? 'granted' : 'denied');
+  } catch {
+    // ignore
+  }
+}
+
+export function getAnalyticsConsent(): boolean | null {
+  if (analyticsConsentGranted !== null) return analyticsConsentGranted;
+  try {
+    const v = localStorage.getItem(ANALYTICS_CONSENT_KEY);
+    if (v === 'granted') return true;
+    if (v === 'denied') return false;
+  } catch {
+    // ignore
+  }
+  return null;
 }
 
 function scheduleFlush() {
@@ -173,14 +227,24 @@ export function trackToServer(eventType: EventType, opts: {
 }
 
 export function trackPageViewServer(path: string) {
+  // Page views are essential telemetry — always allowed.
   trackToServer('page_view', { path });
 }
 
 let clickListenerInstalled = false;
+let clickHandler: ((ev: Event) => void) | null = null;
+
+function consentAllowsClicks(): boolean {
+  // If the user has explicitly granted analytics consent, capture clicks.
+  // If consent has not been determined yet, treat as denied (privacy-default).
+  return getAnalyticsConsent() === true;
+}
+
 export function installGlobalClickTracker() {
   if (clickListenerInstalled || typeof document === 'undefined') return;
   clickListenerInstalled = true;
-  document.addEventListener('click', (ev) => {
+  clickHandler = (ev: Event) => {
+    if (!consentAllowsClicks()) return;
     try {
       const target = ev.target as HTMLElement | null;
       if (!target) return;
@@ -206,7 +270,8 @@ export function installGlobalClickTracker() {
     } catch {
       // swallow
     }
-  }, { capture: true, passive: true });
+  };
+  document.addEventListener('click', clickHandler, { capture: true, passive: true });
 
   // Best-effort flush on page hide
   window.addEventListener('pagehide', () => { void flush(); });
