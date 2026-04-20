@@ -36,6 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatChangeLogSummary, type RawChangeLog } from "@/components/financial/FinancialChangeHistory";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -1872,18 +1873,120 @@ export default function ProjectDetails() {
 }
 
 function ProjectHistoryDialog({ projectId, open, onOpenChange }: { projectId: number; open: boolean; onOpenChange: (open: boolean) => void }) {
-  const { data: history, isLoading } = useProjectHistory(projectId);
+  const { data: projectHistory, isLoading: projectLoading } = useProjectHistory(projectId);
+
+  // Fetch financial change logs (cell edits, item add/update/delete) so the
+  // unified Project Change History dialog covers everything that happens on
+  // the project, not just project-level field changes.
+  const { data: financialHistory = [], isLoading: financialLoading } = useQuery<RawChangeLog[]>({
+    queryKey: ['/api/projects', projectId, 'financial-entries', 'history'],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/financial-entries/history`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch financial history');
+      return res.json();
+    },
+    enabled: open && projectId > 0,
+  });
+
+  // Resolve org context so the financial change summaries can render with the
+  // correct fiscal-year start month and human-readable financial-type labels.
+  const { data: project } = useQuery<{ id: number; organizationId?: number | null }>({
+    queryKey: ['/api/projects', projectId],
+    enabled: open && projectId > 0,
+  });
+  const orgId = project?.organizationId ?? null;
+  const { data: org } = useQuery<{ id: number; fiscalYearStartMonth?: number | null }>({
+    queryKey: ['/api/organizations', orgId],
+    queryFn: async () => {
+      const res = await fetch(`/api/organizations/${orgId}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch organization');
+      return res.json();
+    },
+    enabled: !!orgId && open,
+  });
+  const { data: financialTypes = [] } = useQuery<Array<{ key: string; label: string }>>({
+    queryKey: ['/api/organizations', orgId, 'financial-types'],
+    enabled: !!orgId && open,
+  });
+
+  const fiscalYearStartMonth = org?.fiscalYearStartMonth ?? 1;
+  const typeLabelByKey = useMemo(
+    () => Object.fromEntries(financialTypes.map((t) => [t.key, t.label])),
+    [financialTypes],
+  );
+
+  // Skip legacy `__undo` placeholder rows written by an older undo route —
+  // they are not real user changes.
+  const isLegacyUndo = (h: RawChangeLog): boolean => {
+    const peek = (s: string | null) => {
+      if (!s) return false;
+      try { return !!(JSON.parse(s) || {}).__undo; } catch { return false; }
+    };
+    return peek(h.newValues) || peek(h.previousValues);
+  };
+
+  type UnifiedRow = {
+    id: string;
+    source: 'project' | 'financial';
+    changeType: string;
+    changeTypeLabel: string;
+    changedByName: string | null;
+    changedAt: string;
+    summary: string;
+    undone?: boolean;
+  };
+
+  const rows: UnifiedRow[] = useMemo(() => {
+    const out: UnifiedRow[] = [];
+    for (const log of projectHistory ?? []) {
+      out.push({
+        id: `p-${log.id}`,
+        source: 'project',
+        changeType: log.changeType,
+        changeTypeLabel: log.changeType === 'created' ? 'Created' : 'Updated',
+        changedByName: log.changedByName ?? null,
+        changedAt: String(log.changedAt),
+        summary: log.changeSummary ?? '',
+      });
+    }
+    const ctx = { fiscalYearStartMonth, typeLabelByKey };
+    for (const h of financialHistory) {
+      if (isLegacyUndo(h)) continue;
+      let label = 'Financial';
+      switch (h.changeType) {
+        case 'cell': label = 'Cell edit'; break;
+        case 'bulk_cell': label = 'Bulk edit'; break;
+        case 'item_created': label = 'Item added'; break;
+        case 'item_updated': label = 'Item updated'; break;
+        case 'item_deleted': label = 'Item deleted'; break;
+      }
+      out.push({
+        id: `f-${h.id}`,
+        source: 'financial',
+        changeType: h.changeType,
+        changeTypeLabel: label,
+        changedByName: h.changedByName ?? null,
+        changedAt: String(h.changedAt),
+        summary: formatChangeLogSummary(h, ctx),
+        undone: !!h.undone,
+      });
+    }
+    out.sort((a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime());
+    return out;
+  }, [projectHistory, financialHistory, fiscalYearStartMonth, typeLabelByKey]);
+
+  const isLoading = projectLoading || financialLoading;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[640px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
             Project Change History
           </DialogTitle>
           <DialogDescription>
-            View all changes made to this project over time.
+            View all changes made to this project over time, including financial edits.
           </DialogDescription>
         </DialogHeader>
         <div className="py-4">
@@ -1891,32 +1994,46 @@ function ProjectHistoryDialog({ projectId, open, onOpenChange }: { projectId: nu
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
-          ) : !history || history.length === 0 ? (
+          ) : rows.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               No changes recorded yet
             </div>
           ) : (
-            <ScrollArea className="h-[400px] pr-4">
+            <ScrollArea className="h-[440px] pr-4">
               <div className="space-y-4">
-                {history.map((log) => (
-                  <div 
-                    key={log.id} 
-                    className="border-l-2 border-muted-foreground/30 pl-4 pb-4"
+                {rows.map((log) => (
+                  <div
+                    key={log.id}
+                    className={`border-l-2 pl-4 pb-4 ${log.source === 'financial' ? 'border-primary/40' : 'border-muted-foreground/30'} ${log.undone ? 'opacity-60' : ''}`}
                     data-testid={`project-history-entry-${log.id}`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        {log.changeType === 'created' ? 'Created' : 'Updated'}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {log.changeTypeLabel}
+                        </Badge>
+                        {log.source === 'financial' && (
+                          <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+                            Financials
+                          </Badge>
+                        )}
+                        {log.undone && (
+                          <Badge variant="outline" className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                            Reverted
+                          </Badge>
+                        )}
+                      </div>
                       <span className="text-xs text-muted-foreground">
-                        {format(parseISO(String(log.changedAt)), 'MMM d, yyyy h:mm a')}
+                        {format(parseISO(log.changedAt), 'MMM d, yyyy h:mm a')}
                       </span>
                     </div>
-                    <div className="mt-2 text-sm">
-                      <span className="font-medium">{log.changedByName}</span>
-                    </div>
-                    <div className="mt-1 text-sm text-muted-foreground break-words">
-                      {log.changeSummary}
+                    {log.changedByName && (
+                      <div className="mt-2 text-sm">
+                        <span className="font-medium">{log.changedByName}</span>
+                      </div>
+                    )}
+                    <div className={`mt-1 text-sm break-words ${log.undone ? 'line-through text-muted-foreground' : 'text-muted-foreground'}`}>
+                      {log.summary}
                     </div>
                   </div>
                 ))}
