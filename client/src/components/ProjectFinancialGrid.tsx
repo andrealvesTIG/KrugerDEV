@@ -872,13 +872,15 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
         // Content-aware widths: compute column widths from actual data so
         // empty cells don't reserve as much space as long ones.
-        const CHAR_PX = 6.8;        // approx px per char at text-xs tabular-nums
-        const HDR_CHAR_PX = 7.2;    // header text is slightly wider (uppercase tracking)
-        const PAD_X = 16;
-        const MIN_COMM = 120, MAX_COMM = 240;
-        const MIN_WBS = 64,  MAX_WBS = 140;
-        const MIN_MONTH_SUB = 44, MAX_MONTH_SUB = 110;
-        const MIN_TOTAL_SUB = 72, MAX_TOTAL_SUB = 140;
+        // Tightened for a dense, technical look — minimum padding, narrow
+        // numeric cells, single-character per-glyph budget.
+        const CHAR_PX = 5.6;        // approx px per char at text-[11px] tabular-nums
+        const HDR_CHAR_PX = 6.0;    // header text is slightly wider (uppercase tracking)
+        const PAD_X = 6;
+        const MIN_COMM = 96, MAX_COMM = 200;
+        const MIN_WBS = 48, MAX_WBS = 120;
+        const MIN_MONTH_SUB = 30, MAX_MONTH_SUB = 72;
+        const MIN_TOTAL_SUB = 44, MAX_TOTAL_SUB = 96;
 
         // Compute widths from the underlying item-level data (filteredEntries)
         // so they don't change when groups are expanded/collapsed.
@@ -1296,7 +1298,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                           return (
                             <div
                               key={`total-${s.key}`}
-                              className={`px-2 py-1.5 text-right text-xs font-semibold tabular-nums flex items-center justify-end ${sIdx === 0 ? monthBorder : typeBorder}`}
+                              className={`px-1 py-1 text-right text-[11px] font-semibold tabular-nums flex items-center justify-end ${sIdx === 0 ? monthBorder : typeBorder}`}
                             >
                               {v !== 0 ? <CompactCurrency value={v} /> : <span className="text-muted-foreground/40">—</span>}
                             </div>
@@ -1313,7 +1315,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                               return (
                                 <div
                                   key={`${m.num}-${s.key}`}
-                                  className={`px-1.5 py-1.5 text-right text-xs tabular-nums flex items-center justify-end ${borderCls} ${hi}`}
+                                  className={`px-1 py-1 text-right text-[11px] tabular-nums flex items-center justify-end ${borderCls} ${hi}`}
                                 >
                                   {value !== 0 ? formatCurrency(value) : <span className="text-muted-foreground/30">—</span>}
                                 </div>
@@ -1348,12 +1350,12 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                                         cancelCellEdit();
                                       }
                                     }}
-                                    className="h-7 text-xs text-right p-1 tabular-nums ring-2 ring-primary/40"
+                                    className="h-6 text-[11px] text-right p-0.5 tabular-nums ring-2 ring-primary/40"
                                     data-testid={`input-${s.key}-m${m.num}-${row.itemKey}`}
                                   />
                                 ) : (
                                   <div
-                                    className={`h-7 flex items-center justify-end px-1.5 text-xs tabular-nums rounded-sm transition-all ${
+                                    className={`h-6 flex items-center justify-end px-1 text-[11px] tabular-nums rounded-sm transition-all ${
                                       editable
                                         ? "cursor-cell hover:ring-1 hover:ring-primary/40 hover:bg-background"
                                         : "text-muted-foreground"
@@ -1398,7 +1400,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                       return (
                         <div
                           key={`gt-total-${s.key}`}
-                          className={`px-2 py-2 text-right text-sm font-bold tabular-nums flex items-center justify-end ${sIdx === 0 ? monthBorder : typeBorder}`}
+                          className={`px-1 py-1.5 text-right text-[11px] font-bold tabular-nums flex items-center justify-end ${sIdx === 0 ? monthBorder : typeBorder}`}
                         >
                           {v !== 0 ? <CompactCurrency value={v} /> : <span className="text-muted-foreground/40">—</span>}
                         </div>
@@ -1412,7 +1414,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                         return (
                           <div
                             key={`gt-${m.num}-${s.key}`}
-                            className={`px-1.5 py-2 text-right text-xs tabular-nums flex items-center justify-end ${sIdx === 0 ? monthBorder : typeBorder} ${monthHi(idx)}`}
+                            className={`px-1 py-1.5 text-right text-[11px] font-bold tabular-nums flex items-center justify-end ${sIdx === 0 ? monthBorder : typeBorder} ${monthHi(idx)}`}
                           >
                             {grandMonthForType !== 0 ? formatCurrency(grandMonthForType) : <span className="text-muted-foreground/40">—</span>}
                           </div>
