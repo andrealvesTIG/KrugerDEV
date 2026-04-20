@@ -72,10 +72,25 @@ export function ProjectLocationMediaSection({
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [highlight, setHighlight] = useState(-1);
 
+  // Local mirror of the address field so typing is instant — the parent
+  // persists via a server mutation that re-renders the prop, which would
+  // otherwise clobber in-flight keystrokes. We push the local value up on
+  // blur and on suggestion select.
+  const [addressInput, setAddressInput] = useState<string>(addressLine1 || "");
+  const addressInputRef = useRef(addressInput);
+  useEffect(() => { addressInputRef.current = addressInput; }, [addressInput]);
+  // Re-sync from props only when the upstream value differs from what we last
+  // pushed (e.g. another tab edited the project, or after a suggestion apply).
+  useEffect(() => {
+    const incoming = addressLine1 || "";
+    if (incoming !== addressInputRef.current) setAddressInput(incoming);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addressLine1]);
+
   // Debounced fetch of address suggestions (3+ chars).
   useEffect(() => {
     if (disabled) return;
-    const q = (addressLine1 || "").trim();
+    const q = addressInput.trim();
     if (q.length < 3) {
       setSuggestions([]);
       setSuggestLoading(false);
@@ -99,7 +114,7 @@ export function ProjectLocationMediaSection({
       }
     }, 300);
     return () => { cancelled = true; clearTimeout(handle); };
-  }, [addressLine1, disabled]);
+  }, [addressInput, disabled]);
 
   // Close popover when clicking outside.
   useEffect(() => {
@@ -112,9 +127,9 @@ export function ProjectLocationMediaSection({
   }, []);
 
   const applySuggestion = (s: AddressSuggestion) => {
-    const patch: ProjectLocationPatch = {
-      addressLine1: s.displayName || s.addressLine1 || "",
-    };
+    const newAddress = s.displayName || s.addressLine1 || "";
+    setAddressInput(newAddress);
+    const patch: ProjectLocationPatch = { addressLine1: newAddress };
     if (s.city) patch.city = s.city;
     if (s.region) patch.region = s.region;
     if (s.country) patch.country = s.country;
@@ -209,9 +224,14 @@ export function ProjectLocationMediaSection({
           <div className="relative flex-1">
             <Input
               id="addressLine1"
-              value={addressLine1 || ""}
-              onChange={(e) => { onChange({ addressLine1: e.target.value }); setSuggestOpen(true); }}
-              onFocus={() => { if ((addressLine1 || "").trim().length >= 3) setSuggestOpen(true); }}
+              value={addressInput}
+              onChange={(e) => { setAddressInput(e.target.value); setSuggestOpen(true); }}
+              onFocus={() => { if (addressInput.trim().length >= 3) setSuggestOpen(true); }}
+              onBlur={() => {
+                if (addressInput !== (addressLine1 || "")) {
+                  onChange({ addressLine1: addressInput });
+                }
+              }}
               onKeyDown={onAddressKeyDown}
               disabled={disabled}
               placeholder="Start typing an address…"
