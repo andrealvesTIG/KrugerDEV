@@ -246,15 +246,39 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     enabled: !!orgId,
   });
 
-  const enabledScenarios: FinancialScenario[] = useMemo(() => {
-    const list = scenariosConfig?.scenarios ?? DEFAULT_FINANCIAL_SCENARIOS.scenarios;
-    return list.filter(s => s.enabled);
+  const allScenarios: FinancialScenario[] = useMemo(() => {
+    return scenariosConfig?.scenarios ?? DEFAULT_FINANCIAL_SCENARIOS.scenarios;
   }, [scenariosConfig]);
+
+  const enabledScenarios: FinancialScenario[] = useMemo(
+    () => allScenarios.filter(s => s.enabled),
+    [allScenarios],
+  );
 
   const activeScenarioConfig = useMemo(
     () => enabledScenarios.find(s => s.key === scenario),
     [enabledScenarios, scenario],
   );
+
+  const toggleScenarioMutation = useMutation({
+    mutationFn: async (scenarioKey: string) => {
+      if (!orgId) throw new Error("No organization");
+      const next = allScenarios.map(s =>
+        s.key === scenarioKey ? { ...s, enabled: !s.enabled } : s,
+      );
+      // Don't allow turning off the last enabled scenario.
+      if (!next.some(s => s.enabled)) {
+        throw new Error("At least one scenario must stay enabled");
+      }
+      await apiRequest("PUT", `/api/organizations/${orgId}/financial-scenarios`, { scenarios: next });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations", orgId, "financial-scenarios"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Couldn't update scenario", description: err?.message || "Please try again", variant: "destructive" });
+    },
+  });
 
   // If the current scenario was disabled / removed, fall back to the first enabled one.
   useEffect(() => {
@@ -506,15 +530,30 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
           </Select>
 
           <div className="flex rounded-md border overflow-hidden">
-            {enabledScenarios.map((s, i) => (
+            {allScenarios.map((s, i) => (
               <Button
                 key={s.key}
-                variant={scenario === s.key ? "secondary" : "ghost"}
+                variant={s.enabled ? (scenario === s.key ? "secondary" : "ghost") : "ghost"}
                 size="sm"
-                onClick={() => setScenario(s.key)}
-                className={`rounded-none ${i > 0 ? "border-l" : ""}`}
+                onClick={(e) => {
+                  // Shift-click (or click on currently-disabled) toggles enable/disable.
+                  // Plain click on an already-enabled scenario switches the active view.
+                  if (e.shiftKey || !s.enabled) {
+                    toggleScenarioMutation.mutate(s.key);
+                  } else if (scenario !== s.key) {
+                    setScenario(s.key);
+                  } else {
+                    toggleScenarioMutation.mutate(s.key);
+                  }
+                }}
+                disabled={toggleScenarioMutation.isPending}
+                className={`rounded-none ${i > 0 ? "border-l" : ""} ${!s.enabled ? "opacity-40 line-through" : ""}`}
                 data-testid={`button-view-${s.key}`}
-                title={s.editable ? `${s.label} — editable` : `${s.label} — read-only`}
+                title={
+                  s.enabled
+                    ? `${s.label} — ${s.editable ? "editable" : "read-only"}. Click again to disable, or click another scenario to switch view.`
+                    : `${s.label} — disabled. Click to enable.`
+                }
               >
                 {s.label}
               </Button>
