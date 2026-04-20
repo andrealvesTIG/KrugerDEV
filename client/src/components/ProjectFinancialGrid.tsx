@@ -21,6 +21,7 @@ import type { FinancialEntry, FinancialTypesConfig, FinancialType, CostItemCateg
 import { DEFAULT_FINANCIAL_TYPES, DEFAULT_COST_ITEM_CATEGORIES } from "@shared/schema";
 import { CompactCurrency } from "@/components/CompactCurrency";
 import { useOrganization } from "@/hooks/use-organization";
+import { useAuth } from "@/hooks/use-auth";
 
 interface ProjectFinancialGridProps {
   projectId: number;
@@ -498,7 +499,48 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     }
   }, [splitterStorageKey]);
 
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const { user } = useAuth();
+  const expandedStorageKey = useMemo(
+    () => (user?.id ? `financial-grid-expanded-${user.id}-${projectId}` : null),
+    [user?.id, projectId],
+  );
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const key = user?.id ? `financial-grid-expanded-${user.id}-${projectId}` : null;
+      if (!key) return new Set();
+      const saved = window.localStorage.getItem(key);
+      if (!saved) return new Set();
+      const arr = JSON.parse(saved);
+      return Array.isArray(arr) ? new Set<string>(arr) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  // Persist expand/collapse state per user + project so reopening the grid
+  // restores the same view. Reload from storage when the scope changes
+  // (different user or project).
+  useEffect(() => {
+    if (!expandedStorageKey) return;
+    try {
+      const saved = window.localStorage.getItem(expandedStorageKey);
+      setExpanded(saved ? new Set<string>(JSON.parse(saved)) : new Set());
+    } catch {
+      setExpanded(new Set());
+    }
+  }, [expandedStorageKey]);
+
+  useEffect(() => {
+    if (!expandedStorageKey) return;
+    try {
+      window.localStorage.setItem(
+        expandedStorageKey,
+        JSON.stringify(Array.from(expanded)),
+      );
+    } catch {}
+  }, [expanded, expandedStorageKey]);
+
   const [editingCell, setEditingCell] = useState<{ itemKey: string; month: number; typeKey: string } | null>(null);
   const [editValue, setEditValue] = useState("");
   // Inline text-field editing for Cost Item / Comments / WBS columns.
