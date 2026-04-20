@@ -152,20 +152,29 @@ export function ProjectLocationMediaSection({
   const addressString = [addressLine1, city, region, postalCode, country].filter(Boolean).join(", ");
 
   const handleGeocode = async () => {
-    if (!addressString) {
-      toast({ title: "Address required", description: "Enter at least a city or street address first.", variant: "destructive" });
+    const q = (addressInput || addressString).trim();
+    if (q.length < 3) {
+      toast({ title: "Address required", description: "Type at least 3 characters first.", variant: "destructive" });
       return;
     }
     setGeocoding(true);
     try {
-      const res = await fetch(`/api/geocode?q=${encodeURIComponent(addressString)}`, { credentials: "include" });
+      // Use the same suggest endpoint the dropdown uses and take the top hit,
+      // so Locate gives the same precise pin as picking from the list. The
+      // older /api/geocode endpoint retries with progressively shorter queries
+      // and can land on a city-center fallback that overwrites a precise pin.
+      const res = await fetch(`/api/geocode/suggest?q=${encodeURIComponent(q)}`, { credentials: "include" });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || `Geocoding failed (${res.status})`);
       }
       const data = await res.json();
-      onChange({ latitude: String(data.latitude), longitude: String(data.longitude) });
-      toast({ title: "Location found", description: data.displayName });
+      const top: AddressSuggestion | undefined = Array.isArray(data?.results) ? data.results[0] : undefined;
+      if (!top || !Number.isFinite(top.latitude) || !Number.isFinite(top.longitude)) {
+        throw new Error("No matching address found");
+      }
+      applySuggestion(top);
+      toast({ title: "Location found", description: top.displayName });
     } catch (err: any) {
       toast({ title: "Could not locate address", description: err.message, variant: "destructive" });
     } finally {
