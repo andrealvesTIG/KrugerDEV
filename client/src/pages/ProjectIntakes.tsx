@@ -96,9 +96,10 @@ interface CreateIntakeDialogProps {
   onOpenChange: (open: boolean) => void;
   portfolios: Portfolio[];
   organizationId?: number;
+  initialWorkflowId?: number | null;
 }
 
-function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: CreateIntakeDialogProps) {
+function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, initialWorkflowId }: CreateIntakeDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -115,11 +116,16 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
   const { workflows: intakeWorkflows } = useIntakeWorkflows();
 
   useEffect(() => {
+    if (!open) return;
+    if (initialWorkflowId != null && intakeWorkflows.some(w => w.id === initialWorkflowId)) {
+      setWorkflowId(String(initialWorkflowId));
+      return;
+    }
     if (!workflowId && intakeWorkflows.length > 0) {
       const def = intakeWorkflows.find(w => w.isDefault) || intakeWorkflows[0];
       setWorkflowId(String(def.id));
     }
-  }, [intakeWorkflows, workflowId]);
+  }, [open, initialWorkflowId, intakeWorkflows, workflowId]);
   const [limitError, setLimitError] = useState<{ resourceType: string } | null>(null);
 
   const activeTypes = intakeTypes.filter(t => t.isActive);
@@ -792,6 +798,7 @@ function PowerBIRequestsSection({ organizationId }: { organizationId: number | u
 export default function ProjectIntakes() {
   const { currentOrganization } = useOrganization();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [pendingWorkflowId, setPendingWorkflowId] = useState<number | null>(null);
   const { workflows: outerIntakeWorkflows } = useIntakeWorkflows();
   const openCreateIntake = (workflowId: number | null = null) => {
     const wf = workflowId != null
@@ -801,6 +808,7 @@ export default function ProjectIntakes() {
       window.open(wf.creationUrl, '_blank', 'noopener,noreferrer');
       return;
     }
+    setPendingWorkflowId(workflowId);
     setIsDialogOpen(true);
   };
   const [search, setSearch] = useState("");
@@ -1219,9 +1227,10 @@ export default function ProjectIntakes() {
 
       <CreateIntakeDialog 
         open={isDialogOpen} 
-        onOpenChange={setIsDialogOpen}
+        onOpenChange={(o) => { setIsDialogOpen(o); if (!o) setPendingWorkflowId(null); }}
         portfolios={portfolios || []}
         organizationId={currentOrganization?.id}
+        initialWorkflowId={pendingWorkflowId}
       />
 
       <Dialog open={deleteIntakeId !== null} onOpenChange={() => setDeleteIntakeId(null)}>

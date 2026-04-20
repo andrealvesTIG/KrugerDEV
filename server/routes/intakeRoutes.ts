@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { and } from "drizzle-orm";
-import { resources, insertProjectIntakeSchema, insertIntakeTypeSchema } from "@shared/schema";
+import { resources, insertProjectIntakeSchema, insertIntakeTypeSchema, type InsertIntakeWorkflow, type InsertProjectWorkflow } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -628,7 +628,7 @@ export function registerIntakeRoutes(app: Express) {
       const existing = await storage.getIntakeWorkflow(wfId);
       if (!existing || existing.organizationId !== orgId) return res.status(404).json({ message: "Workflow not found" });
       const { name, description, isDefault, isActive, creationMode, creationUrl } = req.body || {};
-      const updates: any = {};
+      const updates: Partial<InsertIntakeWorkflow> = {};
       if (name !== undefined) updates.name = String(name).trim();
       if (description !== undefined) updates.description = description;
       if (isDefault !== undefined) updates.isDefault = !!isDefault;
@@ -853,7 +853,7 @@ export function registerIntakeRoutes(app: Express) {
       const existing = await storage.getProjectWorkflow(wfId);
       if (!existing || existing.organizationId !== orgId) return res.status(404).json({ message: "Workflow not found" });
       const { name, description, isDefault, isActive, creationMode, creationUrl } = req.body || {};
-      const updates: any = {};
+      const updates: Partial<InsertProjectWorkflow> = {};
       if (name !== undefined) updates.name = String(name).trim();
       if (description !== undefined) updates.description = description;
       if (isDefault !== undefined) updates.isDefault = !!isDefault;
