@@ -1326,7 +1326,7 @@ export function registerProjectFeatureRoutes(app: Express) {
         return res.status(403).json({ message: "Admin access required" });
       }
       
-      const { mode, name, description, visibleColumns, columnOrder, columnWidths, filterCriteria, isActive, displayOrder } = req.body;
+      const { mode, name, description, visibleColumns, columnOrder, columnWidths, filterCriteria, isActive, displayOrder, portfolioId } = req.body;
       
       if (!mode || !['grid', 'gantt', 'list'].includes(mode)) {
         return res.status(400).json({ message: "Mode must be 'grid', 'gantt', or 'list'" });
@@ -1339,12 +1339,22 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (!visibleColumns || !Array.isArray(visibleColumns)) {
         return res.status(400).json({ message: "Visible columns are required" });
       }
+
+      let scopedPortfolioId: number | null = null;
+      if (portfolioId !== undefined && portfolioId !== null) {
+        const pid = Number(portfolioId);
+        if (!Number.isFinite(pid) || pid <= 0) {
+          return res.status(400).json({ message: "portfolioId must be a positive number or null" });
+        }
+        scopedPortfolioId = pid;
+      }
       
       const view = await storage.createSystemProjectView({
         organizationId: orgId,
         mode,
         name: name.trim(),
         description: description?.trim() || null,
+        portfolioId: scopedPortfolioId,
         visibleColumns,
         columnOrder: columnOrder || null,
         columnWidths: columnWidths || null,
