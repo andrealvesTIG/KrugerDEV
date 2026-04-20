@@ -133,7 +133,10 @@ export function registerFinancialsRoutes(app: Express) {
           changeType: "item_created",
           changeSummary: `Created "${dimensions.itemName}" (${dimensions.financialView || "N/A"} > ${dimensions.costCategory || "N/A"} > ${dimensions.costSpecification || "N/A"})`,
           previousValues: null,
-          newValues: JSON.stringify({ itemKey, fiscalYear, ...dimensions }),
+          // Persist the org-enabled type set used at creation so redo can
+          // recreate the same fan-out (orgs with custom enabled types beyond
+          // the defaults would otherwise get an incomplete item on redo).
+          newValues: JSON.stringify({ itemKey, fiscalYear, types: enabledKeys, ...dimensions }),
         });
       } catch (logErr) {
         console.error("Error creating change log:", logErr);
@@ -372,7 +375,17 @@ export function registerFinancialsRoutes(app: Express) {
         await storage.deleteFinancialItem({ projectId, itemKey: created.itemKey });
         return `Removed "${created.itemName ?? created.itemKey}" (reverted creation)`;
       }
-      // Redo: re-create the item with all the original dimensions.
+      // Redo: re-create the item with the original dimensions AND the same
+      // org-enabled type set captured at creation time. Fall back to the
+      // current org config if a legacy log row didn't persist `types`.
+      let typesForRedo: string[] | undefined = Array.isArray(created.types) ? created.types : undefined;
+      if (!typesForRedo) {
+        const project = await storage.getProject(projectId);
+        if (project?.organizationId) {
+          const orgTypes = await getOrgTypeConfig(project.organizationId);
+          typesForRedo = orgTypes.filter(s => s.enabled).map(s => s.key);
+        }
+      }
       await storage.createFinancialItem({
         projectId,
         fiscalYear: Number(created.fiscalYear),
@@ -387,6 +400,7 @@ export function registerFinancialsRoutes(app: Express) {
           comments: created.comments ?? null,
           sortOrder: created.sortOrder ?? 0,
         },
+        types: typesForRedo,
       });
       return `Re-created "${created.itemName ?? created.itemKey}"`;
     }
