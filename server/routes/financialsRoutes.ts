@@ -842,6 +842,9 @@ export function registerFinancialsRoutes(app: Express) {
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
+      if (!Number.isInteger(orgId) || orgId <= 0) {
+        return res.status(400).json({ message: "Invalid orgId" });
+      }
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
       if (!(await userHasOrgAccess(userId, orgId))) {
@@ -852,8 +855,24 @@ export function registerFinancialsRoutes(app: Express) {
       if (!org) return res.status(404).json({ message: "Organization not found" });
       const fyStart = normalizeFiscalYearStartMonth(org.fiscalYearStartMonth);
       const today = new Date();
-      const fiscalYear = req.query.fiscalYear ? Number(req.query.fiscalYear) : currentFiscalYear(today, fyStart);
-      const portfolioFilter = req.query.portfolioId ? Number(req.query.portfolioId) : undefined;
+      let fiscalYear: number;
+      if (req.query.fiscalYear !== undefined) {
+        const parsed = Number(req.query.fiscalYear);
+        if (!Number.isInteger(parsed) || parsed < 1900 || parsed > 2999) {
+          return res.status(400).json({ message: "Invalid fiscalYear" });
+        }
+        fiscalYear = parsed;
+      } else {
+        fiscalYear = currentFiscalYear(today, fyStart);
+      }
+      let portfolioFilter: number | undefined;
+      if (req.query.portfolioId !== undefined) {
+        const parsed = Number(req.query.portfolioId);
+        if (!Number.isInteger(parsed) || parsed <= 0) {
+          return res.status(400).json({ message: "Invalid portfolioId" });
+        }
+        portfolioFilter = parsed;
+      }
 
       // Project list scoped to user's access. Team members only see assigned projects.
       const allProjects = await db.select().from(projects).where(and(

@@ -377,4 +377,83 @@ describe('GET /api/organizations/:orgId/financial-analytics — input validation
     const res = await request(buildApp()).get('/api/organizations/999/financial-analytics');
     expect(res.status).toBe(404);
   });
+
+  it('returns 400 for non-numeric orgId', async () => {
+    loginAs('admin');
+    const res = await request(buildApp()).get('/api/organizations/abc/financial-analytics');
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/orgId/i);
+  });
+
+  it('returns 400 for zero / negative orgId', async () => {
+    loginAs('admin');
+    const res = await request(buildApp()).get('/api/organizations/0/financial-analytics');
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/orgId/i);
+  });
+
+  it('returns 400 for non-numeric fiscalYear', async () => {
+    setOrg({ id: 1 });
+    loginAs('admin');
+    const res = await request(buildApp())
+      .get('/api/organizations/1/financial-analytics?fiscalYear=notayear');
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/fiscalYear/i);
+  });
+
+  it('returns 400 for out-of-range fiscalYear', async () => {
+    setOrg({ id: 1 });
+    loginAs('admin');
+    const res = await request(buildApp())
+      .get('/api/organizations/1/financial-analytics?fiscalYear=999');
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/fiscalYear/i);
+  });
+
+  it('returns 400 for non-numeric portfolioId', async () => {
+    setOrg({ id: 1 });
+    loginAs('admin');
+    const res = await request(buildApp())
+      .get('/api/organizations/1/financial-analytics?portfolioId=foo');
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/portfolioId/i);
+  });
+
+  it('returns 400 for zero / negative portfolioId', async () => {
+    setOrg({ id: 1 });
+    loginAs('admin');
+    const res = await request(buildApp())
+      .get('/api/organizations/1/financial-analytics?portfolioId=-5');
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/portfolioId/i);
+  });
+});
+
+describe('GET /api/organizations/:orgId/financial-analytics — non-calendar fiscal year', () => {
+  it('honors fyStartMonth=4 (Apr-start FY) when computing in-progress asOfMonth', async () => {
+    // Pick a fiscal year that's currently in progress under an Apr-start FY
+    // and verify the in-progress-month math. The codebase convention is:
+    //   FY label = the calendar year in which the FY *ends*.
+    // With fyStartMonth=4: FY label N spans Apr(N-1) → Mar(N). So today's
+    // calendar (year, month) maps to:
+    //   if today.month >= 4: fyLabel=today.year + 1, fmIdx = month - 4 + 1
+    //   else:                fyLabel=today.year,     fmIdx = month + 12 - 4 + 1
+    setOrg({ id: 1, fyStartMonth: 4 });
+    loginAs('admin');
+    fixtures.set(projects, []);
+    fixtures.set(portfolios, []);
+
+    const today = new Date();
+    const calMonth = today.getUTCMonth() + 1; // 1..12
+    const calYear = today.getUTCFullYear();
+    const fyLabel = calMonth >= 4 ? calYear + 1 : calYear;
+    const expectedFmIdx = calMonth >= 4 ? calMonth - 4 + 1 : calMonth + 12 - 4 + 1;
+
+    const res = await request(buildApp())
+      .get(`/api/organizations/1/financial-analytics?fiscalYear=${fyLabel}`);
+    expect(res.status).toBe(200);
+    expect(res.body.fiscalYear).toBe(fyLabel);
+    expect(res.body.fiscalYearStartMonth).toBe(4);
+    expect(res.body.asOfMonth).toBe(expectedFmIdx);
+  });
 });
