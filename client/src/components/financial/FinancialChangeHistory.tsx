@@ -118,7 +118,8 @@ function monthLabel(month: number, fiscalYear: number, fyStartMonth: number): st
   const months = buildFiscalMonths(fiscalYear, fyStartMonth);
   const slot = months.find((m) => m.monthNum === month);
   if (!slot) return `M${month}`;
-  const date = new Date(slot.calendarYear, slot.calendarMonth - 1, 1);
+  const date = new Date(slot.year, slot.month - 1, 1);
+  if (isNaN(date.getTime())) return `M${month} FY${fiscalYear}`;
   return `${format(date, "MMM")} FY${fiscalYear}`;
 }
 
