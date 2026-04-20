@@ -3753,14 +3753,14 @@ function ProjectTeamTab({
               </div>
 
               <div className="overflow-x-auto">
-                <div className="min-w-[600px]">
+                <div className="min-w-max">
                   <div className="flex border-b sticky top-0 bg-background z-10">
                     <div className="w-44 sm:w-64 flex-shrink-0 p-2 font-medium text-sm border-r sticky left-0 z-20 bg-background">
                       Resource / Task
                     </div>
-                    <div className="flex-1 flex">
+                    <div className="flex">
                       {teamPeriods.map((period, idx) => (
-                        <div key={idx} className={`flex-1 p-2 text-center text-xs font-medium border-r text-muted-foreground ${teamTimeScale === "day" ? "min-w-[50px]" : "min-w-[65px]"}`}>
+                        <div key={idx} className={`flex-shrink-0 p-2 text-center text-xs font-medium border-r text-muted-foreground ${teamTimeScale === "day" ? "w-[50px]" : "w-[65px]"}`}>
                           {period.label}
                         </div>
                       ))}
@@ -3811,13 +3811,13 @@ function ProjectTeamTab({
                                 )}
                               </div>
                             </div>
-                            <div className="flex-1 flex">
+                            <div className="flex">
                               {member.weeks.map((weekData, weekIdx) => {
                                 const periodCap = getTeamPeriodCapacity(member.weeklyCapacity, teamPeriods[weekIdx]);
                                 return (
                                   <div
                                     key={weekIdx}
-                                    className={`flex-1 p-1.5 border-r min-w-[65px] ${getHeatColor(weekData.allocation, periodCap)} transition-colors`}
+                                    className={`flex-shrink-0 p-1.5 border-r ${teamTimeScale === "day" ? "w-[50px]" : "w-[65px]"} ${getHeatColor(weekData.allocation, periodCap)} transition-colors`}
                                     title={weekData.tasks.length > 0
                                       ? `${weekData.tasks.map(t => `${t.name} (${t.allocation}%)`).join('\n')}\n\nTotal: ${formatTeamCellValue(weekData.allocation, periodCap)}`
                                       : "No assignments"
@@ -3845,13 +3845,13 @@ function ProjectTeamTab({
                                   </div>
                                 </div>
                               </div>
-                              <div className="flex-1 flex">
+                              <div className="flex">
                                 {td.weeks.map((w, weekIdx) => {
                                   const periodCap = getTeamPeriodCapacity(member.weeklyCapacity, teamPeriods[weekIdx]);
                                   return (
                                     <div
                                       key={weekIdx}
-                                      className={`flex-1 p-1.5 border-r min-w-[65px] ${w.active ? 'bg-primary/10' : 'bg-slate-50 dark:bg-slate-900'} transition-colors`}
+                                      className={`flex-shrink-0 p-1.5 border-r ${teamTimeScale === "day" ? "w-[50px]" : "w-[65px]"} ${w.active ? 'bg-primary/10' : 'bg-slate-50 dark:bg-slate-900'} transition-colors`}
                                     >
                                       <div className={`text-center text-xs ${w.active ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
                                         {w.active ? formatTeamCellValue(w.allocation, periodCap) : "-"}
