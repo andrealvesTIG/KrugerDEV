@@ -97,7 +97,7 @@ export function AboutThemPanel({ userId, enrichment, detected, onUpdated }: Prop
       if (status === 'ok') {
         toast({ title: 'Profile refreshed', description: `via ${data.enrichment?.source}` });
       } else if (status === 'not_configured') {
-        toast({ title: 'Provider not configured', description: 'Set LINKEDIN_ENRICHMENT_API_KEY to enable LinkedIn lookups.', variant: 'destructive' });
+        // Inline warning panel already communicates this state; skip duplicate toast.
       } else {
         toast({ title: 'Enrichment incomplete', description: data.enrichment?.errorMessage || 'Could not enrich profile.', variant: 'destructive' });
       }
