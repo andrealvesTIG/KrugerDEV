@@ -2093,7 +2093,9 @@ export const projectViews = pgTable("project_views", {
   frozenColumns: text("frozen_columns").array(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  orgPortfolioModeIdx: index("project_views_org_portfolio_mode_idx").on(table.organizationId, table.portfolioId, table.mode),
+}));
 
 export const insertProjectViewSchema = createInsertSchema(projectViews).omit({
   id: true,
@@ -2123,7 +2125,9 @@ export const systemProjectViews = pgTable("system_project_views", {
   updatedBy: varchar("updated_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  orgPortfolioModeIdx: index("system_project_views_org_portfolio_mode_idx").on(table.organizationId, table.portfolioId, table.mode),
+}));
 
 // Filter criteria for system views
 export interface SystemViewFilterCriteria {
