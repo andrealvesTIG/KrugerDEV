@@ -546,20 +546,28 @@ export function registerUserInsightsRoutes(app: Express) {
         || currentUser?.email
         || 'FridayReport.AI Team';
 
-      const { sendEmail } = await import("../services/email");
+      const { sendEmailDetailed } = await import("../services/email");
       const text = `${message}\n\n— ${adminName}`;
       const html = `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:14px;line-height:1.5;color:#111">`
         + message.replace(/\n/g, '<br/>')
         + `<br/><br/>— ${adminName}</div>`;
 
-      const ok = await sendEmail({
+      const result = await sendEmailDetailed({
         to: target.email,
         subject,
         text,
         html,
       });
 
-      if (!ok) return res.status(502).json({ message: 'Email service rejected the message' });
+      if (!result.ok) {
+        const friendly = result.code === 'daily_quota_exceeded'
+          ? 'Daily email sending quota reached. Try again tomorrow or upgrade your Resend plan.'
+          : result.code === 'email_not_configured'
+            ? result.message
+            : `${result.message} (${result.code})`;
+        const status = result.status === 429 ? 429 : (result.status === 503 ? 503 : 502);
+        return res.status(status).json({ message: friendly, code: result.code });
+      }
       res.json({ ok: true });
     } catch (err) {
       console.error('POST /api/admin/users/:userId/send-email failed:', err);
