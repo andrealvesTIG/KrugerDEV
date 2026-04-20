@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -11,14 +11,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2 } from "lucide-react";
-import type { FinancialEntry } from "@shared/schema";
+import type { FinancialEntry, FinancialScenariosConfig, FinancialScenario } from "@shared/schema";
+import { DEFAULT_FINANCIAL_SCENARIOS } from "@shared/schema";
 import { CompactCurrency } from "@/components/CompactCurrency";
+import { useOrganization } from "@/hooks/use-organization";
 
 interface ProjectFinancialGridProps {
   projectId: number;
 }
 
-type Scenario = "aop" | "fcst" | "act";
+type Scenario = string;
 
 const MONTHS = [
   { num: 1, label: "Oct" },
@@ -233,9 +235,36 @@ function buildGridRows(
 
 export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGridProps) {
   const { toast } = useToast();
+  const { currentOrganization } = useOrganization();
   const currentYear = new Date().getFullYear();
   const [fiscalYear, setFiscalYear] = useState(currentYear);
   const [scenario, setScenario] = useState<Scenario>("fcst");
+
+  const orgId = currentOrganization?.id;
+  const { data: scenariosConfig } = useQuery<FinancialScenariosConfig>({
+    queryKey: ["/api/organizations", orgId, "financial-scenarios"],
+    enabled: !!orgId,
+  });
+
+  const enabledScenarios: FinancialScenario[] = useMemo(() => {
+    const list = scenariosConfig?.scenarios ?? DEFAULT_FINANCIAL_SCENARIOS.scenarios;
+    return list.filter(s => s.enabled);
+  }, [scenariosConfig]);
+
+  const activeScenarioConfig = useMemo(
+    () => enabledScenarios.find(s => s.key === scenario),
+    [enabledScenarios, scenario],
+  );
+
+  // If the current scenario was disabled / removed, fall back to the first enabled one.
+  useEffect(() => {
+    if (enabledScenarios.length === 0) return;
+    if (!activeScenarioConfig) {
+      setScenario(enabledScenarios[0].key);
+    }
+  }, [enabledScenarios, activeScenarioConfig]);
+
+  const isScenarioEditable = activeScenarioConfig?.editable ?? true;
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editingCell, setEditingCell] = useState<{ itemKey: string; month: number } | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -476,28 +505,20 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
             </SelectContent>
           </Select>
 
-          <div className="flex rounded-md border">
-            <Button
-              variant={scenario === "aop" ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => setScenario("aop")}
-              className="rounded-r-none"
-              data-testid="button-view-aop"
-            >AOP</Button>
-            <Button
-              variant={scenario === "fcst" ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => setScenario("fcst")}
-              className="rounded-none border-x"
-              data-testid="button-view-fcst"
-            >FCST</Button>
-            <Button
-              variant={scenario === "act" ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => setScenario("act")}
-              className="rounded-l-none"
-              data-testid="button-view-act"
-            >ACT</Button>
+          <div className="flex rounded-md border overflow-hidden">
+            {enabledScenarios.map((s, i) => (
+              <Button
+                key={s.key}
+                variant={scenario === s.key ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setScenario(s.key)}
+                className={`rounded-none ${i > 0 ? "border-l" : ""}`}
+                data-testid={`button-view-${s.key}`}
+                title={s.editable ? `${s.label} — editable` : `${s.label} — read-only`}
+              >
+                {s.label}
+              </Button>
+            ))}
           </div>
 
           <Button size="sm" onClick={openCreateDialog} data-testid="button-add-cost-item">
@@ -597,7 +618,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                         );
                       }
                       const isEditing = editingCell?.itemKey === row.itemKey && editingCell?.month === m.num;
-                      const editable = isItem;
+                      const editable = isItem && isScenarioEditable;
                       return (
                         <div key={m.num} className="p-1">
                           {isEditing ? (

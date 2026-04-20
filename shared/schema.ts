@@ -135,6 +135,46 @@ export const DEFAULT_SCHEDULING_DEFAULTS: SchedulingDefaults = {
   enforceDefaults: false,
 };
 
+// Financial scenarios — org-configurable list of buckets shown in the Financials grid.
+// `key` is the stable identifier persisted in financial_entries.scenario; `label` is
+// purely cosmetic. System scenarios (aop/fcst/act) may be renamed/disabled but never
+// deleted, so historical data and audit-log entries always have something to point at.
+export const financialScenarioSchema = z.object({
+  key: z.string().min(1).max(40).regex(/^[a-z0-9_-]+$/, "Key must be lowercase letters, digits, '-' or '_'"),
+  label: z.string().min(1).max(40),
+  enabled: z.boolean(),
+  editable: z.boolean(),
+  isSystem: z.boolean().optional(),
+});
+
+export const financialScenariosConfigSchema = z.object({
+  scenarios: z.array(financialScenarioSchema).min(1).max(20),
+}).superRefine((data, ctx) => {
+  const keys = new Set<string>();
+  for (const s of data.scenarios) {
+    if (keys.has(s.key)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Duplicate scenario key: ${s.key}` });
+    }
+    keys.add(s.key);
+  }
+  if (!data.scenarios.some(s => s.enabled)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "At least one scenario must be enabled" });
+  }
+});
+
+export type FinancialScenario = z.infer<typeof financialScenarioSchema>;
+export type FinancialScenariosConfig = z.infer<typeof financialScenariosConfigSchema>;
+
+export const SYSTEM_FINANCIAL_SCENARIO_KEYS = ["aop", "fcst", "act"] as const;
+
+export const DEFAULT_FINANCIAL_SCENARIOS: FinancialScenariosConfig = {
+  scenarios: [
+    { key: "aop", label: "AOP", enabled: true, editable: true, isSystem: true },
+    { key: "fcst", label: "FCST", enabled: true, editable: true, isSystem: true },
+    { key: "act", label: "ACT", enabled: true, editable: true, isSystem: true },
+  ],
+};
+
 export const DEFAULT_RISK_ASSESSMENT_CONFIG: RiskAssessmentConfig = {
   model: "gpt-4o",
   temperature: 0.3,
@@ -175,6 +215,7 @@ export const organizations = pgTable("organizations", {
   deactivatedAt: timestamp("deactivated_at"), // Soft delete timestamp
   deactivatedBy: varchar("deactivated_by").references(() => users.id), // Who deactivated
   fridayAgentConfig: jsonb("friday_agent_config"), // Friday AI agent configuration (per-org)
+  financialScenariosConfig: jsonb("financial_scenarios_config").$type<FinancialScenariosConfig>(), // AOP/FCST/ACT and custom scenarios
 });
 
 // Organization Members (Join table for users <-> organizations)

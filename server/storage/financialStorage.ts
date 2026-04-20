@@ -15,8 +15,11 @@ import {
 } from "@shared/models/billing";
 import { eq, and, desc, isNull, inArray, sql } from "drizzle-orm";
 
-const SCENARIOS = ["aop", "fcst", "act"] as const;
-export type FinancialScenario = (typeof SCENARIOS)[number];
+// Scenario keys are now org-configurable strings. The legacy three (aop/fcst/act)
+// are guaranteed to exist on every org so historical data and audit-log entries
+// stay valid even when the admin renames or disables them.
+export type FinancialScenario = string;
+const DEFAULT_FAN_OUT_SCENARIOS = ["aop", "fcst", "act"];
 
 export async function getProjectFinancials(projectId: number): Promise<ProjectFinancial[]> {
   return await db.select().from(projectFinancials)
@@ -143,10 +146,12 @@ export async function createFinancialItem(args: {
   fiscalYear: number;
   itemKey?: string;
   dimensions: FinancialItemDimensions;
+  scenarios?: string[];
 }): Promise<string> {
   const itemKey = args.itemKey ?? `item-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const scenarios = args.scenarios && args.scenarios.length > 0 ? args.scenarios : DEFAULT_FAN_OUT_SCENARIOS;
   const rows: InsertFinancialEntry[] = [];
-  for (const scenario of SCENARIOS) {
+  for (const scenario of scenarios) {
     for (let month = 1; month <= 12; month++) {
       rows.push({
         projectId: args.projectId,
@@ -169,6 +174,41 @@ export async function createFinancialItem(args: {
   }
   await db.insert(financialEntries).values(rows).onConflictDoNothing();
   return itemKey;
+}
+
+/**
+ * For every existing (project, fiscal_year, item_key) in `financial_entries` that
+ * belongs to the given organization, materialize 12 zero-amount cells for the
+ * given scenario key. Used when an admin adds a brand-new scenario in Org Settings
+ * so the grid has cells to edit immediately. Idempotent via the unique cell index.
+ */
+export async function backfillScenarioCellsForOrg(args: {
+  organizationId: number;
+  scenarioKey: string;
+}): Promise<{ inserted: number }> {
+  const result = await db.execute(sql`
+    INSERT INTO financial_entries (
+      project_id, fiscal_year, scenario, month, amount,
+      item_key, item_name, financial_view, cost_category, cost_specification,
+      category, wbs, comments, sort_order, is_demo, created_at, updated_at
+    )
+    SELECT
+      sub.project_id, sub.fiscal_year, ${args.scenarioKey}::text, m.month, 0,
+      sub.item_key, sub.item_name, sub.financial_view, sub.cost_category, sub.cost_specification,
+      sub.category, sub.wbs, sub.comments, sub.sort_order, sub.is_demo, NOW(), NOW()
+    FROM (
+      SELECT DISTINCT ON (fe.project_id, fe.fiscal_year, fe.item_key)
+        fe.project_id, fe.fiscal_year, fe.item_key, fe.item_name,
+        fe.financial_view, fe.cost_category, fe.cost_specification,
+        fe.category, fe.wbs, fe.comments, fe.sort_order, fe.is_demo
+      FROM financial_entries fe
+      INNER JOIN projects p ON p.id = fe.project_id
+      WHERE p.organization_id = ${args.organizationId}
+    ) sub
+    CROSS JOIN generate_series(1, 12) AS m(month)
+    ON CONFLICT (project_id, fiscal_year, item_key, scenario, month) DO NOTHING
+  `);
+  return { inserted: (result as any).rowCount ?? 0 };
 }
 
 /**

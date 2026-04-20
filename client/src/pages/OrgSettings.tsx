@@ -4,7 +4,7 @@ import { useOrganization } from "@/hooks/use-organization";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Settings, Users, ShieldAlert, Trash2, Eye, FileText, GitBranch, Plug, Calendar, Sparkles, Building2, Zap, LayoutGrid, Columns, Code2, UserCheck, Bell, Target, Bot } from "lucide-react";
+import { Loader2, Settings, Users, ShieldAlert, Trash2, Eye, FileText, GitBranch, Plug, Calendar, Sparkles, Building2, Zap, LayoutGrid, Columns, Code2, UserCheck, Bell, Target, Bot, DollarSign } from "lucide-react";
 import { ChevronDown, PanelLeftClose, PanelLeft } from "lucide-react";
 import type { Organization } from "@shared/schema";
 import IntegrationsPage from "@/pages/Integrations";
@@ -23,6 +23,7 @@ import { DemoDataSection } from "@/components/settings/DemoDataSection";
 import { ReminderSettingsSection } from "@/components/settings/ReminderSettingsSection";
 import { RiskAssessmentConfigSection } from "@/components/settings/RiskAssessmentConfigSection";
 import { FridayAgentConfigSection } from "@/components/settings/FridayAgentConfigSection";
+import { FinancialScenariosSection } from "@/components/settings/FinancialScenariosSection";
 import { DeveloperSection } from "@/components/settings/DeveloperSection";
 import { ActAsSection } from "@/components/settings/ActAsSection";
 import { ScoringCriteriaSection } from "@/components/settings/ScoringCriteriaSection";
@@ -90,6 +91,7 @@ const settingsTabs = [
   { value: "general", label: "General", icon: Building2 },
   { value: "billing", label: "Billing", icon: Zap },
   { value: "scheduling", label: "Scheduling", icon: Calendar },
+  { value: "financial-scenarios", label: "Financial Scenarios", icon: DollarSign },
   { value: "modules", label: "Module Visibility", icon: Eye },
   { value: "system-views", label: "System Views", icon: Columns },
   { value: "custom-fields", label: "Custom Fields", icon: FileText },
@@ -211,6 +213,9 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         )}
         <TabsContent value="scheduling" className="mt-0">
           <SchedulingDefaultsSection organizationId={currentOrganization.id} />
+        </TabsContent>
+        <TabsContent value="financial-scenarios" className="mt-0">
+          <FinancialScenariosSection organizationId={currentOrganization.id} />
         </TabsContent>
         <TabsContent value="modules" className="mt-0">
           <ModuleVisibilitySection organization={currentOrganization} />

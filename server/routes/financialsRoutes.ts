@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { storage } from "../storage";
 import { multiYearWbs } from "@shared/schema";
-import type { FinancialItemDimensions, FinancialScenario } from "../storage/financialStorage";
+import type { FinancialItemDimensions } from "../storage/financialStorage";
 import {
   getUserIdFromRequest,
   userHasOrgAccess,
@@ -45,7 +45,18 @@ function pickDimensions(body: any): Partial<FinancialItemDimensions> {
   return out;
 }
 
-const SCENARIOS = new Set<FinancialScenario>(["aop", "fcst", "act"]);
+async function getOrgScenarioConfig(organizationId: number): Promise<{ key: string; enabled: boolean; editable: boolean }[]> {
+  const { DEFAULT_FINANCIAL_SCENARIOS } = await import("@shared/schema");
+  const org = await storage.getOrganization(organizationId);
+  const stored = (org as any)?.financialScenariosConfig?.scenarios as any[] | undefined;
+  const list = (stored && Array.isArray(stored)) ? stored : [];
+  const seen = new Set(list.map(s => s.key));
+  const merged = [...list];
+  for (const sys of DEFAULT_FINANCIAL_SCENARIOS.scenarios) {
+    if (!seen.has(sys.key)) merged.push(sys);
+  }
+  return merged.length > 0 ? merged : DEFAULT_FINANCIAL_SCENARIOS.scenarios;
+}
 
 const WBS_FIELDS = [
   "fiscalYear", "sapProjectNumber", "sapCapitalNumber", "sapExpenseNumber",
@@ -101,10 +112,14 @@ export function registerFinancialsRoutes(app: Express) {
         return res.status(400).json({ message: "itemName is required" });
       }
 
+      const orgScenarios = await getOrgScenarioConfig(guard.project.organizationId);
+      const enabledKeys = orgScenarios.filter(s => s.enabled).map(s => s.key);
+
       const itemKey = await storage.createFinancialItem({
         projectId,
         fiscalYear: Number(fiscalYear),
         dimensions,
+        scenarios: enabledKeys,
       });
 
       try {
@@ -141,8 +156,8 @@ export function registerFinancialsRoutes(app: Express) {
       if (!fiscalYear || !itemKey || !scenario || !month) {
         return res.status(400).json({ message: "fiscalYear, itemKey, scenario, month are required" });
       }
-      if (!SCENARIOS.has(scenario)) {
-        return res.status(400).json({ message: "scenario must be aop|fcst|act" });
+      if (typeof scenario !== "string" || !/^[a-z0-9_-]+$/.test(scenario)) {
+        return res.status(400).json({ message: "scenario must be a valid scenario key" });
       }
       const monthNum = Number(month);
       if (monthNum < 1 || monthNum > 12) {
