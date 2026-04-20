@@ -385,9 +385,6 @@ export default function UserInsights() {
               )}
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={copyEmail} data-testid="button-copy-email-cta">
-                <Copy className="h-4 w-4 mr-1" /> Copy email
-              </Button>
               <Button
                 variant="outline"
                 size="sm"
