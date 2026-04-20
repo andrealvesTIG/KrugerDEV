@@ -310,6 +310,7 @@ export interface IFinancialStorage {
     fiscalYear: number;
     itemKey?: string;
     dimensions: import("./financialStorage").FinancialItemDimensions;
+    scenarios?: string[];
   }): Promise<string>;
   upsertFinancialCell(args: {
     projectId: number;
