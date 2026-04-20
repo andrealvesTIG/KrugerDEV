@@ -224,6 +224,25 @@ export function AnalyticsTab() {
 
   const filterLabel = userFilter === 'total' ? 'All Users' : userFilter === 'today' ? 'New Users Today' : userFilter === 'week' ? 'New Users This Week' : userFilter === 'month' ? 'New Users This Month' : 'All Users';
 
+  const userMetricCounts = useMemo(() => {
+    const nonExcluded = allUsers.filter(u => !isExcludedEmail(u.email));
+    const toNYDate = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    const todayNY = toNYDate(new Date());
+    const subtractDays = (dateStr: string, days: number) => {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const dt = new Date(y, m - 1, d - days);
+      return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    };
+    const weekCutoff = subtractDays(todayNY, 7);
+    const monthCutoff = subtractDays(todayNY, 30);
+    return {
+      total: nonExcluded.length,
+      today: nonExcluded.filter(u => toNYDate(new Date(u.createdAt)) === todayNY).length,
+      week: nonExcluded.filter(u => toNYDate(new Date(u.createdAt)) >= weekCutoff).length,
+      month: nonExcluded.filter(u => toNYDate(new Date(u.createdAt)) >= monthCutoff).length,
+    };
+  }, [allUsers, excludedDomainSet]);
+
   const formatNumber = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
     if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
@@ -321,7 +340,7 @@ export function AnalyticsTab() {
                 </Tooltip>
               </TooltipProvider>
             </div>
-            <div className="text-2xl font-bold mt-1">{formatNumber(analytics.userMetrics.totalUsers)}</div>
+            <div className="text-2xl font-bold mt-1">{formatNumber(userMetricCounts.total)}</div>
           </CardContent>
         </Card>
 
@@ -344,7 +363,7 @@ export function AnalyticsTab() {
                 </Tooltip>
               </TooltipProvider>
             </div>
-            <div className="text-2xl font-bold mt-1 text-green-600">{analytics.userMetrics.newUsersToday}</div>
+            <div className="text-2xl font-bold mt-1 text-green-600">{userMetricCounts.today}</div>
           </CardContent>
         </Card>
 
@@ -367,7 +386,7 @@ export function AnalyticsTab() {
                 </Tooltip>
               </TooltipProvider>
             </div>
-            <div className="text-2xl font-bold mt-1">{analytics.userMetrics.newUsersThisWeek}</div>
+            <div className="text-2xl font-bold mt-1">{userMetricCounts.week}</div>
           </CardContent>
         </Card>
 
@@ -390,7 +409,7 @@ export function AnalyticsTab() {
                 </Tooltip>
               </TooltipProvider>
             </div>
-            <div className="text-2xl font-bold mt-1">{analytics.userMetrics.newUsersThisMonth}</div>
+            <div className="text-2xl font-bold mt-1">{userMetricCounts.month}</div>
           </CardContent>
         </Card>
 
