@@ -884,21 +884,11 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       {isPlannerProject && !isFullscreen && (
         <div className="space-y-2">
           <div className="p-3 rounded-lg border bg-muted/50 space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className={cn("flex items-center justify-between gap-2", !isPlannerBannerCollapsed && "flex-wrap")}>
               <div className="flex items-center gap-3 min-w-0">
-                <button
-                  type="button"
-                  onClick={() => setIsPlannerBannerCollapsed((v) => !v)}
-                  className="shrink-0 hover-elevate rounded p-0.5"
-                  aria-label={isPlannerBannerCollapsed ? "Expand banner" : "Collapse banner"}
-                  aria-expanded={!isPlannerBannerCollapsed}
-                  data-testid="button-toggle-planner-banner"
-                >
-                  {isPlannerBannerCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </button>
                 <img src={plannerLogoPath} alt="Microsoft Planner" className="h-6 w-6 shrink-0" />
                 <div className="min-w-0">
-                  <span className="font-medium">Planner Premium Task Management Options:</span>
+                  <span className={cn("font-medium", isPlannerBannerCollapsed && "truncate block")}>Planner Premium Task Management Options:</span>
                   {!isPlannerBannerCollapsed && (
                     <div className="mt-1 space-y-0.5">
                       <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">1. Sync Now – Edit tasks in Planner (view-only in FridayReport)</p>
@@ -907,7 +897,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className={cn("flex items-center gap-2", !isPlannerBannerCollapsed && "flex-wrap")}>
                 <a 
                   href={(() => {
                     if (!plannerPlanId) return "https://planner.cloud.microsoft";
@@ -956,9 +946,19 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                     <p>Detach this project from {isPremiumPlan ? "Project for the Web" : "Planner"} and make it fully editable. This removes the sync link but keeps all tasks and data.</p>
                   </TooltipContent>
                 </Tooltip>
+                <button
+                  type="button"
+                  onClick={() => setIsPlannerBannerCollapsed((v) => !v)}
+                  className="shrink-0 hover-elevate rounded p-1"
+                  aria-label={isPlannerBannerCollapsed ? "Expand banner" : "Collapse banner"}
+                  aria-expanded={!isPlannerBannerCollapsed}
+                  data-testid="button-toggle-planner-banner"
+                >
+                  {isPlannerBannerCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
               </div>
             </div>
-            {lastSyncedAt && (
+            {!isPlannerBannerCollapsed && lastSyncedAt && (
               <p className="text-xs text-muted-foreground pl-9" data-testid="text-last-synced">
                 Last Synced: {format(new Date(lastSyncedAt), "MM/dd/yyyy h:mm a")}
               </p>
