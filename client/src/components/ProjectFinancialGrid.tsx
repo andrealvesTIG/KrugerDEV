@@ -267,34 +267,65 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     enabled: !!orgId,
   });
 
+  // Server-defined scenarios (which exist + editable flag are org-wide).
+  // Visibility (enabled flag) is overridden per-browser via localStorage so each
+  // user's column show/hide preference doesn't affect teammates.
+  const visibilityStorageKey = orgId ? `fr.financial-scenario-visibility.${orgId}` : null;
+  const [visibilityOverride, setVisibilityOverride] = useState<Record<string, boolean>>(() => {
+    if (typeof window === "undefined" || !visibilityStorageKey) return {};
+    try {
+      const raw = window.localStorage.getItem(visibilityStorageKey);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Re-load override when org changes
+  useEffect(() => {
+    if (typeof window === "undefined" || !visibilityStorageKey) return;
+    try {
+      const raw = window.localStorage.getItem(visibilityStorageKey);
+      setVisibilityOverride(raw ? JSON.parse(raw) : {});
+    } catch {
+      setVisibilityOverride({});
+    }
+  }, [visibilityStorageKey]);
+
   const allScenarios: FinancialScenario[] = useMemo(() => {
-    return scenariosConfig?.scenarios ?? DEFAULT_FINANCIAL_SCENARIOS.scenarios;
-  }, [scenariosConfig]);
+    const base = scenariosConfig?.scenarios ?? DEFAULT_FINANCIAL_SCENARIOS.scenarios;
+    return base.map(s =>
+      Object.prototype.hasOwnProperty.call(visibilityOverride, s.key)
+        ? { ...s, enabled: !!visibilityOverride[s.key] }
+        : s,
+    );
+  }, [scenariosConfig, visibilityOverride]);
 
   const enabledScenarios: FinancialScenario[] = useMemo(
     () => allScenarios.filter(s => s.enabled),
     [allScenarios],
   );
 
-  const toggleScenarioMutation = useMutation({
-    mutationFn: async (scenarioKey: string) => {
-      if (!orgId) throw new Error("No organization");
-      const next = allScenarios.map(s =>
-        s.key === scenarioKey ? { ...s, enabled: !s.enabled } : s,
-      );
-      // Don't allow turning off the last enabled scenario.
-      if (!next.some(s => s.enabled)) {
-        throw new Error("At least one scenario must stay enabled");
+  const toggleScenarioVisibility = (scenarioKey: string) => {
+    const current = allScenarios.find(s => s.key === scenarioKey);
+    if (!current) return;
+    const nextEnabled = !current.enabled;
+    // Don't allow hiding the last visible scenario.
+    const remaining = allScenarios.filter(s =>
+      s.key === scenarioKey ? nextEnabled : s.enabled,
+    );
+    if (remaining.length === 0) {
+      toast({ title: "At least one scenario must stay visible", variant: "destructive" });
+      return;
+    }
+    setVisibilityOverride(prev => {
+      const next = { ...prev, [scenarioKey]: nextEnabled };
+      if (typeof window !== "undefined" && visibilityStorageKey) {
+        try { window.localStorage.setItem(visibilityStorageKey, JSON.stringify(next)); } catch {}
       }
-      await apiRequest("PUT", `/api/organizations/${orgId}/financial-scenarios`, { scenarios: next });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/organizations", orgId, "financial-scenarios"] });
-    },
-    onError: (err: any) => {
-      toast({ title: "Couldn't update scenario", description: err?.message || "Please try again", variant: "destructive" });
-    },
-  });
+      return next;
+    });
+  };
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editingCell, setEditingCell] = useState<{ itemKey: string; month: number; scenarioKey: string } | null>(null);
@@ -616,8 +647,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
               <button
                 key={s.key}
                 type="button"
-                onClick={() => toggleScenarioMutation.mutate(s.key)}
-                disabled={toggleScenarioMutation.isPending}
+                onClick={() => toggleScenarioVisibility(s.key)}
                 className={`inline-flex items-center gap-1 px-3 h-8 text-xs font-medium rounded-sm transition-all ${
                   s.enabled
                     ? "bg-background text-foreground shadow-sm"
