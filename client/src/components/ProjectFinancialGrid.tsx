@@ -1671,7 +1671,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                               editingCell?.typeKey === s.key;
                             const editable = s.editable;
                             return (
-                              <div key={`${m.num}-${s.key}`} className={`p-0.5 ${borderCls} ${hi}`}>
+                              <div key={`${m.num}-${s.key}`} className={`p-0.5 ${borderCls} ${hi} ${isEditing ? "relative z-20" : ""}`}>
                                 {isEditing ? (
                                   <Input
                                     autoFocus
@@ -1694,7 +1694,15 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                                         cancelCellEdit();
                                       }
                                     }}
-                                    className="h-6 text-[11px] text-right p-0.5 tabular-nums ring-2 ring-primary/40"
+                                    // Overlay the input so it can grow LEFT past
+                                    // its narrow column as the user types more
+                                    // digits. Width tracks editValue.length with a
+                                    // comfortable minimum (readable when empty) and
+                                    // a max so it never dominates the viewport.
+                                    style={{
+                                      width: `max(100%, ${Math.min(40, Math.max(8, editValue.length + 3))}ch)`,
+                                    }}
+                                    className="absolute right-0.5 top-0.5 bottom-0.5 h-6 text-[11px] text-right p-0.5 tabular-nums ring-2 ring-primary/40 bg-background shadow-md z-20 transition-[width] duration-75"
                                     data-testid={`input-${s.key}-m${m.num}-${row.itemKey}`}
                                   />
                                 ) : (
