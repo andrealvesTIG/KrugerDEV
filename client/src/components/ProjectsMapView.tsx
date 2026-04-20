@@ -196,6 +196,7 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
   const [bounds, setBounds] = useState<L.LatLngBounds | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showMissingOnly, setShowMissingOnly] = useState(false);
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
   const controllerRef = useRef<MapController | null>(null);
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
@@ -215,10 +216,27 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
     return { withCoords, missing };
   }, [projects]);
 
+  const filteredCoords = useMemo(() => {
+    if (selectedStatuses.size === 0) return withCoords;
+    return withCoords.filter(p => selectedStatuses.has(p.status || ""));
+  }, [withCoords, selectedStatuses]);
+
   const visibleProjects = useMemo(() => {
-    if (!bounds) return withCoords;
-    return withCoords.filter(p => bounds.contains([p._lat, p._lng]));
-  }, [withCoords, bounds]);
+    if (!bounds) return filteredCoords;
+    return filteredCoords.filter(p => bounds.contains([p._lat, p._lng]));
+  }, [filteredCoords, bounds]);
+
+  const toggleStatus = (status: string) => {
+    setSelectedStatuses(prev => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  };
+
+  const clearStatusFilter = () => setSelectedStatuses(new Set());
+  const isFiltering = selectedStatuses.size > 0;
 
   const markers = withCoords.map(p => [p._lat, p._lng] as [number, number]);
   const markersSignature = withCoords.map(p => `${p.id}:${p._lat.toFixed(4)},${p._lng.toFixed(4)}`).join("|");
@@ -321,7 +339,7 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
                   maxClusterRadius={50}
                   iconCreateFunction={makeClusterIcon}
                 >
-                {withCoords.map(p => {
+                {filteredCoords.map(p => {
                   const cover = p.images?.[0]?.url;
                   return (
                     <Marker
@@ -378,35 +396,62 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
 
         <Card>
           <CardContent className="p-3">
-            <div className="text-sm font-semibold mb-2 flex items-center gap-2">
-              <MapPin className="h-4 w-4" /> {visibleProjects.length} visible
-              {visibleProjects.length !== withCoords.length && (
-                <span className="text-xs font-normal text-muted-foreground">
-                  of {withCoords.length}
+            <div className="text-sm font-semibold mb-2 flex items-center gap-2 flex-wrap">
+              <span className="flex items-center gap-2">
+                <MapPin className="h-4 w-4" /> {visibleProjects.length} visible
+                {visibleProjects.length !== filteredCoords.length && (
+                  <span className="text-xs font-normal text-muted-foreground">
+                    of {filteredCoords.length}
+                  </span>
+                )}
+              </span>
+              {isFiltering && (
+                <span className="text-[10px] font-normal text-muted-foreground" data-testid="text-filter-summary">
+                  (filtered from {withCoords.length})
                 </span>
               )}
             </div>
             <div className="mb-3 pb-3 border-b" data-testid="map-status-legend">
-              <div className="text-[11px] font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide">
-                Status colors
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                  Filter by status
+                </div>
+                {isFiltering && (
+                  <button
+                    type="button"
+                    onClick={clearStatusFilter}
+                    className="text-[10px] text-primary hover:underline"
+                    data-testid="button-clear-status-filter"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-x-2 gap-y-1">
-                {Object.keys(STATUS_HEX).map((status) => (
-                  <div
-                    key={status}
-                    className="flex items-center gap-1.5 text-[11px]"
-                    data-testid={`legend-${status.toLowerCase().replace(/\s+/g, "-")}`}
-                  >
-                    <span
-                      className="inline-block h-2.5 w-2.5 rounded-full border border-white shadow-sm flex-shrink-0"
-                      style={{ background: STATUS_HEX[status] }}
-                    />
-                    <span className="truncate">{status}</span>
-                  </div>
-                ))}
+                {Object.keys(STATUS_HEX).map((status) => {
+                  const active = !isFiltering || selectedStatuses.has(status);
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => toggleStatus(status)}
+                      aria-pressed={isFiltering && selectedStatuses.has(status)}
+                      className={`flex items-center gap-1.5 text-[11px] px-1.5 py-0.5 rounded hover:bg-accent text-left transition-opacity ${active ? "opacity-100" : "opacity-40"}`}
+                      data-testid={`legend-${status.toLowerCase().replace(/\s+/g, "-")}`}
+                    >
+                      <span
+                        className="inline-block h-2.5 w-2.5 rounded-full border border-white shadow-sm flex-shrink-0"
+                        style={{ background: STATUS_HEX[status] }}
+                      />
+                      <span className="truncate">{status}</span>
+                    </button>
+                  );
+                })}
               </div>
               <div className="text-[10px] text-muted-foreground mt-1.5 leading-snug">
-                Cluster bubbles show the dominant project status (worst-case wins on ties).
+                {isFiltering
+                  ? `Showing ${filteredCoords.length} of ${withCoords.length} projects. Click a status to toggle.`
+                  : "Click a status to filter the map. Cluster bubbles show the dominant status (worst-case wins on ties)."}
               </div>
             </div>
             <div className="space-y-2 max-h-[calc(100vh-360px)] overflow-y-auto pr-1">
@@ -442,7 +487,11 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
                 );
               })}
               {visibleProjects.length === 0 && withCoords.length > 0 && (
-                <p className="text-xs text-muted-foreground text-center py-6">No projects in the current view. Zoom or pan the map to see more.</p>
+                <p className="text-xs text-muted-foreground text-center py-6">
+                  {isFiltering
+                    ? "No projects match the selected statuses in the current view."
+                    : "No projects in the current view. Zoom or pan the map to see more."}
+                </p>
               )}
               {withCoords.length === 0 && (
                 <p className="text-xs text-muted-foreground text-center py-6">No projects with coordinates.</p>
