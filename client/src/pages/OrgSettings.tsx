@@ -215,9 +215,19 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         <TabsContent value="scheduling" className="mt-0">
           <SchedulingDefaultsSection organizationId={currentOrganization.id} />
         </TabsContent>
-        <TabsContent value="financial-types" className="mt-0 space-y-6">
-          <FinancialTypesSection organizationId={currentOrganization.id} />
-          <CostItemCategoriesSection organizationId={currentOrganization.id} />
+        <TabsContent value="financial-types" className="mt-0">
+          <Tabs defaultValue="types" className="w-full">
+            <TabsList className="mb-4">
+              <TabsTrigger value="types" data-testid="tab-financial-types">Financial Types</TabsTrigger>
+              <TabsTrigger value="categories" data-testid="tab-cost-item-categories">Cost Item Categories</TabsTrigger>
+            </TabsList>
+            <TabsContent value="types" className="mt-0">
+              <FinancialTypesSection organizationId={currentOrganization.id} />
+            </TabsContent>
+            <TabsContent value="categories" className="mt-0">
+              <CostItemCategoriesSection organizationId={currentOrganization.id} />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
         <TabsContent value="modules" className="mt-0">
           <ModuleVisibilitySection organization={currentOrganization} />
