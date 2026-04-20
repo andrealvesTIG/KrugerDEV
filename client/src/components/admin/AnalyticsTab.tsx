@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from "react";
   import { Button } from "@/components/ui/button";
   import { Badge } from "@/components/ui/badge";
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-  import { Loader2, TrendingUp, TrendingDown, Users, Building2, Activity, BarChart3, Calendar, ArrowUpRight, ArrowDownRight, Minus, RefreshCw, Search, X, ArrowUp, ArrowDown, CheckCircle, Globe, Zap, Clock, CreditCard, UserPlus } from "lucide-react";
+  import { Loader2, TrendingUp, TrendingDown, Users, Building2, Activity, BarChart3, Calendar, ArrowUpRight, ArrowDownRight, Minus, RefreshCw, Search, X, ArrowUp, ArrowDown, CheckCircle, Globe, Zap, Clock, CreditCard, UserPlus, LineChart } from "lucide-react";
   import { Input } from "@/components/ui/input";
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
   import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -415,6 +415,7 @@ export function AnalyticsTab() {
                       </TableHead>
                     ))}
                     <TableHead>Profile</TableHead>
+                    <TableHead>Insights</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -498,6 +499,16 @@ export function AnalyticsTab() {
                           className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                         >
                           <Globe className="h-3 w-3" />
+                          View
+                        </a>
+                      </TableCell>
+                      <TableCell>
+                        <a
+                          href={`/admin/users/${user.id}/insights`}
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          data-testid={`link-user-insights-${user.id}`}
+                        >
+                          <LineChart className="h-3 w-3" />
                           View
                         </a>
                       </TableCell>
