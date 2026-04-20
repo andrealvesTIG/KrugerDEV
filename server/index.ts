@@ -279,6 +279,24 @@ app.use((req, res, next) => {
           }
         });
         log("AI Project Agent cron job started (every 15 minutes)", "cron");
+
+        // Daily telemetry retention sweep at 03:17 UTC: hash old IPs, delete
+        // raw page-events older than 90 days, purge unlinked anonymous events
+        // older than 7 days.
+        cron.schedule('17 3 * * *', async () => {
+          try {
+            const { runTelemetryRetentionSweep } = await import("./services/telemetryRetention");
+            const r = await runTelemetryRetentionSweep();
+            log(
+              `Telemetry retention sweep: hashedIps=${r.hashedPageEventIps + r.hashedAcquisitionIps} `
+              + `deletedOld=${r.deletedOldPageEvents} purgedAnon=${r.deletedUnlinkedAnonEvents}`,
+              "cron",
+            );
+          } catch (error) {
+            console.error("Error in telemetry retention sweep:", error);
+          }
+        });
+        log("Telemetry retention sweep scheduled (daily 03:17 UTC)", "cron");
       } else {
         log("Cron jobs disabled in development (set ENABLE_CRON=true to enable)", "cron");
       }

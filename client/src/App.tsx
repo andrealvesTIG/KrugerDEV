@@ -2,6 +2,7 @@ import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
+import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { OrganizationProvider, useOrganization } from "@/hooks/use-organization";
@@ -13,6 +14,7 @@ import NotFound from "@/pages/not-found";
 import { ReactNode, useEffect, lazy, Suspense } from "react";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
+import { useFirstTouch } from "@/hooks/use-first-touch";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -29,6 +31,7 @@ const Invoices = lazy(() => import("@/pages/Invoices"));
 const Tasks = lazy(() => import("@/pages/Tasks"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const SuperAdmin = lazy(() => import("@/pages/SuperAdmin"));
+const UserInsights = lazy(() => import("@/pages/UserInsights"));
 const OrgSettings = lazy(() => import("@/pages/OrgSettings"));
 const Profile = lazy(() => import("@/pages/Profile"));
 const UserGuide = lazy(() => import("@/pages/UserGuide"));
@@ -183,9 +186,10 @@ function HomePage() {
 }
 
 function Router() {
-  // Track page views when routes change
-  useAnalytics();
-  
+  // Note: page-view tracking is handled at the App level (so it covers public
+  // marketing routes too); do not call useAnalytics() here or events will be
+  // sent twice for authenticated routes.
+
   return (
     <AppLayout>
       <TermsConsentModal />
@@ -223,6 +227,7 @@ function Router() {
           <Route path="/billing" component={Billing} />
           <Route path="/admin" component={Admin} />
           <Route path="/super-admin" component={SuperAdmin} />
+          <Route path="/admin/users/:userId/insights" component={UserInsights} />
           <Route path="/org-settings" component={OrgSettings} />
           <Route path="/profile" component={Profile} />
           <Route path="/user-guide" component={UserGuide} />
@@ -242,6 +247,14 @@ function Router() {
 }
 
 function App() {
+  // Capture first-touch acquisition + install global click tracker
+  useFirstTouch();
+
+  // Track page views for ALL routes — including public marketing/landing
+  // pages — so we capture the complete pre-signup journey. The hook itself
+  // honors analytics consent before persisting anything.
+  useAnalytics();
+
   // Initialize Google Analytics when app loads
   useEffect(() => {
     if (!import.meta.env.VITE_GA_MEASUREMENT_ID) {
@@ -258,6 +271,7 @@ function App() {
           <OrganizationProvider>
             <UserJourneyProvider>
             <Toaster />
+            <CookieConsentBanner />
             <Suspense fallback={<PageLoader />}>
               <Switch>
                 <Route path="/" component={HomePage} />

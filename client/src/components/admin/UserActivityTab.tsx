@@ -1,5 +1,7 @@
 import { useState, useMemo, Fragment } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useExcludedEmailDomains } from "@/hooks/use-excluded-email-domains";
+import { EmailDomainExclusionControl } from "@/components/dashboard/EmailDomainExclusionControl";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -653,10 +655,12 @@ function OrganizationsView() {
   const [sortBy, setSortBy] = useState("activity");
   const [expandedOrg, setExpandedOrg] = useState<number | null>(null);
 
+  const { appendToUrl, queryKeyPart } = useExcludedEmailDomains();
   const { data, isLoading, error } = useQuery<OrgResponse>({
-    queryKey: ["/api/admin/user-activity-kpi/organizations", period],
+    queryKey: ["/api/admin/user-activity-kpi/organizations", period, queryKeyPart],
     queryFn: async () => {
-      const res = await fetch(`/api/admin/user-activity-kpi/organizations?period=${period}`, { credentials: "include" });
+      const url = appendToUrl(`/api/admin/user-activity-kpi/organizations?period=${period}`);
+      const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch organization data");
       return res.json();
     },
@@ -929,11 +933,13 @@ const TABS: { key: TabKey; label: string }[] = [
 
 export function UserActivityTab() {
   const [tab, setTab] = useState<TabKey>("overview");
+  const { appendToUrl, queryKeyPart } = useExcludedEmailDomains();
 
   const { data, isLoading, error } = useQuery<KpiData>({
-    queryKey: ["/api/admin/user-activity-kpi"],
+    queryKey: ["/api/admin/user-activity-kpi", queryKeyPart],
     queryFn: async () => {
-      const res = await fetch("/api/admin/user-activity-kpi", { credentials: "include" });
+      const url = appendToUrl("/api/admin/user-activity-kpi");
+      const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch user activity KPI");
       return res.json();
     },
@@ -972,6 +978,9 @@ export function UserActivityTab() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">User Activity KPIs</h2>
           <p className="text-muted-foreground">Platform-wide user engagement analysis from activation through their lifecycle</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <EmailDomainExclusionControl />
         </div>
         <div className="flex gap-1 bg-muted p-1 rounded-lg">
           {TABS.map(t => (

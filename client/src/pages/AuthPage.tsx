@@ -12,6 +12,7 @@ import { Loader2, ArrowLeft, Mail, CheckCircle2 } from "lucide-react";
 import logoIcon from "@assets/FridayReportAI_logo_F-symbol_1770231051194.png";
 import { Footer } from "@/components/layout/Footer";
 import { HoneypotField } from "@/components/HoneypotField";
+import { getFirstTouch } from "@/lib/track";
 
 type AuthMode = "login" | "register" | "forgot-password" | "magic-link";
 
@@ -85,7 +86,7 @@ export default function AuthPage() {
   });
 
   const registerMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string; referralCode?: string; signupSource?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number }) => {
+    mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string; referralCode?: string; signupSource?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number; firstTouch?: import('@shared/types/acquisition').FirstTouchData }) => {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -139,7 +140,7 @@ export default function AuthPage() {
   });
 
   const magicLinkMutation = useMutation({
-    mutationFn: async (data: { email: string; signupSource?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number }) => {
+    mutationFn: async (data: { email: string; signupSource?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number; firstTouch?: import('@shared/types/acquisition').FirstTouchData }) => {
       const res = await fetch("/api/auth/magic-link/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -184,11 +185,11 @@ export default function AuthPage() {
     if (mode === "login") {
       loginMutation.mutate({ email, password, ...honeypotPayload });
     } else if (mode === "register") {
-      registerMutation.mutate({ email, password, firstName: firstName || undefined, lastName: lastName || undefined, referralCode: referralCode || undefined, signupSource: effectiveSource, ...honeypotPayload });
+      registerMutation.mutate({ email, password, firstName: firstName || undefined, lastName: lastName || undefined, referralCode: referralCode || undefined, signupSource: effectiveSource, firstTouch: getFirstTouch(), ...honeypotPayload });
     } else if (mode === "forgot-password") {
       forgotPasswordMutation.mutate({ email, ...honeypotPayload });
     } else if (mode === "magic-link") {
-      magicLinkMutation.mutate({ email: magicLinkEmail, signupSource: effectiveSource, ...honeypotPayload });
+      magicLinkMutation.mutate({ email: magicLinkEmail, signupSource: effectiveSource, firstTouch: getFirstTouch(), ...honeypotPayload });
     }
   };
 

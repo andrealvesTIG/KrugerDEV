@@ -10,6 +10,7 @@ import { sendPasswordResetEmail, sendMagicLinkEmail, sendPasswordlessSignInEmail
 import { ensureUserOrganization } from "../services/onboarding";
 import { storage } from "../storage";
 import { lookupCompanyByEmail } from "../services/companyLookup";
+import { logUserActivity } from "../routes/helpers";
 
 const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -116,7 +117,7 @@ export async function setupAuth(app: Express) {
   // Register new user
   app.post("/api/auth/register", authRateLimiter, async (req, res) => {
     try {
-      const { email, password, firstName, lastName, honeypot1, honeypot2, formLoadTime, signupSource } = req.body;
+      const { email, password, firstName, lastName, honeypot1, honeypot2, formLoadTime, signupSource, firstTouch } = req.body;
 
       // Verify honeypot (bot protection without external service)
       const honeypotCheck = verifyHoneypot({ honeypot1, honeypot2, formLoadTime });
@@ -177,6 +178,19 @@ export async function setupAuth(app: Express) {
         signupSource: signupSource || null,
       }).returning();
 
+      // Capture acquisition snapshot for new signup
+      try {
+        const { recordAcquisition, parseFirstTouch } = await import("../services/acquisition");
+        await recordAcquisition({
+          userId: newUser.id,
+          signupMethod: 'email',
+          firstTouch: parseFirstTouch(firstTouch),
+          req,
+        });
+      } catch (e) {
+        console.error("Failed to record acquisition for email signup:", e);
+      }
+
       // Send email verification
       const appUrl = 'https://fridayreport.ai';
       const verifyEmailUrl = `${appUrl}/verify-email?token=${emailVerificationToken}`;
@@ -235,7 +249,8 @@ export async function setupAuth(app: Express) {
       }
 
       req.session.userId = newUser.id;
-      
+      void logUserActivity(newUser.id, 'auth.signup', 'user', undefined, { method: 'email_password' }, req);
+
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
           if (err) {
@@ -303,7 +318,8 @@ export async function setupAuth(app: Express) {
       }
 
       req.session.userId = user.id;
-      
+      void logUserActivity(user.id, 'auth.login', 'user', undefined, { method: 'email_password' }, req);
+
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
           if (err) {
@@ -330,6 +346,7 @@ export async function setupAuth(app: Express) {
         return res.status(500).json({ message: "Logout failed" });
       }
       res.clearCookie("connect.sid");
+      res.clearCookie("fr_authed", { path: "/" });
       res.json({ message: "Logged out successfully" });
     });
   });
@@ -346,6 +363,19 @@ export async function setupAuth(app: Express) {
         req.session.destroy(() => {});
         return res.status(401).json({ message: "Unauthorized" });
       }
+
+      // Set a non-sensitive client-readable hint cookie so the front-end can
+      // distinguish authenticated vs anonymous traffic for telemetry consent
+      // gating without needing to make a separate request.
+      try {
+        res.cookie('fr_authed', '1', {
+          httpOnly: false,
+          sameSite: 'lax',
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+          path: '/',
+        });
+      } catch { /* ignore */ }
 
       if (req.session.actingAsUserId) {
         const [delegateUser] = await db.select().from(users).where(eq(users.id, req.session.actingAsUserId)).limit(1);
@@ -538,6 +568,7 @@ export async function setupAuth(app: Express) {
       // Hash new password and update user
       const passwordHash = await hashPassword(password);
       await db.update(users).set({ passwordHash }).where(eq(users.id, resetToken.userId));
+      void logUserActivity(resetToken.userId, 'auth.password_reset', 'user', undefined, undefined, req);
 
       // Mark token as used
       await db.update(passwordResetTokens).set({ usedAt: new Date() }).where(eq(passwordResetTokens.id, resetToken.id));
@@ -557,7 +588,7 @@ export async function setupAuth(app: Express) {
 
   app.post("/api/auth/magic-link/request", strictAuthRateLimiter, async (req, res) => {
     try {
-      const { email, honeypot1, honeypot2, formLoadTime, signupSource } = req.body;
+      const { email, honeypot1, honeypot2, formLoadTime, signupSource, firstTouch } = req.body;
 
       // Verify honeypot (bot protection without external service)
       const honeypotCheck = verifyHoneypot({ honeypot1, honeypot2, formLoadTime });
@@ -613,6 +644,7 @@ export async function setupAuth(app: Express) {
       // as this is sign-up only (not login to existing accounts)
       const tokenMetadata: Record<string, any> = {};
       if (signupSource) tokenMetadata.signupSource = signupSource;
+      if (firstTouch && typeof firstTouch === 'object') tokenMetadata.firstTouch = firstTouch;
       
       await db.insert(magicLinkTokens).values({
         email: normalizedEmail,
@@ -703,6 +735,7 @@ export async function setupAuth(app: Express) {
       // Parse metadata to check for terms acceptance and signup source
       let termsAcceptedAt: Date | null = null;
       let signupSource: string | null = null;
+      let firstTouchPayload: unknown = null;
       if (magicToken.metadata) {
         try {
           const metadata = JSON.parse(magicToken.metadata);
@@ -711,6 +744,9 @@ export async function setupAuth(app: Express) {
           }
           if (metadata.signupSource) {
             signupSource = metadata.signupSource;
+          }
+          if (metadata.firstTouch) {
+            firstTouchPayload = metadata.firstTouch;
           }
         } catch (e) {
           console.error("Error parsing magic link metadata:", e);
@@ -730,6 +766,19 @@ export async function setupAuth(app: Express) {
         signupSource,
       }).returning();
 
+
+      // Capture acquisition for magic-link signup
+      try {
+        const { recordAcquisition, parseFirstTouch } = await import("../services/acquisition");
+        await recordAcquisition({
+          userId: newUser.id,
+          signupMethod: 'magic_link',
+          firstTouch: parseFirstTouch(firstTouchPayload),
+          req,
+        });
+      } catch (e) {
+        console.error("Failed to record acquisition for magic-link signup:", e);
+      }
 
       sendWelcomeEmail(magicToken.email, newUser.firstName || null).catch(err => {
         console.error("Failed to send welcome email for magic link user:", err);
@@ -757,6 +806,7 @@ export async function setupAuth(app: Express) {
 
       // Create session
       req.session.userId = newUser.id;
+      void logUserActivity(newUser.id, 'auth.signup', 'user', undefined, { method: 'magic_link' }, req);
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
           if (err) reject(err);
@@ -922,6 +972,7 @@ export async function setupAuth(app: Express) {
 
       // Create session
       req.session.userId = existingUser.id;
+      void logUserActivity(existingUser.id, 'auth.login', 'user', undefined, { method: 'magic_link' }, req);
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
           if (err) reject(err);

@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useOrganization } from "@/hooks/use-organization";
 import { usePortfolios } from "@/hooks/use-portfolios";
-import { useIntakeWorkflow, AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
+import { useIntakeWorkflow, useIntakeWorkflows, AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, Shield, Calculator, Save, Lightbulb, Gavel, ChevronsUpDown } from "lucide-react";
+import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, Shield, Calculator, Save, Lightbulb, Gavel, ChevronsUpDown, GitBranch } from "lucide-react";
+import { ChangeWorkflowDialog } from "@/components/ChangeWorkflowDialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { ProjectIntake, Portfolio } from "@shared/schema";
@@ -57,12 +58,12 @@ export default function IntakeDetails() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
-  const { steps: workflowSteps, isLoading: workflowLoading, getStepByKey, getStepIndex, isFieldRequired } = useIntakeWorkflow();
   
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [activeTab, setActiveTab] = useState("details");
   const [portfolioOpen, setPortfolioOpen] = useState(false);
+  const [isChangeWorkflowOpen, setIsChangeWorkflowOpen] = useState(false);
 
   // Check if user can approve intakes
   const { data: approvalPermission } = useQuery<{ canApprove: boolean }>({
@@ -90,6 +91,17 @@ export default function IntakeDetails() {
     },
     enabled: !!id && !!currentOrganization?.id,
   });
+
+  const { steps: workflowSteps, isLoading: workflowLoading, getStepByKey, getStepIndex, isFieldRequired } = useIntakeWorkflow(intake?.workflowId ?? null);
+  const { workflows: allIntakeWorkflows } = useIntakeWorkflows();
+  const activeIntakeWorkflowName = (() => {
+    if (!allIntakeWorkflows || allIntakeWorkflows.length === 0) return null;
+    if (intake?.workflowId == null) {
+      const def = allIntakeWorkflows.find(w => w.isDefault);
+      return def?.name || "Default";
+    }
+    return allIntakeWorkflows.find(w => w.id === intake.workflowId)?.name || "Default";
+  })();
 
   const [formData, setFormData] = useState<Partial<ProjectIntake>>({});
 
@@ -277,6 +289,17 @@ export default function IntakeDetails() {
                 <div className="flex items-center gap-2 flex-wrap min-w-0">
                   <h1 className="text-xl sm:text-2xl font-display font-bold text-foreground truncate" title={intake.projectName}>{intake.projectName}</h1>
                   {getStatusBadge(intake.status || "draft")}
+                  {activeIntakeWorkflowName && (
+                    <Badge
+                      variant="outline"
+                      className="text-sm px-3 py-1 gap-1.5"
+                      data-testid="badge-intake-workflow"
+                      title={`Workflow: ${activeIntakeWorkflowName}`}
+                    >
+                      <GitBranch className="h-3 w-3" />
+                      {activeIntakeWorkflowName}
+                    </Badge>
+                  )}
                   {intake.intakeNumber && (
                     <span className="text-xs sm:text-sm text-muted-foreground font-mono shrink-0">{intake.intakeNumber}</span>
                   )}
@@ -286,6 +309,15 @@ export default function IntakeDetails() {
             
             {!isLocked && (
               <div className="flex items-center gap-2 pl-11 sm:pl-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsChangeWorkflowOpen(true)}
+                  data-testid="button-change-workflow"
+                >
+                  <GitBranch className="h-4 w-4 mr-1" />
+                  Change workflow…
+                </Button>
                 <Button variant="outline" size="sm" onClick={handleSave} disabled={updateIntake.isPending}>
                   <Save className="h-4 w-4 mr-1" />
                   Save
@@ -880,6 +912,19 @@ export default function IntakeDetails() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ChangeWorkflowDialog
+        open={isChangeWorkflowOpen}
+        onOpenChange={setIsChangeWorkflowOpen}
+        type="intake"
+        organizationId={currentOrganization?.id}
+        recordId={intake.id}
+        currentWorkflowId={intake.workflowId}
+        currentStepKey={intake.currentStep}
+        onChanged={() => {
+          queryClient.invalidateQueries({ queryKey: ['/api/project-intakes', id] });
+        }}
+      />
     </div>
   );
 }

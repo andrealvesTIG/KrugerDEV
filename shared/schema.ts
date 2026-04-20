@@ -1322,31 +1322,11 @@ export const costItems = pgTable("cost_items", {
   index("cost_items_project_id_idx").on(table.projectId),
 ]);
 
-// Intake Types - Categorize intakes (e.g. "Default", "Power BI Request").
-// `behavior` controls special handling: 'standard' = normal intake form,
-// 'powerbi_redirect' = selecting this type sends the user to the Power BI agent
-// instead of creating a normal intake row.
-export const intakeTypes = pgTable("intake_types", {
-  id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
-  name: text("name").notNull(),
-  description: text("description"),
-  behavior: text("behavior").notNull().default("standard"), // 'standard' | 'powerbi_redirect'
-  isSystem: boolean("is_system").notNull().default(false), // seeded defaults that cannot be deleted
-  isActive: boolean("is_active").notNull().default(true),
-  position: integer("position").notNull().default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => [
-  index("intake_types_org_id_idx").on(table.organizationId),
-]);
-
 // Project Intakes (Intake workflow for new project ideas)
 export const projectIntakes = pgTable("project_intakes", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   intakeNumber: text("intake_number"), // Auto-generated intake ID (e.g., "INT-2026-001")
-  intakeTypeId: integer("intake_type_id").references(() => intakeTypes.id, { onDelete: "set null" }),
   workflowId: integer("workflow_id"), // FK to intake_workflows.id (nullable; assigned when org has multiple intake workflows)
   
   // Basic Information (Intake Form tab)
@@ -1425,6 +1405,9 @@ export const intakeWorkflows = pgTable("intake_workflows", {
   isActive: boolean("is_active").default(true),
   creationMode: text("creation_mode").notNull().default("dialog"), // 'dialog' | 'url'
   creationUrl: text("creation_url"),
+  // When set to 'powerbi', selecting this workflow opens the Power BI agent
+  // instead of the standard intake dialog. null = standard intake behavior.
+  agentTarget: text("agent_target"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -1832,7 +1815,6 @@ export const insertRiskResourceAssignmentSchema = insertIssueResourceAssignmentS
 export const insertTimesheetEntrySchema = createInsertSchema(timesheetEntries).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCostItemSchema = createInsertSchema(costItems).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProjectIntakeSchema = createInsertSchema(projectIntakes).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertIntakeTypeSchema = createInsertSchema(intakeTypes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMppImportSchema = createInsertSchema(mppImports).omit({ id: true, createdAt: true, lastSyncedAt: true });
 export const insertMppImportTaskSchema = createInsertSchema(mppImportTasks).omit({ id: true, createdAt: true });
 export const insertChangeRequestSchema = createInsertSchema(changeRequests).omit({ id: true, createdAt: true });
@@ -1846,6 +1828,9 @@ export const insertInvoiceNoteSchema = createInsertSchema(invoiceNotes).omit({ i
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
 export const insertStatusReportHistorySchema = createInsertSchema(statusReportHistory).omit({ id: true, createdAt: true });
 export const insertIntakeWorkflowStepSchema = createInsertSchema(intakeWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertIntakeWorkflowSchema = createInsertSchema(intakeWorkflows).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertProjectWorkflowSchema = createInsertSchema(projectWorkflows).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertProjectWorkflowStepSchema = createInsertSchema(projectWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
 
@@ -1936,8 +1921,6 @@ export type InsertCostItem = z.infer<typeof insertCostItemSchema>;
 
 export type ProjectIntake = typeof projectIntakes.$inferSelect;
 export type InsertProjectIntake = z.infer<typeof insertProjectIntakeSchema>;
-export type IntakeType = typeof intakeTypes.$inferSelect;
-export type InsertIntakeType = z.infer<typeof insertIntakeTypeSchema>;
 
 export type MppImport = typeof mppImports.$inferSelect;
 export type InsertMppImport = z.infer<typeof insertMppImportSchema>;
@@ -1974,6 +1957,15 @@ export type InsertStatusReportHistory = z.infer<typeof insertStatusReportHistory
 
 export type IntakeWorkflowStep = typeof intakeWorkflowSteps.$inferSelect;
 export type InsertIntakeWorkflowStep = z.infer<typeof insertIntakeWorkflowStepSchema>;
+
+export type IntakeWorkflow = typeof intakeWorkflows.$inferSelect;
+export type InsertIntakeWorkflow = z.infer<typeof insertIntakeWorkflowSchema>;
+
+export type ProjectWorkflow = typeof projectWorkflows.$inferSelect;
+export type InsertProjectWorkflow = z.infer<typeof insertProjectWorkflowSchema>;
+
+export type ProjectWorkflowStep = typeof projectWorkflowSteps.$inferSelect;
+export type InsertProjectWorkflowStep = z.infer<typeof insertProjectWorkflowStepSchema>;
 
 // API Request/Response Types
 export type CreatePortfolioRequest = InsertPortfolio;
@@ -3222,3 +3214,104 @@ export const blogPosts = pgTable("blog_posts", {
 export const insertBlogPostSchema = createInsertSchema(blogPosts).omit({ id: true, createdAt: true, updatedAt: true });
 export type BlogPost = typeof blogPosts.$inferSelect;
 export type InsertBlogPost = typeof blogPosts.$inferInsert;
+
+// User Acquisition - one row per user, captured at signup
+export const userAcquisition = pgTable("user_acquisition", {
+  userId: varchar("user_id").primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  referrer: text("referrer"),
+  referrerHost: text("referrer_host"),
+  landingPath: text("landing_path"),
+  utmSource: text("utm_source"),
+  utmMedium: text("utm_medium"),
+  utmCampaign: text("utm_campaign"),
+  utmTerm: text("utm_term"),
+  utmContent: text("utm_content"),
+  gclid: text("gclid"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  country: text("country"),
+  region: text("region"),
+  city: text("city"),
+  deviceType: text("device_type"),
+  browser: text("browser"),
+  os: text("os"),
+  signupMethod: text("signup_method"),
+  anonymousId: varchar("anonymous_id"),
+  firstSeenAt: timestamp("first_seen_at"),
+  signedUpAt: timestamp("signed_up_at").defaultNow(),
+}, (table) => [
+  index("user_acquisition_anonymous_id_idx").on(table.anonymousId),
+  index("user_acquisition_signed_up_at_idx").on(table.signedUpAt),
+]);
+
+export type UserAcquisition = typeof userAcquisition.$inferSelect;
+export type InsertUserAcquisition = typeof userAcquisition.$inferInsert;
+
+// User Page Events - persisted page-view + click stream from frontend
+export const userPageEvents = pgTable("user_page_events", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
+  anonymousId: varchar("anonymous_id"),
+  sessionId: varchar("session_id"),
+  eventType: text("event_type").notNull(), // 'page_view' | 'click' | 'custom'
+  path: text("path"),
+  element: text("element"),
+  label: text("label"),
+  metadata: jsonb("metadata"),
+  occurredAt: timestamp("occurred_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(), // server-side time, used for caps/retention
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+}, (table) => [
+  index("user_page_events_user_id_occurred_at_idx").on(table.userId, table.occurredAt),
+  index("user_page_events_anonymous_id_idx").on(table.anonymousId),
+  index("user_page_events_created_at_idx").on(table.createdAt),
+  index("user_page_events_session_id_idx").on(table.sessionId),
+]);
+
+export type UserPageEvent = typeof userPageEvents.$inferSelect;
+export type InsertUserPageEvent = typeof userPageEvents.$inferInsert;
+
+// === LinkedIn Enrichment & Follow-up Drafts (Task #25) ===
+
+// Per-user LinkedIn / profile enrichment cache (1 row per user).
+export const userEnrichment = pgTable("user_enrichment", {
+  userId: varchar("user_id").primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  source: text("source"),                  // 'proxycurl' | 'openai_inference' | 'manual' | 'none'
+  status: text("status").default("ok"),    // 'ok' | 'error' | 'not_configured' | 'pending'
+  errorMessage: text("error_message"),
+  linkedinUrl: text("linkedin_url"),
+  headline: text("headline"),
+  currentRole: text("current_role"),
+  currentCompany: text("current_company"),
+  currentCompanyIndustry: text("current_company_industry"),
+  location: text("location"),
+  photoUrl: text("photo_url"),
+  recentPositions: jsonb("recent_positions"), // [{title, company, startDate, endDate}]
+  rawPayload: jsonb("raw_payload"),
+  fetchedAt: timestamp("fetched_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type UserEnrichment = typeof userEnrichment.$inferSelect;
+export type InsertUserEnrichment = typeof userEnrichment.$inferInsert;
+
+// Per-user AI-drafted follow-up messages, kept as a small history.
+export const userFollowupDrafts = pgTable("user_followup_drafts", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  authorId: varchar("author_id").references(() => users.id),
+  authorName: text("author_name"),
+  tone: text("tone").default("friendly"),  // 'friendly' | 'formal' | 'brief'
+  subject: text("subject"),
+  content: text("content").notNull(),
+  status: text("status").default("draft"), // 'draft' | 'edited' | 'sent' | 'copied'
+  meta: jsonb("meta"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("user_followup_drafts_user_idx").on(table.userId, table.createdAt),
+]);
+
+export type UserFollowupDraft = typeof userFollowupDrafts.$inferSelect;
+export type InsertUserFollowupDraft = typeof userFollowupDrafts.$inferInsert;

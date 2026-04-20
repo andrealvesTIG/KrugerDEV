@@ -41,7 +41,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Users, UserPlus, Flag, FlagTriangleRight, ImageDown, Mail, Briefcase, ZoomIn, ZoomOut, Maximize2, ListTodo, MoreVertical, UserMinus, PanelLeft } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Users, UserPlus, Flag, FlagTriangleRight, ImageDown, Mail, Briefcase, ZoomIn, ZoomOut, Maximize2, ListTodo, MoreVertical, UserMinus, PanelLeft, CircleDot } from "lucide-react";
 import { toPng } from "html-to-image";
 import ExcelJS from "exceljs";
 import { GANTT_COLUMNS, type GanttColumn } from "@/components/project/ProjectGanttView";
@@ -1447,118 +1447,6 @@ export default function ProjectDetails() {
       </div>
       </div>
 
-      {/* Business Process Flow */}
-      <Collapsible open={!sectionsCollapsed.workflow} onOpenChange={() => toggleSection('workflow')}>
-        <div className="bg-muted/50 border border-border rounded-lg">
-          <CollapsibleTrigger asChild>
-            <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover-elevate rounded-lg">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                {sectionsCollapsed.workflow ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                <GitBranch className="h-4 w-4" />
-                Project Workflow
-                {projectWorkflowName && (
-                  <Badge
-                    variant="outline"
-                    className="text-xs ml-1 font-normal"
-                    data-testid="badge-project-workflow"
-                    title={`Workflow: ${projectWorkflowName}`}
-                  >
-                    {projectWorkflowName}
-                  </Badge>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={(e) => e.stopPropagation()}
-                      data-testid="button-workflow-menu"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenuItem
-                      onSelect={() => setIsChangeWorkflowOpen(true)}
-                      data-testid="menu-change-workflow"
-                    >
-                      <GitBranch className="h-4 w-4 mr-2" />
-                      Change workflow…
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="px-4 pb-4">
-              <BusinessProcessFlow 
-                currentStatus={project.status} 
-                onStatusChange={handleStatusChange}
-                stages={projectStages}
-              />
-            </div>
-          </CollapsibleContent>
-        </div>
-      </Collapsible>
-
-      <div className="grid gap-3 md:grid-cols-4">
-        <Card className="py-2">
-          <CardHeader className="py-1 px-4">
-            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-              Budget
-              {financialBudgetTotal > 0 && (
-                <Badge variant="outline" className="text-[9px] font-normal py-0">From Financials</Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="py-1 px-4">
-            <div className="text-base font-semibold flex items-center"><CompactCurrency value={displayBudget} /></div>
-          </CardContent>
-        </Card>
-        <Card className="py-2">
-          <CardHeader className="py-1 px-4">
-            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-              Progress
-              {projectTasks && projectTasks.length > 0 && (
-                <Badge variant="outline" className="text-[9px] font-normal py-0">From Tasks</Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="py-1 px-4">
-             <div className="text-base font-semibold">{calculatedProgress}%</div>
-             <Progress value={calculatedProgress} className="h-1.5 mt-1" />
-          </CardContent>
-        </Card>
-        <Card className="py-2">
-          <CardHeader className="py-1 px-4"><CardTitle className="text-xs font-medium text-muted-foreground">Start Date</CardTitle></CardHeader>
-          <CardContent className="py-1 px-4">
-            <div className="text-base font-semibold flex items-center"><CalendarIcon className="h-4 w-4 mr-1 text-muted-foreground" />{project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : '-'}</div>
-          </CardContent>
-        </Card>
-        <Card className="py-2">
-          <CardHeader className="py-1 px-4"><CardTitle className="text-xs font-medium text-muted-foreground">End Date</CardTitle></CardHeader>
-          <CardContent className="py-1 px-4">
-            <div className="text-base font-semibold flex items-center"><CalendarIcon className="h-4 w-4 mr-1 text-muted-foreground" />{project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : '-'}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Timeline Section */}
-      <ProjectTimeline 
-        projectId={project.id}
-        startDate={project.startDate}
-        endDate={project.endDate}
-        onMilestoneClick={(taskId) => {
-          setActiveTab('tasks');
-          window.history.replaceState(null, '', `?tab=tasks&taskId=${taskId}`);
-          window.dispatchEvent(new CustomEvent('openTaskDialog', { detail: { taskId } }));
-        }}
-      />
-
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full min-w-0">
         <TabsList className="bg-muted/80 border border-border p-1.5 rounded-xl gap-1 h-auto flex-wrap">
           {/* Render main tabs in user-defined order with drag-drop support */}
@@ -1720,8 +1608,121 @@ export default function ProjectDetails() {
             </DropdownMenuContent>
           </DropdownMenu>
         </TabsList>
+
         <div className="mt-6 min-w-0">
-          <TabsContent value="summary">
+          <TabsContent value="summary" className="space-y-8">
+            {/* Business Process Flow */}
+            <Collapsible open={!sectionsCollapsed.workflow} onOpenChange={() => toggleSection('workflow')}>
+              <div className="bg-muted/50 border border-border rounded-lg">
+                <CollapsibleTrigger asChild>
+                  <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover-elevate rounded-lg">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      {sectionsCollapsed.workflow ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      <GitBranch className="h-4 w-4" />
+                      Project Workflow
+                      {projectWorkflowName && (
+                        <Badge
+                          variant="outline"
+                          className="text-xs ml-1 font-normal"
+                          data-testid="badge-project-workflow"
+                          title={`Workflow: ${projectWorkflowName}`}
+                        >
+                          {projectWorkflowName}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={(e) => e.stopPropagation()}
+                            data-testid="button-workflow-menu"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenuItem
+                            onSelect={() => setIsChangeWorkflowOpen(true)}
+                            data-testid="menu-change-workflow"
+                          >
+                            <GitBranch className="h-4 w-4 mr-2" />
+                            Change workflow…
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="px-4 pb-4">
+                    <BusinessProcessFlow 
+                      currentStatus={project.status} 
+                      onStatusChange={handleStatusChange}
+                      stages={projectStages}
+                    />
+                  </div>
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
+
+            <div className="grid gap-3 md:grid-cols-4">
+              <Card className="py-2">
+                <CardHeader className="py-1 px-4">
+                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                    Budget
+                    {financialBudgetTotal > 0 && (
+                      <Badge variant="outline" className="text-[9px] font-normal py-0">From Financials</Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="py-1 px-4">
+                  <div className="text-base font-semibold flex items-center"><CompactCurrency value={displayBudget} /></div>
+                </CardContent>
+              </Card>
+              <Card className="py-2">
+                <CardHeader className="py-1 px-4">
+                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                    Progress
+                    {projectTasks && projectTasks.length > 0 && (
+                      <Badge variant="outline" className="text-[9px] font-normal py-0">From Tasks</Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="py-1 px-4">
+                   <div className="text-base font-semibold">{calculatedProgress}%</div>
+                   <Progress value={calculatedProgress} className="h-1.5 mt-1" />
+                </CardContent>
+              </Card>
+              <Card className="py-2">
+                <CardHeader className="py-1 px-4"><CardTitle className="text-xs font-medium text-muted-foreground">Start Date</CardTitle></CardHeader>
+                <CardContent className="py-1 px-4">
+                  <div className="text-base font-semibold flex items-center"><CalendarIcon className="h-4 w-4 mr-1 text-muted-foreground" />{project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : '-'}</div>
+                </CardContent>
+              </Card>
+              <Card className="py-2">
+                <CardHeader className="py-1 px-4"><CardTitle className="text-xs font-medium text-muted-foreground">End Date</CardTitle></CardHeader>
+                <CardContent className="py-1 px-4">
+                  <div className="text-base font-semibold flex items-center"><CalendarIcon className="h-4 w-4 mr-1 text-muted-foreground" />{project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : '-'}</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Timeline Section */}
+            <ProjectTimeline 
+              projectId={project.id}
+              startDate={project.startDate}
+              endDate={project.endDate}
+              onMilestoneClick={(taskId) => {
+                setActiveTab('tasks');
+                window.history.replaceState(null, '', `?tab=tasks&taskId=${taskId}`);
+                window.dispatchEvent(new CustomEvent('openTaskDialog', { detail: { taskId } }));
+              }}
+            />
+
             <ProjectSummaryTab project={project} onUpdate={updateProject} tasks={projectTasks || []} readOnly={isProjectLocked} />
           </TabsContent>
           <TabsContent value="tasks" className="relative">
@@ -3412,41 +3413,82 @@ function ProjectTeamTab({
   const [teamPeriodCount, setTeamPeriodCount] = useState(12);
   const [teamDisplayUnit, setTeamDisplayUnit] = useState<TeamDisplayUnit>("hours");
   const [expandedMembers, setExpandedMembers] = useState<Set<number>>(new Set());
+  const teamScrollContainerRef = useRef<HTMLDivElement>(null);
+  const hasScrolledToTodayTeam = useRef(false);
 
   const today = useMemo(() => new Date(), []);
 
+  const teamRawDataRange = useMemo(() => {
+    let minDate = new Date();
+    let maxDate = new Date();
+    if (projectTaskAssignments && projectTasks) {
+      const assignedTaskIds = new Set(projectTaskAssignments.map(a => a.taskId));
+      for (const task of projectTasks) {
+        if (!assignedTaskIds.has(task.id)) continue;
+        if (task.startDate) {
+          const s = parseISO(task.startDate);
+          if (s < minDate) minDate = s;
+        }
+        if (task.endDate) {
+          const e = parseISO(task.endDate);
+          if (e > maxDate) maxDate = e;
+        }
+      }
+    }
+    return { minDate, maxDate };
+  }, [projectTaskAssignments, projectTasks]);
+
+  const pastTeamPeriodCount = useMemo((): number => {
+    const { minDate } = teamRawDataRange;
+    const todayStart = startOfDay(today);
+    const minStart = startOfDay(minDate);
+    if (minStart >= todayStart) return 0;
+    const daysDiff = differenceInDays(todayStart, minStart);
+    if (daysDiff <= 0) return 0;
+    switch (teamTimeScale) {
+      case "day": return Math.min(daysDiff, 60);
+      case "week": return Math.min(Math.ceil(daysDiff / 7), 26);
+      case "month": return Math.min(Math.ceil(daysDiff / 30), 12);
+      case "quarter": return Math.min(Math.ceil(daysDiff / 90), 8);
+      case "year": return Math.min(Math.ceil(daysDiff / 365), 5);
+    }
+  }, [teamRawDataRange, teamTimeScale, today]);
+
   const teamPeriods = useMemo(() => {
     const result: { start: Date; end: Date; label: string; workDays: number }[] = [];
-    for (let i = 0; i < teamPeriodCount; i++) {
+    const startOffset = -pastTeamPeriodCount;
+    const totalCount = pastTeamPeriodCount + teamPeriodCount;
+    for (let i = 0; i < totalCount; i++) {
+      const offset = startOffset + i;
       let periodStart: Date, periodEnd: Date, label: string, workDays: number;
       switch (teamTimeScale) {
         case "day":
-          periodStart = startOfDay(addDays(today, i));
-          periodEnd = endOfDay(addDays(today, i));
+          periodStart = startOfDay(addDays(today, offset));
+          periodEnd = endOfDay(addDays(today, offset));
           label = format(periodStart, "MMM d");
           workDays = [0, 6].includes(periodStart.getDay()) ? 0 : 1;
           break;
         case "week":
-          periodStart = startOfWeek(addWeeks(today, i), { weekStartsOn: 1 });
-          periodEnd = endOfWeek(addWeeks(today, i), { weekStartsOn: 1 });
+          periodStart = startOfWeek(addWeeks(today, offset), { weekStartsOn: 1 });
+          periodEnd = endOfWeek(addWeeks(today, offset), { weekStartsOn: 1 });
           label = format(periodStart, "MMM d");
           workDays = 5;
           break;
         case "month":
-          periodStart = startOfMonth(addMonths(today, i));
-          periodEnd = endOfMonth(addMonths(today, i));
+          periodStart = startOfMonth(addMonths(today, offset));
+          periodEnd = endOfMonth(addMonths(today, offset));
           label = format(periodStart, "MMM yy");
           workDays = 22;
           break;
         case "quarter":
-          periodStart = startOfQuarter(addQuarters(today, i));
-          periodEnd = endOfQuarter(addQuarters(today, i));
+          periodStart = startOfQuarter(addQuarters(today, offset));
+          periodEnd = endOfQuarter(addQuarters(today, offset));
           label = `Q${Math.floor(periodStart.getMonth() / 3) + 1} ${format(periodStart, "yy")}`;
           workDays = 65;
           break;
         case "year":
-          periodStart = startOfYear(addYears(today, i));
-          periodEnd = endOfYear(addYears(today, i));
+          periodStart = startOfYear(addYears(today, offset));
+          periodEnd = endOfYear(addYears(today, offset));
           label = format(periodStart, "yyyy");
           workDays = 260;
           break;
@@ -3454,7 +3496,35 @@ function ProjectTeamTab({
       result.push({ start: periodStart, end: periodEnd, label, workDays });
     }
     return result;
-  }, [teamTimeScale, teamPeriodCount, today]);
+  }, [teamTimeScale, teamPeriodCount, pastTeamPeriodCount, today]);
+
+  const teamTodayIndex = useMemo((): number => {
+    const now = new Date();
+    return teamPeriods.findIndex(p => p.start <= now && p.end >= now);
+  }, [teamPeriods]);
+
+  const scrollTeamToToday = () => {
+    const container = teamScrollContainerRef.current;
+    if (!container || teamTodayIndex < 0) return;
+    const nameColWidth = 256;
+    const cellWidth = teamTimeScale === "day" ? 50 : 65;
+    const targetScroll = nameColWidth + (teamTodayIndex * cellWidth) - (container.clientWidth / 4);
+    container.scrollTo({ left: Math.max(0, targetScroll), behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    if (hasScrolledToTodayTeam.current) return;
+    if (teamTodayIndex < 0 || !teamScrollContainerRef.current) return;
+    const timer = setTimeout(() => {
+      scrollTeamToToday();
+      hasScrolledToTodayTeam.current = true;
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [teamTodayIndex]);
+
+  useEffect(() => {
+    hasScrolledToTodayTeam.current = false;
+  }, [teamTimeScale, teamPeriodCount]);
 
   const getTeamPeriodCapacity = (weeklyCapacity: number, period: { workDays: number }) => {
     switch (teamTimeScale) {
@@ -3748,13 +3818,19 @@ function ProjectTeamTab({
                     <Maximize2 className="h-4 w-4 sm:mr-1" />
                     <span className="hidden sm:inline text-xs">Autofit</span>
                   </Button>
+                  {teamTodayIndex >= 0 && (
+                    <Button variant="outline" size="icon" className="h-8 w-8 sm:w-auto sm:px-3" onClick={scrollTeamToToday} title="Scroll to today">
+                      <CircleDot className="h-4 w-4 sm:mr-1" />
+                      <span className="hidden sm:inline text-xs">Today</span>
+                    </Button>
+                  )}
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <div className="min-w-[600px]">
-                  <div className="flex border-b sticky top-0 bg-background z-10">
-                    <div className="w-44 sm:w-64 flex-shrink-0 p-2 font-medium text-sm border-r sticky left-0 z-20 bg-background">
+              <div ref={teamScrollContainerRef} className="overflow-auto border rounded-md" style={{ maxHeight: "560px" }}>
+                <div style={{ minWidth: `${256 + teamPeriods.length * (teamTimeScale === "day" ? 50 : 65)}px` }}>
+                  <div className="flex border-b sticky top-0 bg-background" style={{ zIndex: 20 }}>
+                    <div className="w-44 sm:w-64 flex-shrink-0 p-2 font-medium text-sm border-r bg-background sticky left-0" style={{ zIndex: 30 }}>
                       Resource / Task
                     </div>
                     <div className="flex-1 flex">
@@ -3766,7 +3842,7 @@ function ProjectTeamTab({
                     </div>
                   </div>
 
-                  <ScrollArea className="h-[500px]">
+                  <div>
                     {teamHeatmapData.map((member) => {
                       const isExpanded = expandedMembers.has(member.resource.id);
                       return (
@@ -3775,7 +3851,7 @@ function ProjectTeamTab({
                             className="flex border-b bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
                             onClick={() => toggleMemberExpanded(member.resource.id)}
                           >
-                            <div className="w-44 sm:w-64 flex-shrink-0 p-2 border-r sticky left-0 z-10 bg-muted/30">
+                            <div className="w-44 sm:w-64 flex-shrink-0 p-2 border-r sticky left-0" style={{ zIndex: 10, backgroundColor: 'hsl(var(--muted))' }}>
                               <div className="flex items-center gap-2">
                                 {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
                                 <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-semibold flex-shrink-0">
@@ -3816,7 +3892,7 @@ function ProjectTeamTab({
                                 return (
                                   <div
                                     key={weekIdx}
-                                    className={`flex-1 p-1.5 border-r min-w-[65px] ${getHeatColor(weekData.allocation, periodCap)} transition-colors`}
+                                    className={`flex-1 p-1.5 border-r ${teamTimeScale === "day" ? "min-w-[50px]" : "min-w-[65px]"} ${getHeatColor(weekData.allocation, periodCap)} transition-colors`}
                                     title={weekData.tasks.length > 0
                                       ? `${weekData.tasks.map(t => `${t.name} (${t.allocation}%)`).join('\n')}\n\nTotal: ${formatTeamCellValue(weekData.allocation, periodCap)}`
                                       : "No assignments"
@@ -3850,7 +3926,7 @@ function ProjectTeamTab({
                                   return (
                                     <div
                                       key={weekIdx}
-                                      className={`flex-1 p-1.5 border-r min-w-[65px] ${w.active ? 'bg-primary/10' : 'bg-slate-50 dark:bg-slate-900'} transition-colors`}
+                                      className={`flex-1 p-1.5 border-r ${teamTimeScale === "day" ? "min-w-[50px]" : "min-w-[65px]"} ${w.active ? 'bg-primary/10' : 'bg-slate-50 dark:bg-slate-900'} transition-colors`}
                                     >
                                       <div className={`text-center text-xs ${w.active ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
                                         {w.active ? formatTeamCellValue(w.allocation, periodCap) : "-"}
@@ -3864,17 +3940,17 @@ function ProjectTeamTab({
                         </div>
                       );
                     })}
-                  </ScrollArea>
+                  </div>
+                </div>
+              </div>
 
-                  <div className="flex items-center gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground flex-wrap">
+              <div className="flex items-center gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground flex-wrap">
                     <span className="font-medium">Utilization:</span>
                     <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-emerald-100 dark:bg-emerald-900/30" /><span>0-50%</span></div>
                     <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-emerald-300 dark:bg-emerald-700/50" /><span>50-90%</span></div>
                     <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-emerald-400 dark:bg-emerald-600/60" /><span>90-100%</span></div>
                     <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-yellow-300 dark:bg-yellow-700/50" /><span>100-110%</span></div>
                     <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-red-400 dark:bg-red-600/60" /><span>&gt;125%</span></div>
-                  </div>
-                </div>
               </div>
             </div>
           )}

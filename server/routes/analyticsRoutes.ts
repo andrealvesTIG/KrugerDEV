@@ -354,7 +354,7 @@ export function registerAnalyticsRoutes(app: Express) {
           allowedRiskIdsForProj = new Set(await getTeamMemberRiskIds(userId, orgId));
           allowedIssueIdsForProj = new Set(await getTeamMemberIssueIds(userId, orgId));
         }
-        
+
         for (const project of orgProjects) {
           const portfolio = portfolios.find(p => p.id === project.portfolioId);
           let tasks = await storage.getTasks(project.id);

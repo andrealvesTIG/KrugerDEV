@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,8 +16,34 @@ import { TrainingManagementTab } from "@/components/TrainingManagementTab";
 import { UserActivityTab } from "@/components/admin/UserActivityTab";
 import { BlogManagementTab } from "@/components/admin/BlogManagementTab";
 
+const VALID_TABS = new Set([
+  'monitoring', 'organizations', 'users', 'plans', 'credits',
+  'consents', 'help-tickets', 'feature-comparison', 'training', 'user-activity', 'media',
+]);
+
+function readInitialTab(): string {
+  if (typeof window === 'undefined') return 'monitoring';
+  try {
+    const url = new URL(window.location.href);
+    const t = url.searchParams.get('tab');
+    if (t === 'new-signups') return 'monitoring';
+    if (t && VALID_TABS.has(t)) return t;
+  } catch { /* ignore */ }
+  return 'monitoring';
+}
+
 export default function SuperAdmin() {
   const { user, isLoading: authLoading } = useAuth();
+  const [tab, setTab] = useState<string>(readInitialTab());
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      window.history.replaceState({}, '', url.toString());
+    } catch { /* ignore */ }
+  }, [tab]);
 
   if (authLoading) {
     return (
@@ -59,9 +86,9 @@ export default function SuperAdmin() {
         </a>
       </div>
 
-      <Tabs defaultValue="monitoring" className="w-full">
-        <div className="overflow-x-auto scrollbar-none -mx-1 px-1">
-          <TabsList className="bg-muted p-1 rounded-xl inline-flex w-auto min-w-full sm:w-full">
+      <Tabs value={tab} onValueChange={setTab} className="w-full">
+        <div className="-mx-1 px-1">
+          <TabsList className="bg-muted p-1 rounded-xl flex flex-wrap h-auto w-full justify-start gap-1">
             <TabsTrigger value="monitoring" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2" data-testid="tab-monitoring">
               <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Analytics

@@ -188,7 +188,9 @@ export function ResourceManagementDashboard() {
           <h2 className="text-xl font-semibold">Resource Management</h2>
           <p className="text-sm text-muted-foreground">Resource capacity, workload, and bottleneck analysis.</p>
         </div>
-        <DashboardActionBar title="Resource Management Dashboard" dashboardType="resource-management" organizationId={currentOrganization?.id || 0} onExportCsv={handleExportCsv} />
+        <div className="flex items-center gap-2">
+          <DashboardActionBar title="Resource Management Dashboard" dashboardType="resource-management" organizationId={currentOrganization?.id || 0} onExportCsv={handleExportCsv} />
+        </div>
       </div>
 
       <DashboardFilters

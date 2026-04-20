@@ -558,6 +558,35 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const plannerBannerStorageKey = `plannerBannerCollapsed:${projectId}`;
+  const [isPlannerBannerCollapsed, setIsPlannerBannerCollapsedState] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem(`plannerBannerCollapsed:${projectId}`) === "true";
+    } catch {
+      return false;
+    }
+  });
+  const setIsPlannerBannerCollapsed = (updater: boolean | ((prev: boolean) => boolean)) => {
+    setIsPlannerBannerCollapsedState((prev) => {
+      const next = typeof updater === "function" ? (updater as (p: boolean) => boolean)(prev) : updater;
+      try {
+        window.localStorage.setItem(plannerBannerStorageKey, String(next));
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  };
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(`plannerBannerCollapsed:${projectId}`);
+      setIsPlannerBannerCollapsedState(stored === "true");
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
   const lastInitializedTaskId = useRef<number | null>(null);
   const inviteAssignedRef = useRef(false);
@@ -882,19 +911,31 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       {/* Planner project banner - hidden in fullscreen to save space */}
       {isPlannerProject && !isFullscreen && (
         <div className="space-y-2">
-          <div className="p-3 rounded-lg border bg-muted/50 space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="relative p-3 pr-10 rounded-lg border bg-muted/50 space-y-2">
+            <button
+              type="button"
+              onClick={() => setIsPlannerBannerCollapsed((v) => !v)}
+              className="absolute top-2 right-2 hover-elevate rounded p-1"
+              aria-label={isPlannerBannerCollapsed ? "Expand banner" : "Collapse banner"}
+              aria-expanded={!isPlannerBannerCollapsed}
+              data-testid="button-toggle-planner-banner"
+            >
+              {isPlannerBannerCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            <div className={cn("flex items-center justify-between gap-2", !isPlannerBannerCollapsed && "flex-wrap")}>
               <div className="flex items-center gap-3 min-w-0">
                 <img src={plannerLogoPath} alt="Microsoft Planner" className="h-6 w-6 shrink-0" />
                 <div className="min-w-0">
-                  <span className="font-medium">Planner Premium Task Management Options:</span>
-                  <div className="mt-1 space-y-0.5">
-                    <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">1. Sync Now – Edit tasks in Planner (view-only in FridayReport)</p>
-                    <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">2. Detach & Edit – Disconnect from Planner and continue managing tasks directly in FridayReport</p>
-                  </div>
+                  <span className={cn("font-medium", isPlannerBannerCollapsed && "truncate block")}>Planner Premium Task Management Options:</span>
+                  {!isPlannerBannerCollapsed && (
+                    <div className="mt-1 space-y-0.5">
+                      <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">1. Sync Now – Edit tasks in Planner (view-only in FridayReport)</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">2. Detach & Edit – Disconnect from Planner and continue managing tasks directly in FridayReport</p>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className={cn("flex items-center gap-2", !isPlannerBannerCollapsed && "flex-wrap")}>
                 <a 
                   href={(() => {
                     if (!plannerPlanId) return "https://planner.cloud.microsoft";
@@ -945,7 +986,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                 </Tooltip>
               </div>
             </div>
-            {lastSyncedAt && (
+            {!isPlannerBannerCollapsed && lastSyncedAt && (
               <p className="text-xs text-muted-foreground pl-9" data-testid="text-last-synced">
                 Last Synced: {format(new Date(lastSyncedAt), "MM/dd/yyyy h:mm a")}
               </p>

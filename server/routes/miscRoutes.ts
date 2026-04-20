@@ -13,6 +13,7 @@ import {
   getUserOrgIds,
 } from "./helpers";
 import { sendEmail } from "../services/email";
+import { getRequestEmailDomainExclusion } from "../lib/emailDomainFilter";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
 import { AVAILABLE_DASHBOARDS, sendScheduledReport, checkAndSendDueReports, initializeSubscriptionSchedule, calculateNextScheduledTime } from "../services/scheduledReports";
 
@@ -2720,16 +2721,21 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const now = new Date();
+      const exclusion = await getRequestEmailDomainExclusion(req);
+      const userIdOk = sql.raw(exclusion.userNotInSql('user_id'));
+      const idOk = sql.raw(exclusion.userNotInSql('id'));
+      const lUserIdOk = sql.raw(exclusion.userNotInSql('l.user_id'));
 
       // ===== USER METRICS =====
       // Total users
-      const totalUsersResult = await db.execute(sql`SELECT COUNT(*) as count FROM users`);
+      const totalUsersResult = await db.execute(sql`SELECT COUNT(*) as count FROM users WHERE ${idOk}`);
       const totalUsers = Number(totalUsersResult.rows[0]?.count || 0);
 
       // New users today (UTC)
       const newUsersTodayResult = await db.execute(sql`
         SELECT COUNT(*) as count FROM users 
         WHERE created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC')
+          AND ${idOk}
       `);
       const newUsersToday = Number(newUsersTodayResult.rows[0]?.count || 0);
 
@@ -2737,6 +2743,7 @@ export async function registerMiscRoutes(app: Express) {
       const newUsersWeekResult = await db.execute(sql`
         SELECT COUNT(*) as count FROM users 
         WHERE created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC') - INTERVAL '7 days'
+          AND ${idOk}
       `);
       const newUsersThisWeek = Number(newUsersWeekResult.rows[0]?.count || 0);
 
@@ -2744,6 +2751,7 @@ export async function registerMiscRoutes(app: Express) {
       const newUsersMonthResult = await db.execute(sql`
         SELECT COUNT(*) as count FROM users 
         WHERE created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC') - INTERVAL '30 days'
+          AND ${idOk}
       `);
       const newUsersThisMonth = Number(newUsersMonthResult.rows[0]?.count || 0);
 
@@ -2751,18 +2759,21 @@ export async function registerMiscRoutes(app: Express) {
       const activeUsers24hResult = await db.execute(sql`
         SELECT COUNT(DISTINCT user_id) as count FROM api_request_logs 
         WHERE created_at >= NOW() - INTERVAL '24 hours' AND user_id IS NOT NULL
+          AND ${userIdOk}
       `);
       const activeUsers24h = Number(activeUsers24hResult.rows[0]?.count || 0);
 
       const activeUsers7dResult = await db.execute(sql`
         SELECT COUNT(DISTINCT user_id) as count FROM api_request_logs 
         WHERE created_at >= NOW() - INTERVAL '7 days' AND user_id IS NOT NULL
+          AND ${userIdOk}
       `);
       const activeUsers7d = Number(activeUsers7dResult.rows[0]?.count || 0);
 
       const activeUsers30dResult = await db.execute(sql`
         SELECT COUNT(DISTINCT user_id) as count FROM api_request_logs 
         WHERE created_at >= NOW() - INTERVAL '30 days' AND user_id IS NOT NULL
+          AND ${userIdOk}
       `);
       const activeUsers30d = Number(activeUsers30dResult.rows[0]?.count || 0);
 
@@ -2771,6 +2782,7 @@ export async function registerMiscRoutes(app: Express) {
         SELECT created_at::date as date, COUNT(*) as count 
         FROM users 
         WHERE created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC') - INTERVAL '30 days'
+          AND ${idOk}
         GROUP BY created_at::date 
         ORDER BY date ASC
       `);
@@ -2782,6 +2794,7 @@ export async function registerMiscRoutes(app: Express) {
           COUNT(*) as count 
         FROM users 
         WHERE created_at >= NOW() - INTERVAL '12 weeks'
+          AND ${idOk}
         GROUP BY DATE_TRUNC('week', created_at)
         ORDER BY week_start ASC
       `);
@@ -2793,6 +2806,7 @@ export async function registerMiscRoutes(app: Express) {
           COUNT(*) as count 
         FROM users 
         WHERE created_at >= NOW() - INTERVAL '12 months'
+          AND ${idOk}
         GROUP BY DATE_TRUNC('month', created_at)
         ORDER BY month_start ASC
       `);
@@ -2830,6 +2844,7 @@ export async function registerMiscRoutes(app: Express) {
         FROM api_request_logs 
         WHERE created_at >= NOW() - INTERVAL '30 days'
           AND method = 'GET'
+          AND ${userIdOk}
           AND (
             path = '/' OR path = '' 
             OR path LIKE '/sign-in%' 
@@ -2863,6 +2878,7 @@ export async function registerMiscRoutes(app: Express) {
         FROM api_request_logs 
         WHERE created_at >= NOW() - INTERVAL '30 days'
           AND method = 'GET'
+          AND ${userIdOk}
         GROUP BY DATE(created_at)
         ORDER BY date ASC
       `);
@@ -2876,6 +2892,7 @@ export async function registerMiscRoutes(app: Express) {
           COUNT(*) as total_requests
         FROM api_request_logs 
         WHERE created_at >= NOW() - INTERVAL '7 days' AND user_id IS NOT NULL
+          AND ${userIdOk}
         GROUP BY user_id
       `);
       const avgSessionsPerUser = sessionsPerUserResult.rows.length > 0 
@@ -2894,6 +2911,7 @@ export async function registerMiscRoutes(app: Express) {
         FROM api_request_logs l
         JOIN users u ON l.user_id = u.id
         WHERE l.created_at >= NOW() - INTERVAL '7 days' AND l.user_id IS NOT NULL
+          AND ${lUserIdOk}
         GROUP BY l.user_id, u.email, u.first_name, u.last_name
         ORDER BY request_count DESC
         LIMIT 10
@@ -2962,6 +2980,7 @@ export async function registerMiscRoutes(app: Express) {
           SELECT id, created_at FROM users 
           WHERE created_at >= NOW() - INTERVAL '37 days' 
             AND created_at < NOW() - INTERVAL '7 days'
+            AND ${idOk}
         ),
         returning_users AS (
           SELECT DISTINCT nu.id

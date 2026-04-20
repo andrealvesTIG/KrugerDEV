@@ -9,6 +9,7 @@ import { sendWelcomeEmail } from "../services/email";
 import crypto from "crypto";
 import { objectStorageClient } from "../replit_integrations/object_storage/objectStorage";
 import { storage } from "../storage";
+import { logUserActivity } from "../routes/helpers";
 
 async function fetchAndUploadMicrosoftPhoto(accessToken: string, userId: string): Promise<string | null> {
   try {
@@ -277,6 +278,7 @@ export async function setupMicrosoftAuth(app: Express) {
         .where(eq(users.microsoftId, microsoftId))
         .limit(1);
 
+      let isNewUser = false;
       if (!existingUser) {
         [existingUser] = await db
           .select()
@@ -312,6 +314,7 @@ export async function setupMicrosoftAuth(app: Express) {
             console.error("Company lookup error:", err);
           }
 
+          isNewUser = true;
           // emailVerified is true for Microsoft auth since the email is verified by Microsoft
           [existingUser] = await db.insert(users).values({
             email,
@@ -326,6 +329,24 @@ export async function setupMicrosoftAuth(app: Express) {
             emailVerified: true,
             signupSource: req.session.oauthSignupSource || req.cookies?.oauth_signup_source || "microsoft",
           }).returning();
+
+          // Capture acquisition data (UTMs/referrer/device/geo) for the new user.
+          try {
+            const { recordAcquisition, parseFirstTouch } = await import("../services/acquisition");
+            let firstTouch: unknown = null;
+            const cookieFt = req.cookies?.fr_first_touch;
+            if (cookieFt) {
+              try { firstTouch = JSON.parse(cookieFt); } catch { firstTouch = null; }
+            }
+            await recordAcquisition({
+              userId: existingUser.id,
+              signupMethod: 'microsoft',
+              firstTouch: parseFirstTouch(firstTouch),
+              req,
+            });
+          } catch (acqErr) {
+            console.error("Failed to record acquisition for Microsoft OAuth user:", acqErr);
+          }
 
           sendWelcomeEmail(email, firstName || null).catch(err => {
             console.error("Failed to send welcome email for Microsoft OAuth user:", err);
@@ -375,7 +396,15 @@ export async function setupMicrosoftAuth(app: Express) {
       }
 
       req.session.userId = existingUser.id;
-      
+      void logUserActivity(
+        existingUser.id,
+        isNewUser ? 'auth.signup' : 'auth.login',
+        'user',
+        undefined,
+        { method: 'microsoft' },
+        req,
+      );
+
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
           if (err) {

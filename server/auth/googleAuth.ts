@@ -7,6 +7,7 @@ import { ensureUserOrganization } from "../services/onboarding";
 import { sendWelcomeEmail } from "../services/email";
 import crypto from "crypto";
 import { objectStorageClient } from "../replit_integrations/object_storage/objectStorage";
+import { logUserActivity } from "../routes/helpers";
 
 declare module "express-session" {
   interface SessionData {
@@ -291,6 +292,7 @@ export function setupGoogleAuth(app: Express) {
         }
 
         req.session.userId = existingUser.id;
+        void logUserActivity(existingUser.id, 'auth.login', 'user', undefined, { method: 'google' }, req);
         await new Promise<void>((resolve, reject) => {
           req.session.save((err) => {
             if (err) reject(err);
@@ -335,11 +337,30 @@ export function setupGoogleAuth(app: Express) {
 
       await ensureUserOrganization(newUser.id, email);
 
+      // Capture acquisition data (UTMs/referrer/device/geo) for the new user.
+      try {
+        const { recordAcquisition, parseFirstTouch } = await import("../services/acquisition");
+        let firstTouch: unknown = null;
+        const cookieFt = req.cookies?.fr_first_touch;
+        if (cookieFt) {
+          try { firstTouch = JSON.parse(cookieFt); } catch { firstTouch = null; }
+        }
+        await recordAcquisition({
+          userId: newUser.id,
+          signupMethod: 'google',
+          firstTouch: parseFirstTouch(firstTouch),
+          req,
+        });
+      } catch (acqErr) {
+        console.error("Failed to record acquisition for Google OAuth user:", acqErr);
+      }
+
       sendWelcomeEmail(email, firstName || null).catch(err => {
         console.error("Failed to send welcome email for Google OAuth user:", err);
       });
 
       req.session.userId = newUser.id;
+      void logUserActivity(newUser.id, 'auth.signup', 'user', undefined, { method: 'google' }, req);
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
           if (err) reject(err);

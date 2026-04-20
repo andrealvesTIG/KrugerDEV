@@ -38,7 +38,7 @@ export function ExecutiveDashboard() {
   
   const { data: projectsData, isLoading: projectsLoading } = useProjects(currentOrganization?.id);
   const { data: portfolios, isLoading: portfoliosLoading } = usePortfolios(currentOrganization?.id);
-  
+
   const { data: allRisks = [] } = useQuery<Risk[]>({
     queryKey: ['/api/risks', currentOrganization?.id],
     queryFn: async () => {
