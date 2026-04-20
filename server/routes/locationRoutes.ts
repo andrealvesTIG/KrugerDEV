@@ -85,26 +85,60 @@ export function registerLocationRoutes(app: Express) {
         return res.json(cached);
       }
 
-      await rateLimit();
+      const callNominatim = async (query: string) => {
+        await rateLimit();
+        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
+        const resp = await fetch(url, {
+          headers: {
+            'User-Agent': 'FridayReport.AI/1.0 (project location geocoder)',
+            'Accept': 'application/json',
+          },
+        });
+        if (!resp.ok) throw new Error(`Geocoder returned ${resp.status}`);
+        const data = await resp.json() as Array<{ lat: string; lon: string; display_name: string }>;
+        return Array.isArray(data) && data.length > 0 ? data[0] : null;
+      };
 
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
-      const resp = await fetch(url, {
-        headers: {
-          'User-Agent': 'FridayReport.AI/1.0 (project location geocoder)',
-          'Accept': 'application/json',
-        },
-      });
+      // Build progressively simpler fallback queries. Nominatim often fails on
+      // apartment/unit numbers and extraneous tokens, so we try the original
+      // first, then strip them, then drop street-level details entirely.
+      const candidates: string[] = [];
+      const seen = new Set<string>();
+      const push = (s: string) => {
+        const trimmed = s.replace(/^[\s,]+|[\s,]+$/g, '').replace(/,\s*,/g, ',').trim();
+        if (trimmed && !seen.has(trimmed)) {
+          seen.add(trimmed);
+          candidates.push(trimmed);
+        }
+      };
+      push(q);
+      // Strip "Unit/Suite/Apt/# ..." and stray bare numbers between commas (e.g., ", 303,")
+      const stripped = q
+        .replace(/\b(?:apt|apartment|suite|ste|unit|#)\.?\s*[\w-]+/gi, '')
+        .replace(/,\s*\d+\s*,/g, ', ');
+      push(stripped);
+      // Drop the first comma-separated segment (likely the street address with unit)
+      const parts = q.split(',').map(s => s.trim()).filter(Boolean);
+      if (parts.length > 1) push(parts.slice(1).join(', '));
+      // Last-ditch: city/region/country only (last up to 3 segments)
+      if (parts.length > 2) push(parts.slice(-3).join(', '));
 
-      if (!resp.ok) {
-        return res.status(502).json({ message: `Geocoder returned ${resp.status}` });
+      let top: { lat: string; lon: string; display_name: string } | null = null;
+      let lastErr: unknown = null;
+      for (const query of candidates) {
+        try {
+          top = await callNominatim(query);
+          if (top) break;
+        } catch (e) {
+          lastErr = e;
+        }
       }
 
-      const data = await resp.json() as Array<{ lat: string; lon: string; display_name: string }>;
-      if (!Array.isArray(data) || data.length === 0) {
+      if (!top) {
+        if (lastErr) return res.status(502).json({ message: String((lastErr as Error).message || 'Geocoder error') });
         return res.status(404).json({ message: 'No results found for that address' });
       }
 
-      const top = data[0];
       const result: GeocodeResult = {
         latitude: parseFloat(top.lat),
         longitude: parseFloat(top.lon),
