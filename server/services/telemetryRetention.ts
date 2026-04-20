@@ -49,17 +49,18 @@ export async function runTelemetryRetentionSweep(): Promise<{
   }
 
   // 2) Hash IPs older than 90 days on user_acquisition.
+  // Schema note: user_acquisition uses user_id as PK and signed_up_at as the timestamp.
   try {
     const rows = await db.execute(sql`
-      SELECT id, ip_address FROM user_acquisition
+      SELECT user_id, ip_address FROM user_acquisition
       WHERE ip_address IS NOT NULL
         AND ip_address NOT LIKE 'h:%'
-        AND created_at < NOW() - INTERVAL '90 days'
+        AND signed_up_at < NOW() - INTERVAL '90 days'
       LIMIT 5000
     `);
-    for (const r of rows.rows as Array<{ id: number; ip_address: string }>) {
+    for (const r of rows.rows as Array<{ user_id: string; ip_address: string }>) {
       const h = "h:" + hashIp(r.ip_address);
-      await db.execute(sql`UPDATE user_acquisition SET ip_address = ${h} WHERE id = ${r.id}`);
+      await db.execute(sql`UPDATE user_acquisition SET ip_address = ${h} WHERE user_id = ${r.user_id}`);
       result.hashedAcquisitionIps++;
     }
   } catch (e) {
