@@ -9,7 +9,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock } from "lucide-react";
+import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock, MoreVertical } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { FinancialEntry, FinancialTypesConfig, FinancialType, CostItemCategoriesConfig } from "@shared/schema";
 import { DEFAULT_FINANCIAL_TYPES, DEFAULT_COST_ITEM_CATEGORIES } from "@shared/schema";
 import { CompactCurrency } from "@/components/CompactCurrency";
@@ -1343,39 +1350,6 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                           ) : (
                             <span className="truncate">{row.label}</span>
                           )}
-                          {isItem && !(editingText?.itemKey === row.itemKey && editingText?.field === "itemName") && (
-                            <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={() => openAddSiblingDialog(row)}
-                                title="Add another item with the same categories"
-                                aria-label="Add another item with the same categories"
-                                data-testid={`button-add-sibling-${row.itemKey}`}
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={() => openEditDialog(row)}
-                                data-testid={`button-edit-${row.itemKey}`}
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-destructive hover:text-destructive"
-                                onClick={() => { setItemToDelete(row); setDeleteDialogOpen(true); }}
-                                data-testid={`button-delete-${row.itemKey}`}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          )}
                         </div>
 
                         {/* Comments (sticky) — click to edit when on an item row */}
@@ -1430,13 +1404,55 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                             />
                           ) : isItem ? (
                             <span
-                              className="truncate cursor-text rounded-sm px-1 -mx-1 w-full hover:ring-1 hover:ring-primary/30 hover:bg-background min-h-[1.25rem]"
+                              className="truncate cursor-text rounded-sm px-1 -mx-1 flex-1 min-w-0 hover:ring-1 hover:ring-primary/30 hover:bg-background min-h-[1.25rem]"
                               onClick={() => beginTextEdit(row, "wbs")}
                               data-testid={`label-wbs-${row.itemKey}`}
                             >
                               {row.wbs || <span className="opacity-40">—</span>}
                             </span>
                           ) : ""}
+                          {isItem && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5 ml-1 shrink-0 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 transition-opacity"
+                                  title="Row actions"
+                                  aria-label="Row actions"
+                                  onClick={(e) => e.stopPropagation()}
+                                  data-testid={`button-row-menu-${row.itemKey}`}
+                                >
+                                  <MoreVertical className="h-3 w-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuItem
+                                  onClick={() => openAddSiblingDialog(row)}
+                                  data-testid={`menu-add-sibling-${row.itemKey}`}
+                                >
+                                  <Plus className="h-3.5 w-3.5 mr-2" />
+                                  Add another with same categories
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => openEditDialog(row)}
+                                  data-testid={`menu-edit-${row.itemKey}`}
+                                >
+                                  <Pencil className="h-3.5 w-3.5 mr-2" />
+                                  Edit item details…
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => { setItemToDelete(row); setDeleteDialogOpen(true); }}
+                                  data-testid={`menu-delete-${row.itemKey}`}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 mr-2" />
+                                  Delete item
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
                         </div>
 
                         {/* Per-scenario row totals */}
