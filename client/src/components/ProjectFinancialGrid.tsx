@@ -1187,16 +1187,30 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
         const COL_COMMENTS = Math.round(Math.min(MAX_COMM, Math.max(MIN_COMM, commMaxChars * CHAR_PX + FROZEN_PAD_X + SORT_ICON_PX)));
         const COL_WBS      = Math.round(Math.min(MAX_WBS,  Math.max(MIN_WBS,  wbsMaxChars  * CHAR_PX + FROZEN_PAD_X + SORT_ICON_PX)));
 
-        // Per-scenario TOTAL sub-cols (CompactCurrency: e.g. "$1.2M" ≈ digits+3)
+        // Per-scenario TOTAL sub-cols. Totals render via <CompactCurrency>
+        // (e.g. "$1.2M", "$3.4B", "-$234K"), so measure the rendered compact
+        // length per value — not the raw digit count — so the column only
+        // widens when the actual on-screen text needs more room.
+        const compactLen = (v: number): number => {
+          if (!v) return 1; // "-"
+          const abs = Math.abs(v);
+          const sign = v < 0 ? 1 : 0;
+          // "$" + 1-3 mantissa digits + optional ".YZ" + suffix
+          if (abs >= 1e12) return sign + 6;   // $1.23T
+          if (abs >= 1e9)  return sign + 6;   // $1.23B
+          if (abs >= 1e6)  return sign + 6;   // $1.23M
+          if (abs >= 1e3)  return sign + 5;   // $123K
+          return sign + 1 + String(Math.round(abs)).length; // "$123"
+        };
         const totalSubPx: number[] = enabledTypes.map((s) => {
           let chars = (s.label.length + (!s.editable ? 1 : 0)) + 1;
           let typeGrand = 0;
           for (const perItem of itemTotalSum.values()) {
             const v = perItem[s.key] ?? 0;
-            if (v !== 0) chars = Math.max(chars, String(Math.round(v)).length + 2);
+            if (v !== 0) chars = Math.max(chars, compactLen(v));
             typeGrand += v;
           }
-          if (typeGrand !== 0) chars = Math.max(chars, String(Math.round(typeGrand)).length + 2);
+          if (typeGrand !== 0) chars = Math.max(chars, compactLen(typeGrand));
           return Math.round(Math.min(MAX_TOTAL_SUB, Math.max(MIN_TOTAL_SUB, chars * CHAR_PX + PAD_X)));
         });
 
