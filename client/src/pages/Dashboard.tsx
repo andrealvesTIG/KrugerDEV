@@ -549,10 +549,11 @@ export default function Dashboard() {
   const getInitialSubmenu = (): string => {
     if (viewParam) {
       // Legacy alias: the Executive → Financial Summary submenu has been
-      // absorbed into the dedicated Financials → Overview report. Keep old
-      // bookmarks (`?view=executive-financial`) working.
+      // absorbed into the dedicated Financials → Overview report. Remap old
+      // bookmarks (`?view=executive-financial`) to the new submenu so the
+      // Financials parent tab activates correctly.
       if (viewParam === "executive-financial") {
-        return "executive-financial";
+        return "financials-overview";
       }
       // Check if it's a submenu ID
       for (const tab of DASHBOARD_TABS) {
@@ -807,7 +808,6 @@ export default function Dashboard() {
         {activeSubmenu === 'executive-trends' && <TrendAnalysisDashboard />}
         {/* Legacy redirect: the Executive → Financial Summary tab has been
             absorbed into the dedicated Financials → Overview report. */}
-        {activeSubmenu === 'executive-financial' && <FinancialsOverviewDashboard />}
 
         {/* Financials Dashboard submenus (Project Controls / EVM) */}
         {activeSubmenu === 'financials-overview' && <FinancialsOverviewDashboard />}

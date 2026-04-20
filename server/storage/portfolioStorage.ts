@@ -8,7 +8,7 @@ import {
   type FinancialEntry,
 } from "@shared/schema";
 import { eq, and, isNull, inArray, or } from "drizzle-orm";
-import { buildFiscalMonths, normalizeFiscalYearStartMonth } from "@shared/lib/fiscalCalendar";
+import { buildFiscalMonths, calendarToFiscalSlot, normalizeFiscalYearStartMonth } from "@shared/lib/fiscalCalendar";
 import { organizations } from "@shared/schema";
 
 export async function getPortfolios(organizationId?: number): Promise<Portfolio[]> {
@@ -148,30 +148,39 @@ export async function getPortfolioFinancialEntries(
   if (projectIds.length === 0) return [];
   const projectMap = new Map(portfolioProjs.map(p => [p.id, p.name]));
 
-  let where: any = inArray(financialEntries.projectId, projectIds);
-  if (fiscalYear !== undefined) {
-    // financial_entries is calendar-anchored ((year, month) hold calendar
-    // values). To pull a fiscal year for a non-Jan FY-start org we have to
-    // match each of the FY's 12 calendar (year, month) pairs explicitly.
-    const [pf] = await db.select().from(portfolios).where(eq(portfolios.id, portfolioId));
-    let fyStart = 1;
-    if (pf?.organizationId) {
-      const [org] = await db.select().from(organizations).where(eq(organizations.id, pf.organizationId));
-      fyStart = normalizeFiscalYearStartMonth(org?.fiscalYearStartMonth);
-    }
-    const calPairs = buildFiscalMonths(fiscalYear, fyStart);
-    where = and(
-      inArray(financialEntries.projectId, projectIds),
-      or(...calPairs.map(p => and(
-        eq(financialEntries.fiscalYear, p.year),
-        eq(financialEntries.month, p.month),
-      ))),
-    );
+  // Resolve org fiscal-year start so we can both filter and relabel rows.
+  const [pf] = await db.select().from(portfolios).where(eq(portfolios.id, portfolioId));
+  let fyStart = 1;
+  if (pf?.organizationId) {
+    const [org] = await db.select().from(organizations).where(eq(organizations.id, pf.organizationId));
+    fyStart = normalizeFiscalYearStartMonth(org?.fiscalYearStartMonth);
   }
+  // financial_entries is calendar-anchored ((year, month) hold calendar
+  // values). For an FY filter on a non-Jan FY-start org we have to match
+  // each of the FY's 12 calendar (year, month) pairs explicitly.
+  const where = fiscalYear !== undefined
+    ? and(
+        inArray(financialEntries.projectId, projectIds),
+        or(...buildFiscalMonths(fiscalYear, fyStart).map(p => and(
+          eq(financialEntries.fiscalYear, p.year),
+          eq(financialEntries.month, p.month),
+        ))),
+      )
+    : inArray(financialEntries.projectId, projectIds);
   const rows = await db.select().from(financialEntries)
     .where(where)
     .orderBy(financialEntries.projectId, financialEntries.sortOrder, financialEntries.itemKey, financialEntries.scenario, financialEntries.month);
-  return rows.map(r => ({ ...r, projectName: projectMap.get(r.projectId) || '' }));
+  // Relabel calendar (year, month) → FY-relative (label, monthNum) so the
+  // grid sees fiscal-month slots 1..12 (matching getFinancialEntries).
+  return rows.map(r => {
+    const slot = calendarToFiscalSlot(r.fiscalYear, r.month, fyStart);
+    return {
+      ...r,
+      fiscalYear: slot.fiscalYear,
+      month: slot.monthNum,
+      projectName: projectMap.get(r.projectId) || '',
+    };
+  });
 }
 
 /** @deprecated Use getPortfolioKeyDates instead. This function reads task milestones from the tasks table for backward compatibility. */

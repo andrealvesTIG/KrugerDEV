@@ -350,7 +350,7 @@ export async function upsertFinancialCell(args: {
     fiscalYear: p.year,
     scenario: args.type,
     month: p.month,
-    amount: (p.year === target.year && p.month === target.month) ? (args.amount as any) : 0,
+    amount: (p.year === target.year && p.month === target.month) ? Number(args.amount) : 0,
     itemKey: args.itemKey,
     itemName: sibling.itemName,
     financialView: sibling.financialView,

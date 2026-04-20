@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Wallet, CreditCard, Calculator, Percent, TrendingUp, AlertTriangle, Banknote, Target, CheckCircle2, Activity, Calendar } from "lucide-react";
+import { Wallet, CreditCard, Calculator, Percent, TrendingUp, AlertTriangle, Banknote, Target, CheckCircle2, Activity, Calendar, Scale, Gauge, CalendarClock } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ComposedChart, Line, RadialBarChart, RadialBar, PolarAngleAxis, PieChart, Pie, Cell } from "recharts";
 import { CompactCurrency } from "@/components/CompactCurrency";
 import { Progress } from "@/components/ui/progress";
@@ -18,6 +18,32 @@ export function FinancialsOverviewDashboard() {
     <FinancialsScope render={({ data }) => {
       const t = data.totals;
       const fmtCompact = (v: number) => formatCurrency(v, { compact: true });
+      // Weighted org-level % complete (BAC-weighted) and forecast completion.
+      const totalBac = data.projects.reduce((s, p) => s + (p.bac || 0), 0);
+      const pctCompleteWeighted = totalBac > 0
+        ? data.projects.reduce((s, p) => s + (p.bac || 0) * (p.completionPercentage || 0), 0) / totalBac
+        : data.projects.length > 0
+          ? data.projects.reduce((s, p) => s + (p.completionPercentage || 0), 0) / data.projects.length
+          : 0;
+      // PMI Forecast Completion: latest scheduled finish stretched by 1/SPI.
+      const baselineFinishMs = data.projects.reduce((mx, p) => {
+        const d = p.endDate ? new Date(p.endDate).getTime() : NaN;
+        return isFinite(d) && d > mx ? d : mx;
+      }, 0);
+      const earliestStartMs = data.projects.reduce((mn, p) => {
+        const d = p.startDate ? new Date(p.startDate).getTime() : NaN;
+        if (!isFinite(d)) return mn;
+        return mn === 0 || d < mn ? d : mn;
+      }, 0);
+      let forecastCompletionLabel = "—";
+      if (baselineFinishMs > 0 && t.spi > 0) {
+        const planDur = Math.max(1, baselineFinishMs - (earliestStartMs || baselineFinishMs));
+        const forecastMs = (earliestStartMs || baselineFinishMs) + planDur / t.spi;
+        forecastCompletionLabel = new Date(forecastMs).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+      }
+      const baselineFinishLabel = baselineFinishMs > 0
+        ? new Date(baselineFinishMs).toLocaleDateString(undefined, { month: "short", year: "numeric" })
+        : "—";
       const overBudget = data.projects.filter(p => p.eacComputed > p.bac && p.bac > 0).length;
       const onBudget = data.projects.filter(p => p.bac > 0 && Math.abs(p.eacComputed - p.bac) / p.bac <= 0.05).length;
       const underBudget = data.projects.filter(p => p.bac > 0 && p.eacComputed < p.bac * 0.95).length;
@@ -85,6 +111,30 @@ export function FinancialsOverviewDashboard() {
             <KpiTile label="SPI" icon={<TrendingUp className="h-4 w-4 text-cyan-500" />}
               value={t.spi.toFixed(2)} tone={t.spi >= 1 ? "good" : t.spi >= 0.95 ? "warn" : "bad"}
               hint={t.spi >= 1 ? "On / ahead of plan" : "Behind schedule"} />
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4" data-testid="row-overview-secondary-kpis">
+            <KpiTile
+              label="Variance at Completion (VAC)"
+              icon={<Scale className="h-4 w-4 text-rose-500" />}
+              value={<><span>{t.vac >= 0 ? "+" : ""}</span><CompactCurrency value={t.vac} /></>}
+              tone={t.vac >= 0 ? "good" : "bad"}
+              hint={`BAC − EAC · ${t.bac > 0 ? ((t.vac / t.bac) * 100).toFixed(1) : "0.0"}% of BAC`}
+            />
+            <KpiTile
+              label="% Complete (BAC-weighted)"
+              icon={<Gauge className="h-4 w-4 text-violet-500" />}
+              value={`${pctCompleteWeighted.toFixed(1)}%`}
+              tone={pctCompleteWeighted >= 75 ? "good" : pctCompleteWeighted >= 25 ? "warn" : undefined}
+              hint={`Across ${data.projects.length} project${data.projects.length === 1 ? "" : "s"}`}
+            />
+            <KpiTile
+              label="Forecast Completion"
+              icon={<CalendarClock className="h-4 w-4 text-sky-500" />}
+              value={forecastCompletionLabel}
+              tone={t.spi >= 1 ? "good" : t.spi >= 0.85 ? "warn" : "bad"}
+              hint={`Plan finish ${baselineFinishLabel} · SPI ${t.spi.toFixed(2)}`}
+            />
           </div>
 
           {noData ? (

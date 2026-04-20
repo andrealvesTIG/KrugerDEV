@@ -5,24 +5,73 @@ import { Button } from "@/components/ui/button";
 import { ResponsiveContainer, ScatterChart, CartesianGrid, XAxis, YAxis, Tooltip, Scatter, ReferenceLine, ZAxis } from "recharts";
 import { CompactCurrency } from "@/components/CompactCurrency";
 import { FinancialsScope, EmptyState, KpiTile } from "./shared";
-import { Activity, TrendingUp, AlertTriangle, CheckCircle2, Download, ExternalLink } from "lucide-react";
+import { Activity, TrendingUp, AlertTriangle, CheckCircle2, Download, ExternalLink, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { Link } from "wouter";
+import { useMemo, useState } from "react";
 import { downloadCsv } from "./csvExport";
 
+type EvSortKey = "name" | "bac" | "pv" | "ev" | "ac" | "cv" | "sv" | "cpi" | "spi" | "eacComputed" | "etc" | "vac" | "tcpi";
+
 export function EVAnalysisDashboard() {
-  return (
-    <FinancialsScope render={({ data }) => {
+  // Body is a real child component so internal hooks (useState/useMemo for
+  // sorting) follow the rules of hooks even though FinancialsScope passes
+  // data through a render prop that may be conditionally invoked.
+  return <FinancialsScope render={({ data }) => <EVAnalysisBody data={data} />} />;
+}
+
+function EVAnalysisBody({ data }: { data: import("@/hooks/use-financial-analytics").FinancialAnalyticsResponse }) {
       const noData = data.totals.bac === 0 && data.totals.ac === 0;
       const t = data.totals;
       const sv = t.ev - t.pv;
       const cv = t.ev - t.ac;
       const projects = [...data.projects].filter(p => p.bac > 0 || p.ac > 0);
       // TCPI for each project: efficiency required to finish at BAC.
-      const withDerived = projects.map(p => {
+      const withDerived = useMemo(() => projects.map(p => {
         const tcpi = (p.bac - p.ac) > 0 ? (p.bac - p.ev) / (p.bac - p.ac) : null;
         return { ...p, cv: p.ev - p.ac, sv: p.ev - p.pv, tcpi };
-      });
-      const sorted = [...withDerived].sort((a, b) => b.bac - a.bac);
+      }), [projects]);
+
+      // User-controlled sort over the EVM table. Default: BAC descending.
+      const [sortKey, setSortKey] = useState<EvSortKey>("bac");
+      const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+      const onSort = (k: EvSortKey) => {
+        if (k === sortKey) {
+          setSortDir(d => (d === "asc" ? "desc" : "asc"));
+        } else {
+          setSortKey(k);
+          setSortDir(k === "name" ? "asc" : "desc");
+        }
+      };
+      const sorted = useMemo(() => {
+        const sign = sortDir === "asc" ? 1 : -1;
+        return [...withDerived].sort((a, b) => {
+          const av = a[sortKey] as number | string | null;
+          const bv = b[sortKey] as number | string | null;
+          if (av == null && bv == null) return 0;
+          if (av == null) return 1;
+          if (bv == null) return -1;
+          if (typeof av === "string" && typeof bv === "string") return sign * av.localeCompare(bv);
+          return sign * (Number(av) - Number(bv));
+        });
+      }, [withDerived, sortKey, sortDir]);
+
+      const SortIcon = ({ k }: { k: EvSortKey }) => {
+        if (k !== sortKey) return <ArrowUpDown className="h-3 w-3 inline-block ml-1 opacity-40" />;
+        return sortDir === "asc"
+          ? <ArrowUp className="h-3 w-3 inline-block ml-1" />
+          : <ArrowDown className="h-3 w-3 inline-block ml-1" />;
+      };
+      const sortBtn = (label: string, k: EvSortKey, align: "left" | "right" = "right") => (
+        <button
+          type="button"
+          onClick={() => onSort(k)}
+          className={`hover:text-foreground transition-colors ${align === "right" ? "text-right w-full" : "text-left"} font-medium`}
+          data-testid={`button-sort-${k}`}
+        >
+          {label}
+          <SortIcon k={k} />
+        </button>
+      );
       const scatter = projects.map(p => ({
         x: p.spi,
         y: p.cpi,
@@ -109,19 +158,19 @@ export function EVAnalysisDashboard() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Project</TableHead>
-                        <TableHead className="text-right">BAC</TableHead>
-                        <TableHead className="text-right">PV</TableHead>
-                        <TableHead className="text-right">EV</TableHead>
-                        <TableHead className="text-right">AC</TableHead>
-                        <TableHead className="text-right">CV</TableHead>
-                        <TableHead className="text-right">SV</TableHead>
-                        <TableHead className="text-right">CPI</TableHead>
-                        <TableHead className="text-right">SPI</TableHead>
-                        <TableHead className="text-right">EAC</TableHead>
-                        <TableHead className="text-right">ETC</TableHead>
-                        <TableHead className="text-right">VAC</TableHead>
-                        <TableHead className="text-right">TCPI</TableHead>
+                        <TableHead>{sortBtn("Project", "name", "left")}</TableHead>
+                        <TableHead className="text-right">{sortBtn("BAC", "bac")}</TableHead>
+                        <TableHead className="text-right">{sortBtn("PV", "pv")}</TableHead>
+                        <TableHead className="text-right">{sortBtn("EV", "ev")}</TableHead>
+                        <TableHead className="text-right">{sortBtn("AC", "ac")}</TableHead>
+                        <TableHead className="text-right">{sortBtn("CV", "cv")}</TableHead>
+                        <TableHead className="text-right">{sortBtn("SV", "sv")}</TableHead>
+                        <TableHead className="text-right">{sortBtn("CPI", "cpi")}</TableHead>
+                        <TableHead className="text-right">{sortBtn("SPI", "spi")}</TableHead>
+                        <TableHead className="text-right">{sortBtn("EAC", "eacComputed")}</TableHead>
+                        <TableHead className="text-right">{sortBtn("ETC", "etc")}</TableHead>
+                        <TableHead className="text-right">{sortBtn("VAC", "vac")}</TableHead>
+                        <TableHead className="text-right">{sortBtn("TCPI", "tcpi")}</TableHead>
                         <TableHead></TableHead>
                       </TableRow>
                     </TableHeader>
@@ -170,6 +219,4 @@ export function EVAnalysisDashboard() {
           )}
         </div>
       );
-    }} />
-  );
 }

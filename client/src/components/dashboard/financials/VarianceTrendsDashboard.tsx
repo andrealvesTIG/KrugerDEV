@@ -36,16 +36,26 @@ export function VarianceTrendsDashboard() {
         };
       });
 
-      // Project × Period CPI heatmap (cumulative CPI per fiscal month per
+      // Project × Period heatmaps (cumulative CPI and SPI per fiscal month per
       // project, only past/current months).
       const heatmapProjects = [...data.projects].filter(p => p.bac > 0 || p.ac > 0).slice(0, 25);
-      const heatmap = heatmapProjects.map(p => {
+      const cpiHeatmap = heatmapProjects.map(p => {
         const cells = data.months.map((_, i) => {
           if (i + 1 > data.asOfMonth) return null;
           const ac = p.acCum[i];
           const ev = p.evCum[i];
           if (ac <= 0) return null;
           return Number((ev / ac).toFixed(2));
+        });
+        return { name: p.name, projectId: p.projectId, cells };
+      });
+      const spiHeatmap = heatmapProjects.map(p => {
+        const cells = data.months.map((_, i) => {
+          if (i + 1 > data.asOfMonth) return null;
+          const pv = p.pvCum[i];
+          const ev = p.evCum[i];
+          if (pv <= 0) return null;
+          return Number((ev / pv).toFixed(2));
         });
         return { name: p.name, projectId: p.projectId, cells };
       });
@@ -107,45 +117,96 @@ export function VarianceTrendsDashboard() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">CPI Heatmap by Project &amp; Period</CardTitle>
-                  <CardDescription className="text-xs">
-                    Cumulative CPI per project per fiscal month. Green ≥ 0.95, Amber 0.85–0.94, Red &lt; 0.85.
-                    {heatmapProjects.length === 25 && " Showing the first 25 projects."}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="overflow-x-auto">
-                  {heatmap.length === 0 ? <p className="text-xs text-muted-foreground">No project-level CPI data yet.</p> : (
-                    <table className="text-xs w-full" data-testid="table-cpi-heatmap">
-                      <thead>
-                        <tr>
-                          <th className="text-left font-medium pb-2 pr-3 sticky left-0 bg-background">Project</th>
-                          {data.months.map(m => <th key={m.monthNum} className="font-medium pb-2 px-1 text-center w-10">{m.label.slice(0, 3)}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {heatmap.map(row => (
-                          <tr key={row.projectId} data-testid={`row-heatmap-${row.projectId}`}>
-                            <td className="py-1 pr-3 max-w-[220px] truncate sticky left-0 bg-background">
-                              <Link href={`/projects/${row.projectId}?tab=financials`} className="hover:underline">{row.name}</Link>
-                            </td>
-                            {row.cells.map((c, i) => (
-                              <td key={i} className={`py-1 px-1 text-center font-mono ${indexCellClass(c)}`} title={c == null ? "no data" : `CPI ${c.toFixed(2)}`}>
-                                {c == null ? "—" : c.toFixed(2)}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </CardContent>
-              </Card>
+              <HeatmapCard
+                title="CPI Heatmap by Project & Period"
+                indexLabel="CPI"
+                rows={cpiHeatmap}
+                months={data.months}
+                limited={heatmapProjects.length === 25}
+                testIdSuffix="cpi"
+              />
+
+              <HeatmapCard
+                title="SPI Heatmap by Project & Period"
+                indexLabel="SPI"
+                rows={spiHeatmap}
+                months={data.months}
+                limited={heatmapProjects.length === 25}
+                testIdSuffix="spi"
+              />
             </>
           )}
         </div>
       );
     }} />
+  );
+}
+
+interface HeatmapRow { name: string; projectId: number; cells: (number | null)[]; }
+interface HeatmapMonth { monthNum: number; label: string; }
+
+function HeatmapCard({
+  title,
+  indexLabel,
+  rows,
+  months,
+  limited,
+  testIdSuffix,
+}: {
+  title: string;
+  indexLabel: string;
+  rows: HeatmapRow[];
+  months: HeatmapMonth[];
+  limited: boolean;
+  testIdSuffix: string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <CardDescription className="text-xs">
+          Cumulative {indexLabel} per project per fiscal month. Green ≥ 0.95, Amber 0.85–0.94, Red &lt; 0.85.
+          {limited && " Showing the first 25 projects."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="overflow-x-auto">
+        {rows.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No project-level {indexLabel} data yet.</p>
+        ) : (
+          <table className="text-xs w-full" data-testid={`table-${testIdSuffix}-heatmap`}>
+            <thead>
+              <tr>
+                <th className="text-left font-medium pb-2 pr-3 sticky left-0 bg-background">Project</th>
+                {months.map(m => (
+                  <th key={m.monthNum} className="font-medium pb-2 px-1 text-center w-10">
+                    {m.label.slice(0, 3)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(row => (
+                <tr key={row.projectId} data-testid={`row-${testIdSuffix}-heatmap-${row.projectId}`}>
+                  <td className="py-1 pr-3 max-w-[220px] truncate sticky left-0 bg-background">
+                    <Link href={`/projects/${row.projectId}?tab=financials`} className="hover:underline">
+                      {row.name}
+                    </Link>
+                  </td>
+                  {row.cells.map((c, i) => (
+                    <td
+                      key={i}
+                      className={`py-1 px-1 text-center font-mono ${indexCellClass(c)}`}
+                      title={c == null ? "no data" : `${indexLabel} ${c.toFixed(2)}`}
+                    >
+                      {c == null ? "—" : c.toFixed(2)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </CardContent>
+    </Card>
   );
 }
