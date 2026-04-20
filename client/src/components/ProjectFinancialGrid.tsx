@@ -56,7 +56,7 @@ const TYPE_PALETTES: Record<string, {
     dotOn: "bg-emerald-500",
     dotOff: "bg-emerald-500/30",
   },
-  etc: {
+  eac: {
     activeBg: "bg-slate-500/15 dark:bg-slate-400/20",
     activeText: "text-slate-700 dark:text-slate-200",
     activeRing: "ring-1 ring-inset ring-slate-500/40",
@@ -884,31 +884,31 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     [enabledTypes],
   );
 
-  // ETC (Estimate to Complete) — virtual scenario blending Actuals through the
+  // EAC (Estimate at Completion) — virtual scenario blending Actuals through the
   // current month with Forecast for remaining months. Toggle is per-browser
   // and persists alongside the other scenario visibility preferences.
-  const etcStorageKey = orgId ? `fr.financial-grid-show-etc.${orgId}` : null;
-  const [showEtc, setShowEtcState] = useState<boolean>(() => {
-    if (typeof window === "undefined" || !etcStorageKey) return false;
+  const eacStorageKey = orgId ? `fr.financial-grid-show-eac.${orgId}` : null;
+  const [showEac, setShowEacState] = useState<boolean>(() => {
+    if (typeof window === "undefined" || !eacStorageKey) return false;
     try {
-      return window.localStorage.getItem(etcStorageKey) === "1";
+      return window.localStorage.getItem(eacStorageKey) === "1";
     } catch {
       return false;
     }
   });
   useEffect(() => {
-    if (typeof window === "undefined" || !etcStorageKey) return;
+    if (typeof window === "undefined" || !eacStorageKey) return;
     try {
-      setShowEtcState(window.localStorage.getItem(etcStorageKey) === "1");
+      setShowEacState(window.localStorage.getItem(eacStorageKey) === "1");
     } catch {
-      setShowEtcState(false);
+      setShowEacState(false);
     }
-  }, [etcStorageKey]);
-  const toggleShowEtc = () => {
-    setShowEtcState(prev => {
+  }, [eacStorageKey]);
+  const toggleShowEac = () => {
+    setShowEacState(prev => {
       const next = !prev;
-      if (typeof window !== "undefined" && etcStorageKey) {
-        try { window.localStorage.setItem(etcStorageKey, next ? "1" : "0"); } catch {}
+      if (typeof window !== "undefined" && eacStorageKey) {
+        try { window.localStorage.setItem(eacStorageKey, next ? "1" : "0"); } catch {}
       }
       return next;
     });
@@ -967,30 +967,30 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   // Cell-tone thresholds for ACT-vs-FCST and FCST-vs-AOP comparisons.
   const toneThresholds = { warn: 0.10, bad: 0.25 };
 
-  // For ETC, variance, and insights computation we need aop+act+fcst aggregated
+  // For EAC, variance, and insights computation we need aop+act+fcst aggregated
   // regardless of whether the user has hidden them, otherwise the derived
-  // values (ETC blend, EAC, variance, KPI tiles) would be missing inputs.
+  // values (EAC blend, EAC, variance, KPI tiles) would be missing inputs.
   const aggregationTypeKeys = useMemo(() => {
     const set = new Set(enabledTypeKeys);
-    if (showEtc || varianceMode !== "off" || showInsights) {
+    if (showEac || varianceMode !== "off" || showInsights) {
       set.add("act");
       set.add("fcst");
       set.add("aop");
     }
     return Array.from(set);
-  }, [enabledTypeKeys, showEtc, varianceMode, showInsights]);
+  }, [enabledTypeKeys, showEac, varianceMode, showInsights]);
 
-  const ETC_TYPE: FinancialType = useMemo(
-    () => ({ key: "etc", label: "ETC", enabled: true, editable: false }),
+  const EAC_TYPE: FinancialType = useMemo(
+    () => ({ key: "eac", label: "EAC", enabled: true, editable: false }),
     [],
   );
-  // What the grid renders in the TOTAL column block. ETC is appended when
+  // What the grid renders in the TOTAL column block. EAC is appended when
   // toggled on so it doesn't disturb the ordering of real scenarios.
   const displayedTypes: FinancialType[] = useMemo(
-    () => (showEtc ? [...enabledTypes, ETC_TYPE] : enabledTypes),
-    [enabledTypes, ETC_TYPE, showEtc],
+    () => (showEac ? [...enabledTypes, EAC_TYPE] : enabledTypes),
+    [enabledTypes, EAC_TYPE, showEac],
   );
-  // What the grid renders for each MONTH. ETC is intentionally excluded —
+  // What the grid renders for each MONTH. EAC is intentionally excluded —
   // it's only meaningful as a yearly roll-up (Actuals + remaining Forecast),
   // so we surface it only in the Total column.
   const monthDisplayedTypes: FinancialType[] = enabledTypes;
@@ -1033,16 +1033,16 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     return monthCalendar.findIndex(mc => mc.year === cy && mc.month === cm);
   }, [monthCalendar]);
 
-  // Inject the virtual ETC series into each row + the grand total. ETC blends
+  // Inject the virtual EAC series into each row + the grand total. EAC blends
   // act (months ≤ current month) with fcst (months > current month). When the
   // current month is outside the displayed FY we clamp: future FY → all fcst,
-  // past FY → all act. When ETC is off these are no-ops on a shallow clone.
+  // past FY → all act. When EAC is off these are no-ops on a shallow clone.
   const { rows, grandTotalByType } = useMemo(() => {
-    if (!showEtc) return { rows: rawRows, grandTotalByType: rawGrandTotalByType };
+    if (!showEac) return { rows: rawRows, grandTotalByType: rawGrandTotalByType };
     const cutoff = currentMonthIdx < 0
       // Negative → today is outside FY. If FY is fully in the past (i.e. its
       // last month is before today's calendar month), treat all months as
-      // "past" → ETC = act. Otherwise FY is fully in the future → ETC = fcst.
+      // "past" → EAC = act. Otherwise FY is fully in the future → EAC = fcst.
       ? (() => {
           const last = monthCalendar[monthCalendar.length - 1];
           const now = new Date();
@@ -1052,7 +1052,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
           return beforeNow ? 12 : -1;
         })()
       : currentMonthIdx;
-    const buildEtc = (monthly: Record<string, number[]>): number[] => {
+    const buildEac = (monthly: Record<string, number[]>): number[] => {
       const act = monthly["act"] ?? new Array(12).fill(0);
       const fcst = monthly["fcst"] ?? new Array(12).fill(0);
       const out = new Array(12).fill(0);
@@ -1060,25 +1060,25 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
       return out;
     };
     const newRows = rawRows.map(r => {
-      const etcArr = buildEtc(r.monthlyByType);
-      const etcTotal = etcArr.reduce((a, b) => a + b, 0);
-      const monthlyByType: Record<string, number[]> = { ...r.monthlyByType, etc: etcArr };
-      const totalByType: Record<string, number> = { ...r.totalByType, etc: etcTotal };
+      const eacArr = buildEac(r.monthlyByType);
+      const eacTotal = eacArr.reduce((a, b) => a + b, 0);
+      const monthlyByType: Record<string, number[]> = { ...r.monthlyByType, eac: eacArr };
+      const totalByType: Record<string, number> = { ...r.totalByType, eac: eacTotal };
       return { ...r, monthlyByType, totalByType };
     });
-    // Grand total ETC: derive from view rows so it stays consistent with the
+    // Grand total EAC: derive from view rows so it stays consistent with the
     // per-row hierarchy roll-up the rest of the grid renders.
-    const gtEtc = new Array(12).fill(0);
+    const gtEac = new Array(12).fill(0);
     for (const r of newRows) {
       if (r.type !== "view") continue;
-      for (let i = 0; i < 12; i++) gtEtc[i] += r.monthlyByType.etc[i];
+      for (let i = 0; i < 12; i++) gtEac[i] += r.monthlyByType.eac[i];
     }
     const newGrand: Record<string, number> = {
       ...rawGrandTotalByType,
-      etc: gtEtc.reduce((a, b) => a + b, 0),
+      eac: gtEac.reduce((a, b) => a + b, 0),
     };
     return { rows: newRows, grandTotalByType: newGrand };
-  }, [rawRows, rawGrandTotalByType, showEtc, currentMonthIdx, monthCalendar]);
+  }, [rawRows, rawGrandTotalByType, showEac, currentMonthIdx, monthCalendar]);
 
   // ===== Project-level grand monthly totals per type, used by Insights strip =====
   const grandMonthly = useMemo(() => {
@@ -1625,34 +1625,34 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                 </button>
               );
             })}
-            {/* ETC: virtual blended scenario (act through current month +
+            {/* EAC: virtual blended scenario (act through current month +
                 fcst after). Read-only column; toggleable independently. */}
             {(() => {
-              const palette = getTypePalette("etc");
+              const palette = getTypePalette("eac");
               return (
                 <button
                   type="button"
-                  onClick={toggleShowEtc}
+                  onClick={toggleShowEac}
                   className={`inline-flex items-center gap-1.5 px-3 h-8 text-xs font-semibold rounded-sm transition-all ${
-                    showEtc
+                    showEac
                       ? `${palette.activeBg} ${palette.activeText} ${palette.activeRing} shadow-sm`
                       : `text-muted-foreground hover:text-foreground hover:bg-background/60`
                   }`}
-                  data-testid="button-view-etc"
+                  data-testid="button-view-eac"
                   title={
-                    showEtc
-                      ? "ETC — Estimate to Complete (Actuals through current month + Forecast after). Read-only. Click to hide."
-                      : "ETC — Estimate to Complete. Click to show."
+                    showEac
+                      ? "EAC — Estimate at Completion (Actuals through current month + Forecast after). Read-only. Click to hide."
+                      : "EAC — Estimate at Completion. Click to show."
                   }
                 >
                   <span
                     className={`inline-block h-2 w-2 rounded-full ${
-                      showEtc ? palette.dotOn : palette.dotOff
+                      showEac ? palette.dotOn : palette.dotOff
                     }`}
                     aria-hidden="true"
                   />
-                  {showEtc && <Lock className="h-3 w-3 opacity-60" />}
-                  <span className="uppercase tracking-wide">ETC</span>
+                  {showEac && <Lock className="h-3 w-3 opacity-60" />}
+                  <span className="uppercase tracking-wide">EAC</span>
                 </button>
               );
             })()}
@@ -1942,18 +1942,18 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
           }
         }
 
-        // ETC isn't a real scenario so it never appears in filteredEntries.
+        // EAC isn't a real scenario so it never appears in filteredEntries.
         // It's only displayed in the Total column, so we just need to feed
         // its per-item total into itemTotalSum for totalSubPx sizing.
-        if (showEtc) {
+        if (showEac) {
           for (const r of rows) {
             if (r.type !== "item" || !r.itemKey) continue;
-            const arr = r.monthlyByType.etc ?? new Array(12).fill(0);
+            const arr = r.monthlyByType.eac ?? new Array(12).fill(0);
             let perItem = itemTotalSum.get(r.itemKey);
             if (!perItem) { perItem = {}; itemTotalSum.set(r.itemKey, perItem); }
             let itemSum = 0;
             for (let mi = 0; mi < 12; mi++) itemSum += arr[mi] || 0;
-            perItem["etc"] = (perItem["etc"] ?? 0) + itemSum;
+            perItem["eac"] = (perItem["eac"] ?? 0) + itemSum;
           }
         }
 
@@ -1992,7 +1992,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
         });
 
         // Per-period per-scenario sub-cols (1, 4, or 12 periods depending on
-        // view). ETC is excluded from period columns — it only renders in the
+        // view). EAC is excluded from period columns — it only renders in the
         // Total column.
         const periodSubPx: number[] = [];
         for (let pi = 0; pi < periodCols.length; pi++) {
@@ -2560,7 +2560,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                         })()}
 
                         {/* Per-period per-scenario cells (1, 4, or 12 cols).
-                            ETC excluded — only renders in the Total column. */}
+                            EAC excluded — only renders in the Total column. */}
                         {periodCols.map((p, pIdx) => (
                           monthDisplayedTypes.map((s, sIdx) => {
                             const arr = row.monthlyByType[s.key];
