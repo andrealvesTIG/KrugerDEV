@@ -5,14 +5,26 @@ import { Button } from "@/components/ui/button";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { Loader2, MapPin, Upload, X, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
 function RecenterMap({ lat, lng }: { lat: number; lng: number }) {
   const map = useMap();
+  const last = useRef<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
+    // Only fly when the pin actually moves (avoids fighting the user's pan
+    // after they drag the marker).
+    if (last.current && last.current.lat === lat && last.current.lng === lng) return;
+    last.current = { lat, lng };
     map.setView([lat, lng], Math.max(map.getZoom(), 15), { animate: true });
   }, [lat, lng, map]);
+  return null;
+}
+
+function ClickToPin({ onPin }: { onPin: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click: (e) => onPin(e.latlng.lat, e.latlng.lng),
+  });
   return null;
 }
 
@@ -308,14 +320,22 @@ export function ProjectLocationMediaSection({
         const lat = latitude != null && latitude !== "" ? Number(latitude) : NaN;
         const lng = longitude != null && longitude !== "" ? Number(longitude) : NaN;
         const hasPin = Number.isFinite(lat) && Number.isFinite(lng);
+        const setPin = (newLat: number, newLng: number) => {
+          if (disabled) return;
+          onChange({ latitude: newLat.toFixed(6), longitude: newLng.toFixed(6) });
+        };
+        // Show map even without a pin — default to a wide world view so the
+        // user can click to drop one. Once a pin exists we center on it.
+        const center: [number, number] = hasPin ? [lat, lng] : [20, 0];
+        const zoom = hasPin ? 15 : 2;
         return (
-          <div className="rounded-md border overflow-hidden bg-muted/30" style={{ height: 220 }} data-testid="location-map-preview">
-            {hasPin ? (
+          <div className="space-y-1" data-testid="location-map-preview">
+            <div className="rounded-md border overflow-hidden bg-muted/30 relative" style={{ height: 240 }}>
               <MapContainer
-                center={[lat, lng]}
-                zoom={15}
+                center={center}
+                zoom={zoom}
                 scrollWheelZoom={false}
-                style={{ height: "100%", width: "100%" }}
+                style={{ height: "100%", width: "100%", cursor: disabled ? "default" : "crosshair" }}
                 attributionControl={false}
               >
                 <TileLayer
@@ -323,15 +343,33 @@ export function ProjectLocationMediaSection({
                   subdomains={["a", "b", "c", "d"]}
                   maxZoom={19}
                 />
-                <Marker position={[lat, lng]} />
-                <RecenterMap lat={lat} lng={lng} />
+                {hasPin && (
+                  <Marker
+                    position={[lat, lng]}
+                    draggable={!disabled}
+                    eventHandlers={{
+                      dragend: (e: any) => {
+                        const p = e.target.getLatLng();
+                        setPin(p.lat, p.lng);
+                      },
+                    }}
+                  />
+                )}
+                {hasPin && <RecenterMap lat={lat} lng={lng} />}
+                {!disabled && <ClickToPin onPin={setPin} />}
               </MapContainer>
-            ) : (
-              <div className="h-full w-full flex flex-col items-center justify-center text-xs text-muted-foreground gap-1">
-                <MapPin className="h-5 w-5" />
-                <span>No location pinned yet</span>
-                <span className="text-[10px]">Pick an address suggestion to see it on the map.</span>
-              </div>
+              {!hasPin && (
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-xs text-muted-foreground gap-1 bg-background/40">
+                  <MapPin className="h-5 w-5" />
+                  <span>No location pinned yet</span>
+                  <span className="text-[10px]">Click anywhere on the map, or pick an address suggestion above.</span>
+                </div>
+              )}
+            </div>
+            {!disabled && (
+              <p className="text-[10px] text-muted-foreground">
+                Tip: click on the map to drop the pin, or drag the existing pin to fine-tune the location.
+              </p>
             )}
           </div>
         );
