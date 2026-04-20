@@ -1620,6 +1620,8 @@ export function StatusReportTab({
   documents
 }: StatusReportTabProps) {
   const { toast } = useToast();
+  const { currentOrganization } = useOrganization();
+  const fiscalYearStartMonth = currentOrganization?.fiscalYearStartMonth ?? undefined;
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [recipientEmail, setRecipientEmail] = useState("");
@@ -1641,6 +1643,7 @@ export function StatusReportTab({
           changeRequests={changeRequests}
           documents={documents}
           executiveSummary={project.description || ""}
+          fiscalYearStartMonth={fiscalYearStartMonth}
         />
       );
       
@@ -1696,6 +1699,7 @@ export function StatusReportTab({
           changeRequests={changeRequests}
           documents={documents}
           executiveSummary={project.description || ""}
+          fiscalYearStartMonth={fiscalYearStartMonth}
         />
       );
       

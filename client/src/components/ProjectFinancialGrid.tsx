@@ -10,7 +10,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
-import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock, MoreVertical, ChevronsDownUp, ChevronsUpDown, Loader2, Undo2, Redo2, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Activity, Sparkles, Target, Flame, Gauge } from "lucide-react";
+import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock, MoreVertical, ChevronsDownUp, ChevronsUpDown, Loader2, Undo2, Redo2, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Activity, Sparkles, Target, Flame, Gauge, Download } from "lucide-react";
+import {
+  exportFinancialGridToCsv,
+  exportFinancialGridToExcel,
+} from "@/lib/financialGridExport";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -2194,6 +2198,87 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
               ))}
             </SelectContent>
           </Select>
+
+          {/* Export menu — uses the org's fiscal calendar so column headers
+              and order match the on-screen grid (no hardcoded Oct labels). */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9"
+                disabled={filteredEntries.length === 0}
+                title="Export the visible grid (CSV or Excel) using the org's fiscal calendar"
+                data-testid="button-export-financials"
+              >
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => {
+                  // Pull the (possibly EAC-blended) per-item monthly arrays
+                  // from the rendered rows so the export matches the screen.
+                  const eacByItem: Record<string, number[]> = {};
+                  if (showEac) {
+                    for (const r of editableRows) {
+                      if (r.itemKey && r.monthlyByType.eac) {
+                        eacByItem[r.itemKey] = r.monthlyByType.eac.slice();
+                      }
+                    }
+                  }
+                  exportFinancialGridToCsv({
+                    projectId,
+                    fiscalYear,
+                    fiscalYearStartMonth,
+                    viewMode,
+                    displayedTypes,
+                    monthDisplayedTypes,
+                    entries: filteredEntries,
+                    eacByItem: showEac ? eacByItem : undefined,
+                  });
+                }}
+                data-testid="menu-export-csv"
+              >
+                Export as CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={async () => {
+                  const eacByItem: Record<string, number[]> = {};
+                  if (showEac) {
+                    for (const r of editableRows) {
+                      if (r.itemKey && r.monthlyByType.eac) {
+                        eacByItem[r.itemKey] = r.monthlyByType.eac.slice();
+                      }
+                    }
+                  }
+                  try {
+                    await exportFinancialGridToExcel({
+                      projectId,
+                      fiscalYear,
+                      fiscalYearStartMonth,
+                      viewMode,
+                      displayedTypes,
+                      monthDisplayedTypes,
+                      entries: filteredEntries,
+                      eacByItem: showEac ? eacByItem : undefined,
+                    });
+                  } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : "Could not generate Excel file";
+                    toast({
+                      title: "Export failed",
+                      description: message,
+                      variant: "destructive",
+                    });
+                  }
+                }}
+                data-testid="menu-export-xlsx"
+              >
+                Export as Excel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <Button

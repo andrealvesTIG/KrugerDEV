@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { pdf } from "@react-pdf/renderer";
+import { useOrganization } from "@/hooks/use-organization";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,8 @@ export function StatusReportDialog({
   documents = []
 }: StatusReportDialogProps) {
   const { toast } = useToast();
+  const { currentOrganization } = useOrganization();
+  const fiscalYearStartMonth = currentOrganization?.fiscalYearStartMonth ?? undefined;
   const [tab, setTab] = useState<"preview" | "download" | "email">("preview");
   const [executiveSummary, setExecutiveSummary] = useState(project.description || "");
   const [recipientEmail, setRecipientEmail] = useState("");
@@ -57,6 +60,7 @@ export function StatusReportDialog({
           changeRequests={changeRequests}
           documents={documents}
           executiveSummary={executiveSummary}
+          fiscalYearStartMonth={fiscalYearStartMonth}
         />
       );
       
@@ -105,6 +109,7 @@ export function StatusReportDialog({
           changeRequests={changeRequests}
           documents={documents}
           executiveSummary={executiveSummary}
+          fiscalYearStartMonth={fiscalYearStartMonth}
         />
       );
       

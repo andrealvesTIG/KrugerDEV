@@ -4,6 +4,12 @@ import type { FridayAgentConfig } from "@shared/schema";
 import { eq, and, sql, inArray, isNull, desc } from "drizzle-orm";
 import OpenAI, { AzureOpenAI } from "openai";
 import { decryptApiKey } from "../routes/helpers";
+import {
+  buildFiscalMonths,
+  buildFiscalQuarters,
+  DEFAULT_FISCAL_YEAR_START_MONTH,
+  normalizeFiscalYearStartMonth,
+} from "@shared/lib/fiscalCalendar";
 
 function createOpenAIClient(): OpenAI {
   if (process.env.AZURE_OPENAI_API_KEY && process.env.AZURE_OPENAI_ENDPOINT) {
@@ -81,9 +87,18 @@ export interface JarvisContext {
   resources: any[];
   statusReports: any[];
   healthHistory: any[];
+  // Org's fiscal calendar setting (1..12 calendar month that is FY M1).
+  // Drives every fiscal-period label/order so AI summaries stay consistent
+  // with what users see in financial grids and exports.
+  fiscalYearStartMonth: number;
 }
 
 export async function gatherOrganizationContext(orgId: number): Promise<JarvisContext> {
+  const [orgRow] = await db.select({ fiscalYearStartMonth: organizations.fiscalYearStartMonth })
+    .from(organizations).where(eq(organizations.id, orgId));
+  const fiscalYearStartMonth = normalizeFiscalYearStartMonth(
+    orgRow?.fiscalYearStartMonth ?? DEFAULT_FISCAL_YEAR_START_MONTH,
+  );
   const [orgProjects, orgPortfolios, orgResources] = await Promise.all([
     db.select().from(projects).where(
       and(eq(projects.organizationId, orgId), isNull(projects.deletedAt))
@@ -115,6 +130,7 @@ export async function gatherOrganizationContext(orgId: number): Promise<JarvisCo
       resources: orgResources,
       statusReports: [],
       healthHistory: [],
+      fiscalYearStartMonth,
     };
   }
 
@@ -202,6 +218,7 @@ export async function gatherOrganizationContext(orgId: number): Promise<JarvisCo
     resources: orgResources,
     statusReports: recentReports,
     healthHistory: recentHealth,
+    fiscalYearStartMonth,
   };
 }
 
@@ -268,7 +285,31 @@ function buildDataContext(ctx: JarvisContext): string {
   const risksWithoutMitigation = openRisks.filter(r => !r.mitigationPlan && !r.responseStrategy);
   const projectsWithoutManager = ctx.projects.filter(p => !p.managerId);
 
+  // Fiscal calendar context: compute the current FY's bounds + quarter labels
+  // from the same helper the grids/exports use, so any AI mention of fiscal
+  // periods is consistent (no hardcoded Oct labels for non-October orgs).
+  const fyStart = ctx.fiscalYearStartMonth;
+  const calMonth = now.getMonth() + 1;
+  // FY label = the calendar year in which the FY ends.
+  const currentFiscalYear = fyStart === 1
+    ? now.getFullYear()
+    : (calMonth >= fyStart ? now.getFullYear() + 1 : now.getFullYear());
+  const fyMonths = buildFiscalMonths(currentFiscalYear, fyStart);
+  const fyQuarters = buildFiscalQuarters(currentFiscalYear, fyStart);
+  const currentFyMonth = fyMonths.find(m => m.year === now.getFullYear() && m.month === calMonth);
+  const currentFyQuarter = fyQuarters.find(q =>
+    currentFyMonth ? q.monthIndices.includes(currentFyMonth.monthNum - 1) : false
+  );
+
   let summary = `## Current Data Snapshot (as of ${todayStr})\n\n`;
+  summary += `**Fiscal Calendar:** FY starts in ${fyMonths[0].longLabel}. `
+    + `Current period is FY ${currentFiscalYear} `
+    + `(${fyMonths[0].label} ${fyMonths[0].year} – ${fyMonths[11].label} ${fyMonths[11].year}). `
+    + `Quarters: ${fyQuarters.map(q => `${q.label} (${q.hint})`).join(", ")}. `
+    + (currentFyMonth && currentFyQuarter
+      ? `Today falls in fiscal month M${currentFyMonth.monthNum} (${currentFyMonth.label}) / `
+        + `${currentFyQuarter.label}.\n`
+      : `Today is outside the current fiscal year window.\n`);
   summary += `**Organization Overview:** ${projectCount} projects, ${ctx.portfolios.length} portfolios, ${ctx.resources.length} resources\n`;
   summary += `**Health:** ${atRisk.length} Red, ${amber.length} Yellow, ${projectCount - atRisk.length - amber.length} Green\n`;
   summary += `**Open Risks:** ${openRisks.length} | **Open Issues:** ${openIssues.length}\n`;

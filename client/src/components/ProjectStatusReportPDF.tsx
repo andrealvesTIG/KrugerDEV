@@ -1,6 +1,12 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { format, differenceInDays } from "date-fns";
 import { formatCurrency } from "@/lib/format";
+import {
+  buildFiscalMonths,
+  buildFiscalQuarters,
+  normalizeFiscalYearStartMonth,
+  DEFAULT_FISCAL_YEAR_START_MONTH,
+} from "@shared/lib/fiscalCalendar";
 import type { Project, Risk, Issue, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
 
 const styles = StyleSheet.create({
@@ -446,6 +452,7 @@ interface ProjectStatusReportPDFProps {
   changeRequests?: ChangeRequest[];
   documents?: ProjectDocument[];
   executiveSummary?: string;
+  fiscalYearStartMonth?: number;
 }
 
 
@@ -463,7 +470,21 @@ export function ProjectStatusReportPDF({
   changeRequests = [],
   documents = [],
   executiveSummary,
+  fiscalYearStartMonth,
 }: ProjectStatusReportPDFProps) {
+  const fyStart = normalizeFiscalYearStartMonth(
+    fiscalYearStartMonth ?? DEFAULT_FISCAL_YEAR_START_MONTH,
+  );
+  const today = new Date();
+  const calMonth = today.getMonth() + 1;
+  const currentFiscalYear = fyStart === 1
+    ? today.getFullYear()
+    : (calMonth >= fyStart ? today.getFullYear() + 1 : today.getFullYear());
+  const fyMonths = buildFiscalMonths(currentFiscalYear, fyStart);
+  const fyQuarters = buildFiscalQuarters(currentFiscalYear, fyStart);
+  const fiscalYearLabel = `FY ${currentFiscalYear}`;
+  const fiscalYearRange = `${fyMonths[0].label} ${fyMonths[0].year} – ${fyMonths[11].label} ${fyMonths[11].year}`;
+  const fiscalQuartersHint = fyQuarters.map(q => `${q.label} ${q.hint}`).join(" · ");
   const leafTasks = tasks.filter((t) => !t.isSummary);
   const completed = leafTasks.filter((t) => t.status === "Completed").length;
   const inProgress = leafTasks.filter((t) => t.status === "In Progress").length;
@@ -672,6 +693,9 @@ export function ProjectStatusReportPDF({
 
           <View style={[styles.column, styles.card]}>
             <Text style={styles.sectionTitle}>Budget Overview</Text>
+            <Text style={{ fontSize: 7, color: "#6b7280", marginBottom: 4 }}>
+              {fiscalYearLabel} ({fiscalYearRange}) · {fiscalQuartersHint}
+            </Text>
             <View style={styles.barChartContainer}>
               <View style={styles.barRow}>
                 <Text style={styles.barLabel}>Budget</Text>
