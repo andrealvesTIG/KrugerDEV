@@ -63,16 +63,18 @@ export function NewSignupsTab() {
   const [temp, setTemp] = useState<string>('all');
   const [country, setCountry] = useState<string>('all');
   const [plan, setPlan] = useState<string>('all');
+  const [source, setSource] = useState<string>('all');
   const [q, setQ] = useState('');
 
   const { data, isLoading } = useQuery<{ users: Row[]; total: number; days: number }>({
-    queryKey: ['/api/admin/users/recent-signups', days, temp, country, plan],
+    queryKey: ['/api/admin/users/recent-signups', days, temp, country, plan, source],
     queryFn: async () => {
       const url = new URL('/api/admin/users/recent-signups', window.location.origin);
       url.searchParams.set('days', days);
       if (temp !== 'all') url.searchParams.set('temp', temp);
       if (country !== 'all') url.searchParams.set('country', country);
       if (plan !== 'all') url.searchParams.set('plan', plan);
+      if (source !== 'all') url.searchParams.set('source', source);
       const res = await fetch(url.pathname + url.search, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed');
       return res.json();
@@ -88,6 +90,15 @@ export function NewSignupsTab() {
   const planOptions = useMemo(() => {
     const set = new Set<string>();
     for (const r of data?.users || []) if (r.plan) set.add(r.plan);
+    return Array.from(set).sort();
+  }, [data]);
+
+  const sourceOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of data?.users || []) {
+      const s = r.signupMethod || r.signupSource;
+      if (s) set.add(s);
+    }
     return Array.from(set).sort();
   }, [data]);
 
@@ -171,6 +182,13 @@ export function NewSignupsTab() {
           <SelectContent>
             <SelectItem value="all">All plans</SelectItem>
             {planOptions.map(p => (<SelectItem key={p} value={p}>{p}</SelectItem>))}
+          </SelectContent>
+        </Select>
+        <Select value={source} onValueChange={setSource}>
+          <SelectTrigger className="w-[160px]" data-testid="select-source"><SelectValue placeholder="Signup source" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All signup sources</SelectItem>
+            {sourceOptions.map(s => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
           </SelectContent>
         </Select>
         <Button variant="outline" size="sm" onClick={exportCsv} data-testid="button-export-csv">

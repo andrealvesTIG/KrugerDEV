@@ -13,10 +13,56 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Copy, Mail, ArrowLeft, Globe, MapPin, Smartphone, Monitor, Calendar, ExternalLink, ChevronDown, ChevronRight, Eye, MousePointerClick, Activity, AlertCircle, Search, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+type InsightsUser = {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  fullName?: string | null;
+  jobTitle: string | null;
+  detectedCompany: string | null;
+  detectedIndustry: string | null;
+  signupSource: string | null;
+  createdAt: string;
+  emailVerified: boolean;
+  role?: string | null;
+  profileImageUrl?: string | null;
+};
+
+type InsightsAcquisition = {
+  referrer: string | null;
+  referrerHost: string | null;
+  landingPath: string | null;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  utmTerm: string | null;
+  utmContent: string | null;
+  gclid: string | null;
+  country: string | null;
+  region: string | null;
+  city: string | null;
+  deviceType: string | null;
+  browser: string | null;
+  os: string | null;
+  signupMethod: string | null;
+  firstSeenAt: string | null;
+  signedUpAt: string | null;
+};
+
+type InsightsOrganization = {
+  id: string;
+  name: string;
+  role?: string | null;
+  plan?: string | null;
+};
+
+type TimelineFilter = 'all' | 'page' | 'action' | 'error';
+
 type Insights = {
-  user: any;
-  acquisition: any | null;
-  organizations: any[];
+  user: InsightsUser;
+  acquisition: InsightsAcquisition | null;
+  organizations: InsightsOrganization[];
   summary: {
     eventCount: number;
     actionCount: number;
@@ -50,7 +96,7 @@ type TimelineItem = {
   path: string | null;
   element: string | null;
   label: string | null;
-  metadata: any;
+  metadata: Record<string, unknown> | null;
   sessionId: string | null;
   occurredAt: string;
 };
@@ -141,7 +187,7 @@ export default function UserInsights() {
   const userId = params.userId;
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [filter, setFilter] = useState<'all' | 'page' | 'action' | 'error'>('all');
+  const [filter, setFilter] = useState<TimelineFilter>('all');
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [extraItems, setExtraItems] = useState<TimelineItem[]>([]);
@@ -337,6 +383,15 @@ export default function UserInsights() {
                 <Copy className="h-4 w-4 mr-1" /> Copy email
               </Button>
               <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLocation(`/super-admin?tab=users&userId=${user.id}`)}
+                data-testid="button-open-in-admin"
+                title="Open this user in the main admin console"
+              >
+                <ExternalLink className="h-4 w-4 mr-1" /> Open in admin
+              </Button>
+              <Button
                 size="sm"
                 onClick={() => {
                   const fname = user.firstName || (user.email || '').split('@')[0] || 'there';
@@ -451,7 +506,7 @@ export default function UserInsights() {
         <CardHeader>
           <CardTitle className="text-base">Timeline</CardTitle>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>
+            <Tabs value={filter} onValueChange={(v) => setFilter(v as TimelineFilter)}>
               <TabsList>
                 <TabsTrigger value="all" data-testid="tab-filter-all">All</TabsTrigger>
                 <TabsTrigger value="page" data-testid="tab-filter-page">Page views</TabsTrigger>
@@ -607,7 +662,7 @@ function KpiCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-function KV({ k, v }: { k: string; v: any }) {
+function KV({ k, v }: { k: string; v: string | number | null | undefined }) {
   return (
     <div>
       <div className="text-muted-foreground">{k}</div>

@@ -274,7 +274,19 @@ export function registerUserInsightsRoutes(app: Express) {
         LIMIT 500
       `);
 
-      let rows = (result.rows as any[]).map((r) => {
+      type SignupRow = {
+        id: string; email: string; first_name: string | null; last_name: string | null;
+        detected_company: string | null; detected_industry: string | null; job_title: string | null;
+        signup_source: string | null; created_at: string; role: string | null; email_verified: boolean;
+        plan: string | null; country: string | null; city: string | null;
+        utm_source: string | null; utm_medium: string | null; utm_campaign: string | null;
+        referrer_host: string | null; signup_method: string | null;
+        last_event_at: string | null; last_action_at: string | null;
+        event_count: number | string | null; action_count: number | string | null;
+        projects_created: number | string | null; tasks_created: number | string | null;
+        days_active_7d: number | string | null;
+      };
+      let rows = (result.rows as SignupRow[]).map((r) => {
         const temp = computeSalesTemperature({
           daysActiveLast7: Number(r.days_active_7d ?? 0),
           projectsCreated: Number(r.projects_created ?? 0),
@@ -622,7 +634,18 @@ export function registerUserInsightsRoutes(app: Express) {
         LIMIT ${limit + 1}
       `);
 
-      const rows = result.rows as any[];
+      type TimelineRow = {
+        source: 'page' | 'action';
+        id: string;
+        kind: string;
+        path: string | null;
+        element: string | null;
+        label: string | null;
+        metadata: Record<string, unknown> | null;
+        session_id: string | null;
+        ts: string;
+      };
+      const rows = result.rows as TimelineRow[];
       const hasMore = rows.length > limit;
       const items = rows.slice(0, limit).map(r => ({
         source: r.source,

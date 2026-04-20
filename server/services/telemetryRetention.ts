@@ -2,10 +2,22 @@ import { sql } from "drizzle-orm";
 import crypto from "crypto";
 import { db } from "../db";
 
-const IP_HASH_SALT = process.env.IP_HASH_SALT || "fr_default_ip_salt_v1";
+const IP_HASH_SALT = process.env.IP_HASH_SALT;
+if (!IP_HASH_SALT && process.env.NODE_ENV === "production") {
+  console.warn(
+    "[retention] IP_HASH_SALT is not set; refusing to hash IPs with a default salt in production. Set IP_HASH_SALT to enable IP pseudonymization."
+  );
+}
+
+const EFFECTIVE_SALT = IP_HASH_SALT || "fr_dev_only_ip_salt_unset";
 
 function hashIp(ip: string): string {
-  return crypto.createHmac("sha256", IP_HASH_SALT).update(ip).digest("hex").slice(0, 32);
+  return crypto.createHmac("sha256", EFFECTIVE_SALT).update(ip).digest("hex").slice(0, 32);
+}
+
+function canHashIps(): boolean {
+  // Refuse to hash with the dev fallback in production (privacy guardrail).
+  return !!IP_HASH_SALT || process.env.NODE_ENV !== "production";
 }
 
 /**
@@ -29,6 +41,10 @@ export async function runTelemetryRetentionSweep(): Promise<{
     deletedOldPageEvents: 0,
     deletedUnlinkedAnonEvents: 0,
   };
+
+  if (!canHashIps()) {
+    return result;
+  }
 
   // 1) Hash IPs older than 90 days on user_page_events (one-way: prefix with 'h:').
   try {
