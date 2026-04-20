@@ -883,7 +883,17 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       {/* Planner project banner - hidden in fullscreen to save space */}
       {isPlannerProject && !isFullscreen && (
         <div className="space-y-2">
-          <div className="p-3 rounded-lg border bg-muted/50 space-y-2">
+          <div className="relative p-3 pr-10 rounded-lg border bg-muted/50 space-y-2">
+            <button
+              type="button"
+              onClick={() => setIsPlannerBannerCollapsed((v) => !v)}
+              className="absolute top-2 right-2 hover-elevate rounded p-1"
+              aria-label={isPlannerBannerCollapsed ? "Expand banner" : "Collapse banner"}
+              aria-expanded={!isPlannerBannerCollapsed}
+              data-testid="button-toggle-planner-banner"
+            >
+              {isPlannerBannerCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
             <div className={cn("flex items-center justify-between gap-2", !isPlannerBannerCollapsed && "flex-wrap")}>
               <div className="flex items-center gap-3 min-w-0">
                 <img src={plannerLogoPath} alt="Microsoft Planner" className="h-6 w-6 shrink-0" />
@@ -946,16 +956,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                     <p>Detach this project from {isPremiumPlan ? "Project for the Web" : "Planner"} and make it fully editable. This removes the sync link but keeps all tasks and data.</p>
                   </TooltipContent>
                 </Tooltip>
-                <button
-                  type="button"
-                  onClick={() => setIsPlannerBannerCollapsed((v) => !v)}
-                  className="shrink-0 hover-elevate rounded p-1"
-                  aria-label={isPlannerBannerCollapsed ? "Expand banner" : "Collapse banner"}
-                  aria-expanded={!isPlannerBannerCollapsed}
-                  data-testid="button-toggle-planner-banner"
-                >
-                  {isPlannerBannerCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </button>
               </div>
             </div>
             {!isPlannerBannerCollapsed && lastSyncedAt && (
