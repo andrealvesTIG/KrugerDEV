@@ -383,7 +383,6 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
   const handleCellClick = (row: GridRow, monthIdx: number) => {
     if (row.type !== "item" || !row.itemKey) return;
-    if (scenario !== "fcst" && scenario !== "act") return;
     setEditValue(String(row.monthly[monthIdx] || 0));
     setEditingCell({ itemKey: row.itemKey, month: monthIdx + 1 });
   };
@@ -419,7 +418,6 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     direction: "up" | "down" | "left" | "right",
   ): { itemKey: string; month: number } | null => {
     if (!editingCell) return null;
-    if (scenario !== "fcst" && scenario !== "act") return null;
 
     const rowIdx = editableRows.findIndex(r => r.itemKey === editingCell.itemKey);
     if (rowIdx === -1) return null;
@@ -599,7 +597,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                         );
                       }
                       const isEditing = editingCell?.itemKey === row.itemKey && editingCell?.month === m.num;
-                      const editable = scenario === "fcst" || scenario === "act";
+                      const editable = isItem;
                       return (
                         <div key={m.num} className="p-1">
                           {isEditing ? (
