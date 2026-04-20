@@ -171,6 +171,53 @@ export function ViewsDropdown({
   const [viewToDelete, setViewToDelete] = useState<ProjectView | null>(null);
   const [columnSearch, setColumnSearch] = useState("");
   const [tempVisibleColumns, setTempVisibleColumns] = useState<string[]>([]);
+  const [hasAppliedDefault, setHasAppliedDefault] = useState(false);
+
+  const lastViewedKey = `views:last:${organizationId ?? 'na'}:${mode}:${portfolioId ?? 'global'}`;
+
+  // Apply default view (or last-selected view) for the current scope on mount
+  useEffect(() => {
+    if (hasAppliedDefault || !organizationId || isLoading) return;
+    if (activeViewId !== null || activeSystemViewId !== null) {
+      setHasAppliedDefault(true);
+      return;
+    }
+    let lastId: number | null = null;
+    try {
+      const raw = localStorage.getItem(lastViewedKey);
+      if (raw) lastId = parseInt(raw, 10);
+    } catch {}
+    const lastView = lastId !== null ? views.find(v => v.id === lastId) : undefined;
+    const defaultView = views.find(v => v.isDefault);
+    const target = lastView || defaultView;
+    if (target) {
+      setActiveViewId(target.id);
+      setActiveSystemViewId(null);
+      onApplyView({
+        visibleColumns: target.visibleColumns,
+        columnOrder: target.columnOrder || target.visibleColumns,
+      });
+      setHasAppliedDefault(true);
+    } else if (views.length > 0 || !isLoading) {
+      setHasAppliedDefault(true);
+    }
+  }, [views, isLoading, organizationId, hasAppliedDefault, activeViewId, activeSystemViewId, lastViewedKey, onApplyView]);
+
+  // Reset applied state when scope changes (org/mode/portfolio)
+  useEffect(() => {
+    setHasAppliedDefault(false);
+    setActiveViewId(null);
+    setActiveSystemViewId(null);
+  }, [organizationId, mode, portfolioId]);
+
+  // Persist last-selected view per scope
+  useEffect(() => {
+    if (!organizationId) return;
+    try {
+      if (activeViewId !== null) localStorage.setItem(lastViewedKey, String(activeViewId));
+      else localStorage.removeItem(lastViewedKey);
+    } catch {}
+  }, [activeViewId, lastViewedKey, organizationId]);
 
   const activeView = useMemo(() => {
     if (activeViewId === null) return null;

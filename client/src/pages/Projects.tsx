@@ -204,28 +204,32 @@ const LIST_COLUMNS_STORAGE_KEY = "project-list-visible-columns";
 const LIST_COLUMN_ORDER_KEY = "project-list-column-order";
 const LIST_SORT_STORAGE_KEY = "project-list-sort";
 
-function loadVisibleColumns(): string[] {
+function scopedKey(base: string, scope?: string | null): string {
+  return scope ? `${base}:${scope}` : base;
+}
+
+function loadVisibleColumns(scope?: string | null): string[] {
   try {
-    const stored = localStorage.getItem(LIST_COLUMNS_STORAGE_KEY);
+    const stored = localStorage.getItem(scopedKey(LIST_COLUMNS_STORAGE_KEY, scope));
     if (stored) return JSON.parse(stored);
   } catch {}
   return LIST_COLUMNS.filter(c => c.defaultVisible).map(c => c.id);
 }
 
-function saveVisibleColumns(cols: string[]) {
-  try { localStorage.setItem(LIST_COLUMNS_STORAGE_KEY, JSON.stringify(cols)); } catch {}
+function saveVisibleColumns(cols: string[], scope?: string | null) {
+  try { localStorage.setItem(scopedKey(LIST_COLUMNS_STORAGE_KEY, scope), JSON.stringify(cols)); } catch {}
 }
 
-function loadListColumnOrder(): string[] {
+function loadListColumnOrder(scope?: string | null): string[] {
   try {
-    const stored = localStorage.getItem(LIST_COLUMN_ORDER_KEY);
+    const stored = localStorage.getItem(scopedKey(LIST_COLUMN_ORDER_KEY, scope));
     if (stored) return JSON.parse(stored);
   } catch {}
   return LIST_COLUMNS.map(c => c.id);
 }
 
-function saveListColumnOrder(order: string[]) {
-  try { localStorage.setItem(LIST_COLUMN_ORDER_KEY, JSON.stringify(order)); } catch {}
+function saveListColumnOrder(order: string[], scope?: string | null) {
+  try { localStorage.setItem(scopedKey(LIST_COLUMN_ORDER_KEY, scope), JSON.stringify(order)); } catch {}
 }
 
 interface ListSortState {
@@ -233,16 +237,16 @@ interface ListSortState {
   direction: "asc" | "desc";
 }
 
-function loadListSort(): ListSortState | null {
+function loadListSort(scope?: string | null): ListSortState | null {
   try {
-    const stored = localStorage.getItem(LIST_SORT_STORAGE_KEY);
+    const stored = localStorage.getItem(scopedKey(LIST_SORT_STORAGE_KEY, scope));
     if (stored) return JSON.parse(stored);
   } catch {}
   return null;
 }
 
-function saveListSort(sort: ListSortState | null) {
-  try { localStorage.setItem(LIST_SORT_STORAGE_KEY, JSON.stringify(sort)); } catch {}
+function saveListSort(sort: ListSortState | null, scope?: string | null) {
+  try { localStorage.setItem(scopedKey(LIST_SORT_STORAGE_KEY, scope), JSON.stringify(sort)); } catch {}
 }
 
 export type GroupByOption = "none" | "portfolio" | "status" | "priority" | "health" | "projectType" | "methodology" | "workflow" | `cf_${number}`;
@@ -328,11 +332,18 @@ export function ProjectsListView({
     if (workflowId == null) return defaultWorkflowName;
     return workflowsById.get(workflowId)?.name || defaultWorkflowName;
   }, [workflowsById, defaultWorkflowName]);
+  const storageScope = portfolioId !== null ? `portfolio-${portfolioId}` : null;
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
-  const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(loadVisibleColumns);
-  const [listColumnOrder, setListColumnOrder] = useState<string[]>(loadListColumnOrder);
-  const [listSort, setListSort] = useState<ListSortState | null>(loadListSort);
+  const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(() => loadVisibleColumns(storageScope));
+  const [listColumnOrder, setListColumnOrder] = useState<string[]>(() => loadListColumnOrder(storageScope));
+  const [listSort, setListSort] = useState<ListSortState | null>(() => loadListSort(storageScope));
   const [manageColumnsOpen, setManageColumnsOpen] = useState(false);
+
+  useEffect(() => {
+    setVisibleColumnIds(loadVisibleColumns(storageScope));
+    setListColumnOrder(loadListColumnOrder(storageScope));
+    setListSort(loadListSort(storageScope));
+  }, [storageScope]);
 
   const toggleGroup = useCallback((groupKey: string) => {
     setCollapsedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
@@ -341,19 +352,19 @@ export function ProjectsListView({
   const toggleColumn = useCallback((colId: string) => {
     setVisibleColumnIds(prev => {
       const next = prev.includes(colId) ? prev.filter(id => id !== colId) : [...prev, colId];
-      saveVisibleColumns(next);
+      saveVisibleColumns(next, storageScope);
       return next;
     });
-  }, []);
+  }, [storageScope]);
 
   const resetColumns = useCallback(() => {
     const defaults = LIST_COLUMNS.filter(c => c.defaultVisible).map(c => c.id);
     setVisibleColumnIds(defaults);
-    saveVisibleColumns(defaults);
+    saveVisibleColumns(defaults, storageScope);
     const defaultOrder = LIST_COLUMNS.map(c => c.id);
     setListColumnOrder(defaultOrder);
-    saveListColumnOrder(defaultOrder);
-  }, []);
+    saveListColumnOrder(defaultOrder, storageScope);
+  }, [storageScope]);
 
   const handleSort = useCallback((columnId: string) => {
     if (columnId === "actions" || columnId === "progress") return;
@@ -366,10 +377,10 @@ export function ProjectsListView({
       } else {
         next = null;
       }
-      saveListSort(next);
+      saveListSort(next, storageScope);
       return next;
     });
-  }, []);
+  }, [storageScope]);
 
   const allListColumns = useMemo(() => LIST_COLUMNS.map(c => ({ id: c.id, label: c.label })), []);
   const defaultListColumns = useMemo(() => LIST_COLUMNS.filter(c => c.defaultVisible).map(c => c.id), []);
@@ -377,10 +388,10 @@ export function ProjectsListView({
 
   const handleApplyView = useCallback((view: { visibleColumns: string[]; columnOrder: string[] }) => {
     setVisibleColumnIds(view.visibleColumns);
-    saveVisibleColumns(view.visibleColumns);
+    saveVisibleColumns(view.visibleColumns, storageScope);
     setListColumnOrder(view.columnOrder);
-    saveListColumnOrder(view.columnOrder);
-  }, []);
+    saveListColumnOrder(view.columnOrder, storageScope);
+  }, [storageScope]);
 
   const visibleColumns = useMemo(() => {
     const cols = LIST_COLUMNS.filter(c => c.alwaysVisible || visibleColumnIds.includes(c.id));
@@ -430,14 +441,17 @@ export function ProjectsListView({
   }, [customFieldValues]);
 
   const groupByOptions = useMemo(() => {
-    const options = [...GROUP_BY_STANDARD];
+    const base = portfolioId !== null
+      ? GROUP_BY_STANDARD.filter(o => o.value !== "portfolio")
+      : GROUP_BY_STANDARD;
+    const options = [...base];
     (customFieldDefs || []).forEach(def => {
       if (def.entityType === "project" && def.isActive) {
         options.push({ value: `cf_${def.id}` as GroupByOption, label: def.name });
       }
     });
     return options;
-  }, [customFieldDefs]);
+  }, [customFieldDefs, portfolioId]);
 
   useEffect(() => {
     if (groupBy !== "none" && !groupByOptions.some(o => o.value === groupBy)) {
