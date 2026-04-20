@@ -2709,6 +2709,93 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                   ))}
                 </div>
 
+                {/* Grand total row — first data row, sticky-pinned just under
+                    the three header rows so it stays visible while scrolling. */}
+                {rows.length > 0 && (
+                  <div
+                    className="grid bg-muted font-semibold border-b-2 border-border sticky z-20"
+                    style={{ gridTemplateColumns: gridTemplate, top: "104px" }}
+                  >
+                    <div
+                      className="px-4 py-2 sticky z-[1] bg-muted text-sm uppercase tracking-wider"
+                      style={{ left: `${stickyL1}px` }}
+                    >
+                      Grand Total
+                    </div>
+                    <div
+                      className="sticky z-[1] bg-muted"
+                      style={{ left: `${stickyL2}px` }}
+                    ></div>
+                    <div
+                      className={`sticky z-[1] bg-muted ${stickyEdgeShadow}`}
+                      style={{ left: `${stickyL3}px` }}
+                    ></div>
+                    {displayedTypes.map((s, sIdx) => {
+                      const v = grandTotalByType[s.key] ?? 0;
+                      return (
+                        <div
+                          key={`gt-total-${s.key}`}
+                          className={`px-1 py-1.5 text-center text-[11px] font-bold tabular-nums flex items-center justify-center ${sIdx === 0 ? monthBorder : typeBorder}`}
+                        >
+                          {v !== 0 ? <CompactCurrency value={v} /> : <span className="text-muted-foreground/40">—</span>}
+                        </div>
+                      );
+                    })}
+                    {N_VAR > 0 && varianceCols.map((c, i) => {
+                      const borderCls = i === 0 ? monthBorder : typeBorder;
+                      if (!grandVariance.available) {
+                        return <div key={`gt-var-${c.key}`} className={`px-1 py-1.5 text-center text-[11px] tabular-nums flex items-center justify-center text-muted-foreground/30 ${borderCls}`}>—</div>;
+                      }
+                      const styles = STATUS_STYLES[grandVariance.status];
+                      if (c.key === "var_dollar") {
+                        const cls = grandVariance.status === "over" ? "text-red-600 dark:text-red-400" : grandVariance.status === "risk" ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400";
+                        return (
+                          <div key={`gt-var-${c.key}`} className={`px-1 py-1.5 text-center text-[11px] font-bold tabular-nums flex items-center justify-center ${borderCls} ${cls}`} title={`${formatCurrency(grandVariance.varDollar)} (${formatPct(grandVariance.varPct)})`}>
+                            {grandVariance.varDollar !== 0 ? <CompactCurrency value={grandVariance.varDollar} /> : "—"}
+                          </div>
+                        );
+                      }
+                      if (c.key === "var_pct") {
+                        const cls = grandVariance.status === "over" ? "text-red-600 dark:text-red-400" : grandVariance.status === "risk" ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400";
+                        return (
+                          <div key={`gt-var-${c.key}`} className={`px-1 py-1.5 text-center text-[11px] font-bold tabular-nums flex items-center justify-center ${borderCls} ${cls}`}>
+                            {formatPct(grandVariance.varPct)}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={`gt-var-${c.key}`} className={`px-1 py-1.5 flex items-center justify-center ${borderCls}`}>
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide ${styles.pill}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${styles.dot}`} />
+                            {styles.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {periodCols.map((p, idx) => (
+                      monthDisplayedTypes.map((s, sIdx) => {
+                        const grandPeriodForType = rows
+                          .filter(r => r.type === "view")
+                          .reduce((acc, r) => {
+                            const arr = r.monthlyByType[s.key];
+                            if (!arr) return acc;
+                            let s2 = 0;
+                            for (const mi of p.monthIndices) s2 += arr[mi] ?? 0;
+                            return acc + s2;
+                          }, 0);
+                        return (
+                          <div
+                            key={`gt-${p.key}-${s.key}`}
+                            className={`px-1 py-1.5 text-center text-[11px] font-bold tabular-nums flex items-center justify-center ${sIdx === 0 ? monthBorder : typeBorder} ${periodHi(idx)}`}
+                          >
+                            {grandPeriodForType !== 0 ? formatCurrency(grandPeriodForType) : <span className="text-muted-foreground/40">—</span>}
+                          </div>
+                        );
+                      })
+                    ))}
+                  </div>
+                )}
+
                 {rows.length === 0 ? (
                   <div className="p-12 text-center text-muted-foreground bg-card">
                     <FileSpreadsheet className="h-12 w-12 mx-auto mb-3 opacity-40" />
@@ -3272,91 +3359,6 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                   })
                 )}
 
-                {/* Grand total row (sticky top, just under headers) */}
-                {rows.length > 0 && (
-                  <div
-                    className="grid bg-muted font-semibold border-b-2 border-border sticky z-20"
-                    style={{ gridTemplateColumns: gridTemplate, top: "104px" }}
-                  >
-                    <div
-                      className="px-4 py-2 sticky z-[1] bg-muted text-sm uppercase tracking-wider"
-                      style={{ left: `${stickyL1}px` }}
-                    >
-                      Grand Total
-                    </div>
-                    <div
-                      className="sticky z-[1] bg-muted"
-                      style={{ left: `${stickyL2}px` }}
-                    ></div>
-                    <div
-                      className={`sticky z-[1] bg-muted ${stickyEdgeShadow}`}
-                      style={{ left: `${stickyL3}px` }}
-                    ></div>
-                    {displayedTypes.map((s, sIdx) => {
-                      const v = grandTotalByType[s.key] ?? 0;
-                      return (
-                        <div
-                          key={`gt-total-${s.key}`}
-                          className={`px-1 py-1.5 text-center text-[11px] font-bold tabular-nums flex items-center justify-center ${sIdx === 0 ? monthBorder : typeBorder}`}
-                        >
-                          {v !== 0 ? <CompactCurrency value={v} /> : <span className="text-muted-foreground/40">—</span>}
-                        </div>
-                      );
-                    })}
-                    {N_VAR > 0 && varianceCols.map((c, i) => {
-                      const borderCls = i === 0 ? monthBorder : typeBorder;
-                      if (!grandVariance.available) {
-                        return <div key={`gt-var-${c.key}`} className={`px-1 py-1.5 text-center text-[11px] tabular-nums flex items-center justify-center text-muted-foreground/30 ${borderCls}`}>—</div>;
-                      }
-                      const styles = STATUS_STYLES[grandVariance.status];
-                      if (c.key === "var_dollar") {
-                        const cls = grandVariance.status === "over" ? "text-red-600 dark:text-red-400" : grandVariance.status === "risk" ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400";
-                        return (
-                          <div key={`gt-var-${c.key}`} className={`px-1 py-1.5 text-center text-[11px] font-bold tabular-nums flex items-center justify-center ${borderCls} ${cls}`} title={`${formatCurrency(grandVariance.varDollar)} (${formatPct(grandVariance.varPct)})`}>
-                            {grandVariance.varDollar !== 0 ? <CompactCurrency value={grandVariance.varDollar} /> : "—"}
-                          </div>
-                        );
-                      }
-                      if (c.key === "var_pct") {
-                        const cls = grandVariance.status === "over" ? "text-red-600 dark:text-red-400" : grandVariance.status === "risk" ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400";
-                        return (
-                          <div key={`gt-var-${c.key}`} className={`px-1 py-1.5 text-center text-[11px] font-bold tabular-nums flex items-center justify-center ${borderCls} ${cls}`}>
-                            {formatPct(grandVariance.varPct)}
-                          </div>
-                        );
-                      }
-                      return (
-                        <div key={`gt-var-${c.key}`} className={`px-1 py-1.5 flex items-center justify-center ${borderCls}`}>
-                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide ${styles.pill}`}>
-                            <span className={`h-1.5 w-1.5 rounded-full ${styles.dot}`} />
-                            {styles.label}
-                          </span>
-                        </div>
-                      );
-                    })}
-                    {periodCols.map((p, idx) => (
-                      monthDisplayedTypes.map((s, sIdx) => {
-                        const grandPeriodForType = rows
-                          .filter(r => r.type === "view")
-                          .reduce((acc, r) => {
-                            const arr = r.monthlyByType[s.key];
-                            if (!arr) return acc;
-                            let s2 = 0;
-                            for (const mi of p.monthIndices) s2 += arr[mi] ?? 0;
-                            return acc + s2;
-                          }, 0);
-                        return (
-                          <div
-                            key={`gt-${p.key}-${s.key}`}
-                            className={`px-1 py-1.5 text-center text-[11px] font-bold tabular-nums flex items-center justify-center ${sIdx === 0 ? monthBorder : typeBorder} ${periodHi(idx)}`}
-                          >
-                            {grandPeriodForType !== 0 ? formatCurrency(grandPeriodForType) : <span className="text-muted-foreground/40">—</span>}
-                          </div>
-                        );
-                      })
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           </div>
