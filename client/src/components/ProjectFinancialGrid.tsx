@@ -1609,11 +1609,6 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                             className="h-6 text-xs px-1 py-0 ring-2 ring-primary/40 min-w-0 flex-1"
                             data-testid="input-placeholder-itemname"
                           />
-                          {placeholder!.category && (
-                            <Badge variant="outline" className="text-[10px] whitespace-nowrap shrink-0">
-                              {placeholder!.category}
-                            </Badge>
-                          )}
                         </div>
                         <div
                           className="px-3 py-1.5 sticky z-[1] bg-card"
