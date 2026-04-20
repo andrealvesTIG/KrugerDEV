@@ -153,7 +153,7 @@ export async function createFinancialItem(args: {
         fiscalYear: args.fiscalYear,
         scenario,
         month,
-        amount: "0",
+        amount: 0,
         itemKey,
         itemName: args.dimensions.itemName,
         financialView: args.dimensions.financialView ?? null,
@@ -164,7 +164,7 @@ export async function createFinancialItem(args: {
         comments: args.dimensions.comments ?? null,
         sortOrder: args.dimensions.sortOrder ?? 0,
         isDemo: args.dimensions.isDemo ?? false,
-      } as unknown as InsertFinancialEntry);
+      });
     }
   }
   await db.insert(financialEntries).values(rows).onConflictDoNothing();
@@ -195,7 +195,7 @@ export async function upsertFinancialCell(args: {
     throw new Error(`Cell not found for itemKey=${args.itemKey} scenario=${args.scenario} month=${args.month}`);
   }
   const [entry] = await db.update(financialEntries)
-    .set({ amount: String(args.amount) as any, updatedAt: new Date() })
+    .set({ amount: sql`${args.amount}`, updatedAt: new Date() })
     .where(eq(financialEntries.id, existing.id))
     .returning();
   return { previous, next: Number(entry.amount), entry };

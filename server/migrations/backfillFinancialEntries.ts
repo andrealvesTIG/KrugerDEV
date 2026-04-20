@@ -80,7 +80,7 @@ export async function backfillFinancialEntries(): Promise<{ migrated: number; sk
           fiscalYear: row.fiscal_year,
           scenario,
           month: m,
-          amount: String(amount),
+          amount,
           itemKey,
           itemName: row.name ?? "Unnamed",
           financialView: row.financial_view ?? null,
@@ -91,7 +91,7 @@ export async function backfillFinancialEntries(): Promise<{ migrated: number; sk
           comments: row.comments ?? null,
           sortOrder: row.sort_order ?? 0,
           isDemo: row.is_demo ?? false,
-        } as unknown as InsertFinancialEntry);
+        });
       }
     }
 

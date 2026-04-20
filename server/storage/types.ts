@@ -322,11 +322,13 @@ export interface IFinancialStorage {
   updateFinancialItemDimensions(args: {
     projectId: number;
     itemKey: string;
+    fiscalYear?: number;
     dimensions: Partial<import("./financialStorage").FinancialItemDimensions>;
   }): Promise<{ updated: number; previous: import("./financialStorage").FinancialItemDimensions | null }>;
   deleteFinancialItem(args: {
     projectId: number;
     itemKey: string;
+    fiscalYear?: number;
   }): Promise<import("./financialStorage").FinancialItemDimensions | null>;
   getBillingTransactions(userId?: string, orgId?: number, limit?: number, offset?: number): Promise<BillingTransaction[]>;
   getBillingTransaction(id: number): Promise<BillingTransaction | undefined>;
