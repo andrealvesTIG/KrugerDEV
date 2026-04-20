@@ -616,7 +616,7 @@ export function registerUserInsightsRoutes(app: Express) {
             metadata,
             session_id,
             occurred_at as ts
-          FROM user_page_events WHERE user_id = ${targetId}
+          FROM user_page_events WHERE user_id = ${targetId} AND event_type <> 'cap_overflow'
           UNION ALL
           SELECT
             'action'::text as source,

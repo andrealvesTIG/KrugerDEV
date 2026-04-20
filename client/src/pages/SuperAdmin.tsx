@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,8 +17,33 @@ import { UserActivityTab } from "@/components/admin/UserActivityTab";
 import { BlogManagementTab } from "@/components/admin/BlogManagementTab";
 import { NewSignupsTab } from "@/components/admin/NewSignupsTab";
 
+const VALID_TABS = new Set([
+  'new-signups', 'monitoring', 'organizations', 'users', 'plans', 'credit-costs',
+  'consents', 'help-tickets', 'features', 'training', 'user-activity', 'blog',
+]);
+
+function readInitialTab(): string {
+  if (typeof window === 'undefined') return 'new-signups';
+  try {
+    const url = new URL(window.location.href);
+    const t = url.searchParams.get('tab');
+    if (t && VALID_TABS.has(t)) return t;
+  } catch { /* ignore */ }
+  return 'new-signups';
+}
+
 export default function SuperAdmin() {
   const { user, isLoading: authLoading } = useAuth();
+  const [tab, setTab] = useState<string>(readInitialTab());
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      window.history.replaceState({}, '', url.toString());
+    } catch { /* ignore */ }
+  }, [tab]);
 
   if (authLoading) {
     return (
@@ -60,7 +86,7 @@ export default function SuperAdmin() {
         </a>
       </div>
 
-      <Tabs defaultValue="monitoring" className="w-full">
+      <Tabs value={tab} onValueChange={setTab} className="w-full">
         <div className="overflow-x-auto scrollbar-none -mx-1 px-1">
           <TabsList className="bg-muted p-1 rounded-xl inline-flex w-auto min-w-full sm:w-full">
             <TabsTrigger value="monitoring" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2" data-testid="tab-monitoring">
