@@ -86,10 +86,11 @@ const MONTHS = [
   { num: 12, label: "Sep" },
 ];
 
-// Legacy free-form category dropdown — kept as-is for backward compatibility.
-// The new configurable hierarchy (Financial View → Cost Category → Cost
-// Specification) is sourced from the org's CostItemCategoriesConfig instead.
-const LEGACY_CATEGORIES = [
+// Legacy free-form category list — no longer surfaced in the UI. The
+// configurable Financial View → Cost Category → Cost Specification
+// hierarchy from CostItemCategoriesConfig replaces it. The DB column
+// `category` is preserved for backward-compat reads of existing rows.
+const _LEGACY_CATEGORIES_DEPRECATED = [
   "Direct Expense",
   "Licenses",
   "Outside Services",
@@ -1983,25 +1984,6 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                   );
                 })()}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="category">Category (legacy)</Label>
-                <Select
-                  value={formData.category}
-                  onValueChange={(v) => setFormData({ ...formData, category: v })}
-                >
-                  <SelectTrigger data-testid="select-cost-item-category">
-                    <SelectValue placeholder="Optional" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LEGACY_CATEGORIES.map((c) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="wbs">WBS Code</Label>
                 <Input
