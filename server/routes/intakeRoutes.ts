@@ -358,6 +358,93 @@ export function registerIntakeRoutes(app: Express) {
     }
   });
 
+  // ----- Change workflow on existing record -----
+
+  apiRoute(app, 'post', '/api/project-intakes/:id/change-workflow', {
+    tag: 'Project Intakes',
+    summary: 'Change the workflow assigned to an intake (maps current step)',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { workflowId: { type: 'integer' }, resetToFirstStep: { type: 'boolean' } }, required: ['workflowId'] }),
+    responses: { ...r200('Workflow switched', { type: 'object' }), ...updateRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const id = Number(req.params.id);
+      const existing = await storage.getProjectIntake(id);
+      if (!existing) return res.status(404).json({ message: "Project intake not found" });
+
+      if (existing.organizationId) {
+        const accessibleOrgIds = await getUserOrgIds(userId);
+        if (!accessibleOrgIds.includes(existing.organizationId)) {
+          return res.status(403).json({ message: "You don't have access to this organization" });
+        }
+        const isSubmitter = existing.submitterId === userId;
+        if (!isSubmitter) {
+          const memberships = await storage.getOrganizationMembers(existing.organizationId);
+          const userMembership = memberships.find(m => m.userId === userId);
+          const isOrgAdmin = userMembership && (userMembership.role === 'org_admin' || userMembership.role === 'owner');
+          const user = await storage.getUser(userId);
+          const isSuperAdmin = hasAdminAccess(user);
+          if (!isOrgAdmin && !isSuperAdmin) {
+            return res.status(403).json({ message: "Only the submitter or an admin can modify this intake" });
+          }
+        }
+      }
+
+      const targetWorkflowId = Number(req.body?.workflowId);
+      if (!Number.isFinite(targetWorkflowId) || targetWorkflowId <= 0) {
+        return res.status(400).json({ message: "workflowId is required" });
+      }
+      const resetToFirstStep = req.body?.resetToFirstStep === true;
+
+      const result = await storage.changeIntakeWorkflow(id, targetWorkflowId, { resetToFirstStep });
+      res.json(result);
+    } catch (err) {
+      console.error("Error changing intake workflow:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error changing intake workflow" : (err instanceof Error ? err.message : classified.message) });
+    }
+  });
+
+  apiRoute(app, 'post', '/api/projects/:id/change-workflow', {
+    tag: 'Projects',
+    summary: 'Change the workflow assigned to a project (maps current status)',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { workflowId: { type: 'integer' }, resetToFirstStep: { type: 'boolean' } }, required: ['workflowId'] }),
+    responses: { ...r200('Workflow switched', { type: 'object' }), ...updateRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const id = Number(req.params.id);
+      const existing = await storage.getProject(id);
+      if (!existing) return res.status(404).json({ message: "Project not found" });
+
+      if (existing.organizationId) {
+        const accessibleOrgIds = await getUserOrgIds(userId);
+        if (!accessibleOrgIds.includes(existing.organizationId)) {
+          return res.status(403).json({ message: "You don't have access to this organization" });
+        }
+      }
+
+      const targetWorkflowId = Number(req.body?.workflowId);
+      if (!Number.isFinite(targetWorkflowId) || targetWorkflowId <= 0) {
+        return res.status(400).json({ message: "workflowId is required" });
+      }
+      const resetToFirstStep = req.body?.resetToFirstStep === true;
+
+      const result = await storage.changeProjectWorkflow(id, targetWorkflowId, { resetToFirstStep });
+      res.json(result);
+    } catch (err) {
+      console.error("Error changing project workflow:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error changing project workflow" : (err instanceof Error ? err.message : classified.message) });
+    }
+  });
+
   // ----- Intake workflow steps (default or by ?workflowId=) -----
 
   apiRoute(app, 'get', '/api/organizations/:orgId/intake-workflow', {
@@ -514,7 +601,7 @@ export function registerIntakeRoutes(app: Express) {
         isActive: true,
         creationMode: mode,
         creationUrl: mode === 'url' ? creationUrl : null,
-      } as any);
+      });
       await storage.resetIntakeWorkflowToDefaults(orgId, wf.id);
       res.status(201).json(wf);
     } catch (err) {
@@ -739,7 +826,7 @@ export function registerIntakeRoutes(app: Express) {
         isActive: true,
         creationMode: mode,
         creationUrl: mode === 'url' ? creationUrl : null,
-      } as any);
+      });
       await storage.resetProjectWorkflowToDefaults(orgId, wf.id);
       res.status(201).json(wf);
     } catch (err) {

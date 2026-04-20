@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Link, useLocation } from "wouter";
 import { useIntakeTypes } from "@/hooks/use-intake-types";
+import { useIntakeWorkflows } from "@/hooks/use-intake-workflow";
 import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen, ChevronsUpDown, BarChart3, Timer } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -109,6 +110,16 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
   const [portfolioOpen, setPortfolioOpen] = useState(false);
   const [fundingSource, setFundingSource] = useState("");
   const [businessUnit, setBu] = useState("");
+  const [workflowId, setWorkflowId] = useState<string>("");
+
+  const { workflows: intakeWorkflows } = useIntakeWorkflows();
+
+  useEffect(() => {
+    if (!workflowId && intakeWorkflows.length > 0) {
+      const def = intakeWorkflows.find(w => w.isDefault) || intakeWorkflows[0];
+      setWorkflowId(String(def.id));
+    }
+  }, [intakeWorkflows, workflowId]);
   const [limitError, setLimitError] = useState<{ resourceType: string } | null>(null);
 
   const activeTypes = intakeTypes.filter(t => t.isActive);
@@ -164,6 +175,7 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
     setPortfolioId("");
     setFundingSource("");
     setBu("");
+    setWorkflowId("");
   };
 
   const handleSubmit = () => {
@@ -182,6 +194,7 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
       submitterId: user?.id,
       currentStep: "intake_capture",
       intakeTypeId: intakeTypeId ? parseInt(intakeTypeId) : null,
+      workflowId: workflowId ? parseInt(workflowId) : undefined,
     });
   };
 
@@ -322,6 +335,23 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
               </SelectContent>
             </Select>
           </div>
+          {intakeWorkflows.length > 1 && (
+            <div className="space-y-2">
+              <Label>Intake Workflow</Label>
+              <Select value={workflowId} onValueChange={setWorkflowId}>
+                <SelectTrigger data-testid="select-intake-workflow-create">
+                  <SelectValue placeholder="Select workflow" />
+                </SelectTrigger>
+                <SelectContent>
+                  {intakeWorkflows.map(wf => (
+                    <SelectItem key={wf.id} value={String(wf.id)}>
+                      {wf.name}{wf.isDefault ? ' (Default)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
