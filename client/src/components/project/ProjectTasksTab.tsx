@@ -558,7 +558,35 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isPlannerBannerCollapsed, setIsPlannerBannerCollapsed] = useState(false);
+  const plannerBannerStorageKey = `plannerBannerCollapsed:${projectId}`;
+  const [isPlannerBannerCollapsed, setIsPlannerBannerCollapsedState] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem(`plannerBannerCollapsed:${projectId}`) === "true";
+    } catch {
+      return false;
+    }
+  });
+  const setIsPlannerBannerCollapsed = (updater: boolean | ((prev: boolean) => boolean)) => {
+    setIsPlannerBannerCollapsedState((prev) => {
+      const next = typeof updater === "function" ? (updater as (p: boolean) => boolean)(prev) : updater;
+      try {
+        window.localStorage.setItem(plannerBannerStorageKey, String(next));
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  };
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(`plannerBannerCollapsed:${projectId}`);
+      setIsPlannerBannerCollapsedState(stored === "true");
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
   const lastInitializedTaskId = useRef<number | null>(null);
   const inviteAssignedRef = useRef(false);
