@@ -1904,15 +1904,15 @@ function ProjectHistoryDialog({ projectId, open, onOpenChange }: { projectId: nu
     },
     enabled: !!orgId && open,
   });
-  const { data: financialTypes = [] } = useQuery<Array<{ key: string; label: string }>>({
+  const { data: financialTypesData } = useQuery<{ types: Array<{ key: string; label: string }> }>({
     queryKey: ['/api/organizations', orgId, 'financial-types'],
     enabled: !!orgId && open,
   });
 
   const fiscalYearStartMonth = org?.fiscalYearStartMonth ?? 1;
   const typeLabelByKey = useMemo(
-    () => Object.fromEntries(financialTypes.map((t) => [t.key, t.label])),
-    [financialTypes],
+    () => Object.fromEntries((financialTypesData?.types ?? []).map((t) => [t.key, t.label])),
+    [financialTypesData],
   );
 
   // Skip legacy `__undo` placeholder rows written by an older undo route —
