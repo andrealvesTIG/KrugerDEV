@@ -16,6 +16,7 @@ import {
   parseMppFile,
   parseXmlMspdi,
   parseCsv,
+  CsvImportError,
   isTeamMemberInOrg,
   getTeamMemberProjectIds,
 } from "./helpers";
@@ -1730,7 +1731,14 @@ export function registerProjectFeatureRoutes(app: Express) {
       } else if (fileExt === 'xml') {
         parsedTasks = await parseXmlMspdi(fileContent);
       } else if (fileExt === 'csv') {
-        parsedTasks = parseCsv(fileContent);
+        try {
+          parsedTasks = parseCsv(fileContent);
+        } catch (csvErr) {
+          if (csvErr instanceof CsvImportError) {
+            return res.status(400).json({ message: csvErr.message, errors: csvErr.errors });
+          }
+          throw csvErr;
+        }
       } else {
         return res.status(400).json({ message: "Unsupported file format. Use MPP, XML, or CSV." });
       }
@@ -1767,6 +1775,7 @@ export function registerProjectFeatureRoutes(app: Express) {
           actualWorkHours: task.actualWorkHours?.toString() || null,
           remainingWorkHours: task.remainingWorkHours?.toString() || null,
           predecessors: task.predecessors && task.predecessors.length > 0 ? JSON.stringify(task.predecessors) : null,
+          customFields: (task as any).customFields || null,
         }));
         await storage.createMppImportTasks(taskRecords);
       }
@@ -2042,7 +2051,14 @@ export function registerProjectFeatureRoutes(app: Express) {
       } else if (fileExt === 'xml') {
         parsedTasks = await parseXmlMspdi(fileContent);
       } else if (fileExt === 'csv') {
-        parsedTasks = parseCsv(fileContent);
+        try {
+          parsedTasks = parseCsv(fileContent);
+        } catch (csvErr) {
+          if (csvErr instanceof CsvImportError) {
+            return res.status(400).json({ message: csvErr.message, errors: csvErr.errors });
+          }
+          throw csvErr;
+        }
       } else {
         return res.status(400).json({ message: 'Unsupported file format. Use MPP, XML, or CSV.' });
       }
@@ -2457,7 +2473,14 @@ export function registerProjectFeatureRoutes(app: Express) {
       } else if (fileExt === 'xml') {
         parsedTasks = await parseXmlMspdi(fileContent);
       } else if (fileExt === 'csv') {
-        parsedTasks = parseCsv(fileContent);
+        try {
+          parsedTasks = parseCsv(fileContent);
+        } catch (csvErr) {
+          if (csvErr instanceof CsvImportError) {
+            return res.status(400).json({ message: csvErr.message, errors: csvErr.errors });
+          }
+          throw csvErr;
+        }
       } else {
         return res.status(400).json({ message: 'Unsupported file format. Use MPP, XML, or CSV.' });
       }

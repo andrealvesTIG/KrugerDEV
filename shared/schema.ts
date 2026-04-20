@@ -1555,6 +1555,7 @@ export const mppImportTasks = pgTable("mpp_import_tasks", {
   actualWorkHours: numeric("actual_work_hours"), // Actual work hours from MPP
   remainingWorkHours: numeric("remaining_work_hours"), // Remaining work hours from MPP
   predecessors: text("predecessors"), // JSON array of predecessor relationships [{predecessorTaskId, type, lagDays}]
+  customFields: jsonb("custom_fields").$type<Record<string, string>>(), // Unmapped CSV columns kept as raw key/value (e.g. Asana "Section")
   createdAt: timestamp("created_at").defaultNow(),
 });
 
