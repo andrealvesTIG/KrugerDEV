@@ -511,6 +511,20 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<GridRow | null>(null);
 
+  // Inline "quick-add" placeholder row inserted directly under a source item
+  // when the user clicks its "+" button. The user types the new item's name
+  // in-grid and presses Enter to save (Esc / empty blur cancels). The new
+  // item inherits the source row's grouping fields so no dialog is needed.
+  const [placeholder, setPlaceholder] = useState<{
+    afterItemKey: string;
+    level: number;
+    financialView: string | null;
+    costCategory: string | null;
+    costSpecification: string | null;
+    category: string | null;
+  } | null>(null);
+  const [placeholderName, setPlaceholderName] = useState("");
+
   const [formData, setFormData] = useState({
     itemName: "",
     financialView: "Capital",
@@ -658,25 +672,51 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     setDialogOpen(true);
   };
 
-  // Open the Add Item dialog pre-filled with another row's grouping
-  // fields (financial view / cost category / specification / category) so
-  // the user only has to type the new item's name. Item-specific fields
-  // (name, WBS, comments) start empty, and editingItem is cleared so the
-  // dialog submits via createItemMutation, not updateItemMutation.
-  const openAddSiblingDialog = (row: GridRow) => {
+  // Insert an inline placeholder row directly below the source row instead
+  // of opening the Add Item dialog. The placeholder inherits the source
+  // row's grouping fields (financial view / cost category / specification /
+  // category) so the user only has to type the new item's name in-grid and
+  // press Enter to save. Esc or blur with empty name discards it. The
+  // dialog flow is still available via the toolbar's main "Add Item" button
+  // for users who want to fill every field.
+  const openAddSiblingPlaceholder = (row: GridRow) => {
     if (row.type !== "item" || !row.itemKey) return;
     const sample = entries.find(e => e.itemKey === row.itemKey);
-    setEditingItem(null);
-    setFormData({
-      itemName: "",
-      financialView: sample?.financialView || enabledViews[0]?.label || "Capital",
-      costCategory: sample?.costCategory || "",
-      costSpecification: sample?.costSpecification || "",
-      category: row.category || "",
-      wbs: "",
-      comments: "",
+    setPlaceholderName("");
+    setPlaceholder({
+      afterItemKey: row.itemKey,
+      level: row.level,
+      financialView: sample?.financialView ?? null,
+      costCategory: sample?.costCategory ?? null,
+      costSpecification: sample?.costSpecification ?? null,
+      category: row.category ?? null,
     });
-    setDialogOpen(true);
+  };
+
+  const cancelPlaceholder = () => {
+    setPlaceholder(null);
+    setPlaceholderName("");
+  };
+
+  const savePlaceholder = () => {
+    if (!placeholder) return;
+    const name = placeholderName.trim();
+    if (!name) {
+      cancelPlaceholder();
+      return;
+    }
+    createItemMutation.mutate({
+      fiscalYear,
+      itemName: name,
+      financialView: placeholder.financialView,
+      costCategory: placeholder.costCategory,
+      costSpecification: placeholder.costSpecification,
+      category: placeholder.category,
+      wbs: null,
+      comments: null,
+    });
+    setPlaceholder(null);
+    setPlaceholderName("");
   };
 
   const openEditDialog = (row: GridRow) => {
@@ -1279,8 +1319,10 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                     )}
                   </div>
                 ) : (
-                  rows.map((row, rowIdx) => {
+                  rows.flatMap((row, rowIdx) => {
                     const isItem = row.type === "item";
+                    const showPlaceholderAfter =
+                      isItem && placeholder?.afterItemKey === row.itemKey;
                     const rowBgClass =
                       row.type === "view" ? "bg-muted/30 font-semibold" :
                       row.type === "category" ? "bg-muted/15 font-medium" :
@@ -1293,7 +1335,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                       row.type === "specification" ? "bg-secondary" :
                       "bg-card";
                     const stickyHover = "group-hover:bg-accent";
-                    return (
+                    const rowEl = (
                       <div
                         key={row.key}
                         className={`grid border-b border-border/60 group hover:bg-accent/40 transition-colors ${rowBgClass}`}
@@ -1428,7 +1470,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-56">
                                 <DropdownMenuItem
-                                  onClick={() => openAddSiblingDialog(row)}
+                                  onClick={() => openAddSiblingPlaceholder(row)}
                                   data-testid={`menu-add-sibling-${row.itemKey}`}
                                 >
                                   <Plus className="h-3.5 w-3.5 mr-2" />
@@ -1535,6 +1577,69 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                         ))}
                       </div>
                     );
+                    if (!showPlaceholderAfter) return [rowEl];
+                    const phLevel = placeholder!.level;
+                    const placeholderEl = (
+                      <div
+                        key={`placeholder-${row.itemKey}`}
+                        className="grid border-b border-border/60 bg-card"
+                        style={{ gridTemplateColumns: gridTemplate }}
+                        data-testid="row-placeholder"
+                      >
+                        <div
+                          className="flex flex-nowrap items-center gap-1.5 py-1.5 pr-2 overflow-hidden sticky z-[1] bg-card"
+                          style={{ left: `${stickyL1}px`, paddingLeft: `${16 + phLevel * 14}px` }}
+                        >
+                          <span className="w-4 shrink-0" />
+                          <Input
+                            autoFocus
+                            value={placeholderName}
+                            onChange={(e) => setPlaceholderName(e.target.value)}
+                            onBlur={savePlaceholder}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                savePlaceholder();
+                              } else if (e.key === "Escape") {
+                                e.preventDefault();
+                                cancelPlaceholder();
+                              }
+                            }}
+                            placeholder="New item name…"
+                            className="h-6 text-xs px-1 py-0 ring-2 ring-primary/40 min-w-0 flex-1"
+                            data-testid="input-placeholder-itemname"
+                          />
+                          {placeholder!.category && (
+                            <Badge variant="outline" className="text-[10px] whitespace-nowrap shrink-0">
+                              {placeholder!.category}
+                            </Badge>
+                          )}
+                        </div>
+                        <div
+                          className="px-3 py-1.5 sticky z-[1] bg-card"
+                          style={{ left: `${stickyL2}px` }}
+                        />
+                        <div
+                          className={`px-3 py-1.5 sticky z-[1] bg-card ${stickyEdgeShadow}`}
+                          style={{ left: `${stickyL3}px` }}
+                        />
+                        {enabledTypes.map((s, sIdx) => (
+                          <div
+                            key={`ph-total-${s.key}`}
+                            className={`px-1 py-1 ${sIdx === 0 ? monthBorder : typeBorder}`}
+                          />
+                        ))}
+                        {MONTHS.map((m, idx) => (
+                          enabledTypes.map((s, sIdx) => (
+                            <div
+                              key={`ph-${m.num}-${s.key}`}
+                              className={`px-1 py-1 ${sIdx === 0 ? monthBorder : typeBorder} ${monthHi(idx)}`}
+                            />
+                          ))
+                        ))}
+                      </div>
+                    );
+                    return [rowEl, placeholderEl];
                   })
                 )}
 
