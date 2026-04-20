@@ -52,6 +52,16 @@ function setCookie(name: string, value: string, days: number) {
   }
 }
 
+// In-memory fallbacks: used only when localStorage / sessionStorage are not
+// available (e.g., privacy mode, partitioned cookies). They are unique per
+// page-load — never the literal string 'unknown' — so they cannot be used to
+// cross-link unrelated visitors. Privacy-by-default: an event with one of
+// these IDs lives in memory only for the page lifetime and gets a fresh value
+// on the next page load.
+let memoryAnonId: string | null = null;
+let memorySessionId: string | null = null;
+let memorySessionLast = 0;
+
 export function getAnonymousId(): string {
   try {
     let id = localStorage.getItem(ANON_KEY);
@@ -61,7 +71,8 @@ export function getAnonymousId(): string {
     }
     return id;
   } catch {
-    return 'unknown';
+    if (!memoryAnonId) memoryAnonId = uuid();
+    return memoryAnonId;
   }
 }
 
@@ -77,7 +88,12 @@ export function getSessionId(): string {
     sessionStorage.setItem(SESSION_LAST_KEY, String(now));
     return id;
   } catch {
-    return 'unknown';
+    const now = Date.now();
+    if (!memorySessionId || now - memorySessionLast > SESSION_GAP_MS) {
+      memorySessionId = uuid();
+    }
+    memorySessionLast = now;
+    return memorySessionId;
   }
 }
 

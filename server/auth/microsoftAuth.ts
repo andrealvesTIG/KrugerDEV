@@ -278,6 +278,7 @@ export async function setupMicrosoftAuth(app: Express) {
         .where(eq(users.microsoftId, microsoftId))
         .limit(1);
 
+      let isNewUser = false;
       if (!existingUser) {
         [existingUser] = await db
           .select()
@@ -313,6 +314,7 @@ export async function setupMicrosoftAuth(app: Express) {
             console.error("Company lookup error:", err);
           }
 
+          isNewUser = true;
           // emailVerified is true for Microsoft auth since the email is verified by Microsoft
           [existingUser] = await db.insert(users).values({
             email,
@@ -396,7 +398,7 @@ export async function setupMicrosoftAuth(app: Express) {
       req.session.userId = existingUser.id;
       void logUserActivity(
         existingUser.id,
-        existingUser.microsoftId ? 'auth.login' : 'auth.signup',
+        isNewUser ? 'auth.signup' : 'auth.login',
         'user',
         undefined,
         { method: 'microsoft' },

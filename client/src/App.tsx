@@ -248,6 +248,11 @@ function App() {
   // Capture first-touch acquisition + install global click tracker
   useFirstTouch();
 
+  // Track page views for ALL routes — including public marketing/landing
+  // pages — so we capture the complete pre-signup journey. The hook itself
+  // honors analytics consent before persisting anything.
+  useAnalytics();
+
   // Initialize Google Analytics when app loads
   useEffect(() => {
     if (!import.meta.env.VITE_GA_MEASUREMENT_ID) {

@@ -114,7 +114,14 @@ export function registerUserInsightsRoutes(app: Express) {
           }
         }
 
-        const anonymousId = e.anonymousId ? String(e.anonymousId).slice(0, 64) : null;
+        // Reject sentinel / malformed anonymous IDs to prevent cross-user
+        // telemetry attribution if the client falls back to a constant string.
+        const SENTINEL_IDS = new Set(['unknown', 'null', 'undefined', '0', 'anonymous']);
+        const rawAnon = e.anonymousId ? String(e.anonymousId).slice(0, 64).trim() : '';
+        const looksLikeId = rawAnon.length >= 8 && /^[A-Za-z0-9_\-:.]+$/.test(rawAnon);
+        const anonymousId = (rawAnon && !SENTINEL_IDS.has(rawAnon.toLowerCase()) && looksLikeId)
+          ? rawAnon
+          : null;
 
         // Privacy/retention: drop events that have neither a user nor a stable
         // anonymous identifier — they cannot be attributed and would just
