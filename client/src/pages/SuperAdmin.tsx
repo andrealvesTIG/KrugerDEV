@@ -18,32 +18,47 @@ import { BlogManagementTab } from "@/components/admin/BlogManagementTab";
 import { NewSignupsTab } from "@/components/admin/NewSignupsTab";
 
 const VALID_TABS = new Set([
-  'new-signups', 'monitoring', 'organizations', 'users', 'plans', 'credit-costs',
-  'consents', 'help-tickets', 'features', 'training', 'user-activity', 'blog',
+  'monitoring', 'organizations', 'users', 'plans', 'credits',
+  'consents', 'help-tickets', 'feature-comparison', 'training', 'user-activity', 'media',
 ]);
 
-function readInitialTab(): string {
-  if (typeof window === 'undefined') return 'new-signups';
+const ANALYTICS_SUB_TABS = new Set(['overview', 'new-signups']);
+
+function readInitialState(): { tab: string; analyticsSubTab: string } {
+  if (typeof window === 'undefined') return { tab: 'monitoring', analyticsSubTab: 'new-signups' };
   try {
     const url = new URL(window.location.href);
     const t = url.searchParams.get('tab');
-    if (t && VALID_TABS.has(t)) return t;
+    if (t === 'new-signups') return { tab: 'monitoring', analyticsSubTab: 'new-signups' };
+    if (t && VALID_TABS.has(t)) {
+      return { tab: t, analyticsSubTab: t === 'monitoring' ? 'overview' : 'new-signups' };
+    }
+    const sub = url.searchParams.get('sub');
+    if (sub && ANALYTICS_SUB_TABS.has(sub)) {
+      return { tab: 'monitoring', analyticsSubTab: sub };
+    }
   } catch { /* ignore */ }
-  return 'new-signups';
+  return { tab: 'monitoring', analyticsSubTab: 'new-signups' };
 }
 
 export default function SuperAdmin() {
   const { user, isLoading: authLoading } = useAuth();
-  const [tab, setTab] = useState<string>(readInitialTab());
+  const initial = readInitialState();
+  const [tab, setTab] = useState<string>(initial.tab);
+  const [analyticsSubTab, setAnalyticsSubTab] = useState<string>(initial.analyticsSubTab);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
       const url = new URL(window.location.href);
-      url.searchParams.set('tab', tab);
+      if (tab === 'monitoring') {
+        url.searchParams.set('tab', analyticsSubTab === 'new-signups' ? 'new-signups' : 'monitoring');
+      } else {
+        url.searchParams.set('tab', tab);
+      }
       window.history.replaceState({}, '', url.toString());
     } catch { /* ignore */ }
-  }, [tab]);
+  }, [tab, analyticsSubTab]);
 
   if (authLoading) {
     return (
