@@ -440,7 +440,7 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-3">
         <Card className="overflow-hidden">
-          <div style={{ height: "calc(100vh - 320px)", minHeight: 480 }}>
+          <div style={{ height: "calc(100vh - 200px)", minHeight: 400 }}>
             {withCoords.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center p-8 text-muted-foreground">
                 <MapPin className="h-12 w-12 mb-3 opacity-50" />
