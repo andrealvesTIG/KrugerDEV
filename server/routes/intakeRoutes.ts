@@ -87,6 +87,13 @@ export function registerIntakeRoutes(app: Express) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
 
+      if (input.workflowId != null) {
+        const wf = await storage.getIntakeWorkflow(input.workflowId);
+        if (!wf || wf.organizationId !== input.organizationId) {
+          return res.status(400).json({ message: 'Invalid workflowId for this organization' });
+        }
+      }
+
       if (userId) {
         const { checkAndEnforceLimit, METER_CODES } = await import("../services/billing");
         const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.INTAKES);
