@@ -487,8 +487,34 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
                       }}
                       eventHandlers={{
                         click: () => setSelectedId(p.id),
-                        mouseover: (e) => e.target.openPopup(),
-                        mouseout: (e) => e.target.closePopup(),
+                        mouseover: (e) => {
+                          const m = e.target as L.Marker & { _hoverCloseTimer?: ReturnType<typeof setTimeout> };
+                          if (m._hoverCloseTimer) {
+                            clearTimeout(m._hoverCloseTimer);
+                            m._hoverCloseTimer = undefined;
+                          }
+                          m.openPopup();
+                        },
+                        mouseout: (e) => {
+                          const m = e.target as L.Marker & { _hoverCloseTimer?: ReturnType<typeof setTimeout> };
+                          m._hoverCloseTimer = setTimeout(() => m.closePopup(), 200);
+                        },
+                        popupopen: (e) => {
+                          const m = e.target as L.Marker & { _hoverCloseTimer?: ReturnType<typeof setTimeout> };
+                          const el = e.popup.getElement();
+                          if (!el) return;
+                          const onEnter = () => {
+                            if (m._hoverCloseTimer) {
+                              clearTimeout(m._hoverCloseTimer);
+                              m._hoverCloseTimer = undefined;
+                            }
+                          };
+                          const onLeave = () => {
+                            m._hoverCloseTimer = setTimeout(() => m.closePopup(), 200);
+                          };
+                          el.addEventListener("mouseenter", onEnter);
+                          el.addEventListener("mouseleave", onLeave);
+                        },
                       }}
                     >
                       <Popup minWidth={220} maxWidth={280} autoPan={false} keepInView={false}>
