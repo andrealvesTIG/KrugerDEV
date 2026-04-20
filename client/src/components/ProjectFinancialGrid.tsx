@@ -477,6 +477,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                               autoFocus
                               type="number"
                               value={editValue}
+                              onFocus={(e) => e.currentTarget.select()}
                               onChange={(e) => setEditValue(e.target.value)}
                               onBlur={saveCellEdit}
                               onKeyDown={(e) => {
