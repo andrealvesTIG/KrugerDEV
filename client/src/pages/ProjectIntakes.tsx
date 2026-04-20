@@ -792,6 +792,17 @@ function PowerBIRequestsSection({ organizationId }: { organizationId: number | u
 export default function ProjectIntakes() {
   const { currentOrganization } = useOrganization();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { workflows: outerIntakeWorkflows } = useIntakeWorkflows();
+  const openCreateIntake = (workflowId: number | null = null) => {
+    const wf = workflowId != null
+      ? (outerIntakeWorkflows || []).find(w => w.id === workflowId)
+      : ((outerIntakeWorkflows || []).find(w => w.isDefault) || (outerIntakeWorkflows || [])[0]);
+    if (wf && wf.creationMode === 'url' && wf.creationUrl) {
+      window.open(wf.creationUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    setIsDialogOpen(true);
+  };
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const { toast } = useToast();
@@ -865,10 +876,33 @@ export default function ProjectIntakes() {
           <p className="mt-1 text-muted-foreground">Submit and track new requests through the approval workflow.</p>
         </div>
         {activeTab === "project" ? (
-          <Button onClick={() => setIsDialogOpen(true)} data-testid="button-new-intake">
-            <Plus className="h-4 w-4 mr-2" />
-            New Intake
-          </Button>
+          outerIntakeWorkflows.length > 1 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button data-testid="button-new-intake">
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Intake
+                  <ChevronsUpDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {outerIntakeWorkflows.filter(w => w.isActive !== false).map(w => (
+                  <DropdownMenuItem
+                    key={w.id}
+                    onSelect={() => openCreateIntake(w.id)}
+                    data-testid={`menuitem-new-intake-workflow-${w.id}`}
+                  >
+                    {w.name}{w.isDefault ? ' (Default)' : ''}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button onClick={() => openCreateIntake(null)} data-testid="button-new-intake">
+              <Plus className="h-4 w-4 mr-2" />
+              New Intake
+            </Button>
+          )
         ) : (
           <Link href="/powerbi-agent">
             <Button>
@@ -1062,7 +1096,7 @@ export default function ProjectIntakes() {
                 : "Submit a new intake request to get started"}
             </p>
             {!search && statusFilter === "all" && (
-              <Button onClick={() => setIsDialogOpen(true)}>
+              <Button onClick={() => openCreateIntake(null)}>
                 <Plus className="h-4 w-4 mr-2" />
                 New Intake
               </Button>
