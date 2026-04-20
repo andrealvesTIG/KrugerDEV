@@ -197,6 +197,7 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showMissingOnly, setShowMissingOnly] = useState(false);
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
+  const [selectedPortfolios, setSelectedPortfolios] = useState<Set<number>>(new Set());
   const controllerRef = useRef<MapController | null>(null);
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
@@ -217,9 +218,15 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
   }, [projects]);
 
   const filteredCoords = useMemo(() => {
-    if (selectedStatuses.size === 0) return withCoords;
-    return withCoords.filter(p => selectedStatuses.has(p.status || ""));
-  }, [withCoords, selectedStatuses]);
+    if (selectedStatuses.size === 0 && selectedPortfolios.size === 0) return withCoords;
+    return withCoords.filter(p => {
+      const statusOk = selectedStatuses.size === 0 || selectedStatuses.has(p.status || "");
+      const portfolioOk =
+        selectedPortfolios.size === 0 ||
+        (p.portfolioId != null && selectedPortfolios.has(p.portfolioId));
+      return statusOk && portfolioOk;
+    });
+  }, [withCoords, selectedStatuses, selectedPortfolios]);
 
   const visibleProjects = useMemo(() => {
     if (!bounds) return filteredCoords;
@@ -235,8 +242,24 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
     });
   };
 
+  const togglePortfolio = (id: number) => {
+    setSelectedPortfolios(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const clearStatusFilter = () => setSelectedStatuses(new Set());
-  const isFiltering = selectedStatuses.size > 0;
+  const clearPortfolioFilter = () => setSelectedPortfolios(new Set());
+  const clearAllFilters = () => {
+    setSelectedStatuses(new Set());
+    setSelectedPortfolios(new Set());
+  };
+  const isStatusFiltering = selectedStatuses.size > 0;
+  const isPortfolioFiltering = selectedPortfolios.size > 0;
+  const isFiltering = isStatusFiltering || isPortfolioFiltering;
 
   const markers = withCoords.map(p => [p._lat, p._lng] as [number, number]);
   const markersSignature = withCoords.map(p => `${p.id}:${p._lat.toFixed(4)},${p._lng.toFixed(4)}`).join("|");
@@ -410,13 +433,23 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
                   (filtered from {withCoords.length})
                 </span>
               )}
+              {isFiltering && (
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  className="ml-auto text-[10px] text-primary hover:underline"
+                  data-testid="button-clear-all-filters"
+                >
+                  Clear all
+                </button>
+              )}
             </div>
             <div className="mb-3 pb-3 border-b" data-testid="map-status-legend">
               <div className="flex items-center justify-between mb-1.5">
                 <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
                   Filter by status
                 </div>
-                {isFiltering && (
+                {isStatusFiltering && (
                   <button
                     type="button"
                     onClick={clearStatusFilter}
@@ -429,13 +462,13 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
               </div>
               <div className="grid grid-cols-2 gap-x-2 gap-y-1">
                 {Object.keys(STATUS_HEX).map((status) => {
-                  const active = !isFiltering || selectedStatuses.has(status);
+                  const active = !isStatusFiltering || selectedStatuses.has(status);
                   return (
                     <button
                       key={status}
                       type="button"
                       onClick={() => toggleStatus(status)}
-                      aria-pressed={isFiltering && selectedStatuses.has(status)}
+                      aria-pressed={isStatusFiltering && selectedStatuses.has(status)}
                       className={`flex items-center gap-1.5 text-[11px] px-1.5 py-0.5 rounded hover:bg-accent text-left transition-opacity ${active ? "opacity-100" : "opacity-40"}`}
                       data-testid={`legend-${status.toLowerCase().replace(/\s+/g, "-")}`}
                     >
@@ -454,6 +487,47 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
                   : "Click a status to filter the map. Cluster bubbles show the dominant status (worst-case wins on ties)."}
               </div>
             </div>
+            {portfolios && portfolios.length > 0 && (
+              <div className="mb-3 pb-3 border-b" data-testid="map-portfolio-filter">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                    Filter by portfolio
+                  </div>
+                  {isPortfolioFiltering && (
+                    <button
+                      type="button"
+                      onClick={clearPortfolioFilter}
+                      className="text-[10px] text-primary hover:underline"
+                      data-testid="button-clear-portfolio-filter"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {portfolios.map((pf) => {
+                    const selected = selectedPortfolios.has(pf.id);
+                    const active = !isPortfolioFiltering || selected;
+                    return (
+                      <button
+                        key={pf.id}
+                        type="button"
+                        onClick={() => togglePortfolio(pf.id)}
+                        aria-pressed={selected}
+                        className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                          selected
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background hover:bg-accent"
+                        } ${active ? "opacity-100" : "opacity-40"}`}
+                        data-testid={`portfolio-chip-${pf.id}`}
+                      >
+                        {pf.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div className="space-y-2 max-h-[calc(100vh-360px)] overflow-y-auto pr-1">
               {visibleProjects.map(p => {
                 const cover = p.images?.[0]?.url;
@@ -489,7 +563,7 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
               {visibleProjects.length === 0 && withCoords.length > 0 && (
                 <p className="text-xs text-muted-foreground text-center py-6">
                   {isFiltering
-                    ? "No projects match the selected statuses in the current view."
+                    ? "No projects match the selected filters in the current view."
                     : "No projects in the current view. Zoom or pan the map to see more."}
                 </p>
               )}
