@@ -233,13 +233,68 @@ export async function upsertFinancialCell(args: {
     eq(financialEntries.month, args.month),
   ));
   const previous = existing ? Number(existing.amount) : 0;
-  if (!existing) {
-    throw new Error(`Cell not found for itemKey=${args.itemKey} type=${args.type} month=${args.month}`);
+  if (existing) {
+    const [entry] = await db.update(financialEntries)
+      .set({ amount: sql`${args.amount}`, updatedAt: new Date() })
+      .where(eq(financialEntries.id, existing.id))
+      .returning();
+    return { previous, next: Number(entry.amount), entry };
   }
-  const [entry] = await db.update(financialEntries)
-    .set({ amount: sql`${args.amount}`, updatedAt: new Date() })
-    .where(eq(financialEntries.id, existing.id))
-    .returning();
+  // Cell missing — insert one on the fly by copying dimensions from any
+  // sibling row of the same (project, fiscal year, itemKey). This can
+  // happen when a type is enabled in Org Settings after the item was
+  // created (no backfill) or when a fan-out race skipped a cell. We also
+  // run a safety backfill to create any other missing cells for this
+  // type/item so subsequent edits don't hit the same path.
+  const [sibling] = await db.select().from(financialEntries).where(and(
+    eq(financialEntries.projectId, args.projectId),
+    eq(financialEntries.fiscalYear, args.fiscalYear),
+    eq(financialEntries.itemKey, args.itemKey),
+  )).limit(1);
+  if (!sibling) {
+    throw new Error(`Item not found for itemKey=${args.itemKey} in fiscal year ${args.fiscalYear}`);
+  }
+  // Ensure all 12 months exist for this (item, type) with amount=0.
+  const fanOutRows: InsertFinancialEntry[] = [];
+  for (let m = 1; m <= 12; m++) {
+    fanOutRows.push({
+      projectId: args.projectId,
+      fiscalYear: args.fiscalYear,
+      scenario: args.type,
+      month: m,
+      amount: m === args.month ? (args.amount as any) : 0,
+      itemKey: args.itemKey,
+      itemName: sibling.itemName,
+      financialView: sibling.financialView,
+      costCategory: sibling.costCategory,
+      costSpecification: sibling.costSpecification,
+      category: sibling.category,
+      wbs: sibling.wbs,
+      comments: sibling.comments,
+      sortOrder: sibling.sortOrder,
+      isDemo: sibling.isDemo,
+    });
+  }
+  await db.insert(financialEntries).values(fanOutRows).onConflictDoNothing();
+  // Re-read the target row (whether we just inserted it or a race beat us).
+  const [entry] = await db.select().from(financialEntries).where(and(
+    eq(financialEntries.projectId, args.projectId),
+    eq(financialEntries.fiscalYear, args.fiscalYear),
+    eq(financialEntries.itemKey, args.itemKey),
+    eq(financialEntries.scenario, args.type),
+    eq(financialEntries.month, args.month),
+  ));
+  if (!entry) {
+    throw new Error(`Failed to materialize cell for itemKey=${args.itemKey} type=${args.type} month=${args.month}`);
+  }
+  // If a concurrent request won the insert race with amount=0, apply our value.
+  if (Number(entry.amount) !== args.amount) {
+    const [updated] = await db.update(financialEntries)
+      .set({ amount: sql`${args.amount}`, updatedAt: new Date() })
+      .where(eq(financialEntries.id, entry.id))
+      .returning();
+    return { previous, next: Number(updated.amount), entry: updated };
+  }
   return { previous, next: Number(entry.amount), entry };
 }
 
