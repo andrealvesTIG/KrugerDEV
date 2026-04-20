@@ -74,6 +74,16 @@ export function ProjectLocationMediaSection({
     let cancelled = false;
     let placeListener: google.maps.MapsEventListener | null = null;
 
+    const MIN_CHARS = 3;
+    const updateDropdownVisibility = () => {
+      const len = (addressInputRef.current?.value || "").trim().length;
+      document.querySelectorAll<HTMLElement>(".pac-container").forEach((el) => {
+        el.style.display = len < MIN_CHARS ? "none" : "";
+      });
+    };
+    input.addEventListener("input", updateDropdownVisibility);
+    input.addEventListener("focus", updateDropdownVisibility);
+
     loadGoogleMaps()
       .then((google) => {
         if (cancelled || !addressInputRef.current) return;
@@ -82,6 +92,7 @@ export function ProjectLocationMediaSection({
           types: ["address"],
         });
         autocompleteRef.current = ac;
+        updateDropdownVisibility();
         placeListener = ac.addListener("place_changed", () => {
           const place = ac.getPlace();
           if (!place || !place.address_components) {
@@ -113,6 +124,8 @@ export function ProjectLocationMediaSection({
 
     return () => {
       cancelled = true;
+      input.removeEventListener("input", updateDropdownVisibility);
+      input.removeEventListener("focus", updateDropdownVisibility);
       if (placeListener) placeListener.remove();
       const g = (window as any).google;
       if (autocompleteRef.current && g?.maps?.event) {
