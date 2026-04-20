@@ -124,6 +124,7 @@ export function registerFinancialsRoutes(app: Express) {
       });
 
       try {
+        await storage.clearRedoStack(projectId);
         await storage.createCostItemChangeLog({
           costItemId: null,
           projectId,
@@ -192,6 +193,7 @@ export function registerFinancialsRoutes(app: Express) {
 
       if (result.previous !== result.next) {
         try {
+          await storage.clearRedoStack(projectId);
           await storage.createCostItemChangeLog({
             costItemId: null,
             projectId,
@@ -238,6 +240,7 @@ export function registerFinancialsRoutes(app: Express) {
       if (result.updated === 0) return res.status(404).json({ message: "Item not found" });
 
       try {
+        await storage.clearRedoStack(projectId);
         await storage.createCostItemChangeLog({
           costItemId: null,
           projectId,
@@ -245,8 +248,8 @@ export function registerFinancialsRoutes(app: Express) {
           changedByName: await changedByName(userId),
           changeType: "item_updated",
           changeSummary: `Updated dimensions of "${result.previous?.itemName ?? itemKey}"`,
-          previousValues: JSON.stringify({ itemKey, ...result.previous }),
-          newValues: JSON.stringify({ itemKey, ...dimensions }),
+          previousValues: JSON.stringify({ itemKey, fiscalYear: fiscalYear ?? null, ...result.previous }),
+          newValues: JSON.stringify({ itemKey, fiscalYear: fiscalYear ?? null, ...dimensions }),
         });
       } catch (logErr) {
         console.error("Error creating change log:", logErr);
@@ -273,6 +276,7 @@ export function registerFinancialsRoutes(app: Express) {
       if (!previous) return res.status(404).json({ message: "Item not found" });
 
       try {
+        await storage.clearRedoStack(projectId);
         await storage.createCostItemChangeLog({
           costItemId: null,
           projectId,
@@ -307,102 +311,143 @@ export function registerFinancialsRoutes(app: Express) {
     }
   });
 
-  // Undo: replays the most recent change in reverse.
+  // Helper: returns true if this log row is a legacy `__undo` placeholder
+  // written by an older version of the undo route. Those rows are ignored by
+  // both undo and redo selection.
+  const isLegacyUndoRow = (h: { previousValues: string | null; newValues: string | null }) => {
+    try {
+      const a = h.newValues ? JSON.parse(h.newValues) : null;
+      if (a && a.__undo) return true;
+      const b = h.previousValues ? JSON.parse(h.previousValues) : null;
+      if (b && b.__undo) return true;
+    } catch { /* fall through */ }
+    return false;
+  };
+
+  // Apply a change-log row in the FORWARD direction (used for redo) or in
+  // the REVERSE direction (used for undo). Returns a short message describing
+  // what happened, or throws on a failure that should be surfaced to the user.
+  async function applyChangeLog(
+    projectId: number,
+    log: any,
+    direction: "undo" | "redo",
+  ): Promise<string> {
+    if (log.changeType === "cell") {
+      const target = direction === "undo" ? log.previousValues : log.newValues;
+      if (!target) throw new Error(`Cell change log missing ${direction === "undo" ? "previousValues" : "newValues"}`);
+      const payload = JSON.parse(target);
+      const typeKey: string | undefined = payload.type ?? payload.scenario;
+      if (!typeKey) throw new Error("Cell change log missing financial type");
+      await storage.upsertFinancialCell({
+        projectId,
+        fiscalYear: payload.fiscalYear,
+        itemKey: payload.itemKey,
+        type: typeKey,
+        month: payload.month,
+        amount: Number(payload.amount) || 0,
+      });
+      return `${direction === "undo" ? "Reverted" : "Re-applied"} ${typeKey.toUpperCase()} M${payload.month}`;
+    }
+
+    if (log.changeType === "item_updated") {
+      const target = direction === "undo" ? log.previousValues : log.newValues;
+      if (!target) throw new Error(`Item-update change log missing ${direction === "undo" ? "previousValues" : "newValues"}`);
+      const payload = JSON.parse(target);
+      const result = await storage.updateFinancialItemDimensions({
+        projectId,
+        itemKey: payload.itemKey,
+        // Scope to the original year so undo/redo can never bleed across years
+        // when the same itemKey exists in multiple fiscal years.
+        fiscalYear: payload.fiscalYear != null ? Number(payload.fiscalYear) : undefined,
+        dimensions: payload,
+      });
+      if (result.updated === 0) throw new Error("Item not found");
+      return `${direction === "undo" ? "Reverted" : "Re-applied"} dimensions of "${payload.itemName ?? payload.itemKey}"`;
+    }
+
+    if (log.changeType === "item_created") {
+      const created = log.newValues ? JSON.parse(log.newValues) : null;
+      if (!created?.itemKey) throw new Error("Item-create change log missing newValues.itemKey");
+      if (direction === "undo") {
+        await storage.deleteFinancialItem({ projectId, itemKey: created.itemKey });
+        return `Removed "${created.itemName ?? created.itemKey}" (reverted creation)`;
+      }
+      // Redo: re-create the item with all the original dimensions.
+      await storage.createFinancialItem({
+        projectId,
+        fiscalYear: Number(created.fiscalYear),
+        itemKey: created.itemKey,
+        dimensions: {
+          itemName: created.itemName,
+          financialView: created.financialView ?? null,
+          costCategory: created.costCategory ?? null,
+          costSpecification: created.costSpecification ?? null,
+          category: created.category ?? null,
+          wbs: created.wbs ?? null,
+          comments: created.comments ?? null,
+          sortOrder: created.sortOrder ?? 0,
+        },
+      });
+      return `Re-created "${created.itemName ?? created.itemKey}"`;
+    }
+
+    if (log.changeType === "item_deleted") {
+      throw new Error("Cannot undo or redo a deletion — please recreate the item manually");
+    }
+
+    throw new Error(`Cannot ${direction} change of type "${log.changeType}"`);
+  }
+
+  // Undo: revert the most recent active (non-undone) change.
   app.post("/api/projects/:projectId/financial-entries/undo", async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
       const guard = await ensureProjectAccess(req, projectId);
       if (!guard.ok) return res.status(guard.status).json({ message: guard.message });
-      const userId = guard.userId;
 
       const history = await storage.getCostItemChangeLogs(projectId);
-      // Skip prior undo records — undoing an undo would just toggle forever.
-      const last = history.find(h => {
-        try {
-          const meta = h.newValues ? JSON.parse(h.newValues) : null;
-          if (meta && meta.__undo) return false;
-          const prevMeta = h.previousValues ? JSON.parse(h.previousValues) : null;
-          if (prevMeta && prevMeta.__undo) return false;
-        } catch { /* fall through */ }
-        return true;
-      });
-      if (!last) return res.status(400).json({ message: "No changes to undo" });
-
-      if (last.changeType === "cell" && last.previousValues) {
-        const prev = JSON.parse(last.previousValues);
-        const newJson = last.newValues ? JSON.parse(last.newValues) : null;
-        // Accept both new (`type`) and legacy (`scenario`) keys in stored payloads.
-        const prevTypeKey: string | undefined = prev.type ?? prev.scenario;
-        if (!prevTypeKey) {
-          return res.status(500).json({ message: "Undo failed: change log missing financial type" });
-        }
-        await storage.upsertFinancialCell({
-          projectId,
-          fiscalYear: prev.fiscalYear,
-          itemKey: prev.itemKey,
-          type: prevTypeKey,
-          month: prev.month,
-          amount: Number(prev.amount) || 0,
+      // Most recent active (undone=false) entry that isn't a legacy __undo row.
+      // Item deletions are NOT skipped — they form a hard barrier so that we
+      // never undo a stale "update" against an item that was later deleted.
+      const target = history.find(h => !h.undone && !isLegacyUndoRow(h));
+      if (!target) return res.status(400).json({ message: "Nothing to undo" });
+      if (target.changeType === "item_deleted") {
+        return res.status(400).json({
+          message: "Cannot undo deletion — please recreate the item manually",
         });
-        await storage.createCostItemChangeLog({
-          costItemId: null,
-          projectId,
-          changedBy: userId,
-          changedByName: await changedByName(userId),
-          changeType: "cell",
-          changeSummary: `Undo: reverted ${prevTypeKey.toUpperCase()} M${prev.month}`,
-          previousValues: JSON.stringify({ ...(newJson ?? prev), __undo: true }),
-          newValues: JSON.stringify({ ...prev, __undo: true }),
-        });
-        return res.json({ message: "Cell change undone", undone: last });
       }
 
-      if (last.changeType === "item_updated" && last.previousValues) {
-        const prev = JSON.parse(last.previousValues);
-        const result = await storage.updateFinancialItemDimensions({
-          projectId,
-          itemKey: prev.itemKey,
-          dimensions: prev,
-        });
-        await storage.createCostItemChangeLog({
-          costItemId: null,
-          projectId,
-          changedBy: userId,
-          changedByName: await changedByName(userId),
-          changeType: "item_updated",
-          changeSummary: `Undo: reverted dimensions of "${prev.itemName ?? prev.itemKey}"`,
-          previousValues: JSON.stringify({ ...(last.newValues ? JSON.parse(last.newValues) : {}), __undo: true }),
-          newValues: JSON.stringify({ ...(last.previousValues ? JSON.parse(last.previousValues) : {}), __undo: true }),
-        });
-        return res.json({ message: "Item update undone", undone: last, updated: result.updated });
-      }
-
-      if (last.changeType === "item_created" && last.newValues) {
-        const created = JSON.parse(last.newValues);
-        const previous = await storage.deleteFinancialItem({ projectId, itemKey: created.itemKey });
-        if (previous) {
-          await storage.createCostItemChangeLog({
-            costItemId: null,
-            projectId,
-            changedBy: userId,
-            changedByName: await changedByName(userId),
-            changeType: "item_deleted",
-            changeSummary: `Undo: removed "${previous.itemName}" (reverted creation)`,
-            previousValues: JSON.stringify({ itemKey: created.itemKey, ...previous, __undo: true }),
-            newValues: JSON.stringify({ __undo: true }),
-          });
-        }
-        return res.json({ message: "Creation undone", undone: last });
-      }
-
-      if (last.changeType === "item_deleted") {
-        return res.status(400).json({ message: "Cannot undo deletion — please recreate the item manually" });
-      }
-
-      return res.status(400).json({ message: "Cannot undo this change" });
-    } catch (err) {
+      const summary = await applyChangeLog(projectId, target, "undo");
+      await storage.setChangeLogUndone(target.id, true);
+      return res.json({ message: summary, undone: target });
+    } catch (err: any) {
       console.error("Error undoing change:", err);
-      res.status(500).json({ message: "Error undoing change" });
+      res.status(500).json({ message: err?.message || "Error undoing change" });
+    }
+  });
+
+  // Redo: re-apply the next change on the redo stack (the earliest undone
+  // entry by changedAt — undones form a contiguous suffix because any new
+  // edit truncates the redo stack).
+  app.post("/api/projects/:projectId/financial-entries/redo", async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const guard = await ensureProjectAccess(req, projectId);
+      if (!guard.ok) return res.status(guard.status).json({ message: guard.message });
+
+      const history = await storage.getCostItemChangeLogs(projectId);
+      // History is desc by changedAt; reverse-walk to find the EARLIEST undone
+      // entry.
+      const undoneAsc = history.filter(h => h.undone && !isLegacyUndoRow(h)).reverse();
+      const target = undoneAsc[0];
+      if (!target) return res.status(400).json({ message: "Nothing to redo" });
+
+      const summary = await applyChangeLog(projectId, target, "redo");
+      await storage.setChangeLogUndone(target.id, false);
+      return res.json({ message: summary, redone: target });
+    } catch (err: any) {
+      console.error("Error redoing change:", err);
+      res.status(500).json({ message: err?.message || "Error redoing change" });
     }
   });
 

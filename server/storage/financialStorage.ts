@@ -107,8 +107,37 @@ export async function getCostItemChangeLogs(projectId: number): Promise<CostItem
     .orderBy(desc(costItemChangeLogs.changedAt));
 }
 
-export async function createCostItemChangeLog(data: InsertCostItemChangeLog): Promise<void> {
-  await db.insert(costItemChangeLogs).values(data);
+export async function createCostItemChangeLog(data: InsertCostItemChangeLog): Promise<CostItemChangeLog> {
+  const [created] = await db.insert(costItemChangeLogs).values(data).returning();
+  return created;
+}
+
+/**
+ * Set the `undone` flag on a single change-log row. Used by the undo/redo flow
+ * to flip a change between the active stack and the redo stack without ever
+ * losing the original payload.
+ */
+export async function setChangeLogUndone(id: number, undone: boolean): Promise<void> {
+  await db.update(costItemChangeLogs)
+    .set({ undone })
+    .where(eq(costItemChangeLogs.id, id));
+}
+
+/**
+ * Truncate the redo stack for a project: hard-delete every change-log row
+ * marked `undone=true`. Called whenever the user makes a fresh edit (cell
+ * change, item create / update / delete) so that classic Excel-style behavior
+ * applies — once you do something new after an undo, you can't redo the old
+ * branch.
+ */
+export async function clearRedoStack(projectId: number): Promise<number> {
+  const deleted = await db.delete(costItemChangeLogs)
+    .where(and(
+      eq(costItemChangeLogs.projectId, projectId),
+      eq(costItemChangeLogs.undone, true),
+    ))
+    .returning({ id: costItemChangeLogs.id });
+  return deleted.length;
 }
 
 // ===================== FINANCIAL ENTRIES (normalized fact table) =====================

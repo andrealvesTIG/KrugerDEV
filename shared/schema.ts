@@ -1596,6 +1596,10 @@ export const costItemChangeLogs = pgTable("cost_item_change_logs", {
   changeSummary: text("change_summary"),
   previousValues: text("previous_values"), // JSON string
   newValues: text("new_values"), // JSON string
+  // Undo/redo state. `undone=true` means this change has been reverted and
+  // sits on the redo stack. Any new edit truncates the redo stack by deleting
+  // every row where undone=true for the project.
+  undone: boolean("undone").default(false).notNull(),
 }, (table) => [
   index("cost_item_change_logs_project_id_idx").on(table.projectId),
 ]);

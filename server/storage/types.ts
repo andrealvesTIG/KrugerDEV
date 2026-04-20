@@ -303,7 +303,9 @@ export interface IFinancialStorage {
   updateCostItem(id: number, updates: UpdateCostItemRequest): Promise<CostItem>;
   deleteCostItem(id: number): Promise<void>;
   getCostItemChangeLogs(projectId: number): Promise<CostItemChangeLog[]>;
-  createCostItemChangeLog(data: InsertCostItemChangeLog): Promise<void>;
+  createCostItemChangeLog(data: InsertCostItemChangeLog): Promise<CostItemChangeLog>;
+  setChangeLogUndone(id: number, undone: boolean): Promise<void>;
+  clearRedoStack(projectId: number): Promise<number>;
   getFinancialEntries(projectId: number, fiscalYear?: number): Promise<FinancialEntry[]>;
   createFinancialItem(args: {
     projectId: number;

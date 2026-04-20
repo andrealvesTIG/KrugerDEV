@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock, MoreVertical, ChevronsDownUp, ChevronsUpDown, Loader2 } from "lucide-react";
+import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock, MoreVertical, ChevronsDownUp, ChevronsUpDown, Loader2, Undo2, Redo2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -644,6 +644,92 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
       toast({ title: "Failed to update cell", description: err?.message, variant: "destructive" }),
   });
 
+  // ---------- Undo / Redo ----------
+  // The history endpoint returns every change-log row for the project, each with
+  // an `undone` flag. canUndo = at least one active row exists; canRedo = at
+  // least one undone row exists. Any new edit on the server clears the redo
+  // stack, so canRedo flips back to false naturally on the next refetch.
+  const { data: history = [] } = useQuery<any[]>({
+    queryKey: ["/api/projects", projectId, "financial-entries", "history"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/financial-entries/history`);
+      if (!res.ok) throw new Error("Failed to fetch history");
+      return res.json();
+    },
+  });
+
+  const isLegacyUndoRow = (h: any) => {
+    try {
+      const a = h.newValues ? JSON.parse(h.newValues) : null;
+      if (a && a.__undo) return true;
+      const b = h.previousValues ? JSON.parse(h.previousValues) : null;
+      if (b && b.__undo) return true;
+    } catch {}
+    return false;
+  };
+  const canUndo = useMemo(() => {
+    // Mirror the server: take the most recent active row; allow undo only if
+    // it's not a deletion (deletions are a hard barrier).
+    const top = history.find(h => !h.undone && !isLegacyUndoRow(h));
+    return !!top && top.changeType !== "item_deleted";
+  }, [history]);
+  const canRedo = useMemo(
+    () => history.some(h => h.undone && !isLegacyUndoRow(h)),
+    [history],
+  );
+
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "financial-entries"] });
+  };
+
+  const undoMutation = useMutation({
+    mutationFn: async () => apiRequest("POST", `/api/projects/${projectId}/financial-entries/undo`),
+    onSuccess: async (res: any) => {
+      const data = await (res?.json ? res.json() : res);
+      invalidateAll();
+      toast({ title: "Undone", description: data?.message });
+    },
+    onError: (err: any) =>
+      toast({ title: "Nothing to undo", description: err?.message, variant: "destructive" }),
+  });
+
+  const redoMutation = useMutation({
+    mutationFn: async () => apiRequest("POST", `/api/projects/${projectId}/financial-entries/redo`),
+    onSuccess: async (res: any) => {
+      const data = await (res?.json ? res.json() : res);
+      invalidateAll();
+      toast({ title: "Redone", description: data?.message });
+    },
+    onError: (err: any) =>
+      toast({ title: "Nothing to redo", description: err?.message, variant: "destructive" }),
+  });
+
+  // Keyboard shortcuts: Ctrl/Cmd+Z to undo, Ctrl/Cmd+Shift+Z or Ctrl+Y to redo.
+  // We deliberately ignore the event when focus is in an editable element so we
+  // don't hijack the browser's native undo for text inputs (incl. cell editor).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tgt = e.target as HTMLElement | null;
+      const tag = tgt?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tgt?.isContentEditable) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
+        if (canUndo && !undoMutation.isPending) {
+          e.preventDefault();
+          undoMutation.mutate();
+        }
+      } else if ((key === "z" && e.shiftKey) || key === "y") {
+        if (canRedo && !redoMutation.isPending) {
+          e.preventDefault();
+          redoMutation.mutate();
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [canUndo, canRedo, undoMutation, redoMutation]);
+
   // Background-activity indicator: lights up when the entries query is
   // refetching OR any project-financials mutation is in flight, so the
   // user always knows the grid is syncing with the server.
@@ -1017,6 +1103,34 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
               className="pl-8 h-9 w-72 bg-muted/40 border-transparent focus-visible:bg-background focus-visible:border-input"
               data-testid="input-search-financial"
             />
+          </div>
+
+          {/* Undo / Redo (Ctrl/Cmd+Z, Ctrl+Shift+Z or Ctrl+Y) */}
+          <div className="inline-flex h-9 rounded-md border bg-muted/40 p-0.5 gap-0.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2"
+              onClick={() => undoMutation.mutate()}
+              disabled={!canUndo || undoMutation.isPending}
+              title="Undo (Ctrl/Cmd+Z)"
+              aria-label="Undo last change"
+              data-testid="button-undo-financial"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2"
+              onClick={() => redoMutation.mutate()}
+              disabled={!canRedo || redoMutation.isPending}
+              title="Redo (Ctrl+Shift+Z / Ctrl+Y)"
+              aria-label="Redo last undone change"
+              data-testid="button-redo-financial"
+            >
+              <Redo2 className="h-3.5 w-3.5" />
+            </Button>
           </div>
 
           {/* Expand / Collapse all groups */}
