@@ -54,6 +54,39 @@ const STATUS_HEX: Record<string, string> = {
 
 const STATUS_FALLBACK_HEX = "#94a3b8";
 
+const STATUS_FILTER_PARAM = "mapStatus";
+const STATUS_FILTER_STORAGE_KEY = "projectsMap.selectedStatuses";
+
+function readInitialStatuses(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  const validStatuses = new Set(Object.keys(STATUS_HEX));
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get(STATUS_FILTER_PARAM);
+    if (fromUrl !== null) {
+      const parsed = fromUrl
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => validStatuses.has(s));
+      return new Set(parsed);
+    }
+  } catch {
+    // ignore malformed URL params
+  }
+  try {
+    const stored = window.localStorage.getItem(STATUS_FILTER_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        return new Set(parsed.filter((s): s is string => typeof s === "string" && validStatuses.has(s)));
+      }
+    }
+  } catch {
+    // ignore storage/JSON errors
+  }
+  return new Set();
+}
+
 // Tie-breaker order: when multiple statuses tie for "dominant", the one with
 // higher severity wins so users see the worst-case health at a glance.
 const STATUS_SEVERITY: Record<string, number> = {
@@ -196,8 +229,28 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
   const [bounds, setBounds] = useState<L.LatLngBounds | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showMissingOnly, setShowMissingOnly] = useState(false);
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(() => readInitialStatuses());
   const [selectedPortfolios, setSelectedPortfolios] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (selectedStatuses.size === 0) {
+        params.delete(STATUS_FILTER_PARAM);
+        window.localStorage.removeItem(STATUS_FILTER_STORAGE_KEY);
+      } else {
+        const values = Array.from(selectedStatuses).sort();
+        params.set(STATUS_FILTER_PARAM, values.join(","));
+        window.localStorage.setItem(STATUS_FILTER_STORAGE_KEY, JSON.stringify(values));
+      }
+      const query = params.toString();
+      const newUrl = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+      window.history.replaceState(window.history.state, "", newUrl);
+    } catch {
+      // ignore failures updating URL/storage
+    }
+  }, [selectedStatuses]);
   const controllerRef = useRef<MapController | null>(null);
   const markerRefs = useRef<Record<number, L.Marker | null>>({});
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
