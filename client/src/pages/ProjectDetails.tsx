@@ -1447,118 +1447,6 @@ export default function ProjectDetails() {
       </div>
       </div>
 
-      {/* Business Process Flow */}
-      <Collapsible open={!sectionsCollapsed.workflow} onOpenChange={() => toggleSection('workflow')}>
-        <div className="bg-muted/50 border border-border rounded-lg">
-          <CollapsibleTrigger asChild>
-            <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover-elevate rounded-lg">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                {sectionsCollapsed.workflow ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                <GitBranch className="h-4 w-4" />
-                Project Workflow
-                {projectWorkflowName && (
-                  <Badge
-                    variant="outline"
-                    className="text-xs ml-1 font-normal"
-                    data-testid="badge-project-workflow"
-                    title={`Workflow: ${projectWorkflowName}`}
-                  >
-                    {projectWorkflowName}
-                  </Badge>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={(e) => e.stopPropagation()}
-                      data-testid="button-workflow-menu"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenuItem
-                      onSelect={() => setIsChangeWorkflowOpen(true)}
-                      data-testid="menu-change-workflow"
-                    >
-                      <GitBranch className="h-4 w-4 mr-2" />
-                      Change workflow…
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="px-4 pb-4">
-              <BusinessProcessFlow 
-                currentStatus={project.status} 
-                onStatusChange={handleStatusChange}
-                stages={projectStages}
-              />
-            </div>
-          </CollapsibleContent>
-        </div>
-      </Collapsible>
-
-      <div className="grid gap-3 md:grid-cols-4">
-        <Card className="py-2">
-          <CardHeader className="py-1 px-4">
-            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-              Budget
-              {financialBudgetTotal > 0 && (
-                <Badge variant="outline" className="text-[9px] font-normal py-0">From Financials</Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="py-1 px-4">
-            <div className="text-base font-semibold flex items-center"><CompactCurrency value={displayBudget} /></div>
-          </CardContent>
-        </Card>
-        <Card className="py-2">
-          <CardHeader className="py-1 px-4">
-            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-              Progress
-              {projectTasks && projectTasks.length > 0 && (
-                <Badge variant="outline" className="text-[9px] font-normal py-0">From Tasks</Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="py-1 px-4">
-             <div className="text-base font-semibold">{calculatedProgress}%</div>
-             <Progress value={calculatedProgress} className="h-1.5 mt-1" />
-          </CardContent>
-        </Card>
-        <Card className="py-2">
-          <CardHeader className="py-1 px-4"><CardTitle className="text-xs font-medium text-muted-foreground">Start Date</CardTitle></CardHeader>
-          <CardContent className="py-1 px-4">
-            <div className="text-base font-semibold flex items-center"><CalendarIcon className="h-4 w-4 mr-1 text-muted-foreground" />{project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : '-'}</div>
-          </CardContent>
-        </Card>
-        <Card className="py-2">
-          <CardHeader className="py-1 px-4"><CardTitle className="text-xs font-medium text-muted-foreground">End Date</CardTitle></CardHeader>
-          <CardContent className="py-1 px-4">
-            <div className="text-base font-semibold flex items-center"><CalendarIcon className="h-4 w-4 mr-1 text-muted-foreground" />{project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : '-'}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Timeline Section */}
-      <ProjectTimeline 
-        projectId={project.id}
-        startDate={project.startDate}
-        endDate={project.endDate}
-        onMilestoneClick={(taskId) => {
-          setActiveTab('tasks');
-          window.history.replaceState(null, '', `?tab=tasks&taskId=${taskId}`);
-          window.dispatchEvent(new CustomEvent('openTaskDialog', { detail: { taskId } }));
-        }}
-      />
-
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full min-w-0">
         <TabsList className="bg-muted/80 border border-border p-1.5 rounded-xl gap-1 h-auto flex-wrap">
           {/* Render main tabs in user-defined order with drag-drop support */}
@@ -1720,6 +1608,119 @@ export default function ProjectDetails() {
             </DropdownMenuContent>
           </DropdownMenu>
         </TabsList>
+
+      {/* Business Process Flow */}
+      <Collapsible open={!sectionsCollapsed.workflow} onOpenChange={() => toggleSection('workflow')}>
+        <div className="bg-muted/50 border border-border rounded-lg">
+          <CollapsibleTrigger asChild>
+            <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover-elevate rounded-lg">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                {sectionsCollapsed.workflow ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                <GitBranch className="h-4 w-4" />
+                Project Workflow
+                {projectWorkflowName && (
+                  <Badge
+                    variant="outline"
+                    className="text-xs ml-1 font-normal"
+                    data-testid="badge-project-workflow"
+                    title={`Workflow: ${projectWorkflowName}`}
+                  >
+                    {projectWorkflowName}
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={(e) => e.stopPropagation()}
+                      data-testid="button-workflow-menu"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenuItem
+                      onSelect={() => setIsChangeWorkflowOpen(true)}
+                      data-testid="menu-change-workflow"
+                    >
+                      <GitBranch className="h-4 w-4 mr-2" />
+                      Change workflow…
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="px-4 pb-4">
+              <BusinessProcessFlow 
+                currentStatus={project.status} 
+                onStatusChange={handleStatusChange}
+                stages={projectStages}
+              />
+            </div>
+          </CollapsibleContent>
+        </div>
+      </Collapsible>
+
+      <div className="grid gap-3 md:grid-cols-4">
+        <Card className="py-2">
+          <CardHeader className="py-1 px-4">
+            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+              Budget
+              {financialBudgetTotal > 0 && (
+                <Badge variant="outline" className="text-[9px] font-normal py-0">From Financials</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="py-1 px-4">
+            <div className="text-base font-semibold flex items-center"><CompactCurrency value={displayBudget} /></div>
+          </CardContent>
+        </Card>
+        <Card className="py-2">
+          <CardHeader className="py-1 px-4">
+            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+              Progress
+              {projectTasks && projectTasks.length > 0 && (
+                <Badge variant="outline" className="text-[9px] font-normal py-0">From Tasks</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="py-1 px-4">
+             <div className="text-base font-semibold">{calculatedProgress}%</div>
+             <Progress value={calculatedProgress} className="h-1.5 mt-1" />
+          </CardContent>
+        </Card>
+        <Card className="py-2">
+          <CardHeader className="py-1 px-4"><CardTitle className="text-xs font-medium text-muted-foreground">Start Date</CardTitle></CardHeader>
+          <CardContent className="py-1 px-4">
+            <div className="text-base font-semibold flex items-center"><CalendarIcon className="h-4 w-4 mr-1 text-muted-foreground" />{project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : '-'}</div>
+          </CardContent>
+        </Card>
+        <Card className="py-2">
+          <CardHeader className="py-1 px-4"><CardTitle className="text-xs font-medium text-muted-foreground">End Date</CardTitle></CardHeader>
+          <CardContent className="py-1 px-4">
+            <div className="text-base font-semibold flex items-center"><CalendarIcon className="h-4 w-4 mr-1 text-muted-foreground" />{project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : '-'}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Timeline Section */}
+      <ProjectTimeline 
+        projectId={project.id}
+        startDate={project.startDate}
+        endDate={project.endDate}
+        onMilestoneClick={(taskId) => {
+          setActiveTab('tasks');
+          window.history.replaceState(null, '', `?tab=tasks&taskId=${taskId}`);
+          window.dispatchEvent(new CustomEvent('openTaskDialog', { detail: { taskId } }));
+        }}
+      />
+
         <div className="mt-6 min-w-0">
           <TabsContent value="summary">
             <ProjectSummaryTab project={project} onUpdate={updateProject} tasks={projectTasks || []} readOnly={isProjectLocked} />
