@@ -281,7 +281,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
   const updateItemMutation = useMutation({
     mutationFn: async ({ itemKey, data }: { itemKey: string; data: any }) =>
-      apiRequest("PATCH", `/api/projects/${projectId}/financial-items/${itemKey}`, data),
+      apiRequest("PATCH", `/api/projects/${projectId}/financial-items/${itemKey}`, { ...data, fiscalYear }),
     onSuccess: () => {
       invalidate();
       toast({ title: "Item updated" });
@@ -293,7 +293,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
   const deleteItemMutation = useMutation({
     mutationFn: async (itemKey: string) =>
-      apiRequest("DELETE", `/api/projects/${projectId}/financial-items/${itemKey}`),
+      apiRequest("DELETE", `/api/projects/${projectId}/financial-items/${itemKey}?fiscalYear=${fiscalYear}`),
     onSuccess: () => {
       invalidate();
       toast({ title: "Item deleted" });
