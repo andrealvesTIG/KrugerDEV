@@ -91,7 +91,7 @@ const settingsTabs = [
   { value: "general", label: "General", icon: Building2 },
   { value: "billing", label: "Billing", icon: Zap },
   { value: "scheduling", label: "Scheduling", icon: Calendar },
-  { value: "financial-scenarios", label: "Financial Scenarios", icon: DollarSign },
+  { value: "financial-scenarios", label: "Financials", icon: DollarSign },
   { value: "modules", label: "Module Visibility", icon: Eye },
   { value: "system-views", label: "System Views", icon: Columns },
   { value: "custom-fields", label: "Custom Fields", icon: FileText },
