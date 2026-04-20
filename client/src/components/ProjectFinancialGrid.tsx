@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock, MoreVertical } from "lucide-react";
+import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock, MoreVertical, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -653,6 +653,30 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
   const editableRows = useMemo(() => rows.filter(r => r.type === "item"), [rows]);
 
+  // All expandable group keys (view / category / specification) derived from
+  // the current filtered entries. Used by Expand / Collapse All controls.
+  const allGroupKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const e of filteredEntries) {
+      const v = e.financialView ?? "Uncategorized";
+      const c = e.costCategory ?? "Uncategorized";
+      const s = e.costSpecification ?? "Uncategorized";
+      const viewKey = `view::${v}`;
+      const catKey = `${viewKey}::cat::${c}`;
+      const specKey = `${catKey}::spec::${s}`;
+      keys.add(viewKey);
+      keys.add(catKey);
+      keys.add(specKey);
+    }
+    return keys;
+  }, [filteredEntries]);
+
+  const allExpanded = allGroupKeys.size > 0 &&
+    Array.from(allGroupKeys).every(k => expanded.has(k));
+
+  const expandAll = () => setExpanded(new Set(allGroupKeys));
+  const collapseAll = () => setExpanded(new Set());
+
   const toggleExpand = (key: string) => {
     const next = new Set(expanded);
     if (next.has(key)) next.delete(key);
@@ -925,6 +949,25 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
               data-testid="input-search-financial"
             />
           </div>
+
+          {/* Expand / Collapse all groups */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9"
+            onClick={allExpanded ? collapseAll : expandAll}
+            disabled={allGroupKeys.size === 0}
+            title={allExpanded ? "Collapse all groups" : "Expand all groups"}
+            aria-label={allExpanded ? "Collapse all groups" : "Expand all groups"}
+            data-testid="button-toggle-expand-all"
+          >
+            {allExpanded ? (
+              <ChevronsDownUp className="h-3.5 w-3.5 mr-1.5" />
+            ) : (
+              <ChevronsUpDown className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            {allExpanded ? "Collapse all" : "Expand all"}
+          </Button>
 
           {/* Segmented financial-type toggle — colored per type for quick scanning */}
           <div className="inline-flex h-9 items-center rounded-md border bg-muted/40 p-0.5 gap-0.5">
