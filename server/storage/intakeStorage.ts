@@ -2,12 +2,16 @@ import { db } from "../db";
 import { calculateEndDate, formatDateStr } from "../lib/workingDays";
 import {
   projectIntakes, mppImports, mppImportTasks, changeRequests,
-  intakeWorkflowSteps, intakeTypes, projects, tasks, taskDependencies,
+  intakeWorkflows, intakeWorkflowSteps, projectWorkflows, projectWorkflowSteps,
+  intakeTypes, projects, tasks, taskDependencies,
   type ProjectIntake, type InsertProjectIntake, type UpdateProjectIntakeRequest,
   type MppImport, type InsertMppImport,
   type MppImportTask, type InsertMppImportTask,
   type ChangeRequest, type InsertChangeRequest, type UpdateChangeRequestRequest,
+  type IntakeWorkflow, type InsertIntakeWorkflow,
   type IntakeWorkflowStep, type InsertIntakeWorkflowStep,
+  type ProjectWorkflow, type InsertProjectWorkflow,
+  type ProjectWorkflowStep,
   type IntakeType, type InsertIntakeType,
   type Project, type Task,
 } from "@shared/schema";
@@ -625,29 +629,145 @@ export async function deleteChangeRequest(id: number): Promise<void> {
   await db.delete(changeRequests).where(eq(changeRequests.id, id));
 }
 
-export async function getIntakeWorkflowSteps(organizationId: number): Promise<IntakeWorkflowStep[]> {
+// ============== Multi-workflow management (intake) ==============
+
+export async function getIntakeWorkflows(organizationId: number): Promise<IntakeWorkflow[]> {
+  await ensureDefaultIntakeWorkflow(organizationId);
+  return await db.select().from(intakeWorkflows)
+    .where(eq(intakeWorkflows.organizationId, organizationId))
+    .orderBy(desc(intakeWorkflows.isDefault), intakeWorkflows.name);
+}
+
+export async function getIntakeWorkflow(id: number): Promise<IntakeWorkflow | undefined> {
+  const [wf] = await db.select().from(intakeWorkflows).where(eq(intakeWorkflows.id, id));
+  return wf;
+}
+
+export async function createIntakeWorkflow(data: InsertIntakeWorkflow): Promise<IntakeWorkflow> {
+  await ensureDefaultIntakeWorkflow(data.organizationId);
+  return await db.transaction(async (tx) => {
+    if (data.isDefault) {
+      await tx.update(intakeWorkflows)
+        .set({ isDefault: false, updatedAt: new Date() })
+        .where(eq(intakeWorkflows.organizationId, data.organizationId));
+    }
+    const [wf] = await tx.insert(intakeWorkflows).values({
+      ...data,
+      isDefault: data.isDefault ?? false,
+    }).returning();
+    return wf;
+  });
+}
+
+export async function updateIntakeWorkflow(id: number, updates: Partial<InsertIntakeWorkflow>): Promise<IntakeWorkflow> {
+  const existing = await getIntakeWorkflow(id);
+  if (!existing) throw new Error("Workflow not found");
+  return await db.transaction(async (tx) => {
+    if (updates.isDefault === true) {
+      await tx.update(intakeWorkflows)
+        .set({ isDefault: false, updatedAt: new Date() })
+        .where(and(eq(intakeWorkflows.organizationId, existing.organizationId), eq(intakeWorkflows.isDefault, true)));
+    } else if (updates.isDefault === false && existing.isDefault) {
+      throw new Error("Cannot unset default; set another workflow as default instead.");
+    }
+    const [updated] = await tx.update(intakeWorkflows)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(intakeWorkflows.id, id))
+      .returning();
+    return updated;
+  });
+}
+
+export async function deleteIntakeWorkflow(id: number): Promise<void> {
+  const existing = await getIntakeWorkflow(id);
+  if (!existing) throw new Error("Workflow not found");
+  if (existing.isDefault) throw new Error("Cannot delete the default workflow");
+  const all = await db.select().from(intakeWorkflows).where(eq(intakeWorkflows.organizationId, existing.organizationId));
+  if (all.length <= 1) throw new Error("Cannot delete the last remaining workflow");
+  const [defaultWf] = await db.select().from(intakeWorkflows)
+    .where(and(eq(intakeWorkflows.organizationId, existing.organizationId), eq(intakeWorkflows.isDefault, true)));
+  await db.transaction(async (tx) => {
+    if (defaultWf) {
+      await tx.update(projectIntakes)
+        .set({ workflowId: defaultWf.id, updatedAt: new Date() })
+        .where(eq(projectIntakes.workflowId, id));
+    }
+    await tx.delete(intakeWorkflows).where(eq(intakeWorkflows.id, id));
+  });
+}
+
+export async function ensureDefaultIntakeWorkflow(organizationId: number): Promise<IntakeWorkflow> {
+  const [existing] = await db.select().from(intakeWorkflows)
+    .where(and(eq(intakeWorkflows.organizationId, organizationId), eq(intakeWorkflows.isDefault, true)));
+  if (existing) return existing;
+
+  const allWfs = await db.select().from(intakeWorkflows).where(eq(intakeWorkflows.organizationId, organizationId));
+  if (allWfs.length > 0) {
+    const [promoted] = await db.update(intakeWorkflows)
+      .set({ isDefault: true, updatedAt: new Date() })
+      .where(eq(intakeWorkflows.id, allWfs[0].id))
+      .returning();
+    return promoted;
+  }
+
+  const [created] = await db.insert(intakeWorkflows).values({
+    organizationId,
+    name: "Default",
+    description: "Default intake workflow",
+    isDefault: true,
+    isActive: true,
+  }).returning();
+
+  await db.update(intakeWorkflowSteps)
+    .set({ workflowId: created.id, updatedAt: new Date() })
+    .where(and(eq(intakeWorkflowSteps.organizationId, organizationId), isNull(intakeWorkflowSteps.workflowId)));
+
+  await db.update(projectIntakes)
+    .set({ workflowId: created.id, updatedAt: new Date() })
+    .where(and(eq(projectIntakes.organizationId, organizationId), isNull(projectIntakes.workflowId)));
+
+  return created;
+}
+
+export async function getDefaultIntakeWorkflow(organizationId: number): Promise<IntakeWorkflow> {
+  return await ensureDefaultIntakeWorkflow(organizationId);
+}
+
+// ============== Step CRUD per workflow (intake) ==============
+
+export async function getIntakeWorkflowSteps(organizationId: number, workflowId?: number): Promise<IntakeWorkflowStep[]> {
+  const wfId = workflowId ?? (await ensureDefaultIntakeWorkflow(organizationId)).id;
   return await db.select().from(intakeWorkflowSteps)
-    .where(eq(intakeWorkflowSteps.organizationId, organizationId))
+    .where(and(eq(intakeWorkflowSteps.organizationId, organizationId), eq(intakeWorkflowSteps.workflowId, wfId)))
     .orderBy(intakeWorkflowSteps.position);
 }
 
-export async function upsertIntakeWorkflowSteps(organizationId: number, steps: InsertIntakeWorkflowStep[]): Promise<IntakeWorkflowStep[]> {
-  await db.delete(intakeWorkflowSteps).where(eq(intakeWorkflowSteps.organizationId, organizationId));
-  
+export async function getIntakeWorkflowStepsByWorkflowId(workflowId: number): Promise<IntakeWorkflowStep[]> {
+  return await db.select().from(intakeWorkflowSteps)
+    .where(eq(intakeWorkflowSteps.workflowId, workflowId))
+    .orderBy(intakeWorkflowSteps.position);
+}
+
+export async function upsertIntakeWorkflowSteps(organizationId: number, steps: InsertIntakeWorkflowStep[], workflowId?: number): Promise<IntakeWorkflowStep[]> {
+  const wfId = workflowId ?? (await ensureDefaultIntakeWorkflow(organizationId)).id;
+  await db.delete(intakeWorkflowSteps).where(eq(intakeWorkflowSteps.workflowId, wfId));
+
   if (steps.length === 0) {
     return [];
   }
-  
+
   const stepsWithOrg = steps.map(step => ({
     ...step,
     organizationId,
+    workflowId: wfId,
   }));
-  
+
   const inserted = await db.insert(intakeWorkflowSteps).values(stepsWithOrg).returning();
   return inserted;
 }
 
-export async function resetIntakeWorkflowToDefaults(organizationId: number): Promise<IntakeWorkflowStep[]> {
+export async function resetIntakeWorkflowToDefaults(organizationId: number, workflowId?: number): Promise<IntakeWorkflowStep[]> {
+  const wfId = workflowId ?? (await ensureDefaultIntakeWorkflow(organizationId)).id;
   const defaultSteps: InsertIntakeWorkflowStep[] = [
     {
       organizationId,
@@ -705,5 +825,163 @@ export async function resetIntakeWorkflowToDefaults(organizationId: number): Pro
     },
   ];
   
-  return upsertIntakeWorkflowSteps(organizationId, defaultSteps);
+  return upsertIntakeWorkflowSteps(organizationId, defaultSteps, wfId);
+}
+
+const DEFAULT_PROJECT_WORKFLOW_STEPS = [
+  { stepKey: "Initiation", position: 0, label: "Initiation", description: "Project kickoff & charter", isTerminal: false },
+  { stepKey: "Planning", position: 1, label: "Planning", description: "Detailed planning & scoping", isTerminal: false },
+  { stepKey: "Execution", position: 2, label: "Execution", description: "Active delivery", isTerminal: false },
+  { stepKey: "Monitoring", position: 3, label: "Monitoring", description: "Track & control", isTerminal: false },
+  { stepKey: "Closure", position: 4, label: "Closure", description: "Final acceptance & lessons learned", isTerminal: false },
+  { stepKey: "Completed", position: 5, label: "Completed", description: "Project done", isTerminal: true },
+  { stepKey: "Cancelled", position: 6, label: "Cancelled", description: "Stopped before completion", isTerminal: true },
+  { stepKey: "Closed", position: 7, label: "Closed", description: "Project archived & locked", isTerminal: true },
+];
+
+// ============== Project workflow CRUD ==============
+
+export async function getProjectWorkflows(organizationId: number): Promise<ProjectWorkflow[]> {
+  await ensureDefaultProjectWorkflow(organizationId);
+  return await db.select().from(projectWorkflows)
+    .where(eq(projectWorkflows.organizationId, organizationId))
+    .orderBy(desc(projectWorkflows.isDefault), projectWorkflows.name);
+}
+
+export async function getProjectWorkflow(id: number): Promise<ProjectWorkflow | undefined> {
+  const [wf] = await db.select().from(projectWorkflows).where(eq(projectWorkflows.id, id));
+  return wf;
+}
+
+export async function createProjectWorkflow(data: InsertProjectWorkflow): Promise<ProjectWorkflow> {
+  await ensureDefaultProjectWorkflow(data.organizationId);
+  return await db.transaction(async (tx) => {
+    if (data.isDefault) {
+      await tx.update(projectWorkflows)
+        .set({ isDefault: false, updatedAt: new Date() })
+        .where(eq(projectWorkflows.organizationId, data.organizationId));
+    }
+    const [wf] = await tx.insert(projectWorkflows).values({
+      ...data,
+      isDefault: data.isDefault ?? false,
+    }).returning();
+    return wf;
+  });
+}
+
+export async function updateProjectWorkflow(id: number, updates: Partial<InsertProjectWorkflow>): Promise<ProjectWorkflow> {
+  const existing = await getProjectWorkflow(id);
+  if (!existing) throw new Error("Workflow not found");
+  return await db.transaction(async (tx) => {
+    if (updates.isDefault === true) {
+      await tx.update(projectWorkflows)
+        .set({ isDefault: false, updatedAt: new Date() })
+        .where(and(eq(projectWorkflows.organizationId, existing.organizationId), eq(projectWorkflows.isDefault, true)));
+    } else if (updates.isDefault === false && existing.isDefault) {
+      throw new Error("Cannot unset default; set another workflow as default instead.");
+    }
+    const [updated] = await tx.update(projectWorkflows)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(projectWorkflows.id, id))
+      .returning();
+    return updated;
+  });
+}
+
+export async function deleteProjectWorkflow(id: number): Promise<void> {
+  const existing = await getProjectWorkflow(id);
+  if (!existing) throw new Error("Workflow not found");
+  if (existing.isDefault) throw new Error("Cannot delete the default workflow");
+  const all = await db.select().from(projectWorkflows).where(eq(projectWorkflows.organizationId, existing.organizationId));
+  if (all.length <= 1) throw new Error("Cannot delete the last remaining workflow");
+  const [defaultWf] = await db.select().from(projectWorkflows)
+    .where(and(eq(projectWorkflows.organizationId, existing.organizationId), eq(projectWorkflows.isDefault, true)));
+  await db.transaction(async (tx) => {
+    if (defaultWf) {
+      await tx.update(projects)
+        .set({ workflowId: defaultWf.id, updatedAt: new Date() })
+        .where(eq(projects.workflowId, id));
+    }
+    await tx.delete(projectWorkflows).where(eq(projectWorkflows.id, id));
+  });
+}
+
+export async function ensureDefaultProjectWorkflow(organizationId: number): Promise<ProjectWorkflow> {
+  const [existing] = await db.select().from(projectWorkflows)
+    .where(and(eq(projectWorkflows.organizationId, organizationId), eq(projectWorkflows.isDefault, true)));
+  if (existing) return existing;
+
+  const allWfs = await db.select().from(projectWorkflows).where(eq(projectWorkflows.organizationId, organizationId));
+  if (allWfs.length > 0) {
+    const [promoted] = await db.update(projectWorkflows)
+      .set({ isDefault: true, updatedAt: new Date() })
+      .where(eq(projectWorkflows.id, allWfs[0].id))
+      .returning();
+    return promoted;
+  }
+
+  const [created] = await db.insert(projectWorkflows).values({
+    organizationId,
+    name: "Default",
+    description: "Default project workflow",
+    isDefault: true,
+    isActive: true,
+  }).returning();
+
+  await db.update(projectWorkflowSteps)
+    .set({ workflowId: created.id, updatedAt: new Date() })
+    .where(and(eq(projectWorkflowSteps.organizationId, organizationId), isNull(projectWorkflowSteps.workflowId)));
+
+  await db.update(projects)
+    .set({ workflowId: created.id, updatedAt: new Date() })
+    .where(and(eq(projects.organizationId, organizationId), isNull(projects.workflowId)));
+
+  return created;
+}
+
+export async function getDefaultProjectWorkflow(organizationId: number): Promise<ProjectWorkflow> {
+  return await ensureDefaultProjectWorkflow(organizationId);
+}
+
+export async function getProjectWorkflowSteps(organizationId: number, workflowId?: number): Promise<ProjectWorkflowStep[]> {
+  const wfId = workflowId ?? (await ensureDefaultProjectWorkflow(organizationId)).id;
+  return await db.select().from(projectWorkflowSteps)
+    .where(and(eq(projectWorkflowSteps.organizationId, organizationId), eq(projectWorkflowSteps.workflowId, wfId)))
+    .orderBy(projectWorkflowSteps.position);
+}
+
+export async function getProjectWorkflowStepsByWorkflowId(workflowId: number): Promise<ProjectWorkflowStep[]> {
+  return await db.select().from(projectWorkflowSteps)
+    .where(eq(projectWorkflowSteps.workflowId, workflowId))
+    .orderBy(projectWorkflowSteps.position);
+}
+
+export async function upsertProjectWorkflowSteps(
+  organizationId: number,
+  steps: Array<{ stepKey: string; position: number; label: string; description?: string; isTerminal?: boolean; isActive?: boolean }>,
+  workflowId?: number,
+): Promise<ProjectWorkflowStep[]> {
+  const wfId = workflowId ?? (await ensureDefaultProjectWorkflow(organizationId)).id;
+  await db.delete(projectWorkflowSteps).where(eq(projectWorkflowSteps.workflowId, wfId));
+
+  if (steps.length === 0) return [];
+
+  const stepsWithOrg = steps.map(step => ({
+    organizationId,
+    workflowId: wfId,
+    stepKey: step.stepKey,
+    position: step.position,
+    label: step.label,
+    description: step.description,
+    isTerminal: step.isTerminal ?? false,
+    isActive: step.isActive ?? true,
+  }));
+
+  return await db.insert(projectWorkflowSteps).values(stepsWithOrg).returning();
+}
+
+export async function resetProjectWorkflowToDefaults(organizationId: number, workflowId?: number): Promise<ProjectWorkflowStep[]> {
+  const wfId = workflowId ?? (await ensureDefaultProjectWorkflow(organizationId)).id;
+  const steps = DEFAULT_PROJECT_WORKFLOW_STEPS.map(s => ({ ...s, organizationId }));
+  return upsertProjectWorkflowSteps(organizationId, steps, wfId);
 }

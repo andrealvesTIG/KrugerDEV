@@ -1845,6 +1845,9 @@ export const insertInvoiceNoteSchema = createInsertSchema(invoiceNotes).omit({ i
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
 export const insertStatusReportHistorySchema = createInsertSchema(statusReportHistory).omit({ id: true, createdAt: true });
 export const insertIntakeWorkflowStepSchema = createInsertSchema(intakeWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertIntakeWorkflowSchema = createInsertSchema(intakeWorkflows).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertProjectWorkflowSchema = createInsertSchema(projectWorkflows).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertProjectWorkflowStepSchema = createInsertSchema(projectWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
 
@@ -1973,6 +1976,15 @@ export type InsertStatusReportHistory = z.infer<typeof insertStatusReportHistory
 
 export type IntakeWorkflowStep = typeof intakeWorkflowSteps.$inferSelect;
 export type InsertIntakeWorkflowStep = z.infer<typeof insertIntakeWorkflowStepSchema>;
+
+export type IntakeWorkflow = typeof intakeWorkflows.$inferSelect;
+export type InsertIntakeWorkflow = z.infer<typeof insertIntakeWorkflowSchema>;
+
+export type ProjectWorkflow = typeof projectWorkflows.$inferSelect;
+export type InsertProjectWorkflow = z.infer<typeof insertProjectWorkflowSchema>;
+
+export type ProjectWorkflowStep = typeof projectWorkflowSteps.$inferSelect;
+export type InsertProjectWorkflowStep = z.infer<typeof insertProjectWorkflowStepSchema>;
 
 // API Request/Response Types
 export type CreatePortfolioRequest = InsertPortfolio;
