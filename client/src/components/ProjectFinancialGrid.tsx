@@ -800,12 +800,16 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     () => ({ key: "etc", label: "ETC", enabled: true, editable: false }),
     [],
   );
-  // What the grid actually renders columns for. ETC is appended at the end
-  // when toggled on so it doesn't disturb the ordering of real scenarios.
+  // What the grid renders in the TOTAL column block. ETC is appended when
+  // toggled on so it doesn't disturb the ordering of real scenarios.
   const displayedTypes: FinancialType[] = useMemo(
     () => (showEtc ? [...enabledTypes, ETC_TYPE] : enabledTypes),
     [enabledTypes, ETC_TYPE, showEtc],
   );
+  // What the grid renders for each MONTH. ETC is intentionally excluded —
+  // it's only meaningful as a yearly roll-up (Actuals + remaining Forecast),
+  // so we surface it only in the Total column.
+  const monthDisplayedTypes: FinancialType[] = enabledTypes;
 
   // Search filter: any token match on item name / wbs / comments / category /
   // financial view / cost category / cost specification keeps the entire item.
@@ -1364,7 +1368,8 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
       </div>
 
       {(() => {
-        const N = Math.max(displayedTypes.length, 1);
+        const N_TOTAL = Math.max(displayedTypes.length, 1);
+        const N_MONTH = Math.max(monthDisplayedTypes.length, 1);
         // Cost Item column accepts a user-driven offset from the splitter drag.
         const COL_COST_BASE = 300;
         const COL_COST_MIN = 160;
@@ -1488,10 +1493,10 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
           return Math.round(Math.min(MAX_TOTAL_SUB, Math.max(MIN_TOTAL_SUB, chars * CHAR_PX + PAD_X)));
         });
 
-        // Per-month per-scenario sub-cols
+        // Per-month per-scenario sub-cols (ETC excluded — only in Total).
         const monthSubPx: number[] = [];
         for (let mi = 0; mi < 12; mi++) {
-          for (const s of displayedTypes) {
+          for (const s of monthDisplayedTypes) {
             let chars = (s.label.length + (!s.editable ? 1 : 0)) + 1;
             const cellMax = monthMaxChars[mi][s.key] ?? 0;
             if (cellMax > chars) chars = cellMax;
@@ -1503,12 +1508,12 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
         // Ensure the sub-cols for each month are wide enough for the month header label (e.g. "OCT")
         for (let mi = 0; mi < 12; mi++) {
-          const start = mi * N;
-          const sum = monthSubPx.slice(start, start + N).reduce((a, b) => a + b, 0);
+          const start = mi * N_MONTH;
+          const sum = monthSubPx.slice(start, start + N_MONTH).reduce((a, b) => a + b, 0);
           const needed = Math.ceil("SEP".length * HDR_CHAR_PX + PAD_X);
           if (sum < needed) {
-            const extra = Math.ceil((needed - sum) / N);
-            for (let k = 0; k < N; k++) monthSubPx[start + k] += extra;
+            const extra = Math.ceil((needed - sum) / N_MONTH);
+            for (let k = 0; k < N_MONTH; k++) monthSubPx[start + k] += extra;
           }
         }
 
@@ -1517,10 +1522,10 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
         // (not just overlaying the input) keeps the grid layout consistent
         // and avoids overlap with neighboring cells.
         if (editingCell) {
-          const editSIdx = displayedTypes.findIndex(t => t.key === editingCell.typeKey);
+          const editSIdx = monthDisplayedTypes.findIndex(t => t.key === editingCell.typeKey);
           const editMi = editingCell.month - 1;
           if (editSIdx >= 0 && editMi >= 0 && editMi < 12) {
-            const colIdx = editMi * N + editSIdx;
+            const colIdx = editMi * N_MONTH + editSIdx;
             const chars = Math.max(8, editValue.length + 2);
             const needed = Math.round(Math.min(320, chars * CHAR_PX + PAD_X + 10));
             if (needed > monthSubPx[colIdx]) monthSubPx[colIdx] = needed;
@@ -1656,13 +1661,13 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                   </div>
                   <div
                     className={`flex items-center justify-center ${monthBorder}`}
-                    style={{ gridColumn: `span ${N}` }}
+                    style={{ gridColumn: `span ${N_TOTAL}` }}
                   ></div>
                   {yearGroups.map((g, gi) => (
                     <div
                       key={`y-${g.year}-${gi}`}
                       className={`flex items-center justify-center text-xs font-semibold tracking-wide text-muted-foreground ${monthBorder}`}
-                      style={{ gridColumn: `span ${g.count * N}` }}
+                      style={{ gridColumn: `span ${g.count * N_MONTH}` }}
                     >
                       {g.year}
                     </div>
@@ -1688,7 +1693,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                   ></div>
                   <div
                     className={`flex items-center justify-center text-[11px] font-bold uppercase tracking-wider text-foreground ${monthBorder}`}
-                    style={{ gridColumn: `span ${N}` }}
+                    style={{ gridColumn: `span ${N_TOTAL}` }}
                   >
                     Total
                   </div>
@@ -1698,7 +1703,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                       className={`flex items-center justify-center text-xs font-semibold uppercase tracking-wider ${monthBorder} ${
                         isCurrentMonth(idx) ? "bg-amber-100 dark:bg-amber-900/30 text-amber-900 dark:text-amber-200" : "text-muted-foreground"
                       }`}
-                      style={{ gridColumn: `span ${N}` }}
+                      style={{ gridColumn: `span ${N_MONTH}` }}
                     >
                       {m.label}
                     </div>
@@ -1727,7 +1732,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                     );
                   })}
                   {MONTHS.map((m, idx) => (
-                    displayedTypes.map((s, i) => {
+                    monthDisplayedTypes.map((s, i) => {
                       const palette = getTypePalette(s.key);
                       const current = isCurrentMonth(idx);
                       return (
@@ -1955,9 +1960,9 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                           );
                         })}
 
-                        {/* Per-month per-scenario cells */}
+                        {/* Per-month per-scenario cells (ETC excluded). */}
                         {MONTHS.map((m, idx) => (
-                          displayedTypes.map((s, sIdx) => {
+                          monthDisplayedTypes.map((s, sIdx) => {
                             const value = row.monthlyByType[s.key]?.[idx] ?? 0;
                             const borderCls = sIdx === 0 ? monthBorder : typeBorder;
                             const hi = monthHi(idx);
@@ -2112,7 +2117,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                               />
                             ))}
                             {MONTHS.map((m, idx) => (
-                              displayedTypes.map((s, sIdx) => (
+                              monthDisplayedTypes.map((s, sIdx) => (
                                 <div
                                   key={`qa-${m.num}-${s.key}`}
                                   className={`px-1 py-1 ${sIdx === 0 ? monthBorder : typeBorder} ${monthHi(idx)}`}
@@ -2171,7 +2176,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                           />
                         ))}
                         {MONTHS.map((m, idx) => (
-                          displayedTypes.map((s, sIdx) => (
+                          monthDisplayedTypes.map((s, sIdx) => (
                             <div
                               key={`ph-${m.num}-${s.key}`}
                               className={`px-1 py-1 ${sIdx === 0 ? monthBorder : typeBorder} ${monthHi(idx)}`}
@@ -2216,7 +2221,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                       );
                     })}
                     {MONTHS.map((m, idx) => (
-                      displayedTypes.map((s, sIdx) => {
+                      monthDisplayedTypes.map((s, sIdx) => {
                         const grandMonthForType = rows
                           .filter(r => r.type === "view")
                           .reduce((acc, r) => acc + (r.monthlyByType[s.key]?.[idx] ?? 0), 0);
