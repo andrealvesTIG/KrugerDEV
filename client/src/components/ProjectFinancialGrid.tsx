@@ -10,7 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
-import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock, MoreVertical, ChevronsDownUp, ChevronsUpDown, Loader2, Undo2, Redo2, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Activity, Sparkles, Target, Flame, Gauge, Download } from "lucide-react";
+import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock, MoreVertical, ChevronsDownUp, ChevronsUpDown, Loader2, Undo2, Redo2, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Activity, Sparkles, Target, Flame, Gauge, Download, History as HistoryIcon, Clock } from "lucide-react";
+import {
+  HistoryListPanel,
+  HistoryCellPopover,
+  type RawChangeLog,
+} from "@/components/financial/FinancialChangeHistory";
 import {
   exportFinancialGridToCsv,
   exportFinancialGridToExcel,
@@ -915,7 +920,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   // an `undone` flag. canUndo = at least one active row exists; canRedo = at
   // least one undone row exists. Any new edit on the server clears the redo
   // stack, so canRedo flips back to false naturally on the next refetch.
-  const { data: history = [] } = useQuery<any[]>({
+  const { data: history = [], isLoading: historyLoading } = useQuery<RawChangeLog[]>({
     queryKey: ["/api/projects", projectId, "financial-entries", "history"],
     queryFn: async () => {
       const res = await fetch(`/api/projects/${projectId}/financial-entries/history`);
@@ -923,6 +928,18 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
       return res.json();
     },
   });
+
+  // History viewer UI state. The panel covers the whole project; the cell
+  // popover is anchored to whichever cell the user right-clicked or hit the
+  // hover icon on.
+  const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
+  const [cellHistoryFor, setCellHistoryFor] = useState<{
+    itemKey: string;
+    type: string;
+    month: number;
+    fiscalYear: number;
+    anchorRect: DOMRect;
+  } | null>(null);
 
   const isLegacyUndoRow = (h: any) => {
     try {
@@ -2014,6 +2031,20 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
               <Redo2 className="h-3.5 w-3.5" />
             </Button>
           </div>
+
+          {/* Change history viewer */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9"
+            onClick={() => setHistoryPanelOpen(true)}
+            title="View change history (who edited what and when)"
+            aria-label="View change history"
+            data-testid="button-open-history"
+          >
+            <HistoryIcon className="h-3.5 w-3.5 mr-1.5" />
+            History
+          </Button>
 
           {/* Expand / Collapse all groups */}
           <Button
@@ -3349,7 +3380,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                                   />
                                 ) : (
                                   <div
-                                    className={`h-6 flex items-center justify-center gap-1 px-1 text-[11px] tabular-nums rounded-sm transition-all select-none ${
+                                    className={`group/cell relative h-6 flex items-center justify-center gap-1 px-1 text-[11px] tabular-nums rounded-sm transition-all select-none ${
                                       editable
                                         ? "cursor-cell hover:ring-1 hover:ring-primary/40 hover:bg-background/60"
                                         : locked
@@ -3357,11 +3388,46 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                                           : "text-muted-foreground"
                                     } ${isActiveSel ? "ring-2 ring-inset ring-blue-600 dark:ring-blue-400" : ""}`}
                                     onDoubleClick={() => editable && handleCellClick(row, p.monthIndices[0], s.key)}
+                                    onContextMenu={(ev) => {
+                                      if (!row.itemKey) return;
+                                      ev.preventDefault();
+                                      setCellHistoryFor({
+                                        itemKey: row.itemKey,
+                                        type: s.key,
+                                        month: m.monthNum,
+                                        fiscalYear,
+                                        anchorRect: (ev.currentTarget as HTMLElement).getBoundingClientRect(),
+                                      });
+                                    }}
                                     data-testid={`cell-${s.key}-m${m.monthNum}-${row.itemKey}`}
                                     {...selMouseProps}
                                   >
                                     {locked && <Lock className="h-2.5 w-2.5 opacity-60" />}
                                     {value !== 0 ? formatCurrency(value) : <span className="text-muted-foreground/30">—</span>}
+                                    {row.itemKey && (
+                                      <button
+                                        type="button"
+                                        tabIndex={-1}
+                                        onMouseDown={(ev) => ev.stopPropagation()}
+                                        onClick={(ev) => {
+                                          ev.stopPropagation();
+                                          if (!row.itemKey) return;
+                                          setCellHistoryFor({
+                                            itemKey: row.itemKey,
+                                            type: s.key,
+                                            month: m.monthNum,
+                                            fiscalYear,
+                                            anchorRect: (ev.currentTarget.parentElement as HTMLElement).getBoundingClientRect(),
+                                          });
+                                        }}
+                                        className="absolute top-0 right-0 h-3.5 w-3.5 inline-flex items-center justify-center rounded-bl bg-background/90 text-muted-foreground hover:text-primary hover:bg-background opacity-0 group-hover/cell:opacity-100 transition-opacity"
+                                        title="View change history for this cell"
+                                        aria-label="View cell change history"
+                                        data-testid={`button-cell-history-${s.key}-m${m.monthNum}-${row.itemKey}`}
+                                      >
+                                        <Clock className="h-2.5 w-2.5" />
+                                      </button>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -3704,6 +3770,48 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Project-wide change history viewer */}
+      <HistoryListPanel
+        open={historyPanelOpen}
+        onOpenChange={setHistoryPanelOpen}
+        history={history}
+        isLoading={historyLoading}
+        fiscalYearStartMonth={fiscalYearStartMonth}
+        typeLabelByKey={Object.fromEntries(allTypes.map((t) => [t.key, t.label]))}
+      />
+
+      {/* Per-cell history popover. Anchored to a tiny invisible element
+         positioned exactly where the user opened it (right-click or hover
+         icon on a data cell). */}
+      {cellHistoryFor && (
+        <HistoryCellPopover
+          open={!!cellHistoryFor}
+          onOpenChange={(o) => { if (!o) setCellHistoryFor(null); }}
+          cell={{
+            itemKey: cellHistoryFor.itemKey,
+            type: cellHistoryFor.type,
+            month: cellHistoryFor.month,
+            fiscalYear: cellHistoryFor.fiscalYear,
+          }}
+          history={history}
+          fiscalYearStartMonth={fiscalYearStartMonth}
+          typeLabelByKey={Object.fromEntries(allTypes.map((t) => [t.key, t.label]))}
+          anchor={
+            <span
+              aria-hidden
+              style={{
+                position: "fixed",
+                left: cellHistoryFor.anchorRect.left + cellHistoryFor.anchorRect.width / 2,
+                top: cellHistoryFor.anchorRect.bottom,
+                width: 1,
+                height: 1,
+                pointerEvents: "none",
+              }}
+            />
+          }
+        />
+      )}
     </div>
   );
 }
