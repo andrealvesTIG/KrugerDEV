@@ -1,6 +1,7 @@
 import type { Express, Request } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../db";
+import { financialEntries, costItemChangeLogs } from "@shared/schema";
 import { storage } from "../storage";
 import { multiYearWbs } from "@shared/schema";
 import type { FinancialType } from "@shared/schema";
@@ -220,6 +221,127 @@ export function registerFinancialsRoutes(app: Express) {
     } catch (err: any) {
       console.error("Error updating financial cell:", err);
       res.status(500).json({ message: err?.message || "Error updating financial cell" });
+    }
+  });
+
+  // Bulk-clear: zero a list of editable cells in a single transaction and
+  // write ONE change-log row of type `bulk_cell`. Already-zero cells are
+  // silently dropped so the log doesn't get noise. Read-only types and
+  // unknown/disabled types are rejected with 400.
+  app.post("/api/projects/:projectId/financial-cells/bulk-clear", async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const guard = await ensureProjectAccess(req, projectId);
+      if (!guard.ok) return res.status(guard.status).json({ message: guard.message });
+      const userId = guard.userId;
+
+      const body = req.body || {};
+      const fiscalYear = Number(body.fiscalYear);
+      const cellsIn: any[] = Array.isArray(body.cells) ? body.cells : [];
+      if (!fiscalYear || cellsIn.length === 0) {
+        return res.status(400).json({ message: "fiscalYear and a non-empty cells array are required" });
+      }
+
+      const orgTypes = await getOrgTypeConfig(guard.project.organizationId);
+      const typeMap = new Map(orgTypes.map(s => [s.key, s]));
+      // Validate every cell up front so we don't half-apply.
+      for (const c of cellsIn) {
+        const typeKey = String(c?.type ?? "");
+        const typeCfg = typeMap.get(typeKey);
+        if (!typeCfg) return res.status(400).json({ message: `Unknown financial type "${typeKey}"` });
+        if (!typeCfg.enabled) return res.status(400).json({ message: `Financial type "${typeCfg.label}" is disabled` });
+        if (!typeCfg.editable) return res.status(403).json({ message: `Financial type "${typeCfg.label}" is read-only` });
+        const m = Number(c?.month);
+        if (!Number.isFinite(m) || m < 1 || m > 12) {
+          return res.status(400).json({ message: "Each cell must include month 1..12" });
+        }
+        if (!c?.itemKey || typeof c.itemKey !== "string") {
+          return res.status(400).json({ message: "Each cell must include itemKey" });
+        }
+      }
+
+      // Snapshot current amounts so undo can restore them. Only include
+      // cells whose previous amount is non-zero — clearing an already-zero
+      // cell is a no-op and would just clutter the log.
+      const allEntries = await storage.getFinancialEntries(projectId, fiscalYear);
+      const lookup = new Map<string, number>();
+      for (const e of allEntries) {
+        lookup.set(`${e.itemKey}::${e.scenario}::${e.month}`, Number(e.amount) || 0);
+      }
+      const itemNameByKey = new Map<string, string>();
+      for (const e of allEntries) {
+        if (!itemNameByKey.has(e.itemKey)) itemNameByKey.set(e.itemKey, e.itemName);
+      }
+
+      const seen = new Set<string>();
+      const toClear: Array<{ itemKey: string; type: string; month: number; fiscalYear: number; amount: number }> = [];
+      for (const c of cellsIn) {
+        const itemKey = String(c.itemKey);
+        const typeKey = String(c.type);
+        const month = Number(c.month);
+        const dedupeKey = `${itemKey}::${typeKey}::${month}`;
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+        const prevAmount = lookup.get(dedupeKey) ?? 0;
+        if (prevAmount === 0) continue;
+        toClear.push({ itemKey, type: typeKey, month, fiscalYear, amount: prevAmount });
+      }
+
+      if (toClear.length === 0) {
+        return res.json({ cleared: 0, message: "Nothing to clear" });
+      }
+
+      // Resolve user display name BEFORE the transaction so we don't block
+      // the tx on a separate read inside.
+      const changerName = await changedByName(userId);
+      const sampleNames = Array.from(new Set(toClear.map(c => itemNameByKey.get(c.itemKey)).filter(Boolean))).slice(0, 3);
+      const distinctItemCount = new Set(toClear.map(c => c.itemKey)).size;
+      const summary = `Cleared ${toClear.length} cell${toClear.length === 1 ? "" : "s"}`
+        + (sampleNames.length > 0
+          ? ` (${sampleNames.join(", ")}${sampleNames.length < distinctItemCount ? ", …" : ""})`
+          : "");
+
+      // Single DB transaction: zero every targeted cell, clear the redo stack,
+      // and write ONE change-log row. If any step fails the whole batch is
+      // rolled back so the audit log can never disagree with the data.
+      // We update by matching the natural key tuple (project, fy, itemKey,
+      // scenario, month) — every cell is guaranteed to exist because we only
+      // included cells whose previous amount was non-zero (they came from
+      // getFinancialEntries above).
+      await db.transaction(async (tx) => {
+        for (const c of toClear) {
+          await tx
+            .update(financialEntries)
+            .set({ amount: "0" as any, updatedAt: new Date() })
+            .where(and(
+              eq(financialEntries.projectId, projectId),
+              eq(financialEntries.fiscalYear, c.fiscalYear),
+              eq(financialEntries.itemKey, c.itemKey),
+              eq(financialEntries.scenario, c.type),
+              eq(financialEntries.month, c.month),
+            ));
+        }
+        // Clear redo stack inside the tx so a partial failure doesn't leave
+        // a stale redo state that would re-apply the wrong thing.
+        await tx
+          .delete(costItemChangeLogs)
+          .where(and(eq(costItemChangeLogs.projectId, projectId), eq(costItemChangeLogs.undone, true)));
+        await tx.insert(costItemChangeLogs).values({
+          costItemId: null,
+          projectId,
+          changedBy: userId,
+          changedByName: changerName,
+          changeType: "bulk_cell",
+          changeSummary: summary,
+          previousValues: JSON.stringify({ fiscalYear, cells: toClear }),
+          newValues: JSON.stringify({ fiscalYear, cells: toClear.map(c => ({ ...c, amount: 0 })) }),
+        });
+      });
+
+      res.json({ cleared: toClear.length });
+    } catch (err: any) {
+      console.error("Error bulk-clearing financial cells:", err);
+      res.status(500).json({ message: err?.message || "Error bulk-clearing financial cells" });
     }
   });
 
@@ -493,6 +615,32 @@ export function registerFinancialsRoutes(app: Express) {
         await storage.deleteFinancialItem({ projectId, itemKey: prev.itemKey });
       }
       return `Re-deleted "${prev.itemName ?? prev.itemKey}"`;
+    }
+
+    if (log.changeType === "bulk_cell") {
+      // previousValues holds the snapshot of cells BEFORE the bulk action ran.
+      // Undo restores each previous amount; redo re-zeroes the same set.
+      const prev = log.previousValues ? JSON.parse(log.previousValues) : null;
+      const cells: Array<{ itemKey: string; type: string; month: number; fiscalYear: number; amount: number }>
+        = prev?.cells ?? [];
+      if (!Array.isArray(cells) || cells.length === 0) {
+        throw new Error("Bulk-cell change log has no cells to apply");
+      }
+      for (const c of cells) {
+        const typeKey = c.type;
+        if (!typeKey) continue;
+        await storage.upsertFinancialCell({
+          projectId,
+          fiscalYear: Number(c.fiscalYear),
+          itemKey: c.itemKey,
+          type: typeKey,
+          month: Number(c.month),
+          amount: direction === "undo" ? (Number(c.amount) || 0) : 0,
+        });
+      }
+      return direction === "undo"
+        ? `Restored ${cells.length} cleared cell${cells.length === 1 ? "" : "s"}`
+        : `Re-cleared ${cells.length} cell${cells.length === 1 ? "" : "s"}`;
     }
 
     throw new Error(`Cannot ${direction} change of type "${log.changeType}"`);

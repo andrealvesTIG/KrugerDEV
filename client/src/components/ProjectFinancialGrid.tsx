@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock, MoreVertical, ChevronsDownUp, ChevronsUpDown, Loader2, Undo2, Redo2, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Activity, Sparkles, Target, Flame, Gauge } from "lucide-react";
 import {
   DropdownMenu,
@@ -678,6 +679,22 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
   const [editingCell, setEditingCell] = useState<{ itemKey: string; month: number; typeKey: string } | null>(null);
   const [editValue, setEditValue] = useState("");
+
+  // ===================== Excel-like cell selection =====================
+  // Selection coordinates use:
+  //   rowIdx  = index into editableRows  (item rows only)
+  //   colIdx  = periodIdx * monthDisplayedTypes.length + typeIdx
+  // Ranges are inclusive rectangles. Multiple disjoint ranges are supported.
+  type CellRef = { rowIdx: number; colIdx: number };
+  type SelRange = { r1: number; r2: number; c1: number; c2: number };
+  type Selection = { anchor: CellRef | null; active: CellRef | null; ranges: SelRange[] };
+  const [selection, setSelection] = useState<Selection>({ anchor: null, active: null, ranges: [] });
+  // Tracks an active drag (mouse down on a cell), used to extend a range as
+  // the mouse moves into other cells. The current range is always the LAST
+  // entry in `ranges` so we can rewrite it cheaply on every mouseenter.
+  const dragRef = useRef<{ active: boolean; anchor: CellRef | null }>({ active: false, anchor: null });
+  // Wrapper that owns keyboard focus for the selection layer.
+  const gridFocusRef = useRef<HTMLDivElement | null>(null);
   // Inline text-field editing for Cost Item / Comments / WBS columns.
   const [editingText, setEditingText] = useState<{ itemKey: string; field: "itemName" | "comments" | "wbs" } | null>(null);
   const [editTextValue, setEditTextValue] = useState("");
@@ -778,6 +795,61 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     onError: (err: any) =>
       toast({ title: "Failed to update cell", description: err?.message, variant: "destructive" }),
   });
+
+  // Bulk-clear mutation. Sends every editable, non-zero cell in the current
+  // selection in a single request so the server can write ONE undo step.
+  const bulkClearMutation = useMutation({
+    mutationFn: async (cells: Array<{ itemKey: string; type: string; month: number }>) =>
+      apiRequest("POST", `/api/projects/${projectId}/financial-cells/bulk-clear`, {
+        fiscalYear,
+        cells,
+      }),
+    onSuccess: async (res: any) => {
+      const data = await (res?.json ? res.json() : res);
+      const n = Number(data?.cleared) || 0;
+      invalidateAll();
+      if (n > 0) {
+        toast({
+          title: `Cleared ${n} cell${n === 1 ? "" : "s"}`,
+          description: "Press Ctrl/Cmd+Z to undo",
+          // Inline action so the user can undo immediately without
+          // hunting for the toolbar button or remembering the shortcut.
+          action: (
+            <ToastAction
+              altText="Undo"
+              onClick={() => undoMutation.mutate()}
+              data-testid="toast-bulk-undo"
+            >
+              Undo
+            </ToastAction>
+          ),
+        });
+      }
+    },
+    onError: (err: any) =>
+      toast({ title: "Failed to clear cells", description: err?.message, variant: "destructive" }),
+  });
+
+  // Clear the selection whenever the underlying row layout changes meaningfully
+  // (FY swap, view collapse/expand, period switch, search filter). Stale
+  // ranges pointing at rows that no longer exist would silently address the
+  // wrong cells, so we reset rather than try to remap.
+  useEffect(() => {
+    clearSelection();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fiscalYear, viewMode, searchQuery, expanded]);
+
+  // Run the bulk-clear for the current selection. No-op if nothing editable
+  // is selected or every selected cell is already zero.
+  const runBulkClear = () => {
+    if (selectedEditableCells.length === 0) return;
+    const nonZero = selectedEditableCells.filter(c => (c.amount || 0) !== 0);
+    if (nonZero.length === 0) {
+      toast({ title: "Nothing to clear", description: "All selected cells are already empty." });
+      return;
+    }
+    bulkClearMutation.mutate(nonZero.map(c => ({ itemKey: c.itemKey, type: c.type, month: c.month })));
+  };
 
   // ---------- Undo / Redo ----------
   // The history endpoint returns every change-log row for the project, each with
@@ -1223,6 +1295,269 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   }, [periodCols, currentMonthIdx]);
 
   const editableRows = useMemo(() => rows.filter(r => r.type === "item"), [rows]);
+  // itemKey → index into `editableRows`, used by selection mouse handlers
+  // to translate from a per-row render context back to selection coordinates.
+  const editableRowIdxByKey = useMemo(() => {
+    const m = new Map<string, number>();
+    editableRows.forEach((r, i) => { if (r.itemKey) m.set(r.itemKey, i); });
+    return m;
+  }, [editableRows]);
+
+  // ---------- Selection helpers ----------
+  // colIdx ↔ (periodIdx, typeIdx) over the visible "month-band" columns.
+  // displayedTypes for the Total band is intentionally NOT selectable — the
+  // Total column shows row roll-ups, not editable cells, so it's outside the
+  // selection grid. Ranges only span the period-cell band.
+  const sceCount = monthDisplayedTypes.length;
+  const totalCols = periodCols.length * Math.max(sceCount, 1);
+  const totalRows = editableRows.length;
+
+  const normalizeRange = (a: CellRef, b: CellRef): SelRange => ({
+    r1: Math.min(a.rowIdx, b.rowIdx),
+    r2: Math.max(a.rowIdx, b.rowIdx),
+    c1: Math.min(a.colIdx, b.colIdx),
+    c2: Math.max(a.colIdx, b.colIdx),
+  });
+  const isCellInRanges = (rowIdx: number, colIdx: number, ranges: SelRange[]): boolean => {
+    for (const r of ranges) {
+      if (rowIdx >= r.r1 && rowIdx <= r.r2 && colIdx >= r.c1 && colIdx <= r.c2) return true;
+    }
+    return false;
+  };
+  const clearSelection = () => {
+    dragRef.current = { active: false, anchor: null };
+    setSelection({ anchor: null, active: null, ranges: [] });
+  };
+
+  // Resolve a (rowIdx, colIdx) into the underlying logical cell(s) for the
+  // bulk-clear API. In month view colIdx maps to one (period, type) pair
+  // and the period is one month; in quarter/year view, the period spans
+  // 3 or 12 months and we expand to all of them.
+  type LogicalCell = { itemKey: string; type: string; month: number; editable: boolean };
+  const cellsAt = (rowIdx: number, colIdx: number): LogicalCell[] => {
+    if (sceCount === 0) return [];
+    const row = editableRows[rowIdx];
+    if (!row || !row.itemKey) return [];
+    const periodIdx = Math.floor(colIdx / sceCount);
+    const typeIdx = colIdx % sceCount;
+    const p = periodCols[periodIdx];
+    const t = monthDisplayedTypes[typeIdx];
+    if (!p || !t) return [];
+    return p.monthIndices.map(mi => ({
+      itemKey: row.itemKey!,
+      type: t.key,
+      month: mi + 1,
+      editable: !!t.editable,
+    }));
+  };
+  // Distinct editable cells across all selection ranges, with their current
+  // amount (for the summary chip + skip-zero filtering before POSTing).
+  const selectedEditableCells = useMemo(() => {
+    if (selection.ranges.length === 0) return [] as Array<LogicalCell & { amount: number }>;
+    const out = new Map<string, LogicalCell & { amount: number }>();
+    for (const range of selection.ranges) {
+      for (let r = range.r1; r <= range.r2; r++) {
+        const row = editableRows[r];
+        if (!row || !row.itemKey) continue;
+        for (let c = range.c1; c <= range.c2; c++) {
+          for (const cell of cellsAt(r, c)) {
+            if (!cell.editable) continue;
+            const key = `${cell.itemKey}::${cell.type}::${cell.month}`;
+            if (out.has(key)) continue;
+            const amt = row.monthlyByType[cell.type]?.[cell.month - 1] ?? 0;
+            out.set(key, { ...cell, amount: amt });
+          }
+        }
+      }
+    }
+    return Array.from(out.values());
+  }, [selection, editableRows, periodCols, monthDisplayedTypes]);
+
+  const selectionCellCount = useMemo(() => {
+    let total = 0;
+    for (const r of selection.ranges) {
+      total += (r.r2 - r.r1 + 1) * (r.c2 - r.c1 + 1);
+    }
+    return total;
+  }, [selection]);
+  const selectionEditableSum = useMemo(
+    () => selectedEditableCells.reduce((a, b) => a + (b.amount || 0), 0),
+    [selectedEditableCells],
+  );
+
+  // ---------- Mouse handlers for selection ----------
+  // Mouse-down on a cell: shift-click extends from anchor; ctrl/meta starts a
+  // new disjoint range; plain click starts a fresh single-cell selection and
+  // arms drag-to-extend on subsequent mouseenter events.
+  const onCellMouseDown = (
+    e: React.MouseEvent,
+    rowIdx: number,
+    colIdx: number,
+  ) => {
+    if (editingCell) return; // Don't fight the inline editor for clicks.
+    // Only react to the primary mouse button.
+    if (e.button !== 0) return;
+    e.preventDefault();
+    gridFocusRef.current?.focus();
+    const here: CellRef = { rowIdx, colIdx };
+    setSelection(prev => {
+      // Shift+click: extend the most recent range from the existing anchor.
+      if (e.shiftKey && prev.anchor) {
+        const newRanges = prev.ranges.length > 0
+          ? [...prev.ranges.slice(0, -1), normalizeRange(prev.anchor, here)]
+          : [normalizeRange(prev.anchor, here)];
+        return { anchor: prev.anchor, active: here, ranges: newRanges };
+      }
+      // Ctrl/Cmd+click: toggle this cell.
+      //  - If `here` is inside an existing range, REMOVE every range that
+      //    contains it (the simplest "toggle-off" semantics — see Excel,
+      //    which removes the whole range when you ctrl-click any of its
+      //    cells outside an active drag). The active cell falls back to
+      //    the previous anchor so arrow-nav still works.
+      //  - Otherwise, start a new disjoint single-cell range at `here`.
+      if ((e.ctrlKey || e.metaKey) && prev.anchor) {
+        const containing = prev.ranges.filter(r =>
+          here.rowIdx >= r.r1 && here.rowIdx <= r.r2 && here.colIdx >= r.c1 && here.colIdx <= r.c2,
+        );
+        if (containing.length > 0) {
+          const remaining = prev.ranges.filter(r => !containing.includes(r));
+          if (remaining.length === 0) {
+            return { anchor: null, active: null, ranges: [] };
+          }
+          // Anchor and active fall back to the last remaining range's
+          // top-left corner so subsequent shift/arrow ops have a sane base.
+          const last = remaining[remaining.length - 1];
+          const fallback: CellRef = { rowIdx: last.r1, colIdx: last.c1 };
+          return { anchor: fallback, active: fallback, ranges: remaining };
+        }
+        return {
+          anchor: here,
+          active: here,
+          ranges: [...prev.ranges, normalizeRange(here, here)],
+        };
+      }
+      // Plain click: replace selection with a fresh single-cell range.
+      return { anchor: here, active: here, ranges: [normalizeRange(here, here)] };
+    });
+    dragRef.current = { active: true, anchor: here };
+  };
+
+  const onCellMouseEnter = (rowIdx: number, colIdx: number) => {
+    if (!dragRef.current.active || !dragRef.current.anchor) return;
+    const anchor = dragRef.current.anchor;
+    const here: CellRef = { rowIdx, colIdx };
+    setSelection(prev => {
+      const newRanges = prev.ranges.length > 0
+        ? [...prev.ranges.slice(0, -1), normalizeRange(anchor, here)]
+        : [normalizeRange(anchor, here)];
+      return { anchor, active: here, ranges: newRanges };
+    });
+  };
+
+  // Window mouseup ends a drag — even if the user releases off-grid.
+  useEffect(() => {
+    const onUp = () => { dragRef.current.active = false; };
+    window.addEventListener("mouseup", onUp);
+    return () => window.removeEventListener("mouseup", onUp);
+  }, []);
+
+  // ---------- Keyboard handler ----------
+  // Bound to a tabIndex=0 wrapper around the grid. Skips when the inline
+  // editor is open or focus is in any input/textarea so we don't hijack typing.
+  const onGridKeyDown = (e: React.KeyboardEvent) => {
+    if (editingCell || editingText || placeholder) return;
+    const tgt = e.target as HTMLElement | null;
+    const tag = tgt?.tagName?.toLowerCase();
+    if (tag === "input" || tag === "textarea" || tgt?.isContentEditable) return;
+
+    const isMod = e.ctrlKey || e.metaKey;
+
+    // Esc: clear selection (only if we have one — otherwise let it bubble).
+    if (e.key === "Escape" && selection.ranges.length > 0) {
+      e.preventDefault();
+      clearSelection();
+      return;
+    }
+
+    // Delete / Backspace: bulk-clear all editable cells in the selection.
+    if ((e.key === "Delete" || e.key === "Backspace") && selection.ranges.length > 0) {
+      e.preventDefault();
+      runBulkClear();
+      return;
+    }
+
+    // Arrow navigation requires an active cell. Without one, ignore.
+    const dirMap: Record<string, [number, number]> = {
+      ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1],
+    };
+    const delta = dirMap[e.key];
+    if (delta && selection.active && totalRows > 0 && totalCols > 0) {
+      e.preventDefault();
+      const [dr, dc] = delta;
+      const cur = selection.active;
+      let next: CellRef;
+      if (isMod) {
+        // Ctrl+(Shift+)Arrow → jump to the edge of the grid in that direction.
+        next = {
+          rowIdx: dr === 0 ? cur.rowIdx : (dr < 0 ? 0 : totalRows - 1),
+          colIdx: dc === 0 ? cur.colIdx : (dc < 0 ? 0 : totalCols - 1),
+        };
+      } else {
+        next = {
+          rowIdx: Math.max(0, Math.min(totalRows - 1, cur.rowIdx + dr)),
+          colIdx: Math.max(0, Math.min(totalCols - 1, cur.colIdx + dc)),
+        };
+      }
+      setSelection(prev => {
+        if (e.shiftKey && prev.anchor) {
+          // Extend the LAST range from the anchor to the new active cell.
+          const newRanges = prev.ranges.length > 0
+            ? [...prev.ranges.slice(0, -1), normalizeRange(prev.anchor, next)]
+            : [normalizeRange(prev.anchor, next)];
+          return { anchor: prev.anchor, active: next, ranges: newRanges };
+        }
+        // Plain arrow: collapse to a fresh single-cell selection at `next`.
+        return { anchor: next, active: next, ranges: [normalizeRange(next, next)] };
+      });
+      return;
+    }
+
+    // Enter (or F2) on a single editable selected cell → drop into the editor
+    // with the existing value as the starting text. Ignore modifier-key combos.
+    if ((e.key === "Enter" || e.key === "F2") && !isMod && !e.altKey
+        && selection.active && selectionCellCount === 1 && isMonthView) {
+      const cells = cellsAt(selection.active.rowIdx, selection.active.colIdx);
+      const c = cells[0];
+      if (c?.editable) {
+        e.preventDefault();
+        const row = editableRows[selection.active.rowIdx];
+        if (row) handleCellClick(row, c.month - 1, c.type);
+        return;
+      }
+    }
+
+    // Excel-like "start typing to edit": when a single editable cell is the
+    // active selection and the user types a printable digit / minus / dot,
+    // open the inline editor seeded with that character (replacing the
+    // current value). Ignore Ctrl/Cmd combos so shortcuts (Z/Y/etc) work.
+    if (!isMod && !e.altKey
+        && selection.active && selectionCellCount === 1 && isMonthView
+        && e.key.length === 1 && /^[0-9.\-]$/.test(e.key)) {
+      const cells = cellsAt(selection.active.rowIdx, selection.active.colIdx);
+      const c = cells[0];
+      if (c?.editable) {
+        const row = editableRows[selection.active.rowIdx];
+        if (row && row.itemKey) {
+          e.preventDefault();
+          // Open the editor seeded with the typed character so the user
+          // can keep typing without losing the first keystroke.
+          setEditValue(e.key);
+          setEditingCell({ itemKey: row.itemKey, month: c.month, typeKey: c.type });
+        }
+        return;
+      }
+    }
+  };
 
   // All expandable group keys (view / category / specification) derived from
   // the current filtered entries. Used by Expand / Collapse All controls.
@@ -1528,6 +1863,48 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
               data-testid="input-search-financial"
             />
           </div>
+
+          {/* Selection summary chip — only visible when a selection exists.
+              Shows the count + sum of editable cells, plus a quick Clear and
+              the bulk-clear action so users discover the keyboard shortcut. */}
+          {selectionCellCount > 0 && (
+            <div
+              className="inline-flex items-center gap-2 h-9 rounded-md border border-blue-500/40 bg-blue-500/10 px-2.5 text-xs"
+              data-testid="selection-summary-chip"
+            >
+              <span className="font-semibold text-blue-700 dark:text-blue-300">
+                {selectionCellCount} cell{selectionCellCount === 1 ? "" : "s"}
+              </span>
+              {selectedEditableCells.length > 0 && (
+                <span className="tabular-nums text-blue-700/80 dark:text-blue-300/80">
+                  {formatCurrency(selectionEditableSum)}
+                </span>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-blue-800 dark:text-blue-200 hover:bg-blue-500/20"
+                onClick={runBulkClear}
+                disabled={bulkClearMutation.isPending || selectedEditableCells.length === 0}
+                title="Clear selected cells (Delete)"
+                data-testid="button-bulk-clear"
+              >
+                <Trash2 className="h-3 w-3 mr-1" />
+                Clear
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-1.5 text-xs text-blue-800/70 dark:text-blue-200/70"
+                onClick={clearSelection}
+                title="Deselect (Esc)"
+                aria-label="Clear selection"
+                data-testid="button-deselect"
+              >
+                Esc
+              </Button>
+            </div>
+          )}
 
           {/* Undo / Redo (Ctrl/Cmd+Z, Ctrl+Shift+Z or Ctrl+Y) */}
           <div className="inline-flex h-9 rounded-md border bg-muted/40 p-0.5 gap-0.5">
@@ -2127,7 +2504,13 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
         };
 
         return (
-          <div className="rounded-lg border bg-card shadow-sm overflow-hidden relative">
+          <div
+            ref={gridFocusRef}
+            tabIndex={0}
+            onKeyDown={onGridKeyDown}
+            className="rounded-lg border bg-card shadow-sm overflow-hidden relative outline-none focus-visible:ring-1 focus-visible:ring-primary/30"
+            data-testid="financial-grid-container"
+          >
             {/* Draggable vertical splitter between frozen and scrollable sections */}
             <div
               role="separator"
@@ -2578,13 +2961,57 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                               if (aopArr) for (const mi of p.monthIndices) baselineVal += aopArr[mi] ?? 0;
                             }
                             const tone = (row.type === "item" || row.type === "view") ? getCellTone(s.key, value, baselineVal, toneThresholds) : "";
-                            // Aggregated periods (quarter/year) are read-only
-                            // since entries are stored per-month server-side.
+
+                            // Selection coordinates for THIS visible cell.
+                            const erIdx = isItem && row.itemKey ? editableRowIdxByKey.get(row.itemKey) ?? -1 : -1;
+                            const cIdx = pIdx * Math.max(monthDisplayedTypes.length, 1) + sIdx;
+                            const inSelection = isItem && erIdx >= 0
+                              && isCellInRanges(erIdx, cIdx, selection.ranges);
+                            const isActiveSel = isItem && erIdx >= 0
+                              && selection.active?.rowIdx === erIdx
+                              && selection.active?.colIdx === cIdx;
+                            // Compute which sides of THIS cell border the
+                            // bounding box of any range it belongs to.
+                            let edgeT = false, edgeB = false, edgeL = false, edgeR = false;
+                            if (inSelection) {
+                              for (const range of selection.ranges) {
+                                if (erIdx < range.r1 || erIdx > range.r2 || cIdx < range.c1 || cIdx > range.c2) continue;
+                                if (erIdx === range.r1) edgeT = true;
+                                if (erIdx === range.r2) edgeB = true;
+                                if (cIdx === range.c1) edgeL = true;
+                                if (cIdx === range.c2) edgeR = true;
+                              }
+                            }
+                            const selBgCls = inSelection ? "bg-blue-500/15 dark:bg-blue-400/15" : "";
+                            const selEdgeStyle = inSelection ? {
+                              boxShadow: [
+                                edgeT ? "inset 0 2px 0 0 rgb(37 99 235 / 0.85)" : "",
+                                edgeB ? "inset 0 -2px 0 0 rgb(37 99 235 / 0.85)" : "",
+                                edgeL ? "inset 2px 0 0 0 rgb(37 99 235 / 0.85)" : "",
+                                edgeR ? "inset -2px 0 0 0 rgb(37 99 235 / 0.85)" : "",
+                              ].filter(Boolean).join(", ") || undefined,
+                            } : undefined;
+
+                            // Build the cell's selection-aware mouse handlers.
+                            // Available on every item-row period cell — including
+                            // aggregated quarter/year cells, so users can drag
+                            // to select and bulk-clear those too.
+                            const selMouseProps = isItem && erIdx >= 0 ? {
+                              onMouseDown: (ev: React.MouseEvent) => onCellMouseDown(ev, erIdx, cIdx),
+                              onMouseEnter: () => onCellMouseEnter(erIdx, cIdx),
+                            } : {};
+
+                            // Aggregated periods (quarter/year): read-only display
+                            // (entries are per-month server-side) but still
+                            // selectable for bulk-clear of underlying months.
                             if (!isItem || !isMonthView) {
                               return (
                                 <div
                                   key={`${p.key}-${s.key}`}
-                                  className={`px-1 py-1 text-center text-[11px] tabular-nums flex items-center justify-center ${borderCls} ${hi} ${tone}`}
+                                  className={`px-1 py-1 text-center text-[11px] tabular-nums flex items-center justify-center select-none ${borderCls} ${hi} ${tone} ${selBgCls} ${isItem ? "cursor-cell" : ""}`}
+                                  style={selEdgeStyle}
+                                  data-testid={isItem ? `cell-${s.key}-${p.key}-${row.itemKey}` : undefined}
+                                  {...selMouseProps}
                                 >
                                   {value !== 0 ? formatCurrency(value) : <span className="text-muted-foreground/30">—</span>}
                                 </div>
@@ -2597,7 +3024,11 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                               editingCell?.typeKey === s.key;
                             const editable = s.editable;
                             return (
-                              <div key={`${p.key}-${s.key}`} className={`p-0.5 ${borderCls} ${hi}`}>
+                              <div
+                                key={`${p.key}-${s.key}`}
+                                className={`p-0.5 ${borderCls} ${hi} ${selBgCls}`}
+                                style={selEdgeStyle}
+                              >
                                 {isEditing ? (
                                   <Input
                                     autoFocus
@@ -2628,13 +3059,14 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                                   />
                                 ) : (
                                   <div
-                                    className={`h-6 flex items-center justify-center px-1 text-[11px] tabular-nums rounded-sm transition-all ${
+                                    className={`h-6 flex items-center justify-center px-1 text-[11px] tabular-nums rounded-sm transition-all select-none ${
                                       editable
-                                        ? "cursor-cell hover:ring-1 hover:ring-primary/40 hover:bg-background"
+                                        ? "cursor-cell hover:ring-1 hover:ring-primary/40 hover:bg-background/60"
                                         : "text-muted-foreground"
-                                    }`}
-                                    onClick={() => editable && handleCellClick(row, p.monthIndices[0], s.key)}
+                                    } ${isActiveSel ? "ring-2 ring-inset ring-blue-600 dark:ring-blue-400" : ""}`}
+                                    onDoubleClick={() => editable && handleCellClick(row, p.monthIndices[0], s.key)}
                                     data-testid={`cell-${s.key}-m${m.num}-${row.itemKey}`}
+                                    {...selMouseProps}
                                   >
                                     {value !== 0 ? formatCurrency(value) : <span className="text-muted-foreground/30">—</span>}
                                   </div>
