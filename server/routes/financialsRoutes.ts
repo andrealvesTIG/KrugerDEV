@@ -1029,9 +1029,10 @@ export function registerFinancialsRoutes(app: Express) {
         ac: number;        // sum ACT to as-of
         pv: number;        // cumulative AOP through as-of
         ev: number;        // earned value to date
-        eacEntered: number;// sum of EAC entries for FY
+        eacEntered: number;// sum of EAC entries for FY (informational only)
         eacComputed: number;
-        vac: number;
+        vac: number;            // PMI VAC = bac - eacComputed (negative = over budget)
+        varianceVsBudget: number; // Grid-style variance = eacComputed - bac (positive = over budget)
         etc: number;
         cpi: number;
         spi: number;
@@ -1054,14 +1055,24 @@ export function registerFinancialsRoutes(app: Express) {
         const eacArr = b["eac"] ?? null;
         const pvCum = cumArr(aopArr);
         const acCum = cumArr(actArr);
-        // BAC: prefer cost_items.aopTotal aggregate (the budget the user
-        // explicitly captured per cost item); fall back to summed AOP entries
-        // ONLY when no cost-item row exists at all for the FY. Presence-based,
-        // not value-based — a project with cost items totaling exactly 0 is
-        // still considered to have an authoritative budget.
-        const hasCiBac = bacFromCostItems.has(p.id);
+        // BAC: use summed monthly AOP entries (same source the project
+        // Financials grid uses), so the dashboard's BAC matches the AOP total
+        // shown on each project's own page by construction. Fall back to
+        // cost_items.aopTotal ONLY when no AOP entries exist for the FY at
+        // all — presence-based, NOT value-based. A project that legitimately
+        // has all its AOP buckets persisted as zero is still treated as
+        // having an authoritative monthly budget of zero (so BAC = 0), not
+        // as missing data. Only projects without any `aop` financial_entries
+        // row for the FY fall back to cost_items.aopTotal (e.g. legacy
+        // projects that captured budget via cost-item rows but never
+        // persisted monthly AOP). Previously we preferred cost_items first,
+        // which caused the dashboard to display values in a different
+        // scale/unit than the grid for MPP-imported projects (see task #46).
+        const hasAopEntries = b["aop"] !== undefined;
         const bacEntries = sumArr(aopArr);
-        const bac = hasCiBac ? (bacFromCostItems.get(p.id) ?? 0) : bacEntries;
+        const bac = hasAopEntries
+          ? bacEntries
+          : (bacFromCostItems.get(p.id) ?? 0);
         const acTotal = acCum[11];
         // Prefer task-progress-derived %, fall back to project-level value.
         const taskPc = taskProgressByProject.get(p.id);
@@ -1101,16 +1112,51 @@ export function registerFinancialsRoutes(app: Express) {
         const cpi = ac > 0 ? ev / ac : 1;
         const spi = pv > 0 ? ev / pv : 1;
         const eacEntered = eacArr ? sumArr(eacArr) : 0;
-        const eacComputed = eacEntered > 0
-          ? eacEntered
-          : (cpi > 0 ? bac / cpi : bac);
+        // EAC: always use the same bottoms-up "Actuals YTD + Forecast
+        // remaining" definition the project Financials grid uses, so the
+        // dashboard's EAC matches the EAC shown on each project's own page
+        // by construction. Previously the dashboard used `BAC / CPI` (a CPI
+        // projection that exploded when CPI was low) and would alternatively
+        // prefer summed `eac` entries when present — both paths could
+        // diverge from the grid. The grid's budget-mode variance never
+        // consults the optional `eac` type entries, so we don't either:
+        // `eacEntered` is still returned for backward compatibility but is
+        // NOT used to compute `eacComputed`. The CPI projection is still
+        // available as a separate metric in the Forecasting dashboard,
+        // where it is explicitly labeled "EAC (CPI)".
+        // Strict parity with the project grid's cutoff semantics:
+        //   asOfMonth === 0  → cutoff = -1 (FY hasn't started; no actuals,
+        //                       all 12 months are forecast)
+        //   asOfMonth === 12 → cutoff = 11 (FY is over; all 12 months are
+        //                       actuals, no forward forecast)
+        //   otherwise        → cutoff = asOfMonth - 1
+        const cutoffIdx = asOfMonth === 0 ? -1 : asOfIdx;
+        let actYTD = 0;
+        for (let i = 0; i <= cutoffIdx; i++) actYTD += actArr[i] || 0;
+        let fcstRemaining = 0;
+        for (let i = cutoffIdx + 1; i < 12; i++) fcstRemaining += fcstArr[i] || 0;
+        const eacComputed = actYTD + fcstRemaining;
+        // VAC follows PMI standard: positive = under budget (favorable),
+        // negative = over budget (unfavorable). The project Financials
+        // grid expresses the same relationship as `variance = eac - aop`
+        // (positive = over budget); the two values are exact negatives of
+        // each other, so a project that is "over budget" looks over budget
+        // in both views (red/destructive in both, magnitudes equal). The
+        // dashboard surfaces both signs explicitly via the `vac` field
+        // (PMI VAC) and the equal-magnitude `varianceVsBudget` field
+        // (matches the project grid's sign convention) so client UIs can
+        // pick whichever they want without a sign-flip translation.
         const vac = bac - eacComputed;
+        const varianceVsBudget = eacComputed - bac;
         const etc = Math.max(0, eacComputed - ac);
 
-        // EAC monthly: prefer entered series, otherwise synthesize a
+        // EAC monthly curve for the "Forecast EAC" chart: prefer entered
+        // series when explicitly captured, otherwise synthesize a
         // PMI-conformant curve = AC for past/current months + ETC distributed
         // across future months in proportion to remaining AOP (PV). When no
-        // future AOP exists, spread ETC evenly across remaining months.
+        // future AOP exists, spread ETC evenly across remaining months. This
+        // sums to the same `eacComputed` total used for VAC, so the chart's
+        // cumulative endpoint matches the EAC tile and per-project EAC value.
         let eacMonthlyOut: number[];
         if (eacArr && eacArr.some(v => Number(v) !== 0)) {
           eacMonthlyOut = eacArr.slice();
@@ -1143,7 +1189,7 @@ export function registerFinancialsRoutes(app: Express) {
           endDate: p.endDate ? String(p.endDate) : null,
           actualStartDate: p.actualStartDate ? String(p.actualStartDate) : null,
           actualEndDate: p.actualEndDate ? String(p.actualEndDate) : null,
-          bac, ac, pv, ev, eacEntered, eacComputed, vac, etc, cpi, spi,
+          bac, ac, pv, ev, eacEntered, eacComputed, vac, varianceVsBudget, etc, cpi, spi,
           pvCum, acCum, evCum,
           eacMonthly: eacMonthlyOut,
           eacCum,
@@ -1193,9 +1239,10 @@ export function registerFinancialsRoutes(app: Express) {
         acc.eacEntered += p.eacEntered;
         acc.eacComputed += p.eacComputed;
         acc.vac += p.vac;
+        acc.varianceVsBudget += p.varianceVsBudget;
         acc.etc += p.etc;
         return acc;
-      }, { bac: 0, ac: 0, pv: 0, ev: 0, eacEntered: 0, eacComputed: 0, vac: 0, etc: 0 });
+      }, { bac: 0, ac: 0, pv: 0, ev: 0, eacEntered: 0, eacComputed: 0, vac: 0, varianceVsBudget: 0, etc: 0 });
       const totalCpi = totals.ac > 0 ? totals.ev / totals.ac : 1;
       const totalSpi = totals.pv > 0 ? totals.ev / totals.pv : 1;
 
@@ -1214,9 +1261,9 @@ export function registerFinancialsRoutes(app: Express) {
         const sum = items.reduce((acc, p) => {
           acc.bac += p.bac; acc.ac += p.ac; acc.pv += p.pv; acc.ev += p.ev;
           acc.eacEntered += p.eacEntered; acc.eacComputed += p.eacComputed;
-          acc.vac += p.vac; acc.etc += p.etc;
+          acc.vac += p.vac; acc.varianceVsBudget += p.varianceVsBudget; acc.etc += p.etc;
           return acc;
-        }, { bac: 0, ac: 0, pv: 0, ev: 0, eacEntered: 0, eacComputed: 0, vac: 0, etc: 0 });
+        }, { bac: 0, ac: 0, pv: 0, ev: 0, eacEntered: 0, eacComputed: 0, vac: 0, varianceVsBudget: 0, etc: 0 });
         return {
           portfolioId: pid,
           name: meta?.name ?? (pid == null ? "Unassigned" : `Portfolio ${pid}`),

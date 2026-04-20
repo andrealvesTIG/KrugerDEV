@@ -105,7 +105,7 @@ export function FinancialsOverviewDashboard() {
               hint={`Through M${data.asOfMonth || "—"}`} />
             <KpiTile label="EAC Forecast" icon={<Target className="h-4 w-4 text-indigo-500" />}
               value={<CompactCurrency value={t.eacComputed} />}
-              hint={`VAC ${t.vac >= 0 ? "+" : ""}${formatCurrency(t.vac, { compact: true })}`}
+              hint={`Actuals YTD + Forecast remaining · VAC ${t.vac >= 0 ? "+" : ""}${formatCurrency(t.vac, { compact: true })} (negative = over budget)`}
               tone={t.vac >= 0 ? "good" : "bad"} />
             <KpiTile label="CPI" icon={<Percent className="h-4 w-4 text-amber-500" />}
               value={t.cpi.toFixed(2)} tone={t.cpi >= 1 ? "good" : t.cpi >= 0.95 ? "warn" : "bad"}
@@ -217,7 +217,10 @@ export function FinancialsOverviewDashboard() {
                     <CardTitle className="text-sm font-medium flex items-center gap-2">
                       <AlertTriangle className="h-4 w-4 text-destructive" /> Top 5 Over Budget
                     </CardTitle>
-                    <CardDescription className="text-xs">Largest negative VAC (EAC − BAC).</CardDescription>
+                    <CardDescription className="text-xs">
+                      Most negative VAC (BAC − EAC, PMI sign).
+                      Equivalent to the largest positive variance (EAC − AOP) shown on each project's Financials grid — same magnitude, opposite sign.
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     {topOverBudget.length === 0 ? <p className="text-xs text-muted-foreground">No projects over budget.</p> : (
