@@ -248,10 +248,11 @@ export function registerUserInsightsRoutes(app: Express) {
           u.id, u.email, u.first_name, u.last_name, u.detected_company,
           u.detected_industry, u.job_title, u.signup_source, u.created_at,
           u.role, u.email_verified,
-          (SELECT plan FROM organizations o
-            JOIN organization_members om2 ON om2.organization_id = o.id
+          (SELECT p.code FROM subscriptions s
+            JOIN plans p ON p.id = s.plan_id
+            JOIN organization_members om2 ON om2.organization_id = s.org_id
             WHERE om2.user_id = u.id
-            ORDER BY o.created_at ASC LIMIT 1) as plan,
+            ORDER BY s.id DESC LIMIT 1) as plan,
           a.country, a.city, a.utm_source, a.utm_medium, a.utm_campaign,
           a.referrer_host, a.signup_method,
           (SELECT MAX(occurred_at) FROM user_page_events WHERE user_id = u.id) as last_event_at,

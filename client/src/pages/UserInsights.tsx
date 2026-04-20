@@ -27,6 +27,8 @@ type InsightsUser = {
   emailVerified: boolean;
   role?: string | null;
   profileImageUrl?: string | null;
+  linkedinUrl?: string | null;
+  phoneNumber?: string | null;
 };
 
 type InsightsAcquisition = {
