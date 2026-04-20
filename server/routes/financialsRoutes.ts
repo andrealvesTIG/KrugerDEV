@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { storage } from "../storage";
 import { multiYearWbs } from "@shared/schema";
+import type { FinancialScenario } from "@shared/schema";
 import type { FinancialItemDimensions } from "../storage/financialStorage";
 import {
   getUserIdFromRequest,
@@ -45,11 +46,11 @@ function pickDimensions(body: any): Partial<FinancialItemDimensions> {
   return out;
 }
 
-async function getOrgScenarioConfig(organizationId: number): Promise<{ key: string; enabled: boolean; editable: boolean }[]> {
-  const { DEFAULT_FINANCIAL_SCENARIOS } = await import("@shared/schema");
+async function getOrgScenarioConfig(organizationId: number): Promise<FinancialScenario[]> {
+  const { DEFAULT_FINANCIAL_SCENARIOS, financialScenariosConfigSchema } = await import("@shared/schema");
   const org = await storage.getOrganization(organizationId);
-  const stored = (org as any)?.financialScenariosConfig?.scenarios as any[] | undefined;
-  const list = (stored && Array.isArray(stored)) ? stored : [];
+  const validated = financialScenariosConfigSchema.safeParse(org?.financialScenariosConfig);
+  const list = validated.success ? validated.data.scenarios : [];
   const seen = new Set(list.map(s => s.key));
   const merged = [...list];
   for (const sys of DEFAULT_FINANCIAL_SCENARIOS.scenarios) {
@@ -162,6 +163,19 @@ export function registerFinancialsRoutes(app: Express) {
       const monthNum = Number(month);
       if (monthNum < 1 || monthNum > 12) {
         return res.status(400).json({ message: "month must be 1..12" });
+      }
+
+      // Validate the scenario exists, is enabled, and is editable for this org.
+      const orgScenarios = await getOrgScenarioConfig(guard.project.organizationId);
+      const scenarioConfig = orgScenarios.find(s => s.key === scenario);
+      if (!scenarioConfig) {
+        return res.status(400).json({ message: `Unknown scenario "${scenario}" for this organization` });
+      }
+      if (!scenarioConfig.enabled) {
+        return res.status(400).json({ message: `Scenario "${scenarioConfig.label}" is disabled` });
+      }
+      if (!scenarioConfig.editable) {
+        return res.status(403).json({ message: `Scenario "${scenarioConfig.label}" is read-only` });
       }
 
       const result = await storage.upsertFinancialCell({

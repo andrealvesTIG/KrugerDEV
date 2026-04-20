@@ -208,7 +208,7 @@ export async function backfillScenarioCellsForOrg(args: {
     CROSS JOIN generate_series(1, 12) AS m(month)
     ON CONFLICT (project_id, fiscal_year, item_key, scenario, month) DO NOTHING
   `);
-  return { inserted: (result as any).rowCount ?? 0 };
+  return { inserted: result.rowCount ?? 0 };
 }
 
 /**
