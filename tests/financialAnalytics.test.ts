@@ -264,7 +264,7 @@ describe('GET /api/organizations/:orgId/financial-analytics — asOfMonth semant
 });
 
 describe('GET /api/organizations/:orgId/financial-analytics — EVM math', () => {
-  it('computes BAC/PV/AC/EV/EAC from cost_items + entries + project completion', async () => {
+  it('computes BAC/PV/AC/EV/CPI/SPI from cost_items + entries + project completion (past FY, all actuals)', async () => {
     setOrg({ id: 1, fyStartMonth: 1 });
     loginAs('admin');
     const pastFy = new Date().getFullYear() - 5; // ensures asOfMonth = 12
@@ -277,13 +277,12 @@ describe('GET /api/organizations/:orgId/financial-analytics — EVM math', () =>
       }),
     ]);
     fixtures.set(portfolios, []);
-    // Authoritative BAC of 1200 split evenly across 12 months (100/mo).
-    fixtures.set(costItems, [
-      { projectId: 10, total: '1200' },
-    ]);
+    // BAC source: entries-presence based. Project HAS aop entries (sum=1200),
+    // so BAC = sum of AOP entries = 1200 (cost_items is fallback only).
+    fixtures.set(costItems, [{ projectId: 10, total: '999999' }]);
     // No task progress → falls back to project.completionPercentage = 50%.
     fixtures.set(tasks, []);
-    // Entries: AOP 100/mo, ACT 80/mo (total ACT = 960).
+    // Entries: AOP 100/mo (sum=1200), ACT 80/mo (sum=960).
     fixtures.set(financialEntries, makeEntries({
       projectId: 10,
       fiscalYear: pastFy,
@@ -303,43 +302,62 @@ describe('GET /api/organizations/:orgId/financial-analytics — EVM math', () =>
     expect(proj.cpi).toBeCloseTo(0.625, 6);
     // SPI = EV / PV = 600 / 1200 = 0.5
     expect(proj.spi).toBeCloseTo(0.5, 6);
-    // No EAC entries → eacComputed = BAC / CPI = 1200 / 0.625 = 1920
-    expect(proj.eacEntered).toBe(0);
-    expect(proj.eacComputed).toBeCloseTo(1920, 4);
-    // VAC = BAC - EAC
-    expect(proj.vac).toBeCloseTo(1200 - 1920, 4);
-    // ETC = max(0, EAC - AC) = 1920 - 960 = 960
-    expect(proj.etc).toBeCloseTo(960, 4);
   });
 
-  it('uses entered EAC sum when EAC entries exist (overriding the CPI projection)', async () => {
+  it('eacComputed is bottoms-up (Actuals YTD + Forecast remaining), matching the project grid', async () => {
+    // Past FY → asOfMonth = 12 → no future months → EAC = AC + 0 = total ACT.
     setOrg({ id: 1, fyStartMonth: 1 });
     loginAs('admin');
     const pastFy = new Date().getFullYear() - 5;
     fixtures.set(projects, [
-      makeProject({
-        id: 10,
-        organizationId: 1,
-        completionPercentage: 50,
-      }),
+      makeProject({ id: 10, organizationId: 1, completionPercentage: 50 }),
     ]);
     fixtures.set(portfolios, []);
-    fixtures.set(costItems, [{ projectId: 10, total: '1200' }]);
+    fixtures.set(costItems, []);
     fixtures.set(tasks, []);
     fixtures.set(financialEntries, makeEntries({
       projectId: 10,
       fiscalYear: pastFy,
-      aopMonthly: Array(12).fill(100),
-      actMonthly: Array(12).fill(80),
-      eacMonthly: Array(12).fill(125), // entered EAC total = 1500
+      aopMonthly: Array(12).fill(100), // BAC = 1200
+      actMonthly: Array(12).fill(80),  // AC  = 960, no FCST → bottoms-up EAC = 960
+    }));
+    const res = await request(buildApp())
+      .get(`/api/organizations/1/financial-analytics?fiscalYear=${pastFy}`);
+    expect(res.status).toBe(200);
+    const proj = res.body.projects[0];
+    expect(proj.eacComputed).toBeCloseTo(960, 4);
+    // VAC = BAC - EAC; varianceVsBudget = EAC - BAC (positive = over budget)
+    expect(proj.vac).toBeCloseTo(1200 - 960, 4);
+    expect(proj.varianceVsBudget).toBeCloseTo(960 - 1200, 4);
+    // ETC = max(0, EAC - AC) = 0
+    expect(proj.etc).toBe(0);
+  });
+
+  it('entered EAC entries are informational only — eacComputed stays bottoms-up', async () => {
+    // After Task #46, entered EAC entries no longer override the bottoms-up
+    // total. They are surfaced as `eacEntered` but ignored for VAC / ranking.
+    setOrg({ id: 1, fyStartMonth: 1 });
+    loginAs('admin');
+    const pastFy = new Date().getFullYear() - 5;
+    fixtures.set(projects, [
+      makeProject({ id: 10, organizationId: 1, completionPercentage: 50 }),
+    ]);
+    fixtures.set(portfolios, []);
+    fixtures.set(costItems, []);
+    fixtures.set(tasks, []);
+    fixtures.set(financialEntries, makeEntries({
+      projectId: 10,
+      fiscalYear: pastFy,
+      aopMonthly: Array(12).fill(100), // BAC=1200
+      actMonthly: Array(12).fill(80),  // AC=960
+      eacMonthly: Array(12).fill(125), // eacEntered=1500 (informational)
     }));
     const res = await request(buildApp())
       .get(`/api/organizations/1/financial-analytics?fiscalYear=${pastFy}`);
     expect(res.status).toBe(200);
     const proj = res.body.projects[0];
     expect(proj.eacEntered).toBe(1500);
-    expect(proj.eacComputed).toBe(1500); // entered overrides BAC/CPI
-    expect(proj.vac).toBe(1200 - 1500);
+    expect(proj.eacComputed).toBeCloseTo(960, 4); // bottoms-up wins
   });
 
   it('falls back to summed AOP entries for BAC when no cost_items exist', async () => {
@@ -426,6 +444,33 @@ describe('GET /api/organizations/:orgId/financial-analytics — input validation
       .get('/api/organizations/1/financial-analytics?portfolioId=-5');
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/portfolioId/i);
+  });
+
+  it('returns 400 for floating-point portfolioId', async () => {
+    setOrg({ id: 1 });
+    loginAs('admin');
+    const res = await request(buildApp())
+      .get('/api/organizations/1/financial-analytics?portfolioId=3.14');
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/portfolioId/i);
+  });
+
+  it('returns 404 when portfolioId does not belong to the org', async () => {
+    setOrg({ id: 1 });
+    loginAs('admin');
+    fixtures.set(portfolios, []); // portfolio 9999 not in this org
+    const res = await request(buildApp())
+      .get('/api/organizations/1/financial-analytics?portfolioId=9999');
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/portfolio.*9999.*not found/i);
+  });
+
+  it('error messages explain what was wrong (clear for the dashboard error card)', async () => {
+    loginAs('admin');
+    const res = await request(buildApp()).get('/api/organizations/abc/financial-analytics');
+    expect(res.status).toBe(400);
+    // Message should describe what went wrong in plain terms.
+    expect(res.body.message).toMatch(/positive integer/i);
   });
 });
 

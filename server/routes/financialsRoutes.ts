@@ -841,9 +841,10 @@ export function registerFinancialsRoutes(app: Express) {
     responses: { ...r200('Financial analytics payload', ref('Object')), ...stdRes },
   }, async (req, res) => {
     try {
-      const orgId = Number(req.params.orgId);
-      if (!Number.isInteger(orgId) || orgId <= 0) {
-        return res.status(400).json({ message: "Invalid orgId" });
+      const orgIdRaw = req.params.orgId;
+      const orgId = Number(orgIdRaw);
+      if (!/^\d+$/.test(orgIdRaw) || !Number.isInteger(orgId) || orgId <= 0) {
+        return res.status(400).json({ message: "Invalid orgId: must be a positive integer" });
       }
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: "Authentication required" });
@@ -856,20 +857,31 @@ export function registerFinancialsRoutes(app: Express) {
       const fyStart = normalizeFiscalYearStartMonth(org.fiscalYearStartMonth);
       const today = new Date();
       let fiscalYear: number;
-      if (req.query.fiscalYear !== undefined) {
-        const parsed = Number(req.query.fiscalYear);
-        if (!Number.isInteger(parsed) || parsed < 1900 || parsed > 2999) {
-          return res.status(400).json({ message: "Invalid fiscalYear" });
+      if (req.query.fiscalYear !== undefined && req.query.fiscalYear !== "") {
+        const raw = String(req.query.fiscalYear);
+        const parsed = Number(raw);
+        if (!/^-?\d+$/.test(raw) || !Number.isInteger(parsed) || parsed < 1970 || parsed > 2200) {
+          return res.status(400).json({ message: "Invalid fiscalYear: must be an integer between 1970 and 2200" });
         }
         fiscalYear = parsed;
       } else {
         fiscalYear = currentFiscalYear(today, fyStart);
       }
       let portfolioFilter: number | undefined;
-      if (req.query.portfolioId !== undefined) {
-        const parsed = Number(req.query.portfolioId);
-        if (!Number.isInteger(parsed) || parsed <= 0) {
-          return res.status(400).json({ message: "Invalid portfolioId" });
+      if (req.query.portfolioId !== undefined && req.query.portfolioId !== "") {
+        const raw = String(req.query.portfolioId);
+        const parsed = Number(raw);
+        if (!/^\d+$/.test(raw) || !Number.isInteger(parsed) || parsed <= 0) {
+          return res.status(400).json({ message: "Invalid portfolioId: must be a positive integer" });
+        }
+        // Verify the portfolio actually belongs to this org so callers can't
+        // probe portfolios across organizations they have access to.
+        const [pf] = await db.select().from(portfolios).where(and(
+          eq(portfolios.id, parsed),
+          eq(portfolios.organizationId, orgId),
+        )).limit(1);
+        if (!pf) {
+          return res.status(404).json({ message: `Portfolio ${parsed} not found in this organization` });
         }
         portfolioFilter = parsed;
       }
