@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { Loader2, MapPin, Upload, X, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { loadGoogleMaps, parsePlace } from "@/lib/googleMaps";
 
 export interface ProjectImage {
   url: string;
@@ -54,6 +55,75 @@ export function ProjectLocationMediaSection({
   const { toast } = useToast();
   const [geocoding, setGeocoding] = useState(false);
   const images = imagesProp || [];
+
+  const addressInputRef = useRef<HTMLInputElement | null>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const [autocompleteReady, setAutocompleteReady] = useState(false);
+
+  // Keep latest callbacks in refs so the init effect doesn't re-run every render
+  // when parent passes inline onChange handlers.
+  const onChangeRef = useRef(onChange);
+  const toastRef = useRef(toast);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+  useEffect(() => { toastRef.current = toast; }, [toast]);
+
+  useEffect(() => {
+    if (disabled) return;
+    const input = addressInputRef.current;
+    if (!input) return;
+    let cancelled = false;
+    let placeListener: google.maps.MapsEventListener | null = null;
+
+    loadGoogleMaps()
+      .then((google) => {
+        if (cancelled || !addressInputRef.current) return;
+        const ac = new google.maps.places.Autocomplete(addressInputRef.current, {
+          fields: ["address_components", "geometry", "formatted_address", "name"],
+          types: ["address"],
+        });
+        autocompleteRef.current = ac;
+        placeListener = ac.addListener("place_changed", () => {
+          const place = ac.getPlace();
+          if (!place || !place.address_components) {
+            toastRef.current({ title: "Select a suggestion", description: "Pick an address from the dropdown.", variant: "destructive" });
+            return;
+          }
+          const parsed = parsePlace(place);
+          // Only patch fields we actually parsed — avoid clobbering existing
+          // values with empty strings when Google omits a component.
+          const patch: ProjectLocationPatch = {};
+          const fallbackAddress = parsed.addressLine1 || addressInputRef.current?.value || "";
+          if (fallbackAddress) patch.addressLine1 = fallbackAddress;
+          if (parsed.city) patch.city = parsed.city;
+          if (parsed.region) patch.region = parsed.region;
+          if (parsed.country) patch.country = parsed.country;
+          if (parsed.postalCode) patch.postalCode = parsed.postalCode;
+          if (parsed.latitude) patch.latitude = parsed.latitude;
+          if (parsed.longitude) patch.longitude = parsed.longitude;
+          onChangeRef.current(patch);
+        });
+        setAutocompleteReady(true);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          // eslint-disable-next-line no-console
+          console.warn("[google-maps] autocomplete disabled:", err?.message || err);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      if (placeListener) placeListener.remove();
+      const g = (window as any).google;
+      if (autocompleteRef.current && g?.maps?.event) {
+        g.maps.event.clearInstanceListeners(autocompleteRef.current);
+      }
+      autocompleteRef.current = null;
+      // Google leaves its .pac-container dropdowns attached to <body>. Leave
+      // them — they're cheap, reused by other instances, and removing them
+      // globally would clobber other autocomplete inputs on the page.
+    };
+  }, [disabled]);
 
   const addressString = [addressLine1, city, region, postalCode, country].filter(Boolean).join(", ");
 
@@ -129,12 +199,19 @@ export function ProjectLocationMediaSection({
           <Label htmlFor="addressLine1">Street Address</Label>
           <Input
             id="addressLine1"
+            ref={addressInputRef}
             value={addressLine1 || ""}
             onChange={(e) => onChange({ addressLine1: e.target.value })}
             disabled={disabled}
-            placeholder="123 Main St"
+            placeholder={autocompleteReady ? "Start typing an address…" : "123 Main St"}
+            autoComplete="off"
             data-testid="input-address"
           />
+          {autocompleteReady && (
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Powered by Google — pick a suggestion to auto-fill city, region, and coordinates.
+            </p>
+          )}
         </div>
         <div>
           <Label htmlFor="city">City</Label>
