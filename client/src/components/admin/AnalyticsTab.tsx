@@ -199,7 +199,7 @@ export function AnalyticsTab() {
       : userFilter === 'week' ? bucketUsers.week
       : userFilter === 'month' ? bucketUsers.month
       : bucketUsers.total;
-    let filtered = base;
+    let filtered = [...base];
 
     if (userSearch.trim()) {
       const q = normalizeSearch(userSearch);
