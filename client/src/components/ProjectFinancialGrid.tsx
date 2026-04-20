@@ -877,8 +877,13 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
         const CHAR_PX = 5.6;        // approx px per char at text-[11px] tabular-nums
         const HDR_CHAR_PX = 6.0;    // header text is slightly wider (uppercase tracking)
         const PAD_X = 6;
-        const MIN_COMM = 96, MAX_COMM = 200;
-        const MIN_WBS = 48, MAX_WBS = 120;
+        // Frozen columns (Comments, WBS) keep px-3 padding (24px each side)
+        // and have a sort icon in the header, so they need a wider floor than
+        // the dense numeric columns.
+        const MIN_COMM = 120, MAX_COMM = 240;
+        const MIN_WBS = 88, MAX_WBS = 140;
+        const FROZEN_PAD_X = 24 * 2; // px-3 left + right
+        const SORT_ICON_PX = 16;     // ArrowUpDown 12px + 4px gap
         const MIN_MONTH_SUB = 30, MAX_MONTH_SUB = 72;
         const MIN_TOTAL_SUB = 44, MAX_TOTAL_SUB = 96;
 
@@ -925,8 +930,8 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
         for (const v of itemCommentMax.values()) if (v > commMaxChars) commMaxChars = v;
         for (const v of itemWbsMax.values()) if (v > wbsMaxChars) wbsMaxChars = v;
 
-        const COL_COMMENTS = Math.round(Math.min(MAX_COMM, Math.max(MIN_COMM, commMaxChars * CHAR_PX + PAD_X)));
-        const COL_WBS      = Math.round(Math.min(MAX_WBS,  Math.max(MIN_WBS,  wbsMaxChars  * CHAR_PX + PAD_X)));
+        const COL_COMMENTS = Math.round(Math.min(MAX_COMM, Math.max(MIN_COMM, commMaxChars * CHAR_PX + FROZEN_PAD_X + SORT_ICON_PX)));
+        const COL_WBS      = Math.round(Math.min(MAX_WBS,  Math.max(MIN_WBS,  wbsMaxChars  * CHAR_PX + FROZEN_PAD_X + SORT_ICON_PX)));
 
         // Per-scenario TOTAL sub-cols (CompactCurrency: e.g. "$1.2M" ≈ digits+3)
         const totalSubPx: number[] = enabledTypes.map((s) => {
