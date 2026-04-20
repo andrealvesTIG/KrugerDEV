@@ -154,6 +154,10 @@ export interface IPortfolioStorage {
   createPortfolioKeyDate(data: InsertPortfolioKeyDate): Promise<PortfolioKeyDate>;
   updatePortfolioKeyDate(id: number, updates: UpdatePortfolioKeyDateRequest): Promise<PortfolioKeyDate>;
   deletePortfolioKeyDate(id: number, deletedBy?: string): Promise<void>;
+  getPortfolioFinancialEntries(
+    portfolioId: number,
+    fiscalYear?: number,
+  ): Promise<(FinancialEntry & { projectName: string })[]>;
 }
 
 export interface IProjectStorage {

@@ -46,6 +46,7 @@ import { CompactCurrency } from "@/components/CompactCurrency";
 import { cn, normalizeSearch } from "@/lib/utils";
 import type { Project, Task } from "@shared/schema";
 import ProjectGanttView from "@/components/project/ProjectGanttView";
+import PortfolioFinancialGrid from "@/components/PortfolioFinancialGrid";
 import {
   PieChart, Pie, Cell, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
@@ -255,6 +256,9 @@ export default function PortfolioDetails() {
           <TabsTrigger value="dashboard" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
             Dashboard
           </TabsTrigger>
+          <TabsTrigger value="financials" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
+            Financials
+          </TabsTrigger>
           <TabsTrigger value="scoring" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
             Scoring
           </TabsTrigger>
@@ -299,6 +303,9 @@ export default function PortfolioDetails() {
           </TabsContent>
           <TabsContent value="dashboard">
             <DashboardTab portfolioId={id} metrics={metrics} onNavigate={setActiveTab} financialBudgets={financialBudgets} />
+          </TabsContent>
+          <TabsContent value="financials">
+            <PortfolioFinancialGrid portfolioId={id} />
           </TabsContent>
           <TabsContent value="scoring">
             <PortfolioScoringTab portfolioId={id} />

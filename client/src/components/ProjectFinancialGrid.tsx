@@ -124,9 +124,9 @@ const _LEGACY_CATEGORIES_DEPRECATED = [
 ];
 
 // ----- Tree types built from flat entries -----
-type RowType = "view" | "category" | "specification" | "item";
+export type RowType = "view" | "category" | "specification" | "item";
 
-interface GridRow {
+export interface GridRow {
   type: RowType;
   level: number;
   key: string;            // unique row id (e.g., "view::Capital")
@@ -144,7 +144,7 @@ interface GridRow {
   hasChildren: boolean;
 }
 
-function formatCurrency(value: number): string {
+export function formatCurrency(value: number): string {
   if (!value) return "-";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -282,7 +282,7 @@ function getCellTone(
  * Grouping order: Financial View → Cost Category → Cost Specification → Item.
  * Subtotals at every level are computed from the leaf cells, per scenario.
  */
-function buildGridRows(
+export function buildGridRows(
   entries: FinancialEntry[],
   typeKeys: string[],
   expanded: Set<string>,

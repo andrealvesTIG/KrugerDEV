@@ -1,10 +1,11 @@
 import { db } from "../db";
 import {
   portfolios, projects, issues, tasks, customPortfolioProjects, portfolioKeyDates,
-  portfolioRiskAssessments,
+  portfolioRiskAssessments, financialEntries,
   type Portfolio, type InsertPortfolio, type UpdatePortfolioRequest,
   type Risk, type Issue, type Milestone,
   type PortfolioKeyDate, type InsertPortfolioKeyDate, type UpdatePortfolioKeyDateRequest,
+  type FinancialEntry,
 } from "@shared/schema";
 import { eq, and, isNull, inArray } from "drizzle-orm";
 
@@ -134,6 +135,23 @@ export async function deletePortfolioKeyDate(id: number, deletedBy?: string): Pr
   await db.update(portfolioKeyDates)
     .set({ deletedAt: new Date(), deletedBy: deletedBy || null })
     .where(eq(portfolioKeyDates.id, id));
+}
+
+export async function getPortfolioFinancialEntries(
+  portfolioId: number,
+  fiscalYear?: number,
+): Promise<(FinancialEntry & { projectName: string })[]> {
+  const portfolioProjs = await getPortfolioProjects(portfolioId);
+  const projectIds = portfolioProjs.map(p => p.id);
+  if (projectIds.length === 0) return [];
+  const projectMap = new Map(portfolioProjs.map(p => [p.id, p.name]));
+  const where = fiscalYear !== undefined
+    ? and(inArray(financialEntries.projectId, projectIds), eq(financialEntries.fiscalYear, fiscalYear))
+    : inArray(financialEntries.projectId, projectIds);
+  const rows = await db.select().from(financialEntries)
+    .where(where)
+    .orderBy(financialEntries.projectId, financialEntries.sortOrder, financialEntries.itemKey, financialEntries.scenario, financialEntries.month);
+  return rows.map(r => ({ ...r, projectName: projectMap.get(r.projectId) || '' }));
 }
 
 /** @deprecated Use getPortfolioKeyDates instead. This function reads task milestones from the tasks table for backward compatibility. */

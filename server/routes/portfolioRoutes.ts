@@ -305,6 +305,30 @@ export function registerPortfolioRoutes(app: Express) {
     }
   });
 
+  apiRoute(app, 'get', '/api/portfolios/:id/financial-entries', {
+    tag: 'Portfolios',
+    summary: 'List financial entries for all projects in portfolio',
+    parameters: [pathId(), qInt('fiscalYear', false, 'Fiscal year to filter by')],
+    responses: { ...r200('Portfolio financial entries', arrOf('FinancialEntry')), ...idRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const portfolioId = Number(req.params.id);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
+      if (!await userHasOrgAccess(userId, portfolio.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const fiscalYear = req.query.fiscalYear ? Number(req.query.fiscalYear) : undefined;
+      const entries = await storage.getPortfolioFinancialEntries(portfolioId, fiscalYear);
+      res.json(entries);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get portfolio financial entries' : classified.message });
+    }
+  });
+
   apiRoute(app, 'get', '/api/portfolios/:id/risks', {
     tag: 'Portfolios',
     summary: 'List risks across portfolio projects',
