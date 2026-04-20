@@ -346,6 +346,7 @@ export async function setupAuth(app: Express) {
         return res.status(500).json({ message: "Logout failed" });
       }
       res.clearCookie("connect.sid");
+      res.clearCookie("fr_authed", { path: "/" });
       res.json({ message: "Logged out successfully" });
     });
   });
@@ -362,6 +363,19 @@ export async function setupAuth(app: Express) {
         req.session.destroy(() => {});
         return res.status(401).json({ message: "Unauthorized" });
       }
+
+      // Set a non-sensitive client-readable hint cookie so the front-end can
+      // distinguish authenticated vs anonymous traffic for telemetry consent
+      // gating without needing to make a separate request.
+      try {
+        res.cookie('fr_authed', '1', {
+          httpOnly: false,
+          sameSite: 'lax',
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+          path: '/',
+        });
+      } catch { /* ignore */ }
 
       if (req.session.actingAsUserId) {
         const [delegateUser] = await db.select().from(users).where(eq(users.id, req.session.actingAsUserId)).limit(1);

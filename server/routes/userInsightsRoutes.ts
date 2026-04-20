@@ -238,6 +238,8 @@ export function registerUserInsightsRoutes(app: Express) {
       const q = String(req.query.q || '').toLowerCase().trim();
       const tempFilter = String(req.query.temp || '');
       const sourceFilter = String(req.query.source || '');
+      const countryFilter = String(req.query.country || '').trim();
+      const planFilter = String(req.query.plan || '').trim().toLowerCase();
 
       const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
@@ -246,6 +248,10 @@ export function registerUserInsightsRoutes(app: Express) {
           u.id, u.email, u.first_name, u.last_name, u.detected_company,
           u.detected_industry, u.job_title, u.signup_source, u.created_at,
           u.role, u.email_verified,
+          (SELECT plan FROM organizations o
+            JOIN organization_members om2 ON om2.organization_id = o.id
+            WHERE om2.user_id = u.id
+            ORDER BY o.created_at ASC LIMIT 1) as plan,
           a.country, a.city, a.utm_source, a.utm_medium, a.utm_campaign,
           a.referrer_host, a.signup_method,
           (SELECT MAX(occurred_at) FROM user_page_events WHERE user_id = u.id) as last_event_at,
@@ -290,6 +296,7 @@ export function registerUserInsightsRoutes(app: Express) {
           role: r.role,
           emailVerified: r.email_verified,
           country: r.country,
+          plan: r.plan || null,
           city: r.city,
           utmSource: r.utm_source,
           utmMedium: r.utm_medium,
@@ -316,6 +323,13 @@ export function registerUserInsightsRoutes(app: Express) {
       }
       if (sourceFilter) {
         rows = rows.filter(r => (r.signupSource || r.signupMethod || '').toLowerCase().includes(sourceFilter.toLowerCase()));
+      }
+      if (countryFilter) {
+        const cf = countryFilter.toLowerCase();
+        rows = rows.filter(r => (r.country || '').toLowerCase() === cf);
+      }
+      if (planFilter) {
+        rows = rows.filter(r => (r.plan || '').toLowerCase() === planFilter);
       }
 
       res.json({ users: rows, total: rows.length, days });

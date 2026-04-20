@@ -242,8 +242,23 @@ export function trackToServer(eventType: EventType, opts: {
   }
 }
 
+function isAuthenticatedHint(): boolean {
+  // Best-effort: the app stores no auth token in localStorage, but a session
+  // cookie is set on login. Cookies aren't readable when httpOnly, so we
+  // rely on a small "fr_authed" hint cookie that the client/server can set
+  // on login. Default to false (treat as anonymous) for privacy.
+  if (typeof document === 'undefined') return false;
+  return /(?:^|;\s*)fr_authed=1(?:;|$)/.test(document.cookie);
+}
+
 export function trackPageViewServer(path: string) {
-  // Page views are essential telemetry — always allowed.
+  // Privacy policy: anonymous visitors must have given analytics/marketing
+  // consent before we persist their page views. Authenticated users are
+  // covered by the app's terms-of-service and we keep their journey for
+  // product/sales purposes.
+  if (!isAuthenticatedHint() && getAnalyticsConsent() !== true) {
+    return;
+  }
   trackToServer('page_view', { path });
 }
 

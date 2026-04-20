@@ -185,9 +185,10 @@ function HomePage() {
 }
 
 function Router() {
-  // Track page views when routes change
-  useAnalytics();
-  
+  // Note: page-view tracking is handled at the App level (so it covers public
+  // marketing routes too); do not call useAnalytics() here or events will be
+  // sent twice for authenticated routes.
+
   return (
     <AppLayout>
       <TermsConsentModal />

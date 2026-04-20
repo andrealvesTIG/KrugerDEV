@@ -23,6 +23,7 @@ type Row = {
   createdAt: string;
   emailVerified: boolean;
   country: string | null;
+  plan: string | null;
   city: string | null;
   utmSource: string | null;
   utmMedium: string | null;
@@ -60,19 +61,35 @@ function rel(iso: string | null): string {
 export function NewSignupsTab() {
   const [days, setDays] = useState<string>('30');
   const [temp, setTemp] = useState<string>('all');
+  const [country, setCountry] = useState<string>('all');
+  const [plan, setPlan] = useState<string>('all');
   const [q, setQ] = useState('');
 
   const { data, isLoading } = useQuery<{ users: Row[]; total: number; days: number }>({
-    queryKey: ['/api/admin/users/recent-signups', days, temp],
+    queryKey: ['/api/admin/users/recent-signups', days, temp, country, plan],
     queryFn: async () => {
       const url = new URL('/api/admin/users/recent-signups', window.location.origin);
       url.searchParams.set('days', days);
       if (temp !== 'all') url.searchParams.set('temp', temp);
+      if (country !== 'all') url.searchParams.set('country', country);
+      if (plan !== 'all') url.searchParams.set('plan', plan);
       const res = await fetch(url.pathname + url.search, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed');
       return res.json();
     },
   });
+
+  const countryOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of data?.users || []) if (r.country) set.add(r.country);
+    return Array.from(set).sort();
+  }, [data]);
+
+  const planOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of data?.users || []) if (r.plan) set.add(r.plan);
+    return Array.from(set).sort();
+  }, [data]);
 
   const filtered = useMemo(() => {
     const rows = data?.users || [];
@@ -140,6 +157,20 @@ export function NewSignupsTab() {
             <SelectItem value="hot">Hot</SelectItem>
             <SelectItem value="warm">Warm</SelectItem>
             <SelectItem value="cold">Cold</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={country} onValueChange={setCountry}>
+          <SelectTrigger className="w-[140px]" data-testid="select-country"><SelectValue placeholder="Country" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All countries</SelectItem>
+            {countryOptions.map(c => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+          </SelectContent>
+        </Select>
+        <Select value={plan} onValueChange={setPlan}>
+          <SelectTrigger className="w-[140px]" data-testid="select-plan"><SelectValue placeholder="Plan" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All plans</SelectItem>
+            {planOptions.map(p => (<SelectItem key={p} value={p}>{p}</SelectItem>))}
           </SelectContent>
         </Select>
         <Button variant="outline" size="sm" onClick={exportCsv} data-testid="button-export-csv">
