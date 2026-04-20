@@ -35,6 +35,8 @@ function readInitialTab(): string {
 export default function SuperAdmin() {
   const { user, isLoading: authLoading } = useAuth();
   const [tab, setTab] = useState<string>(readInitialTab());
+  const topTab = tab === 'new-signups' ? 'monitoring' : tab;
+  const analyticsSub = tab === 'new-signups' ? 'new-signups' : 'overview';
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -86,7 +88,7 @@ export default function SuperAdmin() {
         </a>
       </div>
 
-      <Tabs value={tab} onValueChange={setTab} className="w-full">
+      <Tabs value={topTab} onValueChange={(v) => setTab(v === 'monitoring' ? (analyticsSub === 'new-signups' ? 'new-signups' : 'monitoring') : v)} className="w-full">
         <div className="overflow-x-auto scrollbar-none -mx-1 px-1">
           <TabsList className="bg-muted p-1 rounded-xl inline-flex w-auto min-w-full sm:w-full">
             <TabsTrigger value="monitoring" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2" data-testid="tab-monitoring">
@@ -100,10 +102,6 @@ export default function SuperAdmin() {
             <TabsTrigger value="users" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2">
               <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Users
-            </TabsTrigger>
-            <TabsTrigger value="new-signups" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2" data-testid="tab-new-signups">
-              <UserPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              New Signups
             </TabsTrigger>
             <TabsTrigger value="plans" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2">
               <CreditCard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -141,16 +139,36 @@ export default function SuperAdmin() {
         </div>
         <div className="mt-6">
           <TabsContent value="monitoring">
-            <MonitoringTab />
+            <Tabs
+              value={analyticsSub}
+              onValueChange={(v) => setTab(v === 'new-signups' ? 'new-signups' : 'monitoring')}
+              className="w-full"
+            >
+              <TabsList className="bg-muted/60 p-1 rounded-lg inline-flex">
+                <TabsTrigger value="overview" className="rounded-md data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm" data-testid="tab-analytics-overview">
+                  <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  Overview
+                </TabsTrigger>
+                <TabsTrigger value="new-signups" className="rounded-md data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm" data-testid="tab-new-signups">
+                  <UserPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  New Signups
+                </TabsTrigger>
+              </TabsList>
+              <div className="mt-4">
+                <TabsContent value="overview">
+                  <MonitoringTab />
+                </TabsContent>
+                <TabsContent value="new-signups">
+                  <NewSignupsTab />
+                </TabsContent>
+              </div>
+            </Tabs>
           </TabsContent>
           <TabsContent value="organizations">
             <OrganizationsTab />
           </TabsContent>
           <TabsContent value="users">
             <AllUsersTab />
-          </TabsContent>
-          <TabsContent value="new-signups">
-            <NewSignupsTab />
           </TabsContent>
           <TabsContent value="plans">
             <PlansTab />
