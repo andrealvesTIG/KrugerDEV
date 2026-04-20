@@ -4,7 +4,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { z } from "zod";
 import { eq, and, asc, inArray } from "drizzle-orm";
-import { users, taskResourceAssignments, issues, resources, tasks, projects, plans, timesheetEntries, taskChangeLogs, taskDependencies, notifications, type Task } from "@shared/schema";
+import { users, taskResourceAssignments, issues, resources, tasks, projects, plans, timesheetEntries, taskChangeLogs, taskDependencies, notifications, customFieldDefinitions, taskCustomFieldValues, projectCustomFieldValues, type Task } from "@shared/schema";
 import type { User } from "@shared/models/auth";
 import {
   classifyError,
@@ -3349,6 +3349,38 @@ export function registerProjectRoutes(app: Express) {
               .where(inArray(taskDependencies.taskId, taskIds))
           : [];
 
+        // Fetch custom field definitions and values for this project's organization
+        const allCustomFieldDefs = project.organizationId
+          ? await db.select().from(customFieldDefinitions)
+              .where(eq(customFieldDefinitions.organizationId, project.organizationId))
+          : [];
+        const taskCfDefs = allCustomFieldDefs
+          .filter(d => d.entityType === 'task')
+          .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0) || a.id - b.id);
+        const projectCfDefs = allCustomFieldDefs
+          .filter(d => d.entityType === 'project')
+          .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0) || a.id - b.id);
+
+        const taskCfValues = taskIds.length > 0 && taskCfDefs.length > 0
+          ? await db.select().from(taskCustomFieldValues)
+              .where(inArray(taskCustomFieldValues.taskId, taskIds))
+          : [];
+        // Map: taskId -> fieldDefinitionId -> value
+        const taskCfMap = new Map<number, Map<number, string>>();
+        for (const v of taskCfValues) {
+          if (!taskCfMap.has(v.taskId)) taskCfMap.set(v.taskId, new Map());
+          taskCfMap.get(v.taskId)!.set(v.fieldDefinitionId, (v.value as string) ?? '');
+        }
+
+        const projectCfValues = projectCfDefs.length > 0
+          ? await db.select().from(projectCustomFieldValues)
+              .where(eq(projectCustomFieldValues.projectId, project.id))
+          : [];
+        const projectCfMap = new Map<number, string>();
+        for (const v of projectCfValues) {
+          projectCfMap.set(v.fieldDefinitionId, (v.value as string) ?? '');
+        }
+
         const taskIdToIndex = new Map<number, number>();
         tasks.forEach((task, index) => {
           taskIdToIndex.set(task.id, index + 1);
@@ -3374,8 +3406,13 @@ export function registerProjectRoutes(app: Express) {
           taskPredecessors.get(dep.taskId)!.push(predStr);
         }
 
-        // Generate CSV with task indentation reflecting outline hierarchy
-        const headers = ['Index', 'WBS', 'Outline Level', 'Parent Task Index', 'Name', 'Type', 'Start Date', 'End Date', 'Duration (days)', '% Complete', 'Status', 'Priority', 'Assigned To', 'Predecessors', 'Description'];
+        // Generate CSV with task indentation reflecting outline hierarchy.
+        // Custom field columns are appended after the standard columns. Project-level
+        // custom fields appear on the project summary row only; task-level on task rows.
+        const baseHeaders = ['Index', 'WBS', 'Outline Level', 'Parent Task Index', 'Name', 'Type', 'Start Date', 'End Date', 'Duration (days)', '% Complete', 'Status', 'Priority', 'Assigned To', 'Predecessors', 'Description'];
+        const projectCfHeaders = projectCfDefs.map(d => `Project: ${d.name}`);
+        const taskCfHeaders = taskCfDefs.map(d => `Task: ${d.name}`);
+        const headers = [...baseHeaders, ...projectCfHeaders, ...taskCfHeaders];
         const rows: string[][] = [];
 
         const taskIdToCsvIndex = new Map<number, number>();
@@ -3399,7 +3436,9 @@ export function registerProjectRoutes(app: Express) {
           project.priority || '',
           '',
           '',
-          project.description || ''
+          project.description || '',
+          ...projectCfDefs.map(d => projectCfMap.get(d.id) ?? ''),
+          ...taskCfDefs.map(() => ''),
         ]);
         
         // Compute WBS values based on hierarchy
@@ -3443,6 +3482,7 @@ export function registerProjectRoutes(app: Express) {
             }
           }
 
+          const taskCfRowMap = taskCfMap.get(task.id);
           rows.push([
             String(csvIndex),
             wbs,
@@ -3458,7 +3498,9 @@ export function registerProjectRoutes(app: Express) {
             task.priority || '',
             taskResourceMap.get(task.id) || task.assignee || '',
             predecessorStr,
-            task.description || ''
+            task.description || '',
+            ...projectCfDefs.map(() => ''),
+            ...taskCfDefs.map(d => taskCfRowMap?.get(d.id) ?? ''),
           ]);
         });
         
