@@ -485,7 +485,11 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
                           (ref.options as L.MarkerOptions & { projectStatus?: string }).projectStatus = p.status || "";
                         }
                       }}
-                      eventHandlers={{ click: () => setSelectedId(p.id) }}
+                      eventHandlers={{
+                        click: () => setSelectedId(p.id),
+                        mouseover: (e) => e.target.openPopup(),
+                        mouseout: (e) => e.target.closePopup(),
+                      }}
                     >
                       <Popup minWidth={220} maxWidth={280} autoPan={false} keepInView={false}>
                         <div className="space-y-2" data-testid={`popup-project-${p.id}`}>
