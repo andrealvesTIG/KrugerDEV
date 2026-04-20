@@ -116,7 +116,7 @@ export async function setupAuth(app: Express) {
   // Register new user
   app.post("/api/auth/register", authRateLimiter, async (req, res) => {
     try {
-      const { email, password, firstName, lastName, honeypot1, honeypot2, formLoadTime, signupSource } = req.body;
+      const { email, password, firstName, lastName, honeypot1, honeypot2, formLoadTime, signupSource, firstTouch } = req.body;
 
       // Verify honeypot (bot protection without external service)
       const honeypotCheck = verifyHoneypot({ honeypot1, honeypot2, formLoadTime });
@@ -176,6 +176,19 @@ export async function setupAuth(app: Express) {
         emailVerificationExpiry,
         signupSource: signupSource || null,
       }).returning();
+
+      // Capture acquisition snapshot for new signup
+      try {
+        const { recordAcquisition, parseFirstTouch } = await import("../services/acquisition");
+        await recordAcquisition({
+          userId: newUser.id,
+          signupMethod: 'email',
+          firstTouch: parseFirstTouch(firstTouch),
+          req,
+        });
+      } catch (e) {
+        console.error("Failed to record acquisition for email signup:", e);
+      }
 
       // Send email verification
       const appUrl = 'https://fridayreport.ai';
@@ -557,7 +570,7 @@ export async function setupAuth(app: Express) {
 
   app.post("/api/auth/magic-link/request", strictAuthRateLimiter, async (req, res) => {
     try {
-      const { email, honeypot1, honeypot2, formLoadTime, signupSource } = req.body;
+      const { email, honeypot1, honeypot2, formLoadTime, signupSource, firstTouch } = req.body;
 
       // Verify honeypot (bot protection without external service)
       const honeypotCheck = verifyHoneypot({ honeypot1, honeypot2, formLoadTime });
@@ -613,6 +626,7 @@ export async function setupAuth(app: Express) {
       // as this is sign-up only (not login to existing accounts)
       const tokenMetadata: Record<string, any> = {};
       if (signupSource) tokenMetadata.signupSource = signupSource;
+      if (firstTouch && typeof firstTouch === 'object') tokenMetadata.firstTouch = firstTouch;
       
       await db.insert(magicLinkTokens).values({
         email: normalizedEmail,
@@ -703,6 +717,7 @@ export async function setupAuth(app: Express) {
       // Parse metadata to check for terms acceptance and signup source
       let termsAcceptedAt: Date | null = null;
       let signupSource: string | null = null;
+      let firstTouchPayload: any = null;
       if (magicToken.metadata) {
         try {
           const metadata = JSON.parse(magicToken.metadata);
@@ -711,6 +726,9 @@ export async function setupAuth(app: Express) {
           }
           if (metadata.signupSource) {
             signupSource = metadata.signupSource;
+          }
+          if (metadata.firstTouch) {
+            firstTouchPayload = metadata.firstTouch;
           }
         } catch (e) {
           console.error("Error parsing magic link metadata:", e);
@@ -730,6 +748,19 @@ export async function setupAuth(app: Express) {
         signupSource,
       }).returning();
 
+
+      // Capture acquisition for magic-link signup
+      try {
+        const { recordAcquisition, parseFirstTouch } = await import("../services/acquisition");
+        await recordAcquisition({
+          userId: newUser.id,
+          signupMethod: 'magic_link',
+          firstTouch: parseFirstTouch(firstTouchPayload),
+          req,
+        });
+      } catch (e) {
+        console.error("Failed to record acquisition for magic-link signup:", e);
+      }
 
       sendWelcomeEmail(magicToken.email, newUser.firstName || null).catch(err => {
         console.error("Failed to send welcome email for magic link user:", err);

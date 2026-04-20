@@ -3221,3 +3221,60 @@ export const blogPosts = pgTable("blog_posts", {
 export const insertBlogPostSchema = createInsertSchema(blogPosts).omit({ id: true, createdAt: true, updatedAt: true });
 export type BlogPost = typeof blogPosts.$inferSelect;
 export type InsertBlogPost = typeof blogPosts.$inferInsert;
+
+// User Acquisition - one row per user, captured at signup
+export const userAcquisition = pgTable("user_acquisition", {
+  userId: varchar("user_id").primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  referrer: text("referrer"),
+  referrerHost: text("referrer_host"),
+  landingPath: text("landing_path"),
+  utmSource: text("utm_source"),
+  utmMedium: text("utm_medium"),
+  utmCampaign: text("utm_campaign"),
+  utmTerm: text("utm_term"),
+  utmContent: text("utm_content"),
+  gclid: text("gclid"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  country: text("country"),
+  region: text("region"),
+  city: text("city"),
+  deviceType: text("device_type"),
+  browser: text("browser"),
+  os: text("os"),
+  signupMethod: text("signup_method"),
+  anonymousId: varchar("anonymous_id"),
+  firstSeenAt: timestamp("first_seen_at"),
+  signedUpAt: timestamp("signed_up_at").defaultNow(),
+}, (table) => [
+  index("user_acquisition_anonymous_id_idx").on(table.anonymousId),
+  index("user_acquisition_signed_up_at_idx").on(table.signedUpAt),
+]);
+
+export type UserAcquisition = typeof userAcquisition.$inferSelect;
+export type InsertUserAcquisition = typeof userAcquisition.$inferInsert;
+
+// User Page Events - persisted page-view + click stream from frontend
+export const userPageEvents = pgTable("user_page_events", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
+  anonymousId: varchar("anonymous_id"),
+  sessionId: varchar("session_id"),
+  eventType: text("event_type").notNull(), // 'page_view' | 'click' | 'custom'
+  path: text("path"),
+  element: text("element"),
+  label: text("label"),
+  metadata: jsonb("metadata"),
+  occurredAt: timestamp("occurred_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(), // server-side time, used for caps/retention
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+}, (table) => [
+  index("user_page_events_user_id_occurred_at_idx").on(table.userId, table.occurredAt),
+  index("user_page_events_anonymous_id_idx").on(table.anonymousId),
+  index("user_page_events_created_at_idx").on(table.createdAt),
+  index("user_page_events_session_id_idx").on(table.sessionId),
+]);
+
+export type UserPageEvent = typeof userPageEvents.$inferSelect;
+export type InsertUserPageEvent = typeof userPageEvents.$inferInsert;

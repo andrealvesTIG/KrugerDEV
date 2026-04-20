@@ -13,6 +13,7 @@ import NotFound from "@/pages/not-found";
 import { ReactNode, useEffect, lazy, Suspense } from "react";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
+import { useFirstTouch } from "@/hooks/use-first-touch";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -29,6 +30,7 @@ const Invoices = lazy(() => import("@/pages/Invoices"));
 const Tasks = lazy(() => import("@/pages/Tasks"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const SuperAdmin = lazy(() => import("@/pages/SuperAdmin"));
+const UserInsights = lazy(() => import("@/pages/UserInsights"));
 const OrgSettings = lazy(() => import("@/pages/OrgSettings"));
 const Profile = lazy(() => import("@/pages/Profile"));
 const UserGuide = lazy(() => import("@/pages/UserGuide"));
@@ -223,6 +225,7 @@ function Router() {
           <Route path="/billing" component={Billing} />
           <Route path="/admin" component={Admin} />
           <Route path="/super-admin" component={SuperAdmin} />
+          <Route path="/admin/users/:userId/insights" component={UserInsights} />
           <Route path="/org-settings" component={OrgSettings} />
           <Route path="/profile" component={Profile} />
           <Route path="/user-guide" component={UserGuide} />
@@ -242,6 +245,9 @@ function Router() {
 }
 
 function App() {
+  // Capture first-touch acquisition + install global click tracker
+  useFirstTouch();
+
   // Initialize Google Analytics when app loads
   useEffect(() => {
     if (!import.meta.env.VITE_GA_MEASUREMENT_ID) {

@@ -12,7 +12,7 @@ import { useState, useMemo } from "react";
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
   import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-  import { Loader2, Trash2, Building2, Users, Plus, Edit, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, ArrowUp, ArrowDown, Search, Settings2, TrendingUp, HelpCircle, CheckCircle, XCircle, Download, Mail, Copy, Send, MoreHorizontal, Wrench } from "lucide-react";
+  import { Loader2, Trash2, Building2, Users, Plus, Edit, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, ArrowUp, ArrowDown, Search, Settings2, TrendingUp, HelpCircle, CheckCircle, XCircle, Download, Mail, Copy, Send, MoreHorizontal, Wrench, Activity } from "lucide-react";
   import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
   import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
   import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -922,6 +922,17 @@ export function AllUsersTab() {
                         <Wrench className="h-4 w-4" />
                       </Button>
                     )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      asChild
+                      title="View insights"
+                      data-testid={`button-view-insights-${user.id}`}
+                    >
+                      <a href={`/admin/users/${user.id}/insights`}>
+                        <Activity className="h-4 w-4 text-blue-500" />
+                      </a>
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
