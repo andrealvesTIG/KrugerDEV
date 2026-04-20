@@ -1856,7 +1856,7 @@ export default function Projects() {
                 onCustomFieldChange={handleKanbanCfChange}
               />
             ) : view === "map" ? (
-              <ProjectsMapView projects={(filteredProjects || []) as any} portfolios={portfolios || []} />
+              <ProjectsMapView projects={filteredProjects || []} portfolios={portfolios || []} />
             ) : (
               <ProjectsGanttView projects={filteredProjects || []} organizationId={currentOrganization?.id || null} />
             )}
@@ -1917,7 +1917,7 @@ export default function Projects() {
           onCustomFieldChange={handleKanbanCfChange}
         />
       ) : !isFullscreen && view === "map" ? (
-        <ProjectsMapView projects={(filteredProjects || []) as any} portfolios={portfolios || []} />
+        <ProjectsMapView projects={filteredProjects || []} portfolios={portfolios || []} />
       ) : !isFullscreen ? (
         <ProjectsGanttView projects={filteredProjects || []} organizationId={currentOrganization?.id || null} />
       ) : null}

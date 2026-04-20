@@ -20,15 +20,7 @@ const defaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = defaultIcon;
 
-interface ProjectWithLocation extends Project {
-  latitude?: string | number | null;
-  longitude?: string | number | null;
-  city?: string | null;
-  region?: string | null;
-  country?: string | null;
-  addressLine1?: string | null;
-  images?: Array<{ url: string; alt?: string }> | null;
-}
+type ProjectWithLocation = Project;
 
 interface Props {
   projects: ProjectWithLocation[];
