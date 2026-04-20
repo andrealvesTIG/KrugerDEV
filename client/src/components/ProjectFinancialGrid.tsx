@@ -1513,13 +1513,17 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                             />
                           ) : isItem ? (
                             <span
-                              className="truncate cursor-text rounded-sm px-1 -mx-1 hover:ring-1 hover:ring-primary/30 hover:bg-background"
+                              className="truncate cursor-text rounded-sm px-1 -mx-1 text-xs font-normal text-foreground/90 hover:ring-1 hover:ring-primary/30 hover:bg-background"
                               onClick={() => beginTextEdit(row, "itemName")}
                               title="Click to rename"
                               data-testid={`label-itemname-${row.itemKey}`}
                             >
                               {row.label}
                             </span>
+                          ) : row.type === "category" ? (
+                            <span className="truncate text-sm font-semibold tracking-tight">{row.label}</span>
+                          ) : row.type === "specification" ? (
+                            <span className="truncate text-[13px] font-medium text-foreground/80">{row.label}</span>
                           ) : (
                             <span className="truncate">{row.label}</span>
                           )}
