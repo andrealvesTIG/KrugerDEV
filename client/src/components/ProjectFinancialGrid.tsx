@@ -525,11 +525,12 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   } | null>(null);
   const [placeholderName, setPlaceholderName] = useState("");
 
-  // Permanent "blank" new-item row at the bottom of the grid: type a name +
-  // Enter creates an item with no grouping (defaults to first enabled view)
-  // without opening the dialog. Stays focused-ready after each save so users
-  // can rapid-fire add items.
-  const [newItemName, setNewItemName] = useState("");
+  // Permanent "blank" new-item row appended after the last cost item in
+  // every leaf specification group. Type a name + Enter creates the item
+  // with the group's Financial View / Cost Category / Specification
+  // inherited automatically — no dialog needed. Keyed by specKey so each
+  // group keeps its own draft input.
+  const [quickAddInputs, setQuickAddInputs] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState({
     itemName: "",
@@ -1634,7 +1635,105 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                         ))}
                       </div>
                     );
-                    if (!showPlaceholderAfter) return [rowEl];
+                    // Determine whether this is the LAST item in its
+                    // specification group. If so, append a quick-add input
+                    // row so users can rapid-add siblings into this group.
+                    let quickAddEl: React.ReactNode = null;
+                    if (isItem) {
+                      const myParentSpec = row.key.includes("::item::")
+                        ? row.key.split("::item::")[0]
+                        : null;
+                      const nextRow = rows[rowIdx + 1];
+                      const nextIsSiblingItem =
+                        !!myParentSpec
+                        && !!nextRow
+                        && nextRow.type === "item"
+                        && nextRow.key.startsWith(`${myParentSpec}::item::`);
+                      if (myParentSpec && !nextIsSiblingItem) {
+                        const sample = entries.find(e => e.itemKey === row.itemKey);
+                        const inheritedView = sample?.financialView ?? null;
+                        const inheritedCat = sample?.costCategory ?? null;
+                        const inheritedSpec = sample?.costSpecification ?? null;
+                        const draft = quickAddInputs[myParentSpec] ?? "";
+                        const setDraft = (val: string) =>
+                          setQuickAddInputs(prev => ({ ...prev, [myParentSpec]: val }));
+                        const clearDraft = () =>
+                          setQuickAddInputs(prev => {
+                            const { [myParentSpec]: _, ...rest } = prev;
+                            return rest;
+                          });
+                        const submitDraft = () => {
+                          const name = draft.trim();
+                          if (!name) return;
+                          createItemMutation.mutate({
+                            fiscalYear,
+                            itemName: name,
+                            financialView: inheritedView,
+                            costCategory: inheritedCat,
+                            costSpecification: inheritedSpec,
+                            category: row.category ?? null,
+                            wbs: null,
+                            comments: null,
+                          });
+                          clearDraft();
+                        };
+                        quickAddEl = (
+                          <div
+                            key={`quick-add-${myParentSpec}`}
+                            className="grid border-b border-border/60 bg-muted/[0.02]"
+                            style={{ gridTemplateColumns: gridTemplate }}
+                            data-testid={`row-quick-add-${myParentSpec}`}
+                          >
+                            <div
+                              className="flex flex-nowrap items-center gap-1.5 py-1.5 pr-2 overflow-hidden sticky z-[1] bg-card"
+                              style={{ left: `${stickyL1}px`, paddingLeft: `${16 + row.level * 14}px` }}
+                            >
+                              <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                              <Input
+                                value={draft}
+                                onChange={(e) => setDraft(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    submitDraft();
+                                  } else if (e.key === "Escape") {
+                                    e.preventDefault();
+                                    clearDraft();
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                                placeholder="+ Add item — type name and press Enter"
+                                className="h-6 text-xs px-1 py-0 min-w-0 flex-1 border-dashed focus:border-solid focus:ring-2 focus:ring-primary/40"
+                                data-testid={`input-quick-add-${myParentSpec}`}
+                              />
+                            </div>
+                            <div
+                              className="px-3 py-1.5 sticky z-[1] bg-card"
+                              style={{ left: `${stickyL2}px` }}
+                            />
+                            <div
+                              className={`px-3 py-1.5 sticky z-[1] bg-card ${stickyEdgeShadow}`}
+                              style={{ left: `${stickyL3}px` }}
+                            />
+                            {enabledTypes.map((s, sIdx) => (
+                              <div
+                                key={`qa-total-${s.key}`}
+                                className={`px-1 py-1 ${sIdx === 0 ? monthBorder : typeBorder}`}
+                              />
+                            ))}
+                            {MONTHS.map((m, idx) => (
+                              enabledTypes.map((s, sIdx) => (
+                                <div
+                                  key={`qa-${m.num}-${s.key}`}
+                                  className={`px-1 py-1 ${sIdx === 0 ? monthBorder : typeBorder} ${monthHi(idx)}`}
+                                />
+                              ))
+                            ))}
+                          </div>
+                        );
+                      }
+                    }
+                    if (!showPlaceholderAfter) return quickAddEl ? [rowEl, quickAddEl] : [rowEl];
                     const phLevel = placeholder!.level;
                     const placeholderEl = (
                       <div
@@ -1694,72 +1793,6 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                     return [rowEl, placeholderEl];
                   })
                 )}
-
-                {/* Always-visible "blank" row to add a new cost item without
-                   opening the dialog. Type a name + Enter to create. */}
-                <div
-                  className="grid border-b border-border/60 bg-muted/[0.02]"
-                  style={{ gridTemplateColumns: gridTemplate }}
-                  data-testid="row-new-item"
-                >
-                  <div
-                    className="flex flex-nowrap items-center gap-1.5 py-1.5 pr-2 overflow-hidden sticky z-[1] bg-card"
-                    style={{ left: `${stickyL1}px`, paddingLeft: `16px` }}
-                  >
-                    <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <Input
-                      value={newItemName}
-                      onChange={(e) => setNewItemName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          const name = newItemName.trim();
-                          if (!name) return;
-                          // Cost Category and Specification are required, so
-                          // open the dialog pre-filled with the typed name
-                          // for the user to pick the grouping fields.
-                          resetForm();
-                          setFormData(prev => ({
-                            ...prev,
-                            itemName: name,
-                            financialView: enabledViews[0]?.label ?? prev.financialView,
-                          }));
-                          setDialogOpen(true);
-                          setNewItemName("");
-                        } else if (e.key === "Escape") {
-                          e.preventDefault();
-                          setNewItemName("");
-                          (e.target as HTMLInputElement).blur();
-                        }
-                      }}
-                      placeholder="+ Add new cost item — type name and press Enter"
-                      className="h-6 text-xs px-1 py-0 min-w-0 flex-1 border-dashed focus:border-solid focus:ring-2 focus:ring-primary/40"
-                      data-testid="input-new-item-name"
-                    />
-                  </div>
-                  <div
-                    className="px-3 py-1.5 sticky z-[1] bg-card"
-                    style={{ left: `${stickyL2}px` }}
-                  />
-                  <div
-                    className={`px-3 py-1.5 sticky z-[1] bg-card ${stickyEdgeShadow}`}
-                    style={{ left: `${stickyL3}px` }}
-                  />
-                  {enabledTypes.map((s, sIdx) => (
-                    <div
-                      key={`new-total-${s.key}`}
-                      className={`px-1 py-1 ${sIdx === 0 ? monthBorder : typeBorder}`}
-                    />
-                  ))}
-                  {MONTHS.map((m, idx) => (
-                    enabledTypes.map((s, sIdx) => (
-                      <div
-                        key={`new-${m.num}-${s.key}`}
-                        className={`px-1 py-1 ${sIdx === 0 ? monthBorder : typeBorder} ${monthHi(idx)}`}
-                      />
-                    ))
-                  ))}
-                </div>
 
                 {/* Grand total row (sticky bottom) */}
                 {rows.length > 0 && (
