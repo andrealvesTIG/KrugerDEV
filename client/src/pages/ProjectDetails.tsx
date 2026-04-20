@@ -3851,7 +3851,7 @@ function ProjectTeamTab({
                             className="flex border-b bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
                             onClick={() => toggleMemberExpanded(member.resource.id)}
                           >
-                            <div className="w-44 sm:w-64 flex-shrink-0 p-2 border-r sticky left-0 z-10 bg-muted/30">
+                            <div className="w-44 sm:w-64 flex-shrink-0 p-2 border-r sticky left-0" style={{ zIndex: 10, backgroundColor: 'hsl(var(--muted))' }}>
                               <div className="flex items-center gap-2">
                                 {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
                                 <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-semibold flex-shrink-0">
