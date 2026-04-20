@@ -584,7 +584,7 @@ export function registerIntakeRoutes(app: Express) {
     tag: 'Intake Workflow',
     summary: 'Create a new intake workflow (with default steps)',
     parameters: [pathId('orgId')],
-    requestBody: body({ type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' }, isDefault: { type: 'boolean' }, creationMode: { type: 'string', enum: ['dialog', 'url'] }, creationUrl: { type: 'string' } }, required: ['name'] }),
+    requestBody: body({ type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' }, isDefault: { type: 'boolean' }, creationMode: { type: 'string', enum: ['dialog', 'url'] }, creationUrl: { type: 'string' }, agentTarget: { type: 'string', enum: ['powerbi'], nullable: true } }, required: ['name'] }),
     responses: { ...r201('Workflow created', { type: 'object' }), ...inputRes },
   }, async (req, res) => {
     try {
@@ -593,12 +593,15 @@ export function registerIntakeRoutes(app: Express) {
       const orgId = Number(req.params.orgId);
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
-      const { name, description, isDefault, creationMode, creationUrl } = req.body || {};
+      const { name, description, isDefault, creationMode, creationUrl, agentTarget } = req.body || {};
       if (!name || typeof name !== 'string' || !name.trim()) return res.status(400).json({ message: "Name is required" });
       const mode: 'dialog' | 'url' = creationMode === 'url' ? 'url' : 'dialog';
       if (mode === 'url') {
         if (!creationUrl || typeof creationUrl !== 'string') return res.status(400).json({ message: "creationUrl is required when creationMode is 'url'" });
         if (!/^https?:\/\//i.test(creationUrl)) return res.status(400).json({ message: "creationUrl must start with http:// or https://" });
+      }
+      if (agentTarget !== undefined && agentTarget !== null && agentTarget !== 'powerbi') {
+        return res.status(400).json({ message: "agentTarget must be null or 'powerbi'" });
       }
       const wf = await storage.createIntakeWorkflow({
         organizationId: orgId,
@@ -608,6 +611,7 @@ export function registerIntakeRoutes(app: Express) {
         isActive: true,
         creationMode: mode,
         creationUrl: mode === 'url' ? creationUrl : null,
+        agentTarget: agentTarget === 'powerbi' ? 'powerbi' : null,
       });
       await storage.resetIntakeWorkflowToDefaults(orgId, wf.id);
       res.status(201).json(wf);
@@ -634,7 +638,7 @@ export function registerIntakeRoutes(app: Express) {
       if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
       const existing = await storage.getIntakeWorkflow(wfId);
       if (!existing || existing.organizationId !== orgId) return res.status(404).json({ message: "Workflow not found" });
-      const { name, description, isDefault, isActive, creationMode, creationUrl } = req.body || {};
+      const { name, description, isDefault, isActive, creationMode, creationUrl, agentTarget } = req.body || {};
       const updates: Partial<InsertIntakeWorkflow> = {};
       if (name !== undefined) updates.name = String(name).trim();
       if (description !== undefined) updates.description = description;
@@ -651,6 +655,12 @@ export function registerIntakeRoutes(app: Express) {
         } else {
           updates.creationUrl = null;
         }
+      }
+      if (agentTarget !== undefined) {
+        if (agentTarget !== null && agentTarget !== 'powerbi') {
+          return res.status(400).json({ message: "agentTarget must be null or 'powerbi'" });
+        }
+        updates.agentTarget = agentTarget;
       }
       const effectiveMode = updates.creationMode ?? existing.creationMode;
       if (effectiveMode === 'url') {
