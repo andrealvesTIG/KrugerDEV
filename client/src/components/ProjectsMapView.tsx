@@ -324,6 +324,15 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
     return filteredCoords.filter(p => bounds.contains([p._lat, p._lng]));
   }, [filteredCoords, bounds]);
 
+  const markerIcons = useMemo(() => {
+    const map = new Map<number, L.DivIcon>();
+    for (const p of filteredCoords) {
+      const cover = p.images?.[0]?.url;
+      map.set(p.id, makeMarkerIcon(p.status, cover));
+    }
+    return map;
+  }, [filteredCoords]);
+
   const toggleStatus = (status: string) => {
     setSelectedStatuses(prev => {
       const next = new Set(prev);
@@ -461,7 +470,7 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
                     <Marker
                       key={p.id}
                       position={[p._lat, p._lng]}
-                      icon={makeMarkerIcon(p.status, cover)}
+                      icon={markerIcons.get(p.id)!}
                       ref={(ref) => {
                         markerRefs.current[p.id] = ref;
                         if (ref) {
