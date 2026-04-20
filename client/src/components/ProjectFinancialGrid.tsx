@@ -1274,7 +1274,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                       >
                         {/* Cost Item (sticky) */}
                         <div
-                          className={`flex items-center gap-1.5 py-1.5 pr-2 sticky z-[1] ${stickyBgClass} ${stickyHover}`}
+                          className={`flex flex-nowrap items-center gap-1.5 py-1.5 pr-2 overflow-hidden sticky z-[1] ${stickyBgClass} ${stickyHover}`}
                           style={{ left: `${stickyL1}px`, paddingLeft: `${16 + row.level * 14}px` }}
                         >
                           {row.hasChildren ? (
@@ -1322,12 +1322,12 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                           ) : (
                             <span className="truncate">{row.label}</span>
                           )}
-                          {isItem && row.category && (
+                          {isItem && row.category && !(editingText?.itemKey === row.itemKey && editingText?.field === "itemName") && (
                             <Badge variant="outline" className="text-[10px] whitespace-nowrap shrink-0">
                               {row.category}
                             </Badge>
                           )}
-                          {isItem && (
+                          {isItem && !(editingText?.itemKey === row.itemKey && editingText?.field === "itemName") && (
                             <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                               <Button
                                 variant="ghost"
