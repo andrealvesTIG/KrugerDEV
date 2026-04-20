@@ -24,7 +24,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuCheckboxItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { FinancialEntry, FinancialTypesConfig, FinancialType, CostItemCategoriesConfig } from "@shared/schema";
@@ -1948,26 +1955,25 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
         </Button>
       </div>
 
-      {/* Toolbar row: search, scenario toggles, FY selector — fullscreen on right */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
+      {/* Toolbar row: compact primary controls inline, secondary controls in
+          the kebab menu on the right. Fullscreen sits at the far right. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search items, WBS, comments…"
-              className="pl-8 h-9 w-72 bg-muted/40 border-transparent focus-visible:bg-background focus-visible:border-input"
+              className="pl-8 h-8 w-64 text-xs bg-muted/40 border-transparent focus-visible:bg-background focus-visible:border-input"
               data-testid="input-search-financial"
             />
           </div>
 
-          {/* Selection summary chip — only visible when a selection exists.
-              Shows the count + sum of editable cells, plus a quick Clear and
-              the bulk-clear action so users discover the keyboard shortcut. */}
+          {/* Selection summary chip — only visible when a selection exists. */}
           {selectionCellCount > 0 && (
             <div
-              className="inline-flex items-center gap-2 h-9 rounded-md border border-blue-500/40 bg-blue-500/10 px-2.5 text-xs"
+              className="inline-flex items-center gap-1.5 h-8 rounded-md border border-blue-500/40 bg-blue-500/10 px-2 text-xs"
               data-testid="selection-summary-chip"
             >
               <span className="font-semibold text-blue-700 dark:text-blue-300">
@@ -1981,7 +1987,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2 text-xs text-blue-800 dark:text-blue-200 hover:bg-blue-500/20"
+                className="h-6 px-1.5 text-xs text-blue-800 dark:text-blue-200 hover:bg-blue-500/20"
                 onClick={runBulkClear}
                 disabled={bulkClearMutation.isPending || selectedEditableCells.length === 0}
                 title="Clear selected cells (Delete)"
@@ -1993,7 +1999,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 px-1.5 text-xs text-blue-800/70 dark:text-blue-200/70"
+                className="h-6 px-1 text-xs text-blue-800/70 dark:text-blue-200/70"
                 onClick={clearSelection}
                 title="Deselect (Esc)"
                 aria-label="Clear selection"
@@ -2004,86 +2010,21 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
             </div>
           )}
 
-          {/* Undo / Redo (Ctrl/Cmd+Z, Ctrl+Shift+Z or Ctrl+Y) */}
-          <div className="inline-flex h-9 rounded-md border bg-muted/40 p-0.5 gap-0.5">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 px-2"
-              onClick={() => undoMutation.mutate()}
-              disabled={!canUndo || undoMutation.isPending}
-              title="Undo (Ctrl/Cmd+Z)"
-              aria-label="Undo last change"
-              data-testid="button-undo-financial"
+          {/* Background-activity indicator: visible only while busy. */}
+          {isBusy && (
+            <div
+              className="inline-flex items-center gap-1.5 h-8 px-2 rounded-md text-[11px] font-medium border border-primary/40 bg-primary/5 text-primary"
+              role="status"
+              aria-live="polite"
+              data-testid="indicator-grid-busy"
             >
-              <Undo2 className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 px-2"
-              onClick={() => redoMutation.mutate()}
-              disabled={!canRedo || redoMutation.isPending}
-              title="Redo (Ctrl+Shift+Z / Ctrl+Y)"
-              aria-label="Redo last undone change"
-              data-testid="button-redo-financial"
-            >
-              <Redo2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-
-          {/* Change history viewer */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9"
-            onClick={() => { setHistoryPanelOpen(true); refetchHistory(); }}
-            title="View change history (who edited what and when)"
-            aria-label="View change history"
-            data-testid="button-open-history"
-          >
-            <HistoryIcon className="h-3.5 w-3.5 mr-1.5" />
-            History
-          </Button>
-
-          {/* Expand / Collapse all groups */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9"
-            onClick={allExpanded ? collapseAll : expandAll}
-            disabled={allGroupKeys.size === 0}
-            title={allExpanded ? "Collapse all groups" : "Expand all groups"}
-            aria-label={allExpanded ? "Collapse all groups" : "Expand all groups"}
-            data-testid="button-toggle-expand-all"
-          >
-            {allExpanded ? (
-              <ChevronsDownUp className="h-3.5 w-3.5 mr-1.5" />
-            ) : (
-              <ChevronsUpDown className="h-3.5 w-3.5 mr-1.5" />
-            )}
-            {allExpanded ? "Collapse all" : "Expand all"}
-          </Button>
-
-          {/* Background-activity indicator: visible whenever the grid is
-             refetching or any item/cell mutation is in flight. */}
-          <div
-            className={`inline-flex items-center gap-1.5 h-9 px-2.5 rounded-md text-[11px] font-medium border transition-opacity ${
-              isBusy
-                ? "opacity-100 border-primary/40 bg-primary/5 text-primary"
-                : "opacity-0 pointer-events-none border-transparent"
-            }`}
-            role="status"
-            aria-live="polite"
-            aria-hidden={!isBusy}
-            data-testid="indicator-grid-busy"
-          >
-            <Loader2 className="h-3 w-3 animate-spin" />
-            <span>Syncing…</span>
-          </div>
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Syncing…</span>
+            </div>
+          )}
 
           {/* Segmented financial-type toggle — colored per type for quick scanning */}
-          <div className="inline-flex h-9 items-center rounded-md border bg-muted/40 p-0.5 gap-0.5">
+          <div className="inline-flex h-8 items-center rounded-md border bg-muted/40 p-0.5 gap-0.5">
             {allTypes.map((s) => {
               const palette = getTypePalette(s.key);
               return (
@@ -2091,7 +2032,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                   key={s.key}
                   type="button"
                   onClick={() => toggleTypeVisibility(s.key)}
-                  className={`inline-flex items-center gap-1.5 px-3 h-8 text-xs font-semibold rounded-sm transition-all ${
+                  className={`inline-flex items-center gap-1 px-2 h-7 text-[11px] font-semibold rounded-sm transition-all ${
                     s.enabled
                       ? `${palette.activeBg} ${palette.activeText} ${palette.activeRing} shadow-sm`
                       : `text-muted-foreground hover:text-foreground hover:bg-background/60`
@@ -2104,7 +2045,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                   }
                 >
                   <span
-                    className={`inline-block h-2 w-2 rounded-full ${
+                    className={`inline-block h-1.5 w-1.5 rounded-full ${
                       s.enabled ? palette.dotOn : palette.dotOff
                     }`}
                     aria-hidden="true"
@@ -2122,7 +2063,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                 <button
                   type="button"
                   onClick={toggleShowEac}
-                  className={`inline-flex items-center gap-1.5 px-3 h-8 text-xs font-semibold rounded-sm transition-all ${
+                  className={`inline-flex items-center gap-1 px-2 h-7 text-[11px] font-semibold rounded-sm transition-all ${
                     showEac
                       ? `${palette.activeBg} ${palette.activeText} ${palette.activeRing} shadow-sm`
                       : `text-muted-foreground hover:text-foreground hover:bg-background/60`
@@ -2135,7 +2076,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                   }
                 >
                   <span
-                    className={`inline-block h-2 w-2 rounded-full ${
+                    className={`inline-block h-1.5 w-1.5 rounded-full ${
                       showEac ? palette.dotOn : palette.dotOff
                     }`}
                     aria-hidden="true"
@@ -2147,9 +2088,8 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
             })()}
           </div>
 
-          {/* Period view-mode switcher: Month / Quarter / Year. Quarter and
-              Year are read-only aggregates of the underlying monthly cells. */}
-          <div className="inline-flex h-9 items-center rounded-md border bg-muted/40 p-0.5 gap-0.5" role="group" aria-label="Grid period view">
+          {/* Period view-mode switcher: Month / Quarter / Year. */}
+          <div className="inline-flex h-8 items-center rounded-md border bg-muted/40 p-0.5 gap-0.5" role="group" aria-label="Grid period view">
             {([
               { key: "month", label: "Month" },
               { key: "quarter", label: "Quarter" },
@@ -2160,7 +2100,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                 type="button"
                 onClick={() => setViewMode(opt.key)}
                 aria-pressed={viewMode === opt.key}
-                className={`px-3 h-8 text-xs font-semibold rounded-sm transition-all ${
+                className={`px-2.5 h-7 text-[11px] font-semibold rounded-sm transition-all ${
                   viewMode === opt.key
                     ? "bg-background text-foreground shadow-sm ring-1 ring-inset ring-border"
                     : "text-muted-foreground hover:text-foreground hover:bg-background/60"
@@ -2179,40 +2119,6 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
             ))}
           </div>
 
-          {/* Variance mode + Insights toggle */}
-          <div className="inline-flex h-9 items-center rounded-md border bg-muted/40 p-0.5 gap-0.5" role="group" aria-label="Variance & insights">
-            <Select value={varianceMode} onValueChange={(v) => setVarianceMode(v as VarianceMode)}>
-              <SelectTrigger
-                className="h-8 px-2 text-xs font-semibold border-0 bg-transparent shadow-none gap-1.5 w-auto min-w-[120px]"
-                data-testid="select-variance-mode"
-                title="Variance columns: compare ACT/EAC to a baseline"
-              >
-                <Gauge className="h-3.5 w-3.5 text-muted-foreground" />
-                <SelectValue placeholder="Variance" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="off">Variance: Off</SelectItem>
-                <SelectItem value="forecast">Forecast accuracy (ACT − FCST YTD)</SelectItem>
-                <SelectItem value="budget">Budget health (EAC − AOP)</SelectItem>
-              </SelectContent>
-            </Select>
-            <button
-              type="button"
-              onClick={toggleInsights}
-              aria-pressed={showInsights}
-              className={`inline-flex items-center gap-1.5 px-2.5 h-8 text-xs font-semibold rounded-sm transition-all ${
-                showInsights
-                  ? "bg-background text-foreground shadow-sm ring-1 ring-inset ring-border"
-                  : "text-muted-foreground hover:text-foreground hover:bg-background/60"
-              }`}
-              title={showInsights ? "Hide the insights strip above the grid" : "Show the insights strip above the grid"}
-              data-testid="button-toggle-insights"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              Insights
-            </button>
-          </div>
-
           <Select
             value={String(fiscalYear)}
             onValueChange={(v) => {
@@ -2220,7 +2126,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
               setFiscalYear(Number(v));
             }}
           >
-            <SelectTrigger className="w-28 h-9" data-testid="select-fiscal-year">
+            <SelectTrigger className="w-24 h-8 text-xs" data-testid="select-fiscal-year">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -2237,20 +2143,18 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
               <Button
                 variant="outline"
                 size="sm"
-                className="h-9"
+                className="h-8 px-2 text-xs"
                 disabled={filteredEntries.length === 0}
                 title="Export the visible grid (CSV or Excel) using the org's fiscal calendar"
                 data-testid="button-export-financials"
               >
-                <Download className="h-3.5 w-3.5 mr-1.5" />
+                <Download className="h-3.5 w-3.5 mr-1" />
                 Export
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
                 onClick={() => {
-                  // Pull the (possibly EAC-blended) per-item monthly arrays
-                  // from the rendered rows so the export matches the screen.
                   const eacByItem: Record<string, number[]> = {};
                   if (showEac) {
                     for (const r of editableRows) {
@@ -2312,16 +2216,123 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
           </DropdownMenu>
         </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setIsFullscreen(v => !v)}
-          title={isFullscreen ? "Exit full screen" : "Expand to full screen"}
-          data-testid="button-toggle-fullscreen"
-          className="h-9 w-9"
-        >
-          {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-        </Button>
+        <div className="flex items-center gap-1">
+          {/* Kebab menu: rarely used controls (undo/redo, history,
+              expand/collapse, variance mode, insights toggle). Keyboard
+              shortcuts for undo/redo continue to work even when hidden. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                title="More toolbar options"
+                aria-label="More toolbar options"
+                data-testid="button-toolbar-more"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem
+                onClick={() => undoMutation.mutate()}
+                disabled={!canUndo || undoMutation.isPending}
+                title="Undo (Ctrl/Cmd+Z)"
+                aria-label="Undo last change"
+                data-testid="button-undo-financial"
+              >
+                <Undo2 className="h-3.5 w-3.5 mr-2" />
+                Undo
+                <span className="ml-auto text-[10px] text-muted-foreground">⌘Z</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => redoMutation.mutate()}
+                disabled={!canRedo || redoMutation.isPending}
+                title="Redo (Ctrl+Shift+Z / Ctrl+Y)"
+                aria-label="Redo last undone change"
+                data-testid="button-redo-financial"
+              >
+                <Redo2 className="h-3.5 w-3.5 mr-2" />
+                Redo
+                <span className="ml-auto text-[10px] text-muted-foreground">⇧⌘Z</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => { setHistoryPanelOpen(true); refetchHistory(); }}
+                title="View change history (who edited what and when)"
+                aria-label="View change history"
+                data-testid="button-open-history"
+              >
+                <HistoryIcon className="h-3.5 w-3.5 mr-2" />
+                Change history
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={allExpanded ? collapseAll : expandAll}
+                disabled={allGroupKeys.size === 0}
+                title={allExpanded ? "Collapse all groups" : "Expand all groups"}
+                aria-label={allExpanded ? "Collapse all groups" : "Expand all groups"}
+                data-testid="button-toggle-expand-all"
+              >
+                {allExpanded ? (
+                  <ChevronsDownUp className="h-3.5 w-3.5 mr-2" />
+                ) : (
+                  <ChevronsUpDown className="h-3.5 w-3.5 mr-2" />
+                )}
+                {allExpanded ? "Collapse all groups" : "Expand all groups"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger
+                  data-testid="select-variance-mode"
+                  title="Variance columns: compare ACT/EAC to a baseline"
+                >
+                  <Gauge className="h-3.5 w-3.5 mr-2" />
+                  Variance
+                  <span className="ml-auto text-[10px] text-muted-foreground capitalize">
+                    {varianceMode === "off" ? "Off" : varianceMode}
+                  </span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuLabel>Variance columns</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={varianceMode}
+                    onValueChange={(v) => setVarianceMode(v as VarianceMode)}
+                  >
+                    <DropdownMenuRadioItem value="off" data-testid="variance-mode-off">
+                      Off
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="forecast" data-testid="variance-mode-forecast">
+                      Forecast accuracy (ACT − FCST YTD)
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="budget" data-testid="variance-mode-budget">
+                      Budget health (EAC − AOP)
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuCheckboxItem
+                checked={showInsights}
+                onCheckedChange={() => toggleInsights()}
+                title={showInsights ? "Hide the insights strip above the grid" : "Show the insights strip above the grid"}
+                data-testid="button-toggle-insights"
+              >
+                <Sparkles className="h-3.5 w-3.5 mr-2" />
+                Insights strip
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsFullscreen(v => !v)}
+            title={isFullscreen ? "Exit full screen" : "Expand to full screen"}
+            data-testid="button-toggle-fullscreen"
+            className="h-8 w-8"
+          >
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
+        </div>
       </div>
 
       {showInsights && (
