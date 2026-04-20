@@ -249,7 +249,7 @@ export function FinancialScenariosSection({ organizationId }: { organizationId: 
           </p>
           <Button onClick={handleSave} disabled={isSaving} data-testid="button-save-scenarios">
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-            Save Scenarios
+            Save
           </Button>
         </div>
       </CardContent>
