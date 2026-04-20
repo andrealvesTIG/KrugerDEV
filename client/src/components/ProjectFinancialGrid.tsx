@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useIsFetching } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock, MoreVertical, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock, MoreVertical, ChevronsDownUp, ChevronsUpDown, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -597,6 +597,19 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     onError: () => toast({ title: "Failed to update cell", variant: "destructive" }),
   });
 
+  // Background-activity indicator: lights up when the entries query is
+  // refetching OR any project-financials mutation is in flight, so the
+  // user always knows the grid is syncing with the server.
+  const fetchingEntries = useIsFetching({
+    queryKey: ["/api/projects", projectId, "financial-entries"],
+  });
+  const localBusy =
+    createItemMutation.isPending ||
+    updateItemMutation.isPending ||
+    deleteItemMutation.isPending ||
+    updateCellMutation.isPending;
+  const isBusy = fetchingEntries > 0 || localBusy;
+
   const enabledTypeKeys = useMemo(() => enabledTypes.map(s => s.key), [enabledTypes]);
   const editableTypeKeys = useMemo(
     () => enabledTypes.filter(s => s.editable).map(s => s.key),
@@ -977,6 +990,23 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
             )}
             {allExpanded ? "Collapse all" : "Expand all"}
           </Button>
+
+          {/* Background-activity indicator: visible whenever the grid is
+             refetching or any item/cell mutation is in flight. */}
+          <div
+            className={`inline-flex items-center gap-1.5 h-9 px-2.5 rounded-md text-[11px] font-medium border transition-opacity ${
+              isBusy
+                ? "opacity-100 border-primary/40 bg-primary/5 text-primary"
+                : "opacity-0 pointer-events-none border-transparent"
+            }`}
+            role="status"
+            aria-live="polite"
+            aria-hidden={!isBusy}
+            data-testid="indicator-grid-busy"
+          >
+            <Loader2 className="h-3 w-3 animate-spin" />
+            <span>Syncing…</span>
+          </div>
 
           {/* Segmented financial-type toggle — colored per type for quick scanning */}
           <div className="inline-flex h-9 items-center rounded-md border bg-muted/40 p-0.5 gap-0.5">
