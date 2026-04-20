@@ -373,6 +373,13 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   const { currentOrganization } = useOrganization();
   const currentYear = new Date().getFullYear();
   const [fiscalYear, setFiscalYear] = useState(currentYear);
+  // Period view-mode: collapses the 12-month column model into 4 quarters or
+  // a single fiscal-year column. Editing is only allowed in `month` view since
+  // entries are still stored per-month server-side; quarter/year cells render
+  // as read-only aggregates. Persisted in-memory only (per task spec).
+  type ViewMode = "month" | "quarter" | "year";
+  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const isMonthView = viewMode === "month";
 
   const orgId = currentOrganization?.id;
   const { data: typesConfig } = useQuery<FinancialTypesConfig>({
@@ -841,17 +848,6 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     });
   }, [fiscalYear]);
 
-  // Group consecutive months by calendar year for the year-row header.
-  const yearGroups = useMemo(() => {
-    const groups: { year: number; count: number }[] = [];
-    for (const m of monthCalendar) {
-      const last = groups[groups.length - 1];
-      if (last && last.year === m.year) last.count += 1;
-      else groups.push({ year: m.year, count: 1 });
-    }
-    return groups;
-  }, [monthCalendar]);
-
   // Highlight today's column (only when today falls inside the displayed FY).
   const currentMonthIdx = useMemo(() => {
     const now = new Date();
@@ -906,6 +902,60 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     };
     return { rows: newRows, grandTotalByType: newGrand };
   }, [rawRows, rawGrandTotalByType, showEtc, currentMonthIdx, monthCalendar]);
+
+  // Build period columns based on view mode. Each period carries the set of
+  // fiscal-month indices (0..11) it aggregates and the calendar year used by
+  // the year-grouping header row.
+  type PeriodCol = {
+    key: string;
+    label: string;
+    hint: string;
+    monthIndices: number[];
+    year: number;
+  };
+  const periodCols: PeriodCol[] = useMemo(() => {
+    if (viewMode === "quarter") {
+      return [
+        { key: "q1", label: "Q1", hint: "Oct–Dec", monthIndices: [0, 1, 2], year: fiscalYear - 1 },
+        { key: "q2", label: "Q2", hint: "Jan–Mar", monthIndices: [3, 4, 5], year: fiscalYear },
+        { key: "q3", label: "Q3", hint: "Apr–Jun", monthIndices: [6, 7, 8], year: fiscalYear },
+        { key: "q4", label: "Q4", hint: "Jul–Sep", monthIndices: [9, 10, 11], year: fiscalYear },
+      ];
+    }
+    if (viewMode === "year") {
+      return [{
+        key: "fy",
+        label: `FY ${fiscalYear}`,
+        hint: "Oct–Sep",
+        monthIndices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        year: fiscalYear,
+      }];
+    }
+    return MONTHS.map((m, i) => ({
+      key: `m${m.num}`,
+      label: m.label,
+      hint: "",
+      monthIndices: [i],
+      year: monthCalendar[i].year,
+    }));
+  }, [viewMode, fiscalYear, monthCalendar]);
+
+  // Year-row groupings derived from the active period columns.
+  const periodYearGroups = useMemo(() => {
+    const groups: { year: number; count: number }[] = [];
+    for (const p of periodCols) {
+      const last = groups[groups.length - 1];
+      if (last && last.year === p.year) last.count += 1;
+      else groups.push({ year: p.year, count: 1 });
+    }
+    return groups;
+  }, [periodCols]);
+
+  // Current-period index (the period containing today's month, if any).
+  const currentPeriodIdx = useMemo(() => {
+    if (currentMonthIdx < 0) return -1;
+    return periodCols.findIndex(p => p.monthIndices.includes(currentMonthIdx));
+  }, [periodCols, currentMonthIdx]);
 
   const editableRows = useMemo(() => rows.filter(r => r.type === "item"), [rows]);
 
@@ -1343,6 +1393,38 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
             })()}
           </div>
 
+          {/* Period view-mode switcher: Month / Quarter / Year. Quarter and
+              Year are read-only aggregates of the underlying monthly cells. */}
+          <div className="inline-flex h-9 items-center rounded-md border bg-muted/40 p-0.5 gap-0.5" role="group" aria-label="Grid period view">
+            {([
+              { key: "month", label: "Month" },
+              { key: "quarter", label: "Quarter" },
+              { key: "year", label: "Year" },
+            ] as { key: ViewMode; label: string }[]).map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setViewMode(opt.key)}
+                aria-pressed={viewMode === opt.key}
+                className={`px-3 h-8 text-xs font-semibold rounded-sm transition-all ${
+                  viewMode === opt.key
+                    ? "bg-background text-foreground shadow-sm ring-1 ring-inset ring-border"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+                }`}
+                title={
+                  opt.key === "month"
+                    ? "Show 12 month columns"
+                    : opt.key === "quarter"
+                    ? "Collapse to 4 quarter columns (read-only totals)"
+                    : "Collapse to a single fiscal-year column (read-only total)"
+                }
+                data-testid={`button-view-mode-${opt.key}`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
           <Select value={String(fiscalYear)} onValueChange={(v) => setFiscalYear(Number(v))}>
             <SelectTrigger className="w-28 h-9" data-testid="select-fiscal-year">
               <SelectValue />
@@ -1400,12 +1482,10 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
         // so they don't change when groups are expanded/collapsed.
         let commMaxChars = "Comments".length + 2;  // header + sort icon
         let wbsMaxChars  = "WBS".length + 2;
-        // monthMax[mi][typeKey] = max |amount| char-length seen at that cell
-        const monthMaxChars: Record<string, number>[] = Array.from({ length: 12 }, () => ({}));
         // itemTotalSum[itemKey][typeKey] = sum across 12 months
         const itemTotalSum = new Map<string, Record<string, number>>();
-        // monthGrandSum[mi][typeKey] = grand total per month/scenario
-        const monthGrandSum: Record<string, number>[] = Array.from({ length: 12 }, () => ({}));
+        // itemMonthly[itemKey][typeKey] = number[12] (used to size period cols)
+        const itemMonthly = new Map<string, Record<string, number[]>>();
         // Per-item longest comments/wbs across all entries for that item
         // (data may be inconsistent across rows for the same itemKey)
         const itemCommentMax = new Map<string, number>();
@@ -1424,20 +1504,44 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
           }
           const amt = Number(e.amount) || 0;
           const mi = (e.month ?? 1) - 1;
-          if (mi >= 0 && mi < 12 && amt !== 0) {
-            const len = formatCurrency(amt).length;
-            const cur = monthMaxChars[mi][e.scenario] ?? 0;
-            if (len > cur) monthMaxChars[mi][e.scenario] = len;
-            monthGrandSum[mi][e.scenario] = (monthGrandSum[mi][e.scenario] ?? 0) + amt;
+          if (mi >= 0 && mi < 12) {
+            let agg = itemMonthly.get(e.itemKey);
+            if (!agg) { agg = {}; itemMonthly.set(e.itemKey, agg); }
+            if (!agg[e.scenario]) agg[e.scenario] = new Array(12).fill(0);
+            agg[e.scenario][mi] = amt;
           }
           let perItem = itemTotalSum.get(e.itemKey);
           if (!perItem) { perItem = {}; itemTotalSum.set(e.itemKey, perItem); }
           perItem[e.scenario] = (perItem[e.scenario] ?? 0) + amt;
         }
 
+        // Per-period per-type max formatted-char length and grand sum, used
+        // to size the dynamic columns regardless of view mode (1, 4, or 12).
+        const periodMaxChars: Record<string, number>[] = periodCols.map(() => ({}));
+        const periodGrandSum: Record<string, number>[] = periodCols.map(() => ({}));
+        for (let pi = 0; pi < periodCols.length; pi++) {
+          const idxs = periodCols[pi].monthIndices;
+          for (const k of enabledTypeKeys) {
+            let grand = 0;
+            for (const agg of itemMonthly.values()) {
+              const arr = agg[k];
+              if (!arr) continue;
+              let s = 0;
+              for (const mi of idxs) s += arr[mi] ?? 0;
+              grand += s;
+              if (s !== 0) {
+                const len = formatCurrency(s).length;
+                const cur = periodMaxChars[pi][k] ?? 0;
+                if (len > cur) periodMaxChars[pi][k] = len;
+              }
+            }
+            if (grand !== 0) periodGrandSum[pi][k] = grand;
+          }
+        }
+
         // ETC isn't a real scenario so it never appears in filteredEntries.
-        // Derive its width inputs (per-cell max char length, per-item totals,
-        // per-month grand totals) directly from the post-processed item rows.
+        // It's only displayed in the Total column, so we just need to feed
+        // its per-item total into itemTotalSum for totalSubPx sizing.
         if (showEtc) {
           for (const r of rows) {
             if (r.type !== "item" || !r.itemKey) continue;
@@ -1445,16 +1549,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
             let perItem = itemTotalSum.get(r.itemKey);
             if (!perItem) { perItem = {}; itemTotalSum.set(r.itemKey, perItem); }
             let itemSum = 0;
-            for (let mi = 0; mi < 12; mi++) {
-              const amt = arr[mi] || 0;
-              itemSum += amt;
-              if (amt !== 0) {
-                const len = formatCurrency(amt).length;
-                const cur = monthMaxChars[mi]["etc"] ?? 0;
-                if (len > cur) monthMaxChars[mi]["etc"] = len;
-                monthGrandSum[mi]["etc"] = (monthGrandSum[mi]["etc"] ?? 0) + amt;
-              }
-            }
+            for (let mi = 0; mi < 12; mi++) itemSum += arr[mi] || 0;
             perItem["etc"] = (perItem["etc"] ?? 0) + itemSum;
           }
         }
@@ -1493,52 +1588,55 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
           return Math.round(Math.min(MAX_TOTAL_SUB, Math.max(MIN_TOTAL_SUB, chars * CHAR_PX + PAD_X)));
         });
 
-        // Per-month per-scenario sub-cols (ETC excluded — only in Total).
-        const monthSubPx: number[] = [];
-        for (let mi = 0; mi < 12; mi++) {
+        // Per-period per-scenario sub-cols (1, 4, or 12 periods depending on
+        // view). ETC is excluded from period columns — it only renders in the
+        // Total column.
+        const periodSubPx: number[] = [];
+        for (let pi = 0; pi < periodCols.length; pi++) {
           for (const s of monthDisplayedTypes) {
             let chars = (s.label.length + (!s.editable ? 1 : 0)) + 1;
-            const cellMax = monthMaxChars[mi][s.key] ?? 0;
+            const cellMax = periodMaxChars[pi][s.key] ?? 0;
             if (cellMax > chars) chars = cellMax;
-            const gtm = monthGrandSum[mi][s.key] ?? 0;
+            const gtm = periodGrandSum[pi][s.key] ?? 0;
             if (gtm !== 0) chars = Math.max(chars, formatCurrency(gtm).length);
-            monthSubPx.push(Math.round(Math.min(MAX_MONTH_SUB, Math.max(MIN_MONTH_SUB, chars * CHAR_PX + PAD_X))));
+            periodSubPx.push(Math.round(Math.min(MAX_MONTH_SUB, Math.max(MIN_MONTH_SUB, chars * CHAR_PX + PAD_X))));
           }
         }
 
-        // Ensure the sub-cols for each month are wide enough for the month header label (e.g. "OCT")
-        for (let mi = 0; mi < 12; mi++) {
-          const start = mi * N_MONTH;
-          const sum = monthSubPx.slice(start, start + N_MONTH).reduce((a, b) => a + b, 0);
-          const needed = Math.ceil("SEP".length * HDR_CHAR_PX + PAD_X);
+        // Ensure the sub-cols for each period are wide enough for the period
+        // header label (e.g. "OCT", "Q1", "FY 2026").
+        for (let pi = 0; pi < periodCols.length; pi++) {
+          const start = pi * N_MONTH;
+          const sum = periodSubPx.slice(start, start + N_MONTH).reduce((a, b) => a + b, 0);
+          const needed = Math.ceil(periodCols[pi].label.length * HDR_CHAR_PX + PAD_X);
           if (sum < needed) {
             const extra = Math.ceil((needed - sum) / N_MONTH);
-            for (let k = 0; k < N_MONTH; k++) monthSubPx[start + k] += extra;
+            for (let k = 0; k < N_MONTH; k++) periodSubPx[start + k] += extra;
           }
         }
 
-        // If a cell is currently being edited, widen its column so the whole
-        // typed value stays visible as the user types. Growing the column
-        // (not just overlaying the input) keeps the grid layout consistent
-        // and avoids overlap with neighboring cells.
-        if (editingCell) {
+        // If a cell is currently being edited (only possible in month view),
+        // widen its column so the whole typed value stays visible as the user
+        // types. Growing the column (not just overlaying the input) keeps the
+        // grid layout consistent and avoids overlap with neighboring cells.
+        if (editingCell && isMonthView) {
           const editSIdx = monthDisplayedTypes.findIndex(t => t.key === editingCell.typeKey);
-          const editMi = editingCell.month - 1;
-          if (editSIdx >= 0 && editMi >= 0 && editMi < 12) {
-            const colIdx = editMi * N_MONTH + editSIdx;
+          const editPi = periodCols.findIndex(p => p.monthIndices[0] === editingCell.month - 1);
+          if (editSIdx >= 0 && editPi >= 0) {
+            const colIdx = editPi * N_MONTH + editSIdx;
             const chars = Math.max(8, editValue.length + 2);
             const needed = Math.round(Math.min(320, chars * CHAR_PX + PAD_X + 10));
-            if (needed > monthSubPx[colIdx]) monthSubPx[colIdx] = needed;
+            if (needed > periodSubPx[colIdx]) periodSubPx[colIdx] = needed;
           }
         }
 
         const totalColsTpl = totalSubPx.map(p => `${p}px`).join(" ");
-        const monthColsTpl = monthSubPx.map(p => `${p}px`).join(" ");
-        const gridTemplate = `${COL_COST}px ${COL_COMMENTS}px ${COL_WBS}px ${totalColsTpl} ${monthColsTpl}`;
+        const periodColsTpl = periodSubPx.map(p => `${p}px`).join(" ");
+        const gridTemplate = `${COL_COST}px ${COL_COMMENTS}px ${COL_WBS}px ${totalColsTpl} ${periodColsTpl}`;
         const minWidthPx =
           COL_COST + COL_COMMENTS + COL_WBS +
           totalSubPx.reduce((a, b) => a + b, 0) +
-          monthSubPx.reduce((a, b) => a + b, 0);
+          periodSubPx.reduce((a, b) => a + b, 0);
 
         // Sticky-left offsets for the first three "frozen" columns
         const stickyL1 = 0;
@@ -1549,6 +1647,8 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
         const isCurrentMonth = (idx: number) => idx === currentMonthIdx;
         const monthHi = (idx: number) => isCurrentMonth(idx) ? "bg-amber-50 dark:bg-amber-950/20" : "";
+        const isCurrentPeriod = (idx: number) => idx === currentPeriodIdx;
+        const periodHi = (idx: number) => isCurrentPeriod(idx) ? "bg-amber-50 dark:bg-amber-950/20" : "";
 
         // Border classes: strong divider between months, faint between scenarios
         const monthBorder = "border-l border-border";
@@ -1663,7 +1763,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                     className={`flex items-center justify-center ${monthBorder}`}
                     style={{ gridColumn: `span ${N_TOTAL}` }}
                   ></div>
-                  {yearGroups.map((g, gi) => (
+                  {periodYearGroups.map((g, gi) => (
                     <div
                       key={`y-${g.year}-${gi}`}
                       className={`flex items-center justify-center text-xs font-semibold tracking-wide text-muted-foreground ${monthBorder}`}
@@ -1697,15 +1797,21 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                   >
                     Total
                   </div>
-                  {MONTHS.map((m, idx) => (
+                  {periodCols.map((p, idx) => (
                     <div
-                      key={`mn-${m.num}`}
-                      className={`flex items-center justify-center text-xs font-semibold uppercase tracking-wider ${monthBorder} ${
-                        isCurrentMonth(idx) ? "bg-amber-100 dark:bg-amber-900/30 text-amber-900 dark:text-amber-200" : "text-muted-foreground"
+                      key={`mn-${p.key}`}
+                      className={`flex flex-col items-center justify-center text-xs font-semibold uppercase tracking-wider ${monthBorder} ${
+                        isCurrentPeriod(idx) ? "bg-amber-100 dark:bg-amber-900/30 text-amber-900 dark:text-amber-200" : "text-muted-foreground"
                       }`}
                       style={{ gridColumn: `span ${N_MONTH}` }}
+                      title={p.hint || undefined}
                     >
-                      {m.label}
+                      <span>{p.label}</span>
+                      {viewMode === "quarter" && p.hint && (
+                        <span className="text-[9px] font-normal normal-case tracking-normal opacity-70 leading-tight">
+                          {p.hint}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1731,13 +1837,13 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                       </div>
                     );
                   })}
-                  {MONTHS.map((m, idx) => (
+                  {periodCols.map((p, idx) => (
                     monthDisplayedTypes.map((s, i) => {
                       const palette = getTypePalette(s.key);
-                      const current = isCurrentMonth(idx);
+                      const current = isCurrentPeriod(idx);
                       return (
                         <div
-                          key={`mlab-${m.num}-${s.key}`}
+                          key={`mlab-${p.key}-${s.key}`}
                           className={`flex items-center justify-center gap-1 ${i === 0 ? monthBorder : typeBorder} ${palette.activeBg} ${palette.activeText} ${current ? "ring-1 ring-inset ring-amber-500/40" : ""}`}
                           title={s.editable ? `${s.label} (editable)` : `${s.label} (read-only)`}
                         >
@@ -1960,29 +2066,35 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                           );
                         })}
 
-                        {/* Per-month per-scenario cells (ETC excluded). */}
-                        {MONTHS.map((m, idx) => (
+                        {/* Per-period per-scenario cells (1, 4, or 12 cols).
+                            ETC excluded — only renders in the Total column. */}
+                        {periodCols.map((p, pIdx) => (
                           monthDisplayedTypes.map((s, sIdx) => {
-                            const value = row.monthlyByType[s.key]?.[idx] ?? 0;
+                            const arr = row.monthlyByType[s.key];
+                            let value = 0;
+                            if (arr) for (const mi of p.monthIndices) value += arr[mi] ?? 0;
                             const borderCls = sIdx === 0 ? monthBorder : typeBorder;
-                            const hi = monthHi(idx);
-                            if (!isItem) {
+                            const hi = periodHi(pIdx);
+                            // Aggregated periods (quarter/year) are read-only
+                            // since entries are stored per-month server-side.
+                            if (!isItem || !isMonthView) {
                               return (
                                 <div
-                                  key={`${m.num}-${s.key}`}
+                                  key={`${p.key}-${s.key}`}
                                   className={`px-1 py-1 text-center text-[11px] tabular-nums flex items-center justify-center ${borderCls} ${hi}`}
                                 >
                                   {value !== 0 ? formatCurrency(value) : <span className="text-muted-foreground/30">—</span>}
                                 </div>
                               );
                             }
+                            const m = MONTHS[p.monthIndices[0]];
                             const isEditing =
                               editingCell?.itemKey === row.itemKey &&
                               editingCell?.month === m.num &&
                               editingCell?.typeKey === s.key;
                             const editable = s.editable;
                             return (
-                              <div key={`${m.num}-${s.key}`} className={`p-0.5 ${borderCls} ${hi}`}>
+                              <div key={`${p.key}-${s.key}`} className={`p-0.5 ${borderCls} ${hi}`}>
                                 {isEditing ? (
                                   <Input
                                     autoFocus
@@ -2018,7 +2130,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                                         ? "cursor-cell hover:ring-1 hover:ring-primary/40 hover:bg-background"
                                         : "text-muted-foreground"
                                     }`}
-                                    onClick={() => editable && handleCellClick(row, idx, s.key)}
+                                    onClick={() => editable && handleCellClick(row, p.monthIndices[0], s.key)}
                                     data-testid={`cell-${s.key}-m${m.num}-${row.itemKey}`}
                                   >
                                     {value !== 0 ? formatCurrency(value) : <span className="text-muted-foreground/30">—</span>}
@@ -2116,11 +2228,11 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                                 className={`px-1 py-1 ${sIdx === 0 ? monthBorder : typeBorder}`}
                               />
                             ))}
-                            {MONTHS.map((m, idx) => (
+                            {periodCols.map((p, idx) => (
                               monthDisplayedTypes.map((s, sIdx) => (
                                 <div
-                                  key={`qa-${m.num}-${s.key}`}
-                                  className={`px-1 py-1 ${sIdx === 0 ? monthBorder : typeBorder} ${monthHi(idx)}`}
+                                  key={`qa-${p.key}-${s.key}`}
+                                  className={`px-1 py-1 ${sIdx === 0 ? monthBorder : typeBorder} ${periodHi(idx)}`}
                                 />
                               ))
                             ))}
@@ -2175,11 +2287,11 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                             className={`px-1 py-1 ${sIdx === 0 ? monthBorder : typeBorder}`}
                           />
                         ))}
-                        {MONTHS.map((m, idx) => (
+                        {periodCols.map((p, idx) => (
                           monthDisplayedTypes.map((s, sIdx) => (
                             <div
-                              key={`ph-${m.num}-${s.key}`}
-                              className={`px-1 py-1 ${sIdx === 0 ? monthBorder : typeBorder} ${monthHi(idx)}`}
+                              key={`ph-${p.key}-${s.key}`}
+                              className={`px-1 py-1 ${sIdx === 0 ? monthBorder : typeBorder} ${periodHi(idx)}`}
                             />
                           ))
                         ))}
@@ -2220,17 +2332,23 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                         </div>
                       );
                     })}
-                    {MONTHS.map((m, idx) => (
+                    {periodCols.map((p, idx) => (
                       monthDisplayedTypes.map((s, sIdx) => {
-                        const grandMonthForType = rows
+                        const grandPeriodForType = rows
                           .filter(r => r.type === "view")
-                          .reduce((acc, r) => acc + (r.monthlyByType[s.key]?.[idx] ?? 0), 0);
+                          .reduce((acc, r) => {
+                            const arr = r.monthlyByType[s.key];
+                            if (!arr) return acc;
+                            let s2 = 0;
+                            for (const mi of p.monthIndices) s2 += arr[mi] ?? 0;
+                            return acc + s2;
+                          }, 0);
                         return (
                           <div
-                            key={`gt-${m.num}-${s.key}`}
-                            className={`px-1 py-1.5 text-center text-[11px] font-bold tabular-nums flex items-center justify-center ${sIdx === 0 ? monthBorder : typeBorder} ${monthHi(idx)}`}
+                            key={`gt-${p.key}-${s.key}`}
+                            className={`px-1 py-1.5 text-center text-[11px] font-bold tabular-nums flex items-center justify-center ${sIdx === 0 ? monthBorder : typeBorder} ${periodHi(idx)}`}
                           >
-                            {grandMonthForType !== 0 ? formatCurrency(grandMonthForType) : <span className="text-muted-foreground/40">—</span>}
+                            {grandPeriodForType !== 0 ? formatCurrency(grandPeriodForType) : <span className="text-muted-foreground/40">—</span>}
                           </div>
                         );
                       })
