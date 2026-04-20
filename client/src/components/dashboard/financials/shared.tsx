@@ -46,7 +46,7 @@ export function PerfBadge({ value, kind }: { value: number; kind: "cpi" | "spi" 
   const ok = value >= 0.95 && value < 1;
   const variant = good ? "default" : ok ? "secondary" : "destructive";
   return (
-    <Badge variant={variant as any} className="font-mono text-xs">
+    <Badge variant={variant} className="font-mono text-xs">
       {kind.toUpperCase()} {value.toFixed(2)}
     </Badge>
   );
@@ -67,7 +67,7 @@ export function FinancialsScope({ render }: { render: (props: FinancialsScopePro
   // Default FY: today's fiscal year using org start month (best-effort
   // calendar-year fallback if start month not yet known).
   const today = new Date();
-  const startMonth = (currentOrganization as any)?.fiscalYearStartMonth ?? 10;
+  const startMonth = currentOrganization?.fiscalYearStartMonth ?? 10;
   const defaultFY = currentFiscalYear(today, startMonth);
   const [fiscalYear, setFiscalYear] = useState<number>(defaultFY);
   const [portfolioId, setPortfolioId] = useState<number | undefined>(undefined);

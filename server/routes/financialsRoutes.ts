@@ -1,13 +1,14 @@
 import type { Express, Request } from "express";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "../db";
-import { financialEntries, costItemChangeLogs, projects, portfolios } from "@shared/schema";
+import { financialEntries, costItemChangeLogs, projects, portfolios, costItems } from "@shared/schema";
 import { storage } from "../storage";
 import { multiYearWbs } from "@shared/schema";
 import type { FinancialType } from "@shared/schema";
 import type { FinancialItemDimensions } from "../storage/financialStorage";
-import { buildFiscalMonths, currentFiscalYear, normalizeFiscalYearStartMonth } from "@shared/lib/fiscalCalendar";
 import {
+  buildFiscalMonths,
+  currentFiscalYear,
   fiscalSlotToCalendar,
   normalizeFiscalYearStartMonth,
 } from "@shared/lib/fiscalCalendar";
@@ -839,7 +840,7 @@ export function registerFinancialsRoutes(app: Express) {
 
       const org = await storage.getOrganization(orgId);
       if (!org) return res.status(404).json({ message: "Organization not found" });
-      const fyStart = normalizeFiscalYearStartMonth(org.fiscalYearStartMonth as any);
+      const fyStart = normalizeFiscalYearStartMonth(org.fiscalYearStartMonth);
       const today = new Date();
       const fiscalYear = req.query.fiscalYear ? Number(req.query.fiscalYear) : currentFiscalYear(today, fyStart);
       const portfolioFilter = req.query.portfolioId ? Number(req.query.portfolioId) : undefined;
@@ -882,27 +883,58 @@ export function registerFinancialsRoutes(app: Express) {
         asOfMonth = 12;
       }
 
-      // Single bulk read of all entries for the FY across the org's projects.
+      // financial_entries is calendar-anchored: rows store (fiscal_year=calendar
+      // year, month=calendar month 1..12). To pull a fiscal year we have to
+      // match each of its 12 (year, month) calendar pairs and translate them
+      // back to a 1..12 fiscal-month index for charting.
+      const calPairs = months.map(m => ({ year: m.year, month: m.month }));
+      const calKey = (y: number, m: number) => `${y}-${m}`;
+      const calIndex = new Map<string, number>(); // calendar key → 0-based fiscal-month index
+      calPairs.forEach((p, i) => calIndex.set(calKey(p.year, p.month), i));
+
       const allEntries = projectIds.length === 0 ? [] : await db
         .select()
         .from(financialEntries)
         .where(and(
           inArray(financialEntries.projectId, projectIds),
-          eq(financialEntries.fiscalYear, fiscalYear),
+          or(...calPairs.map(p => and(
+            eq(financialEntries.fiscalYear, p.year),
+            eq(financialEntries.month, p.month),
+          ))),
         ));
 
-      // Build per-project monthly buckets keyed by type.
-      type Buckets = Record<string, number[]>; // type → [12 monthly values]
+      // BAC per project from cost_items.aopTotal (authoritative budget when
+      // present), with a fallback to the AOP entries we already aggregate.
+      const costItemBac = projectIds.length === 0 ? [] : await db
+        .select({
+          projectId: costItems.projectId,
+          total: sql<string>`COALESCE(SUM(${costItems.aopTotal}::numeric), 0)`.as("total"),
+        })
+        .from(costItems)
+        .where(and(
+          inArray(costItems.projectId, projectIds),
+          eq(costItems.fiscalYear, fiscalYear),
+        ))
+        .groupBy(costItems.projectId);
+      // Use a Map to track *presence* of cost-item BAC, not just non-zero
+      // value. A project that has cost_items recorded for the FY (even if the
+      // sum is 0) is treated as having an authoritative budget; only projects
+      // with no cost_items at all fall back to summing AOP entries.
+      const bacFromCostItems = new Map<number, number>();
+      for (const r of costItemBac) bacFromCostItems.set(r.projectId, Number(r.total) || 0);
+
+      // Build per-project monthly buckets keyed by financial type, indexed by
+      // fiscal-month position 0..11.
+      type Buckets = Record<string, number[]>;
       const perProject = new Map<number, Buckets>();
-      for (const pid of projectIds) {
-        perProject.set(pid, {});
-      }
+      for (const pid of projectIds) perProject.set(pid, {});
       for (const e of allEntries) {
         const buckets = perProject.get(e.projectId);
         if (!buckets) continue;
+        const idx = calIndex.get(calKey(e.fiscalYear, e.month));
+        if (idx === undefined) continue;
         const arr = buckets[e.scenario] ?? (buckets[e.scenario] = Array(12).fill(0));
-        const m = e.month;
-        if (m >= 1 && m <= 12) arr[m - 1] += Number(e.amount) || 0;
+        arr[idx] += Number(e.amount) || 0;
       }
 
       const sumArr = (a: number[] | undefined) => (a ? a.reduce((s, v) => s + v, 0) : 0);
@@ -956,7 +988,14 @@ export function registerFinancialsRoutes(app: Express) {
         const pvCum = cumArr(aopArr);
         const acCum = cumArr(actArr);
         const eacCum = eacArr ? cumArr(eacArr) : Array(12).fill(0);
-        const bac = sumArr(aopArr);
+        // BAC: prefer cost_items.aopTotal aggregate (the budget the user
+        // explicitly captured per cost item); fall back to summed AOP entries
+        // ONLY when no cost-item row exists at all for the FY. Presence-based,
+        // not value-based — a project with cost items totaling exactly 0 is
+        // still considered to have an authoritative budget.
+        const hasCiBac = bacFromCostItems.has(p.id);
+        const bacEntries = sumArr(aopArr);
+        const bac = hasCiBac ? (bacFromCostItems.get(p.id) ?? 0) : bacEntries;
         const acTotal = acCum[11];
         const pcRaw = Number(p.completionPercentage ?? 0);
         const pcFraction = Math.max(0, Math.min(1, pcRaw / 100));
@@ -997,10 +1036,10 @@ export function registerFinancialsRoutes(app: Express) {
           status: p.status,
           health: p.health,
           completionPercentage: pcRaw,
-          startDate: p.startDate as any,
-          endDate: p.endDate as any,
-          actualStartDate: p.actualStartDate as any,
-          actualEndDate: p.actualEndDate as any,
+          startDate: p.startDate ? String(p.startDate) : null,
+          endDate: p.endDate ? String(p.endDate) : null,
+          actualStartDate: p.actualStartDate ? String(p.actualStartDate) : null,
+          actualEndDate: p.actualEndDate ? String(p.actualEndDate) : null,
           bac, ac, pv, ev, eacEntered, eacComputed, vac, etc, cpi, spi,
           pvCum, acCum, evCum,
           eacMonthly: eacArr ?? Array(12).fill(0),

@@ -1,10 +1,17 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Wallet, CreditCard, Calculator, Percent, TrendingUp, AlertTriangle, Banknote, Target, CheckCircle2, Activity } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ComposedChart, Line, AreaChart, Area } from "recharts";
+import { Wallet, CreditCard, Calculator, Percent, TrendingUp, AlertTriangle, Banknote, Target, CheckCircle2, Activity, Calendar } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ComposedChart, Line, RadialBarChart, RadialBar, PolarAngleAxis, PieChart, Pie, Cell } from "recharts";
 import { CompactCurrency } from "@/components/CompactCurrency";
 import { Progress } from "@/components/ui/progress";
-import { FinancialsScope, KpiTile, EmptyState, COLORS, fmtPct } from "./shared";
+import { FinancialsScope, KpiTile, EmptyState, fmtPct } from "./shared";
 import { formatCurrency } from "@/lib/format";
+import { Link } from "wouter";
+
+const PMI_HEALTH_COLORS = {
+  healthy: "#10b981",
+  atRisk: "#f59e0b",
+  inTrouble: "#ef4444",
+};
 
 export function FinancialsOverviewDashboard() {
   return (
@@ -16,6 +23,23 @@ export function FinancialsOverviewDashboard() {
       const underBudget = data.projects.filter(p => p.bac > 0 && p.eacComputed < p.bac * 0.95).length;
       const noData = t.bac === 0 && t.ac === 0;
 
+      // PMI EVM health buckets, applied jointly to CPI and SPI: a project is
+      // only "Healthy" if both indices are ≥ 0.95; "In Trouble" if either is
+      // < 0.85; "At Risk" otherwise.
+      const projectsWithMetrics = data.projects.filter(p => p.bac > 0);
+      const pmiBuckets = projectsWithMetrics.reduce((acc, p) => {
+        const worst = Math.min(p.cpi, p.spi);
+        if (worst >= 0.95) acc.healthy++;
+        else if (worst < 0.85) acc.inTrouble++;
+        else acc.atRisk++;
+        return acc;
+      }, { healthy: 0, atRisk: 0, inTrouble: 0 });
+      const pmiPie = [
+        { name: "Healthy (≥ 0.95)", value: pmiBuckets.healthy, color: PMI_HEALTH_COLORS.healthy },
+        { name: "At Risk (0.85–0.94)", value: pmiBuckets.atRisk, color: PMI_HEALTH_COLORS.atRisk },
+        { name: "In Trouble (< 0.85)", value: pmiBuckets.inTrouble, color: PMI_HEALTH_COLORS.inTrouble },
+      ].filter(s => s.value > 0);
+
       const seriesForChart = data.series.map(s => ({
         label: s.label,
         PV: Math.round(s.pvCum),
@@ -23,6 +47,21 @@ export function FinancialsOverviewDashboard() {
         AC: Math.round(s.acCum),
         EAC: Math.round(s.eacCum),
       }));
+
+      // Top-5 worst-performing projects
+      const topOverBudget = [...projectsWithMetrics]
+        .sort((a, b) => a.vac - b.vac)
+        .slice(0, 5);
+      const topBehindSchedule = [...projectsWithMetrics]
+        .sort((a, b) => a.spi - b.spi)
+        .slice(0, 5);
+
+      // CPI/SPI gauges use a 0-1.5 domain centered on 1.0.
+      const gaugeData = (label: string, value: number) => ([{
+        name: label,
+        value: Math.max(0, Math.min(1.5, value)),
+        fill: value >= 1 ? "#10b981" : value >= 0.85 ? "#f59e0b" : "#ef4444",
+      }]);
 
       return (
         <div className="space-y-6">
@@ -36,22 +75,138 @@ export function FinancialsOverviewDashboard() {
             <KpiTile label="Earned Value (EV)" icon={<Activity className="h-4 w-4 text-purple-500" />}
               value={<CompactCurrency value={t.ev} />}
               hint={`Through M${data.asOfMonth || "—"}`} />
+            <KpiTile label="EAC Forecast" icon={<Target className="h-4 w-4 text-indigo-500" />}
+              value={<CompactCurrency value={t.eacComputed} />}
+              hint={`VAC ${t.vac >= 0 ? "+" : ""}${formatCurrency(t.vac, { compact: true })}`}
+              tone={t.vac >= 0 ? "good" : "bad"} />
             <KpiTile label="CPI" icon={<Percent className="h-4 w-4 text-amber-500" />}
               value={t.cpi.toFixed(2)} tone={t.cpi >= 1 ? "good" : t.cpi >= 0.95 ? "warn" : "bad"}
               hint={t.cpi >= 1 ? "Cost efficient" : "Over spending"} />
             <KpiTile label="SPI" icon={<TrendingUp className="h-4 w-4 text-cyan-500" />}
               value={t.spi.toFixed(2)} tone={t.spi >= 1 ? "good" : t.spi >= 0.95 ? "warn" : "bad"}
               hint={t.spi >= 1 ? "On / ahead of plan" : "Behind schedule"} />
-            <KpiTile label="EAC Forecast" icon={<Target className="h-4 w-4 text-indigo-500" />}
-              value={<CompactCurrency value={t.eacComputed} />}
-              hint={`VAC ${t.vac >= 0 ? "+" : ""}${formatCurrency(t.vac, { compact: true })}`}
-              tone={t.vac >= 0 ? "good" : "bad"} />
           </div>
 
           {noData ? (
             <EmptyState message={`No financial entries found for FY ${data.fiscalYear}.`} />
           ) : (
             <>
+              {/* Gauges + PMI health */}
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Cost Performance Index</CardTitle>
+                    <CardDescription className="text-xs">Target = 1.0 (EV / AC).</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[180px] relative">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RadialBarChart data={gaugeData("CPI", t.cpi)} innerRadius="65%" outerRadius="95%" startAngle={210} endAngle={-30}>
+                          <PolarAngleAxis type="number" domain={[0, 1.5]} tick={false} />
+                          <RadialBar dataKey="value" background={{ fill: "rgba(148,163,184,0.2)" } as any} cornerRadius={6} />
+                        </RadialBarChart>
+                      </ResponsiveContainer>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <div className="text-3xl font-bold">{t.cpi.toFixed(2)}</div>
+                        <div className="text-[10px] text-muted-foreground">CPI</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Schedule Performance Index</CardTitle>
+                    <CardDescription className="text-xs">Target = 1.0 (EV / PV).</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[180px] relative">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RadialBarChart data={gaugeData("SPI", t.spi)} innerRadius="65%" outerRadius="95%" startAngle={210} endAngle={-30}>
+                          <PolarAngleAxis type="number" domain={[0, 1.5]} tick={false} />
+                          <RadialBar dataKey="value" background={{ fill: "rgba(148,163,184,0.2)" } as any} cornerRadius={6} />
+                        </RadialBarChart>
+                      </ResponsiveContainer>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <div className="text-3xl font-bold">{t.spi.toFixed(2)}</div>
+                        <div className="text-[10px] text-muted-foreground">SPI</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Project Health (PMI EVM)</CardTitle>
+                    <CardDescription className="text-xs">Worst of CPI &amp; SPI per project.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {pmiPie.length === 0 ? (
+                      <div className="text-xs text-muted-foreground p-4">No projects with measurable health yet.</div>
+                    ) : (
+                      <div className="h-[180px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={pmiPie} dataKey="value" innerRadius={45} outerRadius={75} paddingAngle={3} label={(d: any) => `${d.value}`}>
+                              {pmiPie.map((d, i) => <Cell key={i} fill={d.color} />)}
+                            </Pie>
+                            <Tooltip contentStyle={{ borderRadius: 8, fontSize: 11 }} />
+                            <Legend wrapperStyle={{ fontSize: 10 }} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Top-5 lists */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-destructive" /> Top 5 Over Budget
+                    </CardTitle>
+                    <CardDescription className="text-xs">Largest negative VAC (EAC − BAC).</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {topOverBudget.length === 0 ? <p className="text-xs text-muted-foreground">No projects over budget.</p> : (
+                      <ul className="divide-y">
+                        {topOverBudget.map(p => (
+                          <li key={p.projectId} className="py-2 flex items-center justify-between gap-3" data-testid={`row-overbudget-${p.projectId}`}>
+                            <Link href={`/projects/${p.projectId}?tab=financials`} className="text-sm font-medium truncate hover:underline">{p.name}</Link>
+                            <span className={`text-xs font-mono ${p.vac < 0 ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"}`}>
+                              {p.vac >= 0 ? "+" : ""}<CompactCurrency value={p.vac} />
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-amber-500" /> Top 5 Behind Schedule
+                    </CardTitle>
+                    <CardDescription className="text-xs">Lowest SPI (EV / PV).</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {topBehindSchedule.length === 0 ? <p className="text-xs text-muted-foreground">No projects behind schedule.</p> : (
+                      <ul className="divide-y">
+                        {topBehindSchedule.map(p => (
+                          <li key={p.projectId} className="py-2 flex items-center justify-between gap-3" data-testid={`row-behind-${p.projectId}`}>
+                            <Link href={`/projects/${p.projectId}?tab=financials`} className="text-sm font-medium truncate hover:underline">{p.name}</Link>
+                            <span className={`text-xs font-mono ${p.spi < 1 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                              SPI {p.spi.toFixed(2)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Curves + budget health */}
               <div className="grid gap-4 lg:grid-cols-3">
                 <Card className="lg:col-span-2">
                   <CardHeader className="pb-2">
@@ -61,13 +216,13 @@ export function FinancialsOverviewDashboard() {
                     <CardDescription className="text-xs">Planned (PV), Earned (EV), Actual (AC), and Forecast EAC by fiscal month.</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-[320px]">
+                    <div className="h-[300px]">
                       <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart data={seriesForChart}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="label" fontSize={10} />
                           <YAxis fontSize={10} tickFormatter={fmtCompact} />
-                          <Tooltip formatter={(v: number) => fmtCompact(v)} contentStyle={{ borderRadius: 8, fontSize: 11 }} />
+                          <Tooltip formatter={(v: any) => fmtCompact(Number(v))} contentStyle={{ borderRadius: 8, fontSize: 11 }} />
                           <Legend wrapperStyle={{ fontSize: 11 }} />
                           <Line type="monotone" dataKey="PV" stroke="#3b82f6" strokeWidth={2} dot={false} />
                           <Line type="monotone" dataKey="EV" stroke="#8b5cf6" strokeWidth={2} dot={false} />
@@ -87,7 +242,7 @@ export function FinancialsOverviewDashboard() {
                   <CardContent>
                     <div className="space-y-3">
                       <div className="flex items-center justify-between p-3 rounded-md bg-emerald-500/10">
-                        <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500" /> <span className="text-sm">On Budget</span></div>
+                        <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500" /> <span className="text-sm">On Budget (±5%)</span></div>
                         <span className="font-semibold">{onBudget}</span>
                       </div>
                       <div className="flex items-center justify-between p-3 rounded-md bg-blue-500/10">
@@ -125,7 +280,7 @@ export function FinancialsOverviewDashboard() {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis type="number" fontSize={10} tickFormatter={fmtCompact} />
                         <YAxis type="category" dataKey="name" width={160} fontSize={10} />
-                        <Tooltip formatter={(v: number) => fmtCompact(v)} contentStyle={{ borderRadius: 8, fontSize: 11 }} />
+                        <Tooltip formatter={(v: any) => fmtCompact(Number(v))} contentStyle={{ borderRadius: 8, fontSize: 11 }} />
                         <Legend wrapperStyle={{ fontSize: 11 }} />
                         <Bar dataKey="BAC" fill="#3b82f6" radius={[0, 4, 4, 0]} />
                         <Bar dataKey="AC" fill="#10b981" radius={[0, 4, 4, 0]} />
@@ -139,7 +294,9 @@ export function FinancialsOverviewDashboard() {
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium">Earned Value Management Detail</CardTitle>
-                  <CardDescription className="text-xs">Org-wide PMI EVM indicators at as-of fiscal month {data.asOfMonth || "—"}.</CardDescription>
+                  <CardDescription className="text-xs">
+                    Org-wide PMI EVM indicators at as-of fiscal month {data.asOfMonth || "—"}. See <a href="https://www.pmi.org/standards/earned-value-management" target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-primary">PMBOK / PMI EVM</a>.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
