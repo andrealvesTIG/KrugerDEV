@@ -700,23 +700,23 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
               <div className="text-sm" style={{ minWidth: `${minWidthPx}px` }}>
                 {/* Header row 1: column titles + year groupings (sticky top) */}
                 <div
-                  className="grid bg-muted/30 backdrop-blur supports-[backdrop-filter]:bg-muted/40 border-b sticky top-0 z-30 h-10"
+                  className="grid bg-muted border-b sticky top-0 z-30 h-10"
                   style={{ gridTemplateColumns: gridTemplate }}
                 >
                   <div
-                    className={`px-4 flex items-center bg-muted/30 sticky z-10`}
+                    className={`px-4 flex items-center bg-muted sticky z-10`}
                     style={{ left: `${stickyL1}px` }}
                   >
                     {sortableHeader("Cost Item")}
                   </div>
                   <div
-                    className="px-3 flex items-center bg-muted/30 sticky z-10"
+                    className="px-3 flex items-center bg-muted sticky z-10"
                     style={{ left: `${stickyL2}px` }}
                   >
                     {sortableHeader("Comments")}
                   </div>
                   <div
-                    className={`px-3 flex items-center bg-muted/30 sticky z-10 ${stickyEdgeShadow}`}
+                    className={`px-3 flex items-center bg-muted sticky z-10 ${stickyEdgeShadow}`}
                     style={{ left: `${stickyL3}px` }}
                   >
                     {sortableHeader("WBS")}
@@ -738,19 +738,19 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
                 {/* Header row 2: TOTAL + month names (sticky top) */}
                 <div
-                  className="grid bg-muted/20 border-b sticky z-30 h-9"
+                  className="grid bg-muted border-b sticky z-30 h-9"
                   style={{ gridTemplateColumns: gridTemplate, top: "40px" }}
                 >
                   <div
-                    className="bg-muted/20 sticky z-10"
+                    className="bg-muted sticky z-10"
                     style={{ left: `${stickyL1}px` }}
                   ></div>
                   <div
-                    className="bg-muted/20 sticky z-10"
+                    className="bg-muted sticky z-10"
                     style={{ left: `${stickyL2}px` }}
                   ></div>
                   <div
-                    className={`bg-muted/20 sticky z-10 ${stickyEdgeShadow}`}
+                    className={`bg-muted sticky z-10 ${stickyEdgeShadow}`}
                     style={{ left: `${stickyL3}px` }}
                   ></div>
                   <div
@@ -827,6 +827,13 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                       row.type === "category" ? "bg-muted/15 font-medium" :
                       row.type === "specification" ? "bg-muted/[0.04]" :
                       (rowIdx % 2 === 0 ? "bg-card" : "bg-muted/[0.03]");
+                    // Opaque equivalents for sticky-left cells so they fully occlude scrolling content
+                    const stickyBgClass =
+                      row.type === "view" ? "bg-muted font-semibold" :
+                      row.type === "category" ? "bg-muted font-medium" :
+                      row.type === "specification" ? "bg-card" :
+                      "bg-card";
+                    const stickyHover = "group-hover:bg-accent";
                     return (
                       <div
                         key={row.key}
@@ -836,7 +843,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                       >
                         {/* Cost Item (sticky) */}
                         <div
-                          className={`flex items-center gap-1.5 py-1.5 pr-2 sticky z-[1] ${rowBgClass} group-hover:bg-accent/40`}
+                          className={`flex items-center gap-1.5 py-1.5 pr-2 sticky z-[1] ${stickyBgClass} ${stickyHover}`}
                           style={{ left: `${stickyL1}px`, paddingLeft: `${16 + row.level * 14}px` }}
                         >
                           {row.hasChildren ? (
@@ -892,7 +899,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
                         {/* Comments (sticky) */}
                         <div
-                          className={`px-3 py-1.5 text-xs text-muted-foreground truncate flex items-center sticky z-[1] ${rowBgClass} group-hover:bg-accent/40`}
+                          className={`px-3 py-1.5 text-xs text-muted-foreground truncate flex items-center sticky z-[1] ${stickyBgClass} ${stickyHover}`}
                           style={{ left: `${stickyL2}px` }}
                           title={row.comments || ""}
                         >
@@ -901,7 +908,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
                         {/* WBS (sticky, last frozen col → edge shadow) */}
                         <div
-                          className={`px-3 py-1.5 text-xs text-muted-foreground tabular-nums truncate flex items-center sticky z-[1] ${rowBgClass} group-hover:bg-accent/40 ${stickyEdgeShadow}`}
+                          className={`px-3 py-1.5 text-xs text-muted-foreground tabular-nums truncate flex items-center sticky z-[1] ${stickyBgClass} ${stickyHover} ${stickyEdgeShadow}`}
                           style={{ left: `${stickyL3}px` }}
                         >
                           {isItem ? (row.wbs || "") : ""}
@@ -993,21 +1000,21 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                 {/* Grand total row (sticky bottom) */}
                 {rows.length > 0 && (
                   <div
-                    className="grid bg-muted/60 backdrop-blur supports-[backdrop-filter]:bg-muted/70 font-semibold border-t-2 border-border sticky bottom-0 z-20"
+                    className="grid bg-muted font-semibold border-t-2 border-border sticky bottom-0 z-20"
                     style={{ gridTemplateColumns: gridTemplate }}
                   >
                     <div
-                      className="px-4 py-2 sticky z-[1] bg-muted/60 text-sm uppercase tracking-wider"
+                      className="px-4 py-2 sticky z-[1] bg-muted text-sm uppercase tracking-wider"
                       style={{ left: `${stickyL1}px` }}
                     >
                       Grand Total
                     </div>
                     <div
-                      className="sticky z-[1] bg-muted/60"
+                      className="sticky z-[1] bg-muted"
                       style={{ left: `${stickyL2}px` }}
                     ></div>
                     <div
-                      className={`sticky z-[1] bg-muted/60 ${stickyEdgeShadow}`}
+                      className={`sticky z-[1] bg-muted ${stickyEdgeShadow}`}
                       style={{ left: `${stickyL3}px` }}
                     ></div>
                     {enabledScenarios.map((s, sIdx) => {
