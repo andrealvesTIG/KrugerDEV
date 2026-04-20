@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Building2, Users, CreditCard, Wallet, FileCheck, Activity, BarChart3, HelpCircle, ShieldAlert, Crown, GraduationCap, MousePointerClick, Newspaper, UserPlus } from "lucide-react";
+import { Loader2, Building2, Users, CreditCard, Wallet, FileCheck, Activity, BarChart3, HelpCircle, ShieldAlert, Crown, GraduationCap, MousePointerClick, Newspaper } from "lucide-react";
 import { OrganizationsTab } from "@/components/admin/OrganizationsTab";
 import { AllUsersTab } from "@/components/admin/AllUsersTab";
 import { PlansTab } from "@/components/admin/PlansTab";
@@ -15,50 +15,35 @@ import { FeatureComparisonTab } from "@/components/FeatureComparisonTab";
 import { TrainingManagementTab } from "@/components/TrainingManagementTab";
 import { UserActivityTab } from "@/components/admin/UserActivityTab";
 import { BlogManagementTab } from "@/components/admin/BlogManagementTab";
-import { NewSignupsTab } from "@/components/admin/NewSignupsTab";
 
 const VALID_TABS = new Set([
   'monitoring', 'organizations', 'users', 'plans', 'credits',
   'consents', 'help-tickets', 'feature-comparison', 'training', 'user-activity', 'media',
 ]);
 
-const ANALYTICS_SUB_TABS = new Set(['overview', 'new-signups']);
-
-function readInitialState(): { tab: string; analyticsSubTab: string } {
-  if (typeof window === 'undefined') return { tab: 'monitoring', analyticsSubTab: 'new-signups' };
+function readInitialTab(): string {
+  if (typeof window === 'undefined') return 'monitoring';
   try {
     const url = new URL(window.location.href);
     const t = url.searchParams.get('tab');
-    if (t === 'new-signups') return { tab: 'monitoring', analyticsSubTab: 'new-signups' };
-    if (t && VALID_TABS.has(t)) {
-      return { tab: t, analyticsSubTab: t === 'monitoring' ? 'overview' : 'new-signups' };
-    }
-    const sub = url.searchParams.get('sub');
-    if (sub && ANALYTICS_SUB_TABS.has(sub)) {
-      return { tab: 'monitoring', analyticsSubTab: sub };
-    }
+    if (t === 'new-signups') return 'monitoring';
+    if (t && VALID_TABS.has(t)) return t;
   } catch { /* ignore */ }
-  return { tab: 'monitoring', analyticsSubTab: 'new-signups' };
+  return 'monitoring';
 }
 
 export default function SuperAdmin() {
   const { user, isLoading: authLoading } = useAuth();
-  const initial = readInitialState();
-  const [tab, setTab] = useState<string>(initial.tab);
-  const [analyticsSubTab, setAnalyticsSubTab] = useState<string>(initial.analyticsSubTab);
+  const [tab, setTab] = useState<string>(readInitialTab());
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
       const url = new URL(window.location.href);
-      if (tab === 'monitoring') {
-        url.searchParams.set('tab', analyticsSubTab === 'new-signups' ? 'new-signups' : 'monitoring');
-      } else {
-        url.searchParams.set('tab', tab);
-      }
+      url.searchParams.set('tab', tab);
       window.history.replaceState({}, '', url.toString());
     } catch { /* ignore */ }
-  }, [tab, analyticsSubTab]);
+  }, [tab]);
 
   if (authLoading) {
     return (
@@ -152,26 +137,7 @@ export default function SuperAdmin() {
         </div>
         <div className="mt-6">
           <TabsContent value="monitoring">
-            <Tabs value={analyticsSubTab} onValueChange={setAnalyticsSubTab} className="w-full">
-              <TabsList className="bg-muted p-1 rounded-xl inline-flex">
-                <TabsTrigger value="overview" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2" data-testid="tab-monitoring">
-                  <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  Overview
-                </TabsTrigger>
-                <TabsTrigger value="new-signups" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2" data-testid="tab-new-signups">
-                  <UserPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  New Signups
-                </TabsTrigger>
-              </TabsList>
-              <div className="mt-4">
-                <TabsContent value="overview">
-                  <MonitoringTab />
-                </TabsContent>
-                <TabsContent value="new-signups">
-                  <NewSignupsTab />
-                </TabsContent>
-              </div>
-            </Tabs>
+            <MonitoringTab />
           </TabsContent>
           <TabsContent value="organizations">
             <OrganizationsTab />
