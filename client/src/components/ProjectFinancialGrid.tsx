@@ -1125,9 +1125,9 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
         // empty cells don't reserve as much space as long ones.
         // Tightened for a dense, technical look — minimum padding, narrow
         // numeric cells, single-character per-glyph budget.
-        const CHAR_PX = 6.0;        // approx px per char at text-[11px] tabular-nums (slight safety margin)
-        const HDR_CHAR_PX = 6.4;    // header text is slightly wider (uppercase tracking)
-        const PAD_X = 10;           // px-1 (8px) + small breathing room on each side
+        const CHAR_PX = 6.2;        // approx px per char at text-[11px] tabular-nums (slight safety margin)
+        const HDR_CHAR_PX = 6.6;    // header text is slightly wider (uppercase tracking)
+        const PAD_X = 16;           // px-1 (8px) + ~4px gap on each side so adjacent values don't visually touch
         // Frozen columns (Comments, WBS) keep px-3 padding (24px each side)
         // and have a sort icon in the header, so they need a wider floor than
         // the dense numeric columns.
