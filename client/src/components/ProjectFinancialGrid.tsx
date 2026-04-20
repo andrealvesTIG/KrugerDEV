@@ -1343,11 +1343,6 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                           ) : (
                             <span className="truncate">{row.label}</span>
                           )}
-                          {isItem && row.category && !(editingText?.itemKey === row.itemKey && editingText?.field === "itemName") && (
-                            <Badge variant="outline" className="text-[10px] whitespace-nowrap shrink-0">
-                              {row.category}
-                            </Badge>
-                          )}
                           {isItem && !(editingText?.itemKey === row.itemKey && editingText?.field === "itemName") && (
                             <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                               <Button
