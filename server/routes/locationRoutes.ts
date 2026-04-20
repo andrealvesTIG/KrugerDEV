@@ -222,6 +222,64 @@ export function registerLocationRoutes(app: Express) {
     }
   });
 
+  apiRoute(app, 'get', '/api/geocode/reverse', {
+    tag: 'Geocoding',
+    summary: 'Reverse-geocode lat/lng to a structured address (Nominatim)',
+    parameters: [qStr('lat', true, 'Latitude'), qStr('lng', true, 'Longitude')],
+    responses: {
+      ...r200('Reverse geocoding result', {
+        type: 'object',
+        properties: {
+          displayName: { type: 'string' },
+          addressLine1: { type: 'string' },
+          city: { type: 'string' },
+          region: { type: 'string' },
+          country: { type: 'string' },
+          postalCode: { type: 'string' },
+        },
+      }),
+      ...authRes,
+      ...e400,
+    },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const lat = Number(req.query.lat);
+      const lng = Number(req.query.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return res.status(400).json({ message: 'lat and lng are required numeric values' });
+      }
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        return res.status(400).json({ message: 'lat/lng out of range' });
+      }
+      await rateLimit();
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&lat=${lat}&lon=${lng}`;
+      const resp = await fetch(url, {
+        headers: {
+          'User-Agent': 'FridayReport.AI/1.0 (project location reverse geocoder)',
+          'Accept': 'application/json',
+        },
+      });
+      if (!resp.ok) return res.status(502).json({ message: `Reverse geocode failed (${resp.status})` });
+      const data = await resp.json() as any;
+      const a = data.address || {};
+      const houseNumber = a.house_number || '';
+      const road = a.road || a.pedestrian || a.footway || a.path || '';
+      res.json({
+        displayName: data.display_name || '',
+        addressLine1: [houseNumber, road].filter(Boolean).join(' ').trim(),
+        city: a.city || a.town || a.village || a.hamlet || a.suburb || '',
+        region: a.state || a.region || a.state_district || '',
+        country: a.country || '',
+        postalCode: a.postcode || '',
+      });
+    } catch (err: any) {
+      console.error('[geocode/reverse] Error:', err?.message || err);
+      res.status(500).json({ message: 'Reverse geocoding failed' });
+    }
+  });
+
   apiRoute(app, 'post', '/api/projects/:id/images/upload-url', {
     tag: 'Projects',
     summary: 'Get a presigned URL for uploading a project image',

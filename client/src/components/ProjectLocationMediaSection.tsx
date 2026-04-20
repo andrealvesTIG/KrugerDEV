@@ -323,6 +323,27 @@ export function ProjectLocationMediaSection({
         const setPin = (newLat: number, newLng: number) => {
           if (disabled) return;
           onChange({ latitude: newLat.toFixed(6), longitude: newLng.toFixed(6) });
+          // Reverse-geocode in the background and merge address fields when found.
+          (async () => {
+            try {
+              const resp = await fetch(`/api/geocode/reverse?lat=${newLat}&lng=${newLng}`, { credentials: "include" });
+              if (!resp.ok) return;
+              const a = await resp.json();
+              const patch: ProjectLocationPatch = {
+                latitude: newLat.toFixed(6),
+                longitude: newLng.toFixed(6),
+              };
+              if (a.addressLine1) patch.addressLine1 = a.addressLine1;
+              if (a.city) patch.city = a.city;
+              if (a.region) patch.region = a.region;
+              if (a.country) patch.country = a.country;
+              if (a.postalCode) patch.postalCode = a.postalCode;
+              onChange(patch);
+              if (a.addressLine1) setAddressInput(a.addressLine1);
+            } catch {
+              // Silent: pin is still saved even if reverse geocode fails.
+            }
+          })();
         };
         // Show map even without a pin — default to a wide world view so the
         // user can click to drop one. Once a pin exists we center on it.
