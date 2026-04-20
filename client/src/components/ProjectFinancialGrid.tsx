@@ -1775,7 +1775,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                                     (e.target as HTMLInputElement).blur();
                                   }
                                 }}
-                                placeholder="+ Add item — type name and press Enter"
+                                placeholder="Add item — type name and press Enter"
                                 className="h-6 text-xs px-1 py-0 min-w-0 flex-1 border-dashed focus:border-solid focus:ring-2 focus:ring-primary/40"
                                 data-testid={`input-quick-add-${myParentSpec}`}
                               />
