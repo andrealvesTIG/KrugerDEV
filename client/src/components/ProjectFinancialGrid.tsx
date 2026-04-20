@@ -24,6 +24,7 @@ import {
   buildFiscalMonths,
   buildFiscalQuarters,
   buildFiscalYearColumn,
+  currentFiscalYear,
   DEFAULT_FISCAL_YEAR_START_MONTH,
   normalizeFiscalYearStartMonth,
 } from "@shared/lib/fiscalCalendar";
@@ -489,8 +490,32 @@ function buildGridRows(
 export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGridProps) {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
-  const currentYear = new Date().getFullYear();
-  const [fiscalYear, setFiscalYear] = useState(currentYear);
+  const orgId = currentOrganization?.id;
+  // Org-configured fiscal year start month (1..12). Falls back to October so
+  // existing organizations behave exactly as before until an admin changes it.
+  const fiscalYearStartMonth = normalizeFiscalYearStartMonth(
+    currentOrganization?.fiscalYearStartMonth ?? DEFAULT_FISCAL_YEAR_START_MONTH,
+  );
+  // Default the FY picker to the FY that today actually lives in for this org.
+  // For an April-start org in October, "today" sits in next-April's FY, so the
+  // grid should land on that year — not the calendar year.
+  const todayFiscalYear = currentFiscalYear(new Date(), fiscalYearStartMonth);
+  const [fiscalYear, setFiscalYear] = useState(todayFiscalYear);
+  // If the org (and therefore its fiscal start month) loads after the initial
+  // render, recompute the default FY — but only while the user hasn't picked
+  // one manually, so we don't yank their selection away mid-edit. When the
+  // user switches orgs we reset the "manually picked" flag so the new org's
+  // current FY can take over as the default.
+  const userPickedFiscalYearRef = useRef(false);
+  useEffect(() => {
+    userPickedFiscalYearRef.current = false;
+    setFiscalYear(currentFiscalYear(new Date(), fiscalYearStartMonth));
+  }, [orgId]);
+  useEffect(() => {
+    if (!userPickedFiscalYearRef.current) {
+      setFiscalYear(todayFiscalYear);
+    }
+  }, [todayFiscalYear]);
   // Period view-mode: collapses the 12-month column model into 4 quarters or
   // a single fiscal-year column. Editing is only allowed in `month` view since
   // entries are still stored per-month server-side; quarter/year cells render
@@ -498,13 +523,6 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   type ViewMode = "month" | "quarter" | "year";
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const isMonthView = viewMode === "month";
-
-  const orgId = currentOrganization?.id;
-  // Org-configured fiscal year start month (1..12). Falls back to October so
-  // existing organizations behave exactly as before until an admin changes it.
-  const fiscalYearStartMonth = normalizeFiscalYearStartMonth(
-    currentOrganization?.fiscalYearStartMonth ?? DEFAULT_FISCAL_YEAR_START_MONTH,
-  );
   const monthsLayout = useMemo(
     () => buildFiscalMonths(fiscalYear, fiscalYearStartMonth),
     [fiscalYear, fiscalYearStartMonth],
@@ -2160,12 +2178,18 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
             </button>
           </div>
 
-          <Select value={String(fiscalYear)} onValueChange={(v) => setFiscalYear(Number(v))}>
+          <Select
+            value={String(fiscalYear)}
+            onValueChange={(v) => {
+              userPickedFiscalYearRef.current = true;
+              setFiscalYear(Number(v));
+            }}
+          >
             <SelectTrigger className="w-28 h-9" data-testid="select-fiscal-year">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {[currentYear - 1, currentYear, currentYear + 1, currentYear + 2].map((y) => (
+              {[todayFiscalYear - 1, todayFiscalYear, todayFiscalYear + 1, todayFiscalYear + 2].map((y) => (
                 <SelectItem key={y} value={String(y)}>FY {y}</SelectItem>
               ))}
             </SelectContent>

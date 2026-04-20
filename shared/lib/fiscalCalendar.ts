@@ -101,3 +101,20 @@ export function buildFiscalYearColumn(
 export function normalizeFiscalYearStartMonth(value: number | null | undefined): number {
   return normalizeStart(value);
 }
+
+/**
+ * The fiscal year (labeled by the calendar year in which the FY ends) that
+ * `today` falls into, given the org's fiscal start month. For start === 1 the
+ * fiscal year equals the calendar year. Otherwise, calendar months >= start
+ * belong to the FY that ends in the next calendar year.
+ */
+export function currentFiscalYear(
+  today: Date,
+  startMonth: number | null | undefined,
+): number {
+  const start = normalizeStart(startMonth);
+  const calendarYear = today.getFullYear();
+  const calendarMonth = today.getMonth() + 1; // 1..12
+  if (start === 1) return calendarYear;
+  return calendarMonth >= start ? calendarYear + 1 : calendarYear;
+}
