@@ -17,6 +17,7 @@ import {
   getTeamMemberTaskIds,
 } from "./helpers";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
+import { getRequestEmailDomainExclusion } from "../lib/emailDomainFilter";
 
 export function registerDashboardRoutes(app: Express) {
   // ==================== DASHBOARD AGGREGATION ENDPOINTS ====================
@@ -1247,6 +1248,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         projectIds.length > 0
           ? db.select({
               changedAt: projectChangeLogs.changedAt,
+              changedBy: projectChangeLogs.changedBy,
             }).from(projectChangeLogs).where(inArray(projectChangeLogs.projectId, projectIds))
           : Promise.resolve([]),
 
@@ -1260,12 +1262,16 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
               }
               return db.select({
                 changedAt: taskChangeLogs.changedAt,
+                changedBy: taskChangeLogs.changedBy,
               }).from(taskChangeLogs)
                 .innerJoin(tasks, eq(taskChangeLogs.taskId, tasks.id))
                 .where(and(...taskChangeConditions));
             })()
           : Promise.resolve([]),
       ]);
+
+      const filteredProjectChanges = projectChangesRaw as Array<{ changedAt: Date | null; changedBy: string | null }>;
+      const filteredTaskChanges = taskChangesRaw as Array<{ changedAt: Date | null; changedBy: string | null }>;
 
       function getCohortIndex(date: Date | string | null): number {
         if (!date) return cohortBoundaries.length - 1;
@@ -1323,10 +1329,10 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         cohorts[i].activeUsers = activeUserSets[i].size;
       }
 
-      for (const pc of projectChangesRaw) {
+      for (const pc of filteredProjectChanges) {
         cohorts[getCohortIndex(pc.changedAt)].projectUpdates++;
       }
-      for (const tc of taskChangesRaw) {
+      for (const tc of filteredTaskChanges) {
         cohorts[getCohortIndex(tc.changedAt)].taskUpdates++;
       }
 
@@ -1339,7 +1345,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         hoursLogged: Math.round(hoursLoggedRaw.reduce((s, h) => s + Number(h.hours || 0), 0) * 10) / 10,
         featureUsage: featureUsageRaw.reduce((s, f) => s + (f.count || 1), 0),
         totalMembers: isTeamMember ? 0 : memberUserIds.length,
-        totalActivities: (projectChangesRaw as any[]).length + (taskChangesRaw as any[]).length,
+        totalActivities: filteredProjectChanges.length + filteredTaskChanges.length,
       };
 
       res.json({ cohorts: cohorts.reverse(), totals });
@@ -1365,6 +1371,8 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         return res.status(403).json({ message: "Admin access required" });
       }
 
+      const exclusion = await getRequestEmailDomainExclusion(req);
+
       const now = new Date();
       const cohortBoundaries = [
         { label: "Week 1", daysAgo: 7 },
@@ -1377,7 +1385,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
       ];
 
       const [
-        signupsRaw,
+        signupsRawAll,
         tasksCreatedRaw,
         tasksCompletedRaw,
         projectsCreatedRaw,
@@ -1448,8 +1456,11 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
 
         db.select({
           changedAt: taskChangeLogs.changedAt,
+          changedBy: taskChangeLogs.changedBy,
         }).from(taskChangeLogs),
       ]);
+
+      const signupsRaw = signupsRawAll.filter(u => !exclusion.excludedUserIds.has(u.id));
 
       function getCohortIndex(date: Date | string | null): number {
         if (!date) return cohortBoundaries.length - 1;
@@ -1503,7 +1514,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
 
       const activeUserSets: Set<string>[] = cohortBoundaries.map(() => new Set());
       for (const a of activeUsersRaw) {
-        if (a.changedBy) {
+        if (a.changedBy && !exclusion.excludedUserIds.has(a.changedBy)) {
           activeUserSets[getCohortIndex(a.changedAt)].add(a.changedBy);
         }
       }
@@ -1512,11 +1523,16 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
       }
 
       for (const pc of projectChangesRaw) {
+        if (pc.changedBy && exclusion.excludedUserIds.has(pc.changedBy)) continue;
         cohorts[getCohortIndex(pc.changedAt)].projectUpdates++;
       }
       for (const tc of taskChangesRaw) {
+        if (tc.changedBy && exclusion.excludedUserIds.has(tc.changedBy)) continue;
         cohorts[getCohortIndex(tc.changedAt)].taskUpdates++;
       }
+
+      const filteredProjectChanges = projectChangesRaw.filter(pc => !pc.changedBy || !exclusion.excludedUserIds.has(pc.changedBy));
+      const filteredTaskChanges = (taskChangesRaw as Array<{ changedAt: Date | null; changedBy: string | null }>).filter(tc => !tc.changedBy || !exclusion.excludedUserIds.has(tc.changedBy));
 
       const totals = {
         newSignups: signupsRaw.length,
@@ -1528,7 +1544,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         hoursLogged: Math.round(hoursLoggedRaw.reduce((s, h) => s + Number(h.hours || 0), 0) * 10) / 10,
         featureUsage: featureUsageRaw.reduce((s, f) => s + (f.count || 1), 0),
         totalUsers: signupsRaw.length,
-        totalActivities: projectChangesRaw.length + taskChangesRaw.length,
+        totalActivities: filteredProjectChanges.length + filteredTaskChanges.length,
       };
 
       function toDate(d: Date | string | null): Date | null {
@@ -1552,12 +1568,12 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
 
       const allActivityEntries: { userId: string; date: Date }[] = [];
       for (const a of activeUsersRaw) {
-        if (a.changedBy && a.changedAt) {
+        if (a.changedBy && a.changedAt && !exclusion.excludedUserIds.has(a.changedBy)) {
           allActivityEntries.push({ userId: a.changedBy, date: toDate(a.changedAt)! });
         }
       }
       for (const pc of projectChangesRaw) {
-        if (pc.changedBy && pc.changedAt) {
+        if (pc.changedBy && pc.changedAt && !exclusion.excludedUserIds.has(pc.changedBy)) {
           allActivityEntries.push({ userId: pc.changedBy, date: toDate(pc.changedAt)! });
         }
       }
@@ -1714,6 +1730,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
           ELSE 'Other'
         END`;
 
+      const userOk = exclusion.userNotInSql('user_id');
       const [topFeaturesResult, errorHotspotsResult, frictionTrendResult] = await Promise.all([
         db.execute(sql.raw(`
           SELECT ${featureCaseExpr} as feature,
@@ -1726,6 +1743,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
           WHERE created_at >= NOW() - INTERVAL '30 days'
             AND path NOT LIKE '/api/auth%'
             AND path NOT LIKE '/api/billing%'
+            AND ${userOk}
           GROUP BY ${featureCaseExpr}
           ORDER BY total_requests DESC
           LIMIT 15
@@ -1741,6 +1759,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
             FROM api_request_logs
             WHERE created_at >= NOW() - INTERVAL '30 days'
               AND path NOT LIKE '/api/auth%'
+              AND ${userOk}
             GROUP BY ${featureCaseExpr}
           )
           SELECT feature, errors as error_count, affected_users,
@@ -1764,6 +1783,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
           FROM api_request_logs
           WHERE created_at >= NOW() - INTERVAL '90 days'
             AND path NOT LIKE '/api/auth%'
+            AND ${userOk}
           GROUP BY DATE_TRUNC('week', created_at)
           ORDER BY DATE_TRUNC('week', created_at) ASC
         `)),
@@ -1804,20 +1824,26 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
             AND method != 'GET'
             AND path NOT LIKE '/api/auth%'
             AND path NOT LIKE '/api/billing%'
+            AND ${userOk}
           GROUP BY ${featureCaseExpr}
           ORDER BY count DESC
           LIMIT 10
         `)),
-        db.select({
-          orgId: organizations.id,
-          orgName: organizations.name,
-          memberCount: sql<number>`(SELECT COUNT(*) FROM organization_members WHERE organization_id = ${organizations.id})`,
-          activeCount: sql<number>`(SELECT COUNT(DISTINCT changed_by) FROM task_change_logs tcl
-            INNER JOIN tasks t ON tcl.task_id = t.id
-            INNER JOIN projects p ON t.project_id = p.id
-            WHERE p.organization_id = ${organizations.id}
-            AND tcl.changed_at >= NOW() - INTERVAL '7 days')`,
-        }).from(organizations).limit(20),
+        (() => {
+          const omOk = sql.raw(exclusion.userNotInSql('user_id'));
+          const tclOk = sql.raw(exclusion.userNotInSql('changed_by'));
+          return db.select({
+            orgId: organizations.id,
+            orgName: organizations.name,
+            memberCount: sql<number>`(SELECT COUNT(*) FROM organization_members WHERE organization_id = ${organizations.id} AND ${omOk})`,
+            activeCount: sql<number>`(SELECT COUNT(DISTINCT changed_by) FROM task_change_logs tcl
+              INNER JOIN tasks t ON tcl.task_id = t.id
+              INNER JOIN projects p ON t.project_id = p.id
+              WHERE p.organization_id = ${organizations.id}
+              AND tcl.changed_at >= NOW() - INTERVAL '7 days'
+              AND ${tclOk})`,
+          }).from(organizations).limit(20);
+        })(),
       ]);
 
       const topActions = topActionsResult.rows.map((r: Record<string, unknown>) => ({
@@ -1826,12 +1852,14 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         uniqueUsers: Number(r.unique_users || 0),
       }));
 
-      const orgBreakdown = orgBreakdownRaw.map(o => ({
-        orgId: o.orgId,
-        orgName: o.orgName,
-        memberCount: Number(o.memberCount || 0),
-        activeCount: Number(o.activeCount || 0),
-      }));
+      const orgBreakdown = orgBreakdownRaw
+        .filter(o => !exclusion.excludedOrgIds.has(o.orgId))
+        .map(o => ({
+          orgId: o.orgId,
+          orgName: o.orgName,
+          memberCount: Number(o.memberCount || 0),
+          activeCount: Number(o.activeCount || 0),
+        }));
 
       res.json({
         cohorts: cohorts.reverse(),
@@ -1839,6 +1867,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         topFeatures,
         errorHotspots,
         frictionTrend,
+        excludedEmailDomains: exclusion.domains,
         userActivity: {
           totalUsers: signupsRaw.length,
           activeUsers7d: activeUsers7d.size,

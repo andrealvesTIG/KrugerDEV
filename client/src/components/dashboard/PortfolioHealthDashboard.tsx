@@ -203,9 +203,11 @@ export function PortfolioHealthDashboard() {
             </a>
           </p>
         </div>
-        <Badge variant="outline" className="text-xs">
-          Health Score: {healthMetrics.overallHealthScore}%
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-xs">
+            Health Score: {healthMetrics.overallHealthScore}%
+          </Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">

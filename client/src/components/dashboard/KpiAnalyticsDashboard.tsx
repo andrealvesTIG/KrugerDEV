@@ -170,11 +170,13 @@ export function KpiAnalyticsDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">KPI Analytics</h2>
-        <p className="text-muted-foreground">
-          Track user activities and platform engagement across time cohorts
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">KPI Analytics</h2>
+          <p className="text-muted-foreground">
+            Track user activities and platform engagement across time cohorts
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

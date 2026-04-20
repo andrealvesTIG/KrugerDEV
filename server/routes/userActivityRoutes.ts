@@ -6,6 +6,7 @@ import {
 } from "@shared/schema";
 import { getUserIdFromRequest, hasAdminAccess } from "./helpers";
 import { apiRoute, r200, authRes, stdRes, qStr } from "../route-registry";
+import { getRequestEmailDomainExclusion } from "../lib/emailDomainFilter";
 
 export function registerUserActivityRoutes(app: Express) {
 
@@ -20,31 +21,37 @@ export function registerUserActivityRoutes(app: Express) {
       const [currentUser] = await db.select().from(users).where(eq(users.id, userId));
       if (!hasAdminAccess(currentUser)) return res.status(403).json({ message: "Super admin access required" });
 
+      const exclusion = await getRequestEmailDomainExclusion(req);
+      const ualUserOk = sql.raw(exclusion.userNotInSql('user_id'));
+      const usersIdOk = sql.raw(exclusion.userNotInSql('id'));
+      const ualUserOkAlias = sql.raw(exclusion.userNotInSql('ual.user_id'));
+      const uIdOkAlias = sql.raw(exclusion.userNotInSql('u.id'));
+
       const now = new Date();
 
       const [[totalUsersRow], [activeUsers7dRow], [activeUsers30dRow], [avgActionsRow],
         [newUsersThisWeekRow], [newUsersLastWeekRow], [retentionRow],
         actionBreakdownRows, dailyActiveUsersRows, weeklyRetentionRows
       ] = await Promise.all([
-        db.execute(sql`SELECT COUNT(*)::int as count FROM users`).then(r => r.rows as Record<string, unknown>[]),
+        db.execute(sql`SELECT COUNT(*)::int as count FROM users WHERE ${usersIdOk}`).then(r => r.rows as Record<string, unknown>[]),
 
-        db.execute(sql`SELECT COUNT(DISTINCT user_id)::int as count FROM user_activity_logs WHERE created_at >= NOW() - INTERVAL '7 days'`).then(r => r.rows as Record<string, unknown>[]),
+        db.execute(sql`SELECT COUNT(DISTINCT user_id)::int as count FROM user_activity_logs WHERE created_at >= NOW() - INTERVAL '7 days' AND ${ualUserOk}`).then(r => r.rows as Record<string, unknown>[]),
 
-        db.execute(sql`SELECT COUNT(DISTINCT user_id)::int as count FROM user_activity_logs WHERE created_at >= NOW() - INTERVAL '30 days'`).then(r => r.rows as Record<string, unknown>[]),
+        db.execute(sql`SELECT COUNT(DISTINCT user_id)::int as count FROM user_activity_logs WHERE created_at >= NOW() - INTERVAL '30 days' AND ${ualUserOk}`).then(r => r.rows as Record<string, unknown>[]),
 
-        db.execute(sql`SELECT COALESCE(ROUND(AVG(action_count)), 0)::int as avg_actions FROM (SELECT user_id, COUNT(*) as action_count FROM user_activity_logs WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY user_id) sub`).then(r => r.rows as Record<string, unknown>[]),
+        db.execute(sql`SELECT COALESCE(ROUND(AVG(action_count)), 0)::int as avg_actions FROM (SELECT user_id, COUNT(*) as action_count FROM user_activity_logs WHERE created_at >= NOW() - INTERVAL '30 days' AND ${ualUserOk} GROUP BY user_id) sub`).then(r => r.rows as Record<string, unknown>[]),
 
-        db.execute(sql`SELECT COUNT(*)::int as count FROM users WHERE created_at >= NOW() - INTERVAL '7 days'`).then(r => r.rows as Record<string, unknown>[]),
+        db.execute(sql`SELECT COUNT(*)::int as count FROM users WHERE created_at >= NOW() - INTERVAL '7 days' AND ${usersIdOk}`).then(r => r.rows as Record<string, unknown>[]),
 
-        db.execute(sql`SELECT COUNT(*)::int as count FROM users WHERE created_at >= NOW() - INTERVAL '14 days' AND created_at < NOW() - INTERVAL '7 days'`).then(r => r.rows as Record<string, unknown>[]),
+        db.execute(sql`SELECT COUNT(*)::int as count FROM users WHERE created_at >= NOW() - INTERVAL '14 days' AND created_at < NOW() - INTERVAL '7 days' AND ${usersIdOk}`).then(r => r.rows as Record<string, unknown>[]),
 
-        db.execute(sql`SELECT CASE WHEN total > 0 THEN ROUND((active::numeric / total) * 100) ELSE 0 END as rate FROM (SELECT (SELECT COUNT(*) FROM users WHERE created_at <= NOW() - INTERVAL '7 days') as total, (SELECT COUNT(DISTINCT ual.user_id) FROM user_activity_logs ual INNER JOIN users u ON u.id = ual.user_id WHERE ual.created_at >= NOW() - INTERVAL '7 days' AND u.created_at <= NOW() - INTERVAL '7 days') as active) sub`).then(r => r.rows as Record<string, unknown>[]),
+        db.execute(sql`SELECT CASE WHEN total > 0 THEN ROUND((active::numeric / total) * 100) ELSE 0 END as rate FROM (SELECT (SELECT COUNT(*) FROM users WHERE created_at <= NOW() - INTERVAL '7 days' AND ${usersIdOk}) as total, (SELECT COUNT(DISTINCT ual.user_id) FROM user_activity_logs ual INNER JOIN users u ON u.id = ual.user_id WHERE ual.created_at >= NOW() - INTERVAL '7 days' AND u.created_at <= NOW() - INTERVAL '7 days' AND ${uIdOkAlias}) as active) sub`).then(r => r.rows as Record<string, unknown>[]),
 
-        db.execute(sql`SELECT action, COUNT(*)::int as count FROM user_activity_logs WHERE created_at >= NOW() - INTERVAL '90 days' GROUP BY action ORDER BY count DESC LIMIT 20`).then(r => r.rows as Record<string, unknown>[]),
+        db.execute(sql`SELECT action, COUNT(*)::int as count FROM user_activity_logs WHERE created_at >= NOW() - INTERVAL '90 days' AND ${ualUserOk} GROUP BY action ORDER BY count DESC LIMIT 20`).then(r => r.rows as Record<string, unknown>[]),
 
-        db.execute(sql`SELECT TO_CHAR(DATE_TRUNC('day', created_at AT TIME ZONE 'UTC'), 'Mon DD') as date, COUNT(DISTINCT user_id)::int as count FROM user_activity_logs WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE_TRUNC('day', created_at AT TIME ZONE 'UTC') ORDER BY DATE_TRUNC('day', created_at AT TIME ZONE 'UTC')`).then(r => r.rows as Record<string, unknown>[]),
+        db.execute(sql`SELECT TO_CHAR(DATE_TRUNC('day', created_at AT TIME ZONE 'UTC'), 'Mon DD') as date, COUNT(DISTINCT user_id)::int as count FROM user_activity_logs WHERE created_at >= NOW() - INTERVAL '30 days' AND ${ualUserOk} GROUP BY DATE_TRUNC('day', created_at AT TIME ZONE 'UTC') ORDER BY DATE_TRUNC('day', created_at AT TIME ZONE 'UTC')`).then(r => r.rows as Record<string, unknown>[]),
 
-        db.execute(sql`SELECT w.week_start, w.active_users, (SELECT COUNT(*) FROM users WHERE created_at <= w.week_start + INTERVAL '7 days')::int as total_users FROM (SELECT DATE_TRUNC('week', created_at) as week_start, COUNT(DISTINCT user_id)::int as active_users FROM user_activity_logs WHERE created_at >= NOW() - INTERVAL '12 weeks' GROUP BY DATE_TRUNC('week', created_at)) w ORDER BY w.week_start`).then(r => r.rows as Record<string, unknown>[]),
+        db.execute(sql`SELECT w.week_start, w.active_users, (SELECT COUNT(*) FROM users WHERE created_at <= w.week_start + INTERVAL '7 days' AND ${usersIdOk})::int as total_users FROM (SELECT DATE_TRUNC('week', created_at) as week_start, COUNT(DISTINCT user_id)::int as active_users FROM user_activity_logs WHERE created_at >= NOW() - INTERVAL '12 weeks' AND ${ualUserOk} GROUP BY DATE_TRUNC('week', created_at)) w ORDER BY w.week_start`).then(r => r.rows as Record<string, unknown>[]),
       ]);
 
       const totalUsers = Number(totalUsersRow?.count ?? 0);
@@ -99,12 +106,14 @@ export function registerUserActivityRoutes(app: Express) {
         { label: "12+ months", minDays: 336, maxDays: 99999 },
       ];
 
-      const allUsersRaw = await db.select({ id: users.id, createdAt: users.createdAt }).from(users);
-      const allActivityRaw = await db.select({
+      const allUsersRaw = (await db.select({ id: users.id, createdAt: users.createdAt }).from(users))
+        .filter(u => !exclusion.excludedUserIds.has(u.id));
+      const allActivityRaw = (await db.select({
         userId: userActivityLogs.userId,
         action: userActivityLogs.action,
         createdAt: userActivityLogs.createdAt,
-      }).from(userActivityLogs);
+      }).from(userActivityLogs))
+        .filter(a => !exclusion.excludedUserIds.has(a.userId));
 
       const cohorts = cohortBoundaries.map(cb => {
         const cohortUsers = allUsersRaw.filter(u => {
@@ -164,6 +173,7 @@ export function registerUserActivityRoutes(app: Express) {
         actionBreakdown,
         dailyActiveUsers,
         weeklyRetentionTrend,
+        excludedEmailDomains: exclusion.domains,
       });
     } catch (err) {
       console.error('Error fetching user activity KPI:', err);
@@ -183,6 +193,10 @@ export function registerUserActivityRoutes(app: Express) {
       const [currentUser] = await db.select().from(users).where(eq(users.id, userId));
       if (!hasAdminAccess(currentUser)) return res.status(403).json({ message: "Super admin access required" });
 
+      const exclusion = await getRequestEmailDomainExclusion(req);
+      const ualUserOkAlias = sql.raw(exclusion.userNotInSql('ual.user_id'));
+      const omUserOkAlias = sql.raw(exclusion.userNotInSql('om.user_id'));
+
       const period = String(req.query.period || '30d');
       const validPeriods = ['7d', '14d', '30d', '90d', '6m', '1y', 'all'];
       if (!validPeriods.includes(period)) {
@@ -194,18 +208,19 @@ export function registerUserActivityRoutes(app: Express) {
       };
       const intervalDays = intervalMap[period] || 30;
 
-      const orgsRaw = await db.select({
+      const orgsRaw = (await db.select({
         id: organizations.id,
         name: organizations.name,
         slug: organizations.slug,
         createdAt: organizations.createdAt,
-      }).from(organizations).where(isNull(organizations.deactivatedAt));
+      }).from(organizations).where(isNull(organizations.deactivatedAt)))
+        .filter(o => !exclusion.excludedOrgIds.has(o.id));
 
       const orgResults = await Promise.all(orgsRaw.map(async (org) => {
         const orgId = org.id;
         const metricsQuery = intervalDays > 0
           ? sql`SELECT
-              (SELECT COUNT(*) FROM organization_members WHERE organization_id = ${orgId})::int as member_count,
+              (SELECT COUNT(*) FROM organization_members om WHERE organization_id = ${orgId} AND ${omUserOkAlias})::int as member_count,
               (SELECT COUNT(*) FROM projects WHERE organization_id = ${orgId} AND deleted_at IS NULL AND created_at >= NOW() - MAKE_INTERVAL(days => ${intervalDays}))::int as projects_created,
               (SELECT COUNT(*) FROM tasks t INNER JOIN projects p ON t.project_id = p.id WHERE p.organization_id = ${orgId} AND t.deleted_at IS NULL AND t.created_at >= NOW() - MAKE_INTERVAL(days => ${intervalDays}))::int as tasks_created,
               (SELECT COUNT(*) FROM issues i INNER JOIN projects p ON i.project_id = p.id WHERE p.organization_id = ${orgId} AND i.deleted_at IS NULL AND i.item_type = 'risk' AND i.created_at >= NOW() - MAKE_INTERVAL(days => ${intervalDays}))::int as risks_created,
@@ -214,10 +229,10 @@ export function registerUserActivityRoutes(app: Express) {
               COALESCE((SELECT SUM(hours::numeric) FROM timesheet_entries WHERE organization_id = ${orgId} AND entry_date >= (NOW() - MAKE_INTERVAL(days => ${intervalDays}))::date), 0)::numeric as timesheet_hours,
               (SELECT COUNT(*) FROM resources WHERE organization_id = ${orgId})::int as resources_managed,
               (SELECT COUNT(*) FROM portfolios WHERE organization_id = ${orgId} AND deleted_at IS NULL AND created_at >= NOW() - MAKE_INTERVAL(days => ${intervalDays}))::int as portfolios_created,
-              (SELECT COUNT(*) FROM user_activity_logs ual INNER JOIN organization_members om ON ual.user_id = om.user_id WHERE om.organization_id = ${orgId} AND ual.created_at >= NOW() - MAKE_INTERVAL(days => ${intervalDays}))::int as total_activity_logs,
-              (SELECT COUNT(DISTINCT ual.user_id) FROM user_activity_logs ual INNER JOIN organization_members om ON ual.user_id = om.user_id WHERE om.organization_id = ${orgId} AND ual.created_at >= NOW() - MAKE_INTERVAL(days => ${intervalDays}))::int as active_users`
+              (SELECT COUNT(*) FROM user_activity_logs ual INNER JOIN organization_members om ON ual.user_id = om.user_id WHERE om.organization_id = ${orgId} AND ual.created_at >= NOW() - MAKE_INTERVAL(days => ${intervalDays}) AND ${ualUserOkAlias})::int as total_activity_logs,
+              (SELECT COUNT(DISTINCT ual.user_id) FROM user_activity_logs ual INNER JOIN organization_members om ON ual.user_id = om.user_id WHERE om.organization_id = ${orgId} AND ual.created_at >= NOW() - MAKE_INTERVAL(days => ${intervalDays}) AND ${ualUserOkAlias})::int as active_users`
           : sql`SELECT
-              (SELECT COUNT(*) FROM organization_members WHERE organization_id = ${orgId})::int as member_count,
+              (SELECT COUNT(*) FROM organization_members om WHERE organization_id = ${orgId} AND ${omUserOkAlias})::int as member_count,
               (SELECT COUNT(*) FROM projects WHERE organization_id = ${orgId} AND deleted_at IS NULL)::int as projects_created,
               (SELECT COUNT(*) FROM tasks t INNER JOIN projects p ON t.project_id = p.id WHERE p.organization_id = ${orgId} AND t.deleted_at IS NULL)::int as tasks_created,
               (SELECT COUNT(*) FROM issues i INNER JOIN projects p ON i.project_id = p.id WHERE p.organization_id = ${orgId} AND i.deleted_at IS NULL AND i.item_type = 'risk')::int as risks_created,
@@ -226,15 +241,15 @@ export function registerUserActivityRoutes(app: Express) {
               COALESCE((SELECT SUM(hours::numeric) FROM timesheet_entries WHERE organization_id = ${orgId}), 0)::numeric as timesheet_hours,
               (SELECT COUNT(*) FROM resources WHERE organization_id = ${orgId})::int as resources_managed,
               (SELECT COUNT(*) FROM portfolios WHERE organization_id = ${orgId} AND deleted_at IS NULL)::int as portfolios_created,
-              (SELECT COUNT(*) FROM user_activity_logs ual INNER JOIN organization_members om ON ual.user_id = om.user_id WHERE om.organization_id = ${orgId})::int as total_activity_logs,
-              (SELECT COUNT(DISTINCT ual.user_id) FROM user_activity_logs ual INNER JOIN organization_members om ON ual.user_id = om.user_id WHERE om.organization_id = ${orgId})::int as active_users`;
+              (SELECT COUNT(*) FROM user_activity_logs ual INNER JOIN organization_members om ON ual.user_id = om.user_id WHERE om.organization_id = ${orgId} AND ${ualUserOkAlias})::int as total_activity_logs,
+              (SELECT COUNT(DISTINCT ual.user_id) FROM user_activity_logs ual INNER JOIN organization_members om ON ual.user_id = om.user_id WHERE om.organization_id = ${orgId} AND ${ualUserOkAlias})::int as active_users`;
 
         const metricsResult = await db.execute(metricsQuery);
         const metrics = metricsResult.rows[0] as Record<string, unknown> | undefined;
 
         const topActionsQuery = intervalDays > 0
-          ? sql`SELECT ual.action, COUNT(*)::int as count FROM user_activity_logs ual INNER JOIN organization_members om ON ual.user_id = om.user_id WHERE om.organization_id = ${orgId} AND ual.created_at >= NOW() - MAKE_INTERVAL(days => ${intervalDays}) GROUP BY ual.action ORDER BY count DESC LIMIT 5`
-          : sql`SELECT ual.action, COUNT(*)::int as count FROM user_activity_logs ual INNER JOIN organization_members om ON ual.user_id = om.user_id WHERE om.organization_id = ${orgId} GROUP BY ual.action ORDER BY count DESC LIMIT 5`;
+          ? sql`SELECT ual.action, COUNT(*)::int as count FROM user_activity_logs ual INNER JOIN organization_members om ON ual.user_id = om.user_id WHERE om.organization_id = ${orgId} AND ual.created_at >= NOW() - MAKE_INTERVAL(days => ${intervalDays}) AND ${ualUserOkAlias} GROUP BY ual.action ORDER BY count DESC LIMIT 5`
+          : sql`SELECT ual.action, COUNT(*)::int as count FROM user_activity_logs ual INNER JOIN organization_members om ON ual.user_id = om.user_id WHERE om.organization_id = ${orgId} AND ${ualUserOkAlias} GROUP BY ual.action ORDER BY count DESC LIMIT 5`;
 
         const topActionsResult = await db.execute(topActionsQuery);
         const topActionsRaw = topActionsResult.rows as Record<string, unknown>[];
@@ -286,7 +301,7 @@ export function registerUserActivityRoutes(app: Express) {
         totalImportsExports: 0, totalIntegrations: 0, totalResources: 0, totalPortfolios: 0,
       });
 
-      res.json({ organizations: orgResults, totals, period });
+      res.json({ organizations: orgResults, totals, period, excludedEmailDomains: exclusion.domains });
     } catch (err) {
       console.error('Error fetching org user activity KPI:', err);
       res.status(500).json({ message: 'Failed to fetch organization activity' });

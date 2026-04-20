@@ -13,6 +13,8 @@ import { useState, useMemo, useEffect } from "react";
   import { format, subDays, subMonths } from "date-fns";
   import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
   import { useToast } from "@/hooks/use-toast";
+  import { useExcludedEmailDomains } from "@/hooks/use-excluded-email-domains";
+  import { EmailDomainExclusionControl } from "@/components/dashboard/EmailDomainExclusionControl";
 
   // ===== ANALYTICS TAB =====
 
@@ -109,8 +111,25 @@ export function AnalyticsTab() {
     });
   };
 
+  const { appendToUrl, queryKeyPart, domains: excludedDomains, enabled: exclusionEnabled } = useExcludedEmailDomains();
+  const excludedDomainSet = useMemo(
+    () => new Set((exclusionEnabled ? excludedDomains : []).map(d => d.toLowerCase())),
+    [excludedDomains, exclusionEnabled],
+  );
+  const isExcludedEmail = (email: string | null | undefined) => {
+    if (!email || excludedDomainSet.size === 0) return false;
+    const at = email.lastIndexOf('@');
+    if (at < 0) return false;
+    return excludedDomainSet.has(email.slice(at + 1).toLowerCase());
+  };
+
   const { data: analytics, isLoading, refetch } = useQuery<AnalyticsDashboard>({
-    queryKey: ['/api/admin/analytics/dashboard'],
+    queryKey: ['/api/admin/analytics/dashboard', queryKeyPart],
+    queryFn: async () => {
+      const res = await fetch(appendToUrl('/api/admin/analytics/dashboard'));
+      if (!res.ok) throw new Error('Failed to fetch analytics');
+      return res.json();
+    },
     staleTime: 0,
   });
 
@@ -138,7 +157,7 @@ export function AnalyticsTab() {
 
   const filteredUsers = useMemo(() => {
     if (allUsers.length === 0) return [];
-    let filtered = [...allUsers];
+    let filtered = allUsers.filter(u => !isExcludedEmail(u.email));
 
     const toNYDate = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
     const todayNY = toNYDate(new Date());
@@ -201,7 +220,7 @@ export function AnalyticsTab() {
       }
     });
     return filtered;
-  }, [userFilter, allUsers, sortColumn, sortDirection, userSearch]);
+  }, [userFilter, allUsers, sortColumn, sortDirection, userSearch, excludedDomainSet]);
 
   const filterLabel = userFilter === 'total' ? 'All Users' : userFilter === 'today' ? 'New Users Today' : userFilter === 'week' ? 'New Users This Week' : userFilter === 'month' ? 'New Users This Month' : 'All Users';
 
@@ -273,9 +292,12 @@ export function AnalyticsTab() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Analytics Dashboard</h2>
-        <p className="text-muted-foreground">Comprehensive user and application statistics</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold">Analytics Dashboard</h2>
+          <p className="text-muted-foreground">Comprehensive user and application statistics</p>
+        </div>
+        <EmailDomainExclusionControl />
       </div>
 
       {/* Key Metrics Cards */}
