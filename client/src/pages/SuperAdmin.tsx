@@ -101,10 +101,6 @@ export default function SuperAdmin() {
               <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Users
             </TabsTrigger>
-            <TabsTrigger value="new-signups" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2" data-testid="tab-new-signups">
-              <UserPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              New Signups
-            </TabsTrigger>
             <TabsTrigger value="plans" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2">
               <CreditCard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Plans
@@ -141,16 +137,32 @@ export default function SuperAdmin() {
         </div>
         <div className="mt-6">
           <TabsContent value="monitoring">
-            <MonitoringTab />
+            <Tabs value={analyticsSubTab} onValueChange={setAnalyticsSubTab} className="w-full">
+              <TabsList className="bg-muted p-1 rounded-xl inline-flex">
+                <TabsTrigger value="overview" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2" data-testid="tab-monitoring">
+                  <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  Overview
+                </TabsTrigger>
+                <TabsTrigger value="new-signups" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2" data-testid="tab-new-signups">
+                  <UserPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  New Signups
+                </TabsTrigger>
+              </TabsList>
+              <div className="mt-4">
+                <TabsContent value="overview">
+                  <MonitoringTab />
+                </TabsContent>
+                <TabsContent value="new-signups">
+                  <NewSignupsTab />
+                </TabsContent>
+              </div>
+            </Tabs>
           </TabsContent>
           <TabsContent value="organizations">
             <OrganizationsTab />
           </TabsContent>
           <TabsContent value="users">
             <AllUsersTab />
-          </TabsContent>
-          <TabsContent value="new-signups">
-            <NewSignupsTab />
           </TabsContent>
           <TabsContent value="plans">
             <PlansTab />
