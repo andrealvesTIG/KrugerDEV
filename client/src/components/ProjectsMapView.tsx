@@ -128,8 +128,46 @@ function dominantStatus(statuses: Array<string | null | undefined>): string {
   return best;
 }
 
-function makeMarkerIcon(status: string | null | undefined): L.DivIcon {
+function makeMarkerIcon(status: string | null | undefined, coverUrl?: string | null): L.DivIcon {
   const color = statusHex(status);
+  if (coverUrl) {
+    // Circular thumbnail with status-colored ring + small drop tail.
+    const safeUrl = String(coverUrl).replace(/"/g, "&quot;");
+    const html = `
+      <div style="position:relative;width:44px;height:54px;">
+        <div style="
+          position:absolute;left:50%;top:0;transform:translateX(-50%);
+          width:40px;height:40px;border-radius:50%;
+          background:${color};
+          padding:3px;
+          box-shadow:0 2px 5px rgba(0,0,0,0.35);
+          box-sizing:border-box;
+        ">
+          <div style="
+            width:100%;height:100%;border-radius:50%;
+            background-image:url('${safeUrl}');
+            background-size:cover;background-position:center;
+            border:2px solid #ffffff;
+            box-sizing:border-box;
+          "></div>
+        </div>
+        <div style="
+          position:absolute;left:50%;top:38px;transform:translateX(-50%);
+          width:0;height:0;
+          border-left:7px solid transparent;
+          border-right:7px solid transparent;
+          border-top:14px solid ${color};
+          filter:drop-shadow(0 1px 1px rgba(0,0,0,0.3));
+        "></div>
+      </div>`;
+    return L.divIcon({
+      html,
+      className: "project-status-marker project-status-marker--photo",
+      iconSize: [44, 54],
+      iconAnchor: [22, 52],
+      popupAnchor: [0, -50],
+    });
+  }
   const html = `
     <div style="position:relative;width:24px;height:32px;">
       <div style="
@@ -423,7 +461,7 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
                     <Marker
                       key={p.id}
                       position={[p._lat, p._lng]}
-                      icon={makeMarkerIcon(p.status)}
+                      icon={makeMarkerIcon(p.status, cover)}
                       ref={(ref) => {
                         markerRefs.current[p.id] = ref;
                         if (ref) {
