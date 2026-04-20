@@ -548,6 +548,12 @@ export default function Dashboard() {
 
   const getInitialSubmenu = (): string => {
     if (viewParam) {
+      // Legacy alias: the Executive → Financial Summary submenu has been
+      // absorbed into the dedicated Financials → Overview report. Keep old
+      // bookmarks (`?view=executive-financial`) working.
+      if (viewParam === "executive-financial") {
+        return "executive-financial";
+      }
       // Check if it's a submenu ID
       for (const tab of DASHBOARD_TABS) {
         if (tab.submenus.some(s => s.id === viewParam)) {

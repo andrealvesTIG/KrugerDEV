@@ -103,7 +103,7 @@ export function FinancialsOverviewDashboard() {
                       <ResponsiveContainer width="100%" height="100%">
                         <RadialBarChart data={gaugeData("CPI", t.cpi)} innerRadius="65%" outerRadius="95%" startAngle={210} endAngle={-30}>
                           <PolarAngleAxis type="number" domain={[0, 1.5]} tick={false} />
-                          <RadialBar dataKey="value" background={{ fill: "rgba(148,163,184,0.2)" } as any} cornerRadius={6} />
+                          <RadialBar dataKey="value" background cornerRadius={6} />
                         </RadialBarChart>
                       </ResponsiveContainer>
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -123,7 +123,7 @@ export function FinancialsOverviewDashboard() {
                       <ResponsiveContainer width="100%" height="100%">
                         <RadialBarChart data={gaugeData("SPI", t.spi)} innerRadius="65%" outerRadius="95%" startAngle={210} endAngle={-30}>
                           <PolarAngleAxis type="number" domain={[0, 1.5]} tick={false} />
-                          <RadialBar dataKey="value" background={{ fill: "rgba(148,163,184,0.2)" } as any} cornerRadius={6} />
+                          <RadialBar dataKey="value" background cornerRadius={6} />
                         </RadialBarChart>
                       </ResponsiveContainer>
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -145,7 +145,7 @@ export function FinancialsOverviewDashboard() {
                       <div className="h-[180px]">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                            <Pie data={pmiPie} dataKey="value" innerRadius={45} outerRadius={75} paddingAngle={3} label={(d: any) => `${d.value}`}>
+                            <Pie data={pmiPie} dataKey="value" innerRadius={45} outerRadius={75} paddingAngle={3} label={(d: { value?: number }) => `${d.value ?? 0}`}>
                               {pmiPie.map((d, i) => <Cell key={i} fill={d.color} />)}
                             </Pie>
                             <Tooltip contentStyle={{ borderRadius: 8, fontSize: 11 }} />

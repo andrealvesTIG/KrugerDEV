@@ -157,7 +157,7 @@ export function ForecastingDashboard() {
                       <ResponsiveContainer width="100%" height="100%">
                         <RadialBarChart data={tcpiGaugeData} innerRadius="65%" outerRadius="95%" startAngle={210} endAngle={-30}>
                           <PolarAngleAxis type="number" domain={[0, 1.5]} tick={false} />
-                          <RadialBar dataKey="value" background={{ fill: "rgba(148,163,184,0.2)" } as any} cornerRadius={6} />
+                          <RadialBar dataKey="value" background cornerRadius={6} />
                         </RadialBarChart>
                       </ResponsiveContainer>
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -252,11 +252,24 @@ export function ForecastingDashboard() {
               </Card>
 
               <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-amber-500" /> Forecast Risk by Project
-                  </CardTitle>
-                  <CardDescription className="text-xs">Projects whose computed EAC exceeds BAC are flagged. Sorted by VAC severity.</CardDescription>
+                <CardHeader className="pb-2 flex flex-row items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-500" /> Forecast Risk by Project
+                    </CardTitle>
+                    <CardDescription className="text-xs">Projects whose computed EAC exceeds BAC are flagged. Sorted by VAC severity.</CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm" data-testid="button-export-risk-csv" onClick={() => {
+                    const header = ["Project", "BAC", "AC", "EAC", "ETC", "VAC", "Risk"];
+                    const rows = [...data.projects].filter(p => p.bac > 0).sort((a, b) => a.vac - b.vac).map(p => {
+                      const overrun = p.vac < 0;
+                      const severe = p.bac > 0 && p.vac < -0.1 * p.bac;
+                      return [p.name, p.bac.toFixed(2), p.ac.toFixed(2), p.eacComputed.toFixed(2), p.etc.toFixed(2), p.vac.toFixed(2), severe ? "Critical" : overrun ? "Watch" : "On track"];
+                    });
+                    downloadCsv(`forecast-risk-fy${data.fiscalYear}.csv`, [header, ...rows]);
+                  }}>
+                    <Download className="h-3.5 w-3.5 mr-1.5" /> Export CSV
+                  </Button>
                 </CardHeader>
                 <CardContent className="overflow-x-auto">
                   <Table>

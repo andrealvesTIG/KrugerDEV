@@ -1000,9 +1000,17 @@ export function registerFinancialsRoutes(app: Express) {
         const pcRaw = Number(p.completionPercentage ?? 0);
         const pcFraction = Math.max(0, Math.min(1, pcRaw / 100));
 
-        // EV cumulative array — distribute EV_to_date across months in
-        // proportion to the planned (PV) curve. Future months stay flat at
-        // the as-of value.
+        // EV strategy:
+        //   PMI EVM defines EV as Σ(planned cost × % complete) per cost item
+        //   or work package. The current schema (`cost_items`) records
+        //   monthly AOP/FCST/ACT but does not carry a per-cost-item progress
+        //   percentage. We therefore use the documented PMI fallback:
+        //   project-level `completionPercentage` applied to BAC, distributed
+        //   across periods in proportion to that project's own planned (PV)
+        //   curve (a per-project — NOT global — distribution). This is
+        //   equivalent to Σ(cost_item.aopTotal × project_pc) when summed over
+        //   the project's cost items, and converges to the per-item formula
+        //   if/when item progress is added later.
         const asOfIdx = Math.max(0, asOfMonth - 1);
         const pvAtAsOf = asOfMonth > 0 ? pvCum[asOfIdx] : 0;
         const evToDate = bac > 0 ? bac * pcFraction : 0;

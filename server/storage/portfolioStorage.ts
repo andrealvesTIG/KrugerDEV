@@ -7,7 +7,9 @@ import {
   type PortfolioKeyDate, type InsertPortfolioKeyDate, type UpdatePortfolioKeyDateRequest,
   type FinancialEntry,
 } from "@shared/schema";
-import { eq, and, isNull, inArray } from "drizzle-orm";
+import { eq, and, isNull, inArray, or } from "drizzle-orm";
+import { buildFiscalMonths, normalizeFiscalYearStartMonth } from "@shared/lib/fiscalCalendar";
+import { organizations } from "@shared/schema";
 
 export async function getPortfolios(organizationId?: number): Promise<Portfolio[]> {
   if (organizationId) {
@@ -145,9 +147,27 @@ export async function getPortfolioFinancialEntries(
   const projectIds = portfolioProjs.map(p => p.id);
   if (projectIds.length === 0) return [];
   const projectMap = new Map(portfolioProjs.map(p => [p.id, p.name]));
-  const where = fiscalYear !== undefined
-    ? and(inArray(financialEntries.projectId, projectIds), eq(financialEntries.fiscalYear, fiscalYear))
-    : inArray(financialEntries.projectId, projectIds);
+
+  let where: any = inArray(financialEntries.projectId, projectIds);
+  if (fiscalYear !== undefined) {
+    // financial_entries is calendar-anchored ((year, month) hold calendar
+    // values). To pull a fiscal year for a non-Jan FY-start org we have to
+    // match each of the FY's 12 calendar (year, month) pairs explicitly.
+    const [pf] = await db.select().from(portfolios).where(eq(portfolios.id, portfolioId));
+    let fyStart = 1;
+    if (pf?.organizationId) {
+      const [org] = await db.select().from(organizations).where(eq(organizations.id, pf.organizationId));
+      fyStart = normalizeFiscalYearStartMonth(org?.fiscalYearStartMonth);
+    }
+    const calPairs = buildFiscalMonths(fiscalYear, fyStart);
+    where = and(
+      inArray(financialEntries.projectId, projectIds),
+      or(...calPairs.map(p => and(
+        eq(financialEntries.fiscalYear, p.year),
+        eq(financialEntries.month, p.month),
+      ))),
+    );
+  }
   const rows = await db.select().from(financialEntries)
     .where(where)
     .orderBy(financialEntries.projectId, financialEntries.sortOrder, financialEntries.itemKey, financialEntries.scenario, financialEntries.month);
