@@ -275,6 +275,31 @@ export function registerFinancialsRoutes(app: Express) {
       const userId = guard.userId;
 
       const fiscalYear = req.query.fiscalYear ? Number(req.query.fiscalYear) : undefined;
+
+      // Snapshot all cells BEFORE deletion so undo can fully restore the
+      // item — dimensions + every (fiscalYear, type, month, amount) tuple.
+      const allEntries = await storage.getFinancialEntries(projectId);
+      const itemEntries = allEntries.filter(e =>
+        e.itemKey === itemKey && (fiscalYear === undefined || e.fiscalYear === fiscalYear),
+      );
+      const cellSnapshots = itemEntries.map(e => ({
+        fiscalYear: e.fiscalYear,
+        type: e.scenario,
+        month: e.month,
+        amount: Number(e.amount) || 0,
+      }));
+      // Capture the per-fiscalYear type set actually present so undo recreates
+      // the same fan-out (covers orgs with custom enabled types).
+      const yearTypeMap = new Map<number, Set<string>>();
+      for (const e of itemEntries) {
+        if (!yearTypeMap.has(e.fiscalYear)) yearTypeMap.set(e.fiscalYear, new Set());
+        yearTypeMap.get(e.fiscalYear)!.add(e.scenario);
+      }
+      const yearTypes = Array.from(yearTypeMap.entries()).map(([fy, types]) => ({
+        fiscalYear: fy,
+        types: Array.from(types),
+      }));
+
       const previous = await storage.deleteFinancialItem({ projectId, itemKey, fiscalYear });
       if (!previous) return res.status(404).json({ message: "Item not found" });
 
@@ -287,7 +312,12 @@ export function registerFinancialsRoutes(app: Express) {
           changedByName: await changedByName(userId),
           changeType: "item_deleted",
           changeSummary: `Deleted "${previous.itemName}"`,
-          previousValues: JSON.stringify({ itemKey, ...previous }),
+          previousValues: JSON.stringify({
+            itemKey,
+            ...previous,
+            yearTypes,
+            cells: cellSnapshots,
+          }),
           newValues: null,
         });
       } catch (logErr) {
@@ -406,7 +436,63 @@ export function registerFinancialsRoutes(app: Express) {
     }
 
     if (log.changeType === "item_deleted") {
-      throw new Error("Cannot undo or redo a deletion — please recreate the item manually");
+      const prev = log.previousValues ? JSON.parse(log.previousValues) : null;
+      if (!prev?.itemKey) throw new Error("Item-delete change log missing previousValues.itemKey");
+
+      if (direction === "undo") {
+        // Restore the item: recreate per-fiscal-year fan-outs using the
+        // captured type set, then upsert every cell to its original amount.
+        // Legacy rows without `yearTypes`/`cells` (pre-feature) cannot be
+        // fully restored — surface a clear error.
+        if (!Array.isArray(prev.yearTypes) || !Array.isArray(prev.cells)) {
+          throw new Error("This deletion was logged before undo support — cannot restore");
+        }
+        const dimensions: FinancialItemDimensions = {
+          itemName: prev.itemName,
+          financialView: prev.financialView ?? null,
+          costCategory: prev.costCategory ?? null,
+          costSpecification: prev.costSpecification ?? null,
+          category: prev.category ?? null,
+          wbs: prev.wbs ?? null,
+          comments: prev.comments ?? null,
+          sortOrder: prev.sortOrder ?? 0,
+        };
+        for (const yt of prev.yearTypes as Array<{ fiscalYear: number; types: string[] }>) {
+          await storage.createFinancialItem({
+            projectId,
+            fiscalYear: Number(yt.fiscalYear),
+            itemKey: prev.itemKey,
+            dimensions,
+            types: yt.types,
+          });
+        }
+        for (const c of prev.cells as Array<{ fiscalYear: number; type: string; month: number; amount: number }>) {
+          if (Number(c.amount) === 0) continue; // create already seeded zeros
+          await storage.upsertFinancialCell({
+            projectId,
+            fiscalYear: Number(c.fiscalYear),
+            itemKey: prev.itemKey,
+            type: c.type,
+            month: Number(c.month),
+            amount: Number(c.amount) || 0,
+          });
+        }
+        return `Restored "${prev.itemName ?? prev.itemKey}"`;
+      }
+
+      // Redo: re-delete the item (scoped to the original year if the original
+      // delete was scoped, otherwise across all years).
+      const scopedYears = Array.isArray(prev.yearTypes) && prev.yearTypes.length === 1
+        ? [Number(prev.yearTypes[0].fiscalYear)]
+        : null;
+      if (scopedYears) {
+        for (const fy of scopedYears) {
+          await storage.deleteFinancialItem({ projectId, itemKey: prev.itemKey, fiscalYear: fy });
+        }
+      } else {
+        await storage.deleteFinancialItem({ projectId, itemKey: prev.itemKey });
+      }
+      return `Re-deleted "${prev.itemName ?? prev.itemKey}"`;
     }
 
     throw new Error(`Cannot ${direction} change of type "${log.changeType}"`);
@@ -420,16 +506,10 @@ export function registerFinancialsRoutes(app: Express) {
       if (!guard.ok) return res.status(guard.status).json({ message: guard.message });
 
       const history = await storage.getCostItemChangeLogs(projectId);
-      // Most recent active (undone=false) entry that isn't a legacy __undo row.
-      // Item deletions are NOT skipped — they form a hard barrier so that we
-      // never undo a stale "update" against an item that was later deleted.
+      // Most recent active (undone=false) non-legacy entry. Deletions are now
+      // undoable because we snapshot dimensions+cells in their previousValues.
       const target = history.find(h => !h.undone && !isLegacyUndoRow(h));
       if (!target) return res.status(400).json({ message: "Nothing to undo" });
-      if (target.changeType === "item_deleted") {
-        return res.status(400).json({
-          message: "Cannot undo deletion — please recreate the item manually",
-        });
-      }
 
       const summary = await applyChangeLog(projectId, target, "undo");
       await storage.setChangeLogUndone(target.id, true);

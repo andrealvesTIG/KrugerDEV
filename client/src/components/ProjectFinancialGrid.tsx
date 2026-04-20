@@ -674,12 +674,12 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     } catch {}
     return false;
   };
-  const canUndo = useMemo(() => {
-    // Mirror the server: take the most recent active row; allow undo only if
-    // it's not a deletion (deletions are a hard barrier).
-    const top = history.find(h => !h.undone && !isLegacyUndoRow(h));
-    return !!top && top.changeType !== "item_deleted";
-  }, [history]);
+  const canUndo = useMemo(
+    // Deletions are now undoable — the server snapshots cells when an item is
+    // deleted and restores them on undo.
+    () => history.some(h => !h.undone && !isLegacyUndoRow(h)),
+    [history],
+  );
   const canRedo = useMemo(
     () => history.some(h => h.undone && !isLegacyUndoRow(h)),
     [history],
