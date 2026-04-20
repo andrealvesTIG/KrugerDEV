@@ -606,7 +606,8 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
       setDialogOpen(false);
       resetForm();
     },
-    onError: () => toast({ title: "Failed to create item", variant: "destructive" }),
+    onError: (err: any) =>
+      toast({ title: "Failed to create item", description: err?.message, variant: "destructive" }),
   });
 
   const updateItemMutation = useMutation({
@@ -618,7 +619,8 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
       setDialogOpen(false);
       resetForm();
     },
-    onError: () => toast({ title: "Failed to update item", variant: "destructive" }),
+    onError: (err: any) =>
+      toast({ title: "Failed to update item", description: err?.message, variant: "destructive" }),
   });
 
   const deleteItemMutation = useMutation({
@@ -630,14 +632,16 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
       setDeleteDialogOpen(false);
       setItemToDelete(null);
     },
-    onError: () => toast({ title: "Failed to delete item", variant: "destructive" }),
+    onError: (err: any) =>
+      toast({ title: "Failed to delete item", description: err?.message, variant: "destructive" }),
   });
 
   const updateCellMutation = useMutation({
     mutationFn: async (data: { itemKey: string; type: FinancialTypeKey; month: number; amount: number }) =>
       apiRequest("PUT", `/api/projects/${projectId}/financial-cells`, { fiscalYear, ...data }),
     onSuccess: () => invalidate(),
-    onError: () => toast({ title: "Failed to update cell", variant: "destructive" }),
+    onError: (err: any) =>
+      toast({ title: "Failed to update cell", description: err?.message, variant: "destructive" }),
   });
 
   // Background-activity indicator: lights up when the entries query is
