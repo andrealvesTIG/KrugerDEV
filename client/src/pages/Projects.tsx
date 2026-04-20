@@ -851,7 +851,7 @@ export function ProjectsListView({
               variant="ghost"
               size="sm"
               className="h-6 text-[11px] px-2 text-muted-foreground hover:text-foreground gap-1"
-              onClick={() => { setListSort(null); saveListSort(null); }}
+              onClick={() => { setListSort(null); saveListSort(null, storageScope); }}
             >
               <X className="h-3 w-3" />
               Clear sort

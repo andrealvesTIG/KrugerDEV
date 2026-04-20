@@ -1000,7 +1000,14 @@ export function registerProjectFeatureRoutes(app: Express) {
       const orgId = Number(req.params.orgId);
       const mode = req.query.mode as string;
       const portfolioIdRaw = req.query.portfolioId;
-      const portfolioId = portfolioIdRaw !== undefined && portfolioIdRaw !== '' ? Number(portfolioIdRaw) : null;
+      let portfolioId: number | null = null;
+      if (portfolioIdRaw !== undefined && portfolioIdRaw !== '' && portfolioIdRaw !== null) {
+        const pid = Number(portfolioIdRaw);
+        if (!Number.isFinite(pid) || pid <= 0) {
+          return res.status(400).json({ message: "portfolioId must be a positive number" });
+        }
+        portfolioId = pid;
+      }
       const userId = getUserIdFromRequest(req);
       
       if (!userId) {
@@ -1046,7 +1053,14 @@ export function registerProjectFeatureRoutes(app: Express) {
       }
       
       const { mode, name, visibleColumns, columnOrder, columnWidths, frozenColumns, isDefault, portfolioId: portfolioIdRaw } = req.body;
-      const portfolioId: number | null = portfolioIdRaw !== undefined && portfolioIdRaw !== null ? Number(portfolioIdRaw) : null;
+      let portfolioId: number | null = null;
+      if (portfolioIdRaw !== undefined && portfolioIdRaw !== null) {
+        const pid = Number(portfolioIdRaw);
+        if (!Number.isFinite(pid) || pid <= 0) {
+          return res.status(400).json({ message: "portfolioId must be a positive number or null" });
+        }
+        portfolioId = pid;
+      }
       
       if (!mode || !['grid', 'gantt', 'list'].includes(mode)) {
         return res.status(400).json({ message: "Mode must be 'grid', 'gantt', or 'list'" });
