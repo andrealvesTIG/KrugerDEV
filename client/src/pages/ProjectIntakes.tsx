@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Link, useLocation } from "wouter";
 import { useIntakeWorkflows } from "@/hooks/use-intake-workflow";
-import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen, ChevronsUpDown, BarChart3, Timer } from "lucide-react";
+import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen, ChevronsUpDown, BarChart3, Timer, GitBranch } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -860,6 +860,18 @@ export default function ProjectIntakes() {
     return step?.label || "Unknown";
   };
 
+  const workflowsById = new Map<number, typeof activeWorkflows[number]>();
+  for (const wf of (outerIntakeWorkflows || [])) {
+    workflowsById.set(wf.id, wf);
+  }
+  const showWorkflowBadge = activeWorkflows.length > 1;
+  const getIntakeWorkflowName = (intake: ProjectIntake): string | null => {
+    if (intake.workflowId == null) {
+      return defaultWorkflow?.name || null;
+    }
+    return workflowsById.get(intake.workflowId)?.name || null;
+  };
+
   const { data: pbiCount } = useQuery<PowerBIIntakeRequest[]>({
     queryKey: ['/api/powerbi-agent/requests', currentOrganization?.id],
     queryFn: async () => {
@@ -1127,6 +1139,23 @@ export default function ProjectIntakes() {
                         {intake.projectName}
                       </h3>
                       {getStatusBadge(intake.status || "draft")}
+                      {showWorkflowBadge && getIntakeWorkflowName(intake) && (
+                        <Badge
+                          variant="outline"
+                          className="gap-1.5 cursor-pointer hover:bg-accent"
+                          data-testid={`badge-intake-workflow-${intake.id}`}
+                          title={`Workflow: ${getIntakeWorkflowName(intake)}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const wfId = intake.workflowId ?? defaultWorkflow?.id ?? null;
+                            if (wfId != null) setActiveWorkflowId(wfId);
+                          }}
+                        >
+                          <GitBranch className="h-3 w-3" />
+                          {getIntakeWorkflowName(intake)}
+                        </Badge>
+                      )}
                       {intake.intakeNumber && (
                         <span className="text-xs text-muted-foreground font-mono">{intake.intakeNumber}</span>
                       )}
