@@ -1221,6 +1221,21 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
           }
         }
 
+        // If a cell is currently being edited, widen its column so the whole
+        // typed value stays visible as the user types. Growing the column
+        // (not just overlaying the input) keeps the grid layout consistent
+        // and avoids overlap with neighboring cells.
+        if (editingCell) {
+          const editSIdx = enabledTypes.findIndex(t => t.key === editingCell.typeKey);
+          const editMi = editingCell.month - 1;
+          if (editSIdx >= 0 && editMi >= 0 && editMi < 12) {
+            const colIdx = editMi * N + editSIdx;
+            const chars = Math.max(8, editValue.length + 2);
+            const needed = Math.round(Math.min(320, chars * CHAR_PX + PAD_X + 10));
+            if (needed > monthSubPx[colIdx]) monthSubPx[colIdx] = needed;
+          }
+        }
+
         const totalColsTpl = totalSubPx.map(p => `${p}px`).join(" ");
         const monthColsTpl = monthSubPx.map(p => `${p}px`).join(" ");
         const gridTemplate = `${COL_COST}px ${COL_COMMENTS}px ${COL_WBS}px ${totalColsTpl} ${monthColsTpl}`;
@@ -1671,7 +1686,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                               editingCell?.typeKey === s.key;
                             const editable = s.editable;
                             return (
-                              <div key={`${m.num}-${s.key}`} className={`p-0.5 ${borderCls} ${hi} ${isEditing ? "relative z-20" : ""}`}>
+                              <div key={`${m.num}-${s.key}`} className={`p-0.5 ${borderCls} ${hi}`}>
                                 {isEditing ? (
                                   <Input
                                     autoFocus
@@ -1694,16 +1709,10 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                                         cancelCellEdit();
                                       }
                                     }}
-                                    // Overlay the input so it can grow LEFT past
-                                    // its narrow column as the user types. Width
-                                    // tracks editValue.length exactly (plus a bit
-                                    // of padding) so we never cover more cells
-                                    // than needed. Clamped to a readable minimum
-                                    // and a sensible maximum.
-                                    style={{
-                                      width: `${Math.min(40, Math.max(6, editValue.length + 2))}ch`,
-                                    }}
-                                    className="!absolute right-0.5 top-0.5 bottom-0.5 h-6 text-[11px] text-right px-1 py-0 tabular-nums border border-primary ring-2 ring-primary/40 !bg-card shadow-lg z-30 transition-[width] duration-75"
+                                    // The containing column itself grows with the
+                                    // typed value length (see gridTemplate build),
+                                    // so the input can just fill its cell.
+                                    className="h-6 w-full text-[11px] text-right px-1 py-0 tabular-nums ring-2 ring-primary/40 bg-card"
                                     data-testid={`input-${s.key}-m${m.num}-${row.itemKey}`}
                                   />
                                 ) : (
