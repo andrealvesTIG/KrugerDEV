@@ -771,6 +771,14 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
       toast({ title: "Item name is required", variant: "destructive" });
       return;
     }
+    if (!formData.costCategory.trim()) {
+      toast({ title: "Cost Category is required", variant: "destructive" });
+      return;
+    }
+    if (!formData.costSpecification.trim()) {
+      toast({ title: "Cost Specification is required", variant: "destructive" });
+      return;
+    }
     const payload = {
       itemName: formData.itemName,
       financialView: formData.financialView || null,
@@ -1707,16 +1715,16 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                           e.preventDefault();
                           const name = newItemName.trim();
                           if (!name) return;
-                          createItemMutation.mutate({
-                            fiscalYear,
+                          // Cost Category and Specification are required, so
+                          // open the dialog pre-filled with the typed name
+                          // for the user to pick the grouping fields.
+                          resetForm();
+                          setFormData(prev => ({
+                            ...prev,
                             itemName: name,
-                            financialView: enabledViews[0]?.label ?? null,
-                            costCategory: null,
-                            costSpecification: null,
-                            category: null,
-                            wbs: null,
-                            comments: null,
-                          });
+                            financialView: enabledViews[0]?.label ?? prev.financialView,
+                          }));
+                          setDialogOpen(true);
                           setNewItemName("");
                         } else if (e.key === "Escape") {
                           e.preventDefault();
@@ -1852,7 +1860,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="costCategory">Cost Category</Label>
+                <Label htmlFor="costCategory">Cost Category <span className="text-destructive">*</span></Label>
                 <Select
                   value={formData.costCategory}
                   onValueChange={(v) => setFormData({ ...formData, costCategory: v, costSpecification: "" })}
@@ -1874,7 +1882,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="costSpecification">Cost Specification</Label>
+                <Label htmlFor="costSpecification">Cost Specification <span className="text-destructive">*</span></Label>
                 {(() => {
                   const specs = enabledSpecsByCategoryLabel(formData.financialView, formData.costCategory);
                   const hasConfigured = specs.length > 0
