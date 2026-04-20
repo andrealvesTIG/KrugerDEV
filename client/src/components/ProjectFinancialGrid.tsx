@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock } from "lucide-react";
 import type { FinancialEntry, FinancialScenariosConfig, FinancialScenario } from "@shared/schema";
@@ -599,41 +598,46 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
       {/* Toolbar row: search, scenario toggles, FY selector — fullscreen on right */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search..."
-              className="pl-8 h-9 w-56"
+              placeholder="Search items, WBS, comments…"
+              className="pl-8 h-9 w-72 bg-muted/40 border-transparent focus-visible:bg-background focus-visible:border-input"
               data-testid="input-search-financial"
             />
           </div>
 
-          <div className="flex rounded-md border overflow-hidden">
-            {allScenarios.map((s, i) => (
-              <Button
+          {/* Segmented scenario toggle */}
+          <div className="inline-flex h-9 items-center rounded-md border bg-muted/40 p-0.5 gap-0.5">
+            {allScenarios.map((s) => (
+              <button
                 key={s.key}
-                variant={s.enabled ? "default" : "ghost"}
-                size="sm"
+                type="button"
                 onClick={() => toggleScenarioMutation.mutate(s.key)}
                 disabled={toggleScenarioMutation.isPending}
-                className={`rounded-none ${i > 0 ? "border-l" : ""} ${!s.enabled ? "opacity-40 line-through" : ""}`}
+                className={`inline-flex items-center gap-1 px-3 h-8 text-xs font-medium rounded-sm transition-all ${
+                  s.enabled
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+                }`}
                 data-testid={`button-view-${s.key}`}
                 title={
                   s.enabled
-                    ? `${s.label} — ${s.editable ? "editable" : "read-only"}. Click to hide this column.`
-                    : `${s.label} — hidden. Click to show this column.`
+                    ? `${s.label} — ${s.editable ? "editable" : "read-only"}. Click to hide.`
+                    : `${s.label} — hidden. Click to show.`
                 }
               >
+                {s.enabled && !s.editable && <Lock className="h-3 w-3 opacity-60" />}
                 {s.label}
-              </Button>
+              </button>
             ))}
           </div>
 
           <Select value={String(fiscalYear)} onValueChange={(v) => setFiscalYear(Number(v))}>
-            <SelectTrigger className="w-32 h-9" data-testid="select-fiscal-year">
+            <SelectTrigger className="w-28 h-9" data-testid="select-fiscal-year">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -650,6 +654,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
           onClick={() => setIsFullscreen(v => !v)}
           title={isFullscreen ? "Exit full screen" : "Expand to full screen"}
           data-testid="button-toggle-fullscreen"
+          className="h-9 w-9"
         >
           {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
         </Button>
@@ -657,89 +662,128 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
       {(() => {
         const N = Math.max(enabledScenarios.length, 1);
-        const COL_COST = 280;
-        const COL_COMMENTS = 160;
-        const COL_WBS = 80;
-        const TOTAL_SUB_COL_PX = 90;
-        const SUB_COL_PX = 60;
-        const COL_ACTIONS = 40;
-        const gridTemplate = `${COL_COST}px ${COL_COMMENTS}px ${COL_WBS}px repeat(${N}, ${TOTAL_SUB_COL_PX}px) repeat(${N * 12}, ${SUB_COL_PX}px) ${COL_ACTIONS}px`;
-        const minWidthPx = COL_COST + COL_COMMENTS + COL_WBS + N * TOTAL_SUB_COL_PX + N * 12 * SUB_COL_PX + COL_ACTIONS;
+        const COL_COST = 300;
+        const COL_COMMENTS = 200;
+        const COL_WBS = 96;
+        const TOTAL_SUB_COL_PX = 96;
+        const SUB_COL_PX = 64;
+        const gridTemplate = `${COL_COST}px ${COL_COMMENTS}px ${COL_WBS}px repeat(${N}, ${TOTAL_SUB_COL_PX}px) repeat(${N * 12}, ${SUB_COL_PX}px)`;
+        const minWidthPx = COL_COST + COL_COMMENTS + COL_WBS + N * TOTAL_SUB_COL_PX + N * 12 * SUB_COL_PX;
+
+        // Sticky-left offsets for the first three "frozen" columns
+        const stickyL1 = 0;
+        const stickyL2 = COL_COST;
+        const stickyL3 = COL_COST + COL_COMMENTS;
+        // Last sticky col gets a soft right shadow to indicate scrollable area
+        const stickyEdgeShadow = "shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]";
+
+        const isCurrentMonth = (idx: number) => idx === currentMonthIdx;
+        const monthHi = (idx: number) => isCurrentMonth(idx) ? "bg-amber-50 dark:bg-amber-950/20" : "";
+
+        // Border classes: strong divider between months, faint between scenarios
+        const monthBorder = "border-l border-border";
+        const scenarioBorder = "border-l border-border/40";
 
         const sortableHeader = (label: string) => (
-          <div className="flex items-center gap-1 text-[11px] uppercase tracking-wide font-medium text-muted-foreground">
+          <div className="flex items-center gap-1 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">
             <span>{label}</span>
-            <ArrowUpDown className="h-3 w-3 opacity-60" />
+            <ArrowUpDown className="h-3 w-3 opacity-50" />
           </div>
         );
 
-        const isCurrentMonth = (idx: number) => idx === currentMonthIdx;
+        // Container scroll height: respect fullscreen
+        const tableMaxH = isFullscreen ? "max-h-[calc(100vh-180px)]" : "max-h-[calc(100vh-260px)]";
 
         return (
-          <div className="border rounded-md">
-            <ScrollArea className="w-full">
-              <div style={{ minWidth: `${minWidthPx}px` }}>
-                {/* Header row 1: column titles + year groupings */}
+          <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
+            <div className={`relative overflow-auto ${tableMaxH}`}>
+              <div className="text-sm" style={{ minWidth: `${minWidthPx}px` }}>
+                {/* Header row 1: column titles + year groupings (sticky top) */}
                 <div
-                  className="grid bg-card border-b text-sm"
+                  className="grid bg-muted/30 backdrop-blur supports-[backdrop-filter]:bg-muted/40 border-b sticky top-0 z-30 h-10"
                   style={{ gridTemplateColumns: gridTemplate }}
                 >
-                  <div className="p-2 pl-4">{sortableHeader("Cost Item")}</div>
-                  <div className="p-2">{sortableHeader("Comments")}</div>
-                  <div className="p-2">{sortableHeader("WBS")}</div>
-                  {/* Empty above TOTAL */}
-                  <div className="p-2 border-l" style={{ gridColumn: `span ${N}` }}></div>
-                  {/* Year groupings, each spans (count * N) sub-cols */}
+                  <div
+                    className={`px-4 flex items-center bg-muted/30 sticky z-10`}
+                    style={{ left: `${stickyL1}px` }}
+                  >
+                    {sortableHeader("Cost Item")}
+                  </div>
+                  <div
+                    className="px-3 flex items-center bg-muted/30 sticky z-10"
+                    style={{ left: `${stickyL2}px` }}
+                  >
+                    {sortableHeader("Comments")}
+                  </div>
+                  <div
+                    className={`px-3 flex items-center bg-muted/30 sticky z-10 ${stickyEdgeShadow}`}
+                    style={{ left: `${stickyL3}px` }}
+                  >
+                    {sortableHeader("WBS")}
+                  </div>
+                  <div
+                    className={`flex items-center justify-center ${monthBorder}`}
+                    style={{ gridColumn: `span ${N}` }}
+                  ></div>
                   {yearGroups.map((g, gi) => (
                     <div
                       key={`y-${g.year}-${gi}`}
-                      className="p-2 text-center text-sm font-medium text-muted-foreground border-l"
+                      className={`flex items-center justify-center text-xs font-semibold tracking-wide text-muted-foreground ${monthBorder}`}
                       style={{ gridColumn: `span ${g.count * N}` }}
                     >
                       {g.year}
                     </div>
                   ))}
-                  <div className="p-2"></div>
                 </div>
 
-                {/* Header row 2: TOTAL + month names */}
+                {/* Header row 2: TOTAL + month names (sticky top) */}
                 <div
-                  className="grid bg-muted/40 border-b text-sm font-medium"
-                  style={{ gridTemplateColumns: gridTemplate }}
+                  className="grid bg-muted/20 border-b sticky z-30 h-9"
+                  style={{ gridTemplateColumns: gridTemplate, top: "40px" }}
                 >
-                  <div className="p-2 pl-4"></div>
-                  <div className="p-2"></div>
-                  <div className="p-2"></div>
                   <div
-                    className="p-2 text-center font-semibold border-l"
+                    className="bg-muted/20 sticky z-10"
+                    style={{ left: `${stickyL1}px` }}
+                  ></div>
+                  <div
+                    className="bg-muted/20 sticky z-10"
+                    style={{ left: `${stickyL2}px` }}
+                  ></div>
+                  <div
+                    className={`bg-muted/20 sticky z-10 ${stickyEdgeShadow}`}
+                    style={{ left: `${stickyL3}px` }}
+                  ></div>
+                  <div
+                    className={`flex items-center justify-center text-[11px] font-bold uppercase tracking-wider text-foreground ${monthBorder}`}
                     style={{ gridColumn: `span ${N}` }}
                   >
-                    TOTAL
+                    Total
                   </div>
                   {MONTHS.map((m, idx) => (
                     <div
                       key={`mn-${m.num}`}
-                      className={`p-2 text-center border-l ${isCurrentMonth(idx) ? "bg-primary/10 text-primary font-semibold" : ""}`}
+                      className={`flex items-center justify-center text-xs font-semibold uppercase tracking-wider ${monthBorder} ${
+                        isCurrentMonth(idx) ? "bg-amber-100 dark:bg-amber-900/30 text-amber-900 dark:text-amber-200" : "text-muted-foreground"
+                      }`}
                       style={{ gridColumn: `span ${N}` }}
                     >
                       {m.label}
                     </div>
                   ))}
-                  <div className="p-2"></div>
                 </div>
 
-                {/* Header row 3: scenario sub-labels under TOTAL and each month */}
+                {/* Header row 3: scenario sub-labels (sticky top) */}
                 <div
-                  className="grid bg-muted/20 border-b text-[10px] uppercase tracking-wide font-medium text-muted-foreground"
-                  style={{ gridTemplateColumns: gridTemplate }}
+                  className="grid bg-card border-b sticky z-30 h-7 text-[10px] uppercase tracking-wide font-medium text-muted-foreground"
+                  style={{ gridTemplateColumns: gridTemplate, top: "76px" }}
                 >
-                  <div></div>
-                  <div></div>
-                  <div></div>
+                  <div className="bg-card sticky z-10" style={{ left: `${stickyL1}px` }}></div>
+                  <div className="bg-card sticky z-10" style={{ left: `${stickyL2}px` }}></div>
+                  <div className={`bg-card sticky z-10 ${stickyEdgeShadow}`} style={{ left: `${stickyL3}px` }}></div>
                   {enabledScenarios.map((s, i) => (
                     <div
                       key={`tlab-${s.key}`}
-                      className={`p-1 flex items-center justify-center gap-1 ${i === 0 ? "border-l" : ""}`}
+                      className={`flex items-center justify-center gap-1 ${i === 0 ? monthBorder : scenarioBorder}`}
                       title={s.editable ? `${s.label} (editable)` : `${s.label} (read-only)`}
                     >
                       {!s.editable && <Lock className="h-2.5 w-2.5 opacity-60" />}
@@ -750,7 +794,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                     enabledScenarios.map((s, i) => (
                       <div
                         key={`mlab-${m.num}-${s.key}`}
-                        className={`p-1 flex items-center justify-center gap-1 ${i === 0 ? "border-l" : ""} ${isCurrentMonth(idx) ? "bg-primary/5" : ""}`}
+                        className={`flex items-center justify-center gap-1 ${i === 0 ? monthBorder : scenarioBorder} ${monthHi(idx)}`}
                         title={s.editable ? `${s.label} (editable)` : `${s.label} (read-only)`}
                       >
                         {!s.editable && <Lock className="h-2.5 w-2.5 opacity-60" />}
@@ -758,13 +802,12 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                       </div>
                     ))
                   ))}
-                  <div></div>
                 </div>
 
                 {rows.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground">
-                    <FileSpreadsheet className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>
+                  <div className="p-12 text-center text-muted-foreground bg-card">
+                    <FileSpreadsheet className="h-12 w-12 mx-auto mb-3 opacity-40" />
+                    <p className="text-sm">
                       {searchQuery
                         ? `No items match "${searchQuery}"`
                         : `No financial entries for FY${fiscalYear}`}
@@ -777,83 +820,119 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                     )}
                   </div>
                 ) : (
-                  rows.map((row) => {
+                  rows.map((row, rowIdx) => {
                     const isItem = row.type === "item";
-                    const rowBg =
-                      row.type === "view" ? "bg-muted/40 font-semibold" :
-                      row.type === "category" ? "bg-muted/20 font-medium" :
-                      row.type === "specification" ? "bg-muted/10" : "";
+                    const rowBgClass =
+                      row.type === "view" ? "bg-muted/30 font-semibold" :
+                      row.type === "category" ? "bg-muted/15 font-medium" :
+                      row.type === "specification" ? "bg-muted/[0.04]" :
+                      (rowIdx % 2 === 0 ? "bg-card" : "bg-muted/[0.03]");
                     return (
                       <div
                         key={row.key}
-                        className={`grid border-b hover-elevate group ${rowBg}`}
+                        className={`grid border-b border-border/60 group hover:bg-accent/40 transition-colors ${rowBgClass}`}
                         style={{ gridTemplateColumns: gridTemplate }}
                         data-testid={`row-${row.type}-${row.key}`}
                       >
+                        {/* Cost Item (sticky) */}
                         <div
-                          className="p-2 flex items-center gap-1"
-                          style={{ paddingLeft: `${16 + row.level * 16}px` }}
+                          className={`flex items-center gap-1.5 py-1.5 pr-2 sticky z-[1] ${rowBgClass} group-hover:bg-accent/40`}
+                          style={{ left: `${stickyL1}px`, paddingLeft: `${16 + row.level * 14}px` }}
                         >
                           {row.hasChildren ? (
                             <button
                               onClick={() => toggleExpand(row.key)}
-                              className="p-0.5 hover-elevate rounded"
+                              className="p-0.5 rounded hover:bg-muted-foreground/10 transition-colors shrink-0"
                               data-testid={`button-expand-${row.key}`}
                             >
                               {expanded.has(row.key) ? (
-                                <ChevronDown className="h-4 w-4" />
+                                <ChevronDown className="h-3.5 w-3.5" />
                               ) : (
-                                <ChevronRight className="h-4 w-4" />
+                                <ChevronRight className="h-3.5 w-3.5" />
                               )}
                             </button>
                           ) : (
-                            <span className="w-5" />
+                            <span className="w-4 shrink-0" />
                           )}
                           {row.type === "view" ? (
-                            <Badge variant="outline" className="text-xs whitespace-nowrap">
+                            <Badge variant="secondary" className="text-[10px] uppercase tracking-wide font-semibold whitespace-nowrap">
                               {row.label}
                             </Badge>
                           ) : (
                             <span className="truncate">{row.label}</span>
                           )}
                           {isItem && row.category && (
-                            <Badge variant="outline" className="text-[10px] ml-1 whitespace-nowrap">
+                            <Badge variant="outline" className="text-[10px] whitespace-nowrap shrink-0">
                               {row.category}
                             </Badge>
                           )}
+                          {isItem && (
+                            <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => openEditDialog(row)}
+                                data-testid={`button-edit-${row.itemKey}`}
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-destructive hover:text-destructive"
+                                onClick={() => { setItemToDelete(row); setDeleteDialogOpen(true); }}
+                                data-testid={`button-delete-${row.itemKey}`}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
 
-                        <div className="p-2 text-xs text-muted-foreground truncate" title={row.comments || ""}>
-                          {isItem ? (row.comments || "-") : ""}
+                        {/* Comments (sticky) */}
+                        <div
+                          className={`px-3 py-1.5 text-xs text-muted-foreground truncate flex items-center sticky z-[1] ${rowBgClass} group-hover:bg-accent/40`}
+                          style={{ left: `${stickyL2}px` }}
+                          title={row.comments || ""}
+                        >
+                          {isItem ? (row.comments || "") : ""}
                         </div>
 
-                        <div className="p-2 text-center text-xs text-muted-foreground">
-                          {isItem ? (row.wbs || "-") : ""}
+                        {/* WBS (sticky, last frozen col → edge shadow) */}
+                        <div
+                          className={`px-3 py-1.5 text-xs text-muted-foreground tabular-nums truncate flex items-center sticky z-[1] ${rowBgClass} group-hover:bg-accent/40 ${stickyEdgeShadow}`}
+                          style={{ left: `${stickyL3}px` }}
+                        >
+                          {isItem ? (row.wbs || "") : ""}
                         </div>
 
                         {/* Per-scenario row totals */}
-                        {enabledScenarios.map((s, sIdx) => (
-                          <div
-                            key={`total-${s.key}`}
-                            className={`p-2 text-center text-sm font-medium ${sIdx === 0 ? "border-l" : ""}`}
-                          >
-                            <CompactCurrency value={row.totalByScenario[s.key] ?? 0} />
-                          </div>
-                        ))}
+                        {enabledScenarios.map((s, sIdx) => {
+                          const v = row.totalByScenario[s.key] ?? 0;
+                          return (
+                            <div
+                              key={`total-${s.key}`}
+                              className={`px-2 py-1.5 text-right text-xs font-semibold tabular-nums flex items-center justify-end ${sIdx === 0 ? monthBorder : scenarioBorder}`}
+                            >
+                              {v !== 0 ? <CompactCurrency value={v} /> : <span className="text-muted-foreground/40">—</span>}
+                            </div>
+                          );
+                        })}
 
                         {/* Per-month per-scenario cells */}
                         {MONTHS.map((m, idx) => (
                           enabledScenarios.map((s, sIdx) => {
                             const value = row.monthlyByScenario[s.key]?.[idx] ?? 0;
-                            const borderClass = sIdx === 0 ? "border-l" : "";
-                            const monthHi = isCurrentMonth(idx) ? "bg-primary/5" : "";
+                            const borderCls = sIdx === 0 ? monthBorder : scenarioBorder;
+                            const hi = monthHi(idx);
                             if (!isItem) {
                               return (
                                 <div
                                   key={`${m.num}-${s.key}`}
-                                  className={`p-2 text-center text-xs ${borderClass} ${monthHi}`}
+                                  className={`px-1.5 py-1.5 text-right text-xs tabular-nums flex items-center justify-end ${borderCls} ${hi}`}
                                 >
-                                  {value !== 0 ? formatCurrency(value) : ""}
+                                  {value !== 0 ? formatCurrency(value) : <span className="text-muted-foreground/30">—</span>}
                                 </div>
                               );
                             }
@@ -861,9 +940,9 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                               editingCell?.itemKey === row.itemKey &&
                               editingCell?.month === m.num &&
                               editingCell?.scenarioKey === s.key;
-                            const editable = isItem && s.editable;
+                            const editable = s.editable;
                             return (
-                              <div key={`${m.num}-${s.key}`} className={`p-1 ${borderClass} ${monthHi}`}>
+                              <div key={`${m.num}-${s.key}`} className={`p-0.5 ${borderCls} ${hi}`}>
                                 {isEditing ? (
                                   <Input
                                     autoFocus
@@ -886,89 +965,81 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                                         cancelCellEdit();
                                       }
                                     }}
-                                    className="h-7 text-xs text-center p-1"
+                                    className="h-7 text-xs text-right p-1 tabular-nums ring-2 ring-primary/40"
                                     data-testid={`input-${s.key}-m${m.num}-${row.itemKey}`}
                                   />
                                 ) : (
                                   <div
-                                    className={`h-7 flex items-center justify-center text-xs rounded ${editable ? "cursor-pointer hover:bg-muted/50" : "text-muted-foreground"}`}
+                                    className={`h-7 flex items-center justify-end px-1.5 text-xs tabular-nums rounded-sm transition-all ${
+                                      editable
+                                        ? "cursor-cell hover:ring-1 hover:ring-primary/40 hover:bg-background"
+                                        : "text-muted-foreground"
+                                    }`}
                                     onClick={() => editable && handleCellClick(row, idx, s.key)}
                                     data-testid={`cell-${s.key}-m${m.num}-${row.itemKey}`}
                                   >
-                                    {value !== 0 ? formatCurrency(value) : "-"}
+                                    {value !== 0 ? formatCurrency(value) : <span className="text-muted-foreground/30">—</span>}
                                   </div>
                                 )}
                               </div>
                             );
                           })
                         ))}
-
-                        <div className="p-1 flex items-center gap-0.5">
-                          {isItem && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                                onClick={() => openEditDialog(row)}
-                                data-testid={`button-edit-${row.itemKey}`}
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 opacity-0 group-hover:opacity-100 text-destructive"
-                                onClick={() => { setItemToDelete(row); setDeleteDialogOpen(true); }}
-                                data-testid={`button-delete-${row.itemKey}`}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
                       </div>
                     );
                   })
                 )}
 
+                {/* Grand total row (sticky bottom) */}
                 {rows.length > 0 && (
                   <div
-                    className="grid bg-muted/50 font-semibold border-t-2"
+                    className="grid bg-muted/60 backdrop-blur supports-[backdrop-filter]:bg-muted/70 font-semibold border-t-2 border-border sticky bottom-0 z-20"
                     style={{ gridTemplateColumns: gridTemplate }}
                   >
-                    <div className="p-2 pl-4">Grand Total</div>
-                    <div className="p-2"></div>
-                    <div className="p-2"></div>
-                    {enabledScenarios.map((s, sIdx) => (
-                      <div
-                        key={`gt-total-${s.key}`}
-                        className={`p-2 text-center ${sIdx === 0 ? "border-l" : ""}`}
-                      >
-                        <CompactCurrency value={grandTotalByScenario[s.key] ?? 0} />
-                      </div>
-                    ))}
-                    {MONTHS.map((m, idx) => (
-                      enabledScenarios.map((s, sIdx) => (
+                    <div
+                      className="px-4 py-2 sticky z-[1] bg-muted/60 text-sm uppercase tracking-wider"
+                      style={{ left: `${stickyL1}px` }}
+                    >
+                      Grand Total
+                    </div>
+                    <div
+                      className="sticky z-[1] bg-muted/60"
+                      style={{ left: `${stickyL2}px` }}
+                    ></div>
+                    <div
+                      className={`sticky z-[1] bg-muted/60 ${stickyEdgeShadow}`}
+                      style={{ left: `${stickyL3}px` }}
+                    ></div>
+                    {enabledScenarios.map((s, sIdx) => {
+                      const v = grandTotalByScenario[s.key] ?? 0;
+                      return (
                         <div
-                          key={`gt-${m.num}-${s.key}`}
-                          className={`p-2 text-center text-xs ${sIdx === 0 ? "border-l" : ""} ${isCurrentMonth(idx) ? "bg-primary/5" : ""}`}
+                          key={`gt-total-${s.key}`}
+                          className={`px-2 py-2 text-right text-sm font-bold tabular-nums flex items-center justify-end ${sIdx === 0 ? monthBorder : scenarioBorder}`}
                         >
-                          {(() => {
-                            const grandMonthForScenario = rows
-                              .filter(r => r.type === "view")
-                              .reduce((acc, r) => acc + (r.monthlyByScenario[s.key]?.[idx] ?? 0), 0);
-                            return grandMonthForScenario !== 0 ? formatCurrency(grandMonthForScenario) : "0";
-                          })()}
+                          {v !== 0 ? <CompactCurrency value={v} /> : <span className="text-muted-foreground/40">—</span>}
                         </div>
-                      ))
+                      );
+                    })}
+                    {MONTHS.map((m, idx) => (
+                      enabledScenarios.map((s, sIdx) => {
+                        const grandMonthForScenario = rows
+                          .filter(r => r.type === "view")
+                          .reduce((acc, r) => acc + (r.monthlyByScenario[s.key]?.[idx] ?? 0), 0);
+                        return (
+                          <div
+                            key={`gt-${m.num}-${s.key}`}
+                            className={`px-1.5 py-2 text-right text-xs tabular-nums flex items-center justify-end ${sIdx === 0 ? monthBorder : scenarioBorder} ${monthHi(idx)}`}
+                          >
+                            {grandMonthForScenario !== 0 ? formatCurrency(grandMonthForScenario) : <span className="text-muted-foreground/40">—</span>}
+                          </div>
+                        );
+                      })
                     ))}
-                    <div className="p-2"></div>
                   </div>
                 )}
               </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
+            </div>
           </div>
         );
       })()}
