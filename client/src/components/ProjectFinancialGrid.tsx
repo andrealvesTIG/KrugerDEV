@@ -1674,7 +1674,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                           return (
                             <div
                               key={`total-${s.key}`}
-                              className={`px-1 py-1 text-right text-[11px] font-semibold tabular-nums flex items-center justify-end ${sIdx === 0 ? monthBorder : typeBorder}`}
+                              className={`px-1 py-1 text-center text-[11px] font-semibold tabular-nums flex items-center justify-center ${sIdx === 0 ? monthBorder : typeBorder}`}
                             >
                               {v !== 0 ? <CompactCurrency value={v} /> : <span className="text-muted-foreground/40">—</span>}
                             </div>
@@ -1691,7 +1691,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                               return (
                                 <div
                                   key={`${m.num}-${s.key}`}
-                                  className={`px-1 py-1 text-right text-[11px] tabular-nums flex items-center justify-end ${borderCls} ${hi}`}
+                                  className={`px-1 py-1 text-center text-[11px] tabular-nums flex items-center justify-center ${borderCls} ${hi}`}
                                 >
                                   {value !== 0 ? formatCurrency(value) : <span className="text-muted-foreground/30">—</span>}
                                 </div>
@@ -1729,12 +1729,12 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                                     // The containing column itself grows with the
                                     // typed value length (see gridTemplate build),
                                     // so the input can just fill its cell.
-                                    className="h-6 w-full text-[11px] text-right px-1 py-0 tabular-nums ring-2 ring-primary/40 bg-card"
+                                    className="h-6 w-full text-[11px] text-center px-1 py-0 tabular-nums ring-2 ring-primary/40 bg-card"
                                     data-testid={`input-${s.key}-m${m.num}-${row.itemKey}`}
                                   />
                                 ) : (
                                   <div
-                                    className={`h-6 flex items-center justify-end px-1 text-[11px] tabular-nums rounded-sm transition-all ${
+                                    className={`h-6 flex items-center justify-center px-1 text-[11px] tabular-nums rounded-sm transition-all ${
                                       editable
                                         ? "cursor-cell hover:ring-1 hover:ring-primary/40 hover:bg-background"
                                         : "text-muted-foreground"
@@ -1935,7 +1935,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                       return (
                         <div
                           key={`gt-total-${s.key}`}
-                          className={`px-1 py-1.5 text-right text-[11px] font-bold tabular-nums flex items-center justify-end ${sIdx === 0 ? monthBorder : typeBorder}`}
+                          className={`px-1 py-1.5 text-center text-[11px] font-bold tabular-nums flex items-center justify-center ${sIdx === 0 ? monthBorder : typeBorder}`}
                         >
                           {v !== 0 ? <CompactCurrency value={v} /> : <span className="text-muted-foreground/40">—</span>}
                         </div>
@@ -1949,7 +1949,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                         return (
                           <div
                             key={`gt-${m.num}-${s.key}`}
-                            className={`px-1 py-1.5 text-right text-[11px] font-bold tabular-nums flex items-center justify-end ${sIdx === 0 ? monthBorder : typeBorder} ${monthHi(idx)}`}
+                            className={`px-1 py-1.5 text-center text-[11px] font-bold tabular-nums flex items-center justify-center ${sIdx === 0 ? monthBorder : typeBorder} ${monthHi(idx)}`}
                           >
                             {grandMonthForType !== 0 ? formatCurrency(grandMonthForType) : <span className="text-muted-foreground/40">—</span>}
                           </div>
