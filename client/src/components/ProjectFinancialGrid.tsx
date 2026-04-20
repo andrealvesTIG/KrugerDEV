@@ -2810,11 +2810,11 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                   })
                 )}
 
-                {/* Grand total row (sticky bottom) */}
+                {/* Grand total row (sticky top, just under headers) */}
                 {rows.length > 0 && (
                   <div
-                    className="grid bg-muted font-semibold border-t-2 border-border sticky bottom-0 z-20"
-                    style={{ gridTemplateColumns: gridTemplate }}
+                    className="grid bg-muted font-semibold border-b-2 border-border sticky z-20"
+                    style={{ gridTemplateColumns: gridTemplate, top: "104px" }}
                   >
                     <div
                       className="px-4 py-2 sticky z-[1] bg-muted text-sm uppercase tracking-wider"
