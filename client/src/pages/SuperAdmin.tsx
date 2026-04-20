@@ -87,8 +87,8 @@ export default function SuperAdmin() {
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="w-full">
-        <div className="overflow-x-auto scrollbar-none -mx-1 px-1">
-          <TabsList className="bg-muted p-1 rounded-xl inline-flex w-auto min-w-full sm:w-full">
+        <div className="-mx-1 px-1">
+          <TabsList className="bg-muted p-1 rounded-xl flex flex-wrap h-auto w-full justify-start gap-1">
             <TabsTrigger value="monitoring" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2" data-testid="tab-monitoring">
               <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Analytics
