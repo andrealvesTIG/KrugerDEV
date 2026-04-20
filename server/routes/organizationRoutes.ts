@@ -430,13 +430,12 @@ export function registerOrganizationRoutes(app: Express) {
       }
       const org = await storage.getOrganization(orgId);
       if (!org) return res.status(404).json({ message: 'Organization not found' });
-      const { DEFAULT_FINANCIAL_SCENARIOS } = await import('@shared/schema');
-      const stored = (org as any).financialScenariosConfig as { scenarios?: any[] } | null;
-      // Merge: ensure every system scenario (aop/fcst/act) is always present, even if
-      // the stored config is missing or older than the system seed.
+      const { DEFAULT_FINANCIAL_SCENARIOS, financialScenariosConfigSchema } = await import('@shared/schema');
       const systemDefaults = DEFAULT_FINANCIAL_SCENARIOS.scenarios;
-      const storedList = (stored?.scenarios && Array.isArray(stored.scenarios)) ? stored.scenarios : [];
-      const seenKeys = new Set(storedList.map((s: any) => s.key));
+      // Validate stored config defensively; if it's malformed/null, fall back to defaults.
+      const validated = financialScenariosConfigSchema.safeParse(org.financialScenariosConfig);
+      const storedList = validated.success ? validated.data.scenarios : [];
+      const seenKeys = new Set(storedList.map(s => s.key));
       const merged = [...storedList];
       for (const sys of systemDefaults) {
         if (!seenKeys.has(sys.key)) merged.push(sys);
@@ -494,28 +493,24 @@ export function registerOrganizationRoutes(app: Express) {
       // Compute newly-added (non-system) keys vs the previous config so we can
       // backfill cells for them.
       const org = await storage.getOrganization(orgId);
-      const previousList: any[] = ((org as any)?.financialScenariosConfig?.scenarios) || [];
+      const previousList = org?.financialScenariosConfig?.scenarios ?? [];
       const previousKeys = new Set<string>([
-        ...previousList.map((s: any) => s.key),
+        ...previousList.map(s => s.key),
         ...DEFAULT_FINANCIAL_SCENARIOS.scenarios.map(s => s.key),
       ]);
       const newKeys = normalized.scenarios.filter(s => !previousKeys.has(s.key)).map(s => s.key);
 
-      const updated = await storage.updateOrganization(orgId, { financialScenariosConfig: normalized } as any);
-
-      // Fan out 12 zero cells per (project, fy, item) for each brand-new scenario.
+      // Backfill FIRST so we never persist a config whose cells we couldn't seed.
+      // If any backfill fails the whole request fails and the config is unchanged.
       if (newKeys.length > 0) {
         const { backfillScenarioCellsForOrg } = await import('../storage/financialStorage');
         for (const key of newKeys) {
-          try {
-            await backfillScenarioCellsForOrg({ organizationId: orgId, scenarioKey: key });
-          } catch (err) {
-            console.error(`Failed to backfill scenario ${key} for org ${orgId}:`, err);
-          }
+          await backfillScenarioCellsForOrg({ organizationId: orgId, scenarioKey: key });
         }
       }
 
-      res.json((updated as any)?.financialScenariosConfig || normalized);
+      const updated = await storage.updateOrganization(orgId, { financialScenariosConfig: normalized });
+      res.json(updated.financialScenariosConfig ?? normalized);
     } catch (err) {
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update financial scenarios' : classified.message });
