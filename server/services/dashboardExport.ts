@@ -5,7 +5,9 @@ import { storage } from "../storage";
 import type { Project, Portfolio, Risk, Issue, Resource } from "@shared/schema";
 
 interface DashboardData {
-  type: "executive" | "portfolios" | "risks-issues" | "resource" | "resource-management" | "timesheet" | "intake";
+  type: "executive" | "portfolios" | "risks-issues" | "resource" | "resource-management" | "timesheet" | "intake"
+    | "financials-overview" | "financials-scurves" | "financials-ev" | "financials-forecasting"
+    | "financials-cashflow" | "financials-variance" | "financials-portfolio";
   organizationId: number;
   title: string;
   generatedAt: string;
@@ -1331,6 +1333,70 @@ export async function getDashboardDataForExport(
       };
     }
     
+    case "financials-overview":
+    case "financials-scurves":
+    case "financials-ev":
+    case "financials-forecasting":
+    case "financials-cashflow":
+    case "financials-variance":
+    case "financials-portfolio": {
+      // Financials sub-dashboards share the same /financial-analytics payload.
+      // We compute high-level BAC / AC / EV (project-level % complete) totals
+      // directly from cost_items + project completion to keep the export
+      // service self-contained — the in-app dashboards still use the richer
+      // /financial-analytics endpoint.
+      const projects: Project[] = await storage.getProjects(organizationId);
+      const titleMap: Record<string, string> = {
+        "financials-overview": "Financials Overview",
+        "financials-scurves": "S-Curve Analysis",
+        "financials-ev": "Earned Value Analysis",
+        "financials-forecasting": "Forecasting & EAC",
+        "financials-cashflow": "Cash Flow Forecast",
+        "financials-variance": "Variance & Trends",
+        "financials-portfolio": "Portfolio Rollup",
+      };
+      const fmtM = (n: number) => `$${(n / 1_000_000).toFixed(2)}M`;
+      const rows = await Promise.all(projects.map(async (p: Project) => {
+        const items = await storage.getCostItems(p.id).catch(() => [] as any[]);
+        const bac = items.reduce((s: number, it: any) => s + Number(it.aopTotal || 0), 0);
+        const ac  = items.reduce((s: number, it: any) => s + Number(it.actTotal || 0), 0);
+        const pc = Math.max(0, Math.min(1, Number(p.completionPercentage ?? 0) / 100));
+        const ev = bac * pc;
+        const cpi = ac > 0 ? ev / ac : 1;
+        const eac = cpi > 0 ? bac / cpi : bac;
+        return { name: p.name, bac, ac, ev, cpi, eac, vac: bac - eac };
+      }));
+      const tot = rows.reduce((acc, r) => {
+        acc.bac += r.bac; acc.ac += r.ac; acc.ev += r.ev; acc.eac += r.eac;
+        return acc;
+      }, { bac: 0, ac: 0, ev: 0, eac: 0 });
+      const cpiTot = tot.ac > 0 ? tot.ev / tot.ac : 1;
+      return {
+        type,
+        organizationId,
+        title: titleMap[type] || "Financials Dashboard",
+        generatedAt,
+        metrics: {
+          BAC: fmtM(tot.bac),
+          AC: fmtM(tot.ac),
+          EV: fmtM(tot.ev),
+          EAC: fmtM(tot.eac),
+          CPI: cpiTot.toFixed(2),
+          VAC: fmtM(tot.bac - tot.eac),
+        },
+        charts: {},
+        items: rows.slice(0, 25).map(r => ({
+          Project: r.name,
+          BAC: fmtM(r.bac),
+          AC: fmtM(r.ac),
+          EV: fmtM(r.ev),
+          CPI: r.cpi.toFixed(2),
+          EAC: fmtM(r.eac),
+          VAC: fmtM(r.vac),
+        })),
+      };
+    }
+
     default:
       throw new Error(`Unknown dashboard type: ${type}`);
   }

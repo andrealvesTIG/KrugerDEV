@@ -1,7 +1,8 @@
 import type { Express, Request } from "express";
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "../db";
-import { financialEntries, costItemChangeLogs, projects, portfolios, costItems } from "@shared/schema";
+import { financialEntries, costItemChangeLogs, projects, portfolios, costItems, tasks } from "@shared/schema";
+import { apiRoute, qInt, ref, r200, stdRes } from "../route-registry";
 import { storage } from "../storage";
 import { multiYearWbs } from "@shared/schema";
 import type { FinancialType } from "@shared/schema";
@@ -829,7 +830,16 @@ export function registerFinancialsRoutes(app: Express) {
   // metrics (PV, EV, AC, EAC, CPI, SPI) for the requested fiscal year. Used by
   // the Financials Dashboard's seven sub-reports — they all hit this single
   // endpoint and re-shape the payload client-side.
-  app.get("/api/organizations/:orgId/financial-analytics", async (req, res) => {
+  apiRoute(app, 'get', '/api/organizations/:orgId/financial-analytics', {
+    tag: 'Financials',
+    summary: 'Compute org-level PMI/EVM analytics',
+    description: 'Returns BAC/AC/PV/EV/EAC totals, monthly series, per-portfolio rollups, and per-project EVM (CPI/SPI/VAC/ETC/TCPI) for a fiscal year. EV uses task-progress when tasks have progress, otherwise falls back to project-level completionPercentage. EAC monthly series falls back to AC + PV-proportional remaining ETC when no EAC entries exist.',
+    parameters: [
+      qInt('fiscalYear', false, 'Fiscal-year label (defaults to current FY)'),
+      qInt('portfolioId', false, 'Restrict to a single portfolio'),
+    ],
+    responses: { ...r200('Financial analytics payload', ref('Object')), ...stdRes },
+  }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
       const userId = getUserIdFromRequest(req);
@@ -923,6 +933,44 @@ export function registerFinancialsRoutes(app: Express) {
       const bacFromCostItems = new Map<number, number>();
       for (const r of costItemBac) bacFromCostItems.set(r.projectId, Number(r.total) || 0);
 
+      // Task-derived progress: weighted average of task.progress by
+      // estimatedHours, falling back to durationDays, then to a count weight.
+      // This becomes the project's effective % complete for EV when at least
+      // one of its tasks has a non-zero progress value (more accurate than the
+      // single project-level completionPercentage). Projects without any task
+      // progress fall back to the project-level value.
+      const taskProgressByProject = new Map<number, number>();
+      if (projectIds.length > 0) {
+        const taskRows = await db
+          .select({
+            projectId: tasks.projectId,
+            progress: tasks.progress,
+            estimatedHours: tasks.estimatedHours,
+            durationDays: tasks.durationDays,
+          })
+          .from(tasks)
+          .where(and(
+            inArray(tasks.projectId, projectIds),
+            isNull(tasks.deletedAt),
+          ));
+        const accum = new Map<number, { num: number; den: number; anyProgress: boolean }>();
+        for (const t of taskRows) {
+          if (t.progress == null) continue;
+          const w = Number(t.estimatedHours) || Number(t.durationDays) || 1;
+          if (!isFinite(w) || w <= 0) continue;
+          const cur = accum.get(t.projectId) ?? { num: 0, den: 0, anyProgress: false };
+          cur.num += w * Number(t.progress);
+          cur.den += w;
+          if (Number(t.progress) > 0) cur.anyProgress = true;
+          accum.set(t.projectId, cur);
+        }
+        for (const [pid, v] of accum.entries()) {
+          if (v.anyProgress && v.den > 0) {
+            taskProgressByProject.set(pid, v.num / v.den);
+          }
+        }
+      }
+
       // Build per-project monthly buckets keyed by financial type, indexed by
       // fiscal-month position 0..11.
       type Buckets = Record<string, number[]>;
@@ -987,7 +1035,6 @@ export function registerFinancialsRoutes(app: Express) {
         const eacArr = b["eac"] ?? null;
         const pvCum = cumArr(aopArr);
         const acCum = cumArr(actArr);
-        const eacCum = eacArr ? cumArr(eacArr) : Array(12).fill(0);
         // BAC: prefer cost_items.aopTotal aggregate (the budget the user
         // explicitly captured per cost item); fall back to summed AOP entries
         // ONLY when no cost-item row exists at all for the FY. Presence-based,
@@ -997,7 +1044,11 @@ export function registerFinancialsRoutes(app: Express) {
         const bacEntries = sumArr(aopArr);
         const bac = hasCiBac ? (bacFromCostItems.get(p.id) ?? 0) : bacEntries;
         const acTotal = acCum[11];
-        const pcRaw = Number(p.completionPercentage ?? 0);
+        // Prefer task-progress-derived %, fall back to project-level value.
+        const taskPc = taskProgressByProject.get(p.id);
+        const pcSource: 'task-weighted' | 'project-level' =
+          taskPc != null ? 'task-weighted' : 'project-level';
+        const pcRaw = taskPc != null ? taskPc : Number(p.completionPercentage ?? 0);
         const pcFraction = Math.max(0, Math.min(1, pcRaw / 100));
 
         // EV strategy:
@@ -1037,6 +1088,31 @@ export function registerFinancialsRoutes(app: Express) {
         const vac = bac - eacComputed;
         const etc = Math.max(0, eacComputed - ac);
 
+        // EAC monthly: prefer entered series, otherwise synthesize a
+        // PMI-conformant curve = AC for past/current months + ETC distributed
+        // across future months in proportion to remaining AOP (PV). When no
+        // future AOP exists, spread ETC evenly across remaining months.
+        let eacMonthlyOut: number[];
+        if (eacArr && eacArr.some(v => Number(v) !== 0)) {
+          eacMonthlyOut = eacArr.slice();
+        } else {
+          eacMonthlyOut = Array(12).fill(0);
+          let futureAop = 0;
+          for (let i = 0; i < 12; i++) {
+            if (i < asOfMonth) eacMonthlyOut[i] = actArr[i] || 0;
+            else futureAop += aopArr[i] || 0;
+          }
+          const remainingMonths = Math.max(0, 12 - asOfMonth);
+          for (let i = asOfMonth; i < 12; i++) {
+            if (futureAop > 0) {
+              eacMonthlyOut[i] = etc * ((aopArr[i] || 0) / futureAop);
+            } else if (remainingMonths > 0) {
+              eacMonthlyOut[i] = etc / remainingMonths;
+            }
+          }
+        }
+        const eacCum = cumArr(eacMonthlyOut);
+
         return {
           projectId: p.id,
           name: p.name,
@@ -1050,7 +1126,7 @@ export function registerFinancialsRoutes(app: Express) {
           actualEndDate: p.actualEndDate ? String(p.actualEndDate) : null,
           bac, ac, pv, ev, eacEntered, eacComputed, vac, etc, cpi, spi,
           pvCum, acCum, evCum,
-          eacMonthly: eacArr ?? Array(12).fill(0),
+          eacMonthly: eacMonthlyOut,
           eacCum,
           acMonthly: actArr,
           pvMonthly: aopArr,

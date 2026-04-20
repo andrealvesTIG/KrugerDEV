@@ -19,7 +19,7 @@ function indexCellClass(v: number | null): string {
 
 export function VarianceTrendsDashboard() {
   return (
-    <FinancialsScope render={({ data }) => {
+    <FinancialsScope dashboardType="financials-variance" title="Variance & Trends" render={({ data }) => {
       const t = data.totals;
       const noData = t.bac === 0 && t.ac === 0;
       const fmt = (v: number) => formatCurrency(v, { compact: true });

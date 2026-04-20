@@ -7,7 +7,7 @@ import { formatCurrency } from "@/lib/format";
 
 export function CashFlowDashboard() {
   return (
-    <FinancialsScope render={({ data }) => {
+    <FinancialsScope dashboardType="financials-cashflow" title="Cash Flow Forecast" render={({ data }) => {
       const fmt = (v: number) => formatCurrency(v, { compact: true });
       const t = data.totals;
       const noData = t.bac === 0 && t.ac === 0;

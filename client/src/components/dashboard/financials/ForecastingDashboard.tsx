@@ -31,7 +31,7 @@ function computeScenarios(bac: number, ac: number, ev: number, cpi: number, spi:
 export function ForecastingDashboard() {
   const [tcpiTarget, setTcpiTarget] = useState<number>(1.0); // default target = on-budget
   return (
-    <FinancialsScope render={({ data }) => {
+    <FinancialsScope dashboardType="financials-forecasting" title="Forecasting & EAC" render={({ data }) => {
       const t = data.totals;
       const fmt = (v: number) => formatCurrency(v, { compact: true });
       const noData = t.bac === 0 && t.ac === 0;

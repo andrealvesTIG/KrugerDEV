@@ -15,7 +15,7 @@ const PMI_HEALTH_COLORS = {
 
 export function FinancialsOverviewDashboard() {
   return (
-    <FinancialsScope render={({ data }) => {
+    <FinancialsScope dashboardType="financials-overview" title="Financials Overview" render={({ data }) => {
       const t = data.totals;
       const fmtCompact = (v: number) => formatCurrency(v, { compact: true });
       // Weighted org-level % complete (BAC-weighted) and forecast completion.

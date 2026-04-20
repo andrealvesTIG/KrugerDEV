@@ -18,7 +18,7 @@ function indexCellClass(v: number | null): string {
 
 export function PortfolioRollupDashboard() {
   return (
-    <FinancialsScope render={({ data }) => {
+    <FinancialsScope dashboardType="financials-portfolio" title="Portfolio Rollup" render={({ data }) => {
       const fmt = (v: number) => formatCurrency(v, { compact: true });
       const noData = data.portfolios.length === 0 || (data.totals.bac === 0 && data.totals.ac === 0);
       const rollup = data.portfolios;

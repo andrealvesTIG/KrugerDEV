@@ -16,7 +16,7 @@ export function EVAnalysisDashboard() {
   // Body is a real child component so internal hooks (useState/useMemo for
   // sorting) follow the rules of hooks even though FinancialsScope passes
   // data through a render prop that may be conditionally invoked.
-  return <FinancialsScope render={({ data }) => <EVAnalysisBody data={data} />} />;
+  return <FinancialsScope dashboardType="financials-ev" title="Earned Value Analysis" render={({ data }) => <EVAnalysisBody data={data} />} />;
 }
 
 function EVAnalysisBody({ data }: { data: import("@/hooks/use-financial-analytics").FinancialAnalyticsResponse }) {

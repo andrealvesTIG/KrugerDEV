@@ -22,7 +22,7 @@ const SERIES_COLORS: Record<SeriesKey, string> = {
 };
 
 export function SCurveDashboard() {
-  return <FinancialsScope render={({ data }) => <SCurveBody data={data} />} />;
+  return <FinancialsScope dashboardType="financials-scurves" title="S-Curve Analysis" render={({ data }) => <SCurveBody data={data} />} />;
 }
 
 function SCurveBody({ data }: { data: FinancialAnalyticsResponse }) {

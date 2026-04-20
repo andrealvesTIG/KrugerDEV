@@ -3155,6 +3155,9 @@ export function registerTimesheetRoutes(app: Express) {
       if (!organizationId) {
         return res.status(400).json({ message: 'Organization ID is required' });
       }
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied for this organization' });
+      }
       
       const { getDashboardDataForExport, generateDashboardPowerPoint, generateDashboardPdf, generateDashboardHTML } = await import('../services/dashboardExport');
       const data = await getDashboardDataForExport(type, organizationId);
@@ -3202,6 +3205,9 @@ export function registerTimesheetRoutes(app: Express) {
       
       if (!organizationId || !recipients || !Array.isArray(recipients) || recipients.length === 0) {
         return res.status(400).json({ message: 'Organization ID and recipients are required' });
+      }
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied for this organization' });
       }
       
       const { getDashboardDataForExport, generateDashboardPowerPoint, generateDashboardHTML } = await import('../services/dashboardExport');

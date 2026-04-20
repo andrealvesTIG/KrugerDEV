@@ -8,6 +8,7 @@ import { usePortfolios } from "@/hooks/use-portfolios";
 import { useFinancialAnalytics, type FinancialAnalyticsResponse } from "@/hooks/use-financial-analytics";
 import { useState, useMemo, type ReactNode } from "react";
 import { AlertCircle, DollarSign } from "lucide-react";
+import { DashboardActionBar } from "@/components/dashboard/DashboardActionBar";
 import { buildFiscalMonths, currentFiscalYear } from "@shared/lib/fiscalCalendar";
 
 export const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#14b8a6"];
@@ -61,7 +62,11 @@ export interface FinancialsScopeProps {
  * Wraps a Financials submenu with the org/FY/portfolio scope picker so each
  * dashboard renders with the same controls without duplicating boilerplate.
  */
-export function FinancialsScope({ render }: { render: (props: FinancialsScopeProps & { fiscalYear: number; setFiscalYear: (n: number) => void; portfolioId?: number; setPortfolioId: (n?: number) => void; }) => ReactNode }) {
+export function FinancialsScope({ render, dashboardType, title }: {
+  render: (props: FinancialsScopeProps & { fiscalYear: number; setFiscalYear: (n: number) => void; portfolioId?: number; setPortfolioId: (n?: number) => void; }) => ReactNode;
+  dashboardType?: string;
+  title?: string;
+}) {
   const { currentOrganization } = useOrganization();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   // Default FY: today's fiscal year using org start month (best-effort
@@ -86,13 +91,20 @@ export function FinancialsScope({ render }: { render: (props: FinancialsScopePro
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <DollarSign className="h-6 w-6 text-primary" />
-            Financials Dashboard
+            {title || "Financials Dashboard"}
           </h2>
           <p className="text-muted-foreground text-sm">
             Project Controls reporting following <a className="hover:underline hover:text-primary" href="https://www.pmi.org/standards/earned-value-management" target="_blank" rel="noopener noreferrer">PMI EVM</a> best practices
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {dashboardType && currentOrganization?.id != null && (
+            <DashboardActionBar
+              title={title || "Financials Dashboard"}
+              dashboardType={dashboardType}
+              organizationId={currentOrganization.id}
+            />
+          )}
           <Select value={String(fiscalYear)} onValueChange={(v) => setFiscalYear(Number(v))}>
             <SelectTrigger className="h-9 w-32" data-testid="select-fy"><SelectValue placeholder="Fiscal Year" /></SelectTrigger>
             <SelectContent>
