@@ -237,12 +237,20 @@ function FitBounds({ signature, markers }: { signature: string; markers: Array<[
 
 function ViewportTracker({ onChange }: { onChange: (bounds: L.LatLngBounds) => void }) {
   const map = useMap();
+  const lastKeyRef = useRef<string>("");
+  const emit = (b: L.LatLngBounds) => {
+    const key = `${b.getSouth().toFixed(5)},${b.getWest().toFixed(5)},${b.getNorth().toFixed(5)},${b.getEast().toFixed(5)}`;
+    if (key === lastKeyRef.current) return;
+    lastKeyRef.current = key;
+    onChange(b);
+  };
   useEffect(() => {
-    onChange(map.getBounds());
-  }, [map, onChange]);
+    emit(map.getBounds());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map]);
   useMapEvents({
-    moveend: () => onChange(map.getBounds()),
-    zoomend: () => onChange(map.getBounds()),
+    moveend: () => emit(map.getBounds()),
+    zoomend: () => emit(map.getBounds()),
   });
   return null;
 }
@@ -479,7 +487,7 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
                       }}
                       eventHandlers={{ click: () => setSelectedId(p.id) }}
                     >
-                      <Popup minWidth={220} maxWidth={280}>
+                      <Popup minWidth={220} maxWidth={280} autoPan={false} keepInView={false}>
                         <div className="space-y-2" data-testid={`popup-project-${p.id}`}>
                           {cover && (
                             <img
