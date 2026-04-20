@@ -4,7 +4,7 @@ import fs from "fs";
 import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and, asc, inArray } from "drizzle-orm";
-import { users, tasks, projects, systemProjectViews, notifications, taskDependencies } from "@shared/schema";
+import { users, tasks, projects, systemProjectViews, notifications, taskDependencies, customFieldDefinitions } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -1732,7 +1732,15 @@ export function registerProjectFeatureRoutes(app: Express) {
         parsedTasks = await parseXmlMspdi(fileContent);
       } else if (fileExt === 'csv') {
         try {
-          parsedTasks = parseCsv(fileContent);
+          const existingDefs = await db.select({
+            name: customFieldDefinitions.name,
+            fieldType: customFieldDefinitions.fieldType,
+            options: customFieldDefinitions.options,
+          }).from(customFieldDefinitions).where(and(
+            eq(customFieldDefinitions.organizationId, organizationId),
+            eq(customFieldDefinitions.entityType, 'task'),
+          ));
+          parsedTasks = parseCsv(fileContent, existingDefs);
         } catch (csvErr) {
           if (csvErr instanceof CsvImportError) {
             return res.status(400).json({ message: csvErr.message, errors: csvErr.errors });
@@ -2052,7 +2060,15 @@ export function registerProjectFeatureRoutes(app: Express) {
         parsedTasks = await parseXmlMspdi(fileContent);
       } else if (fileExt === 'csv') {
         try {
-          parsedTasks = parseCsv(fileContent);
+          const existingDefs = await db.select({
+            name: customFieldDefinitions.name,
+            fieldType: customFieldDefinitions.fieldType,
+            options: customFieldDefinitions.options,
+          }).from(customFieldDefinitions).where(and(
+            eq(customFieldDefinitions.organizationId, organizationId),
+            eq(customFieldDefinitions.entityType, 'task'),
+          ));
+          parsedTasks = parseCsv(fileContent, existingDefs);
         } catch (csvErr) {
           if (csvErr instanceof CsvImportError) {
             return res.status(400).json({ message: csvErr.message, errors: csvErr.errors });
@@ -2474,7 +2490,15 @@ export function registerProjectFeatureRoutes(app: Express) {
         parsedTasks = await parseXmlMspdi(fileContent);
       } else if (fileExt === 'csv') {
         try {
-          parsedTasks = parseCsv(fileContent);
+          const existingDefs = await db.select({
+            name: customFieldDefinitions.name,
+            fieldType: customFieldDefinitions.fieldType,
+            options: customFieldDefinitions.options,
+          }).from(customFieldDefinitions).where(and(
+            eq(customFieldDefinitions.organizationId, template.organizationId),
+            eq(customFieldDefinitions.entityType, 'task'),
+          ));
+          parsedTasks = parseCsv(fileContent, existingDefs);
         } catch (csvErr) {
           if (csvErr instanceof CsvImportError) {
             return res.status(400).json({ message: csvErr.message, errors: csvErr.errors });

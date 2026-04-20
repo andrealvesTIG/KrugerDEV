@@ -414,10 +414,77 @@ function parseDuration(raw: string): { days?: number; error?: string } {
   return { error: `unrecognised duration format` };
 }
 
+// Existing custom-field definition shape used for CSV value validation.
+export interface ExistingCustomFieldDef {
+  name: string;
+  fieldType: string;            // 'text' | 'number' | 'date' | 'select' | 'multiselect' | 'checkbox' | 'url'
+  options?: string[] | null;
+}
+
+// Validate a raw CSV value against an existing custom-field definition's type/options.
+// Returns either { ok: true, value } (normalised value to persist) or { error } (human reason).
+function validateCustomFieldValue(
+  def: ExistingCustomFieldDef,
+  raw: string,
+): { value: string; error?: undefined } | { error: string; value?: undefined } {
+  const trimmed = raw.trim();
+  if (trimmed === '') return { value: '' };
+  switch ((def.fieldType || 'text').toLowerCase()) {
+    case 'number': {
+      const n = Number(trimmed);
+      if (!Number.isFinite(n)) return { error: `"${trimmed}" is not a valid number` };
+      return { value: String(n) };
+    }
+    case 'date': {
+      const iso = parseDate(trimmed);
+      if (!iso) return { error: `"${trimmed}" is not a valid date (use YYYY-MM-DD or MM/DD/YYYY)` };
+      return { value: iso };
+    }
+    case 'checkbox': {
+      const lc = trimmed.toLowerCase();
+      if (['true', 'yes', '1', 'y'].includes(lc)) return { value: 'true' };
+      if (['false', 'no', '0', 'n'].includes(lc)) return { value: 'false' };
+      return { error: `"${trimmed}" is not a valid checkbox value (use true/false, yes/no, or 1/0)` };
+    }
+    case 'url': {
+      if (!/^https?:\/\/\S+$/i.test(trimmed)) return { error: `"${trimmed}" is not a valid URL (must start with http:// or https://)` };
+      return { value: trimmed };
+    }
+    case 'select': {
+      const opts = def.options || [];
+      if (opts.length === 0) return { value: trimmed };
+      const match = opts.find(o => o.toLowerCase() === trimmed.toLowerCase());
+      if (!match) return { error: `"${trimmed}" is not an allowed option. Allowed: ${opts.join(', ')}` };
+      return { value: match };
+    }
+    case 'multiselect': {
+      const opts = def.options || [];
+      const parts = trimmed.split(/\s*[,;]\s*/).filter(Boolean);
+      if (opts.length === 0) return { value: parts.join(', ') };
+      const normalised: string[] = [];
+      const bad: string[] = [];
+      for (const p of parts) {
+        const m = opts.find(o => o.toLowerCase() === p.toLowerCase());
+        if (m) normalised.push(m); else bad.push(p);
+      }
+      if (bad.length > 0) return { error: `Invalid option(s): ${bad.join(', ')}. Allowed: ${opts.join(', ')}` };
+      return { value: normalised.join(', ') };
+    }
+    case 'text':
+    default:
+      return { value: trimmed };
+  }
+}
+
 // Parse CSV format using papaparse for robust RFC-compliant parsing.
 // Maps every detected header to either a standard task field or a customFields entry.
 // Validates row data; throws CsvImportError if any validation issues are found.
-function parseCsv(csvContent: string): Array<{
+// `existingCustomFieldDefs` (optional) — when provided, custom-field values are validated against
+// the existing org-level definition (type/options) so that bad values surface as explicit errors.
+function parseCsv(
+  csvContent: string,
+  existingCustomFieldDefs: ExistingCustomFieldDef[] = [],
+): Array<{
   taskId?: number;
   wbs?: string;
   taskName: string;
@@ -463,6 +530,13 @@ function parseCsv(csvContent: string): Array<{
   // Reverse lookup: standardKey -> original header (so we can read row[header])
   const colFor: Record<string, string | undefined> = {};
   for (const [hdr, key] of mapped.entries()) colFor[key] = hdr;
+
+  // Map custom CSV header (case-insensitive) -> existing org-level definition (if any).
+  const existingDefByHeader = new Map<string, ExistingCustomFieldDef>();
+  for (const def of existingCustomFieldDefs) {
+    if (!def?.name) continue;
+    existingDefByHeader.set(def.name.toLowerCase().trim(), def);
+  }
 
   if (!colFor.taskName) {
     throw new CsvImportError(
@@ -569,11 +643,24 @@ function parseCsv(csvContent: string): Array<{
     parentStack.push({ taskId, level: outlineLevel });
 
     // Capture all unmapped headers as custom fields (preserves "Section", "Tags", etc.)
+    // If an org-level definition already exists for the header, validate the value
+    // against its type/options and surface clear, row-level errors on mismatch.
     const customFields: Record<string, string> = {};
     for (const hdr of customHeaders) {
-      const val = row[hdr];
-      if (val !== undefined && val !== null && String(val).trim() !== '') {
-        customFields[hdr] = String(val).trim();
+      const rawVal = row[hdr];
+      if (rawVal === undefined || rawVal === null) continue;
+      const strVal = String(rawVal).trim();
+      if (strVal === '') continue;
+      const def = existingDefByHeader.get(hdr.toLowerCase().trim());
+      if (def) {
+        const res = validateCustomFieldValue(def, strVal);
+        if (res.error) {
+          errors.push({ row: rowNum, column: hdr, value: strVal, message: res.error });
+          continue;
+        }
+        if (res.value !== '') customFields[hdr] = res.value;
+      } else {
+        customFields[hdr] = strVal;
       }
     }
 
