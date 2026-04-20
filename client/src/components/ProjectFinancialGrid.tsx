@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet } from "lucide-react";
+import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2 } from "lucide-react";
 import type { FinancialEntry } from "@shared/schema";
 import { CompactCurrency } from "@/components/CompactCurrency";
 
@@ -239,6 +239,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editingCell, setEditingCell] = useState<{ itemKey: string; month: number } | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<GridRow | null>(null);
@@ -451,7 +452,14 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   }
 
   return (
-    <div className="space-y-4">
+    <div
+      className={
+        isFullscreen
+          ? "fixed inset-0 z-50 bg-background p-6 overflow-auto space-y-4"
+          : "space-y-4"
+      }
+      data-testid="financial-grid-container"
+    >
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <DollarSign className="h-5 w-5 text-muted-foreground" />
@@ -497,6 +505,16 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
           <Button size="sm" onClick={openCreateDialog} data-testid="button-add-cost-item">
             <Plus className="h-4 w-4 mr-1" />
             Add Item
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsFullscreen(v => !v)}
+            title={isFullscreen ? "Exit full screen" : "Expand to full screen"}
+            data-testid="button-toggle-fullscreen"
+          >
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
         </div>
       </div>
