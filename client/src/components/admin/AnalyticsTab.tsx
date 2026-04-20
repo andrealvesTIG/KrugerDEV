@@ -254,24 +254,31 @@ export function AnalyticsTab() {
     month: bucketUsers.month.length,
   }), [bucketUsers]);
 
-  // Dev-only consistency probe: warn if the active card count and the unsorted
-  // list count for the same filter ever disagree. Excludes the search filter.
+  // Dev-only consistency probe: warn if the active card count and the actually
+  // rendered list count diverge (when no search is active). Reports set
+  // differences so a regression in the display pipeline is actionable.
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     if (!userFilter || userSearch.trim()) return;
     const cardCount = userMetricCounts[userFilter];
-    const listBase = userFilter === 'today' ? bucketUsers.today
+    const listCount = filteredUsers.length;
+    if (cardCount === listCount) return;
+    const bucket = userFilter === 'today' ? bucketUsers.today
       : userFilter === 'week' ? bucketUsers.week
       : userFilter === 'month' ? bucketUsers.month
       : bucketUsers.total;
-    if (cardCount !== listBase.length) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[AnalyticsTab] count mismatch for filter "${userFilter}": card=${cardCount} list=${listBase.length}`,
-        { ids: listBase.map(u => u.id) },
-      );
-    }
-  }, [userFilter, userSearch, userMetricCounts, bucketUsers]);
+    const cardIds = new Set(bucket.map(u => u.id));
+    const listIds = new Set(filteredUsers.map(u => u.id));
+    const onlyInCard: string[] = [];
+    const onlyInList: string[] = [];
+    cardIds.forEach(id => { if (!listIds.has(id)) onlyInCard.push(id); });
+    listIds.forEach(id => { if (!cardIds.has(id)) onlyInList.push(id); });
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[AnalyticsTab] count mismatch for filter "${userFilter}": card=${cardCount} list=${listCount}`,
+      { onlyInCard, onlyInList },
+    );
+  }, [userFilter, userSearch, userMetricCounts, bucketUsers, filteredUsers]);
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
