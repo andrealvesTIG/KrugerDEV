@@ -2,9 +2,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ResponsiveContainer, ComposedChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, Line, ReferenceLine, BarChart, Bar } from "recharts";
 import { FinancialsScope, EmptyState, KpiTile } from "./shared";
 import { CompactCurrency } from "@/components/CompactCurrency";
-import { Activity, AlertTriangle } from "lucide-react";
+import { Activity, AlertTriangle, Download } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
+import { downloadCsv } from "./csvExport";
 
 /**
  * PMI EVM color thresholds for the heatmap. Values ≥ 0.95 are green, 0.85–0.94
@@ -162,12 +164,28 @@ function HeatmapCard({
 }) {
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <CardDescription className="text-xs">
-          Cumulative {indexLabel} per project per fiscal month. Green ≥ 0.95, Amber 0.85–0.94, Red &lt; 0.85.
-          {limited && " Showing the first 25 projects."}
-        </CardDescription>
+      <CardHeader className="pb-2 flex-row items-start justify-between gap-2 space-y-0">
+        <div>
+          <CardTitle className="text-sm font-medium">{title}</CardTitle>
+          <CardDescription className="text-xs">
+            Cumulative {indexLabel} per project per fiscal month. Green ≥ 0.95, Amber 0.85–0.94, Red &lt; 0.85.
+            {limited && " Showing the first 25 projects."}
+          </CardDescription>
+        </div>
+        {rows.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            data-testid={`button-export-${testIdSuffix}-heatmap-csv`}
+            onClick={() => {
+              const header = ["Project", ...months.map(m => m.label)];
+              const body = rows.map(r => [r.name, ...r.cells.map(c => c == null ? "" : c.toFixed(2))]);
+              downloadCsv(`${testIdSuffix}-heatmap.csv`, [header, ...body]);
+            }}
+          >
+            <Download className="h-3.5 w-3.5 mr-1" />CSV
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="overflow-x-auto">
         {rows.length === 0 ? (

@@ -1,5 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Wallet, CreditCard, Calculator, Percent, TrendingUp, AlertTriangle, Banknote, Target, CheckCircle2, Activity, Calendar, Scale, Gauge, CalendarClock } from "lucide-react";
+import { Wallet, CreditCard, Calculator, Percent, TrendingUp, AlertTriangle, Banknote, Target, CheckCircle2, Activity, Calendar, Scale, Gauge, CalendarClock, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { downloadCsv } from "./csvExport";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ComposedChart, Line, RadialBarChart, RadialBar, PolarAngleAxis, PieChart, Pie, Cell } from "recharts";
 import { CompactCurrency } from "@/components/CompactCurrency";
 import { Progress } from "@/components/ui/progress";
@@ -314,9 +316,25 @@ export function FinancialsOverviewDashboard() {
               </div>
 
               <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Top Projects by Budget</CardTitle>
-                  <CardDescription className="text-xs">BAC vs Actual Cost · sorted by BAC.</CardDescription>
+                <CardHeader className="pb-2 flex-row items-start justify-between gap-2 space-y-0">
+                  <div>
+                    <CardTitle className="text-sm font-medium">Top Projects by Budget</CardTitle>
+                    <CardDescription className="text-xs">BAC vs Actual Cost · sorted by BAC.</CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    data-testid="button-export-overview-projects-csv"
+                    onClick={() => {
+                      const header = ["Project","BAC","AC","EV","EAC","VAC","CPI","SPI","% Complete"];
+                      const rows = [...data.projects]
+                        .sort((a, b) => b.bac - a.bac)
+                        .map(p => [p.name, p.bac, p.ac, p.ev, p.eacComputed, p.vac, p.cpi.toFixed(3), p.spi.toFixed(3), p.completionPercentage]);
+                      downloadCsv(`overview-projects-fy${data.fiscalYear}.csv`, [header, ...rows]);
+                    }}
+                  >
+                    <Download className="h-3.5 w-3.5 mr-1" />CSV
+                  </Button>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[320px]">

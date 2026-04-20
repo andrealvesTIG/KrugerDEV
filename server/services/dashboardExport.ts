@@ -2,7 +2,7 @@ import pptxgenjs from "pptxgenjs";
 const PptxGenJS = (pptxgenjs as any).default || pptxgenjs;
 import PDFDocument from "pdfkit";
 import { storage } from "../storage";
-import type { Project, Portfolio, Risk, Issue, Resource } from "@shared/schema";
+import type { Project, Portfolio, Risk, Issue, Resource, CostItem } from "@shared/schema";
 
 interface DashboardData {
   type: "executive" | "portfolios" | "risks-issues" | "resource" | "resource-management" | "timesheet" | "intake"
@@ -1357,9 +1357,9 @@ export async function getDashboardDataForExport(
       };
       const fmtM = (n: number) => `$${(n / 1_000_000).toFixed(2)}M`;
       const rows = await Promise.all(projects.map(async (p: Project) => {
-        const items = await storage.getCostItems(p.id).catch(() => [] as any[]);
-        const bac = items.reduce((s: number, it: any) => s + Number(it.aopTotal || 0), 0);
-        const ac  = items.reduce((s: number, it: any) => s + Number(it.actTotal || 0), 0);
+        const items = await storage.getCostItems(p.id).catch((): CostItem[] => []);
+        const bac = items.reduce((s: number, it: CostItem) => s + Number(it.aopTotal || 0), 0);
+        const ac  = items.reduce((s: number, it: CostItem) => s + Number(it.actTotal || 0), 0);
         const pc = Math.max(0, Math.min(1, Number(p.completionPercentage ?? 0) / 100));
         const ev = bac * pc;
         const cpi = ac > 0 ? ev / ac : 1;
