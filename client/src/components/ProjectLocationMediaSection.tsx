@@ -89,11 +89,11 @@ export function ProjectLocationMediaSection({
             return;
           }
           const parsed = parsePlace(place);
-          // Only patch fields we actually parsed — avoid clobbering existing
-          // values with empty strings when Google omits a component.
+          // Store the full formatted address in addressLine1 so the single
+          // input shows the complete location. Also populate city/region/etc
+          // behind the scenes for map filters and downstream features.
           const patch: ProjectLocationPatch = {};
-          const fallbackAddress = parsed.addressLine1 || addressInputRef.current?.value || "";
-          if (fallbackAddress) patch.addressLine1 = fallbackAddress;
+          patch.addressLine1 = parsed.displayName || parsed.addressLine1 || addressInputRef.current?.value || "";
           if (parsed.city) patch.city = parsed.city;
           if (parsed.region) patch.region = parsed.region;
           if (parsed.country) patch.country = parsed.country;
@@ -194,80 +194,41 @@ export function ProjectLocationMediaSection({
         <h3 className="text-sm font-semibold">Location & Media</h3>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="sm:col-span-2">
-          <Label htmlFor="addressLine1">Street Address</Label>
+      <div>
+        <Label htmlFor="addressLine1">Address</Label>
+        <div className="flex gap-2">
           <Input
             id="addressLine1"
             ref={addressInputRef}
             value={addressLine1 || ""}
             onChange={(e) => onChange({ addressLine1: e.target.value })}
             disabled={disabled}
-            placeholder={autocompleteReady ? "Start typing an address…" : "123 Main St"}
+            placeholder={autocompleteReady ? "Start typing an address…" : "Enter an address"}
             autoComplete="off"
             data-testid="input-address"
+            className="flex-1"
           />
-          {autocompleteReady && (
-            <p className="text-[10px] text-muted-foreground mt-1">
-              Powered by Google — pick a suggestion to auto-fill city, region, and coordinates.
-            </p>
+          {!autocompleteReady && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleGeocode}
+              disabled={geocoding || disabled}
+              data-testid="button-geocode"
+            >
+              {geocoding ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <MapPin className="h-4 w-4 mr-2" />}
+              Locate
+            </Button>
           )}
         </div>
-        <div>
-          <Label htmlFor="city">City</Label>
-          <Input id="city" value={city || ""} onChange={(e) => onChange({ city: e.target.value })} disabled={disabled} data-testid="input-city" />
-        </div>
-        <div>
-          <Label htmlFor="region">State / Region</Label>
-          <Input id="region" value={region || ""} onChange={(e) => onChange({ region: e.target.value })} disabled={disabled} data-testid="input-region" />
-        </div>
-        <div>
-          <Label htmlFor="postalCode">Postal Code</Label>
-          <Input id="postalCode" value={postalCode || ""} onChange={(e) => onChange({ postalCode: e.target.value })} disabled={disabled} data-testid="input-postal" />
-        </div>
-        <div>
-          <Label htmlFor="country">Country</Label>
-          <Input id="country" value={country || ""} onChange={(e) => onChange({ country: e.target.value })} disabled={disabled} data-testid="input-country" />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-        <div>
-          <Label htmlFor="latitude">Latitude</Label>
-          <Input
-            id="latitude"
-            type="number"
-            step="0.000001"
-            value={latitude ?? ""}
-            onChange={(e) => onChange({ latitude: e.target.value })}
-            disabled={disabled}
-            placeholder="40.7128"
-            data-testid="input-latitude"
-          />
-        </div>
-        <div>
-          <Label htmlFor="longitude">Longitude</Label>
-          <Input
-            id="longitude"
-            type="number"
-            step="0.000001"
-            value={longitude ?? ""}
-            onChange={(e) => onChange({ longitude: e.target.value })}
-            disabled={disabled}
-            placeholder="-74.0060"
-            data-testid="input-longitude"
-          />
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleGeocode}
-          disabled={geocoding || disabled}
-          data-testid="button-geocode"
-        >
-          {geocoding ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <MapPin className="h-4 w-4 mr-2" />}
-          Auto-locate
-        </Button>
+        <p className="text-[10px] text-muted-foreground mt-1">
+          {autocompleteReady
+            ? "Start typing, then pick a suggestion — we'll pin the project on the map automatically."
+            : "Enter an address and press Locate to pin the project on the map."}
+          {latitude && longitude ? (
+            <span className="ml-1">· Pinned at {Number(latitude).toFixed(4)}, {Number(longitude).toFixed(4)}</span>
+          ) : null}
+        </p>
       </div>
 
       <div className="space-y-2">
