@@ -186,6 +186,131 @@ export const DEFAULT_FINANCIAL_TYPES: FinancialTypesConfig = {
   ],
 };
 
+// === Cost Item Categories config ===
+// Three configurable hierarchy levels used by the project Financials grid:
+// Financial View → Cost Category → Cost Specification. Stored per-org so admins
+// can rename/reorder/enable/disable/add custom values. Built-in (system) entries
+// can be renamed and disabled but never deleted, so historical financial entries
+// referencing them keep rendering correctly.
+const slugKey = z.string().min(1).max(60).regex(/^[a-z0-9_-]+$/, "Key must be lowercase letters, digits, '-' or '_'");
+const labelStr = z.string().min(1).max(60);
+
+export const financialViewSchema = z.object({
+  key: slugKey,
+  label: labelStr,
+  enabled: z.boolean(),
+  order: z.number().int(),
+  isSystem: z.boolean().optional(),
+});
+
+export const costCategorySchema = z.object({
+  key: slugKey,
+  label: labelStr,
+  viewKey: slugKey, // parent Financial View key
+  enabled: z.boolean(),
+  order: z.number().int(),
+  isSystem: z.boolean().optional(),
+});
+
+export const costSpecificationSchema = z.object({
+  key: slugKey,
+  label: labelStr,
+  categoryKey: slugKey, // parent Cost Category key
+  enabled: z.boolean(),
+  order: z.number().int(),
+  isSystem: z.boolean().optional(),
+});
+
+export const costItemCategoriesConfigSchema = z.object({
+  views: z.array(financialViewSchema).min(1).max(50),
+  categories: z.array(costCategorySchema).max(500),
+  specifications: z.array(costSpecificationSchema).max(2000),
+}).superRefine((data, ctx) => {
+  // Unique keys per level
+  const seenViews = new Set<string>();
+  for (const v of data.views) {
+    if (seenViews.has(v.key)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Duplicate financial view key: ${v.key}` });
+    seenViews.add(v.key);
+  }
+  const seenCats = new Set<string>();
+  for (const c of data.categories) {
+    if (seenCats.has(c.key)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Duplicate cost category key: ${c.key}` });
+    seenCats.add(c.key);
+    if (!seenViews.has(c.viewKey)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Cost category "${c.label}" references unknown view "${c.viewKey}"` });
+  }
+  const seenSpecs = new Set<string>();
+  for (const s of data.specifications) {
+    if (seenSpecs.has(s.key)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Duplicate cost specification key: ${s.key}` });
+    seenSpecs.add(s.key);
+    if (!seenCats.has(s.categoryKey)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Cost specification "${s.label}" references unknown category "${s.categoryKey}"` });
+  }
+  // No duplicate labels within the same parent (case-insensitive).
+  const viewLabels = new Map<string, string>();
+  for (const v of data.views) {
+    const norm = v.label.trim().toLowerCase();
+    if (viewLabels.has(norm)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Duplicate financial view label: ${v.label}` });
+    viewLabels.set(norm, v.key);
+  }
+  const catLabelsByView = new Map<string, Set<string>>();
+  for (const c of data.categories) {
+    const set = catLabelsByView.get(c.viewKey) ?? new Set<string>();
+    const norm = c.label.trim().toLowerCase();
+    if (set.has(norm)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Duplicate cost category "${c.label}" within view "${c.viewKey}"` });
+    set.add(norm);
+    catLabelsByView.set(c.viewKey, set);
+  }
+  const specLabelsByCat = new Map<string, Set<string>>();
+  for (const s of data.specifications) {
+    const set = specLabelsByCat.get(s.categoryKey) ?? new Set<string>();
+    const norm = s.label.trim().toLowerCase();
+    if (set.has(norm)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Duplicate cost specification "${s.label}" within category "${s.categoryKey}"` });
+    set.add(norm);
+    specLabelsByCat.set(s.categoryKey, set);
+  }
+});
+
+export type FinancialView = z.infer<typeof financialViewSchema>;
+export type CostCategory = z.infer<typeof costCategorySchema>;
+export type CostSpecification = z.infer<typeof costSpecificationSchema>;
+export type CostItemCategoriesConfig = z.infer<typeof costItemCategoriesConfigSchema>;
+
+// System (built-in) keys; these entries may be renamed/disabled but never deleted.
+export const SYSTEM_FINANCIAL_VIEW_KEYS = ["capital", "direct-expense", "labor"] as const;
+export const SYSTEM_COST_CATEGORY_KEYS = [
+  "cat-direct-expense",
+  "cat-licenses",
+  "cat-outside-services",
+  "cat-travel-meals",
+  "cat-project-material",
+  "cat-labor",
+  "cat-equipment",
+  "cat-other",
+] as const;
+
+// Default config seeded for orgs that have no saved value. Keeps the same
+// labels the grid used to hardcode so behavior is unchanged on first load.
+// Each system category is parented to a sensible default Financial View;
+// admins can re-parent or duplicate categories under other views from the
+// settings UI.
+export const DEFAULT_COST_ITEM_CATEGORIES: CostItemCategoriesConfig = {
+  views: [
+    { key: "capital", label: "Capital", enabled: true, order: 0, isSystem: true },
+    { key: "direct-expense", label: "Direct Expense", enabled: true, order: 1, isSystem: true },
+    { key: "labor", label: "Labor", enabled: true, order: 2, isSystem: true },
+  ],
+  categories: [
+    { key: "cat-direct-expense", label: "Direct Expense", viewKey: "direct-expense", enabled: true, order: 0, isSystem: true },
+    { key: "cat-licenses", label: "Licenses", viewKey: "direct-expense", enabled: true, order: 1, isSystem: true },
+    { key: "cat-outside-services", label: "Outside Services", viewKey: "direct-expense", enabled: true, order: 2, isSystem: true },
+    { key: "cat-travel-meals", label: "Travel/Meals", viewKey: "direct-expense", enabled: true, order: 3, isSystem: true },
+    { key: "cat-other", label: "Other", viewKey: "direct-expense", enabled: true, order: 4, isSystem: true },
+    { key: "cat-project-material", label: "Project Material", viewKey: "capital", enabled: true, order: 0, isSystem: true },
+    { key: "cat-equipment", label: "Equipment", viewKey: "capital", enabled: true, order: 1, isSystem: true },
+    { key: "cat-labor", label: "Labor", viewKey: "labor", enabled: true, order: 0, isSystem: true },
+  ],
+  specifications: [],
+};
+
 export const DEFAULT_RISK_ASSESSMENT_CONFIG: RiskAssessmentConfig = {
   model: "gpt-4o",
   temperature: 0.3,
@@ -227,6 +352,7 @@ export const organizations = pgTable("organizations", {
   deactivatedBy: varchar("deactivated_by").references(() => users.id), // Who deactivated
   fridayAgentConfig: jsonb("friday_agent_config"), // Friday AI agent configuration (per-org)
   financialTypesConfig: jsonb("financial_scenarios_config").$type<FinancialTypesConfig>(), // AOP/FCST/ACT and custom financial types (column kept for back-compat)
+  costItemCategoriesConfig: jsonb("cost_item_categories_config").$type<CostItemCategoriesConfig>(), // Configurable Financial View / Cost Category / Cost Specification hierarchy
 });
 
 // Organization Members (Join table for users <-> organizations)

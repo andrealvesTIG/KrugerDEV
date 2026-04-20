@@ -517,6 +517,101 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
+  apiRoute(app, 'get', '/api/organizations/:id/cost-item-categories', {
+    tag: 'Organizations',
+    summary: 'Get organization cost item categories config',
+    parameters: [pathId()],
+    responses: { ...r200('Cost item categories config', { type: 'object' }), ...idRes },
+  }, async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const org = await storage.getOrganization(orgId);
+      if (!org) return res.status(404).json({ message: 'Organization not found' });
+      const { DEFAULT_COST_ITEM_CATEGORIES, costItemCategoriesConfigSchema, SYSTEM_FINANCIAL_VIEW_KEYS, SYSTEM_COST_CATEGORY_KEYS } = await import('@shared/schema');
+      // Defensively validate; on malformed/missing data, fall back to defaults.
+      const validated = costItemCategoriesConfigSchema.safeParse(org.costItemCategoriesConfig);
+      const stored = validated.success ? validated.data : DEFAULT_COST_ITEM_CATEGORIES;
+      // Make sure system entries are always present (renamable/disable-able only).
+      const sysViewKeys = new Set<string>(SYSTEM_FINANCIAL_VIEW_KEYS);
+      const sysCatKeys = new Set<string>(SYSTEM_COST_CATEGORY_KEYS);
+      const haveViewKeys = new Set(stored.views.map(v => v.key));
+      const mergedViews = [...stored.views];
+      for (const sv of DEFAULT_COST_ITEM_CATEGORIES.views) {
+        if (!haveViewKeys.has(sv.key)) mergedViews.push(sv);
+      }
+      const haveCatKeys = new Set(stored.categories.map(c => c.key));
+      const mergedCats = [...stored.categories];
+      for (const sc of DEFAULT_COST_ITEM_CATEGORIES.categories) {
+        if (!haveCatKeys.has(sc.key)) mergedCats.push(sc);
+      }
+      // Re-stamp isSystem on system entries.
+      const finalViews = mergedViews.map(v => ({ ...v, isSystem: sysViewKeys.has(v.key) ? true : (v.isSystem ?? false) }));
+      const finalCats = mergedCats.map(c => ({ ...c, isSystem: sysCatKeys.has(c.key) ? true : (c.isSystem ?? false) }));
+      res.json({ views: finalViews, categories: finalCats, specifications: stored.specifications });
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get cost item categories' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'put', '/api/organizations/:id/cost-item-categories', {
+    tag: 'Organizations',
+    summary: 'Update organization cost item categories config',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Cost item categories config updated', { type: 'object' }), ...updateRes },
+  }, async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const memberships = await storage.getUserOrganizations(userId!);
+      const membership = memberships.find(m => m.organizationId === orgId);
+      if (!membership || !['owner', 'org_admin'].includes(membership.role)) {
+        const [user] = await db.select().from(users).where(eq(users.id, userId!));
+        if (!hasAdminAccess(user)) {
+          return res.status(403).json({ message: 'Only admins can update cost item categories' });
+        }
+      }
+      const { costItemCategoriesConfigSchema, SYSTEM_FINANCIAL_VIEW_KEYS, SYSTEM_COST_CATEGORY_KEYS } = await import('@shared/schema');
+      const parsed = costItemCategoriesConfigSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Invalid cost item categories config', errors: parsed.error.flatten() });
+      }
+      const submittedViewKeys = new Set(parsed.data.views.map(v => v.key));
+      for (const sysKey of SYSTEM_FINANCIAL_VIEW_KEYS) {
+        if (!submittedViewKeys.has(sysKey)) {
+          return res.status(400).json({ message: `System financial view "${sysKey}" cannot be removed; disable it instead.` });
+        }
+      }
+      const submittedCatKeys = new Set(parsed.data.categories.map(c => c.key));
+      for (const sysKey of SYSTEM_COST_CATEGORY_KEYS) {
+        if (!submittedCatKeys.has(sysKey)) {
+          return res.status(400).json({ message: `System cost category "${sysKey}" cannot be removed; disable it instead.` });
+        }
+      }
+      // Force isSystem flag on system entries so the UI keeps treating them right.
+      const sysViewSet = new Set<string>(SYSTEM_FINANCIAL_VIEW_KEYS);
+      const sysCatSet = new Set<string>(SYSTEM_COST_CATEGORY_KEYS);
+      const normalized = {
+        views: parsed.data.views.map(v => ({ ...v, isSystem: sysViewSet.has(v.key) ? true : (v.isSystem ?? false) })),
+        categories: parsed.data.categories.map(c => ({ ...c, isSystem: sysCatSet.has(c.key) ? true : (c.isSystem ?? false) })),
+        specifications: parsed.data.specifications.map(s => ({ ...s, isSystem: s.isSystem ?? false })),
+      };
+      const updated = await storage.updateOrganization(orgId, { costItemCategoriesConfig: normalized });
+      res.json(updated.costItemCategoriesConfig ?? normalized);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update cost item categories' : classified.message });
+    }
+  });
+
   apiRoute(app, 'get', '/api/organizations/:id/integrations', {
     tag: 'Organizations',
     summary: 'Get organization integrations',

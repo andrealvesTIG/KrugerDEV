@@ -24,6 +24,7 @@ import { ReminderSettingsSection } from "@/components/settings/ReminderSettingsS
 import { RiskAssessmentConfigSection } from "@/components/settings/RiskAssessmentConfigSection";
 import { FridayAgentConfigSection } from "@/components/settings/FridayAgentConfigSection";
 import { FinancialTypesSection } from "@/components/settings/FinancialTypesSection";
+import { CostItemCategoriesSection } from "@/components/settings/CostItemCategoriesSection";
 import { DeveloperSection } from "@/components/settings/DeveloperSection";
 import { ActAsSection } from "@/components/settings/ActAsSection";
 import { ScoringCriteriaSection } from "@/components/settings/ScoringCriteriaSection";
@@ -214,8 +215,9 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         <TabsContent value="scheduling" className="mt-0">
           <SchedulingDefaultsSection organizationId={currentOrganization.id} />
         </TabsContent>
-        <TabsContent value="financial-types" className="mt-0">
+        <TabsContent value="financial-types" className="mt-0 space-y-6">
           <FinancialTypesSection organizationId={currentOrganization.id} />
+          <CostItemCategoriesSection organizationId={currentOrganization.id} />
         </TabsContent>
         <TabsContent value="modules" className="mt-0">
           <ModuleVisibilitySection organization={currentOrganization} />

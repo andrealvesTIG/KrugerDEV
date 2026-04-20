@@ -10,8 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronRight, ChevronDown, Plus, Pencil, Trash2, DollarSign, FileSpreadsheet, Maximize2, Minimize2, Search, ArrowUpDown, Lock } from "lucide-react";
-import type { FinancialEntry, FinancialTypesConfig, FinancialType } from "@shared/schema";
-import { DEFAULT_FINANCIAL_TYPES } from "@shared/schema";
+import type { FinancialEntry, FinancialTypesConfig, FinancialType, CostItemCategoriesConfig } from "@shared/schema";
+import { DEFAULT_FINANCIAL_TYPES, DEFAULT_COST_ITEM_CATEGORIES } from "@shared/schema";
 import { CompactCurrency } from "@/components/CompactCurrency";
 import { useOrganization } from "@/hooks/use-organization";
 
@@ -79,7 +79,10 @@ const MONTHS = [
   { num: 12, label: "Sep" },
 ];
 
-const CATEGORIES = [
+// Legacy free-form category dropdown — kept as-is for backward compatibility.
+// The new configurable hierarchy (Financial View → Cost Category → Cost
+// Specification) is sourced from the org's CostItemCategoriesConfig instead.
+const LEGACY_CATEGORIES = [
   "Direct Expense",
   "Licenses",
   "Outside Services",
@@ -89,8 +92,6 @@ const CATEGORIES = [
   "Equipment",
   "Other",
 ];
-
-const FINANCIAL_VIEWS = ["Capital", "Direct Expense", "Labor"];
 
 // ----- Tree types built from flat entries -----
 type RowType = "view" | "category" | "specification" | "item";
@@ -134,6 +135,7 @@ function buildGridRows(
   entries: FinancialEntry[],
   typeKeys: string[],
   expanded: Set<string>,
+  costConfig: CostItemCategoriesConfig,
 ): { rows: GridRow[]; grandTotalByType: Record<string, number> } {
   const emptyMonthly = () => {
     const obj: Record<string, number[]> = {};
@@ -210,20 +212,72 @@ function buildGridRows(
     return out;
   };
 
-  const sortedViews = Object.keys(tree).sort();
+  // Order Financial Views by configured order first; any view label that shows
+  // up in entries but isn't in config (renamed/disabled/legacy) appears at the
+  // end, alphabetically, so historical rows still render.
+  const enabledViewLabels = costConfig.views
+    .filter(v => v.enabled)
+    .sort((a, b) => a.order - b.order)
+    .map(v => v.label);
+  const presentViewLabels = Object.keys(tree);
+  const presentSet = new Set(presentViewLabels);
+  const orderedViews: string[] = [];
+  for (const lbl of enabledViewLabels) {
+    if (presentSet.has(lbl) && !orderedViews.includes(lbl)) orderedViews.push(lbl);
+  }
+  for (const lbl of presentViewLabels.sort()) {
+    if (!orderedViews.includes(lbl)) orderedViews.push(lbl);
+  }
+  // For category ordering within a view, use config order when matched by label.
+  const categoryOrderForView = (viewLabel: string): string[] => {
+    const view = costConfig.views.find(v => v.label === viewLabel);
+    if (!view) return [];
+    return costConfig.categories
+      .filter(c => c.viewKey === view.key && c.enabled)
+      .sort((a, b) => a.order - b.order)
+      .map(c => c.label);
+  };
+  const specificationOrderForCategory = (viewLabel: string, catLabel: string): string[] => {
+    const view = costConfig.views.find(v => v.label === viewLabel);
+    if (!view) return [];
+    const cat = costConfig.categories.find(c => c.viewKey === view.key && c.label === catLabel);
+    if (!cat) return [];
+    return costConfig.specifications
+      .filter(s => s.categoryKey === cat.key && s.enabled)
+      .sort((a, b) => a.order - b.order)
+      .map(s => s.label);
+  };
+
+  const sortedViews = orderedViews;
   for (const v of sortedViews) {
     const viewKey = `view::${v}`;
     const viewMonthly = emptyMonthly();
     const viewTotals = emptyTotal();
 
-    const sortedCats = Object.keys(tree[v]).sort();
+    const presentCats = Object.keys(tree[v]);
+    const catOrder = categoryOrderForView(v);
+    const sortedCats: string[] = [];
+    for (const lbl of catOrder) {
+      if (presentCats.includes(lbl) && !sortedCats.includes(lbl)) sortedCats.push(lbl);
+    }
+    for (const lbl of presentCats.sort()) {
+      if (!sortedCats.includes(lbl)) sortedCats.push(lbl);
+    }
     const catRows: GridRow[] = [];
     for (const c of sortedCats) {
       const catKey = `${viewKey}::cat::${c}`;
       const catMonthly = emptyMonthly();
       const catTotals = emptyTotal();
 
-      const sortedSpecs = Object.keys(tree[v][c]).sort();
+      const presentSpecs = Object.keys(tree[v][c]);
+      const specOrder = specificationOrderForCategory(v, c);
+      const sortedSpecs: string[] = [];
+      for (const lbl of specOrder) {
+        if (presentSpecs.includes(lbl) && !sortedSpecs.includes(lbl)) sortedSpecs.push(lbl);
+      }
+      for (const lbl of presentSpecs.sort()) {
+        if (!sortedSpecs.includes(lbl)) sortedSpecs.push(lbl);
+      }
       const specRows: GridRow[] = [];
       for (const s of sortedSpecs) {
         const specKey = `${catKey}::spec::${s}`;
@@ -309,6 +363,37 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     queryKey: ["/api/organizations", orgId, "financial-types"],
     enabled: !!orgId,
   });
+
+  // Configurable Financial View / Cost Category / Cost Specification hierarchy
+  // (managed in Org Settings → Financials → Cost Item Categories).
+  const { data: costCatConfig } = useQuery<CostItemCategoriesConfig>({
+    queryKey: ["/api/organizations", orgId, "cost-item-categories"],
+    enabled: !!orgId,
+  });
+  const costConfig: CostItemCategoriesConfig = useMemo(
+    () => costCatConfig ?? DEFAULT_COST_ITEM_CATEGORIES,
+    [costCatConfig],
+  );
+  const enabledViews = useMemo(
+    () => [...costConfig.views].filter(v => v.enabled).sort((a, b) => a.order - b.order),
+    [costConfig],
+  );
+  const enabledCategoriesByViewLabel = (viewLabel: string) => {
+    const view = costConfig.views.find(v => v.label === viewLabel);
+    if (!view) return [];
+    return costConfig.categories
+      .filter(c => c.viewKey === view.key && c.enabled)
+      .sort((a, b) => a.order - b.order);
+  };
+  const enabledSpecsByCategoryLabel = (viewLabel: string, categoryLabel: string) => {
+    const view = costConfig.views.find(v => v.label === viewLabel);
+    if (!view) return [];
+    const cat = costConfig.categories.find(c => c.viewKey === view.key && c.label === categoryLabel);
+    if (!cat) return [];
+    return costConfig.specifications
+      .filter(s => s.categoryKey === cat.key && s.enabled)
+      .sort((a, b) => a.order - b.order);
+  };
 
   // Server-defined scenarios (which exist + editable flag are org-wide).
   // Visibility (enabled flag) is overridden per-browser via localStorage so each
@@ -504,8 +589,8 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   }, [entries, searchQuery]);
 
   const { rows, grandTotalByType } = useMemo(
-    () => buildGridRows(filteredEntries, enabledTypeKeys, expanded),
-    [filteredEntries, enabledTypeKeys, expanded],
+    () => buildGridRows(filteredEntries, enabledTypeKeys, expanded, costConfig),
+    [filteredEntries, enabledTypeKeys, expanded, costConfig],
   );
 
   // Map each fiscal-month index → calendar (year, month). FY starts in Oct,
@@ -548,7 +633,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   const resetForm = () => {
     setFormData({
       itemName: "",
-      financialView: "Capital",
+      financialView: enabledViews[0]?.label ?? "Capital",
       costCategory: "",
       costSpecification: "",
       category: "",
@@ -570,7 +655,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     setEditingItem(row);
     setFormData({
       itemName: row.itemName || "",
-      financialView: sample?.financialView || "Capital",
+      financialView: sample?.financialView || enabledViews[0]?.label || "Capital",
       costCategory: sample?.costCategory || "",
       costSpecification: sample?.costSpecification || "",
       category: row.category || "",
@@ -1363,40 +1448,82 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                 <Label htmlFor="financialView">Financial View</Label>
                 <Select
                   value={formData.financialView}
-                  onValueChange={(v) => setFormData({ ...formData, financialView: v })}
+                  onValueChange={(v) => setFormData({ ...formData, financialView: v, costCategory: "", costSpecification: "" })}
                 >
                   <SelectTrigger data-testid="select-financial-view">
                     <SelectValue placeholder="Select view" />
                   </SelectTrigger>
                   <SelectContent>
-                    {FINANCIAL_VIEWS.map((v) => (
-                      <SelectItem key={v} value={v}>{v}</SelectItem>
+                    {enabledViews.map((v) => (
+                      <SelectItem key={v.key} value={v.label}>{v.label}</SelectItem>
                     ))}
+                    {/* Preserve a non-config view label when editing legacy items. */}
+                    {formData.financialView && !enabledViews.some(v => v.label === formData.financialView) && (
+                      <SelectItem value={formData.financialView}>{formData.financialView} (legacy)</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="costCategory">Cost Category</Label>
-                <Input
-                  id="costCategory"
+                <Select
                   value={formData.costCategory}
-                  onChange={(e) => setFormData({ ...formData, costCategory: e.target.value })}
-                  placeholder="e.g., Infrastructure"
-                  data-testid="input-cost-category"
-                />
+                  onValueChange={(v) => setFormData({ ...formData, costCategory: v, costSpecification: "" })}
+                >
+                  <SelectTrigger data-testid="select-cost-category">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {enabledCategoriesByViewLabel(formData.financialView).map((c) => (
+                      <SelectItem key={c.key} value={c.label}>{c.label}</SelectItem>
+                    ))}
+                    {formData.costCategory && !enabledCategoriesByViewLabel(formData.financialView).some(c => c.label === formData.costCategory) && (
+                      <SelectItem value={formData.costCategory}>{formData.costCategory} (legacy)</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="costSpecification">Cost Specification</Label>
-                <Input
-                  id="costSpecification"
-                  value={formData.costSpecification}
-                  onChange={(e) => setFormData({ ...formData, costSpecification: e.target.value })}
-                  placeholder="e.g., Production cluster"
-                  data-testid="input-cost-specification"
-                />
+                {(() => {
+                  const specs = enabledSpecsByCategoryLabel(formData.financialView, formData.costCategory);
+                  const hasConfigured = specs.length > 0
+                    || (formData.costSpecification && !specs.some(s => s.label === formData.costSpecification));
+                  if (!hasConfigured) {
+                    // No configured specifications for this category — fall back
+                    // to free text so the workflow doesn't break.
+                    return (
+                      <Input
+                        id="costSpecification"
+                        value={formData.costSpecification}
+                        onChange={(e) => setFormData({ ...formData, costSpecification: e.target.value })}
+                        placeholder="e.g., Production cluster"
+                        data-testid="input-cost-specification"
+                      />
+                    );
+                  }
+                  return (
+                    <Select
+                      value={formData.costSpecification}
+                      onValueChange={(v) => setFormData({ ...formData, costSpecification: v })}
+                    >
+                      <SelectTrigger data-testid="select-cost-specification">
+                        <SelectValue placeholder="Select specification" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {specs.map((s) => (
+                          <SelectItem key={s.key} value={s.label}>{s.label}</SelectItem>
+                        ))}
+                        {formData.costSpecification && !specs.some(s => s.label === formData.costSpecification) && (
+                          <SelectItem value={formData.costSpecification}>{formData.costSpecification} (legacy)</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  );
+                })()}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="category">Category (legacy)</Label>
@@ -1408,7 +1535,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                     <SelectValue placeholder="Optional" />
                   </SelectTrigger>
                   <SelectContent>
-                    {CATEGORIES.map((c) => (
+                    {LEGACY_CATEGORIES.map((c) => (
                       <SelectItem key={c} value={c}>{c}</SelectItem>
                     ))}
                   </SelectContent>
