@@ -169,7 +169,7 @@ export const SYSTEM_FINANCIAL_SCENARIO_KEYS = ["aop", "fcst", "act"] as const;
 
 export const DEFAULT_FINANCIAL_SCENARIOS: FinancialScenariosConfig = {
   scenarios: [
-    { key: "aop", label: "AOP", enabled: true, editable: true, isSystem: true },
+    { key: "aop", label: "AOP", enabled: true, editable: false, isSystem: true },
     { key: "fcst", label: "FCST", enabled: true, editable: true, isSystem: true },
     { key: "act", label: "ACT", enabled: true, editable: true, isSystem: true },
   ],
