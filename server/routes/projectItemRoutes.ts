@@ -2808,6 +2808,31 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         return res.status(400).json({ message: "CSV file is empty or has no data rows" });
       }
 
+      // Detect custom field columns. The exporter emits headers like
+      // "Project: <Field Name>" and "Task: <Field Name>". Match them against
+      // the organization's custom field definitions by name (case-insensitive).
+      const headerNames: string[] = (parseResult.meta?.fields as string[] | undefined) ?? Object.keys(rows[0] ?? {});
+      const allCfDefs = project.organizationId
+        ? await storage.getCustomFieldDefinitions(project.organizationId)
+        : [];
+      const taskDefByName = new Map<string, typeof allCfDefs[0]>();
+      const projectDefByName = new Map<string, typeof allCfDefs[0]>();
+      for (const def of allCfDefs) {
+        if (def.entityType === 'task') taskDefByName.set(def.name.toLowerCase().trim(), def);
+        else if (def.entityType === 'project') projectDefByName.set(def.name.toLowerCase().trim(), def);
+      }
+      // header -> { def, scope }
+      const cfHeaderMap = new Map<string, { def: typeof allCfDefs[0]; scope: 'task' | 'project' }>();
+      for (const h of headerNames) {
+        const m = h.match(/^\s*(Project|Task)\s*:\s*(.+?)\s*$/i);
+        if (!m) continue;
+        const scope = m[1].toLowerCase() === 'project' ? 'project' : 'task';
+        const fieldName = m[2].toLowerCase().trim();
+        const def = scope === 'task' ? taskDefByName.get(fieldName) : projectDefByName.get(fieldName);
+        if (def) cfHeaderMap.set(h, { def, scope });
+      }
+      let customFieldValuesUpdated = 0;
+
       const existingTasks = await storage.getTasksByProject(projectId);
       const existingByWbs = new Map<string, typeof existingTasks[0]>();
       const existingByName = new Map<string, typeof existingTasks[0][]>();
@@ -2857,6 +2882,24 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         const csvIndex = parseInt((row['Index'] || '').trim(), 10);
 
         if (!name || type === 'Project') {
+          // The project summary row carries project-level custom field values.
+          if (type === 'Project') {
+            for (const [header, info] of cfHeaderMap) {
+              if (info.scope !== 'project') continue;
+              const raw = (row[header] ?? '').trim();
+              if (raw === '') continue;
+              try {
+                await storage.upsertProjectCustomFieldValue({
+                  projectId,
+                  fieldDefinitionId: info.def.id,
+                  value: raw,
+                });
+                customFieldValuesUpdated++;
+              } catch (cfErr) {
+                console.error('Error upserting project custom field value:', cfErr);
+              }
+            }
+          }
           skipped++;
           continue;
         }
@@ -2960,6 +3003,29 @@ Format your response as a numbered list with clear, concise strategies. Do not i
           if (predecessorsStr) pendingDependencies.push({ csvIndex, predecessorsStr });
           if (parentTaskIndexStr) pendingParentLinks.push({ csvIndex, parentTaskIndexStr });
         }
+
+        // Persist task-level custom field values for this row (covers both
+        // newly created and updated tasks).
+        if (cfHeaderMap.size > 0) {
+          const taskIdForCf = (existingTask?.id) ?? (!isNaN(csvIndex) ? csvIndexToTaskId.get(csvIndex) : undefined);
+          if (taskIdForCf) {
+            for (const [header, info] of cfHeaderMap) {
+              if (info.scope !== 'task') continue;
+              const raw = (row[header] ?? '').trim();
+              if (raw === '') continue;
+              try {
+                await storage.upsertTaskCustomFieldValue({
+                  taskId: taskIdForCf,
+                  fieldDefinitionId: info.def.id,
+                  value: raw,
+                });
+                customFieldValuesUpdated++;
+              } catch (cfErr) {
+                console.error('Error upserting task custom field value:', cfErr);
+              }
+            }
+          }
+        }
       }
 
       let dependenciesCreated = 0;
@@ -3029,12 +3095,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
 
       res.json({
-        message: `Import complete: ${created} tasks created, ${updated} tasks updated, ${skipped} rows skipped, ${dependenciesCreated} dependencies created, ${parentLinksSet} parent links set`,
+        message: `Import complete: ${created} tasks created, ${updated} tasks updated, ${skipped} rows skipped, ${dependenciesCreated} dependencies created, ${parentLinksSet} parent links set, ${customFieldValuesUpdated} custom field values applied`,
         created,
         updated,
         skipped,
         dependenciesCreated,
         parentLinksSet,
+        customFieldValuesUpdated,
       });
     } catch (err) {
       console.error('CSV import error:', err);
