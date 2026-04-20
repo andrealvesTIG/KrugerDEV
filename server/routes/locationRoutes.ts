@@ -54,6 +54,76 @@ function getUserIdFromRequest(req: any): string | null {
 }
 
 export function registerLocationRoutes(app: Express) {
+  apiRoute(app, 'get', '/api/geocode/suggest', {
+    tag: 'Geocoding',
+    summary: 'Get up to 5 address suggestions for a query (Nominatim)',
+    parameters: [qStr('q', true, 'Partial address')],
+    responses: {
+      ...r200('Suggestions', {
+        type: 'object',
+        properties: {
+          results: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                displayName: { type: 'string' },
+                latitude: { type: 'number' },
+                longitude: { type: 'number' },
+                addressLine1: { type: 'string' },
+                city: { type: 'string' },
+                region: { type: 'string' },
+                country: { type: 'string' },
+                postalCode: { type: 'string' },
+              },
+            },
+          },
+        },
+      }),
+      ...authRes,
+      ...e400,
+    },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const q = String(req.query.q || '').trim();
+      if (q.length < 3) return res.json({ results: [] });
+      if (q.length > 200) return res.status(400).json({ message: 'Query too long' });
+
+      await rateLimit();
+      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&q=${encodeURIComponent(q)}`;
+      const resp = await fetch(url, {
+        headers: {
+          'User-Agent': 'FridayReport.AI/1.0 (project location autocomplete)',
+          'Accept': 'application/json',
+        },
+      });
+      if (!resp.ok) return res.status(502).json({ message: `Suggest failed (${resp.status})` });
+      const data = await resp.json() as Array<any>;
+      const results = (Array.isArray(data) ? data : []).map((r) => {
+        const a = r.address || {};
+        const houseNumber = a.house_number || '';
+        const road = a.road || a.pedestrian || a.footway || a.path || '';
+        const addressLine1 = [houseNumber, road].filter(Boolean).join(' ').trim();
+        return {
+          displayName: r.display_name || '',
+          latitude: parseFloat(r.lat),
+          longitude: parseFloat(r.lon),
+          addressLine1,
+          city: a.city || a.town || a.village || a.hamlet || a.suburb || '',
+          region: a.state || a.region || a.state_district || '',
+          country: a.country || '',
+          postalCode: a.postcode || '',
+        };
+      });
+      res.json({ results });
+    } catch (err: any) {
+      console.error('[geocode/suggest] Error:', err?.message || err);
+      res.status(500).json({ message: 'Suggest failed' });
+    }
+  });
+
   apiRoute(app, 'get', '/api/geocode', {
     tag: 'Geocoding',
     summary: 'Geocode an address to lat/lng using OpenStreetMap Nominatim',
