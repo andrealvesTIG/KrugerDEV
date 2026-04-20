@@ -831,7 +831,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                     const stickyBgClass =
                       row.type === "view" ? "bg-muted font-semibold" :
                       row.type === "category" ? "bg-muted font-medium" :
-                      row.type === "specification" ? "bg-card" :
+                      row.type === "specification" ? "bg-secondary" :
                       "bg-card";
                     const stickyHover = "group-hover:bg-accent";
                     return (
