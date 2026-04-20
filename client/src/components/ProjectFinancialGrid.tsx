@@ -20,6 +20,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { FinancialEntry, FinancialTypesConfig, FinancialType, CostItemCategoriesConfig } from "@shared/schema";
 import { DEFAULT_FINANCIAL_TYPES, DEFAULT_COST_ITEM_CATEGORIES } from "@shared/schema";
+import {
+  buildFiscalMonths,
+  buildFiscalQuarters,
+  buildFiscalYearColumn,
+  DEFAULT_FISCAL_YEAR_START_MONTH,
+  normalizeFiscalYearStartMonth,
+} from "@shared/lib/fiscalCalendar";
 import { CompactCurrency } from "@/components/CompactCurrency";
 import { useOrganization } from "@/hooks/use-organization";
 import { useAuth } from "@/hooks/use-auth";
@@ -80,20 +87,9 @@ function getTypePalette(key: string) {
   return FALLBACK_TYPE_PALETTES[Math.abs(h) % FALLBACK_TYPE_PALETTES.length];
 }
 
-const MONTHS = [
-  { num: 1, label: "Oct" },
-  { num: 2, label: "Nov" },
-  { num: 3, label: "Dec" },
-  { num: 4, label: "Jan" },
-  { num: 5, label: "Feb" },
-  { num: 6, label: "Mar" },
-  { num: 7, label: "Apr" },
-  { num: 8, label: "May" },
-  { num: 9, label: "Jun" },
-  { num: 10, label: "Jul" },
-  { num: 11, label: "Aug" },
-  { num: 12, label: "Sep" },
-];
+// Fiscal-month layout (12 entries, M1..M12) is derived per render from the
+// org's `fiscalYearStartMonth` so labels and calendar mappings always reflect
+// the org setting. Storage still uses month numbers 1..12.
 
 // Legacy free-form category list — no longer surfaced in the UI. The
 // configurable Financial View → Cost Category → Cost Specification
@@ -504,6 +500,15 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   const isMonthView = viewMode === "month";
 
   const orgId = currentOrganization?.id;
+  // Org-configured fiscal year start month (1..12). Falls back to October so
+  // existing organizations behave exactly as before until an admin changes it.
+  const fiscalYearStartMonth = normalizeFiscalYearStartMonth(
+    currentOrganization?.fiscalYearStartMonth ?? DEFAULT_FISCAL_YEAR_START_MONTH,
+  );
+  const monthsLayout = useMemo(
+    () => buildFiscalMonths(fiscalYear, fiscalYearStartMonth),
+    [fiscalYear, fiscalYearStartMonth],
+  );
   const { data: typesConfig } = useQuery<FinancialTypesConfig>({
     queryKey: ["/api/organizations", orgId, "financial-types"],
     enabled: !!orgId,
@@ -1091,14 +1096,13 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     [filteredEntries, aggregationTypeKeys, expanded, costConfig],
   );
 
-  // Map each fiscal-month index → calendar (year, month). FY starts in Oct,
-  // so idx 0..2 belong to fiscalYear-1 and idx 3..11 belong to fiscalYear.
-  const monthCalendar = useMemo(() => {
-    return MONTHS.map((_, i) => {
-      if (i < 3) return { year: fiscalYear - 1, month: 10 + i };
-      return { year: fiscalYear, month: i - 2 };
-    });
-  }, [fiscalYear]);
+  // Map each fiscal-month index → calendar (year, month). The starting month
+  // is org-configurable; entries with a calendar month >= start fall in the
+  // prior calendar year (FY label = year FY ends in).
+  const monthCalendar = useMemo(
+    () => monthsLayout.map(m => ({ year: m.year, month: m.month })),
+    [monthsLayout],
+  );
 
   // Highlight today's column (only when today falls inside the displayed FY).
   const currentMonthIdx = useMemo(() => {
@@ -1178,14 +1182,18 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   const fyPosition: FyPosition = useMemo(() => {
     if (currentMonthIdx >= 0) return "current";
     // currentMonthIdx is -1 when "today" is outside this fiscal year.
-    // Compare today vs FY start (Oct 1 of fiscalYear - 1) and FY end (Sep 30 of fiscalYear).
+    // Derive the FY's calendar bounds from the fiscal-month layout so the
+    // classification respects the org's configured start month.
+    const first = monthsLayout[0];
+    const last = monthsLayout[monthsLayout.length - 1];
     const today = new Date();
-    const fyStart = new Date(fiscalYear - 1, 9, 1); // Oct = month 9
-    const fyEnd = new Date(fiscalYear, 8, 30, 23, 59, 59);
+    const fyStart = new Date(first.year, first.month - 1, 1);
+    // End-of-month for the FY's last calendar month (day 0 of next month).
+    const fyEnd = new Date(last.year, last.month, 0, 23, 59, 59);
     if (today < fyStart) return "future";
     if (today > fyEnd) return "past";
     return "current";
-  }, [currentMonthIdx, fiscalYear]);
+  }, [currentMonthIdx, monthsLayout]);
 
   const grandVariance = useMemo(
     () => computeVariance(grandMonthly, grandTotalByType, varianceMode === "off" ? "budget" : varianceMode, currentMonthIdx, fyPosition),
@@ -1255,30 +1263,19 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   };
   const periodCols: PeriodCol[] = useMemo(() => {
     if (viewMode === "quarter") {
-      return [
-        { key: "q1", label: "Q1", hint: "Oct–Dec", monthIndices: [0, 1, 2], year: fiscalYear - 1 },
-        { key: "q2", label: "Q2", hint: "Jan–Mar", monthIndices: [3, 4, 5], year: fiscalYear },
-        { key: "q3", label: "Q3", hint: "Apr–Jun", monthIndices: [6, 7, 8], year: fiscalYear },
-        { key: "q4", label: "Q4", hint: "Jul–Sep", monthIndices: [9, 10, 11], year: fiscalYear },
-      ];
+      return buildFiscalQuarters(fiscalYear, fiscalYearStartMonth);
     }
     if (viewMode === "year") {
-      return [{
-        key: "fy",
-        label: `FY ${fiscalYear}`,
-        hint: "Oct–Sep",
-        monthIndices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-        year: fiscalYear,
-      }];
+      return [buildFiscalYearColumn(fiscalYear, fiscalYearStartMonth)];
     }
-    return MONTHS.map((m, i) => ({
-      key: `m${m.num}`,
+    return monthsLayout.map((m, i) => ({
+      key: `m${m.monthNum}`,
       label: m.label,
       hint: "",
       monthIndices: [i],
-      year: monthCalendar[i].year,
+      year: m.year,
     }));
-  }, [viewMode, fiscalYear, monthCalendar]);
+  }, [viewMode, fiscalYear, fiscalYearStartMonth, monthsLayout]);
 
   // Year-row groupings derived from the active period columns.
   const periodYearGroups = useMemo(() => {
@@ -3050,10 +3047,10 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                                 </div>
                               );
                             }
-                            const m = MONTHS[p.monthIndices[0]];
+                            const m = monthsLayout[p.monthIndices[0]];
                             const isEditing =
                               editingCell?.itemKey === row.itemKey &&
-                              editingCell?.month === m.num &&
+                              editingCell?.month === m.monthNum &&
                               editingCell?.typeKey === s.key;
                             const editable = s.editable;
                             return (
@@ -3088,7 +3085,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                                     // typed value length (see gridTemplate build),
                                     // so the input can just fill its cell.
                                     className="h-6 w-full text-[11px] text-center px-1 py-0 tabular-nums ring-2 ring-primary/40 bg-card"
-                                    data-testid={`input-${s.key}-m${m.num}-${row.itemKey}`}
+                                    data-testid={`input-${s.key}-m${m.monthNum}-${row.itemKey}`}
                                   />
                                 ) : (
                                   <div
@@ -3098,7 +3095,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                                         : "text-muted-foreground"
                                     } ${isActiveSel ? "ring-2 ring-inset ring-blue-600 dark:ring-blue-400" : ""}`}
                                     onDoubleClick={() => editable && handleCellClick(row, p.monthIndices[0], s.key)}
-                                    data-testid={`cell-${s.key}-m${m.num}-${row.itemKey}`}
+                                    data-testid={`cell-${s.key}-m${m.monthNum}-${row.itemKey}`}
                                     {...selMouseProps}
                                   >
                                     {value !== 0 ? formatCurrency(value) : <span className="text-muted-foreground/30">—</span>}

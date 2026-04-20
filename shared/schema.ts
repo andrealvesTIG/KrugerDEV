@@ -416,6 +416,7 @@ export const organizations = pgTable("organizations", {
   fridayAgentConfig: jsonb("friday_agent_config"), // Friday AI agent configuration (per-org)
   financialTypesConfig: jsonb("financial_scenarios_config").$type<FinancialTypesConfig>(), // AOP/FCST/ACT and custom financial types (column kept for back-compat)
   costItemCategoriesConfig: jsonb("cost_item_categories_config").$type<CostItemCategoriesConfig>(), // Configurable Financial View / Cost Category / Cost Specification hierarchy
+  fiscalYearStartMonth: integer("fiscal_year_start_month").default(10).notNull(), // 1..12 calendar month that is M1 of the org's fiscal year (default 10 = October)
 });
 
 // Organization Members (Join table for users <-> organizations)
@@ -1534,7 +1535,9 @@ export const costItems = pgTable("cost_items", {
   aopTotal: numeric("aop_total").default("0"), // Annual Operating Plan (original budget)
   fcstTotal: numeric("fcst_total").default("0"), // Forecast total
   actTotal: numeric("act_total").default("0"), // Actual total
-  // Monthly AOP (fiscal year Oct-Sep: M1=Oct, M2=Nov, ..., M12=Sep)
+  // Monthly AOP. M1..M12 are the 12 months of the org's fiscal year. The
+  // calendar month of M1 is set on `organizations.fiscalYearStartMonth`
+  // (default 10 = October, in which case M1=Oct .. M12=Sep).
   aopM1: numeric("aop_m1").default("0"),
   aopM2: numeric("aop_m2").default("0"),
   aopM3: numeric("aop_m3").default("0"),
@@ -1614,7 +1617,7 @@ export const financialEntries = pgTable("financial_entries", {
   projectId: integer("project_id").references(() => projects.id).notNull(),
   fiscalYear: integer("fiscal_year").notNull(),
   scenario: text("scenario").notNull(), // "aop" | "fcst" | "act"
-  month: integer("month").notNull(),    // 1..12 (M1=Oct .. M12=Sep)
+  month: integer("month").notNull(),    // 1..12 (M1 = first month of the org's fiscal year, configurable via organizations.fiscalYearStartMonth; default M1 = Oct)
   amount: numeric("amount").default("0").notNull(),
   // Logical-item identity (shared by every cell of one item)
   itemKey: text("item_key").notNull(),

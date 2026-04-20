@@ -24,6 +24,7 @@ import { ReminderSettingsSection } from "@/components/settings/ReminderSettingsS
 import { RiskAssessmentConfigSection } from "@/components/settings/RiskAssessmentConfigSection";
 import { FridayAgentConfigSection } from "@/components/settings/FridayAgentConfigSection";
 import { FinancialTypesSection } from "@/components/settings/FinancialTypesSection";
+import { FiscalYearStartSection } from "@/components/settings/FiscalYearStartSection";
 import { CostItemCategoriesSection } from "@/components/settings/CostItemCategoriesSection";
 import { DeveloperSection } from "@/components/settings/DeveloperSection";
 import { ActAsSection } from "@/components/settings/ActAsSection";
@@ -216,18 +217,21 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
           <SchedulingDefaultsSection organizationId={currentOrganization.id} />
         </TabsContent>
         <TabsContent value="financial-types" className="mt-0">
-          <Tabs defaultValue="types" className="w-full">
-            <TabsList className="mb-4">
-              <TabsTrigger value="types" data-testid="tab-financial-types">Financial Types</TabsTrigger>
-              <TabsTrigger value="categories" data-testid="tab-cost-item-categories">Cost Item Categories</TabsTrigger>
-            </TabsList>
-            <TabsContent value="types" className="mt-0">
-              <FinancialTypesSection organizationId={currentOrganization.id} />
-            </TabsContent>
-            <TabsContent value="categories" className="mt-0">
-              <CostItemCategoriesSection organizationId={currentOrganization.id} />
-            </TabsContent>
-          </Tabs>
+          <div className="space-y-4">
+            <FiscalYearStartSection organization={currentOrganization} />
+            <Tabs defaultValue="types" className="w-full">
+              <TabsList className="mb-4">
+                <TabsTrigger value="types" data-testid="tab-financial-types">Financial Types</TabsTrigger>
+                <TabsTrigger value="categories" data-testid="tab-cost-item-categories">Cost Item Categories</TabsTrigger>
+              </TabsList>
+              <TabsContent value="types" className="mt-0">
+                <FinancialTypesSection organizationId={currentOrganization.id} />
+              </TabsContent>
+              <TabsContent value="categories" className="mt-0">
+                <CostItemCategoriesSection organizationId={currentOrganization.id} />
+              </TabsContent>
+            </Tabs>
+          </div>
         </TabsContent>
         <TabsContent value="modules" className="mt-0">
           <ModuleVisibilitySection organization={currentOrganization} />

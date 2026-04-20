@@ -180,6 +180,7 @@ export function generateOpenApiSchemas(): Record<string, any> {
         billingHidden: { description: 'Whether billing section is hidden' },
         riskAssessmentConfig: { description: 'AI risk assessment configuration (model, temperature, thresholds, etc.)' },
         schedulingDefaults: { description: 'Default scheduling settings (dependency type, lag days)', properties: { defaultDependencyType: { type: 'string', enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'] }, defaultLagDays: { type: 'integer' }, enforceDefaults: { type: 'boolean' } } },
+        fiscalYearStartMonth: { description: "Calendar month (1=Jan .. 12=Dec) that is M1 of the organization's fiscal year. Re-interprets `financial_entries.month` for labels and groupings (default 10 = October).", type: 'integer', minimum: 1, maximum: 12 },
         timesheetPolicies: { omit: true },
         timezone: { omit: true },
         deactivatedAt: { description: 'Soft delete timestamp' },
@@ -707,7 +708,7 @@ export function generateOpenApiSchemas(): Record<string, any> {
     }),
 
     CostItem: drizzleTableToOpenApiSchema(costItems, {
-      description: 'Detailed cost tracking with monthly forecast/actual breakdown (fiscal year Oct-Sep: M1=Oct through M12=Sep).',
+      description: "Detailed cost tracking with monthly forecast/actual breakdown. M1..M12 are the months of the organization's fiscal year, where M1 is the calendar month set on the organization's `fiscalYearStartMonth` (default 10 = October).",
       overrides: {
         parentId: { description: 'Self-reference for hierarchy (null = root level)' },
         category: { description: 'Direct Expense, Licenses, Outside Services, Travel/Meals, Project Material, etc.' },

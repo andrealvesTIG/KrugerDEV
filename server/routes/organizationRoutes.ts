@@ -158,8 +158,16 @@ export function registerOrganizationRoutes(app: Express) {
         return res.status(403).json({ message: 'Only organization admins can update settings' });
       }
       
-      const { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl, timezone } = req.body;
-      const updated = await storage.updateOrganization(orgId, { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl, timezone });
+      const { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl, timezone, fiscalYearStartMonth } = req.body;
+      const updates: Record<string, unknown> = { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl, timezone };
+      if (fiscalYearStartMonth !== undefined) {
+        const n = Number(fiscalYearStartMonth);
+        if (!Number.isInteger(n) || n < 1 || n > 12) {
+          return res.status(400).json({ message: 'fiscalYearStartMonth must be an integer 1..12' });
+        }
+        updates.fiscalYearStartMonth = n;
+      }
+      const updated = await storage.updateOrganization(orgId, updates);
       res.json(updated);
     } catch (err) {
       const classified = classifyError(err);
