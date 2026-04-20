@@ -920,7 +920,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   // an `undone` flag. canUndo = at least one active row exists; canRedo = at
   // least one undone row exists. Any new edit on the server clears the redo
   // stack, so canRedo flips back to false naturally on the next refetch.
-  const { data: history = [], isLoading: historyLoading } = useQuery<RawChangeLog[]>({
+  const { data: history = [], isLoading: historyLoading, refetch: refetchHistory } = useQuery<RawChangeLog[]>({
     queryKey: ["/api/projects", projectId, "financial-entries", "history"],
     queryFn: async () => {
       const res = await fetch(`/api/projects/${projectId}/financial-entries/history`);
@@ -2037,7 +2037,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
             variant="outline"
             size="sm"
             className="h-9"
-            onClick={() => setHistoryPanelOpen(true)}
+            onClick={() => { setHistoryPanelOpen(true); refetchHistory(); }}
             title="View change history (who edited what and when)"
             aria-label="View change history"
             data-testid="button-open-history"
@@ -3398,6 +3398,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                                         fiscalYear,
                                         anchorRect: (ev.currentTarget as HTMLElement).getBoundingClientRect(),
                                       });
+                                      refetchHistory();
                                     }}
                                     data-testid={`cell-${s.key}-m${m.monthNum}-${row.itemKey}`}
                                     {...selMouseProps}
