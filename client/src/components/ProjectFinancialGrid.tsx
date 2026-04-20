@@ -651,6 +651,27 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     setDialogOpen(true);
   };
 
+  // Open the Add Item dialog pre-filled with another row's grouping
+  // fields (financial view / cost category / specification / category) so
+  // the user only has to type the new item's name. Item-specific fields
+  // (name, WBS, comments) start empty, and editingItem is cleared so the
+  // dialog submits via createItemMutation, not updateItemMutation.
+  const openAddSiblingDialog = (row: GridRow) => {
+    if (row.type !== "item" || !row.itemKey) return;
+    const sample = entries.find(e => e.itemKey === row.itemKey);
+    setEditingItem(null);
+    setFormData({
+      itemName: "",
+      financialView: sample?.financialView || enabledViews[0]?.label || "Capital",
+      costCategory: sample?.costCategory || "",
+      costSpecification: sample?.costSpecification || "",
+      category: row.category || "",
+      wbs: "",
+      comments: "",
+    });
+    setDialogOpen(true);
+  };
+
   const openEditDialog = (row: GridRow) => {
     if (row.type !== "item" || !row.itemKey) return;
     // Look up the source entry to recover dimensions
@@ -1329,6 +1350,17 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                           )}
                           {isItem && !(editingText?.itemKey === row.itemKey && editingText?.field === "itemName") && (
                             <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => openAddSiblingDialog(row)}
+                                title="Add another item with the same categories"
+                                aria-label="Add another item with the same categories"
+                                data-testid={`button-add-sibling-${row.itemKey}`}
+                              >
+                                <Plus className="h-3 w-3" />
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
