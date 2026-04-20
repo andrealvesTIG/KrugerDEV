@@ -754,6 +754,35 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     },
   });
 
+  // Active lockdown map: { financialTypeKey → ISO lockdown date (YYYY-MM-DD) }.
+  // A cell is locked when its calendar month-end is on or before this date.
+  const { data: lockdownMap = {} } = useQuery<Record<string, string>>({
+    queryKey: ["/api/projects", projectId, "financial-lockdowns"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/financial-lockdowns`);
+      if (!res.ok) throw new Error("Failed to fetch lockdowns");
+      return res.json();
+    },
+  });
+
+  // Convert (calendar year, calendar month) → ISO month-end YYYY-MM-DD so it
+  // can be lex-compared against lockdown dates.
+  const calendarMonthEndIso = (year: number, month: number): string => {
+    const d = new Date(Date.UTC(year, month, 0));
+    const yyyy = d.getUTCFullYear().toString().padStart(4, "0");
+    const mm = (d.getUTCMonth() + 1).toString().padStart(2, "0");
+    const dd = d.getUTCDate().toString().padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const isCellLocked = (typeKey: string, monthIdx: number): boolean => {
+    const lockedAt = lockdownMap[typeKey];
+    if (!lockedAt) return false;
+    const mc = monthCalendar[monthIdx];
+    if (!mc) return false;
+    return calendarMonthEndIso(mc.year, mc.month) <= lockedAt;
+  };
+
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "financial-entries"] });
   };
@@ -1813,6 +1842,36 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
     }
 
     if (nextRow === rowIdx && nextSubCol === subColIdx) return null;
+
+    // Skip past any locked cells in the navigation direction so users can't
+    // tab/arrow into a frozen period. Linear/horizontal directions continue
+    // through subColIdx; row-only directions just stay in column.
+    const isLockedAt = (rIdx: number, sIdx: number): boolean => {
+      const monthIdx = Math.floor(sIdx / sceCount); // 0..11 → calendar idx
+      const typeKey = editableTypeKeys[sIdx % sceCount];
+      return isCellLocked(typeKey, monthIdx);
+    };
+
+    let guard = 0;
+    while (isLockedAt(nextRow, nextSubCol) && guard++ < totalSubCols * editableRows.length) {
+      if (direction === "left") {
+        if (nextSubCol > 0) nextSubCol -= 1;
+        else if (nextRow > 0) { nextRow -= 1; nextSubCol = totalSubCols - 1; }
+        else return null;
+      } else if (direction === "right") {
+        if (nextSubCol < totalSubCols - 1) nextSubCol += 1;
+        else if (nextRow < editableRows.length - 1) { nextRow += 1; nextSubCol = 0; }
+        else return null;
+      } else if (direction === "up") {
+        if (nextRow > 0) nextRow -= 1;
+        else return null;
+      } else if (direction === "down") {
+        if (nextRow < editableRows.length - 1) nextRow += 1;
+        else return null;
+      }
+    }
+    if (isLockedAt(nextRow, nextSubCol)) return null;
+
     return {
       itemKey: editableRows[nextRow].itemKey!,
       month: Math.floor(nextSubCol / sceCount) + 1,
@@ -3139,12 +3198,17 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                               editingCell?.itemKey === row.itemKey &&
                               editingCell?.month === m.monthNum &&
                               editingCell?.typeKey === s.key;
-                            const editable = s.editable;
+                            const locked = isCellLocked(s.key, p.monthIndices[0]);
+                            const editable = s.editable && !locked;
+                            const lockedTitle = locked
+                              ? `Period locked through ${lockdownMap[s.key]} for ${s.label}`
+                              : undefined;
                             return (
                               <div
                                 key={`${p.key}-${s.key}`}
-                                className={`p-0.5 ${borderCls} ${hi} ${selBgCls}`}
+                                className={`p-0.5 ${borderCls} ${hi} ${selBgCls} ${locked ? "bg-muted/40" : ""}`}
                                 style={selEdgeStyle}
+                                title={lockedTitle}
                               >
                                 {isEditing ? (
                                   <Input
@@ -3176,15 +3240,18 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                                   />
                                 ) : (
                                   <div
-                                    className={`h-6 flex items-center justify-center px-1 text-[11px] tabular-nums rounded-sm transition-all select-none ${
+                                    className={`h-6 flex items-center justify-center gap-1 px-1 text-[11px] tabular-nums rounded-sm transition-all select-none ${
                                       editable
                                         ? "cursor-cell hover:ring-1 hover:ring-primary/40 hover:bg-background/60"
-                                        : "text-muted-foreground"
+                                        : locked
+                                          ? "cursor-not-allowed text-muted-foreground"
+                                          : "text-muted-foreground"
                                     } ${isActiveSel ? "ring-2 ring-inset ring-blue-600 dark:ring-blue-400" : ""}`}
                                     onDoubleClick={() => editable && handleCellClick(row, p.monthIndices[0], s.key)}
                                     data-testid={`cell-${s.key}-m${m.monthNum}-${row.itemKey}`}
                                     {...selMouseProps}
                                   >
+                                    {locked && <Lock className="h-2.5 w-2.5 opacity-60" />}
                                     {value !== 0 ? formatCurrency(value) : <span className="text-muted-foreground/30">—</span>}
                                   </div>
                                 )}

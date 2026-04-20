@@ -1607,6 +1607,25 @@ export const costItemChangeLogs = pgTable("cost_item_change_logs", {
   index("cost_item_change_logs_project_id_idx").on(table.projectId),
 ]);
 
+// Financial Lockdowns — per-org, per-financial-type monthly close dates.
+// Once a lockdown date is set for a given financial type, users cannot
+// create or edit financial cells whose period (fiscal-year + month →
+// calendar month-end) is on or before that date for that type.
+export const financialLockdowns = pgTable("financial_lockdowns", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id, { onDelete: "cascade" }).notNull(),
+  financialTypeKey: text("financial_type_key").notNull(),
+  lockdownDate: date("lockdown_date", { mode: "string" }).notNull(),
+  note: text("note"),
+  createdBy: varchar("created_by").references(() => users.id),
+  updatedBy: varchar("updated_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("financial_lockdowns_org_idx").on(table.organizationId),
+  index("financial_lockdowns_org_type_idx").on(table.organizationId, table.financialTypeKey),
+]);
+
 // Financial Entries — fully normalized fact table.
 // One row per (project, fiscal year, scenario, month, logical item).
 // All dimension fields are denormalized onto every row; rows that share the
@@ -2170,6 +2189,12 @@ export const insertTimesheetEntrySchema = createInsertSchema(timesheetEntries).o
 export const insertCostItemSchema = createInsertSchema(costItems).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCostItemChangeLogSchema = createInsertSchema(costItemChangeLogs).omit({ id: true, changedAt: true });
 export const insertFinancialEntrySchema = createInsertSchema(financialEntries).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertFinancialLockdownSchema = createInsertSchema(financialLockdowns).omit({ id: true, createdAt: true, updatedAt: true });
+export const financialLockdownInputSchema = z.object({
+  financialTypeKey: z.string().min(1).max(40).regex(/^[a-z0-9_-]+$/),
+  lockdownDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "lockdownDate must be YYYY-MM-DD"),
+  note: z.string().max(500).nullish(),
+});
 export const insertMultiYearWbsSchema = createInsertSchema(multiYearWbs).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProjectIntakeSchema = createInsertSchema(projectIntakes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertIntakeTypeSchema = createInsertSchema(intakeTypes).omit({ id: true, createdAt: true, updatedAt: true });
@@ -2279,6 +2304,10 @@ export type InsertCostItemChangeLog = z.infer<typeof insertCostItemChangeLogSche
 
 export type FinancialEntry = typeof financialEntries.$inferSelect;
 export type InsertFinancialEntry = z.infer<typeof insertFinancialEntrySchema>;
+
+export type FinancialLockdown = typeof financialLockdowns.$inferSelect;
+export type InsertFinancialLockdown = z.infer<typeof insertFinancialLockdownSchema>;
+export type FinancialLockdownInput = z.infer<typeof financialLockdownInputSchema>;
 
 export type MultiYearWbs = typeof multiYearWbs.$inferSelect;
 export type InsertMultiYearWbs = z.infer<typeof insertMultiYearWbsSchema>;

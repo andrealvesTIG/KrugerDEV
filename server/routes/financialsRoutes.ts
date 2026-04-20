@@ -73,6 +73,23 @@ function pickWbsUpdate(body: any): Record<string, any> {
   return out;
 }
 
+/**
+ * Map (fiscalYear, month [1..12, M1=Oct .. M12=Sep]) → calendar month-end date
+ * as ISO `YYYY-MM-DD` so it's directly comparable to lockdown dates which are
+ * stored as ISO date strings (YYYY-MM-DD lex order matches calendar order).
+ */
+export function fiscalMonthEndIso(fiscalYear: number, month: number): string {
+  // M1..M3 → Oct/Nov/Dec of (fiscalYear - 1); M4..M12 → Jan..Sep of fiscalYear.
+  const cy = month <= 3 ? fiscalYear - 1 : fiscalYear;
+  const cm = month <= 3 ? 9 + month : month - 3; // 1-indexed calendar month
+  // Last day of `cm` for `cy` — `new Date(cy, cm, 0)` gives day 0 of (cm+1 in 0-idx) → last day of cm (1-idx).
+  const d = new Date(Date.UTC(cy, cm, 0));
+  const yyyy = d.getUTCFullYear().toString().padStart(4, "0");
+  const mm = (d.getUTCMonth() + 1).toString().padStart(2, "0");
+  const dd = d.getUTCDate().toString().padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 async function changedByName(userId: string | null | undefined): Promise<string> {
   if (!userId) return "System";
   const user: any = await storage.getUser(userId);
@@ -96,6 +113,21 @@ export function registerFinancialsRoutes(app: Express) {
     } catch (err) {
       console.error("Error fetching financial entries:", err);
       res.status(500).json({ message: "Error fetching financial entries" });
+    }
+  });
+
+  // Lockdowns visible to anyone who can read the project. Returns the active
+  // lockdown map (typeKey → lockdownDate) so the grid can mark locked cells.
+  app.get("/api/projects/:projectId/financial-lockdowns", async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const guard = await ensureProjectAccess(req, projectId);
+      if (!guard.ok) return res.status(guard.status).json({ message: guard.message });
+      const map = await storage.getActiveLockdownMap(guard.project.organizationId);
+      res.json(map);
+    } catch (err) {
+      console.error("Error fetching lockdowns:", err);
+      res.status(500).json({ message: "Error fetching lockdowns" });
     }
   });
 
@@ -184,6 +216,22 @@ export function registerFinancialsRoutes(app: Express) {
       }
       if (!typeConfig.editable) {
         return res.status(403).json({ message: `Financial type "${typeConfig.label}" is read-only` });
+      }
+
+      // Lockdown enforcement: reject saves whose period (FY+month → calendar
+      // month-end) is on or before the most-recent lockdown date for this
+      // financial type in this org.
+      const lockdownMap = await storage.getActiveLockdownMap(guard.project.organizationId);
+      const lockedAt = lockdownMap[typeKey];
+      if (lockedAt) {
+        const cellMonthEnd = fiscalMonthEndIso(Number(fiscalYear), monthNum);
+        if (cellMonthEnd <= lockedAt) {
+          return res.status(403).json({
+            message: `Financial type "${typeConfig.label}" is locked through ${lockedAt}. Cell for FY${fiscalYear} M${monthNum} (${cellMonthEnd}) cannot be edited.`,
+            code: "LOCKDOWN",
+            lockdown: { financialTypeKey: typeKey, lockdownDate: lockedAt },
+          });
+        }
       }
 
       const result = await storage.upsertFinancialCell({

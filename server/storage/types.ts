@@ -26,6 +26,7 @@ import type {
   CostItem, InsertCostItem, UpdateCostItemRequest,
   CostItemChangeLog, InsertCostItemChangeLog,
   FinancialEntry,
+  FinancialLockdown,
   MultiYearWbs, InsertMultiYearWbs,
   ProjectIntake, InsertProjectIntake, UpdateProjectIntakeRequest,
   MppImport, InsertMppImport,
@@ -333,6 +334,12 @@ export interface IFinancialStorage {
     itemKey: string;
     fiscalYear?: number;
   }): Promise<import("./financialStorage").FinancialItemDimensions | null>;
+  getFinancialLockdowns(organizationId: number): Promise<FinancialLockdown[]>;
+  getFinancialLockdown(id: number): Promise<FinancialLockdown | undefined>;
+  createFinancialLockdown(args: { organizationId: number; financialTypeKey: string; lockdownDate: string; note?: string | null; createdBy: string | null }): Promise<FinancialLockdown>;
+  updateFinancialLockdown(id: number, updates: { financialTypeKey?: string; lockdownDate?: string; note?: string | null; updatedBy: string | null }): Promise<FinancialLockdown>;
+  deleteFinancialLockdown(id: number): Promise<void>;
+  getActiveLockdownMap(organizationId: number): Promise<Record<string, string>>;
   getBillingTransactions(userId?: string, orgId?: number, limit?: number, offset?: number): Promise<BillingTransaction[]>;
   getBillingTransaction(id: number): Promise<BillingTransaction | undefined>;
   createBillingTransaction(transaction: InsertBillingTransaction): Promise<BillingTransaction>;

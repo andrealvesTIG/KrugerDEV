@@ -626,6 +626,171 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
+  // ===================== FINANCIAL LOCKDOWNS =====================
+  apiRoute(app, 'get', '/api/organizations/:id/financial-lockdowns', {
+    tag: 'Organizations',
+    summary: 'List financial lockdowns for an organization',
+    parameters: [pathId()],
+    responses: { ...r200('Lockdowns', { type: 'array', items: { type: 'object' } }), ...idRes },
+  }, async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (!await ensureOrgAdminOrSuper(userId, orgId)) {
+        return res.status(403).json({ message: 'Only organization admins can manage lockdowns' });
+      }
+      const rows = await storage.getFinancialLockdowns(orgId);
+      res.json(rows);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to list lockdowns' : classified.message });
+    }
+  });
+
+  async function ensureOrgAdminOrSuper(userId: string | null | undefined, orgId: number): Promise<boolean> {
+    if (!userId) return false;
+    const memberships = await storage.getUserOrganizations(userId);
+    const m = memberships.find(x => x.organizationId === orgId);
+    if (m && (m.role === 'org_admin' || m.role === 'owner')) return true;
+    const [u] = await db.select().from(users).where(eq(users.id, userId));
+    return hasAdminAccess(u);
+  }
+
+  async function validateLockdownTypeKey(orgId: number, typeKey: string): Promise<{ ok: true } | { ok: false; message: string }> {
+    const { DEFAULT_FINANCIAL_TYPES, financialTypesConfigSchema } = await import('@shared/schema');
+    const org = await storage.getOrganization(orgId);
+    const validated = financialTypesConfigSchema.safeParse(org?.financialTypesConfig);
+    const list = validated.success ? validated.data.types : [];
+    const seen = new Set(list.map(s => s.key));
+    const merged = [...list];
+    for (const sys of DEFAULT_FINANCIAL_TYPES.types) {
+      if (!seen.has(sys.key)) merged.push(sys);
+    }
+    const found = merged.find(t => t.key === typeKey);
+    if (!found) {
+      return { ok: false, message: `Unknown financial type "${typeKey}" for this organization` };
+    }
+    if (!found.enabled) {
+      return { ok: false, message: `Financial type "${found.label}" is disabled and cannot be locked down` };
+    }
+    return { ok: true };
+  }
+
+  apiRoute(app, 'post', '/api/organizations/:id/financial-lockdowns', {
+    tag: 'Organizations',
+    summary: 'Create a financial lockdown',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('Created', { type: 'object' }), ...inputRes },
+  }, async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (!await ensureOrgAdminOrSuper(userId, orgId)) {
+        return res.status(403).json({ message: 'Only organization admins can manage lockdowns' });
+      }
+      const { financialLockdownInputSchema } = await import('@shared/schema');
+      const parsed = financialLockdownInputSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Invalid lockdown payload', errors: parsed.error.flatten() });
+      }
+      const validation = await validateLockdownTypeKey(orgId, parsed.data.financialTypeKey);
+      if (!validation.ok) {
+        return res.status(400).json({ message: validation.message });
+      }
+      const created = await storage.createFinancialLockdown({
+        organizationId: orgId,
+        financialTypeKey: parsed.data.financialTypeKey,
+        lockdownDate: parsed.data.lockdownDate,
+        note: parsed.data.note ?? null,
+        createdBy: userId ?? null,
+      });
+      res.status(201).json(created);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create lockdown' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'put', '/api/organizations/:id/financial-lockdowns/:lockdownId', {
+    tag: 'Organizations',
+    summary: 'Update a financial lockdown',
+    parameters: [pathId(), { name: 'lockdownId', in: 'path', required: true, schema: { type: 'integer' } }],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Updated', { type: 'object' }), ...updateRes },
+  }, async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const lockdownId = Number(req.params.lockdownId);
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (!await ensureOrgAdminOrSuper(userId, orgId)) {
+        return res.status(403).json({ message: 'Only organization admins can manage lockdowns' });
+      }
+      const existing = await storage.getFinancialLockdown(lockdownId);
+      if (!existing || existing.organizationId !== orgId) {
+        return res.status(404).json({ message: 'Lockdown not found' });
+      }
+      const { financialLockdownInputSchema } = await import('@shared/schema');
+      const parsed = financialLockdownInputSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Invalid lockdown payload', errors: parsed.error.flatten() });
+      }
+      if (parsed.data.financialTypeKey) {
+        const validation = await validateLockdownTypeKey(orgId, parsed.data.financialTypeKey);
+        if (!validation.ok) {
+          return res.status(400).json({ message: validation.message });
+        }
+      }
+      const updated = await storage.updateFinancialLockdown(lockdownId, {
+        financialTypeKey: parsed.data.financialTypeKey,
+        lockdownDate: parsed.data.lockdownDate,
+        note: parsed.data.note,
+        updatedBy: userId ?? null,
+      });
+      res.json(updated);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update lockdown' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'delete', '/api/organizations/:id/financial-lockdowns/:lockdownId', {
+    tag: 'Organizations',
+    summary: 'Delete a financial lockdown',
+    parameters: [pathId(), { name: 'lockdownId', in: 'path', required: true, schema: { type: 'integer' } }],
+    responses: { ...r204('Deleted'), ...idRes },
+  }, async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const lockdownId = Number(req.params.lockdownId);
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (!await ensureOrgAdminOrSuper(userId, orgId)) {
+        return res.status(403).json({ message: 'Only organization admins can manage lockdowns' });
+      }
+      const existing = await storage.getFinancialLockdown(lockdownId);
+      if (!existing || existing.organizationId !== orgId) {
+        return res.status(404).json({ message: 'Lockdown not found' });
+      }
+      await storage.deleteFinancialLockdown(lockdownId);
+      res.status(204).send();
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete lockdown' : classified.message });
+    }
+  });
+
   apiRoute(app, 'get', '/api/organizations/:id/integrations', {
     tag: 'Organizations',
     summary: 'Get organization integrations',

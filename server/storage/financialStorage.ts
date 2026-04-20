@@ -1,11 +1,13 @@
 import { db } from "../db";
 import {
   projectFinancials, costItems, costItemChangeLogs, financialEntries,
+  financialLockdowns,
   projectInvoices, invoiceNotes,
   type ProjectFinancial, type InsertProjectFinancial, type UpdateProjectFinancialRequest,
   type CostItem, type InsertCostItem, type UpdateCostItemRequest,
   type CostItemChangeLog, type InsertCostItemChangeLog,
   type FinancialEntry, type InsertFinancialEntry,
+  type FinancialLockdown,
   type ProjectInvoice, type InsertProjectInvoice,
   type InvoiceNote, type InsertInvoiceNote,
 } from "@shared/schema";
@@ -501,4 +503,80 @@ export async function getBillingTransaction(id: number): Promise<BillingTransact
 export async function createBillingTransaction(transaction: InsertBillingTransaction): Promise<BillingTransaction> {
   const [created] = await db.insert(billingTransactions).values(transaction).returning();
   return created;
+}
+
+// ===================== FINANCIAL LOCKDOWNS =====================
+
+export async function getFinancialLockdowns(organizationId: number): Promise<FinancialLockdown[]> {
+  return await db.select().from(financialLockdowns)
+    .where(eq(financialLockdowns.organizationId, organizationId))
+    .orderBy(financialLockdowns.financialTypeKey, desc(financialLockdowns.lockdownDate));
+}
+
+export async function getFinancialLockdown(id: number): Promise<FinancialLockdown | undefined> {
+  const [row] = await db.select().from(financialLockdowns).where(eq(financialLockdowns.id, id));
+  return row;
+}
+
+export async function createFinancialLockdown(args: {
+  organizationId: number;
+  financialTypeKey: string;
+  lockdownDate: string;
+  note?: string | null;
+  createdBy: string | null;
+}): Promise<FinancialLockdown> {
+  const [created] = await db.insert(financialLockdowns).values({
+    organizationId: args.organizationId,
+    financialTypeKey: args.financialTypeKey,
+    lockdownDate: args.lockdownDate,
+    note: args.note ?? null,
+    createdBy: args.createdBy,
+    updatedBy: args.createdBy,
+  }).returning();
+  return created;
+}
+
+export async function updateFinancialLockdown(id: number, updates: {
+  financialTypeKey?: string;
+  lockdownDate?: string;
+  note?: string | null;
+  updatedBy: string | null;
+}): Promise<FinancialLockdown> {
+  const set: {
+    updatedAt: Date;
+    updatedBy: string | null;
+    financialTypeKey?: string;
+    lockdownDate?: string;
+    note?: string | null;
+  } = {
+    updatedAt: new Date(),
+    updatedBy: updates.updatedBy,
+  };
+  if (updates.financialTypeKey !== undefined) set.financialTypeKey = updates.financialTypeKey;
+  if (updates.lockdownDate !== undefined) set.lockdownDate = updates.lockdownDate;
+  if (updates.note !== undefined) set.note = updates.note;
+  const [updated] = await db.update(financialLockdowns)
+    .set(set)
+    .where(eq(financialLockdowns.id, id))
+    .returning();
+  return updated;
+}
+
+export async function deleteFinancialLockdown(id: number): Promise<void> {
+  await db.delete(financialLockdowns).where(eq(financialLockdowns.id, id));
+}
+
+/**
+ * Returns the most-recent lockdown date per financial type for an org.
+ * Map keys are financial type keys; values are ISO date strings (YYYY-MM-DD).
+ */
+export async function getActiveLockdownMap(organizationId: number): Promise<Record<string, string>> {
+  const rows = await db.select().from(financialLockdowns)
+    .where(eq(financialLockdowns.organizationId, organizationId));
+  const map: Record<string, string> = {};
+  for (const row of rows) {
+    const cur = map[row.financialTypeKey];
+    if (!cur || row.lockdownDate > cur) map[row.financialTypeKey] = row.lockdownDate;
+  }
+  return map;
 }

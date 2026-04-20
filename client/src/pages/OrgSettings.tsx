@@ -26,6 +26,7 @@ import { FridayAgentConfigSection } from "@/components/settings/FridayAgentConfi
 import { FinancialTypesSection } from "@/components/settings/FinancialTypesSection";
 import { FiscalYearStartSection } from "@/components/settings/FiscalYearStartSection";
 import { CostItemCategoriesSection } from "@/components/settings/CostItemCategoriesSection";
+import { FinancialLockdownsSection } from "@/components/settings/FinancialLockdownsSection";
 import { DeveloperSection } from "@/components/settings/DeveloperSection";
 import { ActAsSection } from "@/components/settings/ActAsSection";
 import { ScoringCriteriaSection } from "@/components/settings/ScoringCriteriaSection";
@@ -223,12 +224,16 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
               <TabsList className="mb-4">
                 <TabsTrigger value="types" data-testid="tab-financial-types">Financial Types</TabsTrigger>
                 <TabsTrigger value="categories" data-testid="tab-cost-item-categories">Cost Item Categories</TabsTrigger>
+                <TabsTrigger value="lockdowns" data-testid="tab-financial-lockdowns">Lockdowns</TabsTrigger>
               </TabsList>
               <TabsContent value="types" className="mt-0">
                 <FinancialTypesSection organizationId={currentOrganization.id} />
               </TabsContent>
               <TabsContent value="categories" className="mt-0">
                 <CostItemCategoriesSection organizationId={currentOrganization.id} />
+              </TabsContent>
+              <TabsContent value="lockdowns" className="mt-0">
+                <FinancialLockdownsSection organizationId={currentOrganization.id} />
               </TabsContent>
             </Tabs>
           </div>
