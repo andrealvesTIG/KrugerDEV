@@ -38,6 +38,8 @@ import { useSortable, SortableContext, horizontalListSortingStrategy, arrayMove 
 import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/hooks/use-auth";
 import { CreateProjectDialog } from "@/components/CreateProjectDialog";
+import { ProjectsMapView } from "@/components/ProjectsMapView";
+import { Map as MapIcon } from "lucide-react";
 import ExcelJS from "exceljs";
 import { ViewsDropdown, type ProjectFilterView } from "@/components/ViewsDropdown";
 import { useColumnState, sortData, type SortDirection } from "@/hooks/use-column-state";
@@ -1041,15 +1043,15 @@ export default function Projects() {
   const isOrgAdmin = user?.role === 'super_admin' || 
     currentMembership?.role === 'org_admin' || 
     currentOrganization?.ownerId === user?.id;
-  const [view, setView] = useState<"list" | "grid" | "kanban" | "gantt">(() => {
+  const [view, setView] = useState<"list" | "grid" | "kanban" | "gantt" | "map">(() => {
     const saved = localStorage.getItem("projects-view-preference");
-    if (saved && ["list", "grid", "kanban", "gantt"].includes(saved)) {
-      return saved as "list" | "grid" | "kanban" | "gantt";
+    if (saved && ["list", "grid", "kanban", "gantt", "map"].includes(saved)) {
+      return saved as "list" | "grid" | "kanban" | "gantt" | "map";
     }
     return "grid";
   });
 
-  const handleViewChange = (newView: "list" | "grid" | "kanban" | "gantt") => {
+  const handleViewChange = (newView: "list" | "grid" | "kanban" | "gantt" | "map") => {
     setView(newView);
     localStorage.setItem("projects-view-preference", newView);
   };
@@ -1749,6 +1751,16 @@ export default function Projects() {
               <GanttChart className="h-4 w-4 mr-2" />
               Gantt
             </Button>
+            <Button
+              variant={view === "map" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => handleViewChange("map")}
+              className="rounded-none"
+              data-testid="button-view-map"
+            >
+              <MapIcon className="h-4 w-4 mr-2" />
+              Map
+            </Button>
           </div>
           <div className="flex-1" />
           <Button
@@ -1843,6 +1855,8 @@ export default function Projects() {
                 cfValues={exportCfValues || []}
                 onCustomFieldChange={handleKanbanCfChange}
               />
+            ) : view === "map" ? (
+              <ProjectsMapView projects={(filteredProjects || []) as any} portfolios={portfolios || []} />
             ) : (
               <ProjectsGanttView projects={filteredProjects || []} organizationId={currentOrganization?.id || null} />
             )}
@@ -1902,6 +1916,8 @@ export default function Projects() {
           cfValues={exportCfValues || []}
           onCustomFieldChange={handleKanbanCfChange}
         />
+      ) : !isFullscreen && view === "map" ? (
+        <ProjectsMapView projects={(filteredProjects || []) as any} portfolios={portfolios || []} />
       ) : !isFullscreen ? (
         <ProjectsGanttView projects={filteredProjects || []} organizationId={currentOrganization?.id || null} />
       ) : null}

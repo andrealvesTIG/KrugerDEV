@@ -14,6 +14,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertProjectSchema } from "@shared/schema";
+import { ProjectLocationMediaSection } from "@/components/ProjectLocationMediaSection";
 import type { InsertProject } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
@@ -553,6 +554,22 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
                   <Label htmlFor="cp-isInternal" className="text-sm cursor-pointer">Internal Project</Label>
                 </div>
               </div>
+
+              <ProjectLocationMediaSection
+                addressLine1={form.watch("addressLine1" as any) as any}
+                city={form.watch("city" as any) as any}
+                region={form.watch("region" as any) as any}
+                country={form.watch("country" as any) as any}
+                postalCode={form.watch("postalCode" as any) as any}
+                latitude={form.watch("latitude" as any) as any}
+                longitude={form.watch("longitude" as any) as any}
+                images={(form.watch("images" as any) as any) || []}
+                onChange={(patch) => {
+                  Object.entries(patch).forEach(([k, v]) => {
+                    form.setValue(k as any, v as any, { shouldDirty: true });
+                  });
+                }}
+              />
 
               <DialogFooter>
                 <Button type="submit" disabled={createMutation.isPending} data-testid="button-create-project">

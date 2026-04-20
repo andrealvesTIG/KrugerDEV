@@ -46,6 +46,7 @@ import { registerMeetingRoutes } from "./routes/meetingRoutes";
 import { registerCorrespondenceRoutes } from "./routes/correspondenceRoutes";
 import { registerBlogRoutes } from "./routes/blogRoutes";
 import { registerPowerBIAgentRoutes } from "./routes/powerbiAgentRoutes";
+import { registerLocationRoutes } from "./routes/locationRoutes";
 import { seedDatabase } from "./routes/helpers";
 
 export async function registerRoutes(
@@ -134,6 +135,7 @@ export async function registerRoutes(
   registerCorrespondenceRoutes(app);
   registerBlogRoutes(app);
   registerPowerBIAgentRoutes(app);
+  registerLocationRoutes(app);
 
   seedTrainingDataIfEmpty().catch(err => {
     console.error('[training] Failed to seed training data:', err.message);

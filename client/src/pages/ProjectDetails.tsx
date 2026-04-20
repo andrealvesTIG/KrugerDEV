@@ -28,6 +28,7 @@ import { ResourceSelector } from "@/components/ResourceSelector";
 import { StatusReportDialog } from "@/components/StatusReportDialog";
 import { CrossProjectReferences } from "@/components/CrossProjectReferences";
 import { ChangeWorkflowDialog } from "@/components/ChangeWorkflowDialog";
+import { ProjectLocationMediaSection } from "@/components/ProjectLocationMediaSection";
 import TasksTab from "@/components/project/ProjectTasksTab";
 import RisksTab from "@/components/project/ProjectRisksTab";
 import { IssuesTab, FinancialsTab, ChangeRequestsTab, DocumentsTab, StatusReportTab, ScoringTab, BenefitsTab, DecisionsTab, LessonsLearnedTab, InvoicesTab } from "@/components/project/ProjectTabs";
@@ -4711,6 +4712,21 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
     </Dialog>
     
     <div className="space-y-4">
+      <ProjectLocationMediaSection
+        projectId={project.id}
+        addressLine1={project.addressLine1}
+        city={project.city}
+        region={project.region}
+        country={project.country}
+        postalCode={project.postalCode}
+        latitude={project.latitude}
+        longitude={project.longitude}
+        images={project.images || []}
+        disabled={readOnly}
+        onChange={(patch) => {
+          onUpdate({ id: project.id, ...patch });
+        }}
+      />
       <ProjectCommentsFeed projectId={project.id} />
       <BillableStatusCommentLog projectId={project.id} />
       <HealthStatusHistoryLog projectId={project.id} />

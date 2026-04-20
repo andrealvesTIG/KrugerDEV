@@ -366,6 +366,15 @@ export const projects = pgTable("projects", {
   isDemo: boolean("is_demo").default(false),
   isInternal: boolean("is_internal").default(false),
   timesheetBlocked: boolean("timesheet_blocked").default(false),
+  // Location & Media
+  addressLine1: text("address_line1"),
+  city: text("city"),
+  region: text("region"),
+  country: text("country"),
+  postalCode: text("postal_code"),
+  latitude: numeric("latitude"),
+  longitude: numeric("longitude"),
+  images: jsonb("images").$type<Array<{ url: string; alt?: string }>>().default([]),
 }, (table) => [
   index("projects_org_id_idx").on(table.organizationId),
   index("projects_portfolio_id_idx").on(table.portfolioId),
