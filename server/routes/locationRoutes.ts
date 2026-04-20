@@ -13,6 +13,42 @@ async function rateLimit() {
   lastNominatimCall = Date.now();
 }
 
+type GeocodeResult = {
+  latitude: number;
+  longitude: number;
+  displayName: string;
+};
+
+const GEOCODE_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const GEOCODE_CACHE_MAX_ENTRIES = 1000;
+const geocodeCache = new Map<string, { value: GeocodeResult; expiresAt: number }>();
+
+function normalizeAddress(q: string): string {
+  return q.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function getCachedGeocode(key: string): GeocodeResult | null {
+  const entry = geocodeCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    geocodeCache.delete(key);
+    return null;
+  }
+  geocodeCache.delete(key);
+  geocodeCache.set(key, entry);
+  return entry.value;
+}
+
+function setCachedGeocode(key: string, value: GeocodeResult) {
+  if (geocodeCache.has(key)) geocodeCache.delete(key);
+  geocodeCache.set(key, { value, expiresAt: Date.now() + GEOCODE_CACHE_TTL_MS });
+  while (geocodeCache.size > GEOCODE_CACHE_MAX_ENTRIES) {
+    const oldestKey = geocodeCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    geocodeCache.delete(oldestKey);
+  }
+}
+
 function getUserIdFromRequest(req: any): string | null {
   return req.session?.userId || req.user?.claims?.sub || req.user?.id || null;
 }
@@ -43,6 +79,12 @@ export function registerLocationRoutes(app: Express) {
       if (!q) return res.status(400).json({ message: 'Query is required' });
       if (q.length > 300) return res.status(400).json({ message: 'Query too long' });
 
+      const cacheKey = normalizeAddress(q);
+      const cached = getCachedGeocode(cacheKey);
+      if (cached) {
+        return res.json(cached);
+      }
+
       await rateLimit();
 
       const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
@@ -63,11 +105,13 @@ export function registerLocationRoutes(app: Express) {
       }
 
       const top = data[0];
-      res.json({
+      const result: GeocodeResult = {
         latitude: parseFloat(top.lat),
         longitude: parseFloat(top.lon),
         displayName: top.display_name,
-      });
+      };
+      setCachedGeocode(cacheKey, result);
+      res.json(result);
     } catch (err: any) {
       console.error('[geocode] Error:', err?.message || err);
       res.status(500).json({ message: 'Geocoding failed' });
