@@ -1135,8 +1135,11 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
         const MIN_WBS = 88, MAX_WBS = 140;
         const FROZEN_PAD_X = 24 * 2; // px-3 left + right
         const SORT_ICON_PX = 16;     // ArrowUpDown 12px + 4px gap
-        const MIN_MONTH_SUB = 30, MAX_MONTH_SUB = 72;
-        const MIN_TOTAL_SUB = 44, MAX_TOTAL_SUB = 96;
+        // Caps are generous so that even very large numbers (e.g. trillions)
+        // fit entirely in the cell without truncation. Columns still shrink
+        // when data is small because the widths are content-driven.
+        const MIN_MONTH_SUB = 30, MAX_MONTH_SUB = 200;
+        const MIN_TOTAL_SUB = 44, MAX_TOTAL_SUB = 220;
 
         // Compute widths from the underlying item-level data (filteredEntries)
         // so they don't change when groups are expanded/collapsed.
