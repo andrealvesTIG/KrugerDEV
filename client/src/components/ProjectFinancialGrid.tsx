@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -326,6 +326,41 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
       return next;
     });
   };
+
+  // Resizable splitter between the frozen left section (Cost Item / Comments /
+  // WBS) and the scrollable right section. The offset is added to COL_COST and
+  // persisted per-org in localStorage.
+  const splitterStorageKey = orgId ? `fr.financial-grid-frozen-offset.${orgId}` : null;
+  // Tracks an in-flight drag so unmount can cleanly tear down listeners
+  const dragCleanupRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    return () => {
+      if (dragCleanupRef.current) {
+        dragCleanupRef.current();
+        dragCleanupRef.current = null;
+      }
+    };
+  }, []);
+  const [frozenOffsetPx, setFrozenOffsetPx] = useState<number>(() => {
+    if (typeof window === "undefined" || !splitterStorageKey) return 0;
+    try {
+      const raw = window.localStorage.getItem(splitterStorageKey);
+      const n = raw ? Number(raw) : 0;
+      return Number.isFinite(n) ? n : 0;
+    } catch {
+      return 0;
+    }
+  });
+  useEffect(() => {
+    if (typeof window === "undefined" || !splitterStorageKey) return;
+    try {
+      const raw = window.localStorage.getItem(splitterStorageKey);
+      const n = raw ? Number(raw) : 0;
+      setFrozenOffsetPx(Number.isFinite(n) ? n : 0);
+    } catch {
+      setFrozenOffsetPx(0);
+    }
+  }, [splitterStorageKey]);
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editingCell, setEditingCell] = useState<{ itemKey: string; month: number; scenarioKey: string } | null>(null);
@@ -692,7 +727,11 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
       {(() => {
         const N = Math.max(enabledScenarios.length, 1);
-        const COL_COST = 300;
+        // Cost Item column accepts a user-driven offset from the splitter drag.
+        const COL_COST_BASE = 300;
+        const COL_COST_MIN = 160;
+        const COL_COST_MAX = 700;
+        const COL_COST = Math.max(COL_COST_MIN, Math.min(COL_COST_MAX, COL_COST_BASE + frozenOffsetPx));
 
         // Content-aware widths: compute column widths from actual data so
         // empty cells don't reserve as much space as long ones.
@@ -819,8 +858,76 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
         // Container scroll height: respect fullscreen
         const tableMaxH = isFullscreen ? "max-h-[calc(100vh-180px)]" : "max-h-[calc(100vh-260px)]";
 
+        const frozenWidthPx = COL_COST + COL_COMMENTS + COL_WBS;
+
+        const startSplitterDrag = (e: React.MouseEvent) => {
+          e.preventDefault();
+          // If a previous drag somehow didn't clean up, do it now.
+          if (dragCleanupRef.current) {
+            dragCleanupRef.current();
+            dragCleanupRef.current = null;
+          }
+          const startX = e.clientX;
+          const startOffset = frozenOffsetPx;
+          const minOffset = COL_COST_MIN - COL_COST_BASE;
+          const maxOffset = COL_COST_MAX - COL_COST_BASE;
+          let latest = startOffset;
+          let persisted = false;
+          const onMove = (ev: MouseEvent) => {
+            const delta = ev.clientX - startX;
+            latest = Math.max(minOffset, Math.min(maxOffset, startOffset + delta));
+            setFrozenOffsetPx(latest);
+          };
+          const teardown = (persist: boolean) => {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+            window.removeEventListener("blur", onCancel);
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+            if (persist && !persisted) {
+              persisted = true;
+              try {
+                if (typeof window !== "undefined" && splitterStorageKey) {
+                  window.localStorage.setItem(splitterStorageKey, String(latest));
+                }
+              } catch {}
+            }
+            dragCleanupRef.current = null;
+          };
+          const onUp = () => teardown(true);
+          const onCancel = () => teardown(true);
+          window.addEventListener("mousemove", onMove);
+          window.addEventListener("mouseup", onUp);
+          window.addEventListener("blur", onCancel);
+          document.body.style.cursor = "col-resize";
+          document.body.style.userSelect = "none";
+          // Expose teardown so an unmount mid-drag can cancel cleanly.
+          dragCleanupRef.current = () => teardown(false);
+        };
+
         return (
-          <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
+          <div className="rounded-lg border bg-card shadow-sm overflow-hidden relative">
+            {/* Draggable vertical splitter between frozen and scrollable sections */}
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize cost item / comments / WBS section"
+              onMouseDown={startSplitterDrag}
+              onDoubleClick={() => {
+                setFrozenOffsetPx(0);
+                try {
+                  if (typeof window !== "undefined" && splitterStorageKey) {
+                    window.localStorage.setItem(splitterStorageKey, "0");
+                  }
+                } catch {}
+              }}
+              title="Drag to resize. Double-click to reset."
+              className="absolute top-0 bottom-0 w-1.5 -ml-[3px] cursor-col-resize z-40 group/splitter"
+              style={{ left: `${frozenWidthPx}px` }}
+              data-testid="splitter-frozen"
+            >
+              <div className="h-full w-full bg-transparent group-hover/splitter:bg-primary/40 group-active/splitter:bg-primary/60 transition-colors" />
+            </div>
             <div className={`relative overflow-auto ${tableMaxH}`}>
               <div className="text-sm" style={{ minWidth: `${minWidthPx}px` }}>
                 {/* Header row 1: column titles + year groupings (sticky top) */}
