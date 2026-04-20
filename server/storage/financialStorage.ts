@@ -3,6 +3,7 @@ import {
   projectFinancials, costItems, costItemChangeLogs, financialEntries,
   financialLockdowns,
   projectInvoices, invoiceNotes,
+  projects, organizations,
   type ProjectFinancial, type InsertProjectFinancial, type UpdateProjectFinancialRequest,
   type CostItem, type InsertCostItem, type UpdateCostItemRequest,
   type CostItemChangeLog, type InsertCostItemChangeLog,
@@ -15,7 +16,52 @@ import {
   billingTransactions,
   type BillingTransaction, type InsertBillingTransaction,
 } from "@shared/models/billing";
-import { eq, and, desc, isNull, inArray, sql } from "drizzle-orm";
+import { eq, and, or, desc, isNull, inArray, sql } from "drizzle-orm";
+import {
+  buildFiscalMonths,
+  calendarToFiscalSlot,
+  fiscalSlotToCalendar,
+  normalizeFiscalYearStartMonth,
+} from "@shared/lib/fiscalCalendar";
+
+// ---------- calendar-anchored helpers (Task #36) ----------
+// `financial_entries` stores CALENDAR (year, month) so values stay anchored to
+// the original calendar month even when the org admin changes
+// `organizations.fiscalYearStartMonth`. The API surface still uses the
+// FY-relative pair (fiscalYear=label, month=1..12 monthNum) for backward
+// compatibility — this storage layer translates at the boundary.
+
+async function getProjectFyStart(projectId: number): Promise<number> {
+  const [row] = await db
+    .select({ start: organizations.fiscalYearStartMonth })
+    .from(projects)
+    .innerJoin(organizations, eq(organizations.id, projects.organizationId))
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  return normalizeFiscalYearStartMonth(row?.start);
+}
+
+/** All 12 (calendarYear, calendarMonth) pairs that make up the given FY label. */
+function fyCalendarPairs(fyLabel: number, fyStart: number): Array<{ year: number; month: number }> {
+  return buildFiscalMonths(fyLabel, fyStart).map(m => ({ year: m.year, month: m.month }));
+}
+
+/** Build a drizzle WHERE that matches any of the 12 (year, month) pairs of an FY. */
+function fyCalendarWhere(fyLabel: number, fyStart: number) {
+  const pairs = fyCalendarPairs(fyLabel, fyStart);
+  return or(
+    ...pairs.map(p => and(
+      eq(financialEntries.fiscalYear, p.year),
+      eq(financialEntries.month, p.month),
+    )),
+  );
+}
+
+/** Re-label rows from calendar (year, month) back to (fyLabel, monthNum). */
+function relabelRow(row: FinancialEntry, fyStart: number): FinancialEntry {
+  const slot = calendarToFiscalSlot(row.fiscalYear, row.month, fyStart);
+  return { ...row, fiscalYear: slot.fiscalYear, month: slot.monthNum };
+}
 
 // Financial type keys are now org-configurable strings. The legacy three
 // (aop/fcst/act) are guaranteed to exist on every org so historical data and
@@ -148,12 +194,16 @@ export async function getFinancialEntries(
   projectId: number,
   fiscalYear?: number,
 ): Promise<FinancialEntry[]> {
+  const fyStart = await getProjectFyStart(projectId);
   const where = fiscalYear !== undefined
-    ? and(eq(financialEntries.projectId, projectId), eq(financialEntries.fiscalYear, fiscalYear))
+    ? and(eq(financialEntries.projectId, projectId), fyCalendarWhere(fiscalYear, fyStart))
     : eq(financialEntries.projectId, projectId);
-  return await db.select().from(financialEntries)
+  const rows = await db.select().from(financialEntries)
     .where(where)
-    .orderBy(financialEntries.sortOrder, financialEntries.itemKey, financialEntries.scenario, financialEntries.month);
+    .orderBy(financialEntries.sortOrder, financialEntries.itemKey, financialEntries.scenario, financialEntries.fiscalYear, financialEntries.month);
+  // Re-label calendar (year, month) → FY-relative (label, monthNum) so the
+  // API surface and client code keep using the existing semantics.
+  return rows.map(r => relabelRow(r, fyStart));
 }
 
 export interface FinancialItemDimensions {
@@ -182,14 +232,16 @@ export async function createFinancialItem(args: {
 }): Promise<string> {
   const itemKey = args.itemKey ?? `item-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const typeKeys = args.types && args.types.length > 0 ? args.types : DEFAULT_FAN_OUT_TYPES;
+  const fyStart = await getProjectFyStart(args.projectId);
+  const calPairs = fyCalendarPairs(args.fiscalYear, fyStart);
   const rows: InsertFinancialEntry[] = [];
   for (const typeKey of typeKeys) {
-    for (let month = 1; month <= 12; month++) {
+    for (const { year: calYear, month: calMonth } of calPairs) {
       rows.push({
         projectId: args.projectId,
-        fiscalYear: args.fiscalYear,
+        fiscalYear: calYear,
         scenario: typeKey,
-        month,
+        month: calMonth,
         amount: 0,
         itemKey,
         itemName: args.dimensions.itemName,
@@ -219,6 +271,9 @@ export async function backfillTypeCellsForOrg(args: {
   organizationId: number;
   typeKey: string;
 }): Promise<{ inserted: number }> {
+  // Storage is calendar-anchored (Task #36): mirror the EXACT (calYear,
+  // calMonth) set already present for each (project, item) so the new type
+  // covers the same months as existing types — no more, no less.
   const result = await db.execute(sql`
     INSERT INTO financial_entries (
       project_id, fiscal_year, scenario, month, amount,
@@ -226,19 +281,18 @@ export async function backfillTypeCellsForOrg(args: {
       category, wbs, comments, sort_order, is_demo, created_at, updated_at
     )
     SELECT
-      sub.project_id, sub.fiscal_year, ${args.typeKey}::text, m.month, 0,
+      sub.project_id, sub.fiscal_year, ${args.typeKey}::text, sub.month, 0,
       sub.item_key, sub.item_name, sub.financial_view, sub.cost_category, sub.cost_specification,
       sub.category, sub.wbs, sub.comments, sub.sort_order, sub.is_demo, NOW(), NOW()
     FROM (
-      SELECT DISTINCT ON (fe.project_id, fe.fiscal_year, fe.item_key)
-        fe.project_id, fe.fiscal_year, fe.item_key, fe.item_name,
+      SELECT DISTINCT ON (fe.project_id, fe.item_key, fe.fiscal_year, fe.month)
+        fe.project_id, fe.fiscal_year, fe.item_key, fe.month, fe.item_name,
         fe.financial_view, fe.cost_category, fe.cost_specification,
         fe.category, fe.wbs, fe.comments, fe.sort_order, fe.is_demo
       FROM financial_entries fe
       INNER JOIN projects p ON p.id = fe.project_id
       WHERE p.organization_id = ${args.organizationId}
     ) sub
-    CROSS JOIN generate_series(1, 12) AS m(month)
     ON CONFLICT (project_id, fiscal_year, item_key, scenario, month) DO NOTHING
   `);
   return { inserted: result.rowCount ?? 0 };
@@ -256,12 +310,18 @@ export async function upsertFinancialCell(args: {
   month: number;
   amount: number;
 }): Promise<{ previous: number; next: number; entry: FinancialEntry }> {
+  // Translate FY-relative (label, monthNum) → calendar (year, month) for
+  // storage. The API surface keeps the FY-relative pair so callers don't
+  // change.
+  const fyStart = await getProjectFyStart(args.projectId);
+  const target = fiscalSlotToCalendar(args.fiscalYear, args.month, fyStart);
+
   const [existing] = await db.select().from(financialEntries).where(and(
     eq(financialEntries.projectId, args.projectId),
-    eq(financialEntries.fiscalYear, args.fiscalYear),
+    eq(financialEntries.fiscalYear, target.year),
     eq(financialEntries.itemKey, args.itemKey),
     eq(financialEntries.scenario, args.type),
-    eq(financialEntries.month, args.month),
+    eq(financialEntries.month, target.month),
   ));
   const previous = existing ? Number(existing.amount) : 0;
   if (existing) {
@@ -269,51 +329,47 @@ export async function upsertFinancialCell(args: {
       .set({ amount: sql`${args.amount}`, updatedAt: new Date() })
       .where(eq(financialEntries.id, existing.id))
       .returning();
-    return { previous, next: Number(entry.amount), entry };
+    return { previous, next: Number(entry.amount), entry: relabelRow(entry, fyStart) };
   }
   // Cell missing — insert one on the fly by copying dimensions from any
-  // sibling row of the same (project, fiscal year, itemKey). This can
-  // happen when a type is enabled in Org Settings after the item was
-  // created (no backfill) or when a fan-out race skipped a cell. We also
-  // run a safety backfill to create any other missing cells for this
-  // type/item so subsequent edits don't hit the same path.
+  // sibling row of the same (project, itemKey). This can happen when a type
+  // is enabled in Org Settings after the item was created (no backfill) or
+  // when a fan-out race skipped a cell. We also run a safety backfill so
+  // every (calYear, calMonth) of the target FY exists for this type/item.
   const [sibling] = await db.select().from(financialEntries).where(and(
     eq(financialEntries.projectId, args.projectId),
-    eq(financialEntries.fiscalYear, args.fiscalYear),
     eq(financialEntries.itemKey, args.itemKey),
   )).limit(1);
   if (!sibling) {
     throw new Error(`Item not found for itemKey=${args.itemKey} in fiscal year ${args.fiscalYear}`);
   }
-  // Ensure all 12 months exist for this (item, type) with amount=0.
-  const fanOutRows: InsertFinancialEntry[] = [];
-  for (let m = 1; m <= 12; m++) {
-    fanOutRows.push({
-      projectId: args.projectId,
-      fiscalYear: args.fiscalYear,
-      scenario: args.type,
-      month: m,
-      amount: m === args.month ? (args.amount as any) : 0,
-      itemKey: args.itemKey,
-      itemName: sibling.itemName,
-      financialView: sibling.financialView,
-      costCategory: sibling.costCategory,
-      costSpecification: sibling.costSpecification,
-      category: sibling.category,
-      wbs: sibling.wbs,
-      comments: sibling.comments,
-      sortOrder: sibling.sortOrder,
-      isDemo: sibling.isDemo,
-    });
-  }
+  // Fan out one cell per (calYear, calMonth) of the target FY for this type.
+  const calPairs = fyCalendarPairs(args.fiscalYear, fyStart);
+  const fanOutRows: InsertFinancialEntry[] = calPairs.map(p => ({
+    projectId: args.projectId,
+    fiscalYear: p.year,
+    scenario: args.type,
+    month: p.month,
+    amount: (p.year === target.year && p.month === target.month) ? (args.amount as any) : 0,
+    itemKey: args.itemKey,
+    itemName: sibling.itemName,
+    financialView: sibling.financialView,
+    costCategory: sibling.costCategory,
+    costSpecification: sibling.costSpecification,
+    category: sibling.category,
+    wbs: sibling.wbs,
+    comments: sibling.comments,
+    sortOrder: sibling.sortOrder,
+    isDemo: sibling.isDemo,
+  }));
   await db.insert(financialEntries).values(fanOutRows).onConflictDoNothing();
   // Re-read the target row (whether we just inserted it or a race beat us).
   const [entry] = await db.select().from(financialEntries).where(and(
     eq(financialEntries.projectId, args.projectId),
-    eq(financialEntries.fiscalYear, args.fiscalYear),
+    eq(financialEntries.fiscalYear, target.year),
     eq(financialEntries.itemKey, args.itemKey),
     eq(financialEntries.scenario, args.type),
-    eq(financialEntries.month, args.month),
+    eq(financialEntries.month, target.month),
   ));
   if (!entry) {
     throw new Error(`Failed to materialize cell for itemKey=${args.itemKey} type=${args.type} month=${args.month}`);
@@ -324,9 +380,9 @@ export async function upsertFinancialCell(args: {
       .set({ amount: sql`${args.amount}`, updatedAt: new Date() })
       .where(eq(financialEntries.id, entry.id))
       .returning();
-    return { previous, next: Number(updated.amount), entry: updated };
+    return { previous, next: Number(updated.amount), entry: relabelRow(updated, fyStart) };
   }
-  return { previous, next: Number(entry.amount), entry };
+  return { previous, next: Number(entry.amount), entry: relabelRow(entry, fyStart) };
 }
 
 /**
@@ -340,11 +396,12 @@ export async function updateFinancialItemDimensions(args: {
   fiscalYear?: number;
   dimensions: Partial<FinancialItemDimensions>;
 }): Promise<{ updated: number; previous: FinancialItemDimensions | null }> {
+  const fyStart = args.fiscalYear !== undefined ? await getProjectFyStart(args.projectId) : 0;
   const baseWhere = args.fiscalYear !== undefined
     ? and(
         eq(financialEntries.projectId, args.projectId),
         eq(financialEntries.itemKey, args.itemKey),
-        eq(financialEntries.fiscalYear, args.fiscalYear),
+        fyCalendarWhere(args.fiscalYear, fyStart),
       )
     : and(
         eq(financialEntries.projectId, args.projectId),
@@ -388,11 +445,12 @@ export async function deleteFinancialItem(args: {
   itemKey: string;
   fiscalYear?: number;
 }): Promise<FinancialItemDimensions | null> {
+  const fyStart = args.fiscalYear !== undefined ? await getProjectFyStart(args.projectId) : 0;
   const baseWhere = args.fiscalYear !== undefined
     ? and(
         eq(financialEntries.projectId, args.projectId),
         eq(financialEntries.itemKey, args.itemKey),
-        eq(financialEntries.fiscalYear, args.fiscalYear),
+        fyCalendarWhere(args.fiscalYear, fyStart),
       )
     : and(
         eq(financialEntries.projectId, args.projectId),

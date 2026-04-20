@@ -1634,9 +1634,16 @@ export const financialLockdowns = pgTable("financial_lockdowns", {
 export const financialEntries = pgTable("financial_entries", {
   id: serial("id").primaryKey(),
   projectId: integer("project_id").references(() => projects.id).notNull(),
+  // Calendar year of the cell (NOT the fiscal-year label). The FY label that
+  // contains a row is derived at the API boundary using the org's
+  // `fiscalYearStartMonth`, so values stay anchored to their original calendar
+  // month even when an org admin changes the fiscal start month.
   fiscalYear: integer("fiscal_year").notNull(),
   scenario: text("scenario").notNull(), // "aop" | "fcst" | "act"
-  month: integer("month").notNull(),    // 1..12 (M1 = first month of the org's fiscal year, configurable via organizations.fiscalYearStartMonth; default M1 = Oct)
+  // Calendar month (1=Jan .. 12=Dec). Storage is calendar-anchored; the
+  // server translates to/from the org's fiscal-month index (M1..M12) using
+  // `organizations.fiscalYearStartMonth` (default 10 = October).
+  month: integer("month").notNull(),
   amount: numeric("amount").default("0").notNull(),
   // Logical-item identity (shared by every cell of one item)
   itemKey: text("item_key").notNull(),

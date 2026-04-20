@@ -8,6 +8,10 @@ import type { FinancialType } from "@shared/schema";
 import type { FinancialItemDimensions } from "../storage/financialStorage";
 import { buildFiscalMonths, currentFiscalYear, normalizeFiscalYearStartMonth } from "@shared/lib/fiscalCalendar";
 import {
+  fiscalSlotToCalendar,
+  normalizeFiscalYearStartMonth,
+} from "@shared/lib/fiscalCalendar";
+import {
   getUserIdFromRequest,
   userHasOrgAccess,
   isTeamMemberInOrg,
@@ -75,14 +79,18 @@ function pickWbsUpdate(body: any): Record<string, any> {
 }
 
 /**
- * Map (fiscalYear, month [1..12, M1=Oct .. M12=Sep]) → calendar month-end date
- * as ISO `YYYY-MM-DD` so it's directly comparable to lockdown dates which are
- * stored as ISO date strings (YYYY-MM-DD lex order matches calendar order).
+ * Map an FY-relative slot (fiscalYear label + month 1..12) → calendar
+ * month-end date as ISO `YYYY-MM-DD`, given the org's `fiscalYearStartMonth`.
+ * Returned strings are directly comparable to lockdown dates which are stored
+ * as ISO date strings (YYYY-MM-DD lex order matches calendar order).
  */
-export function fiscalMonthEndIso(fiscalYear: number, month: number): string {
-  // M1..M3 → Oct/Nov/Dec of (fiscalYear - 1); M4..M12 → Jan..Sep of fiscalYear.
-  const cy = month <= 3 ? fiscalYear - 1 : fiscalYear;
-  const cm = month <= 3 ? 9 + month : month - 3; // 1-indexed calendar month
+export function fiscalMonthEndIso(
+  fiscalYear: number,
+  month: number,
+  fyStartMonth: number,
+): string {
+  const start = normalizeFiscalYearStartMonth(fyStartMonth);
+  const { year: cy, month: cm } = fiscalSlotToCalendar(fiscalYear, month, start);
   // Last day of `cm` for `cy` — `new Date(cy, cm, 0)` gives day 0 of (cm+1 in 0-idx) → last day of cm (1-idx).
   const d = new Date(Date.UTC(cy, cm, 0));
   const yyyy = d.getUTCFullYear().toString().padStart(4, "0");
@@ -225,7 +233,9 @@ export function registerFinancialsRoutes(app: Express) {
       const lockdownMap = await storage.getActiveLockdownMap(guard.project.organizationId);
       const lockedAt = lockdownMap[typeKey];
       if (lockedAt) {
-        const cellMonthEnd = fiscalMonthEndIso(Number(fiscalYear), monthNum);
+        const org = await storage.getOrganization(guard.project.organizationId);
+        const fyStart = normalizeFiscalYearStartMonth(org?.fiscalYearStartMonth);
+        const cellMonthEnd = fiscalMonthEndIso(Number(fiscalYear), monthNum, fyStart);
         if (cellMonthEnd <= lockedAt) {
           return res.status(403).json({
             message: `Financial type "${typeConfig.label}" is locked through ${lockedAt}. Cell for FY${fiscalYear} M${monthNum} (${cellMonthEnd}) cannot be edited.`,
@@ -357,17 +367,24 @@ export function registerFinancialsRoutes(app: Express) {
       // scenario, month) — every cell is guaranteed to exist because we only
       // included cells whose previous amount was non-zero (they came from
       // getFinancialEntries above).
+      // Translate each FY-relative cell → calendar (year, month) using the
+      // org's `fiscalYearStartMonth` so the WHERE clause hits the right
+      // calendar-anchored row in storage (Task #36).
+      const orgForFy = await storage.getOrganization(guard.project.organizationId);
+      const fyStart = normalizeFiscalYearStartMonth(orgForFy?.fiscalYearStartMonth);
+
       await db.transaction(async (tx) => {
         for (const c of toClear) {
+          const cal = fiscalSlotToCalendar(c.fiscalYear, c.month, fyStart);
           await tx
             .update(financialEntries)
             .set({ amount: "0" as any, updatedAt: new Date() })
             .where(and(
               eq(financialEntries.projectId, projectId),
-              eq(financialEntries.fiscalYear, c.fiscalYear),
+              eq(financialEntries.fiscalYear, cal.year),
               eq(financialEntries.itemKey, c.itemKey),
               eq(financialEntries.scenario, c.type),
-              eq(financialEntries.month, c.month),
+              eq(financialEntries.month, cal.month),
             ));
         }
         // Clear redo stack inside the tx so a partial failure doesn't leave

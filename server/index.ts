@@ -15,6 +15,7 @@ import { runScheduledReminders } from "./services/timesheetReminderEngine";
 import { checkAndRunDueAgentActions } from "./services/projectAgentService";
 import { cleanupDuplicateBillingCycles } from "./services/billing";
 import { backfillFinancialEntries } from "./migrations/backfillFinancialEntries";
+import { migrateMonthToCalendar } from "./migrations/migrateMonthToCalendar";
 
 process.on('uncaughtException', (err) => {
   const msg = err instanceof Error ? err.message : String(err);
@@ -229,14 +230,26 @@ app.use((req, res, next) => {
     () => {
       log(`serving on port ${port}`);
 
-      // One-shot backfill of legacy cost_items into normalized financial_entries.
-      backfillFinancialEntries()
+      // Migrations run in a strict order:
+      //   1) Rewrite legacy FY-relative `financial_entries` rows into
+      //      calendar-anchored (year, month). Marker-guarded; runs once.
+      //   2) Backfill any legacy `cost_items` rows that haven't been
+      //      normalized yet — also calendar-anchored from day one.
+      // Step 1 must come first so step 2's idempotency check (36 cells per
+      // item) keeps working in either order across deploys.
+      migrateMonthToCalendar()
+        .then(({ alreadyApplied, rowsRewritten }) => {
+          if (!alreadyApplied) {
+            log(`Financial entries calendar migration: rewrote ${rowsRewritten} rows`, "migration");
+          }
+          return backfillFinancialEntries();
+        })
         .then(({ migrated, skipped }) => {
           if (migrated > 0 || skipped > 0) {
             log(`Financial entries backfill: ${migrated} migrated, ${skipped} already migrated`, "migration");
           }
         })
-        .catch(err => console.error("[migration] Failed to backfill financial entries:", err));
+        .catch(err => console.error("[migration] Failed financial-entries migration:", err));
 
       // Cron jobs only run in production by default. Set ENABLE_CRON=true to
       // enable them in development for manual testing.

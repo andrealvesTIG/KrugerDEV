@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { sql } from "drizzle-orm";
 import { financialEntries, type InsertFinancialEntry } from "@shared/schema";
+import { buildFiscalMonths, normalizeFiscalYearStartMonth } from "@shared/lib/fiscalCalendar";
 
 /**
  * One-shot migration: copies the legacy denormalized monthly columns from
@@ -25,18 +26,24 @@ export async function backfillFinancialEntries(): Promise<{ migrated: number; sk
     return { migrated: 0, skipped: 0 };
   }
 
-  // Pull every legacy cost_items row.
+  // Pull every legacy cost_items row, joining to organizations so we can
+  // translate the FY-relative monthly columns (M1..M12) into calendar
+  // (year, month) when inserting into financial_entries (Task #36).
   const legacy = await db.execute(sql`
     SELECT
-      id, project_id, fiscal_year, name, wbs, comments,
-      financial_view, cost_category, cost_specification, category, sort_order, is_demo,
-      aop_m1, aop_m2, aop_m3, aop_m4, aop_m5, aop_m6,
-      aop_m7, aop_m8, aop_m9, aop_m10, aop_m11, aop_m12,
-      fcst_m1, fcst_m2, fcst_m3, fcst_m4, fcst_m5, fcst_m6,
-      fcst_m7, fcst_m8, fcst_m9, fcst_m10, fcst_m11, fcst_m12,
-      act_m1, act_m2, act_m3, act_m4, act_m5, act_m6,
-      act_m7, act_m8, act_m9, act_m10, act_m11, act_m12
-    FROM cost_items
+      ci.id, ci.project_id, ci.fiscal_year, ci.name, ci.wbs, ci.comments,
+      ci.financial_view, ci.cost_category, ci.cost_specification, ci.category,
+      ci.sort_order, ci.is_demo,
+      o.fiscal_year_start_month AS fy_start,
+      ci.aop_m1, ci.aop_m2, ci.aop_m3, ci.aop_m4, ci.aop_m5, ci.aop_m6,
+      ci.aop_m7, ci.aop_m8, ci.aop_m9, ci.aop_m10, ci.aop_m11, ci.aop_m12,
+      ci.fcst_m1, ci.fcst_m2, ci.fcst_m3, ci.fcst_m4, ci.fcst_m5, ci.fcst_m6,
+      ci.fcst_m7, ci.fcst_m8, ci.fcst_m9, ci.fcst_m10, ci.fcst_m11, ci.fcst_m12,
+      ci.act_m1, ci.act_m2, ci.act_m3, ci.act_m4, ci.act_m5, ci.act_m6,
+      ci.act_m7, ci.act_m8, ci.act_m9, ci.act_m10, ci.act_m11, ci.act_m12
+    FROM cost_items ci
+    INNER JOIN projects p ON p.id = ci.project_id
+    INNER JOIN organizations o ON o.id = p.organization_id
   `);
 
   const SCENARIOS: Array<{ scenario: "aop" | "fcst" | "act"; prefix: string }> = [
@@ -71,15 +78,22 @@ export async function backfillFinancialEntries(): Promise<{ migrated: number; sk
       `);
     }
 
+    // Translate the legacy FY-relative monthly columns (M1..M12) into
+    // calendar (year, month) pairs using the project's org fiscal start month
+    // so the new normalized rows are calendar-anchored from day one.
+    const fyStart = normalizeFiscalYearStartMonth(row.fy_start);
+    const calPairs = buildFiscalMonths(row.fiscal_year, fyStart);
+
     const rows: InsertFinancialEntry[] = [];
     for (const { scenario, prefix } of SCENARIOS) {
       for (let m = 1; m <= 12; m++) {
         const amount = Number(row[`${prefix}${m}`] ?? 0) || 0;
+        const cal = calPairs[m - 1];
         rows.push({
           projectId: row.project_id,
-          fiscalYear: row.fiscal_year,
+          fiscalYear: cal.year,
           scenario,
-          month: m,
+          month: cal.month,
           amount,
           itemKey,
           itemName: row.name ?? "Unnamed",

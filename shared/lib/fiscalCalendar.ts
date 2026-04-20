@@ -103,6 +103,40 @@ export function normalizeFiscalYearStartMonth(value: number | null | undefined):
 }
 
 /**
+ * Translate a calendar (year, month) to its FY-relative slot under the given
+ * org fiscal start month. Returns the FY label (calendar year in which the FY
+ * ends) and the 1..12 fiscal-month index (M1 = the start month).
+ */
+export function calendarToFiscalSlot(
+  calendarYear: number,
+  calendarMonth: number,
+  startMonth: number | null | undefined,
+): { fiscalYear: number; monthNum: number } {
+  const start = normalizeStart(startMonth);
+  const monthNum = ((calendarMonth - start + 12) % 12) + 1;
+  const fiscalYear = start === 1
+    ? calendarYear
+    : calendarMonth >= start
+      ? calendarYear + 1
+      : calendarYear;
+  return { fiscalYear, monthNum };
+}
+
+/**
+ * Translate an FY-relative slot (FY label + 1..12 monthNum) to a calendar
+ * (year, month). Inverse of `calendarToFiscalSlot` for the same `startMonth`.
+ */
+export function fiscalSlotToCalendar(
+  fiscalYear: number,
+  monthNum: number,
+  startMonth: number | null | undefined,
+): { year: number; month: number } {
+  const months = buildFiscalMonths(fiscalYear, startMonth);
+  const slot = months[Math.max(0, Math.min(11, monthNum - 1))];
+  return { year: slot.year, month: slot.month };
+}
+
+/**
  * The fiscal year (labeled by the calendar year in which the FY ends) that
  * `today` falls into, given the org's fiscal start month. For start === 1 the
  * fiscal year equals the calendar year. Otherwise, calendar months >= start
