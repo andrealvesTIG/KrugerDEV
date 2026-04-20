@@ -3278,3 +3278,47 @@ export const userPageEvents = pgTable("user_page_events", {
 
 export type UserPageEvent = typeof userPageEvents.$inferSelect;
 export type InsertUserPageEvent = typeof userPageEvents.$inferInsert;
+
+// === LinkedIn Enrichment & Follow-up Drafts (Task #25) ===
+
+// Per-user LinkedIn / profile enrichment cache (1 row per user).
+export const userEnrichment = pgTable("user_enrichment", {
+  userId: varchar("user_id").primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  source: text("source"),                  // 'proxycurl' | 'openai_inference' | 'manual' | 'none'
+  status: text("status").default("ok"),    // 'ok' | 'error' | 'not_configured' | 'pending'
+  errorMessage: text("error_message"),
+  linkedinUrl: text("linkedin_url"),
+  headline: text("headline"),
+  currentRole: text("current_role"),
+  currentCompany: text("current_company"),
+  currentCompanyIndustry: text("current_company_industry"),
+  location: text("location"),
+  photoUrl: text("photo_url"),
+  recentPositions: jsonb("recent_positions"), // [{title, company, startDate, endDate}]
+  rawPayload: jsonb("raw_payload"),
+  fetchedAt: timestamp("fetched_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type UserEnrichment = typeof userEnrichment.$inferSelect;
+export type InsertUserEnrichment = typeof userEnrichment.$inferInsert;
+
+// Per-user AI-drafted follow-up messages, kept as a small history.
+export const userFollowupDrafts = pgTable("user_followup_drafts", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  authorId: varchar("author_id").references(() => users.id),
+  authorName: text("author_name"),
+  tone: text("tone").default("friendly"),  // 'friendly' | 'formal' | 'brief'
+  subject: text("subject"),
+  content: text("content").notNull(),
+  status: text("status").default("draft"), // 'draft' | 'edited' | 'sent' | 'copied'
+  meta: jsonb("meta"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("user_followup_drafts_user_idx").on(table.userId, table.createdAt),
+]);
+
+export type UserFollowupDraft = typeof userFollowupDrafts.$inferSelect;
+export type InsertUserFollowupDraft = typeof userFollowupDrafts.$inferInsert;

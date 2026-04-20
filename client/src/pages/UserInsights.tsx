@@ -10,8 +10,10 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Copy, Mail, ArrowLeft, Globe, MapPin, Smartphone, Monitor, Calendar, ExternalLink, ChevronDown, ChevronRight, Eye, MousePointerClick, Activity, AlertCircle, Search, Send } from "lucide-react";
+import { Loader2, Copy, Mail, ArrowLeft, Globe, MapPin, Smartphone, Monitor, Calendar, ExternalLink, ChevronDown, ChevronRight, Eye, MousePointerClick, Activity, AlertCircle, Search, Send, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { AboutThemPanel, type EnrichmentRow } from "@/components/admin/AboutThemPanel";
+import { FollowupDraftPanel } from "@/components/admin/FollowupDraftPanel";
 
 type InsightsUser = {
   id: string;
@@ -64,6 +66,7 @@ type TimelineFilter = 'all' | 'page' | 'action' | 'error';
 type Insights = {
   user: InsightsUser;
   acquisition: InsightsAcquisition | null;
+  enrichment: EnrichmentRow;
   organizations: InsightsOrganization[];
   summary: {
     eventCount: number;
@@ -199,6 +202,7 @@ export default function UserInsights() {
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailSubject, setEmailSubject] = useState('');
   const [emailMessage, setEmailMessage] = useState('');
+  const [draftPanelOpen, setDraftPanelOpen] = useState(false);
 
   const insightsQ = useQuery<Insights>({
     queryKey: ['/api/admin/users', userId, 'insights'],
@@ -394,6 +398,15 @@ export default function UserInsights() {
                 <ExternalLink className="h-4 w-4 mr-1" /> Open in admin
               </Button>
               <Button
+                variant="default"
+                size="sm"
+                onClick={() => setDraftPanelOpen(true)}
+                data-testid="button-draft-followup"
+              >
+                <Sparkles className="h-4 w-4 mr-1" /> Draft follow-up
+              </Button>
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={() => {
                   const fname = user.firstName || (user.email || '').split('@')[0] || 'there';
@@ -409,6 +422,18 @@ export default function UserInsights() {
           </div>
         </CardContent>
       </Card>
+
+      {/* About them — LinkedIn enrichment */}
+      <AboutThemPanel
+        userId={user.id}
+        enrichment={insightsQ.data.enrichment ?? null}
+        detected={{
+          company: user.detectedCompany,
+          industry: user.detectedIndustry,
+          jobTitle: user.jobTitle,
+          linkedinUrl: user.linkedinUrl ?? null,
+        }}
+      />
 
       {/* Acquisition */}
       <Card data-testid="card-acquisition">
@@ -599,6 +624,20 @@ export default function UserInsights() {
         </CardContent>
       </Card>
 
+      {/* AI follow-up draft side panel */}
+      <FollowupDraftPanel
+        open={draftPanelOpen}
+        onOpenChange={setDraftPanelOpen}
+        userId={user.id}
+        recipientName={fullName}
+        recipientEmail={user.email}
+        onOpenInComposer={(subj, msg) => {
+          setEmailSubject(subj);
+          setEmailMessage(msg);
+          setEmailOpen(true);
+        }}
+      />
+
       {/* Sales email dialog */}
       <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
         <DialogContent className="sm:max-w-lg">
@@ -668,7 +707,7 @@ function KV({ k, v }: { k: string; v: string | number | null | undefined }) {
   return (
     <div>
       <div className="text-muted-foreground">{k}</div>
-      <div className="truncate" title={v ?? ''}>{v ?? '—'}</div>
+      <div className="truncate" title={v != null ? String(v) : ''}>{v ?? '—'}</div>
     </div>
   );
 }

@@ -2,11 +2,18 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { eq, sql } from "drizzle-orm";
 import {
-  users, userAcquisition, userPageEvents,
+  users, userAcquisition, userPageEvents, userEnrichment,
 } from "@shared/schema";
 import { getUserIdFromRequest, hasAdminAccess } from "./helpers";
 import { computeSalesTemperature } from "../services/sales-temperature";
 import { extractClientIp } from "../services/acquisition";
+import {
+  enrichUser, getCachedEnrichment, normalizeLinkedInUrl, setManualLinkedInUrl,
+} from "../services/linkedinEnrichment";
+import {
+  generateFollowupDraft, saveDraft, listDrafts, updateDraftContent,
+  checkAndIncrementQuota, logSalesAdminAction, type DraftTone,
+} from "../services/followupDraft";
 
 interface TrackEventInput {
   eventType?: string;
@@ -365,6 +372,7 @@ export function registerUserInsightsRoutes(app: Express) {
       if (!user) return res.status(404).json({ message: 'User not found' });
 
       const [acq] = await db.select().from(userAcquisition).where(eq(userAcquisition.userId, targetId));
+      const [enrichment] = await db.select().from(userEnrichment).where(eq(userEnrichment.userId, targetId));
 
       // Memberships + orgs
       const memberships = await db.execute(sql`
@@ -474,6 +482,7 @@ export function registerUserInsightsRoutes(app: Express) {
       res.json({
         user: safeUser,
         acquisition: acq || null,
+        enrichment: enrichment || null,
         organizations: memberships.rows,
         summary: {
           eventCount: num('event_count'),
@@ -668,6 +677,331 @@ export function registerUserInsightsRoutes(app: Express) {
     } catch (err) {
       console.error('GET /api/admin/users/:userId/timeline failed:', err);
       res.status(500).json({ message: 'Failed to fetch timeline' });
+    }
+  });
+
+  // === LinkedIn Enrichment (Task #25) ===
+
+  // PUT /api/admin/users/:userId/linkedin-url — set/update the LinkedIn URL
+  app.put('/api/admin/users/:userId/linkedin-url', async (req: Request, res: Response) => {
+    try {
+      const adminId = getUserIdFromRequest(req);
+      if (!adminId) return res.status(401).json({ message: 'Authentication required' });
+      const [currentUser] = await db.select().from(users).where(eq(users.id, adminId));
+      if (!hasAdminAccess(currentUser)) return res.status(403).json({ message: 'Admin access required' });
+
+      const targetId = String(req.params.userId);
+      const [target] = await db.select().from(users).where(eq(users.id, targetId));
+      if (!target) return res.status(404).json({ message: 'User not found' });
+
+      const body = (req.body ?? {}) as { linkedinUrl?: string | null };
+      const raw = (body.linkedinUrl ?? '').toString().trim();
+      let normalized: string | null = null;
+      if (raw) {
+        normalized = normalizeLinkedInUrl(raw);
+        if (!normalized) {
+          return res.status(400).json({ message: 'That doesn\'t look like a valid LinkedIn URL' });
+        }
+      }
+      await db.update(users).set({ linkedinUrl: normalized }).where(eq(users.id, targetId));
+      let enrichment = await setManualLinkedInUrl(targetId, normalized);
+
+      // Auto-trigger fresh enrichment when a URL is set/changed (subject to quota).
+      let quotaInfo: { used: number; limit: number } | undefined;
+      let enrichSkipped: string | undefined;
+      if (normalized) {
+        const quota = await checkAndIncrementQuota(adminId, 'enrichment');
+        if (!quota.ok) {
+          enrichSkipped = `Daily enrichment limit reached (${quota.used}/${quota.limit}). URL saved; refresh manually tomorrow.`;
+        } else {
+          enrichment = await enrichUser({
+            userId: targetId,
+            force: true,
+            input: {
+              linkedinUrl: normalized,
+              email: target.email || null,
+              fullName: [target.firstName, target.lastName].filter(Boolean).join(' ') || null,
+              jobTitle: target.jobTitle || null,
+              detectedCompany: target.detectedCompany || null,
+            },
+          });
+          await logSalesAdminAction({
+            adminId, kind: 'enrichment', targetUserId: targetId,
+            reservationId: quota.reservationId,
+            meta: { source: enrichment?.source, status: enrichment?.status, trigger: 'linkedin-url-update' },
+            ip: extractClientIp(req),
+            ua: (req.headers['user-agent'] as string | undefined) || null,
+          });
+          quotaInfo = { used: quota.used + 1, limit: quota.limit };
+        }
+      }
+
+      res.json({ ok: true, linkedinUrl: normalized, enrichment, quota: quotaInfo, enrichSkipped });
+    } catch (err) {
+      console.error('PUT /api/admin/users/:userId/linkedin-url failed:', err);
+      res.status(500).json({ message: 'Failed to update LinkedIn URL' });
+    }
+  });
+
+  // POST /api/admin/users/:userId/enrich — trigger enrichment refresh
+  app.post('/api/admin/users/:userId/enrich', async (req: Request, res: Response) => {
+    try {
+      const adminId = getUserIdFromRequest(req);
+      if (!adminId) return res.status(401).json({ message: 'Authentication required' });
+      const [currentUser] = await db.select().from(users).where(eq(users.id, adminId));
+      if (!hasAdminAccess(currentUser)) return res.status(403).json({ message: 'Admin access required' });
+
+      const targetId = String(req.params.userId);
+      const [target] = await db.select().from(users).where(eq(users.id, targetId));
+      if (!target) return res.status(404).json({ message: 'User not found' });
+
+      const quota = await checkAndIncrementQuota(adminId, 'enrichment');
+      if (!quota.ok) {
+        return res.status(429).json({ message: `Daily enrichment limit reached (${quota.used}/${quota.limit}). Try again tomorrow.` });
+      }
+
+      const force = req.body?.force === true || String(req.query.force || '') === '1';
+      const enrichment = await enrichUser({
+        userId: targetId,
+        force,
+        input: {
+          linkedinUrl: target.linkedinUrl || null,
+          email: target.email || null,
+          fullName: [target.firstName, target.lastName].filter(Boolean).join(' ') || null,
+          jobTitle: target.jobTitle || null,
+          detectedCompany: target.detectedCompany || null,
+        },
+      });
+
+      await logSalesAdminAction({
+        adminId, kind: 'enrichment', targetUserId: targetId,
+        reservationId: quota.reservationId,
+        meta: { source: enrichment.source, status: enrichment.status, force },
+        ip: extractClientIp(req),
+        ua: (req.headers['user-agent'] as string | undefined) || null,
+      });
+
+      res.json({ enrichment, quota: { used: quota.used + 1, limit: quota.limit } });
+    } catch (err) {
+      console.error('POST /api/admin/users/:userId/enrich failed:', err);
+      res.status(500).json({ message: 'Failed to enrich user profile' });
+    }
+  });
+
+  // === Follow-up draft generation (Task #25) ===
+
+  // POST /api/admin/users/:userId/followup-draft — generate a new draft
+  app.post('/api/admin/users/:userId/followup-draft', async (req: Request, res: Response) => {
+    try {
+      const adminId = getUserIdFromRequest(req);
+      if (!adminId) return res.status(401).json({ message: 'Authentication required' });
+      const [currentUser] = await db.select().from(users).where(eq(users.id, adminId));
+      if (!hasAdminAccess(currentUser)) return res.status(403).json({ message: 'Admin access required' });
+
+      const targetId = String(req.params.userId);
+      const [target] = await db.select().from(users).where(eq(users.id, targetId));
+      if (!target) return res.status(404).json({ message: 'User not found' });
+
+      const quota = await checkAndIncrementQuota(adminId, 'draft');
+      if (!quota.ok) {
+        return res.status(429).json({ message: `Daily AI draft limit reached (${quota.used}/${quota.limit}). Try again tomorrow.` });
+      }
+
+      const tone = (String(req.body?.tone || 'friendly') as DraftTone);
+      if (!['friendly', 'formal', 'brief'].includes(tone)) {
+        return res.status(400).json({ message: 'Invalid tone' });
+      }
+
+      // Pull all the context we need.
+      const [acq] = await db.select().from(userAcquisition).where(eq(userAcquisition.userId, targetId));
+      const enrichment = await getCachedEnrichment(targetId);
+
+      const sumRes = await db.execute(sql`
+        SELECT
+          (SELECT COUNT(*)::int FROM user_page_events WHERE user_id = ${targetId} AND event_type <> 'cap_overflow') as event_count,
+          (SELECT COUNT(*)::int FROM user_activity_logs WHERE user_id = ${targetId}) as action_count,
+          (SELECT COUNT(DISTINCT DATE(occurred_at))::int FROM user_page_events WHERE user_id = ${targetId} AND occurred_at >= NOW() - INTERVAL '7 days') as days_active_7d,
+          (SELECT MAX(occurred_at) FROM user_page_events WHERE user_id = ${targetId}) as last_event_at,
+          (SELECT COUNT(*)::int FROM projects p
+            JOIN organization_members om ON om.organization_id = p.organization_id
+            WHERE om.user_id = ${targetId} AND p.deleted_at IS NULL) as projects_count,
+          (SELECT COUNT(*)::int FROM tasks t
+            JOIN projects p ON t.project_id = p.id
+            JOIN organization_members om ON om.organization_id = p.organization_id
+            WHERE om.user_id = ${targetId} AND t.deleted_at IS NULL) as tasks_count,
+          (SELECT COUNT(*)::int FROM issues i
+            JOIN projects p ON i.project_id = p.id
+            JOIN organization_members om ON om.organization_id = p.organization_id
+            WHERE om.user_id = ${targetId} AND i.deleted_at IS NULL AND i.item_type = 'issue') as issues_count,
+          (SELECT COUNT(*)::int FROM issues i
+            JOIN projects p ON i.project_id = p.id
+            JOIN organization_members om ON om.organization_id = p.organization_id
+            WHERE om.user_id = ${targetId} AND i.deleted_at IS NULL AND i.item_type = 'risk') as risks_count
+      `);
+      const sRow = (sumRes.rows[0] as Record<string, unknown>) || {};
+      const sn = (k: string) => Number((sRow[k] as number | string | null | undefined) ?? 0);
+
+      const topActionsRes = await db.execute(sql`
+        SELECT action, COUNT(*)::int as count FROM user_activity_logs
+        WHERE user_id = ${targetId}
+        GROUP BY action ORDER BY count DESC LIMIT 8
+      `);
+      const topPagesRes = await db.execute(sql`
+        SELECT path, COUNT(*)::int as count FROM user_page_events
+        WHERE user_id = ${targetId} AND event_type = 'page_view' AND path IS NOT NULL
+        GROUP BY path ORDER BY count DESC LIMIT 8
+      `);
+      const recentRes = await db.execute(sql`
+        SELECT event_type as kind, path, element, label, occurred_at as ts
+        FROM user_page_events
+        WHERE user_id = ${targetId} AND event_type <> 'cap_overflow'
+        ORDER BY occurred_at DESC LIMIT 25
+      `);
+
+      const temp = computeSalesTemperature({
+        daysActiveLast7: sn('days_active_7d'),
+        projectsCreated: sn('projects_count'),
+        tasksCreated: sn('tasks_count'),
+        totalEvents: sn('event_count') + sn('action_count'),
+      });
+
+      const fullName = [target.firstName, target.lastName].filter(Boolean).join(' ').trim() || null;
+      const draft = await generateFollowupDraft({
+        tone,
+        context: {
+          user: {
+            id: target.id,
+            fullName,
+            firstName: target.firstName,
+            email: target.email,
+            jobTitle: target.jobTitle,
+            detectedCompany: target.detectedCompany,
+            detectedIndustry: target.detectedIndustry,
+            createdAt: target.createdAt as unknown as string,
+          },
+          enrichment,
+          acquisition: acq ? {
+            referrerHost: acq.referrerHost,
+            utmSource: acq.utmSource,
+            utmCampaign: acq.utmCampaign,
+            landingPath: acq.landingPath,
+            country: acq.country,
+          } : null,
+          summary: {
+            salesTemperature: temp,
+            daysActiveLast7: sn('days_active_7d'),
+            projectsCount: sn('projects_count'),
+            tasksCount: sn('tasks_count'),
+            issuesCount: sn('issues_count'),
+            risksCount: sn('risks_count'),
+            eventCount: sn('event_count'),
+            actionCount: sn('action_count'),
+            lastSeenAt: (sRow.last_event_at as string | null) || null,
+          },
+          topActions: (topActionsRes.rows as Array<Record<string, unknown>>).map(r => ({
+            action: String(r.action ?? ''), count: Number(r.count ?? 0),
+          })),
+          topPages: (topPagesRes.rows as Array<Record<string, unknown>>).map(r => ({
+            path: String(r.path ?? ''), count: Number(r.count ?? 0),
+          })),
+          recentTimeline: (recentRes.rows as Array<Record<string, unknown>>).map(r => ({
+            kind: String(r.kind ?? ''),
+            path: (r.path as string | null) ?? null,
+            element: (r.element as string | null) ?? null,
+            label: (r.label as string | null) ?? null,
+            occurredAt: String(r.ts ?? ''),
+          })),
+        },
+      });
+
+      const adminName = [currentUser?.firstName, currentUser?.lastName].filter(Boolean).join(' ').trim()
+        || currentUser?.email
+        || null;
+
+      const saved = await saveDraft({
+        userId: targetId,
+        authorId: adminId,
+        authorName: adminName,
+        tone,
+        subject: draft.subject,
+        content: draft.body,
+        status: 'draft',
+        meta: { generated: true, model: process.env.AI_INTEGRATIONS_OPENAI_API_KEY ? 'gpt-4o-mini' : 'fallback' },
+      });
+
+      await logSalesAdminAction({
+        adminId, kind: 'draft', targetUserId: targetId,
+        reservationId: quota.reservationId,
+        meta: { tone, draftId: saved.id },
+        ip: extractClientIp(req),
+        ua: (req.headers['user-agent'] as string | undefined) || null,
+      });
+
+      res.json({ draft: saved, quota: { used: quota.used + 1, limit: quota.limit } });
+    } catch (err) {
+      console.error('POST /api/admin/users/:userId/followup-draft failed:', err);
+      res.status(500).json({ message: 'Failed to generate follow-up draft' });
+    }
+  });
+
+  // GET /api/admin/users/:userId/followup-drafts — list recent drafts
+  app.get('/api/admin/users/:userId/followup-drafts', async (req: Request, res: Response) => {
+    try {
+      const adminId = getUserIdFromRequest(req);
+      if (!adminId) return res.status(401).json({ message: 'Authentication required' });
+      const [currentUser] = await db.select().from(users).where(eq(users.id, adminId));
+      if (!hasAdminAccess(currentUser)) return res.status(403).json({ message: 'Admin access required' });
+
+      const targetId = String(req.params.userId);
+      const drafts = await listDrafts(targetId, 20);
+      res.json({ drafts });
+    } catch (err) {
+      console.error('GET /api/admin/users/:userId/followup-drafts failed:', err);
+      res.status(500).json({ message: 'Failed to fetch drafts' });
+    }
+  });
+
+  // PATCH /api/admin/users/:userId/followup-drafts/:id — update status and/or content (subject/body edits)
+  app.patch('/api/admin/users/:userId/followup-drafts/:id', async (req: Request, res: Response) => {
+    try {
+      const adminId = getUserIdFromRequest(req);
+      if (!adminId) return res.status(401).json({ message: 'Authentication required' });
+      const [currentUser] = await db.select().from(users).where(eq(users.id, adminId));
+      if (!hasAdminAccess(currentUser)) return res.status(403).json({ message: 'Admin access required' });
+
+      const id = Number(req.params.id);
+      if (!id || isNaN(id)) return res.status(400).json({ message: 'Invalid draft id' });
+      const body = (req.body ?? {}) as { status?: string; subject?: string | null; content?: string };
+
+      const patch: { status?: 'draft' | 'edited' | 'sent' | 'copied'; subject?: string | null; content?: string } = {};
+      if (body.status !== undefined) {
+        if (!['draft', 'edited', 'sent', 'copied'].includes(String(body.status))) {
+          return res.status(400).json({ message: 'Invalid status' });
+        }
+        patch.status = body.status as 'draft' | 'edited' | 'sent' | 'copied';
+      }
+      if (body.subject !== undefined) {
+        patch.subject = body.subject == null ? null : String(body.subject).slice(0, 500);
+      }
+      if (body.content !== undefined) {
+        const c = String(body.content);
+        if (c.length > 20000) return res.status(400).json({ message: 'Draft content too large' });
+        patch.content = c;
+        // If caller is saving content edits but didn't specify status, mark as edited.
+        if (patch.status === undefined) patch.status = 'edited';
+      }
+
+      if (Object.keys(patch).length === 0) {
+        return res.status(400).json({ message: 'Nothing to update' });
+      }
+
+      const targetUserId = String(req.params.userId);
+      const updated = await updateDraftContent(id, { ...patch, userId: targetUserId });
+      if (!updated) return res.status(404).json({ message: 'Draft not found' });
+      res.json({ ok: true, draft: updated });
+    } catch (err) {
+      console.error('PATCH followup-draft status failed:', err);
+      res.status(500).json({ message: 'Failed to update draft' });
     }
   });
 }
