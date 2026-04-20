@@ -453,18 +453,20 @@ function validateCustomFieldValue(
     case 'select': {
       const opts = def.options || [];
       if (opts.length === 0) return { value: trimmed };
-      const match = opts.find(o => o.toLowerCase() === trimmed.toLowerCase());
+      const norm = trimmed.normalize('NFC').toLowerCase();
+      const match = opts.find(o => o.normalize('NFC').toLowerCase() === norm);
       if (!match) return { error: `"${trimmed}" is not an allowed option. Allowed: ${opts.join(', ')}` };
       return { value: match };
     }
     case 'multiselect': {
       const opts = def.options || [];
-      const parts = trimmed.split(/\s*[,;]\s*/).filter(Boolean);
+      const parts = trimmed.split(/[\s]*[,;\n\r][\s]*/).map(p => p.trim()).filter(Boolean);
       if (opts.length === 0) return { value: parts.join(', ') };
       const normalised: string[] = [];
       const bad: string[] = [];
       for (const p of parts) {
-        const m = opts.find(o => o.toLowerCase() === p.toLowerCase());
+        const pn = p.normalize('NFC').toLowerCase();
+        const m = opts.find(o => o.normalize('NFC').toLowerCase() === pn);
         if (m) normalised.push(m); else bad.push(p);
       }
       if (bad.length > 0) return { error: `Invalid option(s): ${bad.join(', ')}. Allowed: ${opts.join(', ')}` };
@@ -658,7 +660,9 @@ function parseCsv(
           errors.push({ row: rowNum, column: hdr, value: strVal, message: res.error });
           continue;
         }
-        if (res.value !== '') customFields[hdr] = res.value;
+        // Store under the canonical def name so values match the existing
+        // org definition exactly (avoids "Section" vs "section" duplicates).
+        if (res.value !== '') customFields[def.name] = res.value;
       } else {
         customFields[hdr] = strVal;
       }
