@@ -151,6 +151,18 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
       { type: "module" as const, key: "issues", hidden: false },
       { type: "module" as const, key: "tasks", hidden: false },
       { type: "module" as const, key: "timesheets", hidden: false },
+      { type: "module" as const, key: "daily-logs", hidden: true },
+      { type: "module" as const, key: "rfis", hidden: true },
+      { type: "module" as const, key: "submittals", hidden: true },
+      { type: "module" as const, key: "drawings", hidden: true },
+      { type: "module" as const, key: "punch-list", hidden: true },
+      { type: "module" as const, key: "quality-safety", hidden: true },
+      { type: "module" as const, key: "bidding", hidden: true },
+      { type: "module" as const, key: "vendors", hidden: true },
+      { type: "module" as const, key: "change-orders", hidden: true },
+      { type: "module" as const, key: "construction-invoices", hidden: true },
+      { type: "module" as const, key: "meetings", hidden: true },
+      { type: "module" as const, key: "correspondence", hidden: true },
     ]},
     { id: "resource-management", name: "Resource Management", hidden: false, collapsedByDefault: true, items: [
       { type: "module" as const, key: "resources", hidden: false },
@@ -237,7 +249,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
     })
   }));
 
-  const ensureModule = (moduleKey: string, targetGroupId: string, afterKey?: string) => {
+  const ensureModule = (moduleKey: string, targetGroupId: string, afterKey?: string, hiddenByDefault: boolean = false) => {
     const hasModule = updatedStructure.some(g => 
       g.items.some(item => item.type === "module" && item.key === moduleKey)
     );
@@ -250,9 +262,9 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
             if (afterKey) {
               const afterIndex = newItems.findIndex(item => item.type === "module" && item.key === afterKey);
               const insertIndex = afterIndex >= 0 ? afterIndex + 1 : newItems.length;
-              newItems.splice(insertIndex, 0, { type: "module" as const, key: moduleKey, hidden: false });
+              newItems.splice(insertIndex, 0, { type: "module" as const, key: moduleKey, hidden: hiddenByDefault });
             } else {
-              newItems.unshift({ type: "module" as const, key: moduleKey, hidden: false });
+              newItems.unshift({ type: "module" as const, key: moduleKey, hidden: hiddenByDefault });
             }
             return { ...g, items: newItems };
           }
@@ -271,18 +283,18 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   ensureModule("invoices", "finance", "pmo-radar");
   ensureModule("user-guide", "help");
   ensureModule("training", "help", "user-guide");
-  ensureModule("daily-logs", "portfolio", "tasks");
-  ensureModule("rfis", "portfolio", "daily-logs");
-  ensureModule("submittals", "portfolio", "rfis");
-  ensureModule("drawings", "portfolio", "submittals");
-  ensureModule("punch-list", "portfolio", "drawings");
-  ensureModule("quality-safety", "portfolio", "punch-list");
-  ensureModule("bidding", "portfolio", "quality-safety");
-  ensureModule("vendors", "portfolio", "bidding");
-  ensureModule("change-orders", "portfolio", "vendors");
-  ensureModule("construction-invoices", "portfolio", "change-orders");
-  ensureModule("meetings", "portfolio", "construction-invoices");
-  ensureModule("correspondence", "portfolio", "meetings");
+  ensureModule("daily-logs", "portfolio", "tasks", true);
+  ensureModule("rfis", "portfolio", "daily-logs", true);
+  ensureModule("submittals", "portfolio", "rfis", true);
+  ensureModule("drawings", "portfolio", "submittals", true);
+  ensureModule("punch-list", "portfolio", "drawings", true);
+  ensureModule("quality-safety", "portfolio", "punch-list", true);
+  ensureModule("bidding", "portfolio", "quality-safety", true);
+  ensureModule("vendors", "portfolio", "bidding", true);
+  ensureModule("change-orders", "portfolio", "vendors", true);
+  ensureModule("construction-invoices", "portfolio", "change-orders", true);
+  ensureModule("meetings", "portfolio", "construction-invoices", true);
+  ensureModule("correspondence", "portfolio", "meetings", true);
   ensureModule("media", "help", "training");
 
   // Remove the legacy Power BI Request sidebar entry: it now lives only inside the
