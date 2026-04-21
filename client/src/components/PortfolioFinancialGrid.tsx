@@ -424,7 +424,7 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
               </th>
               <th
                 colSpan={enabledTypes.length}
-                className="px-2 py-1.5 text-center font-bold uppercase tracking-wider text-[11px] text-foreground border-l border-border bg-muted/80"
+                className="px-2 py-1.5 text-center font-extrabold uppercase tracking-wider text-[11px] text-amber-900 dark:text-amber-100 border-l-2 border-r-2 border-amber-500/60 bg-amber-100/80 dark:bg-amber-900/40 shadow-[inset_0_-2px_0_0_rgba(245,158,11,0.5)]"
               >
                 Total
               </th>
@@ -449,10 +449,11 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
             <tr className="bg-card">
               {enabledTypes.map((t, i) => {
                 const palette = getTypePalette(t.key);
+                const isLast = i === enabledTypes.length - 1;
                 return (
                   <th
                     key={`th-total-${t.key}`}
-                    className={`px-1.5 py-1 text-center font-extrabold uppercase tracking-wider text-[9px] whitespace-nowrap ${i === 0 ? "border-l border-border" : "border-l border-border/40"} ${palette.activeBg} ${palette.activeText}`}
+                    className={`px-1.5 py-1 text-center font-extrabold uppercase tracking-wider text-[9px] whitespace-nowrap ${i === 0 ? "border-l-2 border-amber-500/60" : "border-l border-border/40"} ${isLast ? "border-r-2 border-amber-500/60" : ""} ${palette.activeBg} ${palette.activeText}`}
                   >
                     {t.label}
                   </th>
@@ -486,16 +487,19 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
               >
                 Portfolio Total ({projectGroups.length} {projectGroups.length === 1 ? "project" : "projects"})
               </td>
-              {enabledTypes.map((t, ti) => (
-                <td
-                  key={`pt-total-${t.key}`}
-                  className={`px-1.5 py-1.5 text-center text-[11px] font-bold tabular-nums bg-muted z-10 border-b-2 border-border ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
-                  style={{ top: "64px", position: "sticky" }}
-                  data-testid={`portfolio-total-${t.key}`}
-                >
-                  <MoneyCell value={portfolioTotals[t.key] ?? 0} />
-                </td>
-              ))}
+              {enabledTypes.map((t, ti) => {
+                const isLast = ti === enabledTypes.length - 1;
+                return (
+                  <td
+                    key={`pt-total-${t.key}`}
+                    className={`px-1.5 py-1.5 text-center text-[11px] font-extrabold tabular-nums bg-amber-100/70 dark:bg-amber-900/30 text-amber-950 dark:text-amber-50 z-10 border-b-2 border-border ${ti === 0 ? "border-l-2 border-amber-500/60" : "border-l border-amber-500/20"} ${isLast ? "border-r-2 border-amber-500/60" : ""}`}
+                    style={{ top: "64px", position: "sticky" }}
+                    data-testid={`portfolio-total-${t.key}`}
+                  >
+                    <MoneyCell value={portfolioTotals[t.key] ?? 0} />
+                  </td>
+                );
+              })}
               {periodCols.map((p, pi) => (
                 enabledTypes.map((t, ti) => {
                   const arr = portfolioMonthlyByType[t.key];
@@ -603,15 +607,18 @@ function ProjectGroupRows({
             </Badge>
           </div>
         </td>
-        {enabledTypes.map((t, ti) => (
-          <td
-            key={`pg-total-${t.key}`}
-            className={`px-1.5 py-1 text-center text-[11px] font-bold tabular-nums ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
-            data-testid={`project-total-${group.projectId}-${t.key}`}
-          >
-            <MoneyCell value={group.grandTotalByType[t.key] ?? 0} />
-          </td>
-        ))}
+        {enabledTypes.map((t, ti) => {
+          const isLast = ti === enabledTypes.length - 1;
+          return (
+            <td
+              key={`pg-total-${t.key}`}
+              className={`px-1.5 py-1 text-center text-[11px] font-extrabold tabular-nums bg-amber-50/80 dark:bg-amber-900/20 text-amber-950 dark:text-amber-50 ${ti === 0 ? "border-l-2 border-amber-500/60" : "border-l border-amber-500/20"} ${isLast ? "border-r-2 border-amber-500/60" : ""}`}
+              data-testid={`project-total-${group.projectId}-${t.key}`}
+            >
+              <MoneyCell value={group.grandTotalByType[t.key] ?? 0} />
+            </td>
+          );
+        })}
         {periodCols.map((p, pi) => (
           enabledTypes.map((t, ti) => {
             const arr = group.monthlyByType[t.key];
@@ -697,14 +704,17 @@ function InnerRow({
           <span className="truncate">{row.label}</span>
         </div>
       </td>
-      {enabledTypes.map((t, ti) => (
-        <td
-          key={`${row.key}-total-${t.key}`}
-          className={`px-1.5 py-1 text-center text-[11px] font-semibold tabular-nums bg-muted/30 ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
-        >
-          <MoneyCell value={row.totalByType[t.key] ?? 0} />
-        </td>
-      ))}
+      {enabledTypes.map((t, ti) => {
+        const isLast = ti === enabledTypes.length - 1;
+        return (
+          <td
+            key={`${row.key}-total-${t.key}`}
+            className={`px-1.5 py-1 text-center text-[11px] font-bold tabular-nums bg-amber-50/60 dark:bg-amber-900/15 text-amber-950 dark:text-amber-50 ${ti === 0 ? "border-l-2 border-amber-500/60" : "border-l border-amber-500/20"} ${isLast ? "border-r-2 border-amber-500/60" : ""}`}
+          >
+            <MoneyCell value={row.totalByType[t.key] ?? 0} />
+          </td>
+        );
+      })}
       {periodCols.map((p, pi) => (
         enabledTypes.map((t, ti) => {
           const arr = row.monthlyByType[t.key];
