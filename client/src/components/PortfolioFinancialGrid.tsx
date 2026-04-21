@@ -33,14 +33,19 @@ import {
 } from "@/components/ProjectFinancialGrid";
 
 // Mirrors the row palette used by ProjectFinancialGrid so the two views feel
-// like the same product. Sticky variants must be opaque so the frozen first
-// column doesn't bleed values from the scrollable side.
+// like the same product. Sticky variants MUST be fully opaque (no /xx alpha)
+// so the frozen first column doesn't let neighboring cells bleed through.
 const ROW_PALETTE: Record<string, { row: string; sticky: string; stickyHover: string }> = {
   view:          { row: "bg-muted/30 font-semibold", sticky: "bg-muted",     stickyHover: "group-hover:bg-accent" },
   category:      { row: "bg-muted/15 font-medium",   sticky: "bg-muted",     stickyHover: "group-hover:bg-accent" },
   specification: { row: "bg-muted/[0.04]",           sticky: "bg-secondary", stickyHover: "group-hover:bg-accent" },
   item:          { row: "bg-card",                   sticky: "bg-card",      stickyHover: "group-hover:bg-accent" },
 };
+
+// Width of the sticky first column. Kept as a constant so the <th> min-width
+// and the <td>s' fixed width stay in sync — otherwise long project names
+// overflow into the Total column and visually overlap.
+const FIRST_COL_W = 320;
 
 // Renders a money value with the same "—" muted-dash convention as the
 // per-project grid so empty cells read as quiet rather than as "$0".
@@ -421,7 +426,8 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
             <tr className="bg-muted">
               <th
                 rowSpan={2}
-                className="text-left px-3 py-2 font-bold uppercase tracking-wider text-[11px] min-w-[300px] sticky left-0 bg-muted z-30 border-r border-border shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
+                className="text-left px-3 py-2 font-bold uppercase tracking-wider text-[11px] sticky left-0 bg-muted z-30 border-r border-border shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
+                style={{ width: FIRST_COL_W, minWidth: FIRST_COL_W, maxWidth: FIRST_COL_W }}
               >
                 Project / View / Category / Specification / Item
               </th>
@@ -485,8 +491,8 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
                 visible when scrolling the body. */}
             <tr className="font-bold" data-testid="row-portfolio-total">
               <td
-                className="px-3 py-2 sticky left-0 bg-muted z-30 border-r border-b-2 border-border text-sm uppercase tracking-wider shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
-                style={{ top: "64px", position: "sticky" }}
+                className="px-3 py-2 sticky left-0 bg-muted z-30 border-r border-b-2 border-border text-sm uppercase tracking-wider shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] truncate"
+                style={{ top: "64px", position: "sticky", width: FIRST_COL_W, minWidth: FIRST_COL_W, maxWidth: FIRST_COL_W }}
               >
                 Portfolio Total ({projectGroups.length} {projectGroups.length === 1 ? "project" : "projects"})
               </td>
@@ -600,13 +606,16 @@ function ProjectGroupRows({
         onClick={toggle}
         data-testid={`row-portfolio-project-${group.projectId}`}
       >
-        <td className="px-3 py-1.5 sticky left-0 bg-muted/40 group-hover:bg-accent z-10 border-r border-border font-semibold shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]">
-          <div className="flex items-center gap-2">
-            <Chevron className="h-4 w-4 text-muted-foreground" />
-            <FolderKanban className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="truncate">{group.projectName}</span>
-            <Badge variant="outline" className="ml-1 text-[10px] font-normal">
-              {group.rows.filter(r => r.type === "item").length} items
+        <td
+          className="px-3 py-1.5 sticky left-0 bg-muted group-hover:bg-accent z-10 border-r border-border font-semibold shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] overflow-hidden"
+          style={{ width: FIRST_COL_W, minWidth: FIRST_COL_W, maxWidth: FIRST_COL_W }}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <Chevron className="h-4 w-4 text-muted-foreground shrink-0" />
+            <FolderKanban className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="truncate min-w-0 flex-1" title={group.projectName}>{group.projectName}</span>
+            <Badge variant="outline" className="ml-1 text-[10px] font-normal shrink-0">
+              {group.rows.filter(r => r.type === "item").length}
             </Badge>
           </div>
         </td>
@@ -693,8 +702,8 @@ function InnerRow({
       data-testid={`row-portfolio-${row.type}-${row.key}`}
     >
       <td
-        className={`py-1 sticky left-0 z-10 border-r border-border ${palette.sticky} ${palette.stickyHover} shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]`}
-        style={{ paddingLeft: indent, paddingRight: 12 }}
+        className={`py-1 sticky left-0 z-10 border-r border-border ${palette.sticky} ${palette.stickyHover} shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] overflow-hidden`}
+        style={{ paddingLeft: indent, paddingRight: 12, width: FIRST_COL_W, minWidth: FIRST_COL_W, maxWidth: FIRST_COL_W }}
       >
         <div className="flex items-center gap-1 min-w-0">
           {row.hasChildren ? (
@@ -704,7 +713,7 @@ function InnerRow({
           ) : (
             <span className="inline-block w-3.5 shrink-0" />
           )}
-          <span className="truncate">{row.label}</span>
+          <span className="truncate min-w-0 flex-1" title={row.label}>{row.label}</span>
         </div>
       </td>
       {enabledTypes.map((t, ti) => {
