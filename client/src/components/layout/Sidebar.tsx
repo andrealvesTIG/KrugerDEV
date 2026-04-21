@@ -601,6 +601,7 @@ export function Sidebar() {
                     
                     const isActive = location === moduleDef.href || (moduleDef.href !== "/" && location.startsWith(moduleDef.href));
                     const Icon = moduleDef.icon;
+                    const displayName = item.customLabel?.trim() || moduleDef.name;
                     
                     const navItem = (
                       <Link key={item.key} href={moduleDef.href} onClick={handleNavClick}>
@@ -613,6 +614,7 @@ export function Sidebar() {
                               : "text-slate-300 hover:bg-slate-800 hover:text-white"
                           )}
                           data-testid={`link-nav-${moduleDef.name.toLowerCase().replace(/\s+/g, '-')}`}
+                          title={displayName}
                           data-tour={`sidebar-${item.key}`}
                         >
                           <Icon
@@ -622,7 +624,7 @@ export function Sidebar() {
                               isActive ? "text-white" : "text-slate-400 group-hover:text-white"
                             )}
                           />
-                          {!isCollapsed && moduleDef.name}
+                          {!isCollapsed && displayName}
                         </div>
                       </Link>
                     );
@@ -632,7 +634,7 @@ export function Sidebar() {
                         <Tooltip key={item.key} delayDuration={0}>
                           <TooltipTrigger asChild>{navItem}</TooltipTrigger>
                           <TooltipContent side="right" className="bg-slate-800 text-white border-slate-700">
-                            {moduleDef.name}
+                            {displayName}
                           </TooltipContent>
                         </Tooltip>
                       );

@@ -73,6 +73,7 @@ export const sidebarItemSchema = z.discriminatedUnion("type", [
     type: z.literal("module"),
     key: z.string(),
     hidden: z.boolean().optional(),
+    customLabel: z.string().optional(),
   }),
   z.object({
     type: z.literal("customLink"),
