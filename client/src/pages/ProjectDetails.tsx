@@ -450,7 +450,9 @@ export default function ProjectDetails() {
   const isTabAllowed = (id: string) => {
     const moduleKey = moduleGatedTabs[id];
     if (moduleKey && isModuleHidden(moduleKey)) return false;
-    if (orgHiddenTabs.has(id)) return false;
+    // Note: org-hidden tabs are intentionally NOT dropped here. They get
+    // demoted to the "More" menu in visibleTabDefs so users can still pin
+    // them on a per-project basis.
     return true;
   };
 
@@ -483,7 +485,8 @@ export default function ProjectDetails() {
     }
     return orgOrderedTabIds
       .map(id => byId.get(id))
-      .filter((t): t is ProjectTabDefinition => !!t && isTabAllowed(t.id));
+      .filter((t): t is ProjectTabDefinition => !!t && isTabAllowed(t.id))
+      .map(t => orgHiddenTabs.has(t.id) ? { ...t, placement: "more" as const } : t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgOrderedTabIds, orgHiddenTabs, currentOrganization?.sidebarStructure, customTabs, hiddenCustomTabs]);
 
