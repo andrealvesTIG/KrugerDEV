@@ -1700,17 +1700,21 @@ export default function ProjectDetails() {
             </div>
           ))}
           
+          {(() => {
+            const visibleMoreItems = moreTabItems.filter(item => !pinnedTabs.includes(item.id));
+            if (visibleMoreItems.length === 0) return null;
+            return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
-                variant={moreTabItems.map(t => t.id).filter(t => !pinnedTabs.includes(t)).includes(activeTab) ? 'default' : 'ghost'} 
+                variant={visibleMoreItems.map(t => t.id).includes(activeTab) ? 'default' : 'ghost'} 
                 size="sm" 
                 className="rounded-lg px-4 py-2 font-medium gap-1"
                 data-testid="button-more-tabs"
               >
                 {(() => {
                   if (!pinnedTabs.includes(activeTab)) {
-                    const moreTab = moreTabItems.find(t => t.id === activeTab);
+                    const moreTab = visibleMoreItems.find(t => t.id === activeTab);
                     if (moreTab) return moreTab.label;
                   }
                   return 'More';
@@ -1719,7 +1723,7 @@ export default function ProjectDetails() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-[200px]">
-              {moreTabItems.filter(item => !pinnedTabs.includes(item.id)).map(item => (
+              {visibleMoreItems.map(item => (
                 <DropdownMenuItem 
                   key={item.id} 
                   className="flex items-center justify-between gap-2"
@@ -1744,6 +1748,8 @@ export default function ProjectDetails() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+            );
+          })()}
         </TabsList>
 
         <div className="mt-6 min-w-0">
