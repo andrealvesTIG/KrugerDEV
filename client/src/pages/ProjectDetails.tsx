@@ -23,6 +23,12 @@ import type { CustomFieldDefinition, CustomTabField } from "@shared/schema";
 import { useProjectFinancials } from "@/hooks/use-project-financials";
 import { useResources, useProjectTaskAssignments } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
+import { useProjectTabSettings } from "@/hooks/use-project-tab-settings";
+import {
+  PROJECT_TAB_DEFINITIONS,
+  resolveProjectTabHidden,
+  resolveProjectTabOrder,
+} from "@shared/projectTabs";
 import { useAuth } from "@/hooks/use-auth";
 import { ResourceSelector } from "@/components/ResourceSelector";
 import { StatusReportDialog } from "@/components/StatusReportDialog";
@@ -417,59 +423,49 @@ export default function ProjectDetails() {
     return false;
   };
 
-  const moduleGatedTabs: Record<string, string> = {
-    'daily-logs': 'daily-logs',
-    'rfis': 'rfis',
-    'submittals': 'submittals',
-    'drawings': 'drawings',
-    'punch-list': 'punch-list',
-    'quality-safety': 'quality-safety',
-    'bidding': 'bidding',
-    'change-orders': 'change-orders',
-    'construction-invoices': 'construction-invoices',
-    'meetings': 'meetings',
-    'correspondence': 'correspondence',
+  const moduleGatedTabs: Record<string, string> = Object.fromEntries(
+    PROJECT_TAB_DEFINITIONS.filter(t => t.moduleKey).map(t => [t.id, t.moduleKey as string])
+  );
+
+  // Org-level project tab settings (default order + hidden) — admins manage these
+  // in Org Settings → Project Tabs. Apply on top of module-gating, then user
+  // localStorage order/pin sits above this baseline.
+  const { data: orgTabSettings } = useProjectTabSettings(currentOrganization?.id);
+  const orgHiddenTabs = useMemo(() => resolveProjectTabHidden(orgTabSettings ?? null), [orgTabSettings]);
+  const orgOrderedTabIds = useMemo(() => resolveProjectTabOrder(orgTabSettings ?? null), [orgTabSettings]);
+
+  const isTabAllowed = (id: string) => {
+    const moduleKey = moduleGatedTabs[id];
+    if (moduleKey && isModuleHidden(moduleKey)) return false;
+    if (orgHiddenTabs.has(id)) return false;
+    return true;
   };
 
-  const allDefaultMainTabs = [
-    { id: 'summary', label: 'Summary' },
-    { id: 'tasks', label: 'Tasks' },
-    { id: 'team', label: 'Team' },
-    { id: 'risks', label: 'Risks' },
-    { id: 'issues', label: 'Issues' },
-    { id: 'financials', label: 'Financials' },
-    { id: 'daily-logs', label: 'Daily Logs' },
-    { id: 'rfis', label: 'RFIs' },
-    { id: 'submittals', label: 'Submittals' },
-    { id: 'drawings', label: 'Drawings' },
-    { id: 'punch-list', label: 'Punch List' },
-    { id: 'quality-safety', label: 'Quality & Safety' },
-    { id: 'bidding', label: 'Bidding' },
-    { id: 'change-orders', label: 'Change Orders' },
-    { id: 'construction-invoices', label: 'Payment Apps' },
-    { id: 'meetings', label: 'Meetings' },
-    { id: 'correspondence', label: 'Correspondence' },
-  ];
-  const defaultMainTabs = allDefaultMainTabs.filter(tab => {
-    const moduleKey = moduleGatedTabs[tab.id];
-    return !moduleKey || !isModuleHidden(moduleKey);
-  });
+  const visibleTabDefs = useMemo(() => {
+    const byId = new Map(PROJECT_TAB_DEFINITIONS.map(t => [t.id, t] as const));
+    return orgOrderedTabIds
+      .map(id => byId.get(id))
+      .filter((t): t is typeof PROJECT_TAB_DEFINITIONS[number] => !!t && isTabAllowed(t.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgOrderedTabIds, orgHiddenTabs, currentOrganization?.sidebarStructure]);
+
+  const allDefaultMainTabs = useMemo(
+    () => visibleTabDefs.filter(t => t.placement === 'main').map(t => ({ id: t.id, label: t.label })),
+    [visibleTabDefs],
+  );
+  const defaultMainTabs = allDefaultMainTabs;
 
   // Available tabs for pinning from the More menu
-  const moreTabItems = [
-    { id: 'scoring', label: 'Scoring' },
-    { id: 'benefits', label: 'Benefits' },
-    { id: 'decisions', label: 'Decisions' },
-    { id: 'lessons-learned', label: 'Lessons Learned' },
-    { id: 'change-requests', label: 'Change Requests' },
-    { id: 'documents', label: 'Documents' },
-    { id: 'invoices', label: 'Invoices' },
-    { id: 'status-report', label: 'Status Report' },
-    { id: 'ai-agent', label: 'AI Agent' },
-  ];
-  
-  // All available tab IDs for ordering
-  const allTabIds = [...defaultMainTabs.map(t => t.id), ...moreTabItems.map(t => t.id)];
+  const moreTabItems = useMemo(
+    () => visibleTabDefs.filter(t => t.placement === 'more').map(t => ({ id: t.id, label: t.label })),
+    [visibleTabDefs],
+  );
+
+  // All available tab IDs for ordering (org-defined order, post-filter)
+  const allTabIds = useMemo(
+    () => [...defaultMainTabs.map(t => t.id), ...moreTabItems.map(t => t.id)],
+    [defaultMainTabs, moreTabItems],
+  );
 
   // Pinned tabs state - persisted in localStorage per project per user
   const getPinnedTabsKey = (projectId: number, userId: string) => `project-pinned-tabs-${userId}-${projectId}`;
@@ -515,11 +511,15 @@ export default function ProjectDetails() {
         setPinnedTabs(savedPinned ? JSON.parse(savedPinned) : []);
         
         const savedOrder = localStorage.getItem(getTabOrderKey(project.id, user.id));
+        const allowed = new Set(allTabIds);
         let newOrder = allTabIds;
         if (savedOrder) {
-          const parsed = JSON.parse(savedOrder);
-          const newTabs = allTabIds.filter(id => !parsed.includes(id));
-          newOrder = [...parsed, ...newTabs];
+          const parsed: string[] = JSON.parse(savedOrder);
+          // Drop ids that are no longer allowed (org-hidden or module-hidden),
+          // then append any newly-allowed ids that the user hasn't seen yet.
+          const filtered = parsed.filter(id => allowed.has(id));
+          const newTabs = allTabIds.filter(id => !filtered.includes(id));
+          newOrder = [...filtered, ...newTabs];
         }
         setTabOrder(newOrder);
         
@@ -536,7 +536,7 @@ export default function ProjectDetails() {
         setTabOrder(allTabIds);
       }
     }
-  }, [project?.id, user?.id]);
+  }, [project?.id, user?.id, allTabIds.join('|')]);
 
   const togglePinTab = (tabId: string) => {
     if (!project?.id || !user?.id) return;
@@ -602,20 +602,42 @@ export default function ProjectDetails() {
   
   // Get ordered main tabs based on user's custom order
   const orderedMainTabs = useMemo(() => {
-    const mainTabIds = defaultMainTabs.map(t => t.id);
-    return tabOrder
-      .filter(id => mainTabIds.includes(id))
-      .map(id => defaultMainTabs.find(t => t.id === id)!)
-      .filter(Boolean);
-  }, [tabOrder]);
-  
+    const byId = new Map(defaultMainTabs.map(t => [t.id, t] as const));
+    const seen = new Set<string>();
+    const out: typeof defaultMainTabs = [];
+    for (const id of tabOrder) {
+      if (seen.has(id)) continue;
+      const t = byId.get(id);
+      if (t) {
+        seen.add(id);
+        out.push(t);
+      }
+    }
+    // Append any newly-allowed tabs that aren't yet in the saved order
+    for (const t of defaultMainTabs) {
+      if (!seen.has(t.id)) {
+        seen.add(t.id);
+        out.push(t);
+      }
+    }
+    return out;
+  }, [tabOrder, defaultMainTabs]);
+
   // Get ordered pinned tabs based on user's custom order
   const orderedPinnedTabs = useMemo(() => {
-    return tabOrder
-      .filter(id => pinnedTabs.includes(id) && moreTabItems.some(t => t.id === id))
-      .map(id => moreTabItems.find(t => t.id === id)!)
-      .filter(Boolean);
-  }, [tabOrder, pinnedTabs]);
+    const byId = new Map(moreTabItems.map(t => [t.id, t] as const));
+    const seen = new Set<string>();
+    const out: typeof moreTabItems = [];
+    for (const id of tabOrder) {
+      if (seen.has(id) || !pinnedTabs.includes(id)) continue;
+      const t = byId.get(id);
+      if (t) {
+        seen.add(id);
+        out.push(t);
+      }
+    }
+    return out;
+  }, [tabOrder, pinnedTabs, moreTabItems]);
 
   // Redirect if project doesn't belong to current organization
   useEffect(() => {

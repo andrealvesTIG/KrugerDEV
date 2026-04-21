@@ -175,6 +175,7 @@ export const organizations = pgTable("organizations", {
   deactivatedAt: timestamp("deactivated_at"), // Soft delete timestamp
   deactivatedBy: varchar("deactivated_by").references(() => users.id), // Who deactivated
   fridayAgentConfig: jsonb("friday_agent_config"), // Friday AI agent configuration (per-org)
+  projectTabSettings: jsonb("project_tab_settings").$type<{ order: string[]; hidden: string[] }>(), // Org-level default order + visibility for project detail tabs
 });
 
 // Organization Members (Join table for users <-> organizations)
