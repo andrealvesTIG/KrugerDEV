@@ -2127,11 +2127,11 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
             }}
           >
             <SelectTrigger className="w-24 h-8 text-xs" data-testid="select-fiscal-year">
-              <SelectValue />
+              <SelectValue>FY{fiscalYear}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               {[todayFiscalYear - 1, todayFiscalYear, todayFiscalYear + 1, todayFiscalYear + 2].map((y) => (
-                <SelectItem key={y} value={String(y)}>FY {y}</SelectItem>
+                <SelectItem key={y} value={String(y)}>FY{y}</SelectItem>
               ))}
             </SelectContent>
           </Select>
