@@ -96,7 +96,7 @@ const FALLBACK_TYPE_PALETTES = [
   { activeBg: "bg-rose-500/15 dark:bg-rose-400/20",     activeText: "text-rose-700 dark:text-rose-200",     activeRing: "ring-1 ring-inset ring-rose-500/40",   dotOn: "bg-rose-500",   dotOff: "bg-rose-500/30" },
   { activeBg: "bg-teal-500/15 dark:bg-teal-400/20",     activeText: "text-teal-700 dark:text-teal-200",     activeRing: "ring-1 ring-inset ring-teal-500/40",   dotOn: "bg-teal-500",   dotOff: "bg-teal-500/30" },
 ];
-function getTypePalette(key: string) {
+export function getTypePalette(key: string) {
   if (TYPE_PALETTES[key]) return TYPE_PALETTES[key];
   // Stable hash so the same custom key always gets the same color.
   let h = 0;

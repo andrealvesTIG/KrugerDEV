@@ -16,8 +16,26 @@ import { useOrganization } from "@/hooks/use-organization";
 import {
   buildGridRows,
   formatCurrency,
+  getTypePalette,
   type GridRow,
 } from "@/components/ProjectFinancialGrid";
+
+// Mirrors the row palette used by ProjectFinancialGrid so the two views feel
+// like the same product. Sticky variants must be opaque so the frozen first
+// column doesn't bleed values from the scrollable side.
+const ROW_PALETTE: Record<string, { row: string; sticky: string; stickyHover: string }> = {
+  view:          { row: "bg-muted/30 font-semibold", sticky: "bg-muted",     stickyHover: "group-hover:bg-accent" },
+  category:      { row: "bg-muted/15 font-medium",   sticky: "bg-muted",     stickyHover: "group-hover:bg-accent" },
+  specification: { row: "bg-muted/[0.04]",           sticky: "bg-secondary", stickyHover: "group-hover:bg-accent" },
+  item:          { row: "bg-card",                   sticky: "bg-card",      stickyHover: "group-hover:bg-accent" },
+};
+
+// Renders a money value with the same "—" muted-dash convention as the
+// per-project grid so empty cells read as quiet rather than as "$0".
+function MoneyCell({ value }: { value: number }) {
+  if (!value) return <span className="text-muted-foreground/40">—</span>;
+  return <span>{formatCurrency(value)}</span>;
+}
 
 type PortfolioFinancialEntry = FinancialEntry & { projectName: string };
 
@@ -223,33 +241,99 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
         </div>
       </div>
 
+      {/* Match the per-project grid: rounded card, frozen first column with a
+          subtle right-edge shadow, monthBorder/typeBorder distinction so each
+          period reads as a group of scenario sub-cells. */}
       <div className="rounded-lg border bg-card overflow-x-auto">
         <table className="w-full text-sm border-collapse">
-          <thead className="bg-muted/40 sticky top-0 z-10">
-            <tr>
-              <th className="text-left px-3 py-2 font-medium min-w-[280px] sticky left-0 bg-muted/40 z-20 border-r">
+          <thead className="sticky top-0 z-20">
+            {/* Header row 1: month name (or "TOTAL") spanning all enabled scenarios */}
+            <tr className="bg-muted">
+              <th
+                rowSpan={2}
+                className="text-left px-3 py-2 font-bold uppercase tracking-wider text-[11px] min-w-[300px] sticky left-0 bg-muted z-30 border-r border-border shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
+              >
                 Project / View / Category / Specification / Item
               </th>
               {periodCols.map(p => (
-                enabledTypes.map(t => (
-                  <th
-                    key={`${p.monthNum}-${t.key}`}
-                    className="px-2 py-2 text-right font-medium whitespace-nowrap border-l"
-                  >
-                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{p.label}</div>
-                    <div className="text-[10px]">{t.label}</div>
-                  </th>
-                ))
-              ))}
-              {enabledTypes.map(t => (
-                <th key={`total-${t.key}`} className="px-2 py-2 text-right font-medium whitespace-nowrap border-l bg-muted/60">
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Total</div>
-                  <div className="text-[10px]">{t.label}</div>
+                <th
+                  key={`mh-${p.monthNum}`}
+                  colSpan={enabledTypes.length}
+                  className="px-2 py-1.5 text-center font-bold uppercase tracking-tight text-[11px] text-foreground/90 border-l border-border whitespace-nowrap"
+                >
+                  {p.label}
                 </th>
               ))}
+              <th
+                colSpan={enabledTypes.length}
+                className="px-2 py-1.5 text-center font-bold uppercase tracking-wider text-[11px] text-foreground border-l border-border bg-muted/80"
+              >
+                Total
+              </th>
+            </tr>
+            {/* Header row 2: scenario chips, tinted per-type to match the per-project grid */}
+            <tr className="bg-card">
+              {periodCols.map((p) => (
+                enabledTypes.map((t, i) => {
+                  const palette = getTypePalette(t.key);
+                  return (
+                    <th
+                      key={`th-${p.monthNum}-${t.key}`}
+                      className={`px-1.5 py-1 text-center font-extrabold uppercase tracking-wider text-[9px] whitespace-nowrap ${i === 0 ? "border-l border-border" : "border-l border-border/40"} ${palette.activeBg} ${palette.activeText}`}
+                    >
+                      {t.label}
+                    </th>
+                  );
+                })
+              ))}
+              {enabledTypes.map((t, i) => {
+                const palette = getTypePalette(t.key);
+                return (
+                  <th
+                    key={`th-total-${t.key}`}
+                    className={`px-1.5 py-1 text-center font-extrabold uppercase tracking-wider text-[9px] whitespace-nowrap ${i === 0 ? "border-l border-border" : "border-l border-border/40"} ${palette.activeBg} ${palette.activeText}`}
+                  >
+                    {t.label}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
+            {/* Portfolio Total pinned at top — mirrors the project grid's
+                "Grand Total" row. Each <td> is individually sticky with a `top`
+                offset that clears the two-row header (~64px) so the row stays
+                visible when scrolling the body. */}
+            <tr className="font-bold" data-testid="row-portfolio-total">
+              <td
+                className="px-3 py-2 sticky left-0 bg-muted z-30 border-r border-b-2 border-border text-sm uppercase tracking-wider shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
+                style={{ top: "64px", position: "sticky" }}
+              >
+                Portfolio Total ({projectGroups.length} {projectGroups.length === 1 ? "project" : "projects"})
+              </td>
+              {periodCols.map((_, i) => (
+                enabledTypes.map((t, ti) => (
+                  <td
+                    key={`pt-${i}-${t.key}`}
+                    className={`px-1.5 py-1.5 text-center text-[11px] tabular-nums text-muted-foreground/40 bg-muted z-10 border-b-2 border-border ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
+                    style={{ top: "64px", position: "sticky" }}
+                  >
+                    —
+                  </td>
+                ))
+              ))}
+              {enabledTypes.map((t, ti) => (
+                <td
+                  key={`pt-total-${t.key}`}
+                  className={`px-1.5 py-1.5 text-center text-[11px] font-bold tabular-nums bg-muted z-10 border-b-2 border-border ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
+                  style={{ top: "64px", position: "sticky" }}
+                  data-testid={`portfolio-total-${t.key}`}
+                >
+                  <MoneyCell value={portfolioTotals[t.key] ?? 0} />
+                </td>
+              ))}
+            </tr>
+
             {projectGroups.map(group => {
               const isOpen = openProjects.has(group.projectId);
               return (
@@ -264,26 +348,6 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
                 />
               );
             })}
-            {/* Portfolio totals row */}
-            <tr className="bg-primary/5 font-semibold border-t-2">
-              <td className="px-3 py-2 sticky left-0 bg-primary/5 z-10 border-r">
-                Portfolio Total ({projectGroups.length} {projectGroups.length === 1 ? "project" : "projects"})
-              </td>
-              {periodCols.map((_, i) => (
-                enabledTypes.map(t => (
-                  <td key={`pt-${i}-${t.key}`} className="px-2 py-2 text-right text-muted-foreground border-l">—</td>
-                ))
-              ))}
-              {enabledTypes.map(t => (
-                <td
-                  key={`pt-total-${t.key}`}
-                  className="px-2 py-2 text-right border-l bg-primary/10"
-                  data-testid={`portfolio-total-${t.key}`}
-                >
-                  {formatCurrency(portfolioTotals[t.key] ?? 0)}
-                </td>
-              ))}
-            </tr>
           </tbody>
         </table>
       </div>
@@ -336,33 +400,40 @@ function ProjectGroupRows({
   const Chevron = isOpen ? ChevronDown : ChevronRight;
   return (
     <>
+      {/* Project header row — visually parallel to a top-level "View" row in
+          the per-project grid: muted band, semibold, sticky-opaque first cell. */}
       <tr
-        className="bg-accent/40 hover:bg-accent/60 cursor-pointer border-t"
+        className="group bg-muted/40 hover:bg-accent cursor-pointer border-t border-border"
         onClick={toggle}
         data-testid={`row-portfolio-project-${group.projectId}`}
       >
-        <td className="px-3 py-2 sticky left-0 bg-accent/40 z-10 border-r font-semibold">
+        <td className="px-3 py-1.5 sticky left-0 bg-muted/40 group-hover:bg-accent z-10 border-r border-border font-semibold shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]">
           <div className="flex items-center gap-2">
-            <Chevron className="h-4 w-4" />
-            <FolderKanban className="h-4 w-4 text-muted-foreground" />
-            <span>{group.projectName}</span>
-            <Badge variant="outline" className="ml-2 text-[10px]">
+            <Chevron className="h-4 w-4 text-muted-foreground" />
+            <FolderKanban className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="truncate">{group.projectName}</span>
+            <Badge variant="outline" className="ml-1 text-[10px] font-normal">
               {group.rows.filter(r => r.type === "item").length} items
             </Badge>
           </div>
         </td>
         {Array.from({ length: periodCount }).map((_, i) => (
-          enabledTypes.map(t => (
-            <td key={`pg-${i}-${t.key}`} className="px-2 py-2 text-right text-muted-foreground border-l">—</td>
+          enabledTypes.map((t, ti) => (
+            <td
+              key={`pg-${i}-${t.key}`}
+              className={`px-1.5 py-1 text-center text-[11px] tabular-nums text-muted-foreground/40 ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
+            >
+              —
+            </td>
           ))
         ))}
-        {enabledTypes.map(t => (
+        {enabledTypes.map((t, ti) => (
           <td
             key={`pg-total-${t.key}`}
-            className="px-2 py-2 text-right border-l font-semibold bg-accent/60"
+            className={`px-1.5 py-1 text-center text-[11px] font-bold tabular-nums ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
             data-testid={`project-total-${group.projectId}-${t.key}`}
           >
-            {formatCurrency(group.grandTotalByType[t.key] ?? 0)}
+            <MoneyCell value={group.grandTotalByType[t.key] ?? 0} />
           </td>
         ))}
       </tr>
@@ -370,7 +441,7 @@ function ProjectGroupRows({
         <tr>
           <td
             colSpan={1 + periodCount * enabledTypes.length + enabledTypes.length}
-            className="px-6 py-3 text-sm text-muted-foreground italic border-l"
+            className="px-6 py-3 text-xs text-muted-foreground italic"
           >
             No financial entries for this project in the selected fiscal year.
           </td>
@@ -403,46 +474,52 @@ function InnerRow({
   onToggle: () => void;
   isExpanded: boolean;
 }) {
-  const indent = (row.level + 1) * 16; // +1 to nest under project header
+  // +1 to nest under the project header row, matching the indent step
+  // used by the per-project grid (16 base + 14 per level).
+  const indent = 16 + (row.level + 1) * 14;
   const isGroup = row.type !== "item";
-
-  const bgByType: Record<string, string> = {
-    view: "bg-muted/20 font-semibold",
-    category: "bg-muted/10 font-medium",
-    specification: "",
-    item: "",
-  };
+  const palette = ROW_PALETTE[row.type] ?? ROW_PALETTE.item;
 
   return (
     <tr
-      className={`${bgByType[row.type] || ""} ${isGroup ? "cursor-pointer hover:bg-muted/30" : ""} border-t`}
+      className={`group ${palette.row} hover:bg-accent/40 ${isGroup ? "cursor-pointer" : ""} border-t border-border/60`}
       onClick={isGroup ? onToggle : undefined}
+      data-testid={`row-portfolio-${row.type}-${row.key}`}
     >
-      <td className="px-3 py-1.5 sticky left-0 z-10 border-r bg-card">
-        <div className="flex items-center gap-1" style={{ paddingLeft: indent }}>
+      <td
+        className={`py-1 sticky left-0 z-10 border-r border-border ${palette.sticky} ${palette.stickyHover} shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]`}
+        style={{ paddingLeft: indent, paddingRight: 12 }}
+      >
+        <div className="flex items-center gap-1 min-w-0">
           {row.hasChildren ? (
             isExpanded
-              ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-              : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+              ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           ) : (
-            <span className="inline-block w-3.5" />
+            <span className="inline-block w-3.5 shrink-0" />
           )}
-          <span>{row.label}</span>
+          <span className="truncate">{row.label}</span>
         </div>
       </td>
       {Array.from({ length: periodCount }).map((_, i) => (
-        enabledTypes.map(t => {
+        enabledTypes.map((t, ti) => {
           const val = row.monthlyByType[t.key]?.[i] ?? 0;
           return (
-            <td key={`${row.key}-${i}-${t.key}`} className="px-2 py-1.5 text-right border-l tabular-nums">
-              {formatCurrency(val)}
+            <td
+              key={`${row.key}-${i}-${t.key}`}
+              className={`px-1.5 py-1 text-center text-[11px] tabular-nums ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
+            >
+              <MoneyCell value={val} />
             </td>
           );
         })
       ))}
-      {enabledTypes.map(t => (
-        <td key={`${row.key}-total-${t.key}`} className="px-2 py-1.5 text-right border-l bg-muted/30 tabular-nums">
-          {formatCurrency(row.totalByType[t.key] ?? 0)}
+      {enabledTypes.map((t, ti) => (
+        <td
+          key={`${row.key}-total-${t.key}`}
+          className={`px-1.5 py-1 text-center text-[11px] font-semibold tabular-nums bg-muted/30 ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
+        >
+          <MoneyCell value={row.totalByType[t.key] ?? 0} />
         </td>
       ))}
     </tr>
