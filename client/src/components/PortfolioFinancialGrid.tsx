@@ -8,10 +8,22 @@ import type { FinancialEntry, FinancialTypesConfig, FinancialType, CostItemCateg
 import { DEFAULT_FINANCIAL_TYPES, DEFAULT_COST_ITEM_CATEGORIES } from "@shared/schema";
 import {
   buildFiscalMonths,
+  buildFiscalQuarters,
+  buildFiscalYearColumn,
   currentFiscalYear,
   DEFAULT_FISCAL_YEAR_START_MONTH,
   normalizeFiscalYearStartMonth,
 } from "@shared/lib/fiscalCalendar";
+
+// Unified period column: monthly views get a 1-element monthIndices, quarterly
+// gets 3 indices, yearly gets all 12. Lets one render path handle all modes.
+interface PeriodCol {
+  key: string;
+  label: string;
+  monthIndices: number[];
+}
+
+type ViewMode = "month" | "quarter" | "year";
 import { useOrganization } from "@/hooks/use-organization";
 import {
   buildGridRows,
@@ -87,6 +99,51 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
     return m;
   }, [monthsLayout]);
 
+  // View-mode toggle (month / quarter / year), persisted per browser so
+  // returning users see their last preference.
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    if (typeof window === "undefined") return "month";
+    const v = window.localStorage.getItem("portfolioGrid.viewMode");
+    return v === "quarter" || v === "year" ? v : "month";
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("portfolioGrid.viewMode", viewMode);
+    }
+  }, [viewMode]);
+
+  // Period columns derived from the current view mode. Each period exposes
+  // the fiscal-month indices it covers so cell rendering is uniform.
+  const periodCols: PeriodCol[] = useMemo(() => {
+    if (viewMode === "year") {
+      const c = buildFiscalYearColumn(fiscalYear, fiscalYearStartMonth);
+      return [{ key: c.key, label: c.label, monthIndices: c.monthIndices }];
+    }
+    if (viewMode === "quarter") {
+      return buildFiscalQuarters(fiscalYear, fiscalYearStartMonth).map(q => ({
+        key: q.key, label: q.label, monthIndices: q.monthIndices,
+      }));
+    }
+    return monthsLayout.map((m, i) => ({
+      key: `m${m.monthNum}`,
+      label: m.label,
+      monthIndices: [i],
+    }));
+  }, [viewMode, fiscalYear, fiscalYearStartMonth, monthsLayout]);
+
+  // Index of the period that contains today's calendar month, used to draw a
+  // soft highlight ring across that column. -1 when viewing a non-current FY.
+  const currentPeriodIdx = useMemo(() => {
+    const now = new Date();
+    const idx = calendarToFiscalIdx.get(now.getMonth() + 1);
+    if (idx == null) return -1;
+    // Only valid when the displayed FY actually contains today's month —
+    // verify by matching the calendar year of that fiscal-month slot.
+    const slot = monthsLayout[idx];
+    if (!slot || slot.year !== now.getFullYear()) return -1;
+    return periodCols.findIndex(p => p.monthIndices.includes(idx));
+  }, [periodCols, calendarToFiscalIdx, monthsLayout]);
+
   const { data: typesConfig } = useQuery<FinancialTypesConfig>({
     queryKey: ["/api/organizations", orgId, "financial-types"],
     enabled: !!orgId,
@@ -99,9 +156,29 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
     () => costCatConfig ?? DEFAULT_COST_ITEM_CATEGORIES,
     [costCatConfig],
   );
-  const allTypes: FinancialType[] = useMemo(
+  const orgTypes: FinancialType[] = useMemo(
     () => typesConfig?.types ?? DEFAULT_FINANCIAL_TYPES.types,
     [typesConfig],
+  );
+  // Per-browser visibility override so users can hide AOP/FCST/ACT etc.
+  // without changing the org config (mirrors the per-project grid).
+  const [visibilityOverride, setVisibilityOverride] = useState<Record<string, boolean>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      return JSON.parse(window.localStorage.getItem("portfolioGrid.typeVisibility") || "{}");
+    } catch { return {}; }
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("portfolioGrid.typeVisibility", JSON.stringify(visibilityOverride));
+    }
+  }, [visibilityOverride]);
+  const allTypes: FinancialType[] = useMemo(
+    () => orgTypes.map(t => ({
+      ...t,
+      enabled: visibilityOverride[t.key] ?? t.enabled,
+    })),
+    [orgTypes, visibilityOverride],
   );
   const enabledTypes = useMemo(() => allTypes.filter(t => t.enabled), [allTypes]);
   const typeKeys = useMemo(() => enabledTypes.map(t => t.key), [enabledTypes]);
@@ -211,8 +288,6 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
     return years;
   }, [todayFiscalYear]);
 
-  const periodCols = monthsLayout;
-
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -252,11 +327,67 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <FiscalYearToolbar
-          fiscalYear={fiscalYear}
-          fiscalYearOptions={fiscalYearOptions}
-          onChange={(fy) => { setUserPicked(true); setFiscalYear(fy); }}
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <FiscalYearToolbar
+            fiscalYear={fiscalYear}
+            fiscalYearOptions={fiscalYearOptions}
+            onChange={(fy) => { setUserPicked(true); setFiscalYear(fy); }}
+          />
+
+          {/* View-mode segmented control: month / quarter / year */}
+          <div
+            className="inline-flex h-8 items-center rounded-md border bg-muted/40 p-0.5 gap-0.5"
+            role="group"
+            aria-label="View mode"
+          >
+            {([
+              { key: "month",   label: "Month"   },
+              { key: "quarter", label: "Quarter" },
+              { key: "year",    label: "Year"    },
+            ] as { key: ViewMode; label: string }[]).map(opt => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setViewMode(opt.key)}
+                className={`px-2.5 h-7 text-[11px] font-semibold rounded-sm transition-all ${
+                  viewMode === opt.key
+                    ? "bg-background text-foreground shadow-sm ring-1 ring-inset ring-border"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+                }`}
+                data-testid={`button-portfolio-view-${opt.key}`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Per-financial-type visibility toggles (AOP / FCST / ACT / EAC).
+              Each chip uses its scenario palette so on/off reads instantly. */}
+          <div className="inline-flex h-8 items-center gap-1" role="group" aria-label="Financial types">
+            {orgTypes.map(t => {
+              const palette = getTypePalette(t.key);
+              const on = visibilityOverride[t.key] ?? t.enabled;
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setVisibilityOverride(prev => ({ ...prev, [t.key]: !on }))}
+                  className={`px-2 h-7 text-[10px] font-extrabold uppercase tracking-wider rounded-sm transition-all border ${
+                    on
+                      ? `${palette.activeBg} ${palette.activeText} border-transparent ring-1 ring-inset ${palette.activeRing}`
+                      : "bg-muted/30 text-muted-foreground border-border/60 hover:bg-muted/60"
+                  }`}
+                  aria-pressed={on}
+                  data-testid={`toggle-portfolio-type-${t.key}`}
+                  title={`${on ? "Hide" : "Show"} ${t.label}`}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -291,15 +422,22 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
               >
                 Project / View / Category / Specification / Item
               </th>
-              {periodCols.map(p => (
-                <th
-                  key={`mh-${p.monthNum}`}
-                  colSpan={enabledTypes.length}
-                  className="px-2 py-1.5 text-center font-bold uppercase tracking-tight text-[11px] text-foreground/90 border-l border-border whitespace-nowrap"
-                >
-                  {p.label}
-                </th>
-              ))}
+              {periodCols.map((p, pi) => {
+                const isCurrent = pi === currentPeriodIdx;
+                return (
+                  <th
+                    key={`mh-${p.key}`}
+                    colSpan={enabledTypes.length}
+                    className={`px-2 py-1.5 text-center font-bold uppercase tracking-tight text-[11px] border-l border-border whitespace-nowrap ${isCurrent ? "bg-blue-500/10 dark:bg-blue-400/10 text-blue-700 dark:text-blue-300" : "text-foreground/90"}`}
+                    data-testid={`portfolio-period-header-${p.key}`}
+                  >
+                    {p.label}
+                    {isCurrent && (
+                      <span className="ml-1 text-[8px] font-semibold align-middle text-blue-600 dark:text-blue-400">●</span>
+                    )}
+                  </th>
+                );
+              })}
               <th
                 colSpan={enabledTypes.length}
                 className="px-2 py-1.5 text-center font-bold uppercase tracking-wider text-[11px] text-foreground border-l border-border bg-muted/80"
@@ -309,13 +447,14 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
             </tr>
             {/* Header row 2: scenario chips, tinted per-type to match the per-project grid */}
             <tr className="bg-card">
-              {periodCols.map((p) => (
+              {periodCols.map((p, pi) => (
                 enabledTypes.map((t, i) => {
                   const palette = getTypePalette(t.key);
+                  const isCurrent = pi === currentPeriodIdx;
                   return (
                     <th
-                      key={`th-${p.monthNum}-${t.key}`}
-                      className={`px-1.5 py-1 text-center font-extrabold uppercase tracking-wider text-[9px] whitespace-nowrap ${i === 0 ? "border-l border-border" : "border-l border-border/40"} ${palette.activeBg} ${palette.activeText}`}
+                      key={`th-${p.key}-${t.key}`}
+                      className={`px-1.5 py-1 text-center font-extrabold uppercase tracking-wider text-[9px] whitespace-nowrap ${i === 0 ? "border-l border-border" : "border-l border-border/40"} ${palette.activeBg} ${palette.activeText} ${isCurrent ? "ring-1 ring-inset ring-blue-500/40" : ""}`}
                     >
                       {t.label}
                     </th>
@@ -347,17 +486,23 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
               >
                 Portfolio Total ({projectGroups.length} {projectGroups.length === 1 ? "project" : "projects"})
               </td>
-              {periodCols.map((_, i) => (
-                enabledTypes.map((t, ti) => (
-                  <td
-                    key={`pt-${i}-${t.key}`}
-                    className={`px-1.5 py-1.5 text-center text-[11px] font-bold tabular-nums bg-muted z-10 border-b-2 border-border ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
-                    style={{ top: "64px", position: "sticky" }}
-                    data-testid={`portfolio-monthly-${i}-${t.key}`}
-                  >
-                    <MoneyCell value={portfolioMonthlyByType[t.key]?.[i] ?? 0} />
-                  </td>
-                ))
+              {periodCols.map((p, pi) => (
+                enabledTypes.map((t, ti) => {
+                  const arr = portfolioMonthlyByType[t.key];
+                  let value = 0;
+                  if (arr) for (const mi of p.monthIndices) value += arr[mi] ?? 0;
+                  const isCurrent = pi === currentPeriodIdx;
+                  return (
+                    <td
+                      key={`pt-${p.key}-${t.key}`}
+                      className={`px-1.5 py-1.5 text-center text-[11px] font-bold tabular-nums bg-muted z-10 border-b-2 border-border ${ti === 0 ? "border-l border-border" : "border-l border-border/40"} ${isCurrent ? "bg-blue-500/10 dark:bg-blue-400/10" : ""}`}
+                      style={{ top: "64px", position: "sticky" }}
+                      data-testid={`portfolio-monthly-${p.key}-${t.key}`}
+                    >
+                      <MoneyCell value={value} />
+                    </td>
+                  );
+                })
               ))}
               {enabledTypes.map((t, ti) => (
                 <td
@@ -381,7 +526,8 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
                   toggle={() => toggleProject(group.projectId)}
                   toggleInner={(k) => toggleInner(group.projectId, k)}
                   enabledTypes={enabledTypes}
-                  periodCount={periodCols.length}
+                  periodCols={periodCols}
+                  currentPeriodIdx={currentPeriodIdx}
                 />
               );
             })}
@@ -425,15 +571,18 @@ function ProjectGroupRows({
   toggle,
   toggleInner,
   enabledTypes,
-  periodCount,
+  periodCols,
+  currentPeriodIdx,
 }: {
   group: ProjectGroup;
   isOpen: boolean;
   toggle: () => void;
   toggleInner: (key: string) => void;
   enabledTypes: FinancialType[];
-  periodCount: number;
+  periodCols: PeriodCol[];
+  currentPeriodIdx: number;
 }) {
+  const periodCount = periodCols.length;
   const Chevron = isOpen ? ChevronDown : ChevronRight;
   return (
     <>
@@ -454,16 +603,22 @@ function ProjectGroupRows({
             </Badge>
           </div>
         </td>
-        {Array.from({ length: periodCount }).map((_, i) => (
-          enabledTypes.map((t, ti) => (
-            <td
-              key={`pg-${i}-${t.key}`}
-              className={`px-1.5 py-1 text-center text-[11px] font-semibold tabular-nums ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
-              data-testid={`project-monthly-${group.projectId}-${i}-${t.key}`}
-            >
-              <MoneyCell value={group.monthlyByType[t.key]?.[i] ?? 0} />
-            </td>
-          ))
+        {periodCols.map((p, pi) => (
+          enabledTypes.map((t, ti) => {
+            const arr = group.monthlyByType[t.key];
+            let value = 0;
+            if (arr) for (const mi of p.monthIndices) value += arr[mi] ?? 0;
+            const isCurrent = pi === currentPeriodIdx;
+            return (
+              <td
+                key={`pg-${p.key}-${t.key}`}
+                className={`px-1.5 py-1 text-center text-[11px] font-semibold tabular-nums ${ti === 0 ? "border-l border-border" : "border-l border-border/40"} ${isCurrent ? "bg-blue-500/5 dark:bg-blue-400/5" : ""}`}
+                data-testid={`project-monthly-${group.projectId}-${p.key}-${t.key}`}
+              >
+                <MoneyCell value={value} />
+              </td>
+            );
+          })
         ))}
         {enabledTypes.map((t, ti) => (
           <td
@@ -490,7 +645,8 @@ function ProjectGroupRows({
           key={`${group.projectId}-${row.key}`}
           row={row}
           enabledTypes={enabledTypes}
-          periodCount={periodCount}
+          periodCols={periodCols}
+          currentPeriodIdx={currentPeriodIdx}
           onToggle={() => toggleInner(row.key)}
           isExpanded={group.expandedKeys.has(row.key)}
         />
@@ -502,13 +658,15 @@ function ProjectGroupRows({
 function InnerRow({
   row,
   enabledTypes,
-  periodCount,
+  periodCols,
+  currentPeriodIdx,
   onToggle,
   isExpanded,
 }: {
   row: GridRow;
   enabledTypes: FinancialType[];
-  periodCount: number;
+  periodCols: PeriodCol[];
+  currentPeriodIdx: number;
   onToggle: () => void;
   isExpanded: boolean;
 }) {
@@ -539,13 +697,16 @@ function InnerRow({
           <span className="truncate">{row.label}</span>
         </div>
       </td>
-      {Array.from({ length: periodCount }).map((_, i) => (
+      {periodCols.map((p, pi) => (
         enabledTypes.map((t, ti) => {
-          const val = row.monthlyByType[t.key]?.[i] ?? 0;
+          const arr = row.monthlyByType[t.key];
+          let val = 0;
+          if (arr) for (const mi of p.monthIndices) val += arr[mi] ?? 0;
+          const isCurrent = pi === currentPeriodIdx;
           return (
             <td
-              key={`${row.key}-${i}-${t.key}`}
-              className={`px-1.5 py-1 text-center text-[11px] tabular-nums ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
+              key={`${row.key}-${p.key}-${t.key}`}
+              className={`px-1.5 py-1 text-center text-[11px] tabular-nums ${ti === 0 ? "border-l border-border" : "border-l border-border/40"} ${isCurrent ? "bg-blue-500/5 dark:bg-blue-400/5" : ""}`}
             >
               <MoneyCell value={val} />
             </td>
