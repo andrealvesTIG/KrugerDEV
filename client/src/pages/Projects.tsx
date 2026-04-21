@@ -283,6 +283,8 @@ interface ProjectsListViewProps {
   onFilterViewChange?: (filterView: ProjectFilterView) => void;
   organizationId?: number | null;
   statusList?: string[];
+  extraRowActions?: (project: Project) => React.ReactNode;
+  hideDeleteAction?: boolean;
 }
 
 export function ProjectsListView({
@@ -309,7 +311,9 @@ export function ProjectsListView({
   filterView = "all",
   onFilterViewChange,
   organizationId,
-  statusList = DEFAULT_PROJECT_STATUS_LIST,
+  statusList = DEFAULT_PROJECT_STATUS_LIST as unknown as string[],
+  extraRowActions,
+  hideDeleteAction,
 }: ProjectsListViewProps) {
   const PROJECT_STATUS_LIST = statusList;
   const { workflows: projectWorkflowsList } = useProjectWorkflows();
@@ -724,11 +728,16 @@ export function ProjectsListView({
                   <Shield className="h-4 w-4 mr-2" />
                   AI Risk Assessment
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={(e) => { e.preventDefault(); setDeleteProjectId(project.id); }} className="text-red-600 focus:text-red-600">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </DropdownMenuItem>
+                {extraRowActions?.(project)}
+                {!hideDeleteAction && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={(e) => { e.preventDefault(); setDeleteProjectId(project.id); }} className="text-red-600 focus:text-red-600">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

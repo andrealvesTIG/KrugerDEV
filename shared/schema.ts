@@ -2186,7 +2186,11 @@ export const customFieldDefinitions = pgTable("custom_field_definitions", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("cfd_org_entity_name_active_idx")
+    .on(table.organizationId, table.entityType, sql`lower(${table.name})`)
+    .where(sql`${table.isActive} = true`),
+]);
 
 export const insertCustomFieldDefinitionSchema = createInsertSchema(customFieldDefinitions).omit({
   id: true,

@@ -58,6 +58,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PortfolioProjectsListContainer } from "@/components/portfolio/PortfolioProjectsListContainer";
 
 export default function PortfolioDetails() {
   const [, params] = useRoute("/portfolios/:id");
@@ -737,20 +738,6 @@ function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
 
-  const healthColors: Record<string, string> = {
-    Green: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300",
-    Yellow: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300",
-    Red: "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300",
-  };
-
-  const statusColors: Record<string, string> = {
-    Initiation: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-    Planning: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-    Execution: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
-    Monitoring: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-    Closing: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  };
-
   return (
     <>
     <Card>
@@ -808,79 +795,18 @@ function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }
       </CardHeader>
       <CardContent>
         {view === "list" ? (
-          <div className="rounded-md border overflow-x-auto">
-            <table className="w-full min-w-[500px]">
-              <thead className="bg-muted/50">
-                <tr className="border-b">
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Project</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Status</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Health</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground hidden md:table-cell">Progress</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground hidden sm:table-cell">Budget</th>
-                  <th className="p-3 text-left text-sm font-medium text-muted-foreground"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {projects?.map((project: Project) => (
-                  <tr key={project.id} className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-project-${project.id}`}>
-                    <td className="p-3 max-w-[200px]">
-                      <Link href={`/projects/${project.id}`}>
-                        <div className="hover:text-primary cursor-pointer min-w-0">
-                          <p className="font-medium truncate">{project.name}</p>
-                          <p className="text-sm text-muted-foreground truncate">{project.description}</p>
-                        </div>
-                      </Link>
-                    </td>
-                    <td className="p-3">
-                      <Badge className={cn("text-xs", statusColors[project.status] || "bg-muted")}>{project.status}</Badge>
-                    </td>
-                    <td className="p-3">
-                      <Badge className={cn("text-xs", healthColors[project.health || "Green"])}>{project.health}</Badge>
-                    </td>
-                    <td className="p-3 hidden md:table-cell">
-                      <div className="flex items-center gap-2">
-                        <Progress value={project.completionPercentage || 0} className="w-20 h-2" />
-                        <span className="text-sm">{project.completionPercentage || 0}%</span>
-                      </div>
-                    </td>
-                    <td className="p-3 text-sm hidden sm:table-cell"><CompactCurrency value={financialBudgets && project.id in financialBudgets ? financialBudgets[project.id] : project.budget} /></td>
-                    <td className="p-3">
-                      <div className="flex items-center gap-1">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" data-testid={`button-menu-project-${project.id}`}>
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link href={`/projects/${project.id}`} className="cursor-pointer">
-                                <ArrowRight className="h-4 w-4 mr-2" />
-                                View Project
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleRemoveProject(project.id)}
-                              className="text-destructive focus:text-destructive"
-                              data-testid={`menu-delete-project-${project.id}`}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Remove from Portfolio
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {projects?.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                No projects in this portfolio. Click "Add Project" to add existing projects.
-              </div>
-            )}
-          </div>
+          (projects?.length ?? 0) === 0 ? (
+            <div className="text-center py-8 text-muted-foreground border rounded-md">
+              No projects in this portfolio. Click "Add Project" to add existing projects.
+            </div>
+          ) : (
+            <PortfolioProjectsListContainer
+              projects={projects || []}
+              organizationId={organizationId}
+              onRemoveProject={handleRemoveProject}
+              financialBudgets={financialBudgets}
+            />
+          )
         ) : (
           <PortfolioProjectsGanttView projects={projects || []} />
         )}
