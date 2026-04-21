@@ -48,6 +48,10 @@ interface ProjectGroup {
   projectName: string;
   rows: GridRow[];
   grandTotalByType: Record<string, number>;
+  // monthlyByType[typeKey][fiscalIdx 0..11] = sum of all entries for the
+  // project in that fiscal-month / scenario. Used to populate the project
+  // header row's per-period cells.
+  monthlyByType: Record<string, number[]>;
   expandedKeys: Set<string>;
 }
 
@@ -75,6 +79,13 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
     () => buildFiscalMonths(fiscalYear, fiscalYearStartMonth),
     [fiscalYear, fiscalYearStartMonth],
   );
+  // Calendar month (1..12) -> fiscal-month index (0..11) so we can drop a
+  // raw entry into the right per-period column.
+  const calendarToFiscalIdx = useMemo(() => {
+    const m = new Map<number, number>();
+    monthsLayout.forEach((p, idx) => m.set(p.monthNum, idx));
+    return m;
+  }, [monthsLayout]);
 
   const { data: typesConfig } = useQuery<FinancialTypesConfig>({
     queryKey: ["/api/organizations", orgId, "financial-types"],
@@ -152,13 +163,25 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
         expanded,
         costConfig,
       );
-      groups.push({ projectId: pid, projectName: g.name, rows, grandTotalByType, expandedKeys: expanded });
+      // Per-project monthly aggregates: walk the raw entries once and bucket
+      // amounts into [typeKey][fiscalIdx]. Cheap (O(entries)) and avoids
+      // re-deriving from the rendered row tree.
+      const monthlyByType: Record<string, number[]> = {};
+      for (const k of typeKeys) monthlyByType[k] = Array(12).fill(0);
+      for (const e of g.entries) {
+        const idx = calendarToFiscalIdx.get(e.month);
+        if (idx == null) continue;
+        const bucket = monthlyByType[e.scenario];
+        if (!bucket) continue;
+        bucket[idx] += Number(e.amount) || 0;
+      }
+      groups.push({ projectId: pid, projectName: g.name, rows, grandTotalByType, monthlyByType, expandedKeys: expanded });
     }
     groups.sort((a, b) => a.projectName.localeCompare(b.projectName));
     return groups;
-  }, [entries, typeKeys, costConfig, innerExpanded]);
+  }, [entries, typeKeys, costConfig, innerExpanded, calendarToFiscalIdx]);
 
-  // Portfolio-level totals across all included projects.
+  // Portfolio-level totals across all included projects (year totals + monthly).
   const portfolioTotals = useMemo(() => {
     const totals: Record<string, number> = {};
     for (const k of typeKeys) totals[k] = 0;
@@ -166,6 +189,19 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
       for (const k of typeKeys) totals[k] += g.grandTotalByType[k] ?? 0;
     }
     return totals;
+  }, [projectGroups, typeKeys]);
+
+  const portfolioMonthlyByType = useMemo(() => {
+    const m: Record<string, number[]> = {};
+    for (const k of typeKeys) m[k] = Array(12).fill(0);
+    for (const g of projectGroups) {
+      for (const k of typeKeys) {
+        const src = g.monthlyByType[k];
+        if (!src) continue;
+        for (let i = 0; i < 12; i++) m[k][i] += src[i] ?? 0;
+      }
+    }
+    return m;
   }, [projectGroups, typeKeys]);
 
   // FY picker: today's FY ± 5 years.
@@ -315,10 +351,11 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
                 enabledTypes.map((t, ti) => (
                   <td
                     key={`pt-${i}-${t.key}`}
-                    className={`px-1.5 py-1.5 text-center text-[11px] tabular-nums text-muted-foreground/40 bg-muted z-10 border-b-2 border-border ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
+                    className={`px-1.5 py-1.5 text-center text-[11px] font-bold tabular-nums bg-muted z-10 border-b-2 border-border ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
                     style={{ top: "64px", position: "sticky" }}
+                    data-testid={`portfolio-monthly-${i}-${t.key}`}
                   >
-                    —
+                    <MoneyCell value={portfolioMonthlyByType[t.key]?.[i] ?? 0} />
                   </td>
                 ))
               ))}
@@ -421,9 +458,10 @@ function ProjectGroupRows({
           enabledTypes.map((t, ti) => (
             <td
               key={`pg-${i}-${t.key}`}
-              className={`px-1.5 py-1 text-center text-[11px] tabular-nums text-muted-foreground/40 ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
+              className={`px-1.5 py-1 text-center text-[11px] font-semibold tabular-nums ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
+              data-testid={`project-monthly-${group.projectId}-${i}-${t.key}`}
             >
-              —
+              <MoneyCell value={group.monthlyByType[t.key]?.[i] ?? 0} />
             </td>
           ))
         ))}
