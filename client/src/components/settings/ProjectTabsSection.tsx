@@ -102,8 +102,8 @@ export function ProjectTabsSection({ organizationId }: { organizationId: number 
   };
 
   const handleReset = () => {
-    setOrder([...PROJECT_TAB_IDS, ...customTabIds]);
-    setHidden(new Set());
+    setOrder([...DEFAULT_PROJECT_TAB_SETTINGS.order, ...customTabIds]);
+    setHidden(new Set(DEFAULT_PROJECT_TAB_SETTINGS.hidden));
   };
 
   const handleSave = async () => {
