@@ -62,7 +62,7 @@ import { ProjectsListView, ProjectsGridView, ProjectsKanbanView, ProjectsGanttVi
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useDeleteProject } from "@/hooks/use-projects";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function PortfolioDetails() {
   const [, params] = useRoute("/portfolios/:id");
