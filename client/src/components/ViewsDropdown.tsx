@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -113,6 +113,7 @@ interface GridColumn {
 interface ViewsDropdownProps {
   mode: 'grid' | 'gantt' | 'list';
   organizationId: number | null;
+  portfolioId?: number | null;
   allColumns: GridColumn[];
   visibleColumns: string[];
   columnOrder: string[];
@@ -126,6 +127,7 @@ interface ViewsDropdownProps {
 export function ViewsDropdown({
   mode,
   organizationId,
+  portfolioId = null,
   allColumns,
   visibleColumns,
   columnOrder,
@@ -136,16 +138,18 @@ export function ViewsDropdown({
   onFilterViewChange,
 }: ViewsDropdownProps) {
   const { toast } = useToast();
-  const { data: views = [], isLoading } = useProjectViews(organizationId, mode);
-  const createViewMutation = useCreateProjectView(organizationId);
+  const { data: views = [], isLoading } = useProjectViews(organizationId, mode, portfolioId);
+  const createViewMutation = useCreateProjectView(organizationId, portfolioId);
   const updateViewMutation = useUpdateProjectView();
   const deleteViewMutation = useDeleteProjectView();
   const setDefaultMutation = useSetDefaultView();
   
   const { data: systemViews = [] } = useQuery<SystemProjectView[]>({
-    queryKey: ['/api/organizations', organizationId, 'system-project-views', mode],
+    queryKey: ['/api/organizations', organizationId, 'system-project-views', mode, { portfolioId }],
     queryFn: async () => {
-      const res = await fetch(`/api/organizations/${organizationId}/system-project-views?mode=${mode}`, {
+      const params = new URLSearchParams({ mode });
+      if (portfolioId !== null) params.set('portfolioId', String(portfolioId));
+      const res = await fetch(`/api/organizations/${organizationId}/system-project-views?${params.toString()}`, {
         credentials: 'include',
       });
       if (!res.ok) return [];
@@ -167,6 +171,53 @@ export function ViewsDropdown({
   const [viewToDelete, setViewToDelete] = useState<ProjectView | null>(null);
   const [columnSearch, setColumnSearch] = useState("");
   const [tempVisibleColumns, setTempVisibleColumns] = useState<string[]>([]);
+  const [hasAppliedDefault, setHasAppliedDefault] = useState(false);
+
+  const lastViewedKey = `views:last:${organizationId ?? 'na'}:${mode}:${portfolioId ?? 'global'}`;
+
+  // Apply default view (or last-selected view) for the current scope on mount
+  useEffect(() => {
+    if (hasAppliedDefault || !organizationId || isLoading) return;
+    if (activeViewId !== null || activeSystemViewId !== null) {
+      setHasAppliedDefault(true);
+      return;
+    }
+    let lastId: number | null = null;
+    try {
+      const raw = localStorage.getItem(lastViewedKey);
+      if (raw) lastId = parseInt(raw, 10);
+    } catch {}
+    const lastView = lastId !== null ? views.find(v => v.id === lastId) : undefined;
+    const defaultView = views.find(v => v.isDefault);
+    const target = lastView || defaultView;
+    if (target) {
+      setActiveViewId(target.id);
+      setActiveSystemViewId(null);
+      onApplyView({
+        visibleColumns: target.visibleColumns,
+        columnOrder: target.columnOrder || target.visibleColumns,
+      });
+      setHasAppliedDefault(true);
+    } else if (views.length > 0 || !isLoading) {
+      setHasAppliedDefault(true);
+    }
+  }, [views, isLoading, organizationId, hasAppliedDefault, activeViewId, activeSystemViewId, lastViewedKey, onApplyView]);
+
+  // Reset applied state when scope changes (org/mode/portfolio)
+  useEffect(() => {
+    setHasAppliedDefault(false);
+    setActiveViewId(null);
+    setActiveSystemViewId(null);
+  }, [organizationId, mode, portfolioId]);
+
+  // Persist last-selected view per scope
+  useEffect(() => {
+    if (!organizationId) return;
+    try {
+      if (activeViewId !== null) localStorage.setItem(lastViewedKey, String(activeViewId));
+      else localStorage.removeItem(lastViewedKey);
+    } catch {}
+  }, [activeViewId, lastViewedKey, organizationId]);
 
   const activeView = useMemo(() => {
     if (activeViewId === null) return null;
@@ -261,6 +312,7 @@ export function ViewsDropdown({
         viewId: activeView.id,
         organizationId,
         mode,
+        portfolioId,
         visibleColumns,
         columnOrder,
       });
@@ -278,6 +330,7 @@ export function ViewsDropdown({
         viewId: viewToRename.id,
         organizationId,
         mode,
+        portfolioId,
         name: renameViewName.trim(),
       });
       setRenameDialogOpen(false);
@@ -297,6 +350,7 @@ export function ViewsDropdown({
         viewId: viewToDelete.id,
         organizationId,
         mode,
+        portfolioId,
       });
       if (activeViewId === viewToDelete.id) {
         setActiveViewId(null);
@@ -318,6 +372,7 @@ export function ViewsDropdown({
         viewId: view.id,
         organizationId,
         mode,
+        portfolioId,
       });
       toast({ title: "Default view set", description: `"${view.name}" is now your default view` });
     } catch (err: any) {

@@ -113,12 +113,15 @@ export async function createHealthStatusHistory(entry: InsertHealthStatusHistory
   return created;
 }
 
-export async function getProjectViews(organizationId: number, userId: string, mode: string): Promise<ProjectView[]> {
+export async function getProjectViews(organizationId: number, userId: string, mode: string, portfolioId: number | null = null): Promise<ProjectView[]> {
   return await db.select().from(projectViews)
     .where(and(
       eq(projectViews.organizationId, organizationId),
       eq(projectViews.userId, userId),
-      eq(projectViews.mode, mode)
+      eq(projectViews.mode, mode),
+      portfolioId === null
+        ? sql`${projectViews.portfolioId} IS NULL`
+        : eq(projectViews.portfolioId, portfolioId)
     ))
     .orderBy(desc(projectViews.isSystem), asc(projectViews.name));
 }
@@ -145,25 +148,31 @@ export async function deleteProjectView(id: number): Promise<void> {
   await db.delete(projectViews).where(eq(projectViews.id, id));
 }
 
-export async function setDefaultProjectView(organizationId: number, userId: string, mode: string, viewId: number): Promise<void> {
+export async function setDefaultProjectView(organizationId: number, userId: string, mode: string, viewId: number, portfolioId: number | null = null): Promise<void> {
   await db.update(projectViews)
     .set({ isDefault: false })
     .where(and(
       eq(projectViews.organizationId, organizationId),
       eq(projectViews.userId, userId),
-      eq(projectViews.mode, mode)
+      eq(projectViews.mode, mode),
+      portfolioId === null
+        ? sql`${projectViews.portfolioId} IS NULL`
+        : eq(projectViews.portfolioId, portfolioId)
     ));
   await db.update(projectViews)
     .set({ isDefault: true, updatedAt: new Date() })
     .where(eq(projectViews.id, viewId));
 }
 
-export async function getSystemProjectViews(organizationId: number, mode: string): Promise<SystemProjectView[]> {
+export async function getSystemProjectViews(organizationId: number, mode: string, portfolioId: number | null = null): Promise<SystemProjectView[]> {
   return await db.select().from(systemProjectViews)
     .where(and(
       eq(systemProjectViews.organizationId, organizationId),
       eq(systemProjectViews.mode, mode),
-      eq(systemProjectViews.isActive, true)
+      eq(systemProjectViews.isActive, true),
+      portfolioId === null
+        ? sql`${systemProjectViews.portfolioId} IS NULL`
+        : eq(systemProjectViews.portfolioId, portfolioId)
     ))
     .orderBy(asc(systemProjectViews.displayOrder), asc(systemProjectViews.name));
 }
@@ -304,12 +313,63 @@ export async function getCustomFieldDefinition(id: number): Promise<CustomFieldD
   return field;
 }
 
+async function assertNoDuplicateCustomFieldName(params: {
+  organizationId: number;
+  entityType: string;
+  name: string;
+  excludeId?: number;
+}): Promise<void> {
+  const normalized = params.name.trim().toLowerCase();
+  if (!normalized) return;
+  const conditions = [
+    eq(customFieldDefinitions.organizationId, params.organizationId),
+    eq(customFieldDefinitions.entityType, params.entityType),
+    eq(customFieldDefinitions.isActive, true),
+    sql`lower(${customFieldDefinitions.name}) = ${normalized}`,
+  ];
+  if (params.excludeId !== undefined) {
+    conditions.push(sql`${customFieldDefinitions.id} <> ${params.excludeId}`);
+  }
+  const [existing] = await db.select({ id: customFieldDefinitions.id })
+    .from(customFieldDefinitions)
+    .where(and(...conditions))
+    .limit(1);
+  if (existing) {
+    const err: any = new Error(`A custom field named "${params.name.trim()}" already exists for ${params.entityType}s`);
+    err.status = 409;
+    throw err;
+  }
+}
+
 export async function createCustomFieldDefinition(field: InsertCustomFieldDefinition): Promise<CustomFieldDefinition> {
+  if (field.name && field.organizationId) {
+    await assertNoDuplicateCustomFieldName({
+      organizationId: field.organizationId,
+      entityType: field.entityType || 'project',
+      name: field.name,
+    });
+  }
   const [created] = await db.insert(customFieldDefinitions).values(field).returning();
   return created;
 }
 
 export async function updateCustomFieldDefinition(id: number, updates: UpdateCustomFieldDefinitionRequest): Promise<CustomFieldDefinition> {
+  if (updates.name !== undefined || updates.entityType !== undefined || updates.isActive === true) {
+    const [current] = await db.select().from(customFieldDefinitions).where(eq(customFieldDefinitions.id, id));
+    if (current) {
+      const nextName = updates.name ?? current.name;
+      const nextEntityType = updates.entityType ?? current.entityType;
+      const nextIsActive = updates.isActive ?? current.isActive;
+      if (nextIsActive && nextName) {
+        await assertNoDuplicateCustomFieldName({
+          organizationId: current.organizationId,
+          entityType: nextEntityType,
+          name: nextName,
+          excludeId: id,
+        });
+      }
+    }
+  }
   const [updated] = await db.update(customFieldDefinitions)
     .set({ ...updates, updatedAt: new Date() })
     .where(eq(customFieldDefinitions.id, id))
@@ -353,7 +413,28 @@ export async function getProjectCustomFieldValue(projectId: number, fieldDefinit
   return value;
 }
 
+function isEmptyCustomFieldValue(value: unknown): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed === '' || trimmed === '[]') return true;
+  }
+  return false;
+}
+
+async function assertRequiredCustomFieldValue(fieldDefinitionId: number, value: unknown): Promise<void> {
+  if (!isEmptyCustomFieldValue(value)) return;
+  const [def] = await db.select().from(customFieldDefinitions)
+    .where(eq(customFieldDefinitions.id, fieldDefinitionId));
+  if (def && def.isRequired && def.isActive) {
+    const err: any = new Error(`"${def.name}" is required`);
+    err.status = 400;
+    throw err;
+  }
+}
+
 export async function upsertProjectCustomFieldValue(value: InsertProjectCustomFieldValue): Promise<ProjectCustomFieldValue> {
+  await assertRequiredCustomFieldValue(value.fieldDefinitionId, value.value);
   const [result] = await db.insert(projectCustomFieldValues)
     .values(value)
     .onConflictDoUpdate({
@@ -378,6 +459,7 @@ export async function getTaskCustomFieldValues(taskId: number): Promise<TaskCust
 }
 
 export async function upsertTaskCustomFieldValue(value: InsertTaskCustomFieldValue): Promise<TaskCustomFieldValue> {
+  await assertRequiredCustomFieldValue(value.fieldDefinitionId, value.value);
   const [result] = await db.insert(taskCustomFieldValues)
     .values(value)
     .onConflictDoUpdate({
@@ -410,6 +492,7 @@ export async function getResourceCustomFieldValues(resourceId: number): Promise<
 }
 
 export async function upsertResourceCustomFieldValue(value: InsertResourceCustomFieldValue): Promise<ResourceCustomFieldValue> {
+  await assertRequiredCustomFieldValue(value.fieldDefinitionId, value.value);
   const [result] = await db.insert(resourceCustomFieldValues)
     .values(value)
     .onConflictDoUpdate({

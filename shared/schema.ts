@@ -11,7 +11,21 @@ const numeric = customType<{ data: number; driverData: string }>({
 import { users } from "./models/auth";
 
 export const PROJECT_STATUSES = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"] as const;
-export const PROJECT_STATUSES_EXTENDED = [...PROJECT_STATUSES, "Billing", "Closed"] as const;
+export const PROJECT_STATUSES_EXTENDED = [...PROJECT_STATUSES, "Billing", "Closed", "On Hold", "Cancelled"] as const;
+
+// Role vocabularies (centralized so handlers, UI dropdowns, and Zod refinements agree)
+export const USER_GLOBAL_ROLES = ["super_admin", "user"] as const;
+export const ORG_MEMBER_ROLES = ["org_admin", "member", "viewer"] as const;
+export const EXTERNAL_SHARE_ROLES = ["viewer", "assignee", "manager"] as const;
+export type UserGlobalRole = (typeof USER_GLOBAL_ROLES)[number];
+export type OrgMemberRole = (typeof ORG_MEMBER_ROLES)[number];
+export type ExternalShareRole = (typeof EXTERNAL_SHARE_ROLES)[number];
+
+// Coerces inbound `numeric` payloads — Postgres `numeric` round-trips as `string`,
+// but forms commonly send a `number`. Accept either; always store as string.
+export const numericString = z
+  .union([z.number(), z.string()])
+  .transform((v) => (typeof v === "number" ? String(v) : v));
 export const PROJECT_HEALTH_VALUES = ["Green", "Yellow", "Red"] as const;
 export const PROJECT_PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
 export const BILLABLE_STATUSES = ["N/A", "On Track", "Waiting for Approval", "Verbal Approval", "Email Approval", "SOW Signed", "PO Received", "Partially Invoiced", "At Risk", "Ready for Invoice", "Critical", "Invoiced"] as const;
@@ -1686,31 +1700,11 @@ export const multiYearWbs = pgTable("multi_year_wbs", {
   index("multi_year_wbs_project_id_idx").on(table.projectId),
 ]);
 
-// Intake Types - Categorize intakes (e.g. "Default", "Power BI Request").
-// `behavior` controls special handling: 'standard' = normal intake form,
-// 'powerbi_redirect' = selecting this type sends the user to the Power BI agent
-// instead of creating a normal intake row.
-export const intakeTypes = pgTable("intake_types", {
-  id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
-  name: text("name").notNull(),
-  description: text("description"),
-  behavior: text("behavior").notNull().default("standard"), // 'standard' | 'powerbi_redirect'
-  isSystem: boolean("is_system").notNull().default(false), // seeded defaults that cannot be deleted
-  isActive: boolean("is_active").notNull().default(true),
-  position: integer("position").notNull().default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => [
-  index("intake_types_org_id_idx").on(table.organizationId),
-]);
-
 // Project Intakes (Intake workflow for new project ideas)
 export const projectIntakes = pgTable("project_intakes", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   intakeNumber: text("intake_number"), // Auto-generated intake ID (e.g., "INT-2026-001")
-  intakeTypeId: integer("intake_type_id").references(() => intakeTypes.id, { onDelete: "set null" }),
   workflowId: integer("workflow_id"), // FK to intake_workflows.id (nullable; assigned when org has multiple intake workflows)
   
   // Basic Information (Intake Form tab)
@@ -1724,7 +1718,7 @@ export const projectIntakes = pgTable("project_intakes", {
   programName: text("program_name"), // Stored program name for display
   
   // Workflow state
-  currentStep: text("current_step").default("is_backlog"), // Workflow step
+  currentStep: text("current_step").default("intake_capture"), // Canonical workflow step key (see intake_workflow_steps.stepKey)
   status: text("status").default("draft"), // draft, in_progress, approved, rejected, cancelled
   
   // Step completion tracking
@@ -1789,6 +1783,9 @@ export const intakeWorkflows = pgTable("intake_workflows", {
   isActive: boolean("is_active").default(true),
   creationMode: text("creation_mode").notNull().default("dialog"), // 'dialog' | 'url'
   creationUrl: text("creation_url"),
+  // When set to 'powerbi', selecting this workflow opens the Power BI agent
+  // instead of the standard intake dialog. null = standard intake behavior.
+  agentTarget: text("agent_target"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -1919,6 +1916,7 @@ export const mppImportTasks = pgTable("mpp_import_tasks", {
   actualWorkHours: numeric("actual_work_hours"), // Actual work hours from MPP
   remainingWorkHours: numeric("remaining_work_hours"), // Remaining work hours from MPP
   predecessors: text("predecessors"), // JSON array of predecessor relationships [{predecessorTaskId, type, lagDays}]
+  customFields: jsonb("custom_fields").$type<Record<string, string>>(), // Unmapped CSV columns kept as raw key/value (e.g. Asana "Section")
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -2152,6 +2150,10 @@ export const insertExternalShareSchema = createInsertSchema(externalShares).omit
 export const insertPortfolioSchema = createInsertSchema(portfolios).omit({ id: true, createdAt: true }).extend({
   name: z.string().min(1, "Portfolio name is required"),
 });
+// NOTE: `budget`, `contractTotal` are `numeric` customType that already accepts `number`
+// in TS and converts to string at the driver layer — no manual coercion needed here.
+// `status` is intentionally left as plain text to tolerate legacy values; the
+// canonical list lives in `PROJECT_STATUSES_EXTENDED` for UI dropdowns.
 export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true, updatedAt: true, updatedBy: true, createdBy: true });
 // Risk schema is now an alias for Issue schema with itemType="risk"
 // Extend to handle date strings for escalatedAt field
@@ -2162,7 +2164,10 @@ export const insertRiskSchema = baseRiskSchema.extend({
   // non-risk rows through the risk endpoints.
   itemType: z.literal("risk").default("risk"),
 });
-/** @deprecated Renamed to Portfolio Key Dates. Schema kept for backward compatibility. */
+/** @deprecated Renamed to Portfolio Key Dates. Schema kept for backward compatibility.
+ *  NOTE: createMilestone() in storage actually writes to the `tasks` table — this Zod
+ *  schema is used only as a request DTO. Storage normalizes the legacy status/priority
+ *  vocabulary ("Done"/"Backlog") to canonical TASK_STATUSES values. */
 export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true });
 export const insertPortfolioKeyDateSchema = createInsertSchema(portfolioKeyDates).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true, deletedBy: true, isDemo: true });
 export const updatePortfolioKeyDateSchema = insertPortfolioKeyDateSchema.pick({ title: true, description: true, keyDateType: true, date: true, status: true, completed: true, notes: true }).partial();
@@ -2171,11 +2176,28 @@ const baseIssueSchema = createInsertSchema(issues).omit({ id: true, createdAt: t
 export const insertIssueSchema = baseIssueSchema.extend({
   escalatedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),
   type: issueTypeEnum.default("Bug").optional(),
+  // Pin to "issue" so the shared issues table can't be used to create risk rows
+  // through the issue endpoint (symmetric to insertRiskSchema).
+  itemType: z.literal("issue").default("issue"),
 });
+// Accept "" / null / YYYY-MM-DD / full ISO-8601 datetime. Empty string normalizes to null;
+// datetimes are truncated to their date portion (the underlying `tasks` columns are dates).
+const optionalIsoDate = z
+  .union([
+    z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/, "Date must be ISO YYYY-MM-DD or ISO-8601 datetime"),
+    z.literal(""),
+    z.null(),
+  ])
+  .transform((v) => {
+    if (v === "" || v == null) return null;
+    return v.length > 10 ? v.slice(0, 10) : v;
+  })
+  .nullable()
+  .optional();
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true }).extend({
   durationDays: z.number().min(0).max(36500).nullable().optional(),
-  startDate: z.string().nullable().optional(),
-  endDate: z.string().nullable().optional(),
+  startDate: optionalIsoDate,
+  endDate: optionalIsoDate,
   isOngoing: z.boolean().optional(),
   schedulingMode: z.enum(['auto', 'manual']).optional(),
 });
@@ -2204,7 +2226,6 @@ export const financialLockdownInputSchema = z.object({
 });
 export const insertMultiYearWbsSchema = createInsertSchema(multiYearWbs).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProjectIntakeSchema = createInsertSchema(projectIntakes).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertIntakeTypeSchema = createInsertSchema(intakeTypes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMppImportSchema = createInsertSchema(mppImports).omit({ id: true, createdAt: true, lastSyncedAt: true });
 export const insertMppImportTaskSchema = createInsertSchema(mppImportTasks).omit({ id: true, createdAt: true });
 export const insertChangeRequestSchema = createInsertSchema(changeRequests).omit({ id: true, createdAt: true });
@@ -2218,6 +2239,9 @@ export const insertInvoiceNoteSchema = createInsertSchema(invoiceNotes).omit({ i
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
 export const insertStatusReportHistorySchema = createInsertSchema(statusReportHistory).omit({ id: true, createdAt: true });
 export const insertIntakeWorkflowStepSchema = createInsertSchema(intakeWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertIntakeWorkflowSchema = createInsertSchema(intakeWorkflows).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertProjectWorkflowSchema = createInsertSchema(projectWorkflows).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertProjectWorkflowStepSchema = createInsertSchema(projectWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
 
@@ -2321,8 +2345,6 @@ export type InsertMultiYearWbs = z.infer<typeof insertMultiYearWbsSchema>;
 
 export type ProjectIntake = typeof projectIntakes.$inferSelect;
 export type InsertProjectIntake = z.infer<typeof insertProjectIntakeSchema>;
-export type IntakeType = typeof intakeTypes.$inferSelect;
-export type InsertIntakeType = z.infer<typeof insertIntakeTypeSchema>;
 
 export type MppImport = typeof mppImports.$inferSelect;
 export type InsertMppImport = z.infer<typeof insertMppImportSchema>;
@@ -2359,6 +2381,15 @@ export type InsertStatusReportHistory = z.infer<typeof insertStatusReportHistory
 
 export type IntakeWorkflowStep = typeof intakeWorkflowSteps.$inferSelect;
 export type InsertIntakeWorkflowStep = z.infer<typeof insertIntakeWorkflowStepSchema>;
+
+export type IntakeWorkflow = typeof intakeWorkflows.$inferSelect;
+export type InsertIntakeWorkflow = z.infer<typeof insertIntakeWorkflowSchema>;
+
+export type ProjectWorkflow = typeof projectWorkflows.$inferSelect;
+export type InsertProjectWorkflow = z.infer<typeof insertProjectWorkflowSchema>;
+
+export type ProjectWorkflowStep = typeof projectWorkflowSteps.$inferSelect;
+export type InsertProjectWorkflowStep = z.infer<typeof insertProjectWorkflowStepSchema>;
 
 // API Request/Response Types
 export type CreatePortfolioRequest = InsertPortfolio;
@@ -2480,13 +2511,16 @@ export const projectViews = pgTable("project_views", {
   name: text("name").notNull(),
   isDefault: boolean("is_default").default(false), // User's default view for this mode
   isSystem: boolean("is_system").default(false), // System default view (cannot be deleted)
+  portfolioId: integer("portfolio_id").references(() => portfolios.id, { onDelete: 'cascade' }), // null = global; non-null = portfolio-scoped
   visibleColumns: text("visible_columns").array().notNull(),
   columnOrder: text("column_order").array(),
   columnWidths: jsonb("column_widths").$type<Record<string, number>>(),
   frozenColumns: text("frozen_columns").array(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  orgPortfolioModeIdx: index("project_views_org_portfolio_mode_idx").on(table.organizationId, table.portfolioId, table.mode),
+}));
 
 export const insertProjectViewSchema = createInsertSchema(projectViews).omit({
   id: true,
@@ -2505,6 +2539,7 @@ export const systemProjectViews = pgTable("system_project_views", {
   mode: text("mode").notNull(), // 'grid' or 'gantt'
   name: text("name").notNull(),
   description: text("description"), // Description of what this view shows
+  portfolioId: integer("portfolio_id").references(() => portfolios.id, { onDelete: 'cascade' }), // null = global; non-null = portfolio-scoped
   visibleColumns: text("visible_columns").array().notNull(),
   columnOrder: text("column_order").array(),
   columnWidths: jsonb("column_widths").$type<Record<string, number>>(),
@@ -2515,7 +2550,9 @@ export const systemProjectViews = pgTable("system_project_views", {
   updatedBy: varchar("updated_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  orgPortfolioModeIdx: index("system_project_views_org_portfolio_mode_idx").on(table.organizationId, table.portfolioId, table.mode),
+}));
 
 // Filter criteria for system views
 export interface SystemViewFilterCriteria {
@@ -2579,7 +2616,16 @@ export const customFieldDefinitions = pgTable("custom_field_definitions", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  // Plain-column partial unique index. Case-insensitive uniqueness is enforced at the
+  // application layer (see storage.assertCustomFieldDefinitionNameUnique). A SQL
+  // expression like `lower(name)` was previously included here, but drizzle-kit and the
+  // Replit deploy migration generator emit malformed operator classes when a partial
+  // unique index mixes mixed-type columns with an expression — see commit history.
+  uniqueIndex("cfd_org_entity_name_active_idx")
+    .on(table.organizationId, table.entityType, table.name)
+    .where(sql`${table.isActive} = true`),
+]);
 
 export const insertCustomFieldDefinitionSchema = createInsertSchema(customFieldDefinitions).omit({
   id: true,

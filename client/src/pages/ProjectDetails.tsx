@@ -39,6 +39,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatChangeLogSummary, type RawChangeLog } from "@/components/financial/FinancialChangeHistory";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -298,6 +299,10 @@ export default function ProjectDetails() {
   const [isImportingCsv, setIsImportingCsv] = useState(false);
   const [isExportingPng, setIsExportingPng] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [isConfirmRenameOpen, setIsConfirmRenameOpen] = useState(false);
+  const [pendingName, setPendingName] = useState("");
   const csvImportInputRef = useRef<HTMLInputElement>(null);
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
   const mainContentRef = useRef<HTMLDivElement>(null);
@@ -1256,7 +1261,83 @@ export default function ProjectDetails() {
             </Breadcrumb>
           )}
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-3xl font-display font-bold text-foreground truncate max-w-full" title={project.name}>{project.name}</h1>
+            {isEditingName ? (
+              <div className="flex items-center gap-2 max-w-full">
+                <Input
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const trimmed = nameDraft.trim();
+                      if (trimmed && trimmed !== project.name) {
+                        setPendingName(trimmed);
+                        setIsConfirmRenameOpen(true);
+                      } else {
+                        setIsEditingName(false);
+                      }
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setIsEditingName(false);
+                      setNameDraft(project.name);
+                    }
+                  }}
+                  autoFocus
+                  className="text-3xl font-display font-bold h-auto py-1 px-2 min-w-[260px]"
+                  data-testid="input-project-name"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => {
+                    const trimmed = nameDraft.trim();
+                    if (trimmed && trimmed !== project.name) {
+                      setPendingName(trimmed);
+                      setIsConfirmRenameOpen(true);
+                    } else {
+                      setIsEditingName(false);
+                    }
+                  }}
+                  data-testid="button-confirm-name"
+                  title="Save"
+                >
+                  <Check className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => {
+                    setIsEditingName(false);
+                    setNameDraft(project.name);
+                  }}
+                  data-testid="button-cancel-name"
+                  title="Cancel"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="group flex items-center gap-2 min-w-0 max-w-full">
+                <h1 className="text-3xl font-display font-bold text-foreground truncate max-w-full" title={project.name}>{project.name}</h1>
+                {!isProjectLocked && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => {
+                      setNameDraft(project.name);
+                      setIsEditingName(true);
+                    }}
+                    data-testid="button-edit-project-name"
+                    title="Rename project"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            )}
             <Badge className={cn(
               "text-sm px-3 py-1",
               project.health === 'Green' ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" :
@@ -1851,6 +1932,41 @@ export default function ProjectDetails() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={isConfirmRenameOpen} onOpenChange={setIsConfirmRenameOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rename project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Rename <strong>{project.name}</strong> to <strong>{pendingName}</strong>? This change is visible to everyone with access to the project.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-rename">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="button-confirm-rename"
+              onClick={() => {
+                updateProject(
+                  { id: project.id, name: pendingName },
+                  {
+                    onSuccess: () => {
+                      toast({ title: "Project renamed", description: `Renamed to "${pendingName}".` });
+                      setIsConfirmRenameOpen(false);
+                      setIsEditingName(false);
+                    },
+                    onError: () => {
+                      toast({ title: "Error", description: "Failed to rename project.", variant: "destructive" });
+                      setIsConfirmRenameOpen(false);
+                    },
+                  },
+                );
+              }}
+            >
+              Rename
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ChangeWorkflowDialog
         open={isChangeWorkflowOpen}

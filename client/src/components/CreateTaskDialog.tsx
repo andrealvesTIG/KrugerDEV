@@ -1,8 +1,10 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useCreateTask } from "@/hooks/use-tasks";
 import { useUpdateTaskResourceAssignments, useResources } from "@/hooks/use-resources";
 import { useUserJourney } from "@/hooks/use-user-journey";
 import { useProjects } from "@/hooks/use-projects";
+import { useCustomFieldDefinitions, useUpdateTaskCustomFieldValue } from "@/hooks/use-custom-fields";
+import type { CustomFieldDefinition } from "@shared/schema";
 import { ResourceAssignment, ResourceAllocation } from "@/components/ResourceAssignment";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -40,6 +42,13 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
   const createTask = useCreateTask();
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const { data: projects } = useProjects(organizationId ?? null);
+  const { data: allCustomFieldDefs = [] } = useCustomFieldDefinitions(organizationId ?? null);
+  const updateTaskCustomFieldValue = useUpdateTaskCustomFieldValue();
+  const taskCustomFieldDefs = useMemo(
+    () => allCustomFieldDefs.filter((d) => d.entityType === "task"),
+    [allCustomFieldDefs],
+  );
+  const [customFieldValues, setCustomFieldValues] = useState<Record<number, string>>({});
   const [durationInput, setDurationInput] = useState<string>("1d");
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [resourceAllocations, setResourceAllocations] = useState<ResourceAllocation[]>([]);
@@ -149,15 +158,31 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
       setDurationInput("1d");
       setSelectedResourceIds([]);
       setResourceAllocations([]);
+      setCustomFieldValues({});
       inviteAssignedRef.current = false;
     }
     onOpenChange(isOpen);
+  };
+
+  const setCustomFieldValue = (fieldId: number, value: string) => {
+    setCustomFieldValues((prev) => ({ ...prev, [fieldId]: value }));
   };
 
   const onSubmit = (data: any) => {
     const projectId = Number(data.projectId);
     if (!projectId || isNaN(projectId)) {
       toast({ title: "Validation Error", description: "Please select a valid project.", variant: "destructive" });
+      return;
+    }
+    const missingRequired = taskCustomFieldDefs
+      .filter((d) => d.isRequired)
+      .filter((d) => !((customFieldValues[d.id] ?? "").trim()));
+    if (missingRequired.length > 0) {
+      toast({
+        title: "Validation Error",
+        description: `Please fill in: ${missingRequired.map((d) => d.name).join(", ")}`,
+        variant: "destructive",
+      });
       return;
     }
     const taskIsOngoing = data.isOngoing || false;
@@ -191,6 +216,19 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
               toast({ title: "Warning", description: "Task created but resource assignment failed. Please assign resources manually.", variant: "destructive" });
             },
           });
+        }
+        if (newTask?.id) {
+          for (const def of taskCustomFieldDefs) {
+            const raw = customFieldValues[def.id];
+            if (raw === undefined) continue;
+            const trimmed = raw.trim();
+            if (trimmed === "") continue;
+            updateTaskCustomFieldValue.mutate({
+              taskId: newTask.id,
+              fieldDefinitionId: def.id,
+              value: trimmed,
+            });
+          }
         }
         inviteAssignedRef.current = false;
         trackChecklistEvent("add_task");
@@ -417,6 +455,114 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
                       Block timesheet entries for this task
                     </Label>
                   </div>
+
+                  {taskCustomFieldDefs.length > 0 && (
+                    <div className="space-y-3 pt-2 border-t">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Custom Fields
+                      </Label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {taskCustomFieldDefs.map((field: CustomFieldDefinition) => {
+                          const value = customFieldValues[field.id] ?? "";
+                          const fieldId = `cf-create-task-${field.id}`;
+                          const opts = (field.options as string[] | null | undefined) ?? [];
+                          return (
+                            <div key={field.id} className="space-y-1">
+                              <Label htmlFor={fieldId} className="text-xs">
+                                {field.name}
+                                {field.isRequired && <span className="text-red-500 ml-1">*</span>}
+                              </Label>
+                              {field.fieldType === "checkbox" ? (
+                                <div className="flex items-center h-8">
+                                  <Checkbox
+                                    id={fieldId}
+                                    checked={value === "true"}
+                                    onCheckedChange={(checked) => setCustomFieldValue(field.id, checked ? "true" : "false")}
+                                    data-testid={`input-cf-${field.id}`}
+                                  />
+                                </div>
+                              ) : field.fieldType === "select" ? (
+                                <Select
+                                  value={value}
+                                  onValueChange={(v) => setCustomFieldValue(field.id, v)}
+                                >
+                                  <SelectTrigger id={fieldId} className="h-8 text-sm" data-testid={`input-cf-${field.id}`}>
+                                    <SelectValue placeholder="Select..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {opts.map((opt) => (
+                                      <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : field.fieldType === "multiselect" ? (
+                                <div className="flex flex-wrap gap-1.5" data-testid={`input-cf-${field.id}`}>
+                                  {opts.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground">No options configured.</p>
+                                  ) : opts.map((opt) => {
+                                    const selected = value ? value.split(",").map((s) => s.trim()).includes(opt) : false;
+                                    return (
+                                      <Badge
+                                        key={opt}
+                                        variant={selected ? "default" : "outline"}
+                                        className="cursor-pointer"
+                                        onClick={() => {
+                                          const current = value ? value.split(",").map((s) => s.trim()).filter(Boolean) : [];
+                                          const next = current.includes(opt)
+                                            ? current.filter((o) => o !== opt)
+                                            : [...current, opt];
+                                          setCustomFieldValue(field.id, next.join(","));
+                                        }}
+                                      >
+                                        {opt}
+                                      </Badge>
+                                    );
+                                  })}
+                                </div>
+                              ) : field.fieldType === "date" ? (
+                                <Input
+                                  id={fieldId}
+                                  type="date"
+                                  className="h-8 text-sm"
+                                  value={value}
+                                  onChange={(e) => setCustomFieldValue(field.id, e.target.value)}
+                                  data-testid={`input-cf-${field.id}`}
+                                />
+                              ) : field.fieldType === "number" ? (
+                                <Input
+                                  id={fieldId}
+                                  type="number"
+                                  className="h-8 text-sm"
+                                  value={value}
+                                  onChange={(e) => setCustomFieldValue(field.id, e.target.value)}
+                                  data-testid={`input-cf-${field.id}`}
+                                />
+                              ) : field.fieldType === "url" ? (
+                                <Input
+                                  id={fieldId}
+                                  type="url"
+                                  placeholder="https://..."
+                                  className="h-8 text-sm"
+                                  value={value}
+                                  onChange={(e) => setCustomFieldValue(field.id, e.target.value)}
+                                  data-testid={`input-cf-${field.id}`}
+                                />
+                              ) : (
+                                <Input
+                                  id={fieldId}
+                                  type="text"
+                                  className="h-8 text-sm"
+                                  value={value}
+                                  onChange={(e) => setCustomFieldValue(field.id, e.target.value)}
+                                  data-testid={`input-cf-${field.id}`}
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </TabsContent>
 
                 <TabsContent value="schedule" className="mt-0 space-y-4">
