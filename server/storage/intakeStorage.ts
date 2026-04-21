@@ -4,6 +4,7 @@ import {
   projectIntakes, mppImports, mppImportTasks, changeRequests,
   intakeWorkflows, intakeWorkflowSteps, projectWorkflows, projectWorkflowSteps,
   projects, tasks, taskDependencies,
+  customFieldDefinitions, taskCustomFieldValues,
   type ProjectIntake, type InsertProjectIntake, type UpdateProjectIntakeRequest,
   type MppImport, type InsertMppImport,
   type MppImportTask, type InsertMppImportTask,
@@ -142,6 +143,77 @@ export async function deleteMppImportTasks(importId: number): Promise<void> {
   await db.delete(mppImportTasks).where(eq(mppImportTasks.importId, importId));
 }
 
+// Persist unmapped CSV columns (e.g. Asana "Section") as task-level custom fields.
+// Auto-creates a `customFieldDefinitions` row of type 'text' for any header that doesn't
+// already exist for the org. Returns a name->definitionId map for reuse across rows.
+async function ensureTaskCustomFieldDefs(
+  tx: any,
+  organizationId: number,
+  fieldNames: string[],
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (fieldNames.length === 0) return result;
+  const existing = await tx.select().from(customFieldDefinitions).where(
+    and(eq(customFieldDefinitions.organizationId, organizationId), eq(customFieldDefinitions.entityType, 'task'))
+  );
+  const byNameLower = new Map<string, any>();
+  for (const def of existing) byNameLower.set(def.name.toLowerCase().trim(), def);
+  for (const name of fieldNames) {
+    const key = name.toLowerCase().trim();
+    if (!key) continue;
+    const found = byNameLower.get(key);
+    if (found) {
+      result.set(name, found.id);
+      continue;
+    }
+    let created;
+    try {
+      [created] = await tx.insert(customFieldDefinitions).values({
+        organizationId,
+        name,
+        fieldType: 'text',
+        entityType: 'task',
+        description: 'Auto-created from CSV import',
+        isRequired: false,
+        isActive: true,
+      }).returning();
+    } catch (e) {
+      // Race: another import may have inserted the same definition concurrently. Re-select.
+      const [refetched] = await tx.select().from(customFieldDefinitions).where(
+        and(
+          eq(customFieldDefinitions.organizationId, organizationId),
+          eq(customFieldDefinitions.entityType, 'task'),
+          eq(customFieldDefinitions.name, name),
+        )
+      ).limit(1);
+      if (!refetched) throw e;
+      created = refetched;
+    }
+    result.set(name, created.id);
+    byNameLower.set(key, created);
+  }
+  return result;
+}
+
+async function writeTaskCustomFieldValues(
+  tx: any,
+  taskId: number,
+  customFields: Record<string, string> | null | undefined,
+  defIdByName: Map<string, number>,
+): Promise<void> {
+  if (!customFields) return;
+  for (const [name, value] of Object.entries(customFields)) {
+    const defId = defIdByName.get(name);
+    if (!defId || value === undefined || value === null || String(value).trim() === '') continue;
+    await tx.insert(taskCustomFieldValues)
+      .values({ taskId, fieldDefinitionId: defId, value: String(value) })
+      .onConflictDoUpdate({
+        target: [taskCustomFieldValues.taskId, taskCustomFieldValues.fieldDefinitionId],
+        set: { value: String(value), updatedAt: new Date() },
+      });
+  }
+}
+
 export async function convertMppImportToProject(
   importId: number,
   projectData: {
@@ -194,6 +266,14 @@ export async function convertMppImportToProject(
       sourceFileUrl: mppImportRecord.fileUrl,
     }).returning();
 
+    // Pre-create custom field definitions for any unmapped CSV headers across all import rows.
+    const customFieldNames = new Set<string>();
+    for (const t of importedTasks) {
+      const cf = (t as any).customFields as Record<string, string> | null | undefined;
+      if (cf) for (const k of Object.keys(cf)) customFieldNames.add(k);
+    }
+    const cfDefIdByName = await ensureTaskCustomFieldDefs(tx, projectData.organizationId, Array.from(customFieldNames));
+
     const taskIdMapping: Map<number, number> = new Map();
     
     for (let i = 0; i < importedTasks.length; i++) {
@@ -236,6 +316,8 @@ export async function convertMppImportToProject(
       if (importedTask.taskId) {
         taskIdMapping.set(importedTask.taskId, newTask.id);
       }
+
+      await writeTaskCustomFieldValues(tx, newTask.id, (importedTask as any).customFields, cfDefIdByName);
     }
 
     for (const importedTask of importedTasks) {
@@ -367,6 +449,14 @@ export async function syncMppImportToProject(
     existingByWbs.clear();
   }
 
+  // Pre-create custom field defs so unmapped CSV columns (e.g. "Section") become task custom fields.
+  const customFieldNames = new Set<string>();
+  for (const t of importedTasks) {
+    const cf = (t as any).customFields as Record<string, string> | null | undefined;
+    if (cf) for (const k of Object.keys(cf)) customFieldNames.add(k);
+  }
+  const cfDefIdByName = await ensureTaskCustomFieldDefs(db, project.organizationId, Array.from(customFieldNames));
+
   const matchedExistingIds = new Set<number>();
   const taskIdMapping = new Map<number, number>();
 
@@ -410,12 +500,14 @@ export async function syncMppImportToProject(
       existingTask = existingByName.get(importedTask.taskName.toLowerCase().trim());
     }
 
+    let writeCustomFieldsForTaskId: number | undefined;
     if (existingTask && syncMode === 'merge') {
       await db.update(tasks)
         .set(taskData)
         .where(eq(tasks.id, existingTask.id));
       matchedExistingIds.add(existingTask.id);
       tasksUpdated++;
+      writeCustomFieldsForTaskId = existingTask.id;
       if (importedTask.taskId) {
         taskIdMapping.set(importedTask.taskId, existingTask.id);
       }
@@ -426,9 +518,14 @@ export async function syncMppImportToProject(
         parentId: null,
       }).returning();
       tasksAdded++;
+      writeCustomFieldsForTaskId = newTask.id;
       if (importedTask.taskId) {
         taskIdMapping.set(importedTask.taskId, newTask.id);
       }
+    }
+
+    if (writeCustomFieldsForTaskId !== undefined) {
+      await writeTaskCustomFieldValues(db, writeCustomFieldsForTaskId, (importedTask as any).customFields, cfDefIdByName);
     }
   }
 

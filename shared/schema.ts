@@ -1538,6 +1538,7 @@ export const mppImportTasks = pgTable("mpp_import_tasks", {
   actualWorkHours: numeric("actual_work_hours"), // Actual work hours from MPP
   remainingWorkHours: numeric("remaining_work_hours"), // Remaining work hours from MPP
   predecessors: text("predecessors"), // JSON array of predecessor relationships [{predecessorTaskId, type, lagDays}]
+  customFields: jsonb("custom_fields").$type<Record<string, string>>(), // Unmapped CSV columns kept as raw key/value (e.g. Asana "Section")
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -2191,7 +2192,11 @@ export const customFieldDefinitions = pgTable("custom_field_definitions", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("cfd_org_entity_name_active_idx")
+    .on(table.organizationId, table.entityType, sql`lower(${table.name})`)
+    .where(sql`${table.isActive} = true`),
+]);
 
 export const insertCustomFieldDefinitionSchema = createInsertSchema(customFieldDefinitions).omit({
   id: true,
