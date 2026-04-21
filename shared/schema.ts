@@ -2225,14 +2225,13 @@ export const customFieldDefinitions = pgTable("custom_field_definitions", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
-  // Explicit operator classes are required because drizzle-kit mis-assigns op classes
-  // when a partial unique index mixes columns of different types with a SQL expression.
+  // Plain-column partial unique index. Case-insensitive uniqueness is enforced at the
+  // application layer (see storage.assertCustomFieldDefinitionNameUnique). A SQL
+  // expression like `lower(name)` was previously included here, but drizzle-kit and the
+  // Replit deploy migration generator emit malformed operator classes when a partial
+  // unique index mixes mixed-type columns with an expression — see commit history.
   uniqueIndex("cfd_org_entity_name_active_idx")
-    .on(
-      table.organizationId.op('int4_ops'),
-      table.entityType.op('text_ops'),
-      sql`lower(${table.name})`,
-    )
+    .on(table.organizationId, table.entityType, table.name)
     .where(sql`${table.isActive} = true`),
 ]);
 
